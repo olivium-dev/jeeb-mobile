@@ -1,29 +1,4 @@
 // N9 — the RESUME BACKSTOP for `NoOfferTimeoutScreen`.
-//
-// ## The regression these tests pin
-//
-// The polling→push conversion deleted the ungated 5 s `Stream.periodic` →
-// `_poll()` → `fetchWaiting` that drove this screen. That poll was never a
-// feature; it was the implicit SELF-HEAL, and nothing replaced it. What was
-// left was a screen on which EVERY widget is a `StatelessWidget` — no
-// `ResumeRefetchMixin`, no `didChangeAppLifecycleState`, no `RouteAware`, no
-// `initState` — whose only non-push fetch is `cubit.load()` inside
-// `BlocProvider(create:)` and whose only retry sits on the ERROR state.
-//
-// A `newOffer` / `request_expired` push that lands while the app is
-// BACKGROUNDED never reaches the refresh bus: only
-// `FirebaseMessaging.onMessage` publishes to it, the background isolate does
-// not, and `app.dart` does not replay a refresh on resume. So a customer who
-// returned to the app WITHOUT tapping the notification sat on a permanently
-// stale "Finding Jeebers" — while `WaitingCubit.tick()` kept the countdown
-// moving, which makes frozen data look live. That is worse than a visibly
-// broken screen.
-//
-// ## Mutation proof
-//
-// Every widget-level case here fails with `RouteResumeRefetch` removed from
-// `no_offer_timeout_screen.dart` — the transcript is recorded in the PR body.
-// A test that would still pass without the subject tests nothing.
 
 import 'dart:async';
 
@@ -41,7 +16,6 @@ import '../../support/sync_app_localizations.dart';
 
 /// `AppResumeSignals` coalesces at a 2 s floor and re-emits on the TRAILING
 /// edge. Assertions are taken after pumping past that window so they measure
-/// the settled read count instead of racing the timer.
 const _resumeSettle = Duration(seconds: 3);
 
 /// A long idle window used as the "no cadence was reintroduced" control. The
@@ -102,8 +76,6 @@ class _ScriptedWaitingRepository implements WaitingRepository {
 
 /// The REAL screen, with only the two seams the existing widget tests use: a
 /// scripted repository and a cubit whose clock/push streams are empty, so no
-/// wall-clock timer leaks into the headless binding. The resume path under test
-/// is production code — nothing about it is stubbed.
 Widget _screen(_ScriptedWaitingRepository repository) => wrapForTest(
   NoOfferTimeoutScreen(
     requestId: _requestId,
@@ -162,8 +134,6 @@ Future<void> _pumpLoaded(
 void main() {
   tearDown(() async {
     // The resume one-shot rides the process-wide `AppResumeSignals` singleton,
-    // whose coalescing window and `_sawBackground` latch would otherwise bleed
-    // between cases and make a resume refetch look dropped.
     await AppResumeSignals.debugReset();
   });
 
@@ -185,8 +155,6 @@ void main() {
         );
 
         // A bid lands while the app is BACKGROUNDED. The push reaches the
-        // background isolate, which never touches the refresh bus, so the
-        // screen has no way to learn about it — until resume.
         repository.offerCount = 1;
         repository.phase = WaitingRequestPhase.offersArrived;
         await tester.pump();
@@ -219,8 +187,6 @@ void main() {
         await _pumpLoaded(tester, repository);
 
         // `request_expired` fired while the process was away. Before this fix
-        // the countdown kept ticking under `WaitingCubit.tick()` on a request
-        // that no longer existed — frozen data that looks live.
         repository.phase = WaitingRequestPhase.expired;
 
         await _resume(tester);
@@ -283,7 +249,6 @@ void main() {
         await _pumpLoaded(tester, repository);
 
         // Hold the read open so the trailing emission lands INSIDE the first
-        // round trip — the exact shape the cubit's in-flight latch exists for.
         repository.hold();
         await _driveToBackground(tester);
         await _driveToForeground(tester);
@@ -325,7 +290,6 @@ void main() {
         expect(repository.fetchRequestCount, baseline);
 
         // POSITIVE CONTROL — the same harness and the same seam must be able to
-        // produce a read, or the zeros above are a dead fixture, not silence.
         await _resume(tester);
         expect(repository.fetchWaitingCount, 1);
       },
@@ -366,7 +330,6 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // POSITIVE CONTROL — once the wire is free the next resume DOES read, so
-      // the 1 above is coalescing rather than a permanently wedged latch.
       cubit.refreshOnResume();
       await Future<void>.delayed(Duration.zero);
       expect(repository.fetchWaitingCount, 2);

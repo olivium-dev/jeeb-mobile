@@ -3,7 +3,6 @@ import 'package:jeeb_mobile/features/client_offers/domain/offer.dart';
 
 /// Reusable offer payloads for the cubit and widget tests. All baseline
 /// timestamps anchor to the same epoch instant so the secondary-sort
-/// (newest-first tie-break) behaviour is deterministic.
 final DateTime kBaseTime = DateTime.utc(2026, 5, 17, 12);
 
 Offer buildOffer({

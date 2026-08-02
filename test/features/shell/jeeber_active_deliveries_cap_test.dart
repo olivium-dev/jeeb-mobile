@@ -1,15 +1,3 @@
-// Compact active-work regression proof for the Jeeber Dashboard.
-//
-// Full active-delivery cards used to sit above incoming requests. Even the old
-// two-card cap could consume the first viewport, so the banner now renders one
-// summary/disclosure row at rest and builds cards only after "view all (N)".
-//
-// These tests pin that contract directly on [ActiveDeliveriesBanner]:
-//   * no cards render at rest, regardless of the active count,
-//   * "view all" reveals every card in place and "show less" folds them,
-//   * onOpenChat / onManageDelivery still fire for revealed cards,
-//   * an empty active-deliveries list still collapses the banner to nothing.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -36,7 +24,6 @@ class _StaticRepo implements ActiveDeliveriesRepository {
 }
 
 /// `n` distinct active deliveries, ids 'd0'..'d(n-1)', titles 'Delivery 0'..,
-/// so each card's title is individually findable and the cards stay unique.
 List<ActiveDeliverySummary> _deliveries(int n) => List.generate(
   n,
   (i) => ActiveDeliverySummary(
@@ -83,8 +70,6 @@ Finder get _bannerCards => find.descendant(
 );
 
 void main() {
-  // A tall surface lets the fully-expanded four-card list stay directly
-  // assertable without introducing a separate scroll-view harness.
   const surface = Size(360, 1400);
 
   Future<ActiveDeliveriesCubit> pump(
@@ -96,8 +81,6 @@ void main() {
     await tester.binding.setSurfaceSize(surface);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    // Long poll so the fake-async timer invariant never trips mid-test; we drain
-    // the single initial load with explicit pumps below.
     final cubit = ActiveDeliveriesCubit(
       repository: _StaticRepo(_deliveries(count)),
     )..start();
@@ -126,7 +109,6 @@ void main() {
     expect(find.text('Delivery 1'), findsNothing);
     expect(find.text('Delivery 2'), findsNothing);
     expect(find.text('Delivery 3'), findsNothing);
-    // The disclosure toggle is present and labelled with the TOTAL count.
     expect(find.byIcon(Icons.expand_more), findsOneWidget);
     expect(find.text('View all (4)'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -142,14 +124,12 @@ void main() {
     await tester.tap(find.byIcon(Icons.expand_more));
     await tester.pump();
 
-    // All four cards now render; the toggle flips to "show less".
     expect(_bannerCards, findsNWidgets(4));
     expect(find.text('Delivery 2'), findsOneWidget);
     expect(find.text('Delivery 3'), findsOneWidget);
     expect(find.byIcon(Icons.expand_less), findsOneWidget);
     expect(find.text('Show less'), findsOneWidget);
 
-    // Folding back returns to the one-row summary and removes every full card.
     await tester.tap(find.byIcon(Icons.expand_less));
     await tester.pump();
     expect(_bannerCards, findsNothing);
@@ -171,12 +151,10 @@ void main() {
       await tester.tap(find.byIcon(Icons.expand_more));
       await tester.pump();
 
-      // Tapping a revealed card body opens its chat.
       await tester.tap(find.text('Delivery 0'));
       await tester.pump();
       expect(opened, ['d0']);
 
-      // Its "Manage delivery" action still fires the manage callback.
       await tester.tap(find.byIcon(Icons.local_shipping_outlined).first);
       await tester.pump();
       expect(managed, ['d0']);
@@ -212,8 +190,6 @@ void main() {
     (tester) async {
       final cubit = await pump(tester, 0);
 
-      // The widget is mounted but renders SizedBox.shrink: no title, no cards,
-      // no toggle — so it never disturbs the empty/feed states.
       expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
       expect(_bannerCards, findsNothing);
       expect(find.text('Your active deliveries'), findsNothing);

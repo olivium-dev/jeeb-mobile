@@ -1,20 +1,4 @@
 // Render tests for the OfferCardBubble previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// `expectedText` pins a string that appears in ONE preview and no other, so a
-// preview wired to the wrong fixture fails here instead of passing on "some
-// widget rendered". The 'No note, no rating' pin is deliberately the FALLBACK
-// copy rather than a name: that state's whole point is that an empty note
-// degrades to the localized ETA line.
-//
-// Scope note: these tests pump into the standard 800x600 test viewport, where
-// the card's Accept + Decline row has ~450 px to spare. At the real phone
-// widths the previews declare (390 / 360 pt) that row overflows — 97 px in EN,
-// 363 px at 200% text. That is a genuine defect in the widget, documented with
-// measurements in the preview library's doc comment; it is not asserted here
-// because a test that pins a bug fails the day someone fixes it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,7 +66,6 @@ void main() {
       await pumpPreview(tester, offerCardBubbleAccepting);
 
       // Same keyed button, different label — the only progress affordance the
-      // card has.
       expect(
         find.byKey(const Key('chat-offer-accept-offer-preview-accepting')),
         findsOneWidget,
@@ -97,8 +80,6 @@ void main() {
       await pumpPreview(tester, offerCardBubbleDeclined);
 
       // `chat_screen.dart` passes onDecline: null once the offer is declined,
-      // and wraps the card at 40% opacity. A preview that lost either half
-      // would stop representing a state the app ships.
       expect(
         find.byKey(const Key('chat-offer-decline-offer-preview-declined')),
         findsNothing,
@@ -127,7 +108,6 @@ void main() {
       // An empty note degrades to the localized ETA line…
       expect(find.text('ETA 12 min'), findsOneWidget);
       // …and rating == 0 drops the stars entirely rather than drawing five
-      // empty ones, which would read as "rated zero" not "not yet rated".
       expect(find.bySemanticsLabel(RegExp(r'Rated .* stars')), findsNothing);
       handle.dispose();
     });
@@ -139,9 +119,6 @@ void main() {
       await pumpPreview(tester, offerCardBubbleLiveOffer);
 
       // JEBV4-98 / F13: the stars suppress their numeric value, so the rating
-      // reaches a screen reader only through this label. Matched by pattern,
-      // not equality: the card merges avatar initial, name, rating and clock
-      // into ONE node, so the label is a multi-line string.
       expect(
         find.bySemanticsLabel(RegExp(r'Rated 4\.8 stars')),
         findsOneWidget,
@@ -156,8 +133,6 @@ void main() {
       await pumpPreview(tester, offerCardBubbleBarePayload);
 
       // With no note there is no price anywhere on the card — `fee`/`currency`
-      // are rendered by no Text at all — yet the Accept button's a11y label
-      // still announces them. Pinning both halves keeps that asymmetry visible.
       expect(find.textContaining('USD'), findsNothing);
       expect(find.textContaining('12.0'), findsNothing);
       expect(find.bySemanticsLabel(RegExp('USD')), findsOneWidget);
@@ -168,8 +143,6 @@ void main() {
       await pumpPreview(tester, offerCardBubbleUndated);
 
       // hasServerTimestamp: false means sentAt is an ordering anchor. Rendering
-      // it as a clock is the 1970-timestamp class of bug the orderAnchor rework
-      // exists to prevent.
       expect(find.byType(ChatBubbleTimestamp), findsOneWidget);
       expect(
         find.descendant(
@@ -241,11 +214,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The card's horizontal chrome is asymmetric on purpose: the outer gutter
-      // is Spacing.medium on the leading edge and Spacing.threeXLarge on the
-      // trailing one, and the avatar hangs off the leading side. Built with
-      // EdgeInsets.only / Alignment.centerRight instead of the directional
-      // variants, both locales would measure identically — so the assertion is
-      // that the two are mirror images, and that there is something to mirror.
       await pumpPreview(tester, offerCardBubbleLiveOffer);
       final Rect ltrBubble = tester.getRect(find.byType(OfferCardBubble));
       final Rect ltrName = tester.getRect(find.text('Kamal Hajj'));

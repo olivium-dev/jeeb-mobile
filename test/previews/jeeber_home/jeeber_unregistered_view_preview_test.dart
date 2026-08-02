@@ -1,14 +1,3 @@
-// Render tests for the JeeberUnregisteredView previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// The greeting line is the only copy that differs between these five states —
-// headline, subtitle and CTA are identical in all of them — so it is what
-// `expectedText` pins. That is the whole point of pinning: a suite that only
-// asked "did something render?" would pass with all five previews wired to the
-// same function.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -70,11 +59,6 @@ void main() {
     });
 
     // CAP-3, from the preview side. The gate preview passes the JM-036
-    // identifier, which wraps the CTA in a SECOND Semantics node. If the root's
-    // `explicitChildNodes: true` ever regresses, the outer node merges the
-    // subtree and the W0 `jeeber_unregistered_register_button` id disappears —
-    // exactly the swallow 8b81dc1 fixed. Both flows tap this one button by
-    // different ids, so both must stay addressable.
     testWidgets('gate preview keeps BOTH CTA identifiers queryable', (
       WidgetTester tester,
     ) async {
@@ -101,9 +85,6 @@ void main() {
     });
 
     // The non-gate previews are how `JeeberHomeScreen` builds the view (no
-    // ctaIdentifier). The coined id must NOT leak into them, or the JM-036
-    // flow's "gate branch is showing" assertion would pass on the plain
-    // screen-19 surface too.
     testWidgets('non-gate previews carry only the W0 CTA id', (
       WidgetTester tester,
     ) async {
@@ -140,8 +121,6 @@ void main() {
     });
 
     // The long-name state is the only one that is genuinely narrow: the width
-    // is baked into the tree, not just declared to the canvas, so the state is
-    // compact in this suite too rather than only in the preview tool.
     testWidgets('the compact state really is 320pt wide', (
       WidgetTester tester,
     ) async {
@@ -154,7 +133,6 @@ void main() {
     });
 
     // Greeting the first name only is what keeps this state readable at 320pt;
-    // the full three-part name would be truncated mid-word.
     testWidgets('greets the first name only, even at 320pt', (
       WidgetTester tester,
     ) async {

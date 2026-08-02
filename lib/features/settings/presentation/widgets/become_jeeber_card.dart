@@ -169,46 +169,6 @@ class _CardText extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/settings/become_jeeber_card_preview_test.dart
-// ===========================================================================
-//
-// Widget previews for [BecomeJeeberCard] — run with
-// `flutter widget-preview start`.
-//
-// The card (T-MOB-027) takes exactly two inputs: an `onTap` and the boolean
-// [BecomeJeeberCard.isAlreadyJeeber]. Its copy is fixed by the ARB, so there
-// is no data to seed and nothing to fake — no cubit, no repository, no
-// network. **Every state below is a LAYOUT state**, and layout is precisely
-// where this widget fails: its body is one unwrapped [Row] of
-// `avatar + Expanded(text) + OmdsPrimaryButton`, and neither the avatar
-// (`Sizes.threeXLarge`) nor the button (which sizes to its label, never
-// shrinks) yields a single pixel. Everything the card loses comes out of the
-// text column.
-//
-// Measured at 1× text scale, English, card width = available width:
-//
-// | width | text column | title lines | card height |
-// |-------|-------------|-------------|-------------|
-// | 320   | 41 pt       | 7           | 412 pt      |
-// | 390   | 111 pt      | 3           | 204 pt      |
-// | 700   | 242 pt      | 1           | 96 pt       |
-//
-// So the ~80 pt design is only ever achieved on a tablet; on a real phone the
-// card is a 204 pt slab with a three-line title. The 200%-text rendering of
-// the matrix is worse still and is the reason these previews exist — see the
-// note on [becomeJeeberCardPhone] and the regression guard in
-// `test/previews/settings/become_jeeber_card_preview_test.dart`.
-//
-// Each preview pins its own width instead of leaving it to the canvas [Size].
-// The canvas honours `size`, but the render tests pump onto a fixed 800 × 600
-// surface — a 320 pt state that only asked for a 320 pt canvas would be
-// rendered at 800 pt under test and silently become the same widget as the
-// default one.
 
 /// A typical phone — the width the card is designed against.
 const double _becomeJeeberCardPhoneWidth = 390;
@@ -258,16 +218,7 @@ class _BecomeJeeberCardViewport extends StatelessWidget {
 
 /// Preview-only stand-in for the settings rows that sit under the card in
 /// `ProfileTab`.
-///
 /// It exists for one state — [becomeJeeberCardAlreadyJeeber] — where the card
-/// renders `SizedBox.shrink()`. Without a neighbour, that state is an empty
-/// canvas that proves nothing: an empty canvas is also what a crashed preview,
-/// a mis-wired fixture, or a deleted widget looks like. With neighbours, the
-/// eye (and the render test) can see the list close up around the gap.
-///
-/// The labels are intentionally scaffolding-English, not ARB keys — they are
-/// not part of the widget under review, and translating them would suggest
-/// they are.
 class _BecomeJeeberCardNeighbourRow extends StatelessWidget {
   const _BecomeJeeberCardNeighbourRow(this.label);
 
@@ -296,17 +247,7 @@ Widget _becomeJeeberCardHosted({
 }
 
 /// The shipping state: a client on a normal phone.
-///
 /// This is the default reading, and it is already wrong. The text column is
-/// 111 pt, so "Become a Jeeber" wraps to three lines and the card is 204 pt
-/// tall — roughly a quarter of the Profile tab — at 1× text scale.
-///
-/// **Open the `EN 200% text` rendering of this preview.** At 200% the CTA label
-/// alone grows to ~253 pt, the avatar and its gutter take another ~72 pt, and
-/// the `Expanded` text column is driven to **zero width**: the title and
-/// subtitle are not just cropped, they are gone, and the [Row] still overflows
-/// by 15 pt. A card whose entire message vanishes at the accessibility ceiling
-/// is the finding this section was written to make visible.
 @JeebPreview(
   group: 'settings',
   name: 'Client · 390',
@@ -316,11 +257,7 @@ Widget becomeJeeberCardPhone() =>
     _becomeJeeberCardHosted(width: _becomeJeeberCardPhoneWidth);
 
 /// The squeeze point: the same card at 320 pt.
-///
 /// 70 pt narrower than [becomeJeeberCardPhone], and every one of those pixels
-/// is taken from the text: the column collapses to 41 pt, "Become a Jeeber"
-/// wraps to SEVEN lines, and the card grows to 412 pt tall — taller than it is
-/// wide. At 200% text this state overflows by 85 pt.
 @JeebPreview(
   group: 'settings',
   name: 'Narrow 320',
@@ -330,12 +267,7 @@ Widget becomeJeeberCardNarrowPhone() =>
     _becomeJeeberCardHosted(width: _becomeJeeberCardNarrowPhoneWidth);
 
 /// The control: the same widget, same copy, at tablet width.
-///
 /// Title on one line, card 96 pt tall — the design as drawn. Keeping this state
-/// next to the two phone states is what turns "the card looks cramped" into a
-/// diagnosis: the copy is not too long, the [Row] simply has no wrap or
-/// [Wrap]/[Column] fallback, so the fix belongs in the layout and not in the
-/// ARB.
 @JeebPreview(
   group: 'settings',
   name: 'Wide 700',
@@ -346,13 +278,6 @@ Widget becomeJeeberCardWide() =>
 
 /// T-MOB-027 AC2, made visible: once the user's `available_roles` already
 /// include Jeeber, the card must disappear ENTIRELY — not grey out, not say
-/// "you are already a jeeber".
-///
-/// Worth its own preview because the widget returns `SizedBox.shrink()`, so a
-/// regression here is silent: a card that failed to build and a card that
-/// correctly hid itself look identical. The neighbour rows are the control —
-/// they must still be there, and the gap between them must close completely
-/// (no leftover padding, no 8 pt ghost).
 @JeebPreview(
   group: 'settings',
   name: 'Already a Jeeber · hidden',

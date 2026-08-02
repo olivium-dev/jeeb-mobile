@@ -1,8 +1,4 @@
 // Render tests for the RequestCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,8 +21,6 @@ void main() {
       'Long addresses · LBP earnings': requestCardLongContent,
     },
     // One string per state that ONLY that state can produce. A suite that
-    // asserted "a card rendered" would pass with every preview showing the
-    // same fixture.
     expectedText: const <String, String>{
       'Standard · live countdown': 'Expires in 45s',
       'Accepting · both locked': 'Accepting…',
@@ -56,7 +50,6 @@ void main() {
       await pumpPreview(tester, requestCardExpired);
 
       // The G3 linger window: still on screen, still labelled Accept/Decline,
-      // but `_actionsLocked` has already killed both.
       expect(find.text('Expires in 0s'), findsOneWidget);
       expect(find.text('Accept'), findsOneWidget);
       expect(find.text('Decline'), findsOneWidget);

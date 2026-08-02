@@ -1,33 +1,6 @@
 // Render tests for the GpsDeniedState previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`: every preview builds in both
-// locales, and each one is pinned to a string only IT renders.
-//
-// The pinned strings are the previews' own scenario captions rather than
-// product copy, and that is forced by the widget: [GpsDeniedState] takes no
-// content at all — three ARB strings, one optional callback — so all five
-// states render identical copy. A suite that pinned the title would pass on
-// five copies of the same preview. `every state renders the shipped copy`
-// below covers the other half, that the captions really are attached to this
-// widget.
-//
-// Below that, the assertions the canvas can only show a human: that the wired
-// CTA is live and the unwired one is a dead end, that the copy localizes, and
-// that the widget overflows every host shorter than its content because it has
-// no scroll view to absorb one.
-//
-// One caveat on the overflow numbers. `flutter test` substitutes the
-// `FlutterTest` font, whose glyphs are wider than the shipped one's, so the
-// content wraps to more lines here than on a device and the *thresholds* below
-// are more pessimistic than production. The claim that does NOT depend on the
-// font is the structural one — see `nothing here scrolls`: there is no
-// [Scrollable] in the subtree, so any shortfall, at any font, is paid in
-// overflow rather than in scrolling.
 
 // `Tristate` is a dart:ui type that `package:flutter/semantics.dart` does not
-// re-export; it is what `SemanticsFlags.isEnabled` actually returns.
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
@@ -65,10 +38,6 @@ final Finder _ctaGesture = find
 
 /// Pumps [preview] into a real device box instead of the 800x600 test surface,
 /// optionally at a raised text scale.
-///
-/// Every geometry assertion here needs this: the previews leave HEIGHT to the
-/// canvas box declared in the annotation, so a test that used the default
-/// surface would measure a box no state actually declares.
 Future<void> _pumpAt(
   WidgetTester tester,
   Widget Function() preview, {
@@ -109,8 +78,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The widget takes no copy arguments, so this is what AC4 says today. If
-      // someone edits the three `captureLocationGpsDenied*` keys and not this
-      // test, this is what says so.
       await pumpPreview(tester, gpsDeniedStateWiredCta);
 
       expect(find.text('Location access required'), findsOneWidget);
@@ -123,7 +90,6 @@ void main() {
 
     testWidgets('the wired CTA is really live', (WidgetTester tester) async {
       // A preview wired to `() {}` looks identical to one wired to nothing at
-      // all; the tally is what tells the two apart in the canvas.
       await pumpPreview(tester, gpsDeniedStateWiredCta);
       expect(find.text('settings opened 0'), findsOneWidget);
 
@@ -137,9 +103,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `isEnabled: onOpenSettings != null` — so `const GpsDeniedState()` is a
-      // dead end: the copy tells the user to grant permission and the only
-      // control on the surface swallows the tap. No exception, no feedback,
-      // nothing on screen to say why.
       await pumpPreview(tester, gpsDeniedStateNoCallback);
       expect(_cta, findsOneWidget);
 
@@ -156,7 +119,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Disposed inline rather than in a tearDown: the end-of-test handle
-      // verification runs BEFORE tearDowns and fails on a live handle.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, gpsDeniedStateWiredCta);
@@ -168,11 +130,6 @@ void main() {
       expect(data.label, 'Open Settings');
 
       // The gap. `OmdsPrimaryButton` is a bare [GestureDetector], and unlike
-      // `CaptureLocationScreen`'s own pin CTA — which wraps it in
-      // `Semantics(identifier: …, button: true)` — this widget wraps it in
-      // nothing. A screen reader announces "Open Settings" with no role and no
-      // hint that it can be activated, on a screen whose entire purpose is to
-      // get the user to activate it.
       expect(data.flagsCollection.isButton, isFalse);
 
       handle.dispose();
@@ -189,9 +146,6 @@ void main() {
           tester.getSemantics(_ctaGesture).getSemanticsData();
 
       // Not merely inert to touch: with `onTap` null the node carries no tap
-      // action AND the `isEnabled` tristate is `none` — not `isFalse`. So
-      // assistive tech is told nothing at all, rather than being told the
-      // control is unavailable, and the label reads like a live one.
       expect(data.hasAction(SemanticsAction.tap), isFalse);
       expect(data.flagsCollection.isEnabled, Tristate.none);
 
@@ -214,10 +168,6 @@ void main() {
       );
 
       // `Sizes.fiveXLarge` is a raw logical size, and [Icon] does not scale by
-      // default, so at the accessibility ceiling the glyph stays 56 pt while
-      // every line of type around it doubles. Not a defect on its own — it is
-      // the reason the content height below grows by a little less than 2x —
-      // but it is why the icon reads as small in the `EN 200% text` renderings.
       expect(tester.getSize(icon).height, 56);
     });
   });
@@ -227,10 +177,6 @@ void main() {
       await pumpPreview(tester, gpsDeniedStateWiredCta);
 
       // The font-independent root cause of every overflow below:
-      // `Center > Padding > Column` with no [SingleChildScrollView]. A slot
-      // shorter than the content cannot be scrolled, so the shortfall is paid
-      // in an overflow stripe in debug and a silent clip in release — and the
-      // first thing off the bottom edge is the CTA.
       expect(
         find.descendant(
           of: find.byType(GpsDeniedState),
@@ -252,10 +198,6 @@ void main() {
       final double atCeiling = tester.getSize(_content).height;
 
       // Measured on a slot tall enough that neither reading overflows, so
-      // these are the heights the widget DEMANDS rather than the heights it
-      // was given. The ratio is what the three overflow tests below are: the
-      // widget asks a phone-height slot for a phone-height column, and asks
-      // for twice that at 200% with no way to give any of it back.
       expect(atCeiling, greaterThan(1.9 * atDefault));
       expect(tester.takeException(), isNull);
     });
@@ -264,7 +206,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The box this preview declares to the canvas: 390x200. Roughly 210 pt
-      // of icon + copy + CTA in about 180 pt of slot.
       await _pumpAt(tester, gpsDeniedStateShortCard, size: const Size(390, 200));
 
       expect(
@@ -278,7 +219,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Same defect from the accessibility side: at default text this state
-      // fits its 740x360 box comfortably, and doubling the type overruns it.
       await _pumpAt(tester, gpsDeniedStateLandscape, size: const Size(740, 360));
       expect(tester.takeException(), isNull);
 
@@ -296,9 +236,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The worst of the three, because there is no host to blame: 320x560 is
-      // the whole body of the narrowest supported phone, not a card and not a
-      // sheet. At the accessibility ceiling the content still does not fit,
-      // and the CTA is what goes over the edge.
       await _pumpAt(
         tester,
         gpsDeniedStateCompactPhone,
@@ -325,9 +262,6 @@ void main() {
       expect(find.text('Location access required'), findsNothing);
 
       // The padding is [EdgeInsetsDirectional] and the column is centred, so
-      // there is nothing to mirror and nothing to catch — pinned so a future
-      // asymmetric layout (an icon beside the text, a leading-aligned CTA)
-      // cannot land without this failing.
       final Rect widgetBox = tester.getRect(find.byType(GpsDeniedState));
       final Rect content = tester.getRect(_content);
       expect(

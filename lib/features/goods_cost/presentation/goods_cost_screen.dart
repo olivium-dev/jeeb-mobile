@@ -196,101 +196,6 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/goods_cost/goods_cost_screen_preview_test.dart
-// ===========================================================================
-//
-// [GoodsCostScreen] is a one-field form: a headline, an amount field labelled
-// in the delivery's gateway-authoritative currency, and a submit CTA that
-// records the cost and pops with the confirmed [GoodsCost].
-//
-// The fakes are NOT declared here. They live in
-// `lib/devtool/catalog/fixtures/goods_cost_screen_fixtures.dart`, shared with
-// the on-device Screen Catalog entry (`devtool/catalog/entries/
-// batch_04_entries.dart`), so the designer's browser and this canvas cannot
-// drift into showing two different "designed states". None of them can reach
-// the network: they answer from a const, throw, or never complete. That is
-// load-bearing rather than decorative — `_resolveRepository()` falls back to
-// `DioGoodsCostRepository(sl<Dio>())` whenever `Dio` is registered, and the
-// `CatalogNetworkGuard` in [jeebPreviewHost] passes GETs, so a state that
-// forgot `repository:` would read a live delivery.
-//
-// Four things about this harness before editing it:
-//
-//  * **The screen owns a Scaffold and [jeebPreviewHost] supplies another.**
-//    They nest; the inner one (OMDSAppBar + body) is the real surface. The
-//    canvas box is therefore a real device ([_goodsCostScreenPhoneBox]) rather
-//    than the harness's 390x200 default, and the frame is pinned in the TREE
-//    as well as in `size:` so the render tests measure the same phone instead
-//    of the 800 pt test surface.
-//  * **`repository:` is the ONLY seam.** The screen builds its own
-//    [GoodsCostCubit] inside `BlocProvider.create` and calls `loadCurrency()`
-//    on it; there is no `cubit:`/`seed:`. So the CURRENCY axis is reachable as
-//    a first frame and the SUBMIT axis is not reachable at all until somebody
-//    types a parseable amount and presses the CTA — `isEnabled` is
-//    `_controller.text.trim().isNotEmpty`, so an untouched screen cannot even
-//    arm it. The three `record*` previews open on an ordinary form and are
-//    BOUND to their outcome; press Confirm in the canvas to reach it, and the
-//    render test performs the press.
-//  * **Every preview is hosted under a real [Navigator] with a page below it.**
-//    Not decoration: the success listener calls
-//    `Navigator.of(context).pop(recorded)`, so on a bare host the first
-//    successful submit would pop the ONLY route and blank the card. The
-//    stand-in below the screen catches the popped [GoodsCost] and prints it,
-//    which turns the pop from a hazard into the one state that shows what this
-//    screen returns. It is also the only reason the app bar has a back arrow:
-//    `OMDSAppBar` leaves `showBackButton` at its `false` default, so the arrow
-//    comes entirely from `automaticallyImplyLeading` finding a route below —
-//    see the last bullet.
-//  * **Each card carries a caption** ([GoodsCostScreenCaptions]), because the
-//    designed states here are nearly invisible: the only production copy that
-//    varies is the field label, and two distinct states (`read in flight` and
-//    `read failed`) render the identical neutral label. Same device as
-//    `DeliveryReceiptScreenCaptions`.
-//
-// What these previews surfaced in the screen — none of it changed here:
-//
-//  * **The field prefixes a hardcoded `$`.** `prefixIcon:
-//    Icon(Icons.attach_money)` sits immediately left of a label the code goes
-//    out of its way to source from the gateway — the comment above `_label`
-//    cites 40_GUARDRAILS_ARCH §5, "no hardcoded currency". On
-//    [goodsCostScreenCurrencyLbp] the Jeeber is asked for `Goods cost (LBP)`
-//    beside a dollar sign, and in AR the mirrored layout puts that dollar sign
-//    on the right of an Arabic label. The guardrail was applied to the string
-//    and missed the icon.
-//  * **`_submit` fails silently on anything `double.tryParse` rejects.**
-//    `final amount = double.tryParse(...); if (amount == null) return;` — with
-//    a non-empty field the CTA is ENABLED, so pressing it produces no spinner,
-//    no error, no state change at all. `12,5` (comma decimal), `12.5.6`, `abc`
-//    and `١٢` (Arabic-Indic digits, which is what `TextInputType.number` gives
-//    an Arabic keyboard) are all dead presses. There is no `inputFormatters`
-//    and no validator, so nothing prevents any of them from being typed.
-//  * **Nothing on this screen scrolls, and the keyboard is always up.** The
-//    body is a fixed `Column` whose last child is `Expanded`, and inside it a
-//    `Column` of field + optional error + `Spacer` + CTA. The `Spacer` gives
-//    slack back but cannot create height: once the viewport is shorter than
-//    header + field + CTA the whole thing overflows outright. Standing still it
-//    fits everywhere — measured in EN with the real Inter face, the slack is
-//    532 pt on a 390x844 phone and 256 pt on the narrowest supported one
-//    ([_goodsCostScreenCompactBox]), dropping to 356 and ~40 at 200% text. The
-//    problem is that this is a TEXT-ENTRY screen, so the software keyboard —
-//    ~290 pt, and up the whole time the field is focused — is subtracted from
-//    exactly that slack by the screen's own `resizeToAvoidBottomInset`. On the
-//    compact frame it does not fit at 100% text, never mind 200%. The render
-//    test pins the slack figures and the overflow.
-//  * **The pop is unguarded.** `Navigator.of(context).pop(recorded)` in the
-//    success listener, on a screen whose app bar leaves `showBackButton` at
-//    its `false` default. If this screen is ever reached by a stack-REPLACING
-//    navigation, that pop empties the Navigator — the exact failure
-//    `OMDSAppBar._buildBackButton` guards against with `maybePop`, documented
-//    in its own source. The screen is an orphan today (JEBV4-227), so this is
-//    a trap laid for whoever routes it, not a live defect.
-//
-// The states are the three the Screen Catalog names plus five it does not.
 
 /// The phone this screen is designed against.
 const Size _goodsCostScreenPhoneBox = Size(390, 844);
@@ -300,11 +205,7 @@ const Size _goodsCostScreenPhoneBox = Size(390, 844);
 const Size _goodsCostScreenCompactBox = Size(320, 568);
 
 /// The caption each preview is pinned by.
-///
 /// Public because the render test's `expectedText` map is the reason they
-/// exist: four of these states put NO distinguishing production copy on screen.
-/// Dev chrome, never shipped copy, so they are deliberately un-localized and
-/// rendered LTR at a fixed text scale.
 final class GoodsCostScreenCaptions {
   GoodsCostScreenCaptions._();
 
@@ -334,10 +235,8 @@ final class GoodsCostScreenCaptions {
 }
 
 /// The page BELOW the screen in the preview's Navigator: whoever pushed it.
-///
 /// Renders the [GoodsCost] the screen popped with, so the success path — the
 /// only thing this screen exists to do — is inspectable instead of being a card
-/// that goes blank. Un-localized dev chrome.
 class _GoodsCostScreenCallerStandIn extends StatelessWidget {
   const _GoodsCostScreenCallerStandIn({required this.returned});
 
@@ -368,12 +267,7 @@ class _GoodsCostScreenCallerStandIn extends StatelessWidget {
 
 /// Puts a real [Navigator] above [GoodsCostScreen], pins the device frame, and
 /// captions the state.
-///
 /// Stateful, and both the repository and the routes are built once: a
-/// repository rebuilt every frame would re-arm a fake whose `recorded` field is
-/// meant to survive a press, and regenerated routes would drop the navigation
-/// state the success `pop` depends on. Two routes, not one — the screen is
-/// pushed for a result, which is what its own `pop(recorded)` assumes.
 class _GoodsCostScreenHost extends StatefulWidget {
   const _GoodsCostScreenHost({
     required this.createRepository,
@@ -412,7 +306,6 @@ class _GoodsCostScreenHostState extends State<_GoodsCostScreenHost> {
       ),
     );
     // The screen pops with its gateway-confirmed record and nothing in a
-    // preview would otherwise receive it.
     entry.popped.then((Object? value) {
       if (!mounted) return;
       _returned.value = value is GoodsCost ? value : null;
@@ -444,8 +337,6 @@ class _GoodsCostScreenHostState extends State<_GoodsCostScreenHost> {
               child: Text(
                 widget.caption,
                 // Dev chrome: LTR and unscaled, so the AR card still reads it
-                // as one latin line and the 200% card does not spend a third of
-                // the device on a label.
                 textDirection: TextDirection.ltr,
                 textScaler: TextScaler.noScaling,
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -484,17 +375,6 @@ Widget _goodsCostScreenHosted(
 
 /// The reference reading: the delivery is priced in `USD`, so the field reads
 /// `Goods cost (USD)`.
-///
-/// Also the ONLY state that completes: `FakeGoodsCostRepository` records
-/// happily, so typing an amount and pressing Confirm pops with a
-/// gateway-confirmed [GoodsCost] and the stand-in underneath prints it. Try
-/// `12.5` — then try `12,5`, which is what a comma-decimal keyboard produces:
-/// the CTA is enabled and the press does nothing at all, because `_submit`
-/// drops a `double.tryParse` miss on the floor without a word.
-///
-/// Matrixed because this is the whole screen in three readings at once: in AR
-/// the label, the `$` prefix icon and the CTA all mirror, and at 200% text the
-/// header grows into the space the `Expanded` body needs.
 @JeebPreview(
   group: 'goods_cost',
   name: 'Currency USD · records and pops',
@@ -508,11 +388,6 @@ Widget goodsCostScreenCurrencyUsd() => _goodsCostScreenHosted(
 
 /// The same screen for a delivery priced in Lebanese pounds: `Goods cost (LBP)`
 /// — beside `Icons.attach_money`.
-///
-/// The label is gateway-authoritative on purpose (40_GUARDRAILS_ARCH §5, quoted
-/// above `_label`); the prefix icon next to it is a hardcoded dollar sign. This
-/// card is where the two are visible in the same slot, and the AR rendering is
-/// where the `$` swaps sides.
 @JeebPreview(
   group: 'goods_cost',
   name: 'Currency LBP · hardcoded \$ icon',
@@ -526,14 +401,6 @@ Widget goodsCostScreenCurrencyLbp() => _goodsCostScreenHosted(
 
 /// The first frame of EVERY mount: `loadCurrency()` is fired from
 /// `BlocProvider.create` and has not answered yet.
-///
-/// Note what is absent. The field is labelled with the neutral `Goods cost`,
-/// the CTA is live, and nothing anywhere says a read is in progress — no
-/// spinner, no skeleton, no disabled state. A Jeeber who starts typing
-/// immediately gets the label relabelled under their finger the moment the read
-/// lands. Read it beside [goodsCostScreenCurrencyUnavailable]: the two are
-/// pixel-identical and mean opposite things, which is the whole reason the
-/// captions exist.
 @JeebPreview(
   group: 'goods_cost',
   name: 'Currency read in flight',
@@ -546,12 +413,6 @@ Widget goodsCostScreenCurrencyPending() => _goodsCostScreenHosted(
 
 /// The currency read threw and the cubit swallowed it — deliberately: the read
 /// is best-effort and a failure must not block cost entry.
-///
-/// What the Jeeber is left with is a bare `Goods cost` and no way to know which
-/// currency the number will be recorded in. The amount is sent as a plain
-/// double and the gateway attaches the currency, so nothing is mis-recorded —
-/// but the person typing cannot tell whether they are being asked for dollars
-/// or for pounds, and the two differ by ~90,000x.
 @JeebPreview(
   group: 'goods_cost',
   name: 'Currency read failed · neutral label',
@@ -564,16 +425,6 @@ Widget goodsCostScreenCurrencyUnavailable() => _goodsCostScreenHosted(
 
 /// A form that loads perfectly and whose record is rejected with the 422 the
 /// gateway returns for a non-positive or out-of-range amount.
-///
-/// The first frame is an ordinary empty form, because
-/// `GoodsCostSubmitStatus.failed` is not constructible without input — see the
-/// second bullet in the section prose. Type an amount and press Confirm: the
-/// inline `goods-cost-error` appears under the field reading "Enter a valid
-/// amount and try again." Then type one more character and watch it vanish —
-/// `onChanged` calls `acknowledgeError()`, so the message the Jeeber is meant
-/// to act on is destroyed by the act of acting on it, and nothing marks the
-/// field itself as invalid. Note also that the client never validates: `-5` and
-/// `0` are submitted to the gateway to be rejected there.
 @JeebPreview(
   group: 'goods_cost',
   name: 'Record rejected · 422 validation',
@@ -586,11 +437,6 @@ Widget goodsCostScreenRecordRejected() => _goodsCostScreenHosted(
 
 /// The record never reached the server: the retryable failure, and the one a
 /// Jeeber standing in a shop on a bad connection actually hits.
-///
-/// Same shape as [goodsCostScreenRecordRejected] and different copy, which is
-/// the point — the two are told apart only by the sentence, and only one of
-/// them can be fixed by pressing Confirm again. The fixture keeps failing, so
-/// a retry here behaves the way it does on a dead connection.
 @JeebPreview(
   group: 'goods_cost',
   name: 'Record failed · network',
@@ -603,12 +449,6 @@ Widget goodsCostScreenRecordNetworkDown() => _goodsCostScreenHosted(
 
 /// The record is in flight and never lands: the CTA spins and the field goes
 /// disabled.
-///
-/// The only way to hold `GoodsCostSubmitStatus.inFlight` on screen — on a real
-/// gateway it is a few hundred milliseconds. Type an amount and press Confirm.
-/// Worth looking at because it is the one state that takes the field away: the
-/// Jeeber can no longer see or correct what they typed while the record is
-/// outstanding, and there is no cancel.
 @JeebPreview(
   group: 'goods_cost',
   name: 'Record in flight · CTA spinner',
@@ -620,23 +460,7 @@ Widget goodsCostScreenRecordStalled() => _goodsCostScreenHosted(
     );
 
 /// The layout ceiling: the narrowest supported phone, 320x568.
-///
 /// Nothing on this screen scrolls. `_GoodsCostView` is a fixed `Column` ending
-/// in `Expanded`, and the body inside it is field + optional error + `Spacer` +
-/// CTA. The `Spacer` gives slack back but cannot create height, so the moment
-/// the viewport is shorter than header + field + CTA the body overflows.
-///
-/// Standing still this frame is fine in both cards of the matrix: 256 pt of
-/// slack at 100% text and about 40 pt at 200% (measured in EN with the real
-/// Inter face — the AR figure under the test font is an artifact, see the
-/// render test). Focus the field on a device, though, and the keyboard takes
-/// ~290 pt out of exactly that slack, which the compact frame does not have at
-/// any text scale. The render test pins the slack and pins the overflow that
-/// follows.
-///
-/// The 200% card is worth opening for a second reason: it is where you can see
-/// that the CTA has stopped floating at the bottom and is sitting directly
-/// under the field, because the `Spacer` has nothing left to give.
 @JeebPreview(
   group: 'goods_cost',
   name: 'Compact 320x568 · no scroll anywhere',

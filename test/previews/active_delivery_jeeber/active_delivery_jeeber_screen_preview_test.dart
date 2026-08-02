@@ -1,23 +1,4 @@
 // Render tests for the ActiveDeliveryJeeberScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// This screen has ONE axis — the `ActiveDeliveryState` its cubit holds — and
-// several of its states are near-neighbours on screen: `InTransit` and
-// `AtDoor` differ by one swapped button, the two GPS-permission states differ
-// by one bool, and the three unsuccessful terminals share a code path and
-// differ only in copy. A render-only check would pass on a preview wired to the
-// wrong fixture in every one of those pairs, so each state pins a string of its
-// own AND the specifics groups below pin what must be ABSENT — which is where
-// the two regression guards (JEBV4-276, the GPS CTA choice) actually live.
-//
-// One preview per test, always. `previewCanvas` produces the same widget types
-// for every preview, so pumping a second one into the same tester UPDATES the
-// host element rather than replacing it: `_ActiveDeliveryJeeberScreenHostState`
-// keeps the FIRST preview's `late final` cubit and the second preview would
-// silently render the first one's state under the second one's name.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,7 +10,6 @@ import '../preview_test_harness.dart';
 
 /// The seam-pin identifier the route flow asserts on first frame. Present on
 /// the working screen AND on the unavailable shell, which is the point of
-/// [activeDeliveryJeeberScreenUnavailable].
 const String _markDeliveredRoot = 'mark_delivered_root';
 
 /// Widgets whose presence separates a loaded delivery from every degraded
@@ -48,9 +28,6 @@ void main() {
     'ActiveDeliveryJeeberScreen',
     const <String, Widget Function()>{
       // `Loading · cold open` is deliberately absent from `expectedText`: the
-      // state paints a bare `CircularProgressIndicator` and NO text at all, so
-      // there is nothing to pin. It is asserted in its own group below, where
-      // the absence is the assertion.
       'Loading · cold open': activeDeliveryJeeberScreenLoading,
       'Unavailable · no seam wired': activeDeliveryJeeberScreenUnavailable,
       'Load failed · retry': activeDeliveryJeeberScreenLoadFailed,
@@ -73,7 +50,6 @@ void main() {
     expectedText: const <String, String>{
       'Unavailable · no seam wired': 'Delivery details unavailable.',
       // The cubit's own English literal, NOT the localized fallback — see the
-      // preview's doc comment.
       'Load failed · retry': ActiveDeliveryJeeberScreenFixtures.loadErrorMessage,
       // Names the NEXT status, and only the pre-delivering stages have it.
       'Ordered · advance CTA': 'Mark as Picked',
@@ -83,7 +59,6 @@ void main() {
       'GPS blocked · settings only': 'Open settings',
       'Delivered · completed': 'Delivered successfully',
       // This state renders no banner and no panel, so its own drop-off is the
-      // only thing that distinguishes it from a plain `Done`.
       'Completing · no premature banner':
           ActiveDeliveryJeeberScreenFixtures.optimisticDropOffLabel,
       'Cancelled · terminal': 'Delivery cancelled',
@@ -102,7 +77,6 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       // No title, no message, no retry, nothing to cancel — the whole reason
-      // this state is previewed.
       expect(find.text(_progressTitle), findsNothing);
       expect(find.text(_dropOffLabel), findsNothing);
       expect(
@@ -118,7 +92,6 @@ void main() {
       await pumpPreview(tester, activeDeliveryJeeberScreenUnavailable);
 
       // Indistinguishable from a working delivery to any flow that asserts
-      // only the route pin.
       expect(_semanticsIdentifier(_markDeliveredRoot), findsOneWidget);
       expect(find.text('Delivery details unavailable.'), findsOneWidget);
       // Nothing to retry with, and no delivery to act on.
@@ -146,7 +119,6 @@ void main() {
       expect(find.text('Complete Delivery'), findsOneWidget);
       expect(find.text('Enter delivery code'), findsNothing);
       // JM-051: the stepper drops its own advance button for the whole
-      // delivering phase — the journey to Done belongs to the panel.
       expect(find.text('Mark as At Door'), findsNothing);
       expect(find.text('Mark as In Transit'), findsNothing);
     });
@@ -157,7 +129,6 @@ void main() {
 
       expect(find.text('Enter delivery code'), findsOneWidget);
       // `activeDeliveryOtpSubmit` and `activeDeliveryMarkDone` are both
-      // "Complete Delivery", so the swap is invisible from the button alone.
       expect(find.text('Complete Delivery'), findsOneWidget);
       expect(find.text('Mark as At Door'), findsNothing);
     });
@@ -166,8 +137,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_QuickActions` only builds its `Row` above 448 pt of content width,
-      // and a 390 pt phone leaves the list 358 — so the row branch is
-      // unreachable on every handset the app supports.
       await pumpPreview(tester, activeDeliveryJeeberScreenOrdered);
 
       final Offset maps = tester.getCenter(find.text('Open in Maps'));
@@ -195,8 +164,6 @@ void main() {
       );
 
       // The OTP path reverts from exactly this frame back to AtDoor, so a
-      // banner here tells the jeeber the handover succeeded before anything
-      // confirmed it.
       expect(find.text('Delivered successfully'), findsNothing);
       expect(
         find.text(ActiveDeliveryJeeberScreenFixtures.optimisticDropOffLabel),
@@ -254,8 +221,6 @@ void main() {
         expect(find.text(_progressTitle), findsNothing);
         expect(find.text(_dropOffLabel), findsNothing);
         // `Delivery under review` means support is still working the case and
-        // an admin can still resolve it (SM edges 12/13) — the jeeber is given
-        // no way to reach anyone from here.
         expect(find.text('Open Chat'), findsNothing);
         expect(find.text('Open in Maps'), findsNothing);
       });

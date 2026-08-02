@@ -5,68 +5,23 @@ import 'package:jeeb_mobile/core/network/mock_gateway_client.dart';
 
 import 'mb1_source_lens.dart';
 
-/// MB1 member item **W1.4** — the corrected device build line.
-///
-/// ```
-/// flutter build apk --debug --flavor dev \
-///   --dart-define=JEEB_MOCK_BASE_URL=http://127.0.0.1:9000 \
-///   --dart-define=JEEB_DEVTOOL_ENABLED=true \
-///   --dart-define=JEEB_BUILD_SHA=<sha>
-/// ```
-///
-/// ## What can actually go wrong here, and what a build exit code cannot catch
-///
-/// `flutter build apk` exits 0 for **any** `--dart-define`. A misspelled key, a
-/// key nothing reads, a key that was renamed three PRs ago — all build clean
-/// and all produce an APK that silently ignores the operator's intent. Attempt
-/// 1's device window was lost to exactly this shape at the other end of the
-/// same wire: a stale `http://127.0.0.1:9000` from a dead `adb reverse` tunnel
-/// broke every backend call and presented as product bugs.
-///
-/// So a green `flutter build` is **not** the W1.4 receipt. The receipt is that
-/// every key on the line has a LIVE consumer in `lib/`, and that the one key
-/// the line deliberately omits is genuinely inert.
-///
-/// ## The omission that needs justifying
-///
-/// The writer's build line omits `GATEWAY_BASE_URL` on the stated ground that
-/// it "has zero non-test consumers". That is a checkable claim and it is
-/// checked below — because if it were false, the APK under gate would be
-/// pointing at `AppConfig.gatewayBaseUrl`'s default of `https://api.jeeb.app`,
-/// a **non-MSI public host**, which the owner's scope exclusion 3 forbids
-/// outright. This row is the one place that risk is measured rather than
-/// assumed.
-///
-/// Class: `build`/`static`.
+/// W1.4 — verify build line has live consumers and omissions are inert.
 
-/// Repo-relative Dart sources under `lib/`, comment-stripped, keyed by path.
-/// For SYMBOL receipts only — see [_libRaw] for anything about a URL.
 Map<String, String> _libSources() => <String, String>{
   for (final f in MB1Source.dartFilesUnder(<String>['lib']))
     MB1Source.rel(f): MB1Source.stripComments(f.readAsStringSync()),
 };
 
-/// The same files, RAW.
-///
-/// The `.50` ban MUST use this. `stripComments` treats `//` as a line comment,
-/// so `'http://192.168.2.50:10090'` strips down to `'http:` and the banned host
-/// disappears from the text being searched. The first draft of the HARD RULE
-/// case below ran on stripped source and stayed GREEN with the banned host
-/// hardcoded in `lib/core/dev_flags.dart` — a confidently wrong PASS on the
-/// single most-repeated owner directive in this programme. The negative control
-/// is the only reason it was found.
 Map<String, String> _libRaw() => <String, String>{
   for (final f in MB1Source.dartFilesUnder(<String>['lib']))
     MB1Source.rel(f): f.readAsStringSync(),
 };
 
-/// Files declaring `String/bool.fromEnvironment('<key>')`.
 List<String> _declarers(Map<String, String> lib, String key) => <String>[
   for (final e in lib.entries)
     if (RegExp("fromEnvironment\\(\\s*'$key'").hasMatch(e.value)) e.key,
 ];
 
-/// Files that READ [symbol] somewhere other than its own declaration line.
 List<String> _readers(Map<String, String> lib, String symbol, String declFile) =>
     <String>[
       for (final e in lib.entries)
@@ -93,8 +48,6 @@ void main() {
         contains('lib/core/network/mock_gateway_client.dart'),
       );
       // Runtime half: the constant resolves to a usable origin under the
-      // suite's own (undefined) build, so the define is wired to a real getter
-      // and not to dead code.
       expect(Uri.parse(MockGatewayClient.mockBaseUrl).hasScheme, isTrue);
     });
 
@@ -120,11 +73,6 @@ void main() {
 
     test('JEEB_BUILD_SHA is read, and reaches the capture HEADER', () {
       // Load-bearing for the gate itself: V-1 "reads buildSha off the on-device
-      // capture header and matches it to the merged SHA", and
-      // `tools/apk-identity.sh` is the instrument. If this define stops
-      // reaching the header, every device round in the programme becomes
-      // unattributable — which `DEVICE-BUILD.md` §3 records as the state of all
-      // 54 historical captures.
       final declarers = _declarers(lib, 'JEEB_BUILD_SHA');
       expect(
         declarers,
@@ -163,7 +111,6 @@ void main() {
 
     test('POSITIVE CONTROL — the reader-counter is not blind', () {
       // Same instrument, a symbol that IS read across the tree. Without this,
-      // the isEmpty above is indistinguishable from a broken matcher.
       expect(
         _readers(lib, 'MockGatewayClient.mockBaseUrl',
             'lib/core/network/mock_gateway_client.dart'),
@@ -179,10 +126,6 @@ void main() {
 
     test('HARD RULE — no lib/ source hardcodes the banned .50 host', () {
       // Owner directive, repeated and escalating. A build line is the surface
-      // that decides which host an APK dials, so this row belongs to W1.4.
-      //
-      // RAW, not stripped. See [_libRaw] — this exact assertion was blind on
-      // stripped source.
       final raw = _libRaw();
       final offenders = <String>[
         for (final e in raw.entries)
@@ -191,9 +134,6 @@ void main() {
       expect(offenders, isEmpty, reason: 'MSI 192.168.2.39 is the only server');
 
       // POSITIVE CONTROL, and it is the control that matters: the SAME lens,
-      // over the same corpus, DOES find the MSI host. A ban assertion whose
-      // corpus contains no host strings at all is indistinguishable from a
-      // working one.
       final msi = <String>[
         for (final e in raw.entries)
           if (e.value.contains('192.168.2.39')) e.key,
@@ -208,7 +148,6 @@ void main() {
       );
 
       // And the stripped lens is demonstrably NOT usable for this: same
-      // string, opposite answer.
       const url = "const String h = 'http://192.168.2.50:10090';";
       expect(url.contains('192.168.2.50'), isTrue);
       expect(
@@ -225,8 +164,6 @@ void main() {
   group('the non-claim, stated explicitly', () {
     test('a green build proves COMPILATION, not installation or behaviour', () {
       // `MB1.md`: "The writer did NOT install it … This row proves the line
-      // COMPILES, nothing more." Recorded as an assertion so the pack cannot
-      // be read as having exercised an APK.
       expect(
         kDevToolEnabled,
         isFalse,

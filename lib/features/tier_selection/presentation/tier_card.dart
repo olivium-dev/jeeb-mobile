@@ -229,77 +229,14 @@ class _MetaRow extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/tier_selection/tier_card_preview_test.dart
-// ===========================================================================
-//
-// Widget previews for [TierCard] — run with `flutter widget-preview start`.
-//
-// The card is one row of the tier list on `/tier-selection`. It is pure
-// presentation: every string, both icons and the `selected` flag are passed in
-// by `_TierListEntry` in `tier_selection_screen.dart`, and the tap callback is
-// the caller's. **No cubit, no repository, nothing to seed** — these previews
-// are network-free by construction and the guard in [jeebPreviewHost] never has
-// anything to reject.
-//
-// **The state space is `selected` × `recommendedBadgeText` × copy length.**
-// `selected` swaps FOUR things at once (fill `surfaceContainerLow` →
-// `primaryContainer`, ink → `onPrimaryContainer`, border `outlineVariant` →
-// `primary`, border width 1 → 2) and adds the trailing check; the badge adds a
-// second child to the same header `Row`; copy length decides how far the header
-// title and the two `_MetaRow` labels get squeezed.
-//
-// **Where the copy comes from.** Four states read the ARB through the same
-// `tierSelection*` keys `_TierListEntry` uses and format their prices through
-// the same [MoneyFormat], so the AR rendering of the matrix reviews the
-// shipping Arabic (and the LTR-isolated money tokens inside it) rather than
-// English sitting in an RTL box. Only [tierCardLongCopy] carries fixture copy,
-// and it has to: no shipping tier name, footer or vehicle label is long enough
-// to reach any of the three constrained `Text`s in this widget.
-//
-// **What to look at.**
-// * `Recommended + selected` in EN light: the badge pill disappears. Its fill
-//   is `tertiaryContainer` and the selected card's fill is `primaryContainer`,
-//   and in the light scheme those are the SAME colour (#FFDBD1) — as is its
-//   ink against the card's `onPrimaryContainer`. Pinned in
-//   `test/previews/tier_selection/tier_card_preview_test.dart`. The AR RTL
-//   rendering of the same state is dark, where the seeded scheme separates the
-//   two roles, so the matrix shows the broken and the working reading together.
-// * Any unselected state: the card is `surfaceContainerLow` (#FAF8FA) inside a
-//   white `Scaffold`, hairlined with 1 dp of `outlineVariant` (#E5E1E5). At
-//   1.21:1 that boundary is the only thing separating one tappable tier from
-//   the next.
-// * 200%: both `_MetaRow` glyphs are a raw `Icon(size: Sizes.medium)` and the
-//   selected check is `Sizes.large`, so all three stay 16/20 dp while the copy
-//   beside them doubles.
-// * `Long copy`: every `overflow: TextOverflow.ellipsis` in this widget is
-//   inert. None of the three carries `maxLines`, and the card is measured
-//   against unbounded height (a `ListView` child in the app, a shrink-wrapping
-//   column here), so the title and the meta labels WRAP and grow the card
-//   instead of truncating.
 
 /// Canvas boxes at a 390 dp phone width. Inside [_tierCardListInset] that
 /// leaves the card its production 350 dp, so its copy wraps where the app wraps
-/// it rather than at the 800 dp a default test surface would give it.
-///
-/// The heights are the **200% rendering's**, not the 100% one's: one box serves
-/// all three renderings of a matrix state, and this card grows instead of
-/// clipping. A box sized for the English light reading would render the
-/// accessibility one as a stripe of overflow paint, which tells you nothing
-/// about the widget. Measured ceilings are 584 dp (Express, the shipping footer
-/// that wraps furthest) and 944 dp, both in EN — Arabic runs shorter here. The
-/// numbers are pinned by a test — see
-/// `test/previews/tier_selection/tier_card_preview_test.dart`.
 const Size _tierCardShippingCopyBox = Size(390, 600);
 const Size _tierCardLongCopyBox = Size(390, 960);
 
 /// What surrounds ONE card in the tier list: the `ListView.separated`'s
 /// horizontal [Spacing.large] padding and, vertically, the [Spacing.small]
-/// separator between two cards.
 const EdgeInsetsDirectional _tierCardListInset =
     EdgeInsetsDirectional.symmetric(
   horizontal: Spacing.large,
@@ -308,18 +245,10 @@ const EdgeInsetsDirectional _tierCardListInset =
 
 /// Every tier in the bundled catalog is priced in Lebanese pounds, which is
 /// also the currency that produces the longest money token — `LBP 160,000.00`
-/// against `$160.00`. Previewing the short one would hide the wrap.
 const String _tierCardCurrency = 'LBP';
 
 /// Mounts the card the way `_LoadedView`'s `ListView` does: the list inset,
 /// full-bleed width, and a shrink-wrapping column.
-///
-/// `mainAxisSize: MainAxisSize.min` is load-bearing. In the app the card is a
-/// `ListView` child, so it is measured against an unbounded height and takes
-/// its intrinsic one. Dropped straight into the preview host's `Scaffold`, the
-/// card's own `Column` (which is `crossAxisAlignment: stretch`, main axis
-/// `max`) would stretch to the whole canvas and spread the five rows over a
-/// height the app never draws.
 Widget _tierCardHosted({
   required String identifier,
   required String name,
@@ -352,8 +281,6 @@ Widget _tierCardHosted({
           semanticLabel: semanticLabel,
           selectedHint: selectedHint,
           // Selection is the screen's cubit to own; the card only reports the
-          // tap. A no-op here is the honest fixture — a preview that toggled
-          // itself would be previewing a widget this one is not.
           onTap: () {},
         ),
       ],
@@ -368,7 +295,6 @@ Widget _tierCardLocalized(Widget Function(AppLocalizations l10n) build) =>
 
 /// The indicative price band, assembled exactly as `_TierListEntry` assembles
 /// it: two [MoneyFormat] tokens (each wrapped in a Unicode LTR isolate) joined
-/// by the ARB's en-dash pattern.
 String _tierCardPriceRange(AppLocalizations l10n, int low, int high) =>
     l10n.tierSelectionPriceRange(
       MoneyFormat.format(low.toDouble(), currency: _tierCardCurrency),
@@ -377,8 +303,6 @@ String _tierCardPriceRange(AppLocalizations l10n, int low, int high) =>
 
 /// Builds one card from a tier's parts the way `_TierListEntry` does —
 /// including the `tier_selection_card_<id>` identifier QA targets and the
-/// composed semantic label, so the semantics tree in the preview is the one the
-/// screen produces.
 Widget _tierCardTier(
   AppLocalizations l10n, {
   required String slug,
@@ -416,13 +340,6 @@ Widget _tierCardTier(
 
 /// The resting state: on arrival every card on the screen looks like this, and
 /// four of the five still do after the customer has chosen.
-///
-/// It is also where the card's weakest signal lives. Unselected means a
-/// `surfaceContainerLow` fill (#FAF8FA) on the white `Scaffold` behind it —
-/// 1.04:1 — outlined with 1 dp of `outlineVariant` (#E5E1E5) at 1.21:1. WCAG
-/// 1.4.11 asks 3:1 of a boundary that identifies a control, and this boundary
-/// is the only thing telling a customer where one tappable tier ends and the
-/// next begins.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Unselected · Standard',
@@ -445,11 +362,6 @@ Widget tierCardUnselected() => _tierCardLocalized(
 
 /// The chosen tier, with no back-office recommendation on it: peach fill, dark
 /// ink, a 2 dp navy border and the trailing check.
-///
-/// Worth reading beside the unselected state above, because `selected` changes
-/// the fill, both ink colours, the border colour AND the border width at once —
-/// and the only one of those that survives a grayscale or colour-blind reading
-/// is the check glyph.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Selected · Express',
@@ -471,20 +383,7 @@ Widget tierCardSelected() => _tierCardLocalized(
     );
 
 /// The full header: title + recommended pill + check, all in one `Row`.
-///
 /// Flash is the only tier the catalog ever flags (`recommended: id ==
-/// TierId.flash` in `DioTierRepository`), so this is the exact state the screen
-/// reaches the moment a customer taps the recommendation — and it is broken in
-/// the light scheme. The pill paints `tertiaryContainer` on a card painted
-/// `primaryContainer`, and `AppTheme` sets both to #FFDBD1; its ink is
-/// `onTertiaryContainer`, which is `onPrimaryContainer`. The badge is therefore
-/// invisible on precisely the card it is meant to endorse — the word
-/// "Recommended" reads as a stray run of header text.
-///
-/// `matrix: true` because the AR RTL rendering is DARK, where
-/// `ColorScheme.fromSeed` separates the two roles and the pill comes back. The
-/// three cards side by side are the shortest proof that this is a light-scheme
-/// palette collision and not a layout bug.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Recommended + selected · Flash',
@@ -509,13 +408,7 @@ Widget tierCardRecommendedSelected() => _tierCardLocalized(
     );
 
 /// The opportunistic tier — the one row where the SLA is not a duration.
-///
 /// `Tier.slaMinutes` is null for On-the-way, so `_slaCopy` returns
-/// `tierSelectionSlaNone` ("No SLA" / "بدون موعد محدد") and the schedule glyph
-/// ends up labelling the ABSENCE of a schedule. Every other tier reaches the
-/// same `_MetaRow` with a "≤ N hr" token, so this is the only preview where
-/// that row is prose, and the only one where the Arabic runs long enough to
-/// test the label's `Expanded`.
 @JeebPreview(
   group: 'tier_selection',
   name: 'No SLA · On-the-way',
@@ -525,7 +418,6 @@ Widget tierCardNoSla() => _tierCardLocalized(
       (AppLocalizations l10n) => _tierCardTier(
         l10n,
         // `TierSelectionScreen` derives this from `TierId.onTheWay.name`, so
-        // the one identifier in the set is camelCase where the rest are not.
         slug: 'onTheWay',
         name: l10n.tierSelectionTierOnTheWay,
         description: l10n.tierSelectionFooterOnTheWay,
@@ -540,25 +432,6 @@ Widget tierCardNoSla() => _tierCardLocalized(
 
 /// The wrap ceiling — the only state that reaches all three constrained
 /// `Text`s at once.
-///
-/// The header title (`Expanded`) and both `_MetaRow` labels (`Expanded`) are
-/// the widget's only width-constrained strings, and each declares
-/// `overflow: TextOverflow.ellipsis` with **no `maxLines`**. Against the
-/// unbounded height a `ListView` child is measured with, that combination never
-/// truncates: the strings wrap and the card grows. Nothing in the shipping
-/// catalog is long enough to show you that — the longest tier name is
-/// "On-the-way" and the longest vehicle label is "Bike / Scooter".
-///
-/// Fixture copy, deliberately: the catalog is served (`GET /tiers`) with
-/// ops-authored labels, so a longer tier is a product decision away, and the
-/// Arabic of any of these runs longer than its English source. What to look at
-/// is the title wrapping to a second line UNDER the badge rather than
-/// ellipsizing beside it, the price band breaking mid-token, and — at 200% —
-/// the two 16 dp meta glyphs pinned to the top of labels three lines tall.
-///
-/// `matrix: true`: this is the state where RTL mirroring has the most to
-/// mirror, and the state whose 200% rendering is three times the height of its
-/// English light one.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Longest plausible copy · unreleased tier',

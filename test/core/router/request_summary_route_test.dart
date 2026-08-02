@@ -1,17 +1,4 @@
 // QA-PRE scaffold for JEB-4 / T-MOB-FIX-004 (LEAD pin: Option B).
-//
-// These tests intentionally import `app_router.dart`, which currently fails to
-// compile (3 undefined_named_parameter errors at app_router.dart:244-246). The
-// test target therefore won't build until JEB-239 (ENG) rewrites the
-// `/request-summary` GoRoute builder to wrap `RequestSummaryScreen` in a
-// `BlocProvider<RequestSummaryCubit>` and defensively guards `state.extra`.
-// Once the route handler is fixed, these tests run and pin behaviour:
-//   1. Happy path  — extra is a RequestDraft, screen renders, Submit enabled.
-//   2. Cold deep-link with extra == null — graceful fallback, no crash.
-//   3. Wrong extra type — graceful fallback, no _TypeError.
-//
-// AC3 (cold `jeeb://` deep-link scheme registration) is out of scope per LEAD
-// pin and routes to T-MOB-DEEPLINK-001.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -80,9 +67,6 @@ Widget _harness(
   LocaleCubit locale,
 ) {
   // Shell renders on `/` before the test navigates to `/request-summary`, so
-  // it needs the cubits it (and its tabs in IndexedStack) read. Production
-  // wires the same cubits via [JeebApp]'s MultiBlocProvider; the harness
-  // mirrors it minimally here.
   return MultiBlocProvider(
     providers: [
       BlocProvider<RoleCubit>.value(value: role),
@@ -92,9 +76,6 @@ Widget _harness(
     child: MaterialApp.router(
       routerConfig: router,
       // Use the sync test delegate — the production delegate's
-      // rootBundle.loadString does not complete inside `flutter test` so
-      // pumpAndSettle returns with the Localizations placeholder still up.
-      // See test/support/sync_app_localizations.dart.
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
         SyncAppLocalizationsDelegate(),
         GlobalMaterialLocalizations.delegate,
@@ -116,8 +97,6 @@ const _draft = RequestDraft(
 void main() {
   group('GoRoute /request-summary (T-MOB-FIX-004 LEAD pin: Option B)', () {
     // The /request-summary builder resolves sl<RequestSubmissionService>() to
-    // construct the cubit. Register a fake so the route builds without the
-    // real Dio service (T-MOB-REQSUBMIT).
     setUp(() async {
       await sl.reset();
       sl.registerLazySingleton<RequestSubmissionService>(
@@ -135,7 +114,6 @@ void main() {
       (tester) async {
         final built = await _buildRouter();
         // Navigate before mount so the shell at `/` (which depends on cubits
-        // outside this test's scope) never renders.
         built.router.go('/request-summary', extra: _draft);
         await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
         await tester.pumpAndSettle();
@@ -156,9 +134,6 @@ void main() {
         expect(find.text('88 Verdun Ave, Beirut'), findsOneWidget);
 
         // Submit button is present and enabled (not isSubmitting).
-        // RequestSummaryScreen renders an `OmdsLoadingButton` (OMDS sweep
-        // replaced the raw FilledButton). The button is "enabled" when
-        // `isLoading == false` and `isEnabled == true`.
         final submit = find.widgetWithText(OmdsLoadingButton, 'Send request');
         expect(submit, findsOneWidget);
         final submitButton = tester.widget<OmdsLoadingButton>(submit);
@@ -166,7 +141,6 @@ void main() {
         expect(submitButton.isEnabled, isTrue);
 
         // No OmdsLoadingState (the "draft == null" placeholder rendered by
-        // RequestSummaryScreen — replaces the previous CircularProgressIndicator).
         expect(find.byType(OmdsLoadingState), findsNothing);
 
         expect(tester.takeException(), isNull);
@@ -179,8 +153,6 @@ void main() {
       (tester) async {
         final built = await _buildRouter();
         // Simulates the cold `jeeb://` deep-link case the existing
-        // `state.extra as RequestDraft` cast would crash on. Navigate before
-        // mount so the shell at `/` never renders.
         built.router.go('/request-summary');
         await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
         await tester.pumpAndSettle();
@@ -194,7 +166,6 @@ void main() {
         );
 
         // Submit button should not be present in the fallback path — there
-        // is no draft to submit.
         expect(
           find.widgetWithText(OmdsLoadingButton, 'Send request'),
           findsNothing,
@@ -203,7 +174,6 @@ void main() {
         );
 
         // Some recovery scaffold must render so the user is not stranded
-        // on a blank screen.
         expect(find.byType(Scaffold), findsWidgets);
       },
     );
@@ -214,9 +184,6 @@ void main() {
       (tester) async {
         final built = await _buildRouter();
         // The existing builder does `state.extra as RequestDraft` which
-        // throws `_TypeError` when extra is anything else. After fix the
-        // builder must `is RequestDraft`-guard before downcasting. Navigate
-        // before mount so the shell at `/` never renders.
         built.router.go('/request-summary', extra: 'not-a-request-draft');
         await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
         await tester.pumpAndSettle();

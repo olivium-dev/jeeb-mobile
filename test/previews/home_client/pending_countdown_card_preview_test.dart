@@ -1,14 +1,3 @@
-// Render tests for the PendingCountdownCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// These tests pump into the standard 800x600 test viewport, so they do NOT see
-// the horizontal overflow the preview library doc measures at real phone
-// widths. That is deliberate: the canvas owns the layout finding, this file
-// owns "each preview still builds and still shows ITS OWN state".
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

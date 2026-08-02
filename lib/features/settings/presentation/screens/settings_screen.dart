@@ -452,91 +452,19 @@ String? _bannerMessage(SettingsBanner banner, AppLocalizations l10n) {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/settings/settings_screen_preview_test.dart
-// ===========================================================================
-//
-// [SettingsScreen] is six sections of rows over ONE [SettingsCubit], and
-// `cubit:` is a shipped constructor seam, so every state below is that cubit
-// parked somewhere. The cubits, the fakes behind them and the seating are NOT
-// declared here: they live in
-// `lib/devtool/catalog/fixtures/settings_screen_fixtures.dart`, shared with the
-// on-device Screen Catalog entry for this screen
-// (`devtool/catalog/entries/batch_10_entries.dart`), so the designer's browser
-// and this canvas cannot drift into showing two different "Maya Haddad". None
-// of those fakes can reach the network — they answer from a field or never
-// complete — and no state below calls a repository at all. The guard in
-// [jeebPreviewHost] is the net here, not the plan.
-//
-// Four things about this harness are worth knowing before editing it:
-//
-//  * **The screen owns a Scaffold and [jeebPreviewHost] supplies another.**
-//    They nest: the host's `Scaffold + SafeArea` frames the card and this
-//    screen's own `Scaffold + OMDSAppBar` paints inside it. That is the same
-//    nesting the Screen Catalog produces.
-//  * **The width is pinned in the TREE, not just in `size:`.** `size:` boxes
-//    the canvas; [SettingsScreenPreviewHost] pins the same width in the widget
-//    tree so the render tests break lines where the canvas breaks them. Width
-//    is the whole game on a settings list — every row is title + subtitle
-//    against a leading icon and a trailing chevron — so height is deliberately
-//    left to the host, which is a scrolling [ListView] either way.
-//  * **A [LocaleCubit] ancestor is mandatory, not optional.** [_LanguageSection]
-//    calls `context.watch<LocaleCubit>()` on EVERY build, so a bare
-//    `SettingsScreen` throws in the canvas. The host provides one over
-//    in-memory prefs, seeded from the ambient locale — which is why the AR card
-//    of a matrix checks "العربية" and the EN card checks "English".
-//  * **Tapping is not previewing.** Every row calls `context.pushNamed(...)`
-//    and the two Account rows push [LogoutDeleteConfirmSheet], which resolves
-//    its session terminator from DI. There is no [GoRouter] above a preview
-//    card, so those taps throw. Everything else is inert by construction.
-//
-// Three things these previews surfaced, all in the screen rather than in the
-// previews — see the notes on the individual states:
-//
-//  * **Two of the six states below cannot occur in the shipped app.** The
-//    delete + sign-out rows open [LogoutDeleteConfirmSheet], which terminates
-//    the session through its own `AccountSessionTerminator` and never calls
-//    `SettingsCubit.requestAccountDeletion()` / `signOut()`. Nothing else on
-//    this route calls them either, so `deletionPending`, `isDeletingAccount`
-//    and `isSigningOut` — and with them every non-`none` [SettingsBanner] —
-//    are set by no production path. The E20 (JEBV4-215) pending copy is
-//    reachable from a fixture and from `test/settings_screen_test.dart`, and
-//    from nowhere a user can stand.
-//  * **The cold read has no affordance.** `isLoading` is read by nothing in
-//    [_SettingsView]: during the load the list is fully painted and fully
-//    tappable, and the profile row shows the same "Add your name" placeholder
-//    a user with no name saved gets. Compare [settingsScreenColdLoad] with
-//    [settingsScreenPhoneOnly] — the ONLY difference is the subtitle, and it
-//    differs because the phone is not loaded yet, not by design.
-//  * **A failed read has no affordance either, and cannot retry.**
-//    `SettingsCubit.load()` does not catch, so a throwing repository escapes
-//    as an unhandled Future error from `..load()` and leaves `isLoading`
-//    latched — which `load()`'s own `if (state.isLoading) return;` guard then
-//    treats as "already loading" forever. The rendering is
-//    [settingsScreenColdLoad], permanently. There is no fixture for it here
-//    because there is nothing different to look at, which is the point.
 
 /// The phone this list is designed against.
 const double _settingsScreenPhoneWidth = 390;
 
 /// The narrowest phone the app still supports (iPhone SE 1st gen and the small
 /// Android estate) — and roughly what an Android multi-window split leaves a
-/// foreground app. Every row here is a [ListTile] whose title column has to
-/// share the width with a leading icon and a trailing chevron, so this is where
-/// the two-line rows start wrapping to three.
 const double _settingsScreenCompactWidth = 320;
 
 const Size _settingsScreenPhoneBox = Size(_settingsScreenPhoneWidth, 844);
 const Size _settingsScreenCompactBox = Size(_settingsScreenCompactWidth, 568);
 
 /// Seats [SettingsScreen] over a fixture cubit at a pinned device width.
-///
 /// `appVersion` is deliberately left at its default so the About row reads the
-/// same here as in the Screen Catalog.
 Widget _settingsScreenHosted(
   SettingsCubit Function() create, {
   double width = _settingsScreenPhoneWidth,
@@ -550,14 +478,6 @@ Widget _settingsScreenHosted(
 
 /// The reference reading, and the Screen Catalog's "Loaded — Profile": a
 /// customer with a name and a phone on file, hydrated through the real
-/// `load()` path.
-///
-/// The matrix is on because this list is nothing but rows of directional
-/// chrome — a leading icon, a title/subtitle column and a trailing chevron —
-/// and all three of those mirror in AR. It is also where the 200% rendering is
-/// worth reading: the row titles and subtitles are the app's longest routine
-/// copy, and [OmdsSettingsRow] gives its title [Text] no `maxLines` and no
-/// `overflow`, so they wrap rather than ellipsize and every row grows.
 @JeebPreview(
   group: 'settings',
   name: 'Loaded · name + phone',
@@ -568,11 +488,7 @@ Widget settingsScreenLoaded() =>
     _settingsScreenHosted(SettingsScreenPreviewFixtures.loadedProfile);
 
 /// Signed in, never finished the profile step: the phone is all Jeeb knows.
-///
 /// The profile row falls back to the localized "Add your name" placeholder as
-/// its TITLE and shows the registration phone underneath. Worth its own card
-/// because it is the state most freshly-registered users see, and because it
-/// is one subtitle away from the cold-load rendering below.
 @JeebPreview(
   group: 'settings',
   name: 'Empty · phone only, no name',
@@ -582,15 +498,7 @@ Widget settingsScreenPhoneOnly() =>
     _settingsScreenHosted(SettingsScreenPreviewFixtures.phoneOnly);
 
 /// The cold read still in flight — `isLoading: true`, nothing hydrated.
-///
 /// Read this next to [settingsScreenPhoneOnly]. Nothing in [_SettingsView]
-/// reads `isLoading`: there is no shimmer, no spinner and no disabled state,
-/// so a list that knows nothing yet is indistinguishable from a list that has
-/// loaded and found nothing — and the Profile row is tappable throughout,
-/// pushing `settings-profile` while the read is still outstanding.
-///
-/// This is also exactly what a FAILED read looks like forever (see the note
-/// above the sizes): `load()` neither catches nor clears `isLoading`.
 @JeebPreview(
   group: 'settings',
   name: 'Loading · cold read in flight',
@@ -601,14 +509,6 @@ Widget settingsScreenColdLoad() =>
 
 /// E20 (JEBV4-215), and the Screen Catalog's "Loaded — Deletion Pending": the
 /// delete request has been accepted, so the row latches to the scheduled-purge
-/// copy, loses its destructive red and stops being tappable.
-///
-/// The one state where the Account section's two rows disagree — delete is
-/// disabled, sign-out is not — which is the whole point of the copy: the
-/// account is scheduled, and signing in again is how you cancel.
-///
-/// **No production path sets this.** See the note above the sizes; the row is
-/// reachable only from a fixture and from `test/settings_screen_test.dart`.
 @JeebPreview(
   group: 'settings',
   name: 'Deletion pending · row latched',
@@ -618,14 +518,7 @@ Widget settingsScreenDeletionPending() =>
     _settingsScreenHosted(SettingsScreenPreviewFixtures.deletionPending);
 
 /// Both destructive requests in flight at once.
-///
 /// The screen's only in-flight feedback: the two Account rows grey out (title,
-/// subtitle, leading icon and chevron all drop to 38% opacity) and their taps
-/// go dead. There is no spinner and no banner, so on a slow connection this
-/// reads as "the rows are broken" rather than "your request is going".
-///
-/// Also unreachable in the shipped app — the sheet owns both actions and
-/// carries its own in-flight state on the CTA.
 @JeebPreview(
   group: 'settings',
   name: 'Destructive actions in flight',
@@ -636,13 +529,6 @@ Widget settingsScreenDestructiveInFlight() =>
 
 /// Layout ceiling: the longest name on file, every notification opted out, on
 /// the narrowest phone the app supports.
-///
-/// A full Lebanese name with two family particles is ordinary here and roughly
-/// triples the reference title. [OmdsSettingsRow] renders that title in a
-/// [Column] inside a [ListTile] with no `maxLines`, so it wraps and the row
-/// grows — read the 200% card of this matrix, where the same wrap happens to
-/// every row at once and the switch rows have to hold a two-line title, a
-/// two-line subtitle and a [Switch] across 320 pt.
 @JeebPreview(
   group: 'settings',
   name: 'Longest content · compact 320',

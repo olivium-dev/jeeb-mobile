@@ -1,8 +1,4 @@
 // WHAT THIS CANNOT PROVE: `Firebase.apps` is empty in every widget test in this
-// repo, so no test here can observe a real Firestore query, a real filter, or a
-// real rule evaluation. This source-text pin proves only that the clause has not
-// been silently deleted; the filter's real behaviour is observable only on a
-// device against live rules.
 
 import 'dart:io';
 

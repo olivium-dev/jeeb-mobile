@@ -6,7 +6,6 @@ import '../domain/order_broadcast_service.dart';
 /// Bridges order-chat compose→send to real create-request contract (JM-025/JM-024).
 /// When no real request exists yet (sentinel id `new`), creates one via
 /// RequestSubmissionService using first message as description, then broadcasts
-/// the server-minted id. The literal `new` is never forwarded to broadcast/waiting routes.
 class OrderComposeCoordinator {
   const OrderComposeCoordinator({
     required RequestSubmissionService submission,
@@ -22,8 +21,6 @@ class OrderComposeCoordinator {
 
   /// Resolves the real request id for compose→send and broadcasts it.
   /// Creates request from [firstMessage] if [existingRequestId] is empty/sentinel
-  /// (optional [tierId] forwarded when known). Broadcast failures are soft-fail.
-  /// Returns server-minted id or null; if null, caller must stay in compose.
   Future<String?> createAndBroadcast({
     required String existingRequestId,
     required String firstMessage,

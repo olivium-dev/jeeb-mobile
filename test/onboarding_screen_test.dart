@@ -14,10 +14,6 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'support/sync_app_localizations.dart';
 
 /// Wraps [OnboardingScreen] with the [OnboardingCubit] + [LocaleCubit] and a
-/// minimal [MaterialApp] so widget tests don't need a full router in scope.
-///
-/// [localeCubit] is injected so a test can assert that selecting a language
-/// chip drives [LocaleCubit.setLocale] (FR-P1-2).
 Widget _harness({
   required OnboardingCubit cubit,
   required LocaleCubit localeCubit,
@@ -72,9 +68,6 @@ void main() {
       'sets LIGHT status-bar icons so they stay legible on the navy hero',
       (tester) async {
     // The global overlay set in main() is Brightness.dark (for the light auth
-    // screens); the walkthrough hero is brand-navy and must override to light
-    // icons, scoped via an AnnotatedRegion so it never forces light icons on
-    // the light screens elsewhere in the app.
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
@@ -90,7 +83,6 @@ void main() {
       reason: 'walkthrough status-bar icons must be light on the navy hero',
     );
     // statusBarBrightness is the iOS counterpart of the same intent: a DARK
-    // bar background expects light content (SystemUiOverlayStyle.light).
     expect(region.value.statusBarBrightness, Brightness.dark);
   });
 
@@ -100,13 +92,11 @@ void main() {
     await tester.pump();
 
     // Slide copy is rendered by OmdsWalkthroughStep via OmdsWalkthroughSwitcher
-    // (was hand-rolled Text), matching the fleet reference walkthrough layout.
     expect(find.byType(OmdsWalkthroughSwitcher), findsOneWidget);
     expect(find.byType(OmdsWalkthroughStep), findsWidgets);
     // Full-bleed swipeable illustration carousel is the back layer.
     expect(find.byKey(const Key('onboarding.pager')), findsOneWidget);
     // The placeholder illustration is isolated behind a stable key so the
-    // Figma asset swap is a one-line change (see FLAG in onboarding_screen.dart).
     expect(find.byKey(const Key('onboarding.illustration')), findsWidgets);
     // Skip is the sanctioned OmdsSkipButton, not OmdsPrimaryButton.text.
     expect(
@@ -126,7 +116,6 @@ void main() {
     await tester.pump();
 
     // The Arabic slide-1 title renders (proves ARB ar parity + RTL tree).
-    // OmdsWalkthroughStep draws the label via RichText, so findRichText.
     expect(
       find.text('توصيل بالصوت أولًا', findRichText: true),
       findsWidgets,
@@ -209,8 +198,6 @@ void main() {
       'slide 3 title keeps "end to end" unbreakable so it wraps cleanly',
       (tester) async {
     // Bug fix: the headline previously wrapped as "Live tracking, end to / end",
-    // orphaning a trailing "end". Non-breaking spaces (U+00A0) bind "end to end"
-    // into one unit so the break falls after the comma instead.
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
@@ -224,7 +211,6 @@ void main() {
       reason: 'slide-3 headline must bind "end to end" with non-breaking spaces',
     );
     // Guard against a regression that reintroduces breakable spaces in the
-    // bound phrase (which is what caused the orphaned "end").
     expect(
       l10n.onboardingSlide3Title.contains('end to end'),
       isFalse,
@@ -261,8 +247,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // FR-D1D2: slide 2's placeholder shield/check glyph was replaced with a
-    // real exported brand vector, matching slides 1 and 3. The illustration
-    // slot now hosts the trusted-Jeebers SvgPicture, NOT a Material Icon.
     final illustration = find.byKey(const Key('onboarding.illustration'));
     expect(
       find.descendant(of: illustration, matching: find.byType(SvgPicture)),
@@ -309,10 +293,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // The toggle's contract: it flips the LocaleCubit + persists the choice.
-    // In production app.dart binds MaterialApp.locale to this cubit via a
-    // BlocBuilder, so the whole tree re-lays-out RTL live (no restart). The
-    // 'localizes slide copy under Arabic (RTL-safe)' test above proves the
-    // RTL render path itself under Locale('ar').
     expect(localeCubit.state.languageCode, 'ar');
     expect(prefs.getString('app.locale.languageCode'), 'ar');
   });
@@ -321,7 +301,6 @@ void main() {
       'language toggle reflects the active locale as the selected chip',
       (tester) async {
     // The toggle's selection tracks the LocaleCubit (the source of truth that
-    // drives MaterialApp.locale in production), so seed it to Arabic.
     await localeCubit.setLocale(const Locale('ar'));
 
     await tester.pumpWidget(

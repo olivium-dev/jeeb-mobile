@@ -1,17 +1,4 @@
 // Render tests for the JeeberRequestDetailScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The suite does two jobs. `testPreviewsRender` pins that each preview renders
-// ITS OWN state — by the payload it carries where the payload is what varies,
-// and by the caption the fixture host paints where the WINDOW is what varies
-// (three states share the G1 request on purpose, so that what changes between
-// those cards is only the geometry). The group below then measures what the
-// screen actually did inside that window, which is where this screen's real
-// contract lives: an `Expanded` scrolling summary over a fixed-height action
-// bar, and two CTAs that do not use the same navigation idiom.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,7 +16,6 @@ const Size _compactFrame = Size(320, 568);
 
 /// `OmdsPrimaryButton` pins `height: Sizes.fourXLarge`, and the action bar is
 /// `EdgeInsets.all(Spacing.xLarge)` around two of them with `Spacing.small`
-/// between: 24 + 48 + 12 + 48 + 24.
 const double _buttonHeight = 48;
 const double _actionBarPadding = 24;
 const double _actionBarHeight = 156;
@@ -74,10 +60,8 @@ void main() {
       'Phone · no description (legacy payload)': 'Achrafieh, Beirut',
       'Phone · longest payload': _longestDescription,
       // The degraded payload has no description and no pickup label, so the
-      // reference is the only thing on the card that identifies it.
       'Phone · pickup label empty (feed degrade)': '#77C145',
       // Window states share a payload with the reference reading by design, so
-      // they are pinned by the caption the fixture host paints instead.
       'Compact 320 × 568':
           'Compact · 320 × 568 · no insets · description present (G1)',
       'Phone · EN 200% · longest payload':
@@ -102,8 +86,6 @@ void main() {
     testWidgets('each preview simulates its own window, not the 800 × 600 host',
         (WidgetTester tester) async {
       // If the fixture ever stopped pinning the MediaQuery/SizedBox, every
-      // state would collapse onto the test surface and the rest of this group
-      // would be asserting nothing.
       expect(
         (await frameRect(tester, jeeberRequestDetailScreenFullRequest)).size,
         _phoneFrame,
@@ -131,8 +113,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `JeeberRequestDetailScreenWindow.textScale` is nullable on purpose: a
-      // window that pinned 1.0 would overwrite the `matrix: true` 200% card on
-      // the two matrixed states and label a 100% rendering "EN 200% text".
       Future<double> scale(Widget Function() preview) async {
         await pumpPreview(tester, preview);
         return MediaQuery.textScalerOf(
@@ -150,12 +130,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The defect this state exists for. `description` disappears entirely
-      // when blank, so the card degrades cleanly — but `shortLabel` is rendered
-      // unguarded, and an empty one is a documented feed outcome
-      // (`DioRequestFeedRepository._parseRequest` degrades a `pickup`-less item
-      // into `RequestLocation(label: '')` rather than dropping it). The result
-      // is a labelled row with a blank value, which reads as a rendering fault
-      // rather than as missing data.
       await pumpPreview(tester, jeeberRequestDetailScreenUnlabelledPickup);
 
       // The description half of the same card: gone, not blank.
@@ -182,7 +156,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Two jeebers on two requests can therefore see two different KINDS of
-      // reference — `friendlyReference` treats `req-101` as already human.
       await pumpPreview(tester, jeeberRequestDetailScreenLongest);
       expect(find.text('#775EAE'), findsOneWidget);
       expect(
@@ -198,8 +171,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // G1: the jeeber must read the ENTIRE request before offering, so the
-      // description Text carries no `maxLines`. What keeps that from
-      // overflowing is the summary's own viewport.
       await pumpPreview(tester, jeeberRequestDetailScreenLongest);
 
       final Finder description = find.text(_longestDescription);
@@ -218,8 +189,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // This is what saves the layout at 200% — and the same fact is why the
-      // touch targets and label boxes do not grow for a user who asked for
-      // bigger text.
       Future<double> barHeight(Widget Function() preview) async {
         await pumpPreview(tester, preview);
         final Finder buttons = find.byType(OmdsPrimaryButton);
@@ -227,8 +196,6 @@ void main() {
         expect(tester.getSize(buttons.first).height, _buttonHeight);
         expect(tester.getSize(buttons.last).height, _buttonHeight);
         // The bar is its two buttons plus `EdgeInsets.all(Spacing.xLarge)` —
-        // measured from the buttons so the device's own insets cannot inflate
-        // it.
         return tester.getRect(buttons.last).bottom -
             tester.getRect(buttons.first).top +
             2 * _actionBarPadding;
@@ -246,9 +213,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The screen wraps its body in a `SafeArea`, so on the reference phone
-      // the fixed bar claims 156 + 34 = 190 dp of the 844 — worth knowing
-      // before reading the two 200% states, where that 190 dp is the budget the
-      // summary does NOT get.
       final Rect frame = await frameRect(
         tester,
         jeeberRequestDetailScreenFullRequest,
@@ -263,10 +227,6 @@ void main() {
     testWidgets('the fixed chrome takes a third of the display before any '
         'content is measured', (WidgetTester tester) async {
       // The app bar and the action bar are both fixed, so what the summary gets
-      // is a constant per device — 551 dp of 844 on the phone (103 dp app bar +
-      // 156 dp bar + the 34 dp home indicator its SafeArea clears), 356 dp of
-      // 568 on the floor (56 + 156, no insets). Every length judgement in the
-      // previews is relative to these two numbers.
       Rect frame = await frameRect(tester, jeeberRequestDetailScreenFullRequest);
       expect(tester.getRect(find.byType(AppBar)).height, 103);
       expect(tester.getRect(_scrollable).height, 551);
@@ -281,14 +241,6 @@ void main() {
     testWidgets('the ordinary request fits the phone and does NOT fit the '
         '320 dp floor', (WidgetTester tester) async {
       // Same payload, two devices. On the phone the three-row card has 285 dp
-      // to spare; on the floor it is 394 dp of card in a 356 dp viewport, so
-      // the request REFERENCE — the last row — starts below the fold at default
-      // text, with nothing on the screen to say so.
-      //
-      // (Measured under `flutter_test`, which draws every glyph as a square of
-      // the font size, so the same rows wrap onto fewer lines in Inter. Treat
-      // the dp counts as an upper bound; the structural point — a fixed 156 dp
-      // bar against a 568 dp display — is font-independent.)
       await pumpPreview(tester, jeeberRequestDetailScreenFullRequest);
       expect(_maxScroll(tester), 0);
 
@@ -305,8 +257,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The thing the jeeber is being asked to price is the description, and at
-      // the accessibility ceiling it measures 2208 dp against a 551 dp viewport
-      // — four screenfuls — while the CTAs that act on it stay at 48 dp.
       await pumpPreview(tester, jeeberRequestDetailScreenLargeText);
 
       final double viewport = tester.getRect(_scrollable).height;
@@ -321,8 +271,6 @@ void main() {
     testWidgets('at both ceilings the summary gives way and nothing is clipped',
         (WidgetTester tester) async {
       // The `Expanded` summary absorbs everything the fixed bar does not take,
-      // so the 200% states scroll rather than overflow. If this ever starts
-      // throwing, the bar has outgrown the smallest body the app supports.
       for (final Widget Function() preview in <Widget Function()>[
         jeeberRequestDetailScreenLargeText,
         jeeberRequestDetailScreenCompactLargeText,
@@ -342,14 +290,10 @@ void main() {
       WidgetTester tester,
     ) async {
       // A button wired to `() {}` looks exactly like one wired to nothing, so
-      // the previews wire the real callback to a recorder. What that shows is
-      // the affordance itself: one tap on a destructive action, no confirmation
-      // sheet, no undo, and the id goes straight out to the route.
       await pumpPreview(tester, jeeberRequestDetailScreenNoDescription);
 
       final Finder decline = find.text('Decline request');
       // The 390 × 844 frame is taller than the 800 × 600 test surface, so the
-      // target has to be scrolled into the hit-testable area first.
       await tester.ensureVisible(decline);
       await tester.pumpAndSettle();
       await tester.tap(decline);
@@ -365,11 +309,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The asymmetry worth reviewing: `onDeclined` is an injected callback,
-      // but the PRIMARY action hardcodes
-      // `context.pushNamed('jeeber-offer-submission')`, which the screen's own
-      // API never mentions. Nothing can host this screen — preview canvas,
-      // widget test, or any future embedding — without also mounting a
-      // GoRouter that owns that route name.
       await pumpPreview(tester, jeeberRequestDetailScreenFullRequest);
 
       final Finder offer = find.text('Send your offer');
@@ -397,9 +336,6 @@ void main() {
     testWidgets('the screen offers exactly two actions — no report affordance',
         (WidgetTester tester) async {
       // `reportService` is required by the constructor, resolved from GetIt in
-      // `app_router.dart:1312`, threaded through the loader — and never read.
-      // There is no prohibited-item control anywhere on this surface, which is
-      // what makes the dependency dead weight rather than a missing wire.
       await pumpPreview(tester, jeeberRequestDetailScreenFullRequest);
 
       final Finder inScreen = find.descendant(

@@ -742,87 +742,22 @@ class _AmountRow extends StatelessWidget {
   }
 }
 // ============================== JEEB PREVIEWS ==============================
-// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/offers/offer_submission_screen_preview_test.dart
-// ===========================================================================
-//
-// [OfferSubmissionScreen] is the JM-045 structured offer composer: an order-ref
-// heading, a price field, a tier-bounded ETA picker, an optional 500-char note,
-// the D37/D44/D1 economics card and one send CTA.
-//
-// The collaborators, the wallet snapshots and the cubit pre-drives are NOT
-// declared here. They live in
-// `lib/devtool/catalog/fixtures/offer_submission_screen_fixtures.dart`, shared
-// with the on-device Screen Catalog entry for this screen
-// (`devtool/catalog/entries/batch_07_entries.dart`), so the designer's in-app
-// browser and this canvas cannot drift into showing two different "designed
-// states". Nothing there can reach the network: every answer is a const value,
-// a typed failure, or a `Completer` that is never completed.
-//
-// Four things about this harness are worth knowing before editing it:
-//
-//  * **The screen owns a Scaffold and [jeebPreviewHost] supplies another.**
-//    They nest: the host's `Scaffold + SafeArea` frames the card and this
-//    screen's `Scaffold + OMDSAppBar` paints inside it. Same nesting the Screen
-//    Catalog produces.
-//  * **The frame is pinned in the TREE, not just in `size:`.**
-//    [_offerSubmissionScreenFramed] pins the same box the annotation asks for,
-//    so a render test measures a phone rather than the 800x600 test surface.
-//    The body scrolls, so only the WIDTH is load-bearing.
-//  * **The price and the note are unreachable.** Both live in
-//    `TextEditingController`s owned by the private `_OfferComposerState`, with
-//    no ctor seam, so `_price` is null in every state that can be built without
-//    typing — which is every state a static fixture can build. Consequence: the
-//    fee / net / reserve lines render their PENDING copy on every card below,
-//    and the wallet currency never appears. The economics layer this screen
-//    exists for is only reviewable through the JM-046 sheet, which takes its
-//    figures as arguments.
-//  * **Four of the six `OfferFormMode`s have no still frame.** `success`,
-//    `requestGone` and `error` are driven by the `BlocConsumer` *listener*, not
-//    the builder — they route away or raise a snack and then
-//    `acknowledgeError()` returns the composer to idle, so a cubit seeded into
-//    one of them before mount renders pixel-for-pixel the idle composer (the
-//    listener does not fire for an initial state). `insufficientBalance` opens
-//    a modal, and that one IS worth looking at, so it is previewed as the sheet
-//    itself rather than as a screen that cannot be made to show it.
-//
-// The states are the three the Screen Catalog names plus three it does not:
-//
-//   * **The 402 sheet** — the JM-046 surface, and the only place on this screen
-//     where a real amount and a currency are rendered at all.
-//   * **The order-ref pair** — the sprint-009 §T5 regression, both halves. One
-//     card shows the shortening working; the compact ceiling shows the branch
-//     it does not cover.
-//   * **The compact 320 ceiling** — the longest heading the screen accepts, on
-//     the narrowest phone the app supports.
+// DEV-ONLY, NOT SHIPPED.
 
 /// The phone this screen is designed against.
 const Size _offerSubmissionScreenPhoneBox = Size(390, 844);
 
 /// The narrowest phone the app still supports (iPhone SE 1st-gen class), and
-/// roughly what an Android multi-window split leaves a foreground app.
 const Size _offerSubmissionScreenCompactBox = Size(320, 568);
 
 /// A sheet is measured by how much of the phone it covers, not by a device.
 const Size _offerSubmissionScreenSheetBox = Size(390, 520);
 
-/// Pins [child] to a device-sized frame inside whatever box the host gives it.
 Widget _offerSubmissionScreenFramed(Widget child, Size box) => Align(
       alignment: Alignment.topCenter,
       child: SizedBox(width: box.width, height: box.height, child: child),
     );
 
-/// Mounts the composer the way `app_router.dart` mounts it, with the shared
-/// fixtures standing in for both collaborators.
-///
-/// Passing [cubit] takes the `BlocProvider.value` branch and the `repository`
-/// below is never resolved — it is supplied anyway so a future edit that drops
-/// the pre-drive degrades to the idle composer instead of reaching DI.
 Widget _offerSubmissionScreenHosted({
   required String requestId,
   OfferFormCubit? cubit,
@@ -844,19 +779,6 @@ Widget _offerSubmissionScreenHosted({
 /// The composer's own money formatter — two decimals, no grouping, no symbol.
 String _offerSubmissionScreenAmount(double value) => value.toStringAsFixed(2);
 
-/// The reference reading: a fresh composer with nothing filled in.
-///
-/// This is what a jeeber lands on from the feed. Everything is at its
-/// placeholder — the price field empty, the ETA reading "Select pickup ETA",
-/// the note field showing its 0/500 counter — and the whole economics card is
-/// in its pending phrasing because no price has been entered yet.
-///
-/// It is one of the two cards the matrix is for. The economics block is three
-/// stacked icon+text rows whose copy is a full sentence each ("… reserved now
-/// from your wallet · charged only if you win · released if you don't"), the AR
-/// translations are longer than the EN, and at 200% they are most of the first
-/// viewport. Read the AR RTL and 200% renderings — the English one stays
-/// plausible long after the other two have stopped fitting.
 @JeebPreview(
   group: 'offers',
   name: 'Idle · empty draft',
@@ -867,24 +789,6 @@ Widget offerSubmissionScreenIdle() => _offerSubmissionScreenHosted(
       requestId: OfferSubmissionScreenPreviewFixtures.requestId,
     );
 
-/// `POST /requests/{id}/offers` in flight.
-///
-/// The send CTA swaps its label for a spinner and stops accepting taps; nothing
-/// else on the screen changes. The price field, the ETA picker and the note
-/// stay fully editable while the offer is being sent, and there is no way to
-/// cancel — `OfferFormCubit.submit` has no timeout, so a request that never
-/// answers leaves the composer here indefinitely. That is exactly what this
-/// fixture holds still.
-///
-/// Note the economics card: it still reads "Platform fee: 10% of your offer"
-/// even though a 15.00 offer is on the wire. That is the missing draft seam
-/// described in the header, not a bug in the card — in production the jeeber
-/// typed the price, so `_price` is set.
-///
-/// This is also the one preview whose render test cannot use `pumpAndSettle`:
-/// the spinner is an indefinite animation, so the harness's settle would time
-/// out. See the dedicated pump-once group in
-/// `test/previews/offers/offer_submission_screen_preview_test.dart`.
 @JeebPreview(
   group: 'offers',
   name: 'Submitting',
@@ -895,17 +799,6 @@ Widget offerSubmissionScreenSubmitting() => _offerSubmissionScreenHosted(
       cubit: OfferSubmissionScreenPreviewFixtures.submittingCubit(),
     );
 
-/// Send pressed on an empty form: both inline validation errors at once.
-///
-/// `submit()` rejects a null price and a null ETA client-side and stays in
-/// `idle`, so this is a *field* state rather than a mode — the price field
-/// turns red under the label and the ETA `InputDecorator` grows an error line.
-///
-/// The strings are the reason this state is previewed rather than left to the
-/// catalog. They are hardcoded English in `OfferFormCubit._validatePrice` /
-/// `_validateEta`, so the AR rendering shows an Arabic form with two English
-/// errors in it — the same class of defect JEBV4-246 fixed for the error snack
-/// and did not fix here.
 @JeebPreview(
   group: 'offers',
   name: 'Validation errors',
@@ -916,16 +809,6 @@ Widget offerSubmissionScreenValidationErrors() => _offerSubmissionScreenHosted(
       cubit: OfferSubmissionScreenPreviewFixtures.validationErrorCubit(),
     );
 
-/// The sprint-009 §T5 guard, made visible.
-///
-/// The feed hands this screen a raw gateway UUID, and the audit graded the
-/// composer heading an F for echoing it. `_displayRef` now shortens anything
-/// that is not already a human reference to a glanceable `ORD-<6>` tail, so
-/// `9c37b6af-…-1f2a3b4c5d6e` reads as **ORD-4C5D6E**. If this card ever renders
-/// the full identifier again, that fix has regressed.
-///
-/// Compare with [offerSubmissionScreenCompactCeiling], which feeds the same
-/// identifier through the branch the fix does not cover.
 @JeebPreview(
   group: 'offers',
   name: 'Order ref · opaque id (§T5)',
@@ -935,24 +818,6 @@ Widget offerSubmissionScreenOpaqueOrderRef() => _offerSubmissionScreenHosted(
       requestId: OfferSubmissionScreenPreviewFixtures.opaqueRequestId,
     );
 
-/// `insufficient_balance_sheet` — the JM-046 402 surface (D92/D93).
-///
-/// The wallet cannot cover the 10% reserve, so the gateway answers 402 with
-/// `{needed, available, currency}` and the composer opens this modal instead of
-/// raising an error snack. The draft is preserved behind it: "Keep editing"
-/// pops back to a filled composer, "Top up" routes to `wallet-charge-info`.
-///
-/// The sheet BODY is rendered here rather than driven through
-/// `_showInsufficientSheet`, deliberately. The modal is reached only from the
-/// `BlocConsumer` listener, which does not fire for a state a cubit already
-/// carries at mount, so driving it would mean a preview that mutates itself
-/// after the first frame — and `showModalBottomSheet` would push onto whatever
-/// `Navigator` happens to be above the card, escaping the pinned frame. The
-/// widget, its figures and its two CTAs are identical either way.
-///
-/// This is the only card on this screen that renders a real amount and a
-/// currency at all — see the header on why the fee / net / reserve lines
-/// cannot.
 @JeebPreview(
   group: 'offers',
   name: 'Insufficient balance sheet · 402',
@@ -976,19 +841,6 @@ Widget offerSubmissionScreenInsufficientBalance() {
   );
 }
 
-/// The layout ceiling: the longest heading this screen accepts, at 320 pt.
-///
-/// `_displayRef` returns any id starting with `ORD` **verbatim** — the
-/// shortening branch is never reached — so an already-prefixed reference is
-/// rendered in full. `_OrderRefHeader` sets no `maxLines` and no `overflow`, so
-/// a 40-character reference simply wraps, and at 320 pt with the AR copy and
-/// 200% text it pushes the price field, the ETA picker and the economics card
-/// down the scroll view.
-///
-/// This is the half of sprint-009 §T5 the fix does not cover:
-/// [offerSubmissionScreenOpaqueOrderRef] carries the SAME identifier bare and
-/// shortens it to `ORD-4C5D6E`; prefix it with `ORD-` and the raw reference is
-/// back in the heading. Read the two side by side.
 @JeebPreview(
   group: 'offers',
   name: 'Longest content · compact 320',

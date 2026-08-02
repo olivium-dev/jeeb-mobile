@@ -1,33 +1,4 @@
 // The platform commission rate has ONE copy in `lib/`.
-//
-// ## What went wrong, and what nearly went wrong
-//
-// The rate lived, longhand, in three unrelated places:
-//
-//   lib/features/earnings/domain/earnings_summary.dart      kJeebFeeRate = 0.10
-//   lib/features/offers/presentation/offer_submission_screen.dart  _price * 0.10
-//   lib/features/wallet/data/stub_wallet_transaction_repository.dart  feeRate: 0.1
-//
-// They agreed with settlement — the gateway's
-// `CommissionCalculator.FlatRate = 0.10m` (owner ruling Q-001, flat 10% for
-// v1) — so nothing was visibly broken. They agreed by coincidence, though:
-// nothing connected them, and the next rate change would have had to find all
-// three or start telling Jeebers the wrong take-home.
-//
-// That is not hypothetical. A FIFTH copy of this number, on the gateway's tier
-// catalogue, drifted exactly that way: `GET /tiers` published 0.25 / 0.20 /
-// 0.15 for weeks while settlement paid 10%. It reached no user for a reason
-// that is pure luck — the app never parsed `commissionRate` at all. The
-// numeric copies below were the client-side version of the same shape, waiting
-// for someone to change one of them.
-//
-// ## What this file asserts
-//
-//  1. POSITIVE: every rate the app renders derives from `kJeebCommissionRate`,
-//     and the value matches the gateway's authority.
-//  2. NEGATIVE (the durable half): `lib/` contains no SECOND numeric copy. This
-//     is a source scan, so it catches a copy nobody thought to unit-test — which
-//     is how all three originals survived.
 
 import 'dart:io';
 
@@ -56,12 +27,10 @@ const String _singleSource = 'lib/core/jeeb_commission.dart';
 
 /// A decimal literal that is a plausible commission rate. Deliberately narrow:
 /// `0.1`, `0.10`, `0.100`… and nothing else, so this cannot fire on an
-/// unrelated fraction.
 final RegExp _rateLiteral = RegExp(r'(?<![\d.])0\.10*(?![\d])');
 
 /// Identifiers that make a line a COMMISSION line rather than an arbitrary one.
 /// Without this the scan would flag `127.0.0.1` — which is the only other place
-/// the digits `0.1` occur in `lib/` today.
 final RegExp _commissionContext = RegExp(
   r'commission|feeRate|fee_rate|FeeRate|platformFee|platform_fee|'
   r'serviceFee|reserve|Reserve|takeHome|netEarning',
@@ -75,14 +44,7 @@ List<File> get _libDartFiles => Directory('${_repoRoot.path}/lib')
     .toList();
 
 /// Every offending `path:line -> text` in [lines], attributed to [rel].
-///
 /// The literal must appear in CODE (trailing comments stripped), but the
-/// commission CONTEXT is searched over a WINDOW — the three lines before and
-/// the line after, raw. Dart's formatter routinely splits a getter across two
-/// lines, which puts `_reserve` on one and `* 0.10` on the next; a same-line
-/// predicate reads that as an anonymous fraction and waves it through. That is
-/// not hypothetical — it is how the first version of this scan failed its own
-/// negative control (NC-A came back GREEN on a faithfully re-planted copy).
 List<String> commissionLiteralHits(String rel, List<String> lines) {
   final hits = <String>[];
   for (var i = 0; i < lines.length; i++) {
@@ -102,8 +64,6 @@ void main() {
   group('the rate itself', () {
     test('mirrors the gateway authority — CommissionCalculator.FlatRate', () {
       // `jeeb-gateway/src/JeebGateway/Financials/CommissionCalculator.cs:54`
-      //   public const decimal FlatRate = 0.10m;
-      // Owner ruling Q-001 (2026-07-07): flat 10% for v1.
       expect(kJeebCommissionRate, 0.10);
       expect(kJeebCommissionPercent, 10);
       expect(
@@ -116,7 +76,6 @@ void main() {
 
     test('every surviving alias resolves to the single source', () {
       // `kJeebFeeRate` is kept as a name (its call site reads correctly) but no
-      // longer holds a literal.
       expect(kJeebFeeRate, same(kJeebCommissionRate));
     });
   });
@@ -124,7 +83,6 @@ void main() {
   group('the three call sites that used to hold their own copy', () {
     test('earnings: the derived fee follows the single source', () {
       // `_deriveFee` is the legacy-payload fallback: no explicit fee on the
-      // wire, so the app computes one.
       final item = EarningsDeliveryItem.fromJson(const {
         'deliveryId': 'DLV-1',
         'amount': {'value': 200.0, 'currency': 'USD'},
@@ -138,8 +96,6 @@ void main() {
     test('wallet: the fee row a Jeeber READS follows the single source',
         () async {
       // This repository is the DI-bound one (`injection_container.dart` still
-      // binds it, per its own class doc), so its rate SHIPS — it was never a
-      // test fixture.
       final txn = await const StubWalletTransactionRepository()
           .fetchTransaction('txn-fee-001');
       expect(txn.type, WalletLedgerType.feeWon);
@@ -175,8 +131,6 @@ void main() {
     test('POSITIVE CONTROL — the scan fires on each of the three ORIGINAL '
         'copies, re-planted verbatim', () {
       // A ban nobody has ever seen fire is not a ban. These are the literal
-      // lines as they stood on origin/main, run through the very predicate the
-      // sweep above uses.
       expect(
         commissionLiteralHits('x.dart', const [
           '/// Legacy fallback fee rate for older mock payloads.',
@@ -206,8 +160,6 @@ void main() {
     test('POSITIVE CONTROL — the window catches a SPLIT expression, which the '
         'first version of this scan did not', () {
       // The formatter puts the context word and the literal on different lines.
-      // A same-line predicate returns 0 here and the ban silently stops
-      // banning; this is the exact miss that made NC-A pass.
       expect(
         commissionLiteralHits('x.dart', const [
           '  double? get _reserve =>',
@@ -244,7 +196,6 @@ void main() {
 
     test('the scan looked at a real, non-empty tree', () {
       // The denominator, stated. An empty file list would make the ban above
-      // vacuously green.
       expect(_libDartFiles.length, greaterThan(200));
       expect(
         File('${_repoRoot.path}/$_singleSource').existsSync(),

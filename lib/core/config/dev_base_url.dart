@@ -2,7 +2,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Persisted dev-tool override for gateway base URL. Read on DI Dio construction;
 /// when unset, build-time JEEB_MOCK_BASE_URL default applies. Wiped by Dev Tool
-/// "Clear Local Data".
 abstract final class DevBaseUrl {
   static const String prefsKey = 'dev.base_url_override';
 

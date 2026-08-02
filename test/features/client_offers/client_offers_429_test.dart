@@ -127,8 +127,6 @@ void main() {
     test('the RateLimitInterceptor suppression-cancel → rateLimited (not fatal)',
         () async {
       // First read trips the 429 and opens the Retry-After window; the next
-      // read is suppressed locally (DioExceptionType.cancel) — which must ALSO
-      // map to rateLimited, never network/unknown (the fatal branches).
       var wireHits = 0;
       final adapter = _ScriptedAdapter((_) {
         wireHits++;
@@ -166,7 +164,6 @@ void main() {
     final waitingRepo = DioWaitingRepository(dio, coalescer: shared);
 
     // Two DIFFERENT repos probe `GET /v1/offers?requestId=r1` at the same
-    // instant — the shared single-flight must collapse them to one wire call.
     final a = offersRepo.fetchOffers('r1');
     final b = waitingRepo.fetchOfferCount('r1');
 
@@ -174,7 +171,6 @@ void main() {
     await a;
     await b;
     // The two different repos' identical offer probes collapsed to one wire
-    // call. Offer-review additionally reads the owner-scoped request status.
     expect(
       adapter.requests.where((request) => request.path == '/v1/offers'),
       hasLength(1),

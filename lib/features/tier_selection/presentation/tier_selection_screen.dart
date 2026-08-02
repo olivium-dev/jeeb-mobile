@@ -344,124 +344,20 @@ class _TierListEntry extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/tier_selection/tier_selection_screen_preview_test.dart
-// ===========================================================================
-//
-// [TierSelectionScreen] is the "Choose speed" tier picker: an app bar, a
-// one-line subtitle, a scrolling list of [TierCard]s, and a Confirm CTA pinned
-// under the list. It hands the chosen [Tier] back through `onConfirmed` and
-// navigates nowhere itself, so — unlike its sibling `RequestTypeScreen` — these
-// previews need no router above them.
-//
-// The fakes are NOT declared here. They live in
-// `lib/devtool/catalog/fixtures/tier_selection_screen_fixtures.dart`, shared
-// with the on-device Screen Catalog entry (`devtool/catalog/entries/
-// batch_11_entries.dart`), so the designer's browser and this canvas cannot
-// drift into showing two different "designed states". None of them can reach the
-// network: they answer from a `const` list, throw, or never complete. That is
-// load-bearing — `_resolveRepository()` returns `sl<TierRepository>()` whenever
-// one is registered, which inside the app is `DioTierRepository` and a real
-// `GET /tiers`, and the `CatalogNetworkGuard` in [jeebPreviewHost] passes GETs.
-//
-// Three things about this harness before editing it:
-//
-//  * **The screen owns a Scaffold and [jeebPreviewHost] supplies another.**
-//    They nest; the inner one (OMDSAppBar + list + Confirm) is the real surface.
-//    The canvas box is therefore a real device ([_tierSelectionScreenPhoneBox],
-//    [_tierSelectionScreenCompactBox]) rather than the harness's 390x200
-//    default, and the frame is pinned in the TREE as well as in `size:` so the
-//    render tests measure the same phone instead of the 800 pt test surface.
-//  * **`repository:` reaches every state but two.** The screen builds its own
-//    [TierSelectionCubit] inside `BlocProvider.create` and calls `load()` on it,
-//    so answer / stall / throw IS the state. SELECTION is not reachable that way
-//    — `selectTier` returns early unless `status == loaded`, so nothing handed
-//    to the constructor can pre-select — and neither is the cached banner, which
-//    has no producer at all (see below). Both use the other seam, `cubit:`,
-//    which mounts through `BlocProvider.value` and does NOT call `load()`.
-//  * **Each card carries a caption** ([TierSelectionScreenCaptions]), because
-//    several designed states here are indistinguishable by their production
-//    copy: `Loaded` and `Selected` render the same three tiers, the two failure
-//    modes render the same sentence, and the empty catalogue renders the same
-//    subtitle over nothing. Same device as `RequestTypeScreenCaptions`.
-//
-// What these previews surfaced in the screen — none of it changed here:
-//
-//  * **`TierSelectionScreen.retryButtonKey` is attached to nothing.** The class
-//    publishes four keys; `rootKey`, `listKey` and `confirmButtonKey` are all
-//    wired, and `Key('tier-selection-retry')` is wired to nothing at all —
-//    `_Body` hands `onRetry` to [OmdsErrorState], which builds its own unkeyed
-//    `FilledButton.icon`. Anything keying off it finds nothing, which is exactly
-//    what `test/tier_selection_screen_test.dart:158` works around in a comment
-//    ("match the FilledButton supertype"). [tierSelectionScreenErrorNetwork] is
-//    where you can see the button that key was meant to name.
-//  * **The cached-options banner cannot be reached.** `_CachedBanner` renders
-//    when `state.usingCachedFallback` is true; [TierSelectionCubit] sets that
-//    flag to `false` on all three of its emits and to `true` on none, so neither
-//    the widget nor its ARB string (`tierSelectionCachedBanner`) can appear in
-//    the app. It is the residue of JEBV4-300, which removed the cached-catalog
-//    fallback. [tierSelectionScreenCachedFallback] seeds the state directly to
-//    show what the dead code draws; every other preview here goes through the
-//    cubit's public API and none of them can produce it.
-//  * **Both load failures render the same sentence, and it blames the
-//    network.** `_Body` ignores `state.failure` and always passes
-//    `l10n.requestSummaryErrorNetwork` — "Couldn't reach Jeeb. Check your
-//    connection and try again." — so a `TierLoadFailure.server` (a 5xx, or a
-//    body `DioTierRepository._parseResponse` cannot recognise) tells the
-//    customer to check a working connection and retry an operation that will
-//    fail the same way. Compare [tierSelectionScreenErrorNetwork] and
-//    [tierSelectionScreenErrorServer]: the cards are identical. The copy is also
-//    borrowed from the request_summary feature, so it names a submit problem on
-//    a screen that has not submitted anything.
-//  * **An empty catalogue is a silent dead end.** A `200 OK` with no tiers is
-//    `TierSelectionStatus.loaded`, so the screen renders "Price varies by
-//    Jeeber" over an empty list with a Confirm button that can never enable — no
-//    message, no retry, no way forward ([tierSelectionScreenEmptyCatalogue]).
-//    Not hypothetical: `DioTierRepository._tierIdFromLabel` drops every tier
-//    whose `name` this client cannot map, so a server-side rename empties the
-//    screen through the SUCCESS path.
-//  * **Confirm is announced as a plain button at every status.** The
-//    `Semantics(identifier: 'tier_selection_confirm_cta', button: true)` wrapper
-//    never carries `enabled:`, and [OmdsPrimaryButton] is a bare
-//    `GestureDetector` underneath, so the disabled CTA exposes no
-//    enabled/disabled state to a screen reader — it reads as an ordinary button
-//    that silently does nothing. Visible in [tierSelectionScreenServedCatalogue]
-//    and [tierSelectionScreenEmptyCatalogue]; pinned in the render test.
-//  * **Confirming the same tier twice fires `onConfirmed` once.** `confirm()`
-//    re-emits a state that is `==` to the current one, `Cubit.emit` drops it,
-//    and the `BlocConsumer` listener never runs. A caller that stays on the
-//    screen — or returns to it without changing tier — gets an enabled CTA whose
-//    second press does nothing. [tierSelectionScreenSelected] records every
-//    callback into [tierSelectionScreenConfirmations]; the render test presses
-//    Confirm twice and finds one entry.
 
 /// The phone this screen is designed against.
 const Size _tierSelectionScreenPhoneBox = Size(390, 844);
 
 /// The narrowest phone the app still supports — and roughly what an Android
 /// multi-window split leaves a foreground app. The tier list is a `ListView`, so
-/// this is where scrolling starts rather than where layout breaks.
 const Size _tierSelectionScreenCompactBox = Size(320, 568);
 
 /// Every tier handed back through `onConfirmed`, in order.
-///
 /// Public because the render test is the only thing that can read it, and what
-/// it reads is a defect: pressing Confirm twice on the same tier appends ONE
-/// entry, because the second `confirm()` re-emits an equal state that
-/// `Cubit.emit` drops before the listener runs. Cleared as each host mounts, so
-/// one card cannot observe another's taps.
 final List<String> tierSelectionScreenConfirmations = <String>[];
 
 /// The caption each preview is pinned by.
-///
 /// Public because the render test's `expectedText` map is the reason they exist:
-/// most of these states put NO distinguishing production copy on screen. Dev
-/// chrome, never shipped copy, so they are deliberately un-localized and
-/// rendered LTR at a fixed text scale.
 final class TierSelectionScreenCaptions {
   TierSelectionScreenCaptions._();
 
@@ -494,10 +390,7 @@ final class TierSelectionScreenCaptions {
 
 /// Pins the device frame, captions the state, and records the one edge the
 /// screen owns (`onConfirmed`).
-///
 /// Stateful, and the collaborators are built once: a repository rebuilt every
-/// frame would restart the load, and a cubit rebuilt every frame would lose the
-/// selection it drove itself into.
 class _TierSelectionScreenHost extends StatefulWidget {
   const _TierSelectionScreenHost({
     required this.caption,
@@ -561,8 +454,6 @@ class _TierSelectionScreenHostState extends State<_TierSelectionScreenHost> {
               child: Text(
                 widget.caption,
                 // Dev chrome: LTR and unscaled, so the AR card still reads it as
-                // one latin line and the 200% card does not spend a third of the
-                // device on a label.
                 textDirection: TextDirection.ltr,
                 textScaler: TextScaler.noScaling,
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -598,11 +489,6 @@ Widget _tierSelectionScreenHosted(
 
 /// The first frame of EVERY mount: `load()` fired from `BlocProvider.create` and
 /// `GET /tiers` has not answered.
-///
-/// A centred spinner and nothing else — note what is missing around it. The
-/// subtitle, the list and the Confirm CTA all live inside `_LoadedView`, so the
-/// page is an app bar over a hole and then grows its whole body at once. There
-/// is no skeleton and no hint of how many options are coming.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Loading · tier read in flight',
@@ -615,13 +501,6 @@ Widget tierSelectionScreenLoading() => _tierSelectionScreenHosted(
 
 /// The reference reading, and the state the app opens on: Flash, Express and
 /// Standard, none of them chosen, Confirm disabled.
-///
-/// Matrixed because this is the whole screen in three readings at once. In AR
-/// the subtitle, the cards, the Recommended pill and both meta rows mirror; the
-/// prices stay LTR inside their isolates, which is what `MoneyFormat`'s
-/// `U+2066`/`U+2069` wrapping is for. Nothing is selected on purpose — a
-/// recommendation is display metadata, not a customer choice, which
-/// `test/tier_selection_screen_test.dart` pins as a contract.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Loaded · served catalogue, no selection',
@@ -635,14 +514,6 @@ Widget tierSelectionScreenServedCatalogue() => _tierSelectionScreenHosted(
 
 /// The same list with Express chosen — one of the two states `repository:`
 /// cannot produce.
-///
-/// `selectTier` is a no-op until `load()` has landed, so this one comes in
-/// through `cubit:` with the selection chained onto the load. Read it beside the
-/// state above: `selected` swaps the fill, the border width, the title colour
-/// and the description colour at once and adds a check glyph, and the Confirm
-/// CTA goes live. Express rather than Flash on purpose — Flash carries the
-/// Recommended pill, and a selected Flash card cannot be told apart from a
-/// recommendation at a glance.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Selected · Express',
@@ -656,14 +527,7 @@ Widget tierSelectionScreenSelected() => _TierSelectionScreenHost(
     );
 
 /// `200 OK` with no tiers in it: loaded, and unusable.
-///
 /// The subtitle renders over an empty list and the Confirm button is present and
-/// permanently disabled. No message, no retry, no explanation — this is a
-/// SUCCESS as far as every layer below the widget is concerned, so nothing on
-/// the error path fires. Reachable without any gateway outage:
-/// `DioTierRepository._tierIdFromLabel` silently drops every tier whose `name`
-/// this client cannot map, so a server-side rename empties the screen one tier
-/// at a time.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Empty · catalogue answered 200 with nothing',
@@ -675,11 +539,7 @@ Widget tierSelectionScreenEmptyCatalogue() => _tierSelectionScreenHosted(
     );
 
 /// The read failed on the wire — the retryable failure, and the honest one.
-///
 /// `Try again` re-runs `load()`, which is exactly the right advice here. This is
-/// also the card that shows what `TierSelectionScreen.retryButtonKey` was meant
-/// to name: the button [OmdsErrorState] builds carries no key at all, so the
-/// published constant matches nothing on the screen.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Error · network',
@@ -692,11 +552,6 @@ Widget tierSelectionScreenErrorNetwork() => _tierSelectionScreenHosted(
 
 /// The read reached Jeeb and Jeeb answered badly — a 5xx, or a body
 /// `_parseResponse` cannot recognise.
-///
-/// Identical to [tierSelectionScreenErrorNetwork], because `_Body` ignores
-/// `state.failure` and always renders `requestSummaryErrorNetwork`. The customer
-/// is told to check a connection that is working and to retry an operation that
-/// will fail the same way.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Error · server 5xx (same copy)',
@@ -708,19 +563,7 @@ Widget tierSelectionScreenErrorServer() => _tierSelectionScreenHosted(
     );
 
 /// The cached-options banner — dead code, drawn.
-///
 /// `_CachedBanner` renders when `state.usingCachedFallback` is true, and NOTHING
-/// sets that flag: [TierSelectionCubit] writes `false` on all three of its emits
-/// and `true` on none, so neither the banner nor its ARB string
-/// (`tierSelectionCachedBanner`) can appear in the app. JEBV4-300 removed the
-/// cached-catalog fallback that used to raise it — see the two
-/// `tier-selection-cached-banner` assertions in
-/// `test/tier_selection_screen_test.dart`, which pin its absence — and left the
-/// widget, the flag and the copy behind.
-///
-/// This is the ONE preview here that seeds a state instead of driving the cubit,
-/// precisely because no sequence of public calls can reach it. Judge it as "what
-/// the dead branch would draw", not as a state the app can be in.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Cached banner · SEEDED, no producer in the app',
@@ -733,19 +576,6 @@ Widget tierSelectionScreenCachedFallback() => const _TierSelectionScreenHost(
 
 /// The layout ceiling: all five tiers the client can render, on the narrowest
 /// phone it supports.
-///
-/// [FakeTierRepository] is the SHIPPING fallback, not a hypothetical — and the
-/// two extra tiers own the edges of the copy: On-the-way is the only hyphenated
-/// title and the only card with no SLA at all (`No SLA` rather than a time), and
-/// Eco's 2880 minutes are the only SLA the screen renders in hours (`≤ 48 hr`,
-/// via the `minutes % 60 == 0` branch).
-///
-/// Matrixed because this is where the three readings diverge. Nothing here can
-/// overflow — the body is a `ListView` and `Scaffold` clamps the rest — so what
-/// the three cards show is how much of the screen is REACHABLE without
-/// scrolling, and how far the Confirm CTA is from the last option a customer can
-/// see. The CTA holds `OmdsPrimaryButton`'s fixed 48 pt at every text scale,
-/// which is the button's default rather than anything this screen decides.
 @JeebPreview(
   group: 'tier_selection',
   name: 'Full catalogue · compact 320x568',

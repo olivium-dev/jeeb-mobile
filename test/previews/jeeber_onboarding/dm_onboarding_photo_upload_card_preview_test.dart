@@ -1,17 +1,4 @@
 // Render tests for the DmOnboardingPhotoUploadCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose. The card renders no text — it
-// is an `Icons.add` or an `Image.memory` — so the `expectedText` map below
-// binds to each preview's caption, which is preview scaffolding rather than
-// widget output. On its own that would be exactly the weak assertion the
-// harness warns about: it would pass even if all six previews drew the same
-// empty box. So the real per-state contract is asserted underneath, on three
-// axes at once — the MEASURED box, WHICH branch of `_CardContent` rendered,
-// and WHICH photo the filled ones are showing.
 
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -35,10 +22,7 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
 };
 
 /// The box each preview must produce, measured on the card's own root key.
-///
 /// Not copied from a run — this is the arithmetic the widget promises: the step
-/// column's width (device less two `Spacing.xLarge` gutters) resolved through
-/// the 4:5 ratio, except for the bounded host where the height wins instead.
 final Map<String, Size> _expectedBoxes = <String, Size>{
   'Empty · phone (390pt)': _widthDriven(390),
   'Empty · compact device (320pt)': _widthDriven(320),
@@ -96,8 +80,6 @@ void main() {
 
   group('DmOnboardingPhotoUploadCard preview specifics', () {
     // The assertion the caption-based `expectedText` above cannot make: six
-    // previews of a parameterless widget are six states only if the boxes and
-    // the contents actually differ.
     _expectedBoxes.forEach((String state, Size expected) {
       testWidgets('$state lays out at ${expected.width}x${expected.height}', (
         WidgetTester tester,
@@ -139,7 +121,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // If these ever decode to the same shape the crop states below stop
-      // meaning anything, so they are asserted rather than assumed.
       expect(
         await _intrinsicSize(tester, dmOnboardingPhotoUploadCardPortraitBytes),
         const Size(80, 100),
@@ -167,7 +148,6 @@ void main() {
       );
 
       // BoxFit.cover takes the larger scale; for a 16:9 source in a 4:5 box
-      // that is the vertical one, so the source is painted this wide.
       final double painted = source.width * (box.height / source.height);
       expect(painted, closeTo(760, 0.5));
       expect(
@@ -231,14 +211,12 @@ void main() {
         find.byKey(DmOnboardingPhotoUploadCard.rootKey),
       );
       // The ratio IS defended (the width constraint is loose, so AspectRatio
-      // resolves from the height instead of short-circuiting)...
       expect(box.width / box.height, closeTo(4 / 5, 0.001));
       // ...at the cost of the thing the card is for. 144 of 342 available.
       final double available = dmOnboardingPhotoUploadCardContentWidth(390);
       expect(box.width / available, lessThan(0.45));
 
       // And it does not centre: the step's column is CrossAxisAlignment.start,
-      // so the sliver sits hard against the leading edge of the column.
       final double cardLeft = tester
           .getTopLeft(find.byKey(DmOnboardingPhotoUploadCard.rootKey))
           .dx;
@@ -307,19 +285,6 @@ void main() {
 
     test('the plus icon is the only thing marking the drop area', () {
       // The empty card is `surfaceContainerLow` on the scaffold's `surface`,
-      // outlined with a hairline `outlineVariant`, with a `onSurfaceVariant`
-      // plus in the middle. Measured against WCAG 1.4.11's 3:1 for the
-      // boundary of a UI component:
-      //
-      //             fill/page   border/page
-      //   light        1.06         1.29
-      //   dark         1.08         1.98
-      //
-      // i.e. the card has no perceivable edge in EITHER theme, and light — the
-      // default — is the worse of the two, which is the opposite of what the
-      // AR RTL *dark* rendering of the matrix trains you to expect. Asserted
-      // loosely on purpose: pinning 1.29 would make fixing the palette a test
-      // failure, and asserting 3.0 would fail today.
       for (final ColorScheme scheme in <ColorScheme>[
         AppTheme.light().colorScheme,
         AppTheme.dark().colorScheme,
@@ -327,7 +292,6 @@ void main() {
         expect(_contrast(scheme.outlineVariant, scheme.surface), greaterThan(1.0));
 
         // What the affordance actually rests on. This one IS a guard: if the
-        // plus stops clearing 3:1 there is nothing left to see at all.
         expect(
           _contrast(scheme.onSurfaceVariant, scheme.surfaceContainerLow),
           greaterThanOrEqualTo(3.0),

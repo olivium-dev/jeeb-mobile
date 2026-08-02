@@ -9,7 +9,6 @@ import 'notification_prefs_state.dart';
 /// Notification preferences driver (JM-058).
 /// GET prefs on mount; each toggle optimistically updates then schedules debounced PUT (500ms).
 /// PUT failure reverts category and fires saveError. Transactional locked (always-on);
-/// push-channel only.
 class NotificationPrefsCubit extends Cubit<NotificationPrefsState> {
   NotificationPrefsCubit({
     required NotificationPrefsRepository repository,

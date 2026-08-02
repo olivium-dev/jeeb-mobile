@@ -1,13 +1,4 @@
 // Render tests for the ShellHeaderActions previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// ShellHeaderActions renders no text of its own, so `expectedText` pins each
-// preview's caption — the one string that differs per state. Without that, a
-// suite of five identical icon pairs would pass even if every preview built the
-// same composition. The specifics group below pins the half that is actually
-// the widget's own contract: the `idPrefix` scoping of its Semantics ids.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,8 +32,6 @@ void main() {
   group('ShellHeaderActions preview specifics', () {
     /// The `idPrefix` contract: one shared widget, per-screen ids, so the two
     /// headers never emit duplicate Semantics identifiers. Asserting BOTH the
-    /// presence of this host's ids and the absence of the other host's is what
-    /// distinguishes a real per-screen scope from a hardcoded prefix.
     Future<void> expectScopedIds(
       WidgetTester tester,
       Widget Function() preview, {
@@ -98,10 +87,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The overlay is stacked on top of a real host header, and two of those
-      // hosts (`ClientHomeGreeting`, `CustomerProfileHeader`) carry trailing
-      // buttons of their own. A preview that accidentally painted the actions
-      // twice — or a host that grew its own copy — would still look plausible
-      // in the canvas, so count them.
       for (final Widget Function() preview in <Widget Function()>[
         shellHeaderActionsBareRow,
         shellHeaderActionsRequestsTab,
@@ -120,9 +105,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Both affordances are icon-only, so their ARB labels
-      // (`shellWalletChipLabel` / `shellBellLabel`) are the ONLY thing a screen
-      // reader has to go on. If either ever regressed to a literal, the Arabic
-      // rendering of every preview above would quietly announce English.
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpPreview(
         tester,

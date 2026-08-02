@@ -1,11 +1,4 @@
 // Render tests for the OfferAcceptSheet previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Every state below pins a DISTINCT string — five
-// previews of the same sheet would otherwise all pass while showing the same
-// thing — and the state whose difference is a spinner rather than copy gets its
-// own group, because `pumpAndSettle` never returns with an indeterminate
-// `CircularProgressIndicator` on screen.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,7 +25,6 @@ void main() {
     },
     expectedText: const <String, String>{
       // SW-14: the title is a QUESTION about a pending act, never the
-      // past-tense chat system message it used to borrow.
       'Idle · named Jeeber': "Accept Kamal Hajj's offer?",
       // sprint-009 scenario #7 — the 409 accept race, spoken out loud.
       'Failed · request closed (409)': 'This request is no longer open.',
@@ -47,11 +39,6 @@ void main() {
   );
 
   // `OfferAcceptStatus.submitting` swaps the Confirm label for
-  // `OmdsButtonLoading`, i.e. an INDETERMINATE `CircularProgressIndicator`.
-  // `pumpAndSettle` (which `pumpPreview` calls) never returns while one is on
-  // screen, so this preview gets the same three assertions the shared suite
-  // makes — builds in EN, builds in AR, renders its OWN state — driven by fixed
-  // pumps instead.
   group('OfferAcceptSheet previews · Submitting · B-01 lock', () {
     Future<void> pumpSubmitting(
       WidgetTester tester, {
@@ -82,7 +69,6 @@ void main() {
       // Still the same offer being confirmed…
       expect(find.text("Accept Kamal Hajj's offer?"), findsOneWidget);
       // …but the Confirm label has been replaced by the spinner, and no failure
-      // has been reported. That triple is true of no other preview in this file.
       expect(find.text('Accept Offer'), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(_errorBanner, findsNothing);
@@ -94,8 +80,6 @@ void main() {
       await pumpSubmitting(tester);
 
       // The accept POST is the accept-exactly-ONE moment: a live tap target
-      // here is how a customer fires a second accept (Confirm) or tears the
-      // sheet down mid-POST and goes to accept a different offer (Cancel).
       for (final String id in const <String>[
         'offer_accept_confirm_cta',
         'offer_accept_cancel_cta',
@@ -117,7 +101,6 @@ void main() {
       await pumpPreview(tester, offerAcceptSheetIdle);
 
       // NEGATIVE control for the copy this slot used to borrow from chat
-      // (`chatSystemOfferAcceptedNamed`, "{name}'s offer was accepted").
       expect(find.textContaining('was accepted'), findsNothing);
     });
 
@@ -131,11 +114,6 @@ void main() {
     });
 
     // The guard against every preview in this file seeding the same state:
-    // the three idle states must show no inline banner, the two failed ones
-    // must. Each preview gets its OWN test on purpose — re-pumping a second
-    // `OfferAcceptSheet` into a live tree reuses the `BlocProvider` element and
-    // never re-runs `create`, so a loop inside one test would silently review
-    // the FIRST preview's cubit five times over.
     for (final MapEntry<String, Widget Function()> entry
         in <String, Widget Function()>{
       'Idle · named Jeeber': offerAcceptSheetIdle,
@@ -163,7 +141,6 @@ void main() {
 
         expect(_errorBanner, findsOneWidget);
         // …and it is announced, not just drawn: a failure the customer cannot
-        // see (they were watching the spinner) must still reach them.
         expect(
           find.bySemanticsIdentifier('offer_accept_error'),
           findsOneWidget,
@@ -186,7 +163,6 @@ void main() {
       await pumpPreview(tester, offerAcceptSheetFailedAtCapacity);
 
       // BR-10 means the OFFER is still pending upstream; saying it is gone
-      // sends the customer looking for a bid that has not moved.
       expect(find.text('This offer is no longer available.'), findsNothing);
       expect(find.text('This request is no longer open.'), findsNothing);
     });
@@ -197,8 +173,6 @@ void main() {
       await pumpPreview(tester, offerAcceptSheetLongContent);
 
       // U+2066 LEFT-TO-RIGHT ISOLATE … U+2069 POP DIRECTIONAL ISOLATE. Without
-      // them the amount reorders under the AR rendering of the matrix, which is
-      // the whole reason MoneyFormat emits them.
       expect(
         find.text('\u2066LBP 4,500,000.00\u2069'),
         findsOneWidget,

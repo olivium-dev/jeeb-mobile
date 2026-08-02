@@ -29,7 +29,6 @@ import '../fixtures/rating_screen_fixtures.dart';
 import '../fixtures/registration_screen_fixtures.dart';
 
 // Batch 09: profile_name, prohibited_acknowledgment, prohibited_item_report,
-// rating, registration — uses LOCAL fake services, never hit the live gateway.
 
 List<CatalogEntry> get batch09Entries => <CatalogEntry>[
       _displayNameSetupScreenEntry,

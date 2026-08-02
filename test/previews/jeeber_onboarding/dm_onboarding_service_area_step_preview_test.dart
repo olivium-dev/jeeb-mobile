@@ -1,23 +1,3 @@
-// Render tests for the DmOnboardingServiceAreaStep previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Every state pins a DISTINCT string — the step
-// prints the chosen place label twice (map caption + selector row), so the
-// fixture caption each preview carries is the only string unique to it, and
-// without those pins six cards of the same step would all pass while showing
-// the same thing.
-//
-// Two things this file does that the shared harness cannot:
-//
-//   * It loads the production Inter faces. Every geometry number below is a
-//     device number; with the square test font they are all roughly double.
-//   * It pumps a PHONE viewport. `preview_test_harness.dart` uses 800 x 600,
-//     which is wider than any phone and lays out every state in this file
-//     clean — including the one that overflows by 105 pt at 390 pt.
-//
-// The in-flight preview is driven outside `testPreviewsRender` because an
-// indeterminate spinner never settles.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,11 +7,6 @@ import '../../support/load_test_fonts.dart';
 import '../preview_test_harness.dart';
 
 /// Pumps [preview] at a real device box and returns the layout errors that
-/// frame produced, joined, or null when it laid out clean.
-///
-/// Errors are intercepted rather than left for `takeException` so a state that
-/// overflows twice (map box AND row) reports both instead of collapsing to
-/// "Multiple exceptions (2) were detected".
 Future<String?> _layoutErrorsAt(
   WidgetTester tester,
   Widget Function() preview, {
@@ -60,10 +35,6 @@ Future<String?> _layoutErrorsAt(
 }
 
 /// `A RenderFlex overflowed by 105 pixels on the right.` -> 105.
-///
-/// [edge] disambiguates the frames that overflow twice: at 200 % text a pinned
-/// step reports the map box going over the bottom AND the row going over the
-/// right, in that order.
 int _overflowPixels(String? errors, String edge) {
   final RegExpMatch? m = RegExp(
     'overflowed by (\\d+) pixels on the $edge',
@@ -79,8 +50,6 @@ int _overflowPixels(String? errors, String edge) {
 void main() {
   setUpAll(() async {
     loadPreviewArbs();
-    // Geometry, not glyphs, is what these previews are for — the numbers below
-    // are meaningless under the square test font.
     await loadInterTestFont();
   });
 
@@ -94,9 +63,6 @@ void main() {
       'Coverage check failed · no in-step surface':
           dmOnboardingServiceAreaStepCoverageFailed,
     },
-    // The fixture caption, because the place label is never unique in the tree
-    // (map caption + row value) and three of these five states differ by
-    // nothing else a text finder can see.
     expectedText: const <String, String>{
       'No base pinned · Continue disabled': 'fixture: no home base',
       'Base pinned · geocoded label': 'fixture: geocoded label',
@@ -108,11 +74,6 @@ void main() {
     },
   );
 
-  // `isSubmitting: true` renders `OmdsButtonLoading`, i.e. an indeterminate
-  // `CircularProgressIndicator`. `pumpAndSettle` (which `pumpPreview` calls)
-  // never returns while one is on screen, so this preview gets the same three
-  // assertions the shared suite makes — builds in EN, builds in AR, renders its
-  // OWN state — driven by fixed pumps instead.
   group('DmOnboardingServiceAreaStep previews · Checking coverage', () {
     Future<void> pumpChecking(
       WidgetTester tester, {
@@ -141,11 +102,8 @@ void main() {
       await pumpChecking(tester);
 
       expect(find.text('fixture: coverage probe never lands'), findsOneWidget);
-      // The CTA label is gone, replaced by the spinner — true of no other
-      // preview in this file.
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text('Continue'), findsNothing);
-      // …while the base it is checking is still on screen and still editable.
       expect(find.text('Sassine Square, Ashrafieh'), findsNWidgets(2));
     });
   });
@@ -156,12 +114,9 @@ void main() {
     ) async {
       await pumpPreview(tester, dmOnboardingServiceAreaStepUnpinned);
 
-      // The empty map reads as an intentional empty map, not a broken pin.
       expect(find.byIcon(Icons.map_outlined), findsOneWidget);
       expect(find.text('Tap Location to set your home base'), findsOneWidget);
       expect(find.text('Select'), findsOneWidget);
-      // …and that hint is the ONLY instruction. Nothing on the step ties the
-      // dimmed CTA to the missing base.
       expect(find.textContaining('required'), findsNothing);
       expect(find.text('Continue'), findsOneWidget);
     });
@@ -181,13 +136,6 @@ void main() {
           label: 'Continue',
           isButton: true,
           hasTapAction: false,
-          // The gap: `_ContinueButton` passes `isEnabled: false` to
-          // `OmdsLoadingButton`, which spends it on a 60 %-alpha fill, and
-          // wraps the CTA in a `Semantics(button: true)` that never sets
-          // `enabled:`. So the node carries no enabled state at all — TalkBack
-          // and VoiceOver announce a plain button and say nothing about it
-          // being inert. Dropping the tap action is the only machine-readable
-          // signal, and it is not one screen readers announce.
           hasEnabledState: false,
         ),
       );
@@ -219,8 +167,6 @@ void main() {
           identifier: 'dm_onboarding_continue',
           isButton: true,
           hasTapAction: true,
-          // Still no enabled state, even now that it IS enabled: the flag is
-          // simply never set either way.
           hasEnabledState: false,
         ),
       );
@@ -229,9 +175,6 @@ void main() {
 
     testWidgets('what ships today: tapping the row labels the base "Location"',
         (WidgetTester tester) async {
-      // No `GoRouter` above a preview, so this takes `_pickHomeBase`'s fallback
-      // branch — the same stub base the real branch records after the
-      // `capture-location` screen pops, because no reverse geocode is wired.
       await pumpPreview(tester, dmOnboardingServiceAreaStepUnpinned);
       expect(find.text('Location'), findsOneWidget);
 
@@ -240,7 +183,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Row label, row value, map caption — the same word three times.
       expect(find.text('Location'), findsNWidgets(3));
       expect(find.text('Select'), findsNothing);
       expect(
@@ -277,8 +219,6 @@ void main() {
     ) async {
       await pumpPreview(tester, dmOnboardingServiceAreaStepCoverageFailed);
 
-      // The cubit emitted `submitFailed`; the step's only listener for it is
-      // `DmOnboardingScreen`, which is not in this tree. Nothing here says so.
       expect(find.byType(SnackBar), findsNothing);
       expect(
         find.text("Couldn't check coverage for this area. Please try again."),
@@ -290,8 +230,6 @@ void main() {
     });
   });
 
-  // The reason this widget needed a canvas. Measured with Inter at real device
-  // widths; the shared suite's 800 pt viewport reports every one of these clean.
   group('DmOnboardingServiceAreaStep preview geometry', () {
     testWidgets('a long place name overflows the selector row at 390 pt', (
       WidgetTester tester,
@@ -316,9 +254,6 @@ void main() {
     testWidgets('…and the 800 pt harness viewport hides it completely', (
       WidgetTester tester,
     ) async {
-      // Not a curiosity: it is why `testPreviewsRender` passes this preview.
-      // Every horizontal assertion in this group has to set a phone width
-      // first, or it asserts nothing.
       final String? errors = await _layoutErrorsAt(
         tester,
         dmOnboardingServiceAreaStepLongLabel,
@@ -331,8 +266,6 @@ void main() {
     testWidgets('an ordinary address already overflows a 320 pt phone', (
       WidgetTester tester,
     ) async {
-      // 'Sassine Square, Ashrafieh' is 25 characters — nothing exotic, and the
-      // exact address the saved-address seam seeds.
       expect(
         await _layoutErrorsAt(tester, dmOnboardingServiceAreaStepPinned),
         isNull,
@@ -377,10 +310,6 @@ void main() {
     testWidgets('the one-word stub label is the only state 200% text spares', (
       WidgetTester tester,
     ) async {
-      // The map hint is gone once a base is pinned, and "Location" is short
-      // enough for the row. So today's shipping state passes the accessibility
-      // ceiling that both real place names fail — the layout is only healthy
-      // while reverse geocoding is missing.
       expect(
         await _layoutErrorsAt(
           tester,

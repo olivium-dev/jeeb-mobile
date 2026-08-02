@@ -1,9 +1,4 @@
 // Render tests for the PendingRequestCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Every `expectedText` below is unique to its
-// state: a suite that only asserted "something rendered" would still pass if
-// all five previews showed the same request.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,8 +46,6 @@ void main() {
       await pumpPreview(tester, pendingRequestCardTitleFallback);
 
       // Header falls back to `title`; because `itemsSummary` is the same
-      // string, `summaryLine` must drop to the destination rather than print
-      // the sentence twice.
       expect(find.text('Pharmacy run for Mom'), findsOneWidget);
       expect(find.text('Achrafieh, Beirut'), findsOneWidget);
     });
@@ -63,9 +56,6 @@ void main() {
       await pumpPreview(tester, pendingRequestCardEmptySummary);
 
       // The tier badge proves the empty Text below is the summary, not the
-      // badge. `PendingCountdownCard` substitutes the localized searching
-      // label here; this card does not — that divergence is the point of the
-      // preview.
       expect(find.text('Standard'), findsOneWidget);
       expect(find.text(''), findsOneWidget);
       expect(find.text('Searching for Jeebers…'), findsNothing);

@@ -1,17 +1,4 @@
 // Render tests for the RequestTierCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-//
-// All five previews are the SAME widget told apart only by `selected` and by
-// which tier's copy it carries, so every state pins a string that appears in NO
-// other state — the speed line, which is unique per tier and per fixture. A
-// suite that pinned the shared chrome would pass on the wrong card.
-//
-// The last group is not preview hygiene. It is what these previews exposed:
-// periwinkle description text that misses AA on the UNSELECTED card only, a
-// tier radio that announces itself as a button while supporting no semantics
-// action at all, and a leading glyph + radio that stay 20/24 dp while the copy
-// beside them doubles.
 
 import 'dart:ui' show CheckedState;
 
@@ -27,14 +14,12 @@ import '../preview_test_harness.dart';
 
 /// Exact ARB copy, so a reworded string breaks the test instead of silently
 /// unpinning the preview. The speed line is the discriminator — it is unique
-/// per tier, where "Selected"/the tier icon are not.
 const String _standardSpeed = 'Delivered later today at a balanced rate.';
 const String _flashSpeed = 'Delivered in less than 1 hour.';
 const String _onTheWaySpeed = 'Matched with someone already heading there.';
 const String _onTheWaySpeedAr = 'يُطابَق مع شخص متجه إلى هناك بالفعل.';
 const String _onTheWayTitleAr = 'على الطريق';
 // U+2013 EN DASH between the two Latin numerals — the bidi case the Eco
-// preview exists for.
 const String _ecoSpeed = 'Delivered within 24–48 hours.';
 const String _ecoSpeedAr = 'يُوصَّل خلال 24–48 ساعة.';
 
@@ -66,13 +51,7 @@ ColorScheme _scheme(WidgetTester tester) =>
     Theme.of(tester.element(find.byType(RequestTierCard))).colorScheme;
 
 /// Pumps a preview into a phone-WIDTH box, the way the canvas renders it.
-///
 /// The width is the point: the card is measured inside the tier list's page
-/// padding, so at 390 dp it is the production 350 dp and its copy wraps where
-/// the app wraps it. On the default 800 dp test surface nothing wraps at all.
-/// The height is deliberately generous — this card grows instead of clipping
-/// (in the app it is a `ListView` child), so a short box would only produce a
-/// render-overflow exception that says nothing about the widget.
 Future<void> _pumpAtPhoneWidth(
   WidgetTester tester,
   Widget Function() preview, {
@@ -127,7 +106,6 @@ void main() {
         isTrue,
       );
       // Selected ink is `onPrimary` on BOTH the title and the two description
-      // lines — the card inverts wholesale, it does not tint.
       expect(tester.widget<Text>(find.text(_flashSpeed)).style?.color,
           scheme.onPrimary);
       expect(tester.widget<Text>(find.text('Flash')).style?.color,
@@ -188,7 +166,6 @@ void main() {
         TextDirection.rtl,
       );
       // `EdgeInsetsDirectional` + a mirrored `Row`: the radio must land on the
-      // LEADING-opposite (left) side and the tier glyph right of its title.
       expect(
         tester.getRect(find.byType(SelectableRadioGlyph)).right,
         lessThan(tester.getRect(find.text(_onTheWaySpeedAr)).left),
@@ -209,7 +186,6 @@ void main() {
       );
 
       // "24–48", not "48–24": the numerals are one LTR run inside the Arabic
-      // sentence, and reversing them would change the quoted window.
       expect(find.text(_ecoSpeedAr), findsOneWidget);
       expect(find.textContaining('24–48'), findsOneWidget);
     });
@@ -218,10 +194,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The height each preview declares in `@JeebPreview(size:)`. The canvas
-      // gives all three renderings of a state the SAME box and the 200% one is
-      // the tallest, so this is the number that decides whether a reviewer sees
-      // the widget or a stripe of overflow paint. If it fails, raise the box in
-      // the preview — do not shrink the state.
       final List<(Widget Function(), double)> declared =
           <(Widget Function(), double)>[
         (requestTierCardUnselected, 370),
@@ -249,7 +221,6 @@ void main() {
       expect(find.text(_longTitle), findsOneWidget);
       expect(tester.takeException(), isNull);
       // The `Flexible` title is the only constrained Text here, and it has no
-      // `maxLines`/`overflow`, so it grows the card rather than ellipsizing.
       expect(
         tester.getRect(find.byType(RequestTierCard)).height,
         greaterThan(100),
@@ -258,8 +229,6 @@ void main() {
   });
 
   // The defects the previews exposed, held as assertions so they cannot regress
-  // unnoticed — and so that FIXING them fails this file loudly rather than
-  // leaving a stale claim behind.
   group('RequestTierCard defects', () {
     /// WCAG 1.4.3 for text below 18 pt / 14 pt bold. The description pair is
     /// `bodySmall` (12 sp), so it is held to this floor.
@@ -314,9 +283,6 @@ void main() {
           .getSemanticsData();
 
       // The outer `Semantics` claims button + checkbox semantics, then
-      // `ExcludeSemantics` drops the `InkWell` beneath it — and with it the only
-      // `SemanticsAction.tap` in the subtree. The node ends up with ZERO
-      // actions.
       expect(data.flagsCollection.isButton, isTrue);
       expect(data.flagsCollection.isInMutuallyExclusiveGroup, isTrue);
       expect(data.hasAction(SemanticsAction.tap), isFalse);
@@ -330,7 +296,6 @@ void main() {
             'a touch at the node centre — Flutter never dispatches a tap',
       );
       // The same gap, from the caller's side: nothing can drive this card
-      // through the accessibility API.
       expect(
         () => tester.semantics.tap(
           find.semantics.byPredicate(
@@ -347,10 +312,6 @@ void main() {
       await _pumpAtPhoneWidth(tester, requestTierCardUnselected);
 
       // `requestTypeTierSemanticLabel` is "{title}. {speed}. {value}." but the
-      // ARB speed/value strings already end in a full stop, so every tier is
-      // announced with ".." mid-sentence. Composition lives in the ARB and in
-      // `_TierEntry`, not in this widget — the preview is just where it became
-      // visible.
       expect(
         tester
             .getSemantics(

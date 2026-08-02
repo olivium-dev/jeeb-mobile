@@ -1,11 +1,4 @@
 // Render tests for the ChatMessageBubble previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`; the `expectedText` map is the
-// part that matters — it pins each preview to ITS OWN content, so a refactor
-// that made every card render the same bubble would fail here instead of
-// looking fine in the canvas.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -57,7 +50,6 @@ void main() {
       await pumpPreview(tester, chatMessageBubbleUndated);
 
       // The dated sibling supplies the only clock in this preview; the undated
-      // row must not add a second one, and must never show a 1970-era time.
       expect(find.text('09:41'), findsOneWidget);
       expect(find.text('00:00'), findsNothing);
       expect(

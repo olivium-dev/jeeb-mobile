@@ -1,12 +1,4 @@
 // Render tests for the DeliveryDetailsCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// `expectedText` pins a DIFFERENT string per state on purpose: every state here
-// renders the same three-row card, so a suite that only asked "did something
-// render?" would pass even if every preview were handed the same snapshot.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,8 +37,6 @@ void main() {
       await pumpPreview(tester, deliveryDetailsCardPickupTruckTier);
 
       // "Pickup" (deliveryPickupLabel) heads the first row; "Pickup truck"
-      // (deliveryTierPickup) fills the last. The two ARB keys sit four lines
-      // apart and read almost identically in review, so pin both.
       expect(find.text('Pickup'), findsOneWidget);
       expect(find.text('Pickup truck'), findsOneWidget);
     });
@@ -57,11 +47,6 @@ void main() {
       await pumpPreview(tester, deliveryDetailsCardUnresolvedPickup);
 
       // `secondary` is guarded by `isNotEmpty`, so the drop-off's '' sub-line
-      // never mounts — while `primary` has no guard, so the unresolved pickup
-      // mounts a Text with nothing in it. Exactly ONE empty Text therefore
-      // exists, and it IS the blank row the preview exists to show; if this
-      // ever becomes findsNothing, the card grew a placeholder and the
-      // preview's doc comment is stale.
       expect(find.text(''), findsOneWidget);
       // The pickup's sub-line still renders: only the EMPTY one was dropped.
       expect(find.text('Awaiting geocode'), findsOneWidget);
@@ -71,9 +56,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The two box constants encode measured heights. Re-render the tallest
-      // state inside the tall box and assert the card fits, so a future edit
-      // that adds a fourth row fails here instead of silently clipping in the
-      // canvas.
       tester.view.physicalSize = const Size(390, 720);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);

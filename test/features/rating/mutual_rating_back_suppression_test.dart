@@ -1,14 +1,4 @@
 // Run-22 replacement P1 regression guard — hardware BACK on the mandatory
-// mutual-rating terminal must NEVER escape to the OS (it exited to the
-// launcher, backgrounding the app mid-mandatory-rating).
-//
-// Root cause: the screen relied on `PopScope(canPop: false)` alone, but it is
-// typically reached via `context.goNamed('mutual-rating')` (receipt confirm /
-// OTP handover), which REPLACES the navigation stack. As the lone root page
-// there is nothing to pop, so `popRoute` never consults PopScope and the BACK
-// event propagated to the OS. The fix consumes the system BACK at the
-// `BackButtonListener` layer (before the router delegate), at both stack
-// positions.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -51,7 +41,6 @@ void main() {
     'is not backgrounded and the rating stays on screen',
     (tester) async {
       // Reproduce the exact run-22 configuration: the rating terminal reached
-      // via `go` — a go_router stack whose LONE ROOT page is mutual-rating.
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -87,9 +76,6 @@ void main() {
       expect(find.byType(MutualRatingScreen), findsOneWidget);
 
       // When the framework does NOT consume a system BACK, it invokes
-      // `SystemNavigator.pop` on the platform channel — on Android that
-      // backgrounds the app (the run-22 launcher-exit symptom). Intercept the
-      // platform channel to detect that escape.
       final platformCalls = <String>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,

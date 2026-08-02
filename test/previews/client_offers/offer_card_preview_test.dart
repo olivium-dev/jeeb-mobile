@@ -1,12 +1,4 @@
 // Render tests for the OfferCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`, with one documented exception: the
-// in-flight preview cannot go through `testPreviewsRender`, because its
-// `OmdsButtonLoading` spinner is an indefinite animation and `pumpAndSettle`
-// never returns. It gets its own pump-once group below, pinning the same kind
-// of state-specific content in both locales.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,10 +9,7 @@ import 'package:jeeb_mobile/features/client_offers/presentation/widgets/offer_ca
 import '../preview_test_harness.dart';
 
 /// Pumps a preview WITHOUT settling — for states that hold a running animation.
-///
 /// The preview canvas's ARB delegate resolves asynchronously, so the first
-/// frame builds an empty `Localizations`; the extra pumps let the load land and
-/// the card build. `pumpAndSettle` is deliberately not used.
 Future<void> _pumpUnsettled(
   WidgetTester tester,
   Widget Function() preview, {
@@ -50,8 +39,6 @@ void main() {
       'UUID name suppressed': 'New Jeeber',
       'Accept locked (rival winning)': 'Nour Haddad',
       // The fee pill carries the whole MoneyFormat token, LTR-isolated
-      // (JEBV4-98/F10). The cash-on-delivery line embeds the same amount in a
-      // different sentence, so this string still resolves to exactly one node.
       'Long name, note, LBP ceiling': '\u{2066}LBP 1,234,567,890.99\u{2069}',
     },
   );
@@ -133,7 +120,6 @@ void main() {
   });
 
   // `Accept in flight` — the state `testPreviewsRender` cannot host, covered to
-  // the same standard: builds in both locales, and pins its own content.
   group('OfferCard in-flight preview (never settles)', () {
     testWidgets('renders its own state · en', (WidgetTester tester) async {
       await _pumpUnsettled(tester, offerCardAccepting);

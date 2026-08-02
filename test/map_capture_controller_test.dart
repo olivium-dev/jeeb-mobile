@@ -5,8 +5,6 @@ import 'package:jeeb_mobile/features/location/presentation/widgets/map_capture_c
 
 void main() {
   // T-MOB-012: the controller is the plugin-free seam between the GoogleMap
-  // camera and the screen's "Pin Location" CTA. The GoogleMap writes the centre
-  // on camera-idle; the CTA reads controller.center on pin.
   group('MapCaptureController', () {
     test('exposes the initial centre', () {
       final controller = MapCaptureController(

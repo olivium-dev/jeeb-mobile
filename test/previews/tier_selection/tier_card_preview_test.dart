@@ -1,17 +1,4 @@
 // Render tests for the TierCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-//
-// All five previews are the SAME widget told apart only by `selected`, by
-// whether a recommended pill is passed, and by which tier's copy it carries —
-// so every state pins a string that appears in NO other state (the tier footer,
-// or the SLA line for the one tier that has none). A suite that pinned the
-// shared chrome would pass on the wrong card.
-//
-// The last group is not preview hygiene. It is what these previews exposed: a
-// recommended badge that is invisible on the one card it can appear on, a
-// card boundary at 1.21:1, three `TextOverflow.ellipsis` declarations that can
-// never fire, and meta glyphs that stay 16 dp while their labels double.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +10,6 @@ import '../preview_test_harness.dart';
 
 /// Exact ARB copy, so a reworded string breaks the test instead of silently
 /// unpinning the preview. The footer is the discriminator — it is unique per
-/// tier, where "Recommended" and the price pattern are not.
 const String _standardFooter = 'Most coverage, lower cost';
 const String _expressFooter = 'Best balance of speed and reach';
 const String _flashFooter = 'Hyper-local, fastest';
@@ -64,7 +50,6 @@ Material _cardMaterial(WidgetTester tester) => tester.widget<Material>(
 
 /// The padded [Container] the card draws its border on. It is the outermost
 /// `Container` in the subtree, so it precedes the badge pill in a pre-order
-/// walk.
 BoxDecoration _cardDecoration(WidgetTester tester) => tester
     .widget<Container>(
       find
@@ -89,13 +74,7 @@ ColorScheme _scheme(WidgetTester tester) =>
     Theme.of(tester.element(find.byType(TierCard))).colorScheme;
 
 /// Pumps a preview into a phone-WIDTH box, the way the canvas renders it.
-///
 /// The width is the point: in the app the card is measured inside the tier
-/// list's horizontal padding, so at 390 dp it gets its production 350 dp and
-/// its copy wraps where the app wraps it. On the default 800 dp test surface
-/// nothing wraps at all. The height is deliberately generous — this card grows
-/// instead of clipping (it is a `ListView` child), so a short box would only
-/// produce a render-overflow exception that says nothing about the widget.
 Future<void> _pumpAtPhoneWidth(
   WidgetTester tester,
   Widget Function() preview, {
@@ -165,7 +144,6 @@ void main() {
       expect(find.byIcon(Icons.check_circle_rounded), findsNothing);
       expect(find.text(_recommended), findsNothing);
       // The description is the one string that is NOT `onSurface` — it is the
-      // muted role, and only on the unselected card.
       expect(
         tester.widget<Text>(find.text(_standardFooter)).style?.color,
         scheme.onSurfaceVariant,
@@ -182,8 +160,6 @@ void main() {
       );
 
       // `TierSelectionScreen.cardKey` derives the slug from `TierId.name`, so
-      // the on-the-way card is the one camelCase id in an otherwise snake_case
-      // set. Pinned so a preview cannot quietly "tidy" it out of sync with QA.
       await _pumpAtPhoneWidth(tester, tierCardNoSla);
       expect(
         find.bySemanticsIdentifier('tier_selection_card_onTheWay'),
@@ -231,7 +207,6 @@ void main() {
         TextDirection.rtl,
       );
       // The header `Row` mirrors: title on the trailing-opposite (right) edge,
-      // then the pill, then the check on the far left.
       expect(
         tester.getRect(find.byIcon(Icons.check_circle_rounded)).right,
         lessThan(tester.getRect(find.text(_recommendedAr)).left),
@@ -257,9 +232,6 @@ void main() {
       );
 
       // `MoneyFormat` wraps each token in U+2066…U+2069, so the code stays left
-      // of its digits inside an RTL paragraph. Without the isolate this reads
-      // "30,000.00 LBP" on the wrong side. Spelled as escapes: the raw code
-      // points would reorder this source file in a reviewer's editor.
       expect(
         find.textContaining('\u2066LBP 30,000.00\u2069'),
         findsOneWidget,
@@ -271,10 +243,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The height each preview declares in `@JeebPreview(size:)`. The canvas
-      // gives all three renderings of a state the SAME box and the 200% one is
-      // the tallest, so this is the number that decides whether a reviewer sees
-      // the widget or a stripe of overflow paint. If it fails, raise the box in
-      // the preview — do not shrink the state.
       final List<(Widget Function(), double)> declared =
           <(Widget Function(), double)>[
         (tierCardUnselected, 600),
@@ -295,8 +263,6 @@ void main() {
   });
 
   // The defects the previews exposed, held as assertions so they cannot regress
-  // unnoticed — and so that FIXING them fails this file loudly rather than
-  // leaving a stale claim behind.
   group('TierCard defects', () {
     /// WCAG 1.4.11: a boundary that identifies a UI component needs 3:1.
     const double aaNonTextFloor = 3.0;
@@ -311,9 +277,6 @@ void main() {
       final Color pillFill = _badgeDecoration(tester, _recommended).color!;
 
       // `AppTheme` maps BOTH `primaryContainer` and `tertiaryContainer` to the
-      // same #FFDBD1 tone pair, so the pill paints its fill onto an identical
-      // fill and its `onTertiaryContainer` ink onto text already drawn in
-      // `onPrimaryContainer`. Nothing distinguishes the badge from the header.
       expect(cardFill, scheme.primaryContainer);
       expect(pillFill, scheme.tertiaryContainer);
       expect(
@@ -336,8 +299,6 @@ void main() {
     testWidgets('…and comes back in the dark scheme, so it is a light-palette '
         'collision, not a layout bug', (WidgetTester tester) async {
       // `previewCanvas` carries both real themes and leaves `themeMode` at
-      // `system`, so flipping the ambient brightness is what the canvas's
-      // "AR RTL dark" rendering does.
       await tester.pumpWidget(
         MediaQuery(
           data: const MediaQueryData(platformBrightness: Brightness.dark),
@@ -387,9 +348,6 @@ void main() {
       await _pumpAtPhoneWidth(tester, tierCardLongCopy);
 
       // All three constrained Texts declare `ellipsis` and none declares
-      // `maxLines`, so against the unbounded height a `ListView` child is
-      // measured with they WRAP. Every string is fully present and every one is
-      // more than one line tall.
       for (final String copy in const <String>[_longName, _longVehicle]) {
         final Text text = tester.widget<Text>(find.text(copy));
         expect(text.overflow, TextOverflow.ellipsis);

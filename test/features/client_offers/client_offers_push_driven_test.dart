@@ -11,18 +11,8 @@ import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart
 /// b02 wave C — N8. The "Choose a Jeeber" list used to re-read
 /// `GET /v1/offers?requestId` + `GET /v1/requests/{id}` every 5s through a raw
 /// `Stream.periodic` with ZERO gate tokens, so it kept firing while the app was
-/// BACKGROUNDED. The replacement is the existing payload-less push bus: the
-/// gateway already emits `type=offer` to `request.ClientId`
-/// (`jeeb-gateway/src/JeebGateway/Notifications/OfferPushNotifier.cs:227`, sent
-/// at `:399-402` from `Controllers/RequestOffersController.cs:326`), which the
-/// mobile handler buckets as `NotificationCategory.newOffer` and routes through
-/// the id-guarded `orderish` branch of
-/// `PushNotificationHandler._maybeSignalStatusChange` (`requestId`/`request_id`
-/// are both stamped on that payload).
 class _FakeOffersRepository implements OffersRepository {
   // `requestIsOpen` is a mutable FIELD, not a constructor parameter: no test
-  // seeds it (they flip it mid-run), and a never-supplied optional parameter
-  // is an `unused_element_parameter` warning, which CI treats as fatal.
   bool requestIsOpen = true;
   int fetchCount = 0;
 
@@ -125,7 +115,6 @@ void main() {
       repo.requestIsOpen = false;
 
       // A push arrives; the snapshot now says the request is closed, which must
-      // retire the subscription so a later push drives nothing.
       bus.add(null);
       await Future<void>.delayed(Duration.zero);
       expect(repo.fetchCount, 2);

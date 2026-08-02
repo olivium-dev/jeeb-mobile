@@ -18,8 +18,6 @@ class SocialAuthSession {
 
   /// Phone on file (null if not provided; social doesn't guarantee phone).
   /// First-time social sign-in or facebook_no_phone seam returns null.
-  /// When null, must route through phone-OTP verification before home.
-  /// Normalised: '' → null.
   final String? phone;
 
   /// G8 gate: true only when usable phone on file (account still needs

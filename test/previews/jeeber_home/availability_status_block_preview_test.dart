@@ -1,27 +1,4 @@
 // Render tests for the AvailabilityStatusBlock previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`: every preview builds in both
-// locales, and each is pinned to a string only ITS state produces.
-//
-// Picking those strings takes a moment's care here, because the block has only
-// three lines and they repeat across states. The headline alone cannot separate
-// the two in-flight previews — both read "Updating…" — so the going-offline
-// frame is pinned by its delivery count instead, and the pairing of the two
-// lines is asserted explicitly in the specifics group below.
-//
-// Below that, the assertions the canvas can only show a human: that the
-// preview's width is the width the REAL card hands the block, that the column
-// mirrors in Arabic, that the active-deliveries line is silently dropped in
-// auto-offline, and how the stack grows at the 200% accessibility ceiling.
-//
-// One caveat on the measurements. `flutter test` substitutes the `FlutterTest`
-// font, whose glyphs are wider than the shipped one's, so the exact line counts
-// here are more pessimistic than on a device. The claims that do not depend on
-// the font are structural: the block is a `Column` of plain `Text`s with no
-// `maxLines` and no clip, so it can only answer a text-scale increase by
-// getting taller, and it has no bounded height of its own to overflow.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -96,12 +73,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `availabilityStatusBlockSlotWidth` is derived by hand from
-      // OMDSSectionCard's 16pt gutters, the Row's Spacing.small gap and the
-      // fixed Sizes.fiveXLarge spinner box. Deriving it is only useful if it
-      // stays true, so this drives the production AvailabilityCard in the same
-      // in-flight state and measures the block it builds. A change to the
-      // card's padding or spinner size fails HERE rather than silently making
-      // every preview render at the wrong width.
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(390, 900);
       addTearDown(tester.view.reset);
@@ -135,11 +106,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Reachable today: `AvailabilityCubit._onIdleTick` emits
-      // `status.copyWith(state: autoOffline)`, preserving activeDeliveryCount,
-      // while `build` gates both sub-lines on `status.isOnline`. So a Jeeber
-      // taken off the matching engine with two pickups in hand is told only
-      // that they are offline. This pins the CURRENT behaviour so a fix is a
-      // deliberate, visible change.
       await _pumpOnPhone(
         tester,
         availabilityStatusBlockAutoOfflineHoldingWork,
@@ -151,7 +117,6 @@ void main() {
       expect(find.text('Auto-offline after 8 h idle'), findsNothing);
 
       // The same two deliveries ARE disclosed when the state is online, which
-      // is what makes the omission a gate bug rather than a missing string.
       await _pumpOnPhone(tester, availabilityStatusBlockOnlineTwo);
       expect(_activeDeliveries, findsOneWidget);
       expect(find.text('2 active deliveries'), findsOneWidget);
@@ -161,8 +126,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_StatusHeadline` short-circuits to "Updating…" on isToggleInFlight,
-      // but the sub-line guard below it reads the old snapshot — so going
-      // offline by hand still advertises the auto-offline policy.
       await _pumpOnPhone(tester, availabilityStatusBlockGoingOffline);
 
       expect(find.text('Updating…'), findsOneWidget);
@@ -170,7 +133,6 @@ void main() {
       expect(find.text('Auto-offline after 8 h idle'), findsOneWidget);
 
       // Going the other way the guard is false, so the identical headline is
-      // all there is — the two in-flight frames are NOT the same widget.
       await _pumpOnPhone(tester, availabilityStatusBlockGoingOnline);
       expect(find.text('Updating…'), findsOneWidget);
       expect(_activeDeliveries, findsNothing);
@@ -181,7 +143,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // CrossAxisAlignment.start + TextAlign.start, so the three lines share a
-      // leading edge in LTR and must all move to the trailing edge in RTL.
       await _pumpOnPhone(tester, availabilityStatusBlockOnlineTwo);
       Rect block = tester.getRect(_block);
       final Rect headlineLtr = tester.getRect(
@@ -226,10 +187,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The block is a Column of plain Texts with no maxLines, no ellipsis and
-      // no clip, inside a parent that gives it an unbounded height. That is the
-      // right answer for supporting copy — but it means the block is the part
-      // of `_AvailabilityProgress` that must be allowed to grow, so the fixed
-      // 40pt spinner box beside it stops being the row's height driver.
       await _pumpOnPhone(tester, availabilityStatusBlockGoingOffline);
       final double atOneX = tester.getSize(_block).height;
       RenderParagraph hint = _paragraph(tester, 'Auto-offline after 8 h idle');

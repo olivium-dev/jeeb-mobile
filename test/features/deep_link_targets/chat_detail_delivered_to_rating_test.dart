@@ -1,15 +1,4 @@
 // Gap fix (fix/chat-delivered-to-rating): when the delivery a client is chatting
-// about reaches a delivered-class terminal (Done) WHILE the client sits on the
-// order-chat, the chat surface must auto-advance to the MANDATORY blind
-// mutual-rating screen — the SAME canonical `/orders/:id/mutual-rate` route the
-// OTP-handover and jeeber active-delivery completions use. Before this fix the
-// summary poll advanced the status chip and then stopped, stranding the client
-// on a finished chat with no forward path to rating.
-//
-// This locks two behaviours:
-//   * in-transit (InTransit) → NO navigation (the client keeps chatting);
-//   * delivered (Done)       → navigate to `/orders/:id/mutual-rate` (client leg,
-//                              no `?mode=jeeber`, since RoleCubit is client).
 
 import 'dart:async';
 
@@ -99,8 +88,6 @@ Widget _host(RoleCubit role, Stream<void> refreshSignals) {
         ),
       ),
       // Stub stand-in for the real MutualRatingScreen so the test asserts the
-      // ROUTE the chat navigates to (and its `mode` leg) without pulling the
-      // rating feature's DI graph.
       GoRoute(
         path: '/orders/:id/mutual-rate',
         builder: (context, state) {
@@ -161,20 +148,11 @@ void main() {
       await tester.pumpWidget(_host(await _clientRole(), refresh.stream));
 
       // Mount resolution: status is Ordered — the client stays on the chat, no
-      // rating navigation yet.
       await tester.pumpAndSettle();
       expect(rec.deliveryReads, 1, reason: 'one delivery read at mount');
       expect(find.textContaining(_ratingText), findsNothing);
 
       // ⚠️ THE POINT OF THIS TEST AFTER b02 WAVE B.2. The rating hand-off used to
-      // hang off the 60s summary POLL; deleting that poll without re-hosting the
-      // hand-off would have stranded the customer on a finished chat with no
-      // forward path, and no instrument we have would have shown it — the chip
-      // simply never advances and nothing throws. So the hand-off is now driven
-      // by the `delivery` push, and this suite is what holds that.
-      //
-      // `delivery` push #1: status advances to InTransit. Still in flight — the
-      // chat MUST NOT navigate to rating.
       refresh.add(null);
       await tester.pumpAndSettle();
       expect(rec.deliveryReads, 2);
@@ -185,8 +163,6 @@ void main() {
       );
 
       // `delivery` push #2: status reaches Done — the delivery completed while
-      // the client is on the chat, so the screen navigates to the mutual-rating
-      // route, client leg (no ?mode=jeeber).
       refresh.add(null);
       await tester.pumpAndSettle();
       expect(

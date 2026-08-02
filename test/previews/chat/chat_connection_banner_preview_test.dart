@@ -1,10 +1,4 @@
 // Render tests for the ChatConnectionBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`: build every state in both locales,
-// and pin a DISTINCT string per state so a suite cannot pass while every
-// preview renders the same banner.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,7 +94,6 @@ void main() {
         TextDirection.rtl,
       );
       // Icon leads, badge trails — so the icon must sit to the RIGHT of the
-      // badge once mirrored.
       final double iconX = tester.getCenter(find.byType(Icon)).dx;
       final double badgeX =
           tester.getCenter(find.byKey(const Key('chat-pending-badge'))).dx;

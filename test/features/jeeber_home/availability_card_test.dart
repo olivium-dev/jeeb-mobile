@@ -1,16 +1,3 @@
-// Jeeber Dashboard availability hierarchy regression proof.
-//
-// Proves:
-//   1. Offline state: a full OMDS section with Switch OFF + status copy.
-//   2. Online state: one compact OMDS switch row, with the semantic success role
-//      (`JeebColorRoles`) and no delivery-count/idle supporting lines.
-//   3. The compact copy says "You're online — receiving requests", en + ar.
-//   4. Toggling forwards to the cubit wiring (onToggle) and the in-flight
-//      frame swaps the switch for the legacy-keyed spinner (tap-blocked).
-//   5. §SW-23 persistence: the card also renders in the FEED state
-//      (JeeberFeedTabView with a non-empty feed) — availability never
-//      disappears exactly when the Jeeber is busy.
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -265,7 +252,6 @@ void main() {
       expect(toggles, 1);
 
       // In-flight frame: spinner (legacy key) replaces the switch entirely.
-      // (pump, not pumpAndSettle — the loading indicator animates forever.)
       await tester.pumpWidget(
         _host(
           AvailabilityCard(
@@ -369,7 +355,6 @@ void main() {
       // The feed list is live (non-empty state)…
       expect(find.byKey(JeeberFeedTabView.listKey), findsOneWidget);
       // …and the availability card is STILL on the dashboard (G2: the old
-      // disc disappeared entirely in this state).
       expect(find.byKey(AvailabilityCard.rootKey), findsOneWidget);
       expect(find.byKey(AvailabilityCard.toggleKey), findsOneWidget);
     });

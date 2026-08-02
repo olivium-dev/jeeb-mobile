@@ -14,7 +14,6 @@ import '../domain/notifications_repository.dart';
 import 'notifications_l10n.dart';
 import 'widgets/notification_row.dart';
 
-// Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/notifications_list_screen_fixtures.dart';
 
@@ -212,7 +211,6 @@ class _LoadedList extends StatelessWidget {
         context.goNamed('shell');
         break;
 
-      // `/jeeber/requests/:id` already handles cache recovery + graceful
       case NotificationKind.newRequest:
         if (ref == null) break;
         final target = deepLinkForMessage(
@@ -235,110 +233,12 @@ class _LoadedList extends StatelessWidget {
   }
 }
 // ============================== JEEB PREVIEWS ==============================
-// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/notifications/notifications_list_screen_preview_test.dart
-// ===========================================================================
-//
-// [NotificationsListScreen] is the shared inbox behind the header bell. It
-// takes a REPOSITORY, not a state — it builds its own [NotificationsListCubit]
-// and calls `load()` at mount — so every preview below hands it a local fake
-// through the same `repository:` seam the widget tests use, and the real
-// cold-load path runs exactly as it does in production.
-//
-// The fakes and the casts are NOT declared here. They live in
-// `lib/devtool/catalog/fixtures/notifications_list_screen_fixtures.dart`,
-// shared with the on-device Screen Catalog entry for this screen
-// (`devtool/catalog/entries/batch_07_entries.dart`), so the designer's in-app
-// browser and this canvas cannot drift into showing two different "designed
-// states". None of those repositories can reach the network — they answer from
-// a list, throw, or never complete — and the `sl<NotificationsRepository>()`
-// branch of `_resolveRepository` is never reached, so these previews are
-// network-free by construction rather than by the guard in [jeebPreviewHost].
-//
-// Three things about this harness are worth knowing before editing it:
-//
-//  * **The screen owns a Scaffold and [jeebPreviewHost] supplies another.**
-//    They nest: the host's `Scaffold + SafeArea` frames the card and the
-//    screen's own `Scaffold + OMDSAppBar` paints inside it. That is the same
-//    nesting the Screen Catalog produces.
-//  * **The frame is pinned in the TREE, not just in `size:`.** The `size:` on
-//    [JeebPreview] boxes the canvas; [_notificationsListScreenFramed] pins the
-//    same device in the widget tree — a `MediaQuery` override AND a `SizedBox`
-//    — so the render tests measure the same phone instead of the 800x600 test
-//    surface. The `MediaQuery` half is load-bearing rather than tidy:
-//    `_EmptyBody` spaces its illustration down by `MediaQuery.of(context)
-//    .size.height * 0.18`, so without it the empty state on a 320x568 card
-//    would be positioned for whatever window the host happens to have.
-//  * **Tapping is not previewing.** Every row dispatches through `goNamed` /
-//    `push`, and the `new_request` branch additionally reads a [RoleCubit];
-//    neither a [GoRouter] nor that cubit exists above a preview card, so a tap
-//    throws. Nothing here is a tap target under review — the states are.
-//
-// ## The states, and what they are chosen for
-//
-// The four the Screen Catalog names (Loading / Populated / Empty / Load
-// Failed) plus two it does not:
-//
-//   * **Empty vs failed.** Different bodies making different claims: "you're
-//     all caught up" is a statement about server DATA that a failed read is no
-//     evidence for. They are previewed adjacently so a regression that makes
-//     one look like the other is visible here first — and note that
-//     `_resolveRepository` falls back to [EmptyNotificationsRepository] when
-//     GetIt is unconfigured, so a mis-wired build renders exactly the Empty
-//     card below rather than an error.
-//   * **The two failures.** `_errorCopy` gives [NotificationsFailure.network]
-//     its own copy and collapses `unauthorized` / `unknown` / null into the
-//     generic "Could not load notifications.". Both cards are previewed
-//     because they are the same pixels for very different situations: on the
-//     expired-session one, Retry cannot ever succeed and nothing on the
-//     surface says "sign in again".
-//   * **Longest content at 320 pt.** The layout ceiling on the narrowest phone
-//     the app supports, with the two degenerate payloads under it.
-//
-// ## What these previews expose in the screen
-//
-//  * **The list has no clock.** [NotificationRow] takes an injectable `now`
-//    for its relative timestamp and `_LoadedList` does not pass one, so every
-//    age on this screen is measured against the device wall clock. No mocked
-//    surface can freeze it (which is why the fixtures express each row as an
-//    OFFSET from the read rather than as an instant), and on a device whose
-//    clock is behind the server's every row reads "Just now" — `relativeTime`
-//    returns that for any negative difference.
-//  * **A failed pull-to-refresh is invisible, and no preview here can show
-//    it.** The `BlocBuilder` switches on `state.status` alone; `refresh()`
-//    failing emits `copyWith(error: …)` with the status still `loaded`, and
-//    `state.error` is read ONLY inside the `failed` branch. So the rows do not
-//    change, no banner appears, and `NotificationsListCubit.acknowledgeError`
-//    — which exists for exactly this — has no caller in this file. Staging it
-//    would need a cubit seam the screen does not have; this note is the
-//    preview.
-
-/// The phone this screen is designed against.
 const Size _notificationsListScreenPhoneBox = Size(390, 844);
 
-/// The narrowest phone the app still supports — and roughly what an Android
-/// multi-window split leaves a foreground app.
+/// The narrowest phone the app still supports — and roughly wha
 const Size _notificationsListScreenCompactBox = Size(320, 568);
 
-/// Pins [screen] to a device-sized frame: the window it thinks it is in
-/// (`MediaQuery`) and the box it is laid out in (`SizedBox`).
-///
-/// Both halves are needed. `_EmptyBody` reads `MediaQuery.size.height`, so the
-/// window has to say 844 for the empty illustration to sit where a designer
-/// signs it off; and the render tests pump onto a fixed 800x600 surface, so the
-/// box has to be enforced or every card would measure 800 x 600.
-///
-/// The frame is placed inside two unbounded scroll views rather than an
-/// `Align`, because an `Align` passes the host's constraints down and an 844 pt
-/// phone would be silently clamped to the 600 pt test surface — faking the one
-/// measurement these previews depend on. `textScaler` is deliberately NOT
-/// overridden: [JeebPreview] renders a 200% card and a frame that pinned 1.0
-/// would quietly show a 100% rendering under a "200% text" label.
+/// Pins [screen] to a device-sized frame: the window it thinks 
 Widget _notificationsListScreenFramed(
   Widget screen, {
   Size box = _notificationsListScreenPhoneBox,
@@ -361,8 +261,7 @@ Widget _notificationsListScreenFramed(
   );
 }
 
-/// Builds the screen the way its route builds it — nothing but a repository —
-/// inside a device frame.
+/// Builds the screen the way its route builds it — nothing but 
 Widget _notificationsListScreenHosted(
   NotificationsRepository repository, {
   Size box = _notificationsListScreenPhoneBox,
@@ -373,19 +272,7 @@ Widget _notificationsListScreenHosted(
   );
 }
 
-/// The reference reading: three rows across three D84 dispatch classes, the
-/// middle one already read.
-///
-/// This is the one the matrix is for. Each row is a [Row] of a fixed leading
-/// icon, an unclamped text column and a 12 pt unread dot: in AR the whole
-/// stack mirrors (the icon to the trailing edge, the dot to the leading one —
-/// AC-16 FM1), and at 200% text the eyebrow/title/body/age column is four
-/// lines of roughly double height inside the same 390 pt frame, which is where
-/// a list of three rows stops being a list you can scan.
-///
-/// Read the top two lines of each row as a pair while you are here: the
-/// eyebrow is the per-KIND category label and the title is the payload
-/// headline, and P0-X08 was a fixture that rendered the same string twice.
+/// The reference reading: three rows across three D84 dispatch 
 @JeebPreview(
   group: 'notifications',
   name: 'Populated · mixed inbox',
@@ -396,17 +283,7 @@ Widget notificationsListScreenPopulated() => _notificationsListScreenHosted(
       NotificationsListScreenPreviewFixtures.populated(),
     );
 
-/// A read that SUCCEEDED and came back with zero rows: "You're all caught up".
-///
-/// Read it next to [notificationsListScreenLoadFailedNetwork] — this is the
-/// only one of the two entitled to make a claim about the server's data. It is
-/// also what a build with an unconfigured GetIt renders, because
-/// `_resolveRepository` falls through to [EmptyNotificationsRepository] rather
-/// than failing: the same reassuring page, with nothing behind it.
-///
-/// The body is a `ListView` on purpose (`AlwaysScrollableScrollPhysics`), so
-/// pull-to-refresh still works on an empty inbox — the one affordance this
-/// state has.
+/// A read that SUCCEEDED and came back with zero rows: "You're 
 @JeebPreview(
   group: 'notifications',
   name: 'Empty · nothing yet',
@@ -416,12 +293,7 @@ Widget notificationsListScreenEmpty() => _notificationsListScreenHosted(
       NotificationsListScreenPreviewFixtures.emptyInbox(),
     );
 
-/// The cold read in flight: an [OmdsLoadingState] spinner and nothing else.
-///
-/// Note what is NOT on screen — no rows, no copy, and nothing to do but leave.
-/// `load()` guards re-entry on `status != initial`, so a remount does not
-/// refetch; a read that never lands leaves the screen exactly here for as long
-/// as the inbox is open, with no timeout and no retry.
+/// The cold read in flight: an [OmdsLoadingState] spinner and n
 @JeebPreview(
   group: 'notifications',
   name: 'Loading · cold read',
@@ -431,9 +303,7 @@ Widget notificationsListScreenLoading() => _notificationsListScreenHosted(
       NotificationsListScreenPreviewFixtures.stalledLoad(),
     );
 
-/// The cold read failed on the transport: the centred [OmdsErrorState] with the
-/// one message this screen has that names its own cause, over a Retry that can
-/// actually succeed once the connection returns.
+/// The cold read failed on the transport: the centred [OmdsErro
 @JeebPreview(
   group: 'notifications',
   name: 'Load failed · network',
@@ -444,14 +314,7 @@ Widget notificationsListScreenLoadFailedNetwork() =>
       NotificationsListScreenPreviewFixtures.networkFailure(),
     );
 
-/// The same failed body, reached by a 401.
-///
-/// `_errorCopy` maps `unauthorized` onto the generic `loadError`, so this card
-/// is pixel-identical to [notificationsListScreenLoadFailedNetwork] except for
-/// one sentence — and it is the one where the offered action is useless: Retry
-/// re-issues the same unauthenticated read and fails the same way until the
-/// user signs in again, which nothing on this surface tells them to do. Worth a
-/// card of its own precisely because the two are so hard to tell apart.
+/// The same failed body, reached by a 401. `_errorCopy` maps `u
 @JeebPreview(
   group: 'notifications',
   name: 'Load failed · session expired',
@@ -462,23 +325,7 @@ Widget notificationsListScreenSessionExpired() =>
       NotificationsListScreenPreviewFixtures.unauthorizedFailure(),
     );
 
-/// The layout ceiling on the narrowest supported phone, with the two
-/// degenerate payloads underneath it.
-///
-/// Nothing on a row clamps — neither the title nor the body sets `maxLines` —
-/// so the first row does not ellipsize, it GROWS, and at 320 pt it is most of
-/// the viewport on its own. The `Divider(height: 1)` between rows is then the
-/// only thing telling a reader that one notification ended and the next began.
-///
-/// Under it: a `new_request` from a data-only push (empty title and body,
-/// filled in by the localized G3 fallback) and an `unknown` row with an empty
-/// title, body AND timestamp, which is what any wire `type` the mobile enum
-/// does not know about degrades to — a bare category eyebrow and an unread dot.
-/// The cubit sorts the timestamp-less row last, so this is also the ordering
-/// contract: a malformed row can never jump to the top.
-///
-/// This state carries the matrix because 320 pt is where AR and 200% text stop
-/// being a formality.
+/// The layout ceiling on the narrowest supported phone, with th
 @JeebPreview(
   group: 'notifications',
   name: 'Longest content · compact 320',

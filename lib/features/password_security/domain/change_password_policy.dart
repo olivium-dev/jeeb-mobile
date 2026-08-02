@@ -1,5 +1,4 @@
 // (not a first-set) implies: a current-password field must be present, and the
-// new password must differ from the current one.
 
 enum ChangePasswordValidation {
   valid,

@@ -3,13 +3,8 @@ import 'dart:async';
 import 'package:jeeb_mobile/features/chat/domain/chat_socket.dart';
 
 /// Programmable in-memory [ChatSocket] for cubit tests.
-///
 /// - [autoConnect] (default true) makes `connect()` succeed immediately.
 ///   Tests of failure handling pass `false` and override [connectError].
-/// - Sent envelopes accumulate in [sent] so tests can assert order.
-/// - [push] / [pushError] simulate inbound frames and transport errors.
-/// - [simulateDrop] mimics the peer closing the socket so the cubit's
-///   reconnect path fires.
 class FakeChatSocket implements ChatSocket {
   FakeChatSocket({this.autoConnect = true, this.connectError});
 

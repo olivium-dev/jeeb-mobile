@@ -1,12 +1,4 @@
 // Cancellation route-resolution gate (FIX-CANCEL-P0, cycle-6).
-//
-// Regression pin for P0-CANCEL-CRASH (interaction-atlas INDEX §2 P0 #4):
-// CancellationScreen resolved `context.read<CancellationRepository>()` but the
-// repo lives ONLY in GetIt — no `Provider<CancellationRepository>` is in the
-// widget tree and the `/orders/:id/cancel` route builder passes none — so the
-// screen threw ProviderNotFoundException on EVERY open. The fix resolves the
-// repo via `sl<CancellationRepository>()`. This test drives the real route and
-// asserts the screen opens without throwing.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -115,7 +107,6 @@ void main() {
 
   setUp(() {
     // Production registers DioCancellationRepository in GetIt; register an inert
-    // fake here so the route resolves as it does in the app (via `sl`).
     if (!sl.isRegistered<CancellationRepository>()) {
       sl.registerLazySingleton<CancellationRepository>(
         _FakeCancellationRepository.new,

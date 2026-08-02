@@ -1,47 +1,4 @@
 // Render tests for the LiveTrackingScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// ## Why `expectedText` pins captions
-//
-// `expectedText` pins the dev-chrome CAPTION each card carries, not screen copy.
-// Several of these states have nothing of their own to pin: the cold read paints
-// no text below the app bar, the two at-door cards differ only in whether four
-// digits are present, and the compact card is the longest-content card at a
-// different width. A suite that pinned screen copy would either have nothing to
-// pin or would pass with two previews wired to the same fixture. The
-// `preview specifics` group below asserts the real state behind every caption,
-// so the caption is never the whole proof.
-//
-// ## Fonts
-//
-// `loadInterTestFont()` runs before every test here, because the shared harness
-// does not load fonts and Flutter's test face makes every glyph a 1-em square —
-// Latin measures ~2x too wide, Arabic ~2.4x. No assertion in this file claims an
-// overflow, and the two geometry claims that could be distorted by the fake face
-// (the compact frame, and the Arabic rendering of the longest content) are
-// measured through `withGoldenTestFonts`, which is the only way to get real
-// Arabic metrics: the preview host builds `AppTheme.light()` unmodified and the
-// theme carries no `fontFamilyFallback`, so under the shared harness every
-// Arabic glyph still falls back to the test face.
-//
-// ## Why `Compact 320x568` is not in the shared suite
-//
-// `testPreviewsRender` asserts that every preview builds WITHOUT an exception,
-// and that card overflows on purpose — 152 pt in EN, 145 in AR, on the everyday
-// row, through the real faces. Its own two cases below assert the overflow
-// instead, one per locale.
-//
-// ## Why `In transit` is not in the shared suite
-//
-// Opening tracking on an already-moving delivery fires a `SnackBar` (see
-// `_detectEvent`, and the finding recorded in the preview section). A SnackBar
-// arms a 4 s dismissal `Timer` that outlives `pumpAndSettle`, and a pending
-// timer at the end of a `testWidgets` body is a failure. That state therefore
-// gets its own two cases below, which pump the snackbar out before returning —
-// and assert that it was there, because it is the defect.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -63,10 +20,7 @@ import '../preview_test_harness.dart';
 const String _kLongestItemFragment = 'sealed envelope from the notary office';
 
 /// `previewCanvas`, but with the deterministic Arabic face wired into the theme.
-///
 /// The shared harness cannot do this — it builds `AppTheme.light()` directly —
-/// and without it every Arabic glyph is laid out in the 1-em test face, which is
-/// ~2.4x too wide. Used only where a geometry claim is being made.
 Widget _liveTrackingCanvasWithFonts(
   Widget Function() preview,
   Locale locale,
@@ -97,13 +51,6 @@ Future<void> _pumpWithFonts(
 
 /// Pumps [canvas] with the framework's error reporting redirected into a list,
 /// and returns everything the frame reported.
-///
-/// `tester.takeException()` cannot be used for these cases: a layout that
-/// overflows in TWO places reports two errors, and the binding then hands back a
-/// "Multiple exceptions (2) were detected" summary object instead of either of
-/// them. Capturing `FlutterError.onError` directly gives every message, and —
-/// because the binding's own recorder never sees them — leaves the case free to
-/// end without an untaken exception.
 Future<List<String>> _frameErrors(
   WidgetTester tester,
   Widget canvas,
@@ -194,15 +141,11 @@ void main() {
 
   group('LiveTrackingScreen preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does NOT rebuild these — the canvas produces the same widget types, so the
-    // `BlocProvider` element is UPDATED rather than replaced and keeps the cubit
-    // the first preview created.
 
     testWidgets('the phone previews pin a 390 pt frame, not the canvas width', (
       WidgetTester tester,
     ) async {
       // The harness pumps an 800 pt surface: a preview that left its width to
-      // the host would measure 800 here, and none of this layout applies there.
       await pumpPreview(tester, liveTrackingScreenPickedUp);
 
       expect(tester.getSize(find.byType(LiveTrackingScreen)).width, 390);
@@ -212,8 +155,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Capture the overflow rather than letting the binding record it — an
-      // untaken frame exception fails the case at teardown, and this state has
-      // one on purpose.
       await _frameErrorsWithFonts(tester, liveTrackingScreenCompact);
 
       expect(tester.getSize(find.byType(LiveTrackingScreen)).width, 320);
@@ -229,7 +170,6 @@ void main() {
       // The app-bar title is the only screen copy on the card.
       expect(find.text('Live tracking'), findsOneWidget);
       // Nothing from `_TrackingBody` exists yet — every affordance on this
-      // screen lives inside it, so a slow read offers the customer nothing.
       expect(find.bySemanticsIdentifier('tracking_stepper'), findsNothing);
       expect(find.bySemanticsIdentifier('tracking_map'), findsNothing);
       expect(find.text('Delivery code'), findsNothing);
@@ -241,8 +181,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The floor this screen degrades to between accept and pickup:
-      // `hasSummary` is false and `info.jeeber` is null, so two of the seven
-      // blocks are simply absent and the panel prints both placeholders.
       await pumpPreview(tester, liveTrackingScreenOrdered);
 
       expect(find.bySemanticsIdentifier('order_summary_pinned'), findsNothing);
@@ -302,7 +240,6 @@ void main() {
         findsOneWidget,
       );
       // The pre-at-door surfaces are gone: the quiet row and the status panel
-      // are both replaced by the card.
       expect(
         find.bySemanticsIdentifier('tracking_handover_code_row'),
         findsNothing,
@@ -317,8 +254,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The reinstall case. The difference between this card and the one above
-      // is four digits, and it is the difference between a hand-over that can
-      // happen at the door and one that has to go through an SMS fallback.
       await pumpPreview(tester, liveTrackingScreenAtDoorNoCode);
 
       expect(find.text('Your Jeeber is at the door!'), findsOneWidget);
@@ -338,9 +273,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned. `_TrackingCancelledBody` takes no arguments, so the
-      // pinned summary, the item line, the price and the courier all vanish with
-      // the stepper — while the row carrying all of them is sitting in
-      // `state.trackingInfo`.
       await pumpPreview(tester, liveTrackingScreenCancelled);
 
       expect(
@@ -386,7 +318,6 @@ void main() {
       );
       expect(find.text('Delivery under review'), findsOneWidget);
       // Deliberately no home CTA — the row is still live — which leaves the
-      // app-bar back arrow as the only way off the screen.
       expect(find.text('Back to Home'), findsNothing);
       expect(
         find.bySemanticsIdentifier('tracking_cancelled_home_cta'),
@@ -432,10 +363,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned. `LiveTrackingCubit._mapError` and `_mapErrorTitle`
-      // return string LITERALS, which `_TrackingErrorBody` renders verbatim —
-      // so the Arabic rendering of this card is an RTL page with an English
-      // sentence in the middle of it. Everything around them IS localized,
-      // which is what makes it read as a bug rather than as a missing feature.
       await _pumpWithFonts(
         tester,
         liveTrackingScreenNotFound,
@@ -470,26 +397,10 @@ void main() {
     });
 
     // ONE LOCALE PER CASE, and this is not stylistic. `RenderFlex` inherits
-    // `DebugOverflowIndicatorMixin`, which reports each RenderObject's overflow
-    // exactly ONCE for the life of that object. Pumping the second locale into
-    // the same tester reuses the whole render tree, so the second measurement
-    // comes back clean whether or not it overflowed — an eloquent false
-    // negative, and the first shape this pair of cases was written in.
     for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
       testWidgets('the ORDINARY active layout does not fit 320x568 · '
           '${locale.languageCode}', (WidgetTester tester) async {
         // The finding, pinned, and the reason this state is not in the shared
-        // suite above. `_TrackingBody` is a `Column` with exactly one `Expanded`
-        // (the map) and there is no scroll view anywhere on this screen, so on
-        // the narrowest supported viewport the six fixed blocks around the map
-        // need more than the 512 pt the app bar leaves them — on the EVERYDAY
-        // row, not a longest-content one.
-        //
-        // Measured through `withGoldenTestFonts`, so the Latin is really Inter
-        // and the Arabic is really Noto Sans Arabic rather than Flutter's 1-em
-        // test square. That matters for the Arabic half especially: under the
-        // shared harness's fake face Arabic measures ~2.4x too wide, so an
-        // overflow reported there would prove nothing.
         final List<String> reported = await _frameErrorsWithFonts(
           tester,
           liveTrackingScreenCompact,
@@ -506,10 +417,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The third rendering of the matrix, measured. Same non-scrolling
-      // `Column`: at the accessibility ceiling the pinned header, the hand-over
-      // row and the panel each grow, the map is the only slack, and it runs out.
-      // The 390x844 card is the generous case — a real phone gives the body less
-      // than 844 once the system bars are taken.
       final List<String> doubled = await _frameErrorsAtDoubleText(
         tester,
         liveTrackingScreenPickedUp,
@@ -523,11 +430,6 @@ void main() {
     testWidgets('opening tracking on a moving delivery GREETS the customer, '
         'every time', (WidgetTester tester) async {
       // The finding, pinned. `_detectEvent` reads
-      // `state.trackingInfo?.currentStage`, which is null on the FIRST read of
-      // a screen entry, so `prev != next` holds and an already-in-transit row
-      // returns `jeeberOnTheWay` — a snackbar — on every open rather than on
-      // the transition it was written for. The `delivered` arm one line above
-      // carries the `prev != …` guard this arm is missing.
       await _pumpInTransit(tester);
 
       expect(find.text('Jeeber is on the way!'), findsNothing,
@@ -535,8 +437,6 @@ void main() {
       // The state itself is the ordinary active layout …
       expect(find.bySemanticsIdentifier('tracking_stepper'), findsOneWidget);
       // … in which the pinned header names a courier the body never shows:
-      // `jeeberName` is set and `info.jeeber` is null, so
-      // `_TrackingJeeberSection` is not mounted.
       expect(find.text('Kamal Hajj'), findsOneWidget);
       expect(find.text('Scooter'), findsNothing);
     });
@@ -558,7 +458,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The AR half of the coverage `testPreviewsRender` gives every other
-      // state; kept here because of the snackbar timer.
       await _pumpInTransit(tester, locale: const Locale('ar'));
 
       expect(tester.takeException(), isNull);

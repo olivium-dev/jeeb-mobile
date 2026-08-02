@@ -1,13 +1,4 @@
 // Render tests for the ChatDateSeparator previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The expected strings below double as a contract test for the label logic:
-// the two relative branches must resolve through the ARB ("Today"/"Yesterday"),
-// and everything else must come out of `DateFormat.yMMMMd`, never a
-// string-built date.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,7 +53,6 @@ void main() {
       );
 
       // The DateFormat branch is the one label that is not an ARB string, so
-      // this is where an English date can leak into an Arabic screen.
       expect(find.text('March 8, 2026'), findsNothing);
       expect(find.textContaining('مارس'), findsOneWidget);
     });
@@ -84,11 +74,6 @@ void main() {
       await pumpPreview(tester, chatDateSeparatorOlderDate);
 
       // Matched loosely on purpose. The widget wraps the chip in `Semantics`
-      // with a label but does NOT set `excludeSemantics`, so the inner `Text`
-      // contributes a second copy and the merged node currently reads
-      // "March 8, 2026\nMarch 8, 2026" — the date is announced twice. An exact
-      // matcher here would encode that defect as the contract; this asserts
-      // only what must stay true either way.
       expect(
         find.bySemanticsLabel(RegExp('March 8, 2026')),
         findsOneWidget,

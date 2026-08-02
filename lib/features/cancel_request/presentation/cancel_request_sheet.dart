@@ -249,90 +249,9 @@ class _SheetDragHandle extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests:
-// test/previews/cancel_request/cancel_request_sheet_preview_test.dart
-// ===========================================================================
-//
-// Widget previews for [CancelRequestSheet] — run with
-// `flutter widget-preview start`.
-//
-// JM-030 `cancel-request-confirm` is a four-line sheet, and every line of it is
-// a promise: cancelling now is FREE (D69), and the thing that just failed
-// either can be retried or cannot. The sprint-009 cycle-4 fix was precisely
-// about *which sentence* the user is shown — the mock-era sheet swallowed every
-// failure and reported success while the gateway still had the request live, so
-// the surface said "cancelled" and the request stayed pending. What replaced it
-// is three different error strings behind one `CancelRequestFailure` enum, and
-// the only way to check that they read correctly, wrap correctly and mirror
-// correctly is to look at them.
-//
-// **Network-free by construction.** Two seams are used and neither can reach a
-// gateway:
-//
-// * `initialState:` presets the [CancelRequestCubit]'s state — the DT-04 seam
-//   the widget already documents — so `inFlight` and each `failed` variant is
-//   reached without driving `confirmCancel()` at all.
-// * `repository:` takes [_CancelRequestSheetCannedRepository], a local fake
-//   with no transport of any kind. Passing it explicitly closes the resolution
-//   chain in `_resolveRepository()`: left null the sheet reaches for
-//   `sl<CancelRequestRepository>()`, and in production that is
-//   `DioCancelRequestRepository`, i.e. a live `DELETE /v1/requests/{id}`. A
-//   preview must never depend on whether the canvas happened to build the DI
-//   graph.
-//
-// `requestId` is the `req-client-001-pending` fixture
-// `test/features/cancel_request/cancel_request_sheet_test.dart` uses, so the
-// previews and the widget tests stay directly comparable.
-//
-// **What the canvas shows that the widget test does not.** That file asserts
-// the four semantics ids, the two callbacks and the 409 copy; it never looks at
-// the sheet. Measured heights of the sheet content at 390 pt wide, EN / AR:
-//
-// | state            | 100%      | 200%      |
-// |------------------|-----------|-----------|
-// | idle             | 400 / 380 | 672 / 592 |
-// | failed · 409     | 448 / 428 | 784 / 704 |
-// | failed · generic | 448 / 428 | 848 / 736 |
-// | failed · network | 464 / 428 | **848** / 736 |
-//
-// The 200% column is the finding. The body is a [Column] with
-// `mainAxisSize.min` and no scroll fallback, and `showModalBottomSheet(
-// isScrollControlled: true)` grants height — it does not add scrolling. On a
-// 390×844 phone the network-failure state at 200% is `A RenderFlex overflowed
-// by 4.0 pixels on the bottom`; on a 320×568 phone the *idle* sheet already
-// overflows by 184 px and the network failure by 424 px, and what is below the
-// fold is the bottom of the stack — `cancel_request_confirm_cta` and
-// `cancel_request_keep_cta` both. A user at the accessibility ceiling is shown
-// a failed cancel with neither button. See
-// [cancelRequestSheetNarrowPhone].
-//
-// The second thing to look at is the Keep pill. `OmdsPrimaryButton` is a FIXED
-// 48 pt (`Sizes.fourXLarge`) at every text scale and its label is a bare [Text]
-// in a `Center` with no `maxLines` and no ellipsis, so a label that grows is
-// clamped and painted over the pill edge rather than growing it. At 200% "Keep
-// delivery" measures 307 × 45 inside the 342 × 48 pill at 390 pt, and 237 × 45
-// inside a 272 × 48 pill at 320 pt: two lines, three logical pixels of
-// horizontal slack, three of vertical. AR ("إبقاء التوصيلة") lands in the same
-// place. One more word in either language clips the label off its own button.
-//
-// Measurements come from `flutter test`, whose substituted font is wider and
-// taller than the production Inter face, so read them as the pessimistic
-// bound — except the 320 pt overflow, which is far past any font-metric slack.
-//
-// **Tapping in the canvas.** Confirm runs the real `confirmCancel()` against
-// the canned repository, so the idle preview walks idle → inFlight → succeeded
-// and then calls a no-op `onCancelled` (production pops the sheet and
-// `go('/')`s to customer-orders-home; neither belongs in a canvas). The failed
-// previews keep failing. Hot-restart to reset.
 
 /// Phone width with room for the idle stack (handle → 64 pt icon → title →
 /// two-line D69 note → 48 pt confirm → 48 pt keep), measured at 400 pt EN /
-/// 380 pt AR.
 const Size _cancelRequestSheetIdleBox = Size(390, 420);
 
 /// The same stack plus the inline error line — 448 pt EN for the one-line
@@ -340,10 +259,7 @@ const Size _cancelRequestSheetIdleBox = Size(390, 420);
 const Size _cancelRequestSheetErrorBox = Size(390, 470);
 
 /// The two-line network error, the tallest the sheet gets at 100% — 464 pt EN.
-///
 /// Deliberately NOT sized for the matrix's 200% rendering (848 pt): no
-/// phone-shaped box contains that, and the stripes it paints in the canvas
-/// belong to the widget, not to the canvas.
 const Size _cancelRequestSheetNetworkErrorBox = Size(390, 490);
 
 /// The narrowest phone the app supports, and the taller box its extra wrapping
@@ -354,12 +270,8 @@ const Size _cancelRequestSheetNarrowBox = Size(320, 500);
 const double _cancelRequestSheetSmallPhoneWidth = 320;
 
 /// A repository with no transport at all.
-///
 /// [FakeCancelRequestRepository] would also be inert, but it is a mutable
 /// recorder built for assertions; this one is `const`, records nothing, and
-/// makes the canned outcome explicit at each call site. With [failure] set,
-/// tapping Confirm in the canvas reaches the matching error copy for real
-/// rather than falling back to whatever the preset [initialState] said.
 class _CancelRequestSheetCannedRepository implements CancelRequestRepository {
   const _CancelRequestSheetCannedRepository({this.failure});
 
@@ -375,12 +287,6 @@ class _CancelRequestSheetCannedRepository implements CancelRequestRepository {
 
 /// Mounts the sheet the way `showModalBottomSheet` presents it — bottom-anchored
 /// content on the surface colour — without needing a [Navigator] to push onto.
-///
-/// The width pin is load-bearing: the render tests pump an 800 px viewport and
-/// ignore [JeebPreview.size], so without it CI would be reviewing a bottom
-/// sheet at a width no phone has. Bottom anchoring reproduces the real
-/// geometry: the sheet grows upward from the bottom edge and, past the box,
-/// overflows at the bottom of its own [Column] exactly as it does on a phone.
 Widget _cancelRequestSheetHosted({
   CancelRequestFailure? failure,
   CancelRequestStatus status = CancelRequestStatus.idle,
@@ -392,12 +298,10 @@ Widget _cancelRequestSheetHosted({
       width: width,
       child: CancelRequestSheet(
         // The fixture id used throughout
-        // test/features/cancel_request/cancel_request_sheet_test.dart.
         requestId: 'req-client-001-pending',
         repository: _CancelRequestSheetCannedRepository(failure: failure),
         initialState: CancelRequestState(status: status, error: failure),
         // No-ops on purpose. Production pops the sheet and routes to
-        // customer-orders-home; `go` without a GoRouter ancestor would throw.
         onCancelled: () {},
         onKept: () {},
       ),
@@ -407,18 +311,6 @@ Widget _cancelRequestSheetHosted({
 
 /// The default reading, and the one line this sheet exists to say: cancelling
 /// before an offer is accepted is **free** (D69).
-///
-/// Two mismatches are visible here and both are deliberate-for-now, filed in
-/// 50_ROUTE_REQUESTS: the heading borrows `cancellationTitle` — "Cancel
-/// Delivery" — and the dismiss CTA borrows `deliveryCancelDialogDismiss` —
-/// "Keep delivery". There is no delivery yet. That is the whole premise of the
-/// sheet, and it is stated in the sentence directly between them. If
-/// `cancelRequestTitle` / `cancelRequestKeepCta` ever land, this preview is
-/// where the copy is checked.
-///
-/// The matrix is on because the free note is the load-bearing string and it is
-/// the one that moves: 2 lines EN, 1 line AR, and at 200% it is what pushes the
-/// CTAs toward the fold.
 @JeebPreview(
   group: 'cancel_request',
   name: 'Idle · free before accept',
@@ -428,20 +320,7 @@ Widget _cancelRequestSheetHosted({
 Widget cancelRequestSheetIdle() => _cancelRequestSheetHosted();
 
 /// The cancel is in flight — the re-entrancy guard, made visible.
-///
 /// `confirmCancel()` returns early while `isInFlight`, and the sheet backs that
-/// up in the UI: both CTAs report `enabled: false` with a null `onTap`, so the
-/// sheet cannot be double-fired or torn down mid-call.
-///
-/// **What this rendering shows: there is no word on screen for what is
-/// happening.** `OmdsLoadingButton` swaps `text` for `OmdsButtonLoading`
-/// whenever `isLoading`, so the confirm label is gone and a 20 pt spinner
-/// stands in its place; the surrounding `Semantics` keeps `label:
-/// l10n.actionCancel` unconditionally and the child is `ExcludeSemantics`, so a
-/// screen reader announces a disabled "Cancel" button and nothing else. The
-/// only other movement is the Keep pill going outlined-disabled — a 45%-alpha
-/// border and a 90%-alpha label, which is the pair worth judging in the AR dark
-/// rendering.
 @JeebPreview(
   group: 'cancel_request',
   name: 'Confirming · in flight',
@@ -452,14 +331,6 @@ Widget cancelRequestSheetConfirming() =>
 
 /// 409 — the request advanced past the cancellable window while the sheet was
 /// open, so it can no longer be cancelled.
-///
-/// This is the race the customer actually loses: a Jeeber accepted between the
-/// tap that opened the sheet and the tap that confirmed it. The copy is the one
-/// dedicated string in the set — "This request can no longer be cancelled." —
-/// and it is a *terminal* statement sitting directly above a Confirm button
-/// that is still live and still says "Cancel". Retrying it can only produce the
-/// same 409. The state to judge is whether the sentence is emphatic enough to
-/// stop someone from tapping the red button again.
 @JeebPreview(
   group: 'cancel_request',
   name: 'Failed · no longer cancellable (409)',
@@ -471,18 +342,7 @@ Widget cancelRequestSheetFailedConflict() => _cancelRequestSheetHosted(
     );
 
 /// The retryable failure, and the longest copy this sheet can lay out.
-///
 /// A connection timeout is the one case where the app genuinely does not know
-/// whether the request was released, so the sheet stays open with the shared
-/// `loginNetworkError` string and the Confirm CTA doubles as Retry — without
-/// ever saying so, because its label is still `actionCancel`.
-///
-/// The matrix is on because this is the state that breaks. 464 pt at 100%, 848
-/// at 200% against an 844 pt phone: `A RenderFlex overflowed by 4.0 pixels on
-/// the bottom`, and the pixels lost are the bottom of the Keep pill. AR is
-/// shorter (428 / 736) and clears it — so the EN 200% card is the only one of
-/// the three that shows the defect, which is exactly why they are worth seeing
-/// side by side.
 @JeebPreview(
   group: 'cancel_request',
   name: 'Failed · network (retryable)',
@@ -496,12 +356,6 @@ Widget cancelRequestSheetFailedNetwork() => _cancelRequestSheetHosted(
 
 /// Everything else — 5xx, a malformed body, a 404 the caller cannot explain,
 /// a 403 they must not be told about — collapsed onto one generic sentence.
-///
-/// This is the cycle-4 no-swallow guarantee at its least specific, and the
-/// state that most needs looking at: `_errorCopyFor` routes only `conflict` and
-/// `network` to dedicated strings, so `notFound`, `forbidden` and `unknown` all
-/// land here. If this preview ever renders blank, a failure has stopped
-/// surfacing and the P0 "cancellations never reach the server" bug is back.
 @JeebPreview(
   group: 'cancel_request',
   name: 'Failed · generic (5xx)',
@@ -514,18 +368,6 @@ Widget cancelRequestSheetFailedGeneric() => _cancelRequestSheetHosted(
 
 /// The network failure at 320 pt — the narrowest phone, and where the sheet
 /// stops fitting at all.
-///
-/// 480 pt of content at 100% against a 568 pt screen leaves 88 pt of scrim, so
-/// it is fine as drawn. At 200% it is 992 pt EN / 840 pt AR, i.e. `A RenderFlex
-/// overflowed by 424 pixels on the bottom` — and the *idle* sheet overflows by
-/// 184 px at this width before any error is shown at all. There is no
-/// `SingleChildScrollView` under the [Column] and `showModalBottomSheet` does
-/// not add one, so both CTAs are simply not on screen.
-///
-/// The Keep pill is the other reason for this width: at 200% its label wraps to
-/// 237 × 45 inside a 272 × 48 fixed-height pill, which is three logical pixels
-/// of slack in each direction before "Keep delivery" is painted over its own
-/// border.
 @JeebPreview(
   group: 'cancel_request',
   name: 'Narrow phone · 320 pt',

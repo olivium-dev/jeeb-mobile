@@ -1,20 +1,4 @@
 // Tests for the jeeber active-deliveries feature (iter6 real-flow blocker fix).
-//
-// Verifies:
-//   - ActiveDeliverySummary.fromJson parses the gateway OrderListItem shape
-//     (id, conversationId, status, title, dropoff.address) and chatRouteId
-//     prefers the conversation id.
-//   - DioActiveDeliveriesRepository drops Done rows and rows with no id.
-//   - ActiveDeliveriesCubit emits loaded with the repo's deliveries; an empty
-//     result leaves the banner empty (hasDeliveries == false).
-//   - LIVE-ROUTE (iter6, 2026-06-22): the *real* DioActiveDeliveriesRepository
-//     hits the live gateway route `GET /v1/deliveries?role=jeeber` (NOT the
-//     mock-era `/deliveries?stage=active` that the LIVE gateway answers with an
-//     empty `{"shipments":[],"count":0}`) and parses the live `{items:[...]}`
-//     envelope — so the #71 dashboard banner populates with the accepted
-//     delivery. Verified live on :10090: an accepted delivery
-//     (jeeber b4c26077) is returned by `/v1/deliveries?role=jeeber` as
-//     `{items:[{id, status:"accepted", jeeberId, ...}], totalCount:1}`.
 
 import 'dart:async';
 
@@ -85,9 +69,6 @@ void main() {
       expect(s.title, 'Flash delivery request');
       expect(s.pickupAddress, 'Hamra');
       expect(s.dropoffAddress, 'Achrafieh');
-      // BUG-18 client side: chatRouteId prefers the request id (==
-      // correlationKey) over the conversation id, so chat-detail resolves
-      // correlationKey-first without a wasted 404 probe.
       expect(s.chatRouteId, 'req-1');
       expect(s.isActive, isTrue);
     });
@@ -163,10 +144,6 @@ void main() {
       expect(repo.calls, 1);
     });
 
-    // PUSH-UI-REACTION (2026-07-05): a push (offer_accepted / delivery-status)
-    // publishes on the shared refresh bus; this cubit must re-pull IMMEDIATELY
-    // instead of waiting for its (long) poll tick — the exact wire that was
-    // missing when the accepted delivery didn't surface until a force-restart.
     test('a refresh signal triggers an immediate refetch', () async {
       final signals = StreamController<void>.broadcast();
       addTearDown(signals.close);
@@ -216,8 +193,6 @@ void main() {
 
   group('DioActiveDeliveriesRepository — live route + shape (iter6 banner)', () {
     // The live-gateway envelope (JeebOrdersListController.ListDeliveries), shaped
-    // exactly like the proven `:10090 /v1/deliveries?role=jeeber` response for
-    // the accepted delivery f2244baa assigned to jeeber b4c26077.
     final liveBody = <String, dynamic>{
       'items': [
         {
@@ -244,12 +219,9 @@ void main() {
 
       await repo.listActive();
 
-      // The path carries the /v1 prefix (the mock-era bare `/deliveries` is the
-      // route the LIVE gateway answers with an empty `{shipments:[],count:0}`).
       expect(captured.path, '/v1/deliveries');
       expect(captured.path, startsWith('/v1/'));
       expect(captured.path, isNot(equals('/deliveries')));
-      // Scoped to the bearer jeeber's assigned deliveries.
       expect(captured.query?['role'], 'jeeber');
     });
 
@@ -260,19 +232,12 @@ void main() {
 
       final result = await repo.listActive();
 
-      // The live response is keyed on `items` (NOT the mock-era `shipments`).
       expect(result, hasLength(1));
       final d = result.single;
       expect(d.id, 'f2244baa-ff25-4316-b723-c08a80cd3da9');
-      // The live gateway emits `status:"accepted"`, which is not one of the
-      // five jeeber transition stages — `fromApi` defensively maps the unknown
-      // string to `ordered` (the start of the Ordered→…→Done machine). The row
-      // is still ACTIVE (not Done), so the banner shows and the jeeber can tap
-      // through to chat → Start delivery.
       expect(d.status, JeeberDeliveryStatus.ordered);
       expect(d.title, 'Flash delivery request');
       expect(d.dropoffAddress, 'Home');
-      // hasDeliveries-equivalent: the banner shows because the list is non-empty.
       expect(d.isActive, isTrue);
     });
 
@@ -285,20 +250,10 @@ void main() {
 
       final result = await repo.listActive();
 
-      // No `items` key → empty list → banner self-hides. This is exactly what
-      // the LIVE gateway returns for the WRONG (mock-era) `/deliveries` path, so
-      // this asserts the repo never silently parses that shape into rows.
       expect(result, isEmpty);
     });
   });
 
-  // b02 wave D. This cubit has THREE independently-timed triggers — the 60s
-  // poller, the push bus and the visibility/resume tick — and only the poller
-  // ever coordinated with itself. A jeeber whose offer is accepted receives
-  // `offer_accepted` and, moments later, the first `type=delivery` transition:
-  // two bus events well inside one `GET /v1/deliveries?role=jeeber` round trip.
-  // Overlapping, the later-issued read can complete FIRST and repaint the card
-  // from the OLDER snapshot.
   group('ActiveDeliveriesCubit — single flight', () {
     test('two push signals inside one round trip produce ONE read, and the '
         'latch releases afterwards', () async {

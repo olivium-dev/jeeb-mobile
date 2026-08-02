@@ -1,14 +1,4 @@
 // Render tests for the AutoDirectionText previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// `test/chat_auto_direction_text_test.dart` owns the detection rule as data.
-// This file owns the previews: that each one still renders ITS OWN string, and
-// that the four behaviours the preview docs claim — content-wins for strong
-// text, ambient-wins for neutral text, and the pinned-strip clamp — are the
-// behaviours a reviewer opening the canvas will actually be looking at.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,9 +89,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // A phone number has no strong character, so the same string lays out
-      // LTR for an English user and RTL for an Arabic one. Pinned as the
-      // widget's current behaviour, not as the desired one — see the preview
-      // doc for why RTL reorders the digit groups.
       expect(
         await _directionIn(tester, autoDirectionTextNeutralOnly, 'en'),
         TextDirection.ltr,
@@ -116,9 +103,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Amharic is strong LTR in Unicode but outside `_isStrongLtr`'s ranges,
-      // so it inherits the UI direction and flips with the app language. If
-      // this ever starts returning ltr for both locales, the range list grew
-      // and this expectation should be tightened, not deleted.
       expect(
         await _directionIn(tester, autoDirectionTextUnlistedScript, 'en'),
         TextDirection.ltr,

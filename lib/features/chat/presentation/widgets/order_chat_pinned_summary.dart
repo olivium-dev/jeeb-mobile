@@ -590,50 +590,15 @@ class _RequestDescriptionState extends State<_RequestDescription> {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/chat/order_chat_pinned_summary_preview_test.dart
-// ===========================================================================
 
 // Widget previews for [OrderChatPinnedSummary] — run with
-// `flutter widget-preview start`.
-//
-// The strip is a pure-props widget: everything it paints comes from the
-// [OrderChatSummary] it is handed, so no repository, cubit or DI graph is
-// involved and these previews are network-free by construction rather than by
-// the guard in [jeebPreviewHost].
-//
-// The ONE piece of ambient state is the expand/collapse choice, which lives in
-// the process-wide [ChatHeaderExpansionStore] (b02: collapsed by default,
-// remembered per order for the session). [_hosted] seeds that store for the
-// state's own key before building, which is why an "expanded" preview opens
-// expanded. Seeding happens when the preview FUNCTION runs, not on every
-// rebuild, so tapping the disclosure control in the canvas still works.
-//
-// Each state carries its own `deliveryId`: the store keys on it, so two states
-// sharing an id would share one expansion choice and the collapsed preview
-// would open expanded after the expanded one had rendered.
-//
-// The fixtures mirror `test/features/chat/order_chat_pinned_summary_labels_test.dart`
-// and `test/features/chat/chat_header_a11y_test.dart`; the previews exist so
-// the *visual* half of those contracts (row overflow, RTL mirroring, the
-// 200%-text ceiling) is reviewable without booting the app into an accepted
-// order.
 
 /// Collapsed, the strip is ONE 48 dp row — but at 200% text it wraps the
 /// reference / status / amount onto a second line by design, so the box has to
-/// leave room for two (measured 80 dp at 1x, 144 dp at 2x).
 const Size _orderChatPinnedSummaryCollapsedBox = Size(390, 180);
 
 /// Expanded: collapsed row + party line + requirement + chips + cash reminder.
-///
 /// Sized for the 200%-text rendering, which is the tallest of the three: across
-/// the expanded states below the strip measures 204–272 dp at 1x and 368–452 dp
-/// at 2x on a 390 dp canvas. A box that fits only the 1x rendering would report
-/// the other two as overflowing the CANVAS, which says nothing about the widget.
 const Size _orderChatPinnedSummaryExpandedBox = Size(390, 480);
 
 /// The initial requirement as customers actually type it: one run-on line, no
@@ -645,11 +610,7 @@ const String _orderChatPinnedSummaryLongDescription =
     'twice because the doorbell has been broken since last week thank you';
 
 /// Mirrors `_OrderChatPinnedSummaryState._expansionKey`.
-///
 /// It is duplicated rather than exposed because the store key is production
-/// implementation detail. `test/previews/chat/order_chat_pinned_summary_preview_test.dart`
-/// asserts that an "expanded" preview really opens expanded, which is what
-/// catches this copy drifting from the original.
 String _orderChatPinnedSummaryExpansionKeyFor(OrderChatSummary summary) {
   if (summary.deliveryId.isNotEmpty) return 'delivery:${summary.deliveryId}';
   if (summary.requestId.isNotEmpty) return 'request:${summary.requestId}';
@@ -657,10 +618,7 @@ String _orderChatPinnedSummaryExpansionKeyFor(OrderChatSummary summary) {
 }
 
 /// Builds the strip with its session expansion state pre-seeded.
-///
 /// [viewerIsJeeber] also drops the view-summary link, because that is how the
-/// production Jeeber leg renders it: the `order-summary` route is owner-scoped,
-/// so a null handler removes the affordance rather than leaving a dead one.
 Widget _orderChatPinnedSummaryHosted(
   OrderChatSummary summary, {
   required String counterpartName,
@@ -679,11 +637,6 @@ Widget _orderChatPinnedSummaryHosted(
 
 /// What every customer sees first (b02): the strip is collapsed by default, so
 /// the message list survives an open keyboard.
-///
-/// Only three things are on screen — reference, status, amount — and the whole
-/// row must stay inside 48 dp. This is the state to check when a status label
-/// gets longer in translation: Arabic "قيد التوصيل" and a 200% text scale both
-/// push this row, and the row's answer is to WRAP, not to squeeze or clip.
 @JeebPreview(group: 'chat', name: 'Collapsed (default)', size: _orderChatPinnedSummaryCollapsedBox)
 Widget orderChatPinnedSummaryCollapsed() => _orderChatPinnedSummaryHosted(
       const OrderChatSummary(
@@ -701,12 +654,7 @@ Widget orderChatPinnedSummaryCollapsed() => _orderChatPinnedSummaryHosted(
     );
 
 /// The happy path once disclosed: every locked figure resolved.
-///
 /// Note what is NOT here — a second slab of chroma. b02 spends the header's
-/// only accent on the status chip; if this preview ever shows two competing
-/// coloured capsules, the M3 hierarchy fix has regressed. The cash reminder is
-/// also the contrast canary: it used to be `onPrimaryContainer` faded to 3.85:1
-/// over a saturated fill, which is what made it unreadable.
 @JeebPreview(group: 'chat', name: 'Expanded (all fields)', size: _orderChatPinnedSummaryExpandedBox)
 Widget orderChatPinnedSummaryExpanded() => _orderChatPinnedSummaryHosted(
       const OrderChatSummary(
@@ -726,13 +674,6 @@ Widget orderChatPinnedSummaryExpanded() => _orderChatPinnedSummaryHosted(
 
 /// Cold open: the chat is on screen but the summary fetch has not landed, so
 /// the row carries nothing but its delivery id.
-///
-/// This is the run-22 regression state, made visible. The strip used to fill
-/// every unresolved figure — heading included — with the literal screen title
-/// "Order summary", three times on one screen. The fixed vocabulary is a short
-/// derived reference (`#7719D4`, never a raw UUID), a localized "Pending" per
-/// unresolved chip, and "Matched" as the honest status floor. Any "Order
-/// summary" text in this preview is that bug returning.
 @JeebPreview(group: 'chat', name: 'Pending (nothing resolved)', size: _orderChatPinnedSummaryExpandedBox)
 Widget orderChatPinnedSummaryPending() => _orderChatPinnedSummaryHosted(
       const OrderChatSummary(
@@ -744,13 +685,6 @@ Widget orderChatPinnedSummaryPending() => _orderChatPinnedSummaryHosted(
 
 /// The Jeeber leg (P3 + the run-22 role fix), which differs in two ways that
 /// are easy to get backwards.
-///
-/// The party line names the person on the OTHER side — a Jeeber must see the
-/// CUSTOMER, never their own name echoed back — and here that customer resolved
-/// to a synthetic `jeeb-<hash>` handle, so it is suppressed for the localized
-/// generic. Second, there is no view-summary link at all: `order-summary` is
-/// owner-scoped, so the whole node is removed rather than left as a dead
-/// affordance.
 @JeebPreview(group: 'chat', name: 'Jeeber viewer (no link)', size: _orderChatPinnedSummaryExpandedBox)
 Widget orderChatPinnedSummaryJeeberViewer() => _orderChatPinnedSummaryHosted(
       const OrderChatSummary(
@@ -770,15 +704,6 @@ Widget orderChatPinnedSummaryJeeberViewer() => _orderChatPinnedSummaryHosted(
 
 /// The layout ceiling: everything at its longest plausible value at once — a
 /// long order reference, a three-part Arabic-transliterated name, a Lebanese
-/// lira amount (no cents, six digits), a 3-hour ETA and a 260-char requirement.
-///
-/// Two independent clamps are under review here. The collapsed row ellipsises
-/// the reference so the amount and the expand control can never be pushed off
-/// the trailing edge, and the requirement clamps to two lines so a long
-/// description cannot push the message list off screen (the run-22 "BOTTOM
-/// OVERFLOWED" class). The AR RTL and 200%-text renderings are the ones that
-/// matter: the EN light rendering keeps looking fine long after both have
-/// broken.
 @JeebPreview(group: 'chat', name: 'Longest content', size: _orderChatPinnedSummaryExpandedBox)
 Widget orderChatPinnedSummaryLongContent() => _orderChatPinnedSummaryHosted(
       const OrderChatSummary(
@@ -797,13 +722,7 @@ Widget orderChatPinnedSummaryLongContent() => _orderChatPinnedSummaryHosted(
     );
 
 /// Bidi: an Arabic requirement inside an English UI (P3/M10).
-///
 /// The requirement is the only free text on this strip, so it is the only place
-/// the UI locale and the content direction can disagree. [AutoDirectionText]
-/// applies the UAX#9 first-strong rule per string, which must put this text
-/// right-aligned and RTL while the surrounding English chrome stays LTR — and
-/// must do the mirror of that in the AR RTL rendering of this same preview.
-/// A description that reads left-aligned here is the bug.
 @JeebPreview(group: 'chat', name: 'Arabic requirement in EN UI', size: _orderChatPinnedSummaryExpandedBox)
 Widget orderChatPinnedSummaryArabicDescription() => _orderChatPinnedSummaryHosted(
       const OrderChatSummary(

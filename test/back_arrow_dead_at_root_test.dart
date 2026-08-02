@@ -1,21 +1,4 @@
 // JEBV4-13 P1-6: the AppBar back-ARROW (the OMDSAppBar leading IconButton) was
-// dead on 3+ screens when they were the ROOT of the go_router stack (reached
-// via a stack-REPLACING `context.goNamed(...)`, not a push):
-//   offer_kyc_gate_screen.dart, delivery_register_prompt_screen.dart,
-//   kyc_rejected_screen.dart.
-//
-// Root cause: OMDSAppBar's DEFAULT back action is `Navigator.of(context)
-// .maybePop()`, which intentionally no-ops when there is nothing to pop (see
-// omds_app_bar.dart) to avoid emptying the Navigator. That default is safe,
-// but these 3 screens never overrode it with an explicit `onBackPressed`, so
-// tapping the visible back arrow silently did nothing — while the screen's
-// OWN in-body back CTA (`gate_back_cta` / `delivery_register_prompt_back` /
-// `kyc_rejected_back_cta`) and the system-BACK gesture (covered separately by
-// `RootAwareBackScope` + back_nav_all_routes_test.dart) both already worked.
-//
-// This suite proves the AppBar back arrow itself now resolves to a real
-// destination when the screen is the stack root, matching each screen's own
-// documented edge.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -99,7 +82,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Stack-REPLACING entry (mirrors jeeber_feed_tab_view's
-    // `context.goNamed('offer-kyc-gate')`): the gate is the lone page.
     router.goNamed('offer-kyc-gate');
     await tester.pumpAndSettle();
     expect(_locationOf(router), '/jeeber/offer-gate');
@@ -174,7 +156,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // dashboard_tab.dart / notifications_list_screen.dart both reach this via
-    // `context.goNamed('kyc-rejected')` (stack-replacing).
     router.goNamed('kyc-rejected');
     await tester.pumpAndSettle();
     expect(_locationOf(router), '/kyc/rejected');

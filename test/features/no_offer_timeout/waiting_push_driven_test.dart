@@ -8,32 +8,12 @@ import 'package:jeeb_mobile/features/no_offer_timeout/application/waiting_state.
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_request.dart';
 
-/// b02 wave C — N9. The waiting / no-coverage screen ran an UNGATED 5s poll of
-/// `GET /v1/requests/{id}` + `GET /v1/offers?requestId` (`fetchWaiting` fans ONE
-/// call into TWO reads: `dio_waiting_repository.dart:49` → `:70` and → `:87`).
-/// Two gateway pushes already cover everything that poll was watching for:
-///
-///  * `type=offer` — a bid arrived → flip to the review-offers CTA (AC2).
-///    Emitted at `Notifications/OfferPushNotifier.cs:227`.
-///  * `type=request_expired` / `type=try_expand_tier` — the request timed out or
-///    is expanding its tier. Emitted at
-///    `Requests/DispatchingRequestExpiryNotifier.cs:112` (both carry
-///    `requestId` + `request_id`).
-///
-/// Both land on the SAME payload-less `PushRefreshSignals` bus, so the
-/// subscriber needs no discriminator: it re-pulls its own snapshot.
-///
-/// The 1s COUNTDOWN tick is deliberately untouched. It is a LOCAL timer that
-/// only advances `now` so the countdown widget rebuilds; it issues zero gateway
-/// reads, and removing it would break the UI while saving no traffic.
+/// b02 wave C — N9. The waiting / no-coverage screen ran an UNG
 class _FakeWaitingRepository implements WaitingRepository {
   _FakeWaitingRepository({this.phase = WaitingRequestPhase.broadcasting});
 
   WaitingRequestPhase phase;
 
-  // Mutable FIELD, not a constructor parameter: the tests flip it mid-run and
-  // none seeds it, and a never-supplied optional parameter is an
-  // `unused_element_parameter` warning, which CI treats as fatal.
   int offerCount = 0;
   int fetchWaitingCount = 0;
   int fetchRequestCount = 0;
@@ -87,7 +67,6 @@ void main() {
           reason: 'the cold load uses fetchRequest, not fetchWaiting');
       expect(cubit.debugPushRefreshWired, isTrue);
 
-      // An inbound `type=offer` push: the bid is now visible to the server.
       repo.offerCount = 1;
       repo.phase = WaitingRequestPhase.offersArrived;
       bus.add(null);
@@ -120,8 +99,6 @@ void main() {
         expect(repo.fetchRequestCount, coldRequestReads,
             reason: 'no extra request reads either');
 
-        // The LOCAL countdown timer is untouched — it advances `now` and does
-        // not touch the gateway.
         final before = cubit.state.now;
         clock.add(null);
         async.flushMicrotasks();
@@ -150,7 +127,6 @@ void main() {
       await cubit.load();
       expect(cubit.debugPushRefreshWired, isTrue);
 
-      // The `type=request_expired` push lands and the snapshot confirms it.
       repo.phase = WaitingRequestPhase.expired;
       bus.add(null);
       await Future<void>.delayed(Duration.zero);

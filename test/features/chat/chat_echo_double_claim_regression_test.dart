@@ -1,46 +1,4 @@
 // OWN-ECHO DOUBLE-CLAIM regression (chat). P0 — MESSAGE LOSS.
-//
-// THE DEFECT, in `ChatCubit._reconciledWithHistory`:
-//
-//     final unclaimedOwnEchoes = history.where((m) => m.isMine).toList();
-//
-// The pool of "own server rows still free to absorb an optimistic bubble" was
-// built from the WHOLE history, including rows that are ALREADY ON SCREEN under
-// their own server id. The shown-row loop correctly skips a shown row whose id
-// the server also returned (`if (serverIds.contains(shown.id)) continue;`) —
-// but skipping it never removes that row from `unclaimedOwnEchoes`. So an echo
-// that is already claimed, by id, by the bubble it belongs to stays FREE to be
-// claimed a SECOND time, by content, by a DIFFERENT optimistic bubble. The
-// second bubble is then folded away and never rendered again.
-//
-// Two ways it bites, both reproduced below:
-//
-//   A) SEND THE SAME TEXT TWICE. Send "ok"; the server echoes it; send "ok"
-//      again; one history fold later the second "ok" is GONE. The user typed
-//      two messages, sent two messages, and can see one.
-//
-//   B) WORSE — THE SECOND SEND FAILED. A failed bubble still matches by content
-//      (`_isEchoOfOwnMessage` keys on kind + text, deliberately: status is not
-//      load-bearing for identity). So the FAILED bubble is absorbed onto the
-//      earlier DELIVERED echo and disappears. The user is shown a delivered
-//      message they never sent, the message they did try to send is gone, and
-//      because a failed send is never echoed by the server this NEVER
-//      SELF-HEALS — no poll tick, no resume, no reload brings it back.
-//
-// THE FIX: an echo whose id is already on screen is already claimed. Exclude it
-// from the pool.
-//
-//     history.where((m) => m.isMine && !shownById.containsKey(m.id))
-//
-// WHY THE EXISTING SUITE WAS GREEN WHILE THIS WAS LIVE: every own-echo scenario
-// in `chat_interleaved_order_regression_test.dart` and
-// `bilateral_empty_thread_regression_test.dart` uses DISTINCT own texts, and
-// the double-claim needs TWO own bubbles whose content compares equal with the
-// first one's echo already reconciled onto it. `two_party_chat_b2_regression`
-// repeats text but never across a fold. The cases below are that gap.
-//
-// Everything here runs through the REAL `DioChatGateway` decode and the REAL
-// `ChatCubit` merge paths, off raw wire bodies. Ids/authors are synthetic.
 library;
 
 import 'dart:async';
@@ -77,7 +35,6 @@ Map<String, Object?> _datedRow(
 /// Serves the chat routes off a mutable in-memory thread. Reads are always a
 /// clean 200; [postFails] flips the SEND route to a transport failure so an
 /// optimistic bubble can be driven to `MessageStatus.failed` the way the device
-/// does it — through `ChatCubit._dispatch`'s catch, not by hand.
 class _ChatWire {
   _ChatWire({List<Map<String, Object?>>? initialRows})
       : rows = initialRows ?? <Map<String, Object?>>[] {
@@ -174,8 +131,6 @@ ChatCubit _cubit(
     gateway: gateway,
     pickerService: StubPhotoPickerService(),
     // Long: every fold below is driven EXPLICITLY by `refresh()`, so the number
-    // of folds is exactly what each case says it is. A background tick would
-    // make "one fold" unfalsifiable.
     clock: clock.call,
   );
   addTearDown(cubit.close);
@@ -204,7 +159,6 @@ void main() {
         await cubit.load();
 
         // Send #1, and let the server echo it. After this fold the bubble is on
-        // screen under the SERVER id — that is the precondition for the defect.
         cubit.composerChanged('ok');
         await cubit.sendText();
         wire.rows = <Map<String, Object?>>[
@@ -228,8 +182,6 @@ void main() {
         );
 
         // ONE fold, BEFORE the server has echoed the second send. `srv-ok-1` is
-        // already on screen under its own id — it must not be able to claim the
-        // second bubble as well.
         await cubit.refresh();
 
         expect(
@@ -289,7 +241,6 @@ void main() {
         );
 
         // A poll tick lands. The server never echoed the failed send, so the
-        // history is unchanged.
         await cubit.refresh();
 
         expect(
@@ -307,8 +258,6 @@ void main() {
         );
 
         // ...and it must not silently self-heal on a later fold either. A send
-        // that failed is not on the server; folding forever must not change
-        // that.
         await cubit.refresh();
         await cubit.refresh();
         expect(
@@ -343,7 +292,6 @@ void main() {
         expect(cubit.state.messages.where((m) => m.isMine), hasLength(2));
 
         // The server echoes BOTH. Each optimistic bubble must take exactly one
-        // echo — not collapse onto a single row, and not duplicate.
         wire.rows = <Map<String, Object?>>[
           ...wire.rows,
           _datedRow('srv-ok-1', _customerId, 'ok', '2026-07-27T12:01:05Z'),

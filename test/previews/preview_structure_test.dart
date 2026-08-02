@@ -1,20 +1,4 @@
 // Structural guardrails for widget previews.
-//
-// Previews live at the BOTTOM of the widget's own source file, below a banner,
-// because `flutter widget-preview start` filters the canvas by the file the
-// preview is DECLARED in — see `lib/core/previews/README.md`. That buys the IDE
-// panel, and it costs a boundary: preview code and shipping code are now in the
-// same file, so "previews never leak into production" can no longer be enforced
-// by a directory rule.
-//
-// These seven invariants are the replacement. They are strictly stronger than
-// the import check they replace, because they work on REFERENCES rather than on
-// file paths: a fixture that leaks is caught even though it is one scroll away
-// from the widget that would use it.
-//
-// The detector is shared verbatim with `tool/preview_coverage.dart` — see
-// `tool/preview_inventory.dart`. Two copies of this parsing drifted once
-// already; one implementation, two callers.
 
 import 'dart:io';
 
@@ -26,110 +10,6 @@ import '../../tool/preview_inventory.dart';
 
 /// Maximum number of uncovered widgets allowed. Lower it as previews land —
 /// never raise it. A widget whose previews are dropped or misnamed fails here
-/// immediately, which is the point.
-///
-/// The WIDGET queue reached ZERO in the wave that previewed
-/// `RecentReviewsSection`, `SuperLoginEntryPoints`, `ReviewRow`, `TierCard`,
-/// `AnimatedMicButton` and `WalletActivityRow` (150/150). The floor then went
-/// back up because the detector stopped excluding `*Screen` — that 100% was 150
-/// of 231 — so what is left in the queue is screens, and each screen wave walks
-/// this number down. The ratchet is unchanged: a new widget or screen under
-/// `lib/features/**` fails this test until it ships with a preview section, or
-/// is deliberately listed in `tool/preview_exclusions.txt` with a reason.
-/// Raising this number is not the fix for either.
-///
-/// 74 → 67: the screens wave that previewed `CustomerWalletStubScreen`,
-/// `TransactionDetailScreen`, `WalletActivityListScreen`,
-/// `WalletChargeInfoScreen`, `WalletHubScreen`, `ChatDetailScreen` and
-/// `DeliveryDetailScreen` (163/231).
-///
-/// 67 → 60: the screens wave that previewed `NotificationPreferencesScreen`,
-/// `ProfileEditScreen`, `SavedAddressesScreen`, `SettingsScreen`,
-/// `DiagnosticsScreen`, `ProfileUnavailableScreen` and `KycStatusScreen`
-/// (170/231).
-///
-/// 60 → 53: the screens wave that previewed `JeeberRequestDetailScreen`,
-/// `JeeberRequestUnavailableScreen`, `LocationPickerScreen`,
-/// `DeliveryRegisterPromptScreen`, `OfferKycGateScreen`, `MutualRatingScreen`
-/// and `RatingScreen` (177/231).
-///
-/// 53 → 46: the screens wave that previewed `OtpVerificationScreen`,
-/// `RegistrationScreen`, `RequestSummaryScreen`,
-/// `RequestSummaryUnavailableScreen`, `SettlementDetailScreen`,
-/// `SettlementScreen` and `VoiceRecordingScreen` (184/231).
-///
-/// 46 → 39: the screens wave that previewed `AccountStatusScreen`,
-/// `ActiveDeliveryJeeberScreen`, `SetPasswordScreen`, `BiometricLockScreen`,
-/// `BiometricPromptScreen`, `CancellationScreen` and `DevChatPreviewScreen`
-/// (191/231).
-///
-/// 39 → 32: the screens wave that previewed `ClientOffersScreen`,
-/// `ClientUnreachableScreen`, `CustomerProfileScreen`, `RatingPromptScreen`,
-/// `DeliveryManProfileScreen`, `DeliveryReceiptScreen` and
-/// `DeliveryStatusScreen` (198/231).
-///
-/// 32 → 25: the screens wave that previewed `DisputeStatusScreen`,
-/// `EarningsDashboardScreen`, `EscalateScreen`, `GoodsCostScreen`,
-/// `JeeberHomeScreen`, `DmOnboardingScreen` and `OnboardingFundingScreen`
-/// (205/231). The remaining 25 are all screens; `LiveSettingsScreen` is the
-/// one BLOCKED entry and does not count here — it needs a production seam
-/// first, recorded in `tool/preview_blocked.txt`.
-///
-/// 25 → 18: the screens wave that previewed `JeeberPendingOffersScreen`,
-/// `RequestFeedScreen`, `KycWizardScreen`, `KycRejectedScreen`,
-/// `LanguageSettingsScreen`, `LiveTrackingScreen` and the `/location`
-/// `LocationPickerScreen` (212/231). Note the last one is the SECOND class of
-/// that name: the wave at 60 → 53 previewed
-/// `features/location/presentation/location_picker_screen.dart`, the 461-line
-/// implementation the Screen Catalog renders, while the router serves the
-/// 36-line placeholder at `presentation/screens/` — so both files count, and
-/// only now does opening the one the app actually mounts show the truth. See
-/// `docs/previews/FINDING_location_picker_placeholder.md`.
-///
-/// 18 → 11: the screens wave that previewed `NoOfferTimeoutScreen`,
-/// `NotificationPrefsScreen`, `NotificationsListScreen`,
-/// `OfferSubmissionScreen`, `OnboardingScreen`, `OrderHistoryScreen` and
-/// `OrderSummaryScreen` (219/231). All seven extracted their catalog fixtures
-/// into `lib/devtool/catalog/fixtures/` and repointed both surfaces; the
-/// Screen Catalog is unchanged at 89 screens / 288 states, entry-for-entry and
-/// label-for-label. The remaining 11 are all screens; `LiveSettingsScreen` is
-/// still the one BLOCKED entry and does not count here.
-///
-/// 11 → 4: the screens wave that previewed `OtpHandoverScreen`,
-/// `PasswordSecurityScreen`, `DisplayNameSetupScreen`,
-/// `ProhibitedItemReportScreen`, `RequestTypeScreen`, `ReviewsListScreen` and
-/// `ShellScreen` (226/231). All seven extracted their catalog fixtures into
-/// `lib/devtool/catalog/fixtures/` and repointed both surfaces; the Screen
-/// Catalog is unchanged at 89 screens / 288 states, entry-for-entry and
-/// label-for-label. The remaining 4 are all screens — `SupportTicketScreen`,
-/// `TierSelectionScreen`, `TranscriptionScreen`, `VoiceRequestScreen` — and
-/// `LiveSettingsScreen` is still the one BLOCKED entry, which does not count
-/// here.
-///
-/// 4 → 0: the screens wave that previewed `SupportTicketScreen`,
-/// `TierSelectionScreen` and `TranscriptionScreen` (229/230), plus the
-/// `VoiceRequestScreen` verdict. All three extracted their catalog fixtures
-/// into `lib/devtool/catalog/fixtures/` and repointed both surfaces; the Screen
-/// Catalog is unchanged at 89 screens / 288 states, entry-for-entry and
-/// label-for-label.
-///
-/// The fourth, `VoiceRequestScreen`, is now an EXCLUSION rather than a preview,
-/// which is why the denominator moves 231 → 230 instead of the numerator moving
-/// to 230. Its entire body is `VoiceRecordingScreen(onSent: onSent)` — a route
-/// host for `/voice-request` and `/compose-dictation` that owns no state and
-/// paints nothing of its own, in the same category as `CaptureLocationRoute`
-/// and thinner (the router, not the class, supplies the callback). Every
-/// designed state it could show belongs to `VoiceRecordingScreen`, which is
-/// already previewed AND is the Screen Catalog's entry for this feature, so a
-/// preview here would be a second, drifting copy of those states. Reason
-/// recorded in `tool/preview_exclusions.txt`, which lowers the denominator
-/// rather than hiding the widget inside this floor.
-///
-/// The floor is now ZERO: every in-scope widget in `lib/` has a preview.
-/// `LiveSettingsScreen` remains the one BLOCKED entry and still does not count
-/// here — it needs a production seam first, recorded in
-/// `tool/preview_blocked.txt`. A wave that adds an unpreviewed widget now fails
-/// this test outright, which is the point.
 const int _coverageFloor = 0;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
@@ -238,9 +118,6 @@ void main() {
 
   test('INV-5 · nothing below a banner is referenced from another library', () {
     // Preview functions are public because the SDK requires it
-    // (`_PreviewVisitor.visitFunctionDeclaration` drops private ones), so
-    // privacy does not protect them. `test/` is exempt — that is where they are
-    // legitimately called.
     final offenders = <String>[];
 
     for (final SourceFile file in inventory.previewSections) {
@@ -279,10 +156,6 @@ void main() {
 
       for (final SectionDeclaration decl in file.sectionDeclarations) {
         // §3.4: `_clientHomeGreetingHosted`, `_ClientHomeTierBadgeActiveHeader`,
-        // `clientHomeGreetingNamed`. Strip the privacy underscore, then match
-        // either spelling of a widget name declared in THIS file. This is what
-        // lets one file merge previews for three widgets without collisions —
-        // 232 preview files each used to declare a bare `_hosted`.
         final String bare =
             decl.name.startsWith('_') ? decl.name.substring(1) : decl.name;
         final bool prefixed = file.widgetClasses.any(
@@ -317,9 +190,6 @@ void main() {
     final List<WidgetCoverage> uncovered = of(CoverageVerdict.uncovered);
 
     // MALFORMED is a widget with one half of a preview section and not the
-    // other — a section that builds it but has no preview named after it, or
-    // previews named after it that never build it. Almost always a half-applied
-    // edit, and it must not be able to hide inside the floor.
     expect(
       malformed.map((WidgetCoverage r) => '${r.widget.name} '
           '(${r.widget.path}): ${r.reason}'),

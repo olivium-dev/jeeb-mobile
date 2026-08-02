@@ -1,11 +1,4 @@
 // JM-024 — location-select data wiring (LocationSelectCubit +
-// DioLocationSelectRepository). Pins (a) the cubit lifecycle (load → loaded /
-// failed, selection transitions), and (b) the Dio repo parsing the VERIFIED
-// live gateway `GET /api/users/me/saved-locations` shape — including the seeded
-// nested `geo:{lat,lng}` form (42_GUARDRAILS_MOCK §4 / `has_saved_addresses`).
-//
-// Dio is mocked with the repo-standard `InterceptorsWrapper` resolve/reject
-// pattern (see dio_saved_location_repository_test.dart) — no extra dependency.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,8 +43,6 @@ Dio _dioThrowing(DioException error) {
 void main() {
   group('LocationSelectCubit', () {
     // JEBV4-176 (Q-060): the default fake resolves a REAL (non-Beirut) fix, so
-    // the current-location option becomes confirmable via a genuine GPS
-    // coordinate — never the old `33.8886, 35.4955` fallback.
     LocationSelectCubit buildCubit({
       LocationSelectRepository repository = const FakeLocationSelectRepository(),
       CurrentLocationResult gps = const CurrentLocationResult.resolved(
@@ -96,7 +87,6 @@ void main() {
       expect(cubit.state.status, LocationSelectStatus.failed);
       expect(cubit.state.error, LocationSelectFailure.network);
       // A failed saved-addresses fetch (offline / 5xx) must NOT block the flow:
-      // the customer still creates via the resolved current GPS (JEBV4-176).
       expect(cubit.state.choiceKind, LocationChoiceKind.current);
       expect(cubit.state.hasCurrentGps, isTrue);
       expect(cubit.state.canConfirm, isTrue,
@@ -207,8 +197,6 @@ void main() {
       final repo = DioLocationSelectRepository(_dioReplying(<dynamic>[]));
       await repo.fetchSavedAddresses('user-client-001');
       // useMockPrefixes is false under `flutter test`, so the helper emits the
-      // VERIFIED live gateway path (me-keyed, /api). In mock mode it would emit
-      // /users/:userId/... (rewritten to /user-management/users at runtime).
       expect(_capturedPath, '/api/users/me/saved-locations');
     });
 

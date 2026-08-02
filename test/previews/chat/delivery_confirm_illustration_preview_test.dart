@@ -1,17 +1,4 @@
 // Render tests for the DeliveryConfirmIllustration previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose. The widget under review renders
-// no text at all — it is a CustomPaint — so the `expectedText` map below binds
-// to each preview's caption, which is preview scaffolding rather than widget
-// output. On its own that would be exactly the weak assertion the harness warns
-// about: it would pass even if all five previews drew an identically sized box.
-// So the real per-state contract is asserted underneath, by MEASURING the
-// rendered box for every state. This widget's only inputs are its constraints
-// and the theme, so its geometry *is* its state.
 
 import 'dart:math' as math;
 
@@ -25,11 +12,6 @@ import '../preview_test_harness.dart';
 
 /// The box each preview must produce, measured on the
 /// `DeliveryConfirmIllustration` element itself.
-///
-/// These are not copied from a run — they are the arithmetic the widget
-/// promises (`width / (271 / 150)`, or the tight box where `AspectRatio` gives
-/// up). If one of them drifts, either the sheet's `widthFactor` changed or the
-/// reference ratio did.
 const Map<String, Size> _expectedBoxes = <String, Size>{
   // (390 - 2 * 24) * 0.62 = 212.04 wide.
   'Sheet geometry (production)': Size(212.04, 117.365),
@@ -76,8 +58,6 @@ void main() {
 
   group('DeliveryConfirmIllustration preview specifics', () {
     // The assertion the caption-based `expectedText` above cannot make: five
-    // previews of a parameterless widget are only five distinct states if the
-    // boxes they produce are distinct.
     _expectedBoxes.forEach((String state, Size expected) {
       testWidgets('$state lays out at ${expected.width}x${expected.height}', (
         WidgetTester tester,
@@ -138,12 +118,10 @@ void main() {
 
       final Size box = tester.getSize(find.byType(DeliveryConfirmIllustration));
       // `RenderAspectRatio` short-circuits on tight constraints
-      // (`constraints.smallest`), so the ratio is NOT defended here.
       expect(box, const Size(300, 60));
       expect(box.width / box.height, isNot(closeTo(271 / 150, 0.001)));
 
       // The painter still scales from `size.width` alone, so it draws this much
-      // art inside a 60pt box and centres it with a negative translate.
       final double painted = deliveryConfirmIllustrationNaturalHeight(box.width);
       expect(painted, closeTo(166.05, 0.05));
       expect(
@@ -183,7 +161,6 @@ void main() {
     test('the stroke role only clears non-text contrast in the light scheme',
         () {
       // The painter inks with `colorScheme.secondaryContainer` on the sheet's
-      // `colorScheme.surface`. WCAG 1.4.11 asks 3:1 of a graphical object.
       final ColorScheme light = AppTheme.light().colorScheme;
       expect(
         _contrast(light.secondaryContainer, light.surface),
@@ -193,11 +170,6 @@ void main() {
       );
 
       // Dark measures 1.98:1 against 17.13:1 in light. `ColorScheme.fromSeed(
-      // _jeebNavy, dark)` puts `secondaryContainer` at a dark tone on an
-      // equally dark `surface`, so the AR RTL dark rendering of every preview
-      // here shows the line art almost dissolved into the sheet. Asserted
-      // loosely on purpose: pinning 1.98 would make fixing the palette a test
-      // failure, and asserting 3.0 would fail today.
       final ColorScheme dark = AppTheme.dark().colorScheme;
       expect(_contrast(dark.secondaryContainer, dark.surface), greaterThan(1.0));
     });

@@ -1,11 +1,4 @@
 // Render tests for the GpsPermissionBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. The shared suite is in
-// `test/previews/preview_test_harness.dart`; the group below adds the
-// assertions specific to this banner — the CTA/body pairing that the whole
-// widget exists to get right, RTL mirroring, and the 200% CTA overflow the
-// canvas surfaces.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,8 +10,6 @@ import '../preview_test_harness.dart';
 
 /// The two body strings, verbatim from `lib/l10n/app_en.arb`. They are the
 /// per-state fingerprints: the boolean the banner takes swaps the body and the
-/// CTA together, so a preview showing the wrong body is showing the wrong
-/// state.
 const String _retryBody =
     'Your customer can’t see where you are. Allow location access so Jeeb can '
     'share your position while you’re on the way.';
@@ -40,8 +31,6 @@ void main() {
     },
     expectedText: const <String, String>{
       // The CTA labels distinguish the two data states; the body strings
-      // distinguish the two compositions of the SAME data state, so no two
-      // previews can pass on each other's rendering.
       'Recoverable denial': 'Allow location',
       'Needs system settings': 'Open settings',
       'Small phone 320dp': _settingsBody,
@@ -58,7 +47,6 @@ void main() {
       expect(find.text('Allow location'), findsOneWidget);
       expect(find.text(_retryBody), findsOneWidget);
       // Sending a recoverable denial to the settings app is a four-screen
-      // detour for a grant one tap could have won.
       expect(find.text('Open settings'), findsNothing);
       expect(find.text(_settingsBody), findsNothing);
     });
@@ -71,7 +59,6 @@ void main() {
       expect(find.text('Open settings'), findsOneWidget);
       expect(find.text(_settingsBody), findsOneWidget);
       // A retry here fires a request Android 11+ silently drops — which is the
-      // original defect, one layer up.
       expect(find.text('Allow location'), findsNothing);
       expect(find.text(_retryBody), findsNothing);
     });
@@ -107,15 +94,6 @@ void main() {
         await pumpPreview(tester, gpsPermissionBannerRecoverable);
 
         // `OMDSOutlinedButton` lays its label out as the lone non-flex child of
-        // a `Row`, so the label is measured against an UNBOUNDED width and
-        // never wraps: at 200% "Allow location" wants 393 dp inside a button
-        // that has 318 dp to give. The band's only recovery affordance is the
-        // part that gets clipped.
-        //
-        // This test pins the CURRENT behaviour so the canvas note stays honest.
-        // If it starts failing because nothing overflowed, the button has been
-        // fixed — delete this test and the CTA note in
-        // `lib/features/active_delivery_jeeber/presentation/widgets/gps_permission_banner.dart`.
         final Object? error = tester.takeException();
         expect(
           error,
@@ -125,7 +103,6 @@ void main() {
         expect(error.toString(), contains('overflowed'));
 
         // The rest of the band degrades correctly: the copy reflows and the
-        // band grows instead of clipping.
         expect(find.text(_retryBody), findsOneWidget);
       },
     );
@@ -136,8 +113,6 @@ void main() {
       await pumpPreview(tester, gpsPermissionBannerInDeliveryList);
 
       // `explicitChildNodes: true` on the banner is what keeps the button's own
-      // semantics node addressable; a merged container would leave a flow able
-      // to SEE the banner and unable to act on it.
       expect(find.byType(OMDSOutlinedButton), findsOneWidget);
       expect(
         find.bySemanticsIdentifier('active_delivery_gps_permission_cta'),

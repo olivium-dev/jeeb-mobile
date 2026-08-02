@@ -10,9 +10,7 @@ import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_request.dar
 
 final DateTime _t0 = DateTime.utc(2026, 7, 22, 8);
 
-/// P7: every snapshot carries the ANCHOR PAIR — the device instant the payload
-/// was received plus the server-relative time left at that instant. There is no
-/// server-absolute deadline field and no client-side fallback window.
+/// P7: every snapshot carries the ANCHOR PAIR — the device inst
 WaitingRequest _request({
   WaitingRequestPhase phase = WaitingRequestPhase.broadcasting,
   DateTime? receivedAt,
@@ -37,17 +35,15 @@ class _ScriptedWaitingRepository implements WaitingRepository {
     this.pollErrors = const <int, WaitingException>{},
   });
 
-  /// Snapshot returned by the cold load. Mutable so a retry can be scripted to
-  /// recover (T5.4).
+/// Snapshot returned by the cold load. Mutable so a retry can b
   WaitingRequest initial;
   final List<WaitingRequest> polls;
   final Future<int> Function(int fallback)? offerCount;
 
-  /// When set, the cold load throws this instead of returning [initial].
-  /// Mutable so T5.4 can clear it before `retry()`.
+/// When set, the cold load throws this instead of returning [in
   WaitingException? initialError;
 
-  /// Poll index → exception to throw instead of returning `polls[index]`.
+/// Poll index → exception to throw instead of returning `polls[
   final Map<int, WaitingException> pollErrors;
 
   final Map<int, Completer<void>> _pollWaiters = {};
@@ -86,8 +82,6 @@ void main() {
       final pollTicks = StreamController<void>.broadcast();
       addTearDown(pollTicks.close);
       var now = _t0;
-      // Each poll re-anchors on the SERVER's remaining value at the instant it
-      // was received — so the derived deadline is stable at t0 + 300s.
       final repo = _ScriptedWaitingRepository(
         initial: _request(),
         polls: [
@@ -240,7 +234,6 @@ void main() {
       await pumpEventQueue();
 
       expect(cubit.state.isTerminal, isTrue);
-      // No countdown applies to a terminal row — NOT a fabricated 0:00.
       expect(cubit.state.remaining, isNull);
       expect(pollTicks.hasListener, isFalse);
       expect(clockTicks.hasListener, isFalse);
@@ -284,11 +277,6 @@ void main() {
     });
   });
 
-  // ── T5 — contract-violation routing vs network failure ────────────────────
-  //
-  // A contract violation is NOT transient: retrying re-reads the same broken
-  // payload. It must terminate the screen loudly and distinctly. A network blip
-  // must do the opposite — leave the painted state alone.
   group('T5 — contract violation vs network failure', () {
     const contractBreak = WaitingException(
       WaitingFailure.contractViolation,
@@ -351,8 +339,6 @@ void main() {
 
       expect(cubit.state.status, WaitingScreenStatus.failed);
       expect(cubit.state.error, WaitingFailure.contractViolation);
-      // Streams were never attached on the cold-load path, and _failContract
-      // leaves nothing behind.
       expect(pollTicks.hasListener, isFalse);
       expect(clockTicks.hasListener, isFalse);
     });
@@ -413,7 +399,6 @@ void main() {
       await cubit.load();
       expect(cubit.state.error, WaitingFailure.contractViolation);
 
-      // The gateway is fixed: the next read carries the contract.
       repo.initialError = null;
       repo.initial = _request(
         remainingAtReceipt: const Duration(minutes: 30),
@@ -462,12 +447,6 @@ void main() {
     });
   });
 
-  // ── T6 — anchor carry-forward through _enrichWithOffers ───────────────────
-  //
-  // The regression this guards: when an offer landed, the old cubit rebuilt the
-  // snapshot and re-stamped the deadline, silently resetting the countdown to
-  // full. `copyWith` now exposes NO receivedAt / remainingAtReceipt parameter
-  // (T6.4 — the API shape IS the guarantee), so the pair can only be carried.
   group('T6 — anchor survives the offers enrich', () {
     test('T6.1/T6.2/T6.3 — the pair is carried, the countdown does not reset', () async {
       var now = _t0;
@@ -488,20 +467,16 @@ void main() {
       await cubit.load();
       expect(cubit.state.remaining, const Duration(minutes: 30));
 
-      // Five minutes pass on the device clock, THEN the offer lands.
       now = _t0.add(const Duration(minutes: 5));
       offers.complete(2);
       await pumpEventQueue();
 
-      // T6.1 — anchor pair carried forward verbatim.
       expect(cubit.state.request!.receivedAt, _t0);
       expect(
         cubit.state.request!.remainingAtReceipt,
         const Duration(minutes: 30),
       );
-      // T6.2 — a 30m here would be the reset-to-full regression.
       expect(cubit.state.remaining, const Duration(minutes: 25));
-      // T6.3 — the enrich still did its job.
       expect(cubit.state.request!.phase, WaitingRequestPhase.offersArrived);
       expect(cubit.state.request!.offerCount, 2);
       expect(cubit.state.hasOffers, isTrue);

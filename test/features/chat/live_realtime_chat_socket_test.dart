@@ -8,7 +8,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// CHAT-CONTRACT (iter6): the realtime socket joins the PER-CONVERSATION topic
 /// (`jeeb_conversation:<conversation_id>`) with the GATEWAY-MINTED ticket — no
-/// self-minted token, no global topic, no `user:{id}` client filter.
 void main() {
   group('LiveRealtimeChatSocket (per-conversation topic + gateway ticket)', () {
     late StreamController<dynamic> serverToClient;
@@ -89,7 +88,6 @@ void main() {
       await socket.connect();
 
       // The server already targeted this subscriber — there is NO `stream`
-      // field and NO client filtering. Canonical chat-service envelope.
       serverToClient.add(jsonEncode([
         null,
         null,

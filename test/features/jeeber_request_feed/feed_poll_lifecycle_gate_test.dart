@@ -1,16 +1,4 @@
 // Jeeber feed — PERIODIC POLL ELIMINATED (b02, POLLING-ELIMINATION-PLAN A.1).
-//
-// This file used to assert the SHAPE of a 60 s safety-net poll: that it ticked
-// 6× per virtual minute at a 10 s cadence, stopped while backgrounded, and
-// re-armed on resume. That poll is deleted, so those assertions are inverted
-// here rather than removed — an assertion that a cadence is ABSENT is the only
-// one that can catch its accidental return, and deleting the file would leave
-// nothing watching the seam.
-//
-// The owner's rule (POLLING-ELIMINATION-PLAN §0): *if the user does nothing and
-// no push arrives, a second network call is banned.* Virtual time is the honest
-// instrument for that — `FakeAsync` cannot be fooled by a slow test host, and a
-// re-added `Timer.periodic` fires under it exactly as it would on a device.
 
 import 'dart:async';
 
@@ -59,8 +47,6 @@ void main() {
         final owner = Object();
 
         // The worst case for the mandate: the surface is open, the app is
-        // foreground, and a consumer has declared interest. Under the old
-        // build this state ticked every 60 s forever.
         repository.addPollInterest(owner);
         async.elapse(_idleWindow);
 
@@ -82,9 +68,6 @@ void main() {
     'POSITIVE CONTROL: refresh() still issues exactly one GET, and only one',
     () {
       // Zero calls plus a dead repository is not success, it is a removed
-      // feature. This proves the counting Dio is wired and the one-shot path
-      // — the path `start()`, `FeedResumeRefetcher` and the `new_request`
-      // push all funnel into — still reaches the network.
       FakeAsync().run((async) {
         final dio = _CountingDio();
         final repository = DioRequestFeedRepository(dio: dio);

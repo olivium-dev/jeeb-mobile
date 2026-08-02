@@ -878,61 +878,12 @@ class _Heading extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/location/client_location_screen_preview_test.dart
-// ===========================================================================
-//
-// This is the screen that submits `POST /requests` — the last surface before a
-// delivery exists — and it renders four independent things at once: the
-// required "What do you need?" compose block, the GPS-acquisition lifecycle,
-// the saved-address list, and the recipient-phone capture. Any one of them can
-// be in a degraded state while the others are fine, which is precisely what a
-// single happy-path screenshot hides.
-//
-// Every state below is driven through the screen's OWN constructor seams —
-// `repository:`, `currentLocationResolver:`, `userId:` — so no cubit is reached
-// into and no DI graph is required. The seeds come from
-// [ClientLocationScreenFixtures], shared verbatim with the Screen Catalog entry
-// in `lib/devtool/catalog/entries/batch_06_entries.dart`: the designer's
-// on-device state and the engineer's canvas state are now the same object.
-//
-// Three things about the host are load-bearing:
-//
-// * **`jeebPreviewHost` already supplies a Scaffold**, and this screen supplies
-//   its own (app bar + sticky Confirm footer). The two nest — the screen's
-//   Scaffold simply fills the host's body — which is correct here but means the
-//   canvas box has to be a whole phone, not a widget-sized strip. Hence
-//   [_clientLocationScreenPhoneBox].
-// * **The spinners are frozen.** Two of these states render an indeterminate
-//   [CircularProgressIndicator] (the cold-load body, and the `resolving` row
-//   inside [CurrentLocationStatusCard]); an unmuted one never stops scheduling
-//   frames and hangs the render tests' `pumpAndSettle`. [TickerMode] mutes them
-//   and makes the canvas deterministic.
-// * **Every navigation seam is overridden.** `onAddLocation` / `onConfirm` /
-//   `onOpenSavedAddresses` / `onDictate` would otherwise reach for a GoRouter
-//   that does not exist above a preview, so a reviewer tapping a row in the
-//   canvas would get a crash instead of a no-op. Overriding `onConfirm` also
-//   means no preview can reach `ComposeRequestController.submitFromLocation`.
-//
-// What these previews cannot show, because the screen has no seam for it: the
-// "What do you need?" field is seeded from `sl<ComposeRequestController>()` in
-// `_ScaffoldState.initState`, so a pre-filled description is only reachable by
-// mutating the global GetIt graph. Every preview below therefore shows the
-// field empty — which is also why the Confirm CTA reads as disabled in all of
-// them.
 
 /// The canvas box for a whole screen: a 390x844 phone.
 const Size _clientLocationScreenPhoneBox = Size(390, 844);
 
 /// The dictation seam, answering "the customer recorded nothing".
-///
 /// Returning null is the same thing `compose-dictation` pops when the recording
-/// is cancelled, so the mic button is tappable in the canvas and correctly does
-/// nothing, instead of throwing on a missing GoRouter.
 Future<VoiceClip?> _clientLocationScreenNoDictation() async => null;
 
 /// Assembles the real screen from one repository + one GPS resolver, with every
@@ -957,12 +908,6 @@ Widget _clientLocationScreenHosted({
 
 /// The returning customer, everything healthy: a real device fix resolved, two
 /// saved addresses listed under the entry row.
-///
-/// Worth the full matrix. This screen is a stack of Rows carrying icons,
-/// labels and trailing chevrons plus two text fields with helper copy, and its
-/// Arabic strings are materially longer than the English ones — the EN light
-/// rendering stays believable long after the AR RTL and 200% renderings have
-/// broken.
 @JeebPreview(
   group: 'location',
   name: 'Saved addresses · GPS resolved',
@@ -976,12 +921,6 @@ Widget clientLocationScreenSavedAddresses() => _clientLocationScreenHosted(
 
 /// A brand-new customer, mid-GPS-acquisition: `200 {items: []}` from the
 /// saved-locations read, fix still in flight.
-///
-/// Two states worth looking at, and they co-occur on a first run. Note what the
-/// empty list does NOT produce: the "Saved addresses" row is unconditional (by
-/// design — JM-024 AC2, the manager owns its own empty state), so a customer
-/// with zero addresses sees a row identical to one with ten and only finds out
-/// after a push.
 @JeebPreview(
   group: 'location',
   name: 'New customer · finding GPS',
@@ -993,12 +932,7 @@ Widget clientLocationScreenNewCustomer() => _clientLocationScreenHosted(
     );
 
 /// Cold load: the saved-locations read has not answered yet.
-///
 /// The whole create step is replaced by a bare spinner — no app-bar-adjacent
-/// context, no skeleton, and the sticky Confirm footer collapses to nothing
-/// (`_ConfirmFooter` returns `SizedBox.shrink()` for `initial`/`loading`). On a
-/// slow connection this is what the customer stares at after tapping Continue
-/// on the tier step, and none of it is the compose content they came to type.
 @JeebPreview(
   group: 'location',
   name: 'Cold load',
@@ -1010,12 +944,7 @@ Widget clientLocationScreenColdLoad() => _clientLocationScreenHosted(
     );
 
 /// The saved-locations read failed on transport.
-///
 /// The rule this makes visible is a deliberate one: a failed sub-list must
-/// degrade the sub-list ONLY. The retry banner appears, and "Current Location",
-/// "New Location" and the Confirm CTA all stay live, because gating the whole
-/// step on `loaded` would dead-end order creation on any network blip
-/// ([LocationSelectState.canConfirm]).
 @JeebPreview(
   group: 'location',
   name: 'Saved addresses unavailable',
@@ -1028,12 +957,7 @@ Widget clientLocationScreenSavedAddressesFailed() =>
     );
 
 /// JEBV4-176 (Q-060) made visible: location permission denied.
-///
 /// This is the state that used to silently pin the pickup to `33.8886,
-/// 35.4955`. Now the card grows a recovery panel — which is the layout event
-/// worth reviewing, because the panel pushes the saved-address row, the "New
-/// Location" row and the recipient-phone field down by ~200pt on a screen that
-/// already needs scrolling.
 @JeebPreview(
   group: 'location',
   name: 'GPS permission denied',
@@ -1046,12 +970,6 @@ Widget clientLocationScreenGpsDenied() => _clientLocationScreenHosted(
 
 /// Layout ceiling: one saved address whose label AND subtitle are at the length
 /// a customer can actually type into the JM-050 address form (that form caps
-/// neither).
-///
-/// The card ellipsizes both lines, so the whole point is what the customer can
-/// still tell apart. The matrix is where this pays: at 200% text the two
-/// truncated lines lose most of their distinguishing tail, and in Arabic the
-/// ellipsis lands on the opposite edge.
 @JeebPreview(
   group: 'location',
   name: 'Longest saved address',

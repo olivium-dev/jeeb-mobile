@@ -13,17 +13,6 @@ import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_model
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_repository.dart';
 
 /// JEBV4-342 (b02) — `new_request` push drives the jeeber feed.
-///
-/// Two halves, tested separately and then end-to-end:
-///   A. [PushNotificationHandler] PUBLISHES on [PushRefreshSignals] for a
-///      `new_request` push (it previously did not, for any payload).
-///   B. [RequestFeedCubit] SUBSCRIBES and re-pulls its snapshot.
-///
-/// Every test here drives the poll to a cadence far longer than the test's own
-/// lifetime, so a refetch can only be attributed to the push. That is the whole
-/// point of the ticket: the feed already refreshed eventually via its 60s
-/// safety-net poll, which is why "the push works" looked true in review while
-/// the subscriber did not exist.
 class _MockRepo extends Mock implements RequestFeedRepository {}
 
 class _FakeTransport implements PushTransport {
@@ -61,11 +50,6 @@ class _FakeTransport implements PushTransport {
 }
 
 /// The payload the gateway actually emits, transcribed field-for-field from
-/// `jeeb-gateway/src/JeebGateway/Notifications/NewRequestPushNotifier.cs`
-/// `BuildPayloadAsync` (:445-475). Note `category: "delivery"` sitting next to
-/// `type: "new_request"` — the legacy value for pre-sprint-009 APKs — and BOTH
-/// id spellings at :469-470. `NotificationCategory.fromData` must let `type`
-/// win, or this push buckets as a delivery and the whole wire is untested.
 NotificationMessage _realGatewayNewRequestPush({
   String id = 'fcm-msg-1',
   String requestId = '9f1c2b6e-1111-4222-8333-444455556666',
@@ -144,10 +128,6 @@ void main() {
     test(
       'and it fires even with NO id on the payload — the signal is payload-less',
       () async {
-        // Guards the branch choice: `newRequest` sits on the id-less branch
-        // beside `offerAccepted`, not inside the id-guarded `orderish` set. If
-        // someone later moves it, this reds. A whole-snapshot refetch must not
-        // be hostage to a field it never reads.
         final data = <String, String>{'type': 'new_request'};
         transport.emitForeground(NotificationMessage(
           id: 'no-id-payload',
@@ -165,8 +145,6 @@ void main() {
     test(
       'NEGATIVE: an unrelated category with no id does NOT fire the bus',
       () async {
-        // Proves the id-guard below the new branch is intact — the edit widened
-        // exactly one category, not the whole function.
         final data = <String, String>{'type': 'delivery'};
         transport.emitForeground(NotificationMessage(
           id: 'delivery-no-id',
@@ -208,8 +186,6 @@ void main() {
 
     RequestFeedCubit build({Stream<void>? signals}) => RequestFeedCubit(
           repository: repo,
-          // Far longer than this test lives, so no poll tick can be mistaken
-          // for the push-driven refetch.
           sweepInterval: const Duration(hours: 1),
           refreshSignals: signals,
         );
@@ -228,9 +204,6 @@ void main() {
 
     test('NEGATIVE: with refreshSignals null, a signal changes nothing',
         () async {
-      // The pre-JEBV4-342 behaviour, pinned. If this ever passes for the wrong
-      // reason (a refetch appearing without a subscription) the wire is not
-      // where the code claims it is.
       final cubit = build();
       await cubit.start();
       verify(() => repo.refresh()).called(1);
@@ -254,8 +227,6 @@ void main() {
     });
 
     test('a second start() does not double-subscribe', () async {
-      // Two subscriptions would fire two refetches per push — a self-inflicted
-      // doubling of the load the ticket exists to reduce.
       final cubit = build(signals: refreshSignals.stream);
       await cubit.start();
       await cubit.start();

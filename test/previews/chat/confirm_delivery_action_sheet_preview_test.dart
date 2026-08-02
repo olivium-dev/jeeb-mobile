@@ -1,10 +1,4 @@
 // Render tests for the ConfirmDeliveryActionSheet previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Every state pins a DISTINCT string, and the
-// two states whose difference is geometry rather than copy (narrow phone, modal
-// presentation) additionally pin that geometry — otherwise five previews of the
-// same sheet would all pass while showing the same thing.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,7 +12,6 @@ void main() {
   setUpAll(loadPreviewArbs);
 
   // Every preview except `Confirming · spinner`, which cannot settle — see the
-  // dedicated group below.
   testPreviewsRender(
     'ConfirmDeliveryActionSheet',
     const <String, Widget Function()>{
@@ -39,10 +32,6 @@ void main() {
   );
 
   // `isConfirming: true` renders `OmdsButtonLoading`, i.e. an INDETERMINATE
-  // `CircularProgressIndicator`. `pumpAndSettle` (which `pumpPreview` calls)
-  // never returns while one is on screen, so this preview gets the same three
-  // assertions the shared suite makes — builds in EN, builds in AR, renders its
-  // OWN state — driven by fixed pumps instead.
   group('ConfirmDeliveryActionSheet previews · Confirming · spinner', () {
     Future<void> pumpConfirming(
       WidgetTester tester, {
@@ -73,7 +62,6 @@ void main() {
       // The sheet is still the picking one…
       expect(find.text('Confirm Picking the order'), findsOneWidget);
       // …but the CTA label is gone, replaced by the spinner. That pair is true
-      // of no other preview in this file.
       expect(find.text('Confirm'), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
@@ -141,13 +129,11 @@ void main() {
       await pumpPreview(tester, confirmDeliveryActionSheetNarrowPhone);
 
       // The render harness pumps an 800 px viewport, so without the SizedBox
-      // this preview would silently review the sheet at a width no phone has.
       expect(
         tester.getSize(find.byType(ConfirmDeliveryActionSheet)).width,
         320,
       );
       // The illustration is a fraction of the sheet width, so it must have
-      // shrunk with it rather than holding a fixed box.
       expect(
         tester.getSize(find.byType(DeliveryConfirmIllustration)).width,
         lessThan(320 - 2 * 24),
@@ -160,7 +146,6 @@ void main() {
       await pumpPreview(tester, confirmDeliveryActionSheetInModalRoute);
 
       // Pushed through ConfirmDeliveryActionSheet.show, not hand-placed: this
-      // is the only preview that covers the production entry point.
       expect(find.byType(BottomSheet), findsOneWidget);
       // …and it is anchored to the bottom of its host, under the scrim.
       final Rect sheet = tester.getRect(

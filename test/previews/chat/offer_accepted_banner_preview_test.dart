@@ -1,17 +1,4 @@
 // Render tests for the OfferAcceptedBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// OfferAcceptedBanner paints no data of its own — every visible string comes
-// from the ARB and `jeeberName` is never rendered — so five previews of it are
-// five renderings of the same handful of strings. That makes the `expectedText`
-// pins load-bearing: each one below is a string ONLY that state can produce
-// (its own Jeeber's system notice, or the supporting sentence that is painted
-// only when there is no CTA). Without that, a suite over five states of one
-// parameterless-looking band would pass no matter which state it actually
-// built. The specifics group then pins the thing the pins cannot: WHICH
-// callbacks each state wired, since that is the banner's only real variation.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -49,7 +36,6 @@ void main() {
       // The only state with room to paint the supporting sentence.
       'Client · no CTA yet': _supportingSentence,
       // Every other state is pinned by the gating system notice, which names a
-      // different Jeeber in each one.
       'Jeeber · start delivery': "Rana's offer was accepted",
       'Client · track order': "Nour's offer was accepted",
       'Small phone 320dp': "Ziad's offer was accepted",
@@ -130,18 +116,12 @@ void main() {
       WidgetTester tester,
     ) async {
       // pumpPreview uses the default 800x600 viewport and ignores
-      // JeebPreview.size, so this assertion is what proves the state exercises
-      // a phone width at all rather than a desktop-wide row.
       await pumpPreview(tester, offerAcceptedBannerSmallPhone);
 
       expect(tester.getSize(find.byKey(_bannerKey)).width, 320);
       expect(find.byKey(_trackCtaKey), findsOneWidget);
       expect(tester.takeException(), isNull);
       // 320 dp is already narrow enough that the CTA takes a run of its own:
-      // measured 88 dp of band here against 64 dp at 390 dp. Asserted as
-      // "taller than one run" rather than as 88 so a font metric change does
-      // not fail it — a collapse back to a single run would mean the `Wrap`
-      // had become a `Row`, and the next scale up would overflow.
       expect(
         tester.getSize(find.byKey(_bannerKey)).height,
         greaterThan(64),

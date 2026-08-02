@@ -88,16 +88,6 @@ class PushDeviceRegistrar {
 
   String _generateId() {
     // Was a hand-rolled 64-bit LCG seeded from `DateTime.now()` xor
-    // `identityHashCode`. That had two problems: the seed carried very little
-    // entropy for a value that must be "collision-free across the fleet", and
-    // the 64-bit literals/operators cannot be compiled to JavaScript at all —
-    // which broke `flutter widget-preview start`, whose scaffold only targets
-    // the web device.
-    //
-    // `Random.secure()` is a platform CSPRNG, so this is strictly stronger for
-    // the documented contract while producing the same 32-hex-digit shape.
-    // The fallback matters because `Random.secure()` throws on platforms with
-    // no secure source; a weak id still beats a crash on first launch.
     Random random;
     try {
       random = Random.secure();

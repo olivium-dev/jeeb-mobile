@@ -187,99 +187,6 @@ class _GateStatusLine extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/offer_kyc_gate/offer_kyc_gate_screen_preview_test.dart
-// ===========================================================================
-//
-// [OfferKycGateScreen] is the D38 interstitial an UNAPPROVED jeeber is routed
-// THROUGH when they tap "Make Offer". Four things differ from a widget preview.
-//
-// 1. It owns a `Scaffold` (OMDS app bar + `ListView` body) and [jeebPreviewHost]
-//    wraps every child in one as well, so the canvas shows two nested
-//    Scaffolds. The inner one is the real surface; the outer contributes a
-//    background and a `SafeArea`.
-//
-// 2. The canvas box is a real device, not the harness's default 390x200 — an
-//    icon, a headline, two paragraphs and three stacked exits cannot be judged
-//    in a 200 pt strip. The device is pinned INSIDE the fixture (a `MediaQuery`
-//    override plus a `SizedBox`), because the canvas honours `size:` but the
-//    render tests pump onto a fixed 800 x 600 surface: a state that merely
-//    ASKED for a 320 x 568 canvas would be measured at 800 x 600 and the
-//    compact window would silently become the phone one.
-//
-// 3. State is driven the only way this screen allows — through the `gateway:`
-//    seam, with the fakes shared with the Screen Catalog entry
-//    (`lib/devtool/catalog/fixtures/offer_kyc_gate_screen_fixtures.dart`). The
-//    screen builds its own [OfferKycGateCubit] internally, so a state is
-//    reachable here only if some canned `fetchStatus()` behaviour produces it.
-//    No preview constructs a Dio-backed gateway and the `sl<KycGateway>()`
-//    branch is never reached — network-free by construction rather than by the
-//    guard in [jeebPreviewHost].
-//
-// 4. All three of its affordances navigate, through go_router extensions that
-//    THROW without a `Router` in scope, and none of them runs during `build` —
-//    so a naive host paints perfectly and dies on the first tap. The fixture
-//    host seeds the PRODUCTION stack: `goNamed('offer-kyc-gate')` from the feed
-//    replaces the stack, so the gate is the lone page and `canPop()` is false.
-//
-// What these previews surfaced in the screen:
-//
-//  * **Four of the six reachable states are pixel-identical.** `_GateStatusLine`
-//    returns `SizedBox.shrink()` when `phase != ready`, and its `switch` on
-//    `status` falls into `_ => (null, null, null)` for `notSubmitted` AND for
-//    `approved` — so LOADING, ERROR, `ready(notSubmitted)` and
-//    `ready(approved)` render byte-identical surfaces. A jeeber whose status
-//    read failed is shown the same screen as one who has never started KYC,
-//    with no retry and nothing that says the read failed. The cubit's own
-//    dartdoc calls this "degrade gracefully", and R-F makes it deliberate for
-//    the CTAs — but the *silence* is total: `OfferKycGatePhase.error` exists,
-//    is emitted, and is rendered by nothing. Pinned by the render test, which
-//    is why every preview below carries a caption: without one the four states
-//    are indistinguishable to a text finder.
-//  * **`approved` is a live branch that says the opposite of the truth.** The
-//    screen's dartdoc asserts "an APPROVED jeeber NEVER reaches this screen",
-//    and the guarantee lives entirely at the JM-048 feed call site — nothing in
-//    this file or in [OfferKycGateCubit] enforces it, and `state.isApproved`
-//    is defined on [OfferKycGateState] and read nowhere. If the feed's routing
-//    ever disagrees with the live decision (a stale feed payload, a race with
-//    an approval that landed mid-session), the gate renders "Get approved to
-//    start sending offers" to a jeeber who already is, with no exit to the
-//    composer. [offerKycGateScreenApproved] is what that looks like.
-//  * **The status line is a dead end for `rejected`.** The copy says "This
-//    decision is final — you can appeal through support", and the only CTA on
-//    the screen is "Start verification" → `kyc-status`, the wizard. There is no
-//    edge to `kyc-rejected` (the appeal-via-support screen the router
-//    registers, D52/D87), so the screen tells a rejected jeeber their decision
-//    is final and then offers them the button that restarts it.
-//  * **`resubmitRequested` renders its title and body and nothing actionable.**
-//    The E19 tri-state is explicitly "actionable, not final", and the branch
-//    exists in `_GateStatusLine` — but the per-slot `resubmitSteps` the
-//    submission carries are never surfaced here, so the jeeber is told to "Fix
-//    the items below" with no items below. (It is also the one branch the
-//    Screen Catalog never had a state for until this wave.)
-//  * **At the accessibility ceiling four of the five published ids are not
-//    merely below the fold, they are not BUILT.** On a 320 x 568 device at 200%
-//    text the body carries 2287 pt of scroll behind a ~512 pt viewport, and the
-//    `ListView` stops building past its viewport plus cache extent:
-//    `gate_topup_note`, `gate_start_kyc_cta`, `gate_register_link` and
-//    `gate_back_cta` are all absent from the widget tree AND from the semantics
-//    tree until the user scrolls. Those are four of the five ids
-//    65_W2_TEST_PLAN §2 JM-044 publishes as the QA targets, so a driver — or a
-//    screen reader — querying them on arrival finds nothing. The D67 note is
-//    the one that stings: its whole purpose is to be read BEFORE the jeeber
-//    decides what to do. (Treat the exact extent with care — `flutter_test`
-//    renders every glyph as a square of the font size, which makes English
-//    roughly twice as wide as Inter does, so a real device scrolls less. What
-//    is not a font artifact is the ORDER: the note and the exits are last in
-//    the `ListView`, so they are the first things to fall off.)
-//  * The good news, recorded because it is cheap to lose: NOTHING overflows.
-//    Every state renders clean in EN and in AR, at 100% and at 200% text, on a
-//    390 x 844 phone and on a 320 x 568 one — the body is a `ListView`, so the
-//    composition simply grows a scroll extent instead of clipping.
 
 /// The canvas box for a whole screen: a real phone, plus the fixture's 1 pt
 /// outline (12 pt) and its caption strip (44 pt).
@@ -291,12 +198,6 @@ const Size _offerKycGateScreenCompactCanvas = Size(332, 612);
 
 /// Every state is the same gate behind the same app bar, differing only in what
 /// the canned `fetchStatus()` does — and four of them differ in nothing at all
-/// on screen. So each one names itself in a caption.
-///
-/// The `OfferKycGateScreen(...)` is constructed HERE rather than inside the
-/// fixture host on purpose: `tool/preview_coverage.dart` credits a section only
-/// when it literally builds the widget its previews are named after, and it
-/// keeps the fixture library free of a circular import back into this one.
 Widget _offerKycGateScreenHosted(
   KycGateway gateway, {
   required String caption,
@@ -310,17 +211,6 @@ Widget _offerKycGateScreenHosted(
 
 /// The canonical gate: the reconciled JM-044 entry for a jeeber who has never
 /// started KYC.
-///
-/// `ready(notSubmitted)` — `_GateStatusLine` deliberately renders nothing,
-/// because the headline and body already say "get approved to start sending
-/// offers". This is the reference reading of the whole composition: icon,
-/// headline, body, the D67 top-up note, and the three exits.
-///
-/// Matrixed because this is the state to judge the SHAPE in, and both extra
-/// cards earn their place. AR is where a centered column of three long
-/// sentences and a `TextButton` stack has to mirror — the `ListView` uses
-/// `EdgeInsetsDirectional`, so this is the card that proves it. 200% is where
-/// the same column stops fitting a phone and becomes a scroll.
 @JeebPreview(
   group: 'offer_kyc_gate',
   name: 'Not submitted',
@@ -333,11 +223,7 @@ Widget offerKycGateScreenNotSubmitted() => _offerKycGateScreenHosted(
     );
 
 /// `ready(pending)` — the state the W2 RD-1 fix was written against.
-///
 /// The JM-044 entry a `pending` jeeber takes: the gate adds "Submission
-/// received" + the 24-hour review copy in the semantic WARNING role. Note what
-/// does NOT change: the primary CTA is still "Start verification" → the wizard,
-/// for a jeeber whose submission is already in review.
 @JeebPreview(
   group: 'offer_kyc_gate',
   name: 'Pending',
@@ -350,17 +236,6 @@ Widget offerKycGateScreenPending() => _offerKycGateScreenHosted(
 
 /// `ready(rejected)` — the longest content this screen can carry, and its
 /// sharpest contradiction.
-///
-/// The status line renders in the error role: "We need a second look" + "This
-/// decision is final — you can appeal through support." The only primary CTA
-/// underneath is "Start verification", which restarts the wizard, and there is
-/// no edge from here to `kyc-rejected` (the appeal screen the router registers
-/// for D52/D87). So the screen states the decision is final and then offers the
-/// button that contradicts it.
-///
-/// The second matrixed state: five paragraphs of centered copy is the worst
-/// case for both mirroring and text scale, and this is where a reviewer should
-/// look before believing "nothing overflows".
 @JeebPreview(
   group: 'offer_kyc_gate',
   name: 'Rejected',
@@ -374,12 +249,6 @@ Widget offerKycGateScreenRejected() => _offerKycGateScreenHosted(
 
 /// `ready(resubmitRequested)` — the E19 tri-state, which had no mocked state on
 /// ANY dev surface before this wave.
-///
-/// "Resubmit your documents. We need you to update part of your submission and
-/// send it again. Fix the items below, then resubmit." There are no items
-/// below: `KycSubmission.resubmitSteps` carries the per-slot list the
-/// back-office filled in, and nothing on this screen reads it. The copy is
-/// borrowed from the KYC status screen, where the list does render.
 @JeebPreview(
   group: 'offer_kyc_gate',
   name: 'Resubmit requested',
@@ -394,13 +263,6 @@ Widget offerKycGateScreenResubmitRequested() => _offerKycGateScreenHosted(
 
 /// `OfferKycGatePhase.loading` — the cold-start frame, held open by a
 /// `fetchStatus()` that never resolves.
-///
-/// The cubit emits `loading` from its constructor, so this is what every jeeber
-/// sees until the read lands. It is the R-F invariant made visible: no spinner,
-/// no skeleton, no blocked CTAs — the gate's exits and the top-up note are
-/// already there and already tappable, and only the optional status line is
-/// missing. It is also the first of the four states that are pixel-identical:
-/// nothing here distinguishes "still loading" from "there is no status".
 @JeebPreview(
   group: 'offer_kyc_gate',
   name: 'Loading',
@@ -412,14 +274,7 @@ Widget offerKycGateScreenLoading() => _offerKycGateScreenHosted(
     );
 
 /// `OfferKycGatePhase.error` — `GET /v1/kyc/status` threw.
-///
 /// `OfferKycGateCubit.loadStatus` catches everything and emits `error`, and
-/// `_GateStatusLine` renders `SizedBox.shrink()` for it. So the phase is
-/// emitted and read by nothing: this is byte-identical to
-/// [offerKycGateScreenNotSubmitted] and to [offerKycGateScreenLoading]. A
-/// jeeber whose status read failed is told they have not started KYC. There is
-/// no retry, no stale-data note, and no way for the user or for QA to tell the
-/// difference — which is what makes the caption the only honest label.
 @JeebPreview(
   group: 'offer_kyc_gate',
   name: 'Status read failed',
@@ -431,15 +286,7 @@ Widget offerKycGateScreenStatusReadFailed() => _offerKycGateScreenHosted(
     );
 
 /// `ready(approved)` — the state the screen's dartdoc says cannot happen.
-///
 /// It is reachable: nothing in this file, in [OfferKycGateCubit] or in the
-/// router enforces the claim — the JM-048 feed call site does, from outside. A
-/// stale feed payload or an approval that lands mid-session is enough to put an
-/// approved jeeber here, and the `_ => (null, null, null)` arm of
-/// `_GateStatusLine` swallows the one signal that would have caught it:
-/// `state.isApproved` is defined and never read. The result is a screen that
-/// tells an approved jeeber to "Get approved to start sending offers" and
-/// offers no route to the composer they were trying to reach.
 @JeebPreview(
   group: 'offer_kyc_gate',
   name: 'Approved (should be unreachable)',
@@ -452,16 +299,6 @@ Widget offerKycGateScreenApproved() => _offerKycGateScreenHosted(
 
 /// The worst case the app supports: the longest state on the smallest display
 /// at the largest text.
-///
-/// A 64 pt icon, a two-line headline, a two-sentence body, the rejected status
-/// block, the top-up note and three stacked CTAs at 200% on a 320 x 568 device.
-/// Nothing overflows — the body is a `ListView`, so the composition becomes a
-/// scroll rather than a clip (2287 pt of it behind a ~512 pt viewport). What it
-/// costs is REACHABILITY: the `ListView` stops building past its viewport plus
-/// cache extent, so on arrival `gate_topup_note`, `gate_start_kyc_cta`,
-/// `gate_register_link` and `gate_back_cta` are all absent from the widget tree
-/// AND from the semantics tree — four of the five ids 65_W2_TEST_PLAN §2 JM-044
-/// publishes as the QA targets. Pinned by the render test.
 @JeebPreview(
   group: 'offer_kyc_gate',
   name: 'Rejected · compact · 200% text',

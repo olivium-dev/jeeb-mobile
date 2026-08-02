@@ -473,95 +473,13 @@ String _phoneErrorCopy(RegistrationPhoneError error, AppLocalizations l10n) {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/registration/registration_screen_preview_test.dart
-// ===========================================================================
-//
-// This is a SCREEN, so three things differ from a widget preview.
-//
-// 1. It owns its own `Scaffold` (OMDSAppBar + a scrolling body) and
-//    [jeebPreviewHost] wraps every child in one as well, so the canvas shows
-//    two nested Scaffolds. The inner one is the real surface; the outer
-//    contributes only a background. The canvas box is therefore a real device
-//    ([_registrationScreenPhoneBox], 390x844) rather than the harness's default
-//    390x200 — a hero band, a welcome stack, two social buttons, a divider, a
-//    phone field and a CTA cannot be judged in a 200 pt strip.
-//
-// 2. No `Router` and no GetIt. [RegistrationScreen] already ships `cubit:`,
-//    `socialAuthCubit:` and `onVerified:` seams (built for exactly this kind of
-//    router-free mount). With both cubits injected the screen never reaches
-//    `sl<OtpService>()`, `resolveGatewayDio()` or `SecureSocialAuthTokenStore()`
-//    — no Dio, no injection container, no Keychain. `onVerified: () {}` is what
-//    keeps `context.go('/')` out of the listener. Network-free by construction,
-//    not merely by the guard in [jeebPreviewHost].
-//
-// 3. [_RegistrationScreenHost] OWNS the two cubits and closes them in
-//    `dispose`. The screen injects them with `BlocProvider.value`, which by
-//    contract does not close what it did not create, so a preview that built a
-//    cubit inline would leak one per canvas rebuild.
-//
-// Every fixture is shared verbatim with the designer-facing Screen Catalog
-// entry (`lib/devtool/catalog/fixtures/registration_screen_fixtures.dart`), so
-// the catalog and the canvas cannot drift into two different notions of "the
-// sending state". The catalog names three of these states; the other five are
-// the states that break, which a three-state catalog entry does not reach.
-//
-// One state is deliberately absent: `RegistrationStep.otp` / `.verified`. Both
-// exist only to fire the listener — the first pushes `OtpVerificationScreen`
-// (which has its own preview section) and the second navigates away — so they
-// are transitions, not pictures.
-//
-// What these previews surfaced in the screen — see the notes on each:
-//
-//  * a VALID number that the gateway could not be asked about, or that the
-//    gateway refused with a 429, is reported to the user as an INVALID number.
-//    `_phoneErrorCopy` maps `RegistrationPhoneError.networkError` and
-//    `.rateLimited` onto `l10n.registrationPhoneInvalid` ("Enter a valid
-//    Lebanese phone number."), so three of these previews render the identical
-//    red line under three different numbers, two of which parse cleanly. The
-//    only remedy the copy suggests — fix your number — is wrong for two of the
-//    three causes, and re-typing the same correct digits cannot clear it. The
-//    code comment calls this an interim reuse (JEEB-56); the cards are what it
-//    costs. There is no `registrationPhoneNetwork` or `registrationPhoneRateLimited`
-//    key in either ARB.
-//  * nothing throttles a retry after a 429. `Send refused · gateway 429` leaves
-//    the field enabled and the CTA live, so the screen invites an immediate
-//    re-tap of the endpoint that just rate-limited it — while telling the user
-//    the reason is their phone number.
-//  * a pasted `+961 …` number is drawn NEXT TO the permanent `+961` prefix, so
-//    the field reads "+961  +961 71 123 456". `_PhoneField`'s own doc comment
-//    states "The TextField only ever receives the 8 national digits; the prefix
-//    is decorative" — that contract is no longer true. `inputFormatters`
-//    explicitly allows `+`, and PR #45 removed the per-keystroke mirror-back of
-//    the normalised value (it corrupted live editing, Maestro P0), so nothing
-//    strips the dial code from the rendered text. Only `sendCode` normalises,
-//    and it never writes back. Visible on `Pasted +961 block`.
-//  * the app bar and the body do NOT repeat the title here — `OMDSAppBar` shows
-//    "Enter your phone" and the body leads with "Welcome to Jeeb", which is the
-//    right shape and worth contrasting with the sibling OTP screen, where the
-//    same title is drawn twice.
 
 /// The canvas box for a whole screen: a real phone, not the harness default.
 const Size _registrationScreenPhoneBox = Size(390, 844);
 
 /// Owns the two cubits [RegistrationScreen] takes by injection, and closes
 /// them.
-///
 /// The screen provides both with `BlocProvider.value`, which does not close a
-/// cubit it did not create — so without this the canvas would leak one
-/// [RegistrationCubit] and one [SocialAuthCubit] per rebuild, and (worse) two
-/// cards could end up sharing a mutable one.
-///
-/// The social half is inert in every preview:
-/// [registrationScreenFakeSocialAuthCubit] answers every tap with
-/// `SocialAuthError.cancelled`, the one failure the cubit returns to idle
-/// silently, so tapping Google/Apple in the canvas lands back where it started
-/// instead of on an error nobody asked to review. `SocialSignInSection`'s own
-/// preview section owns those states.
 class _RegistrationScreenHost extends StatefulWidget {
   const _RegistrationScreenHost({super.key, required this.createCubit});
 
@@ -588,18 +506,12 @@ class _RegistrationScreenHostState extends State<_RegistrationScreenHost> {
         cubit: _registration,
         socialAuthCubit: _social,
         // The seam that keeps `context.go('/')` — and therefore a GoRouter —
-        // out of these previews. Never reached: no preview seeds `verified`.
         onVerified: () {},
       );
 }
 
 /// Mounts [RegistrationScreen] over a freshly built cubit.
-///
 /// [stateKey] is a per-preview [ValueKey]. It matters in the render test rather
-/// than the canvas: two previews of this screen build the identical element
-/// shape, so without distinct keys Flutter would update the host in place,
-/// `createCubit` would never run again, and the second pump would silently
-/// re-render the first preview's state.
 Widget _registrationScreenHosted(
   String stateKey,
   RegistrationCubit Function() createCubit,
@@ -610,20 +522,7 @@ Widget _registrationScreenHosted(
     );
 
 /// Cold entry — the screen every unauthenticated user lands on.
-///
 /// The EMPTY state: no digits, the "Phone number" hint at full opacity, no
-/// error, and `registration.sendCode` disabled. Note that the hint is the ONLY
-/// thing distinguishing this card's copy from the others, and Flutter keeps the
-/// hint mounted at zero opacity in every other state — so the render test
-/// proves this one by its empty controller and its dead CTA, not by copy alone.
-///
-/// Matrixed because the whole composition is here and it is the RTL-sensitive
-/// one: `_RegisterHero`, the welcome stack, the social column, the "or" divider
-/// whose two `Expanded` rules must stay balanced, and — the part that actually
-/// moves — the field's `prefixIcon`. `prefixIcon` is DIRECTIONAL, so the fixed
-/// "+961" jumps to the trailing edge under `Locale('ar')` while the digits
-/// typed into the field stay LTR. The EN 200% card is the ceiling for a column
-/// that has to scroll: at that scale the CTA is well below the fold.
 @JeebPreview(
   group: 'registration',
   name: 'Idle · empty field',
@@ -634,17 +533,7 @@ Widget registrationScreenIdle() =>
     _registrationScreenHosted('idle', registrationScreenIdleCubit);
 
 /// Mid-typing: six digits in, one short of the 7-digit minimum.
-///
 /// The state that separates "not finished" from "wrong". `phoneChanged` clears
-/// `phoneError` on every keystroke, so the CTA is disabled and there is NO red
-/// line — read this card next to `Rejected locally · too short`, which is the
-/// same unparseable field after a Send.
-///
-/// It is also the value the Maestro P0 regression erases down to
-/// (`test/registration_screen_test.dart`): before PR #45 the cubit mirrored its
-/// own normalised value back into the field per keystroke, so this state was a
-/// trap — erasing one more digit dropped a valid one and the field could never
-/// climb back to eight.
 @JeebPreview(
   group: 'registration',
   name: 'Typing · below the 7-digit minimum',
@@ -654,11 +543,7 @@ Widget registrationScreenTyping() =>
     _registrationScreenHosted('typing', registrationScreenTypingCubit);
 
 /// A full, valid national number: the CTA is live and nothing is red.
-///
 /// The happy path, and the only card in the set where `registration.sendCode`
-/// is enabled with no send in flight. Tapping it in the canvas runs the real
-/// `sendCode` over [FakeOtpService], which answers `sent` — so the canvas walks
-/// on to the real `OtpVerificationScreen`, exactly as the app does.
 @JeebPreview(
   group: 'registration',
   name: 'Valid number · CTA live',
@@ -669,12 +554,6 @@ Widget registrationScreenReady() =>
 
 /// Send tapped on a number too short to parse — rejected locally, before the
 /// network.
-///
-/// `sendCode` validates and emits `phoneError: invalid` synchronously, without
-/// touching [OtpService] at all, so no request is made. This is the ONLY one of
-/// the screen's three error states whose copy is actually true: "Enter a valid
-/// Lebanese phone number." The other two say the same thing about numbers that
-/// are already valid.
 @JeebPreview(
   group: 'registration',
   name: 'Rejected locally · too short',
@@ -686,17 +565,7 @@ Widget registrationScreenInvalidNumber() => _registrationScreenHosted(
     );
 
 /// `POST /v1/auth/otp/request` is in flight.
-///
 /// The LOADING state, and the screen handles it well: the CTA swaps its label
-/// for an in-button spinner (`OmdsLoadingButton`) and the field goes
-/// `enabled: false`, so the number cannot be edited out from under a request
-/// that is already carrying it. The fixture's [OtpService] never resolves,
-/// because every real outcome lands on the next microtask and the state would
-/// be gone before a reviewer saw it.
-///
-/// The spinner is an indeterminate `CircularProgressIndicator`, so this preview
-/// can never be pumped with `pumpAndSettle` — see the dedicated group in the
-/// render test.
 @JeebPreview(
   group: 'registration',
   name: 'Send in flight',
@@ -707,13 +576,6 @@ Widget registrationScreenSending() =>
 
 /// A VALID number the gateway could not be asked about — and the screen says
 /// the number is invalid.
-///
-/// `_phoneErrorCopy` collapses `RegistrationPhoneError.networkError` onto
-/// `l10n.registrationPhoneInvalid`, so an offline device produces a frame that
-/// is pixel-identical to `Rejected locally · too short` apart from the digits
-/// above the error. `76001122` parses; there is nothing for the user to fix,
-/// and re-typing the same correct number cannot clear the line. Nothing on the
-/// screen mentions the connection.
 @JeebPreview(
   group: 'registration',
   name: 'Send failed · gateway unreachable',
@@ -726,13 +588,6 @@ Widget registrationScreenNetworkError() => _registrationScreenHosted(
 
 /// The gateway refused the send with a 429 — same wrong copy, plus an open
 /// door.
-///
-/// `81445566` is valid, so again the user is told to fix a number that is not
-/// broken. Worse than the offline card: the field stays enabled and the CTA
-/// stays live, with no client-side cooldown anywhere in `sendCode`, so the one
-/// action the screen makes available is an immediate re-tap of the endpoint
-/// that just rate-limited it. Compare with the sibling OTP screen, which routes
-/// its own 429 into a lockout step with a visible countdown.
 @JeebPreview(
   group: 'registration',
   name: 'Send refused · gateway 429',
@@ -745,21 +600,6 @@ Widget registrationScreenRateLimited() => _registrationScreenHosted(
 
 /// A full international number pasted out of Contacts — the longest content the
 /// field can hold, and a doubled dial code.
-///
-/// The field renders `+961 71 123 456` immediately to the right of the
-/// permanent, non-editable `+961` prefix, so the row reads "+961 +961 71 123
-/// 456". `_PhoneField` documents the opposite ("The TextField only ever
-/// receives the 8 national digits; the prefix is decorative") but nothing
-/// enforces it: `inputFormatters` allows `+` on purpose so a pasted block is
-/// not truncated at the wrong end, and PR #45 removed the only code that used
-/// to write the normalised value back. `LebanonPhone.normalise` still strips it
-/// on Send, so the request is correct — this is a display defect, not a
-/// delivery one, but it is the first thing a user sees after pasting.
-///
-/// Matrixed for that reason: `prefixIcon` is directional, so the AR RTL card
-/// puts the decorative "+961" on the opposite side of a field whose own text is
-/// still LTR, and the EN 200% card is where 15 characters plus a prefix decide
-/// whether the row wraps, ellipsizes or overflows.
 @JeebPreview(
   group: 'registration',
   name: 'Pasted +961 block · doubled dial code',

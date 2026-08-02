@@ -1,17 +1,4 @@
 // G3 REGRESSION GUARD (run-24 CHECK D): the test that would have CAUGHT the
-// device failure.
-//
-// Cycle-4 added NotificationKind.newRequest + BadgeCountCubit rendering and its
-// unit tests PASSED — but on real hardware a dismissed `new_request` push left
-// the inbox EMPTY and showed NO badge. Root cause: those tests drove the
-// FOREGROUND path only (BadgeCountCubit.increment / a fake Dio row the real
-// server never emits). A push dismissed while the app is backgrounded/terminated
-// is handled ONLY by `firebaseMessagingBackgroundHandler` in a SEPARATE isolate
-// that can reach neither the cubit nor the inbox list — so it did nothing
-// durable.
-//
-// This test drives the ACTUAL background entry-point and asserts the durable
-// inbox row + the badge that hydrate() derives from it.
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,8 +19,6 @@ void main() {
       'dismissed new_request push (G3 — this is what unit tests missed)',
       () async {
     // A new_request push exactly as jeeb-gateway's NewRequestPushNotifier sends
-    // it: `type=new_request` on the FCM data map (+ a legacy category), a flat
-    // requestId, and a real notification the user saw and dismissed in the tray.
     const message = RemoteMessage(
       messageId: 'bg-msg-1',
       data: <String, dynamic>{
@@ -74,7 +59,6 @@ void main() {
     await firebaseMessagingBackgroundHandler(message);
 
     // The main-isolate cubit re-derives its counts from the SAME store on
-    // resume/cold-start — the badge the device was missing.
     final prefs = await SharedPreferences.getInstance();
     final badge = BadgeCountCubit(inbox: SharedPrefsLocalPushInbox(prefs: prefs));
     addTearDown(badge.close);

@@ -1,31 +1,4 @@
 // Shared dev-only fixtures for `DiagnosticsScreen`.
-//
-// The Screen Catalog has NO entry for this screen — it is a dev tool, not a
-// product surface, so no designer ever signed a frame off against it. These
-// fixtures are therefore new, and they live here rather than inside the preview
-// section for the reason the convention exists: the moment somebody adds
-// `Diagnostics` to `lib/devtool/catalog/entries/`, the states it shows must be
-// THESE states, not a second hand-built set free to drift from the canvas.
-//
-// Consumers today:
-//
-//   * the JEEB PREVIEWS section at the bottom of
-//     `lib/core/diagnostics/diagnostics_screen.dart`.
-//
-// Everything here is a LOCAL fake. `DiagnosticsScreen` takes all three of its
-// side-effecting seams by constructor — `sessionsLoader`, `shareLauncher`,
-// `clipboardWriter` — so a preview never reaches `path_provider`, the platform
-// share sheet, or the clipboard channel. There is no repository and no Dio
-// client anywhere in this screen's graph, so `CatalogNetworkGuard` has nothing
-// to catch here: it is a net, not the plan.
-//
-// The one seam that is NOT a constructor parameter is the build gate,
-// `Diag.enabled` — a static read that decides between the sessions list and the
-// "dev builds only" notice. [DiagnosticsScreenEnabledScope] drives it, and that
-// is the only global this file touches.
-//
-// This file lives under `lib/devtool/`, which `tool/preview_inventory.dart`
-// excludes from preview coverage and which no shipping code path reaches.
 
 import 'dart:async';
 
@@ -35,18 +8,8 @@ import 'package:jeeb_mobile/core/diagnostics/diag.dart';
 import 'package:jeeb_mobile/core/diagnostics/diagnostics_screen.dart';
 
 /// Forces [Diag.enabled] for the subtree below it.
-///
 /// `DiagnosticsScreen.build` branches on the static `Diag.enabled`, which is
 /// `kDebugMode` in a preview canvas and in `flutter test` — i.e. TRUE — so the
-/// release-like "dev builds only" notice is unreachable without driving the
-/// override, and the enabled states would silently depend on whichever card
-/// last touched it.
-///
-/// Writing a global from `build` is deliberate and is what keeps each state
-/// hermetic: Flutter builds depth-first, so this widget re-asserts its own
-/// value immediately before its child reads it, however many preview cards
-/// share the canvas. It is dev-only either way — `enabledOverride` is a
-/// `@visibleForTesting` seam and this library ships to nobody.
 class DiagnosticsScreenEnabledScope extends StatelessWidget {
   /// Pins [Diag.enabled] to [enabled] while [child] builds.
   const DiagnosticsScreenEnabledScope({
@@ -63,10 +26,8 @@ class DiagnosticsScreenEnabledScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The gate is a `@visibleForTesting` seam and this is dev-only code that
-    // ships to nobody; a file-level ignore would weaken analysis of the whole
-    // library, so it is scoped to this line.
     // ignore: invalid_use_of_visible_for_testing_member
+    // The gate is a `@visibleForTesting` seam and this is dev-only code that
     Diag.enabledOverride = enabled;
     return child;
   }
@@ -82,7 +43,6 @@ class DiagnosticsScreenPreviewFixtures {
 
   /// Where `DiagFileSink` writes on an Android dev build. The screen derives
   /// the "On-device folder" row from the newest file's parent when no live sink
-  /// is installed, which is always the case in a preview.
   static const String androidDiagDir =
       '/data/user/0/app.jeeb.mobile.dev/files/diag';
 
@@ -97,7 +57,6 @@ class DiagnosticsScreenPreviewFixtures {
 
   /// The single file the compact 320 pt state lists. Distinct from the phone
   /// state's names on purpose: a preview quietly rewired to the wrong fixture
-  /// should fail its render test rather than look plausible.
   static const String compactSessionName =
       '2026-06-30T07-14-52-000Z-jeeber.jsonl';
 
@@ -108,8 +67,6 @@ class DiagnosticsScreenPreviewFixtures {
 
   /// Deepest plausible directory: an iOS Simulator data container. It is also
   /// NOT an Android app-data path, so `DiagExport.adbPullCommand` falls back to
-  /// the `adb pull "<path>"` hint — the longer of the two subtitles the "adb
-  /// pull one-liner" row can show.
   static const String simulatorDiagDir =
       '/Users/qa/Library/Developer/CoreSimulator/Devices/'
       '8C3F1A6D-2B44-4E19-9F0C-77A1D5E3B240/data/Containers/Data/Application/'
@@ -144,7 +101,6 @@ class DiagnosticsScreenPreviewFixtures {
 
   /// One session, for the 320 pt floor — the width where the row's leading
   /// icon, its two-line label and the share/copy action pair contest the same
-  /// line.
   static List<DiagSessionFileInfo> oneSession() => <DiagSessionFileInfo>[
         DiagSessionFileInfo(
           path: '$androidDiagDir/$compactSessionName',
@@ -156,7 +112,6 @@ class DiagnosticsScreenPreviewFixtures {
 
   /// The layout ceiling: the longest name this screen can be handed, inside the
   /// deepest directory, so BOTH export-row subtitles and the session title are
-  /// at their longest at once.
   static List<DiagSessionFileInfo> longestNames() => <DiagSessionFileInfo>[
         DiagSessionFileInfo(
           path: '$simulatorDiagDir/$longestSessionName',
@@ -187,19 +142,11 @@ class DiagnosticsScreenPreviewFixtures {
 
   /// A listing that never resolves, holding the screen on its spinner for as
   /// long as the surface is open.
-  ///
-  /// A [Completer] nobody completes holds no timer and no subscription — it
-  /// simply never settles, so the fixture cannot outlive the card that built
-  /// it.
   static Future<List<DiagSessionFileInfo>> stalled() =>
       Completer<List<DiagSessionFileInfo>>().future;
 
   /// A listing that THROWS — the state `DiagnosticsScreen.defaultSessionsLoader`
   /// swallows in production (its `catch (_)` returns an empty list) and that an
-  /// injected loader can still surface.
-  ///
-  /// Previewed next to [empty] on purpose: the two are pixel-identical today,
-  /// which is the whole point of looking at them together.
   static Future<List<DiagSessionFileInfo>> failing() async {
     throw StateError('fixture: EACCES listing $androidDiagDir');
   }
@@ -208,7 +155,6 @@ class DiagnosticsScreenPreviewFixtures {
 
   /// Share seam that does nothing — the production one calls
   /// `Share.shareXFiles`, a platform channel with no implementation behind a
-  /// preview card or a widget test.
   static Future<void> inertShare(DiagSessionFileInfo file) async {}
 
   /// Clipboard seam that does nothing, for the same reason.

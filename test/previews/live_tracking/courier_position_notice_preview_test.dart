@@ -1,14 +1,3 @@
-// Render tests for the CourierPositionNotice previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// `Live · nothing to say` cannot be pinned through `expectedText` — its whole
-// contract is that it renders NO text — so it is pinned below by asserting the
-// notice occupies zero pixels, which is stricter than a string match, not
-// weaker.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -33,9 +22,6 @@ void main() {
       'Stale · 3 min old': "Jeeber's location is 3 min old",
       'Lost · 5 min ago': 'No signal from the Jeeber — last seen 5 min ago',
       'Lost · under a minute': 'No signal from the Jeeber',
-      // The asymmetry the preview's doc comment calls out: the `lost` branch
-      // suppresses a sub-minute age, the `stale` branch renders it as zero.
-      // Pinned so the sentence cannot change without someone noticing.
       'Stale · no age reported': "Jeeber's location is 0 min old",
       'Lost · overnight':
           'No signal from the Jeeber — last seen 1440 min ago',
@@ -109,15 +95,6 @@ void main() {
         'pill OVERFLOWS: it can neither wrap nor ellipsize', (
       WidgetTester tester,
     ) async {
-      // Not a claim about any particular handset — widths under the test font
-      // are not real-font widths. It is a claim about BEHAVIOUR: `OmdsChip`
-      // puts its label in a bare Text inside a Row, and a Row hands non-flex
-      // children unbounded main-axis constraints, so the label lays out at its
-      // full intrinsic width whatever the box says. Squeeze the band and there
-      // is nowhere for the excess to go.
-      //
-      // If this test starts FAILING, the chip learned to wrap or ellipsize —
-      // delete the test and the warning in the preview's doc comment.
       tester.view.physicalSize = const Size(240, 200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -135,7 +112,6 @@ void main() {
             'there is no maxLines and no TextOverflow.ellipsis to absorb it',
       );
       expect('$error', contains('overflowed'));
-      // And it did not silently truncate: the whole sentence is still there.
       expect(
         find.text('No signal from the Jeeber — last seen 1440 min ago'),
         findsOneWidget,

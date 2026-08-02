@@ -1,13 +1,4 @@
 // Render tests for the OtpAtDoorCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// OtpAtDoorCard renders one fixed headline and one of two fixed body sentences,
-// so five previews of it would look identical to a suite that only asked "did
-// something render". The `expectedText` pins below therefore key on the ONE
-// value that differs per state: the hand-over code itself, and — for the state
-// that has no code — the fallback sentence that replaces it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -20,7 +11,6 @@ import '../preview_test_harness.dart';
 
 /// The inline code panel's own key, from `otp_at_door_card.dart`. Distinct from
 /// the OTP screen's `otpHandover.codeDisplay` so the two surfaces stay
-/// unambiguous in one tree.
 const Key _inlineCodeKey = Key('tracking.atDoorCode');
 
 /// The at-door → OTP CTA, from `otp_at_door_card.dart`.
@@ -42,7 +32,6 @@ void main() {
       // One code per state, so a pin can only be satisfied by its own state.
       'Code known · 1234': '1234',
       // The only state with no code: pinned on the pre-G4 fallback sentence,
-      // which the four code-bearing states never render.
       'Code unknown':
           'Share your code with your Jeeber to confirm the handover.',
       'Bidi guard · 0450': '0450',
@@ -57,7 +46,6 @@ void main() {
       await pumpPreview(tester, otpAtDoorCardWithCode);
 
       // Both, not either: the code is on screen AND the full-screen route is
-      // still reachable.
       expect(find.byKey(_inlineCodeKey), findsOneWidget);
       expect(find.text('1234'), findsOneWidget);
       expect(
@@ -111,8 +99,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The render harness pumps an 800 px viewport, so a preview that forgot
-      // its SizedBox would silently be reviewed at 800 pt — the width this
-      // state exists to constrain.
       await pumpPreview(tester, otpAtDoorCardNarrowPhone);
 
       expect(tester.getSize(find.byKey(_ctaKey)).width, 320 - 24 * 2);
@@ -122,7 +108,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Every string the pins above find in this state must have come from the
-      // card, or the pin proves nothing about the card.
       await pumpPreview(tester, otpAtDoorCardOverMap);
 
       expect(

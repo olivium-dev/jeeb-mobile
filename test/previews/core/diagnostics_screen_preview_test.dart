@@ -1,16 +1,4 @@
 // Render tests for the DiagnosticsScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// This screen has exactly one input — what `sessionsLoader` answers — and three
-// of its four bodies are near-identical lists of settings rows, so a
-// render-only check would pass while every preview showed the same surface.
-// Each state therefore pins a string, and the groups below pin the two
-// contracts a string cannot reach: that the spinner is really the spinner, and
-// that a FAILED listing is byte-for-byte the empty state (it is — that is the
-// defect these two previews exist to show).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +11,6 @@ import '../preview_test_harness.dart';
 
 /// The longest-content preview's session name. Spelled out here rather than
 /// imported from the fixtures so a preview quietly rewired to a short listing
-/// fails instead of silently losing the one state that stresses the row.
 const String _kLongestSessionName =
     '2026-07-31T23-59-59-999Z-jeeber-regression-run-full-journey.jsonl';
 
@@ -46,12 +33,9 @@ void main() {
   setUpAll(loadPreviewArbs);
 
   // The previews drive `Diag.enabledOverride` (the screen's build gate is a
-  // static, not a parameter). Put it back so a later test in this file cannot
-  // inherit the release-like card's gate.
   tearDown(Diag.resetForTest);
 
   // Every preview except `Loading · listing files`, whose spinner cannot settle
-  // — see the dedicated group below.
   testPreviewsRender(
     'DiagnosticsScreen',
     const <String, Widget Function()>{
@@ -70,15 +54,8 @@ void main() {
       // The placeholder row that replaces the list when nothing was found.
       'Empty · no session files': 'No session files yet',
       // NB: this string is also present in the empty state, because the two
-      // states are identical. It is pinned so a failing loader still has to
-      // render SOMETHING coherent; the discrimination lives in the
-      // "empty vs failed" group below, not here.
       'Loader failed · degrades to empty': 'Appears once a session file exists',
       // NOT the session title: on this state the export section alone is
-      // taller than the 600 pt test surface, so the row that carries the long
-      // name is off-screen and unbuilt at pump time (the specifics group
-      // scrolls to it). The folder subtitle is the top-most string only this
-      // state can produce.
       'Longest content · long name, deep path': _kSimulatorDiagDir,
       'Compact 320 pt · one session': '2026-06-30T07-14-52-000Z-jeeber.jsonl',
       'Release-like build · diag disabled':
@@ -87,11 +64,6 @@ void main() {
   );
 
   // The listing body is a `CircularProgressIndicator`, i.e. a repeating
-  // `AnimationController`. `pumpAndSettle` (which `pumpPreview` calls) never
-  // returns while one is on screen, so this preview gets the same three
-  // assertions the shared suite makes — builds in EN, builds in AR, renders its
-  // OWN state — driven by fixed pumps instead. It has no text of its own, so
-  // its state is pinned by the spinner plus the absence of every other body.
   group('DiagnosticsScreen previews · Loading · listing files', () {
     Future<void> pumpLoading(
       WidgetTester tester, {
@@ -118,26 +90,16 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       // The whole body is replaced while the listing runs: no export section,
-      // no sessions section, not even the empty-state row.
       expect(find.byKey(const Key('diagnostics-session-list')), findsNothing);
       expect(find.byKey(const Key('diag-row-dir-path')), findsNothing);
       expect(find.byKey(const Key('diag-row-empty')), findsNothing);
       // …and nothing names what is being awaited. `_load` flushes the
-      // persistent sink BEFORE it lists, so on a large session this bare
-      // spinner is also what a hung flush looks like.
       expect(find.byType(Text), findsOneWidget); // the app bar title only
       expect(find.text('Diagnostics'), findsOneWidget);
     });
   });
 
   // The pair this section exists for. `_enabledBody` reads
-  // `snapshot.data ?? const []` and never inspects `snapshot.hasError`, so a
-  // listing that threw paints the same surface an empty directory paints.
-  //
-  // Pinned as an EQUALITY rather than as a list of missing affordances, so the
-  // day the screen learns to distinguish them this test fails loudly and says
-  // exactly why. That failure is the fix landing: update the preview and this
-  // group, do not restore the equality.
   group('DiagnosticsScreen previews · empty vs failed listing', () {
     testWidgets('a THROWN listing renders the empty state, character for '
         'character', (WidgetTester tester) async {
@@ -145,10 +107,6 @@ void main() {
       final Set<String> empty = _visibleText(tester);
 
       // Tear the tree down between pumps: the two previews build the same
-      // widget types in the same positions, so without this the second pump
-      // UPDATES the first `_DiagnosticsScreenState` — whose `_sessions` future
-      // was created in a field initializer — and the failed card would silently
-      // re-show the empty card's listing.
       await tester.pumpWidget(const SizedBox.shrink());
       await pumpPreview(tester, diagnosticsScreenLoadFailed);
       final Set<String> failed = _visibleText(tester);
@@ -167,19 +125,16 @@ void main() {
       expect(find.textContaining('Try again'), findsNothing);
       expect(find.textContaining('EACCES'), findsNothing);
       // The one surviving affordance is the app bar action, which re-runs the
-      // same loader.
       expect(find.byKey(const Key('diag-refresh')), findsOneWidget);
     });
   });
 
   group('DiagnosticsScreen preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does NOT rebuild these — see the tear-down note in the group above.
     testWidgets('the phone previews pin a 390 pt frame, not the canvas width', (
       WidgetTester tester,
     ) async {
       // The harness pumps an 800 pt surface: a preview that left its width to
-      // the host would measure 800 here, and none of this layout applies there.
       await pumpPreview(tester, diagnosticsScreenSessions);
 
       expect(tester.getSize(find.byType(DiagnosticsScreen)).width, 390);
@@ -232,7 +187,6 @@ void main() {
       await pumpPreview(tester, diagnosticsScreenLongestContent);
 
       // Not an Android app-data path, so `DiagExport.adbPullCommand` cannot
-      // build a `run-as` command and falls back to the longer plain pull.
       expect(find.textContaining('adb pull "'), findsOneWidget);
       expect(find.textContaining('run-as'), findsNothing);
       expect(
@@ -246,9 +200,6 @@ void main() {
       await pumpPreview(tester, diagnosticsScreenLongestContent);
 
       // The two export subtitles are unbroken machine strings with no
-      // `maxLines` anywhere in `OmdsSettingsRow`, so at this length they wrap
-      // to a section taller than the viewport and the sessions list — the
-      // reason the screen exists — starts below the fold.
       expect(find.text('$_kLongestSessionName (current)'), findsNothing);
 
       await tester.scrollUntilVisible(
@@ -269,7 +220,6 @@ void main() {
       expect(find.byKey(const Key('diagnostics-session-list')), findsNothing);
       expect(find.byKey(const Key('diag-session-row-0')), findsNothing);
       // The app bar action survives the gate: it is wired to `_refresh`, which
-      // re-runs the loader for a body that will never render its result.
       expect(find.byKey(const Key('diag-refresh')), findsOneWidget);
     });
   });

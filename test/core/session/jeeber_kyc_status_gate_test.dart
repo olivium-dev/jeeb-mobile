@@ -10,15 +10,6 @@ import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
 
 /// Locks the JM-036/044 DELIVERY-tab gate mapping, reconciled with D38 (KYC
 /// gates OFFERING, not feed-browsing). This is the regression net for the
-/// W2-closer finding that the old `!isApproved` collapse routed a `pending`
-/// jeeber to `delivery_register_prompt`, leaving `feed_make_offer_cta` (and the
-/// JM-044 offer-KYC gate) unreachable.
-///
-/// The authoritative contract every QA seed maps to:
-///   * kyc_status=none     → registerPrompt (`delivery_register_prompt`)
-///   * kyc_status=pending  → feed           (`jeeber_feed_root`; offering gated)
-///   * kyc_status=approved → feed           (`jeeber_feed_root`; offering allowed)
-///   * kyc_status=rejected → kycRejected     (`kyc-rejected` screen, D52/D87)
 void main() {
   group('JeeberDeliveryTabDestination.forStatus (JM-036/044, D38)', () {
     test('none → register prompt (never onboarded)', () {
@@ -54,7 +45,6 @@ void main() {
 
     test('every status maps to exactly one destination (exhaustive)', () {
       // Guards against a future JeeberKycStatus value being added without a
-      // forStatus branch (which would throw, failing this test).
       for (final status in JeeberKycStatus.values) {
         expect(
           () => JeeberDeliveryTabDestination.forStatus(status),
@@ -88,14 +78,11 @@ class _Gate implements JeeberKycStatusGate {
 
 void _liveGateTests() {
   // JEBV4-267: the release gate must NEVER hardcode `approved`. These lock the
-  // live-source branch (forced on via `useLiveSource: true` so the test is
-  // deterministic regardless of the harness build mode).
   group('LiveJeeberKycStatusGate (JEBV4-267 release honesty)', () {
     test(
       'conservative non-approved default before the first fetch resolves',
       () {
         // A gateway that never resolves → the gate must report `none` (register
-        // prompt), NOT `approved`. This is the core JEBV4-267 invariant.
         final gate = LiveJeeberKycStatusGate(
           _PendingKycGateway(),
           useLiveSource: true,
@@ -114,8 +101,6 @@ void _liveGateTests() {
           KycStatus.approved: JeeberKycStatus.approved,
           KycStatus.rejected: JeeberKycStatus.rejected,
           // E19 tri-state (JEBV4-214): the coarse gate treats a resubmit-requested
-          // submission like `pending` — browse the feed, offering stays gated
-          // (isApproved false). The distinct resubmit CTA lives in the status view.
           KycStatus.resubmitRequested: JeeberKycStatus.pending,
         };
         for (final entry in cases.entries) {
@@ -131,8 +116,6 @@ void _liveGateTests() {
           );
           expect(gate.isApproved, entry.key == KycStatus.approved);
           // The first successful fetch always transitions the cache off its
-          // `null` (unknown) seed, so it notifies — JeeberKycGateBuilder then
-          // re-resolves the DELIVERY-tab destination.
           expect(notified, isTrue);
         }
       },
@@ -161,7 +144,6 @@ void _liveGateTests() {
 
     test('debug source delegates to the dev seam (useLiveSource: false)', () {
       // With the live source OFF the gate must defer to SeamJeeberKycStatusGate
-      // verbatim — no network — so existing Maestro/widget flows are unchanged.
       final gate = LiveJeeberKycStatusGate(
         _ThrowingKycGateway(),
         useLiveSource: false,

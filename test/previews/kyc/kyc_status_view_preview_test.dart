@@ -1,19 +1,4 @@
 // Render tests for the KycStatusView previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-// All six previews are the SAME widget over the same cubit, told apart only by
-// the canned status the fake gateway answers with — so every state pins a
-// DISTINCT string from the ARB. A suite that only asked "did something render?"
-// would pass on six copies of the pending body.
-//
-// `Status read in flight` is the one state with no text to pin: its body is a
-// bare `OmdsLoadingState` with no message. It is pinned negatively instead — a
-// spinner AND none of the four status titles — in the specifics group below.
-//
-// The last group is not preview hygiene. It is what these previews exposed:
-// the CTA inversion between the two pending states, the label a re-check in
-// flight throws away, the borrowed copy on two primary CTAs, and the height the
-// unscrollable status body needs at 200% text on a real phone-width box.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,8 +34,6 @@ const List<String> _allTitles = <String>[
 
 /// How many pixels a captured layout error overflowed by, or 0 when [error] is
 /// not an overflow at all. Read from the message rather than pinned as an exact
-/// constant: the fact under test is "this does not fit on a phone", and an exact
-/// pixel count would break on a font metric change without meaning anything.
 int _overflowPixels(Object? error) {
   if (error == null) return 0;
   final RegExpMatch? match = RegExp(
@@ -69,7 +52,6 @@ Finder _byIdentifier(String id) {
 
 /// Pumps a preview into a real phone-width box at [textScale], the way the
 /// canvas renders it, instead of into the 800x600 default test surface. The
-/// width is the point: at 800 dp this body has room it never has on a phone.
 Future<void> _pumpInPreviewBox(
   WidgetTester tester,
   Widget Function() preview, {
@@ -104,8 +86,6 @@ void main() {
     },
     expectedText: const <String, String>{
       // The two pending states share every string but this one, so the
-      // stopped note is what tells them apart; the specifics group below
-      // asserts the rest of the difference (the CTA inversion).
       'Pending · re-check in flight': _pendingTitle,
       'Pending · auto-check stopped': _autoCheckStopped,
       'Approved': _approvedTitle,
@@ -125,7 +105,6 @@ void main() {
         expect(find.text(title), findsNothing, reason: title);
       }
       // JEBV4-271 round 6: this branch short-circuits before the status
-      // switch, so nothing below it can render while the flag is set.
       expect(find.byKey(KycStatusView.approvedTitleKey), findsNothing);
     });
 
@@ -158,11 +137,6 @@ void main() {
     });
 
     // The two halves of the CTA inversion are deliberately SEPARATE tests.
-    // Pumping a second preview into the same tester reconciles element-for
-    // -element with the first — same MaterialApp, same BlocProvider, same
-    // KycStatusView — so the cubit is NOT rebuilt, `didChangeDependencies`
-    // does not re-run, and the second preview silently renders the first
-    // preview's state. One preview per test.
     testWidgets('while the poller has budget, top-up is above the re-check', (
       WidgetTester tester,
     ) async {
@@ -189,7 +163,6 @@ void main() {
         lessThan(tester.getTopLeft(_byIdentifier('kyc_status_topup_cta')).dy),
       );
       // Promotion is colour as well as order: the re-check takes the primary
-      // fill it did not have while the poller was still running.
       final OmdsLoadingButton cta = tester.widget<OmdsLoadingButton>(
         find.byKey(KycStatusView.checkAgainCtaKey),
       );
@@ -268,13 +241,6 @@ void main() {
   });
 
   // These are the defects the previews exposed, held as assertions so they
-  // cannot regress unnoticed — and so that FIXING them fails this file loudly
-  // rather than leaving a stale claim behind.
-  //
-  // None of them is visible in the default reading: `testPreviewsRender` pumps
-  // into the 800x600 test surface, where this body has 100 dp of headroom it
-  // never has on a phone. Every number below is from a 390x700 box — a 844 dp
-  // phone minus the wizard's AppBar, status bar and home indicator.
   group('KycStatusView layout ceiling (390x700 phone body)', () {
     testWidgets('nothing scrolls: the body is a bare Column + Spacer', (
       WidgetTester tester,
@@ -342,7 +308,6 @@ void main() {
 
       expect(_overflowPixels(tester.takeException()), greaterThan(0));
       // Not merely clipped decoration — the third post-approval entry point is
-      // laid out past the bottom of the phone, with nothing to scroll to it.
       expect(
         tester.getRect(_byIdentifier('kyc_status_topup_cta')).bottom,
         greaterThan(700),

@@ -1,17 +1,4 @@
 // MB1 R1 step 0 — does reading the hand-over code END the dwell?
-//
-// THE WIRE requires >=3 `tracking_position` records inside ONE continuous dwell
-// bounded by EXACTLY ONE `tracking_screen_open`. `tracking_screen_open` is
-// emitted from `LiveTrackingCubit`'s CONSTRUCTOR, so the question "does the
-// dwell survive reading the code" reduces to "is the cubit rebuilt".
-//
-// A review note asserted that it is: that the customer must leave the tracking
-// route to read the code, disposing the cubit and minting a SECOND
-// `tracking_screen_open`. This file MEASURES that instead of assuming it, using
-// the real router shape: `/orders/:id/tracking` and `/orders/:id/otp` are
-// SIBLING `GoRoute`s (`app_router.dart:1339` and `:1395`), and the tracking
-// screen's "Show OTP" CTA is `context.push('/orders/$deliveryId/otp')`
-// (`otp_at_door_card.dart:111`) — a PUSH, not a `go`/replace.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -42,8 +29,6 @@ void main() {
           builder: (context, state) => BlocProvider<_OpenCountingCubit>(
             create: (_) => _OpenCountingCubit(log),
             // The real screen reads the cubit through a BlocBuilder, which is
-            // what forces the lazy `create` to run. Reproduced, or the provider
-            // never constructs and the measurement is vacuous.
             child: BlocBuilder<_OpenCountingCubit, int>(
               builder: (context, _) => Scaffold(
                 body: Center(
@@ -81,7 +66,6 @@ void main() {
     expect(find.text('Back'), findsOneWidget, reason: 'the OTP route is up');
 
     // THE MEASUREMENT. If `push` disposed the route beneath, coming back would
-    // re-run `create` and append a second entry.
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
 

@@ -1,14 +1,4 @@
 // Render tests for the ChatFeeBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// ChatFeeBanner renders ONE localized sentence whose only variable is the
-// pre-formatted amount, so the `expectedText` pins below give every state a
-// distinct amount. Without that, a suite over six renderings of the same band
-// would pass no matter which one it actually built — and the trailing control,
-// which is what the states really differ in, carries no text of its own in two
-// of the three variants.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +13,6 @@ const Key _pillKey = Key('chat-fee-banner-order-picked');
 
 /// The LBP fixture as the app's [MoneyFormat] emits it: an LTR isolate
 /// (U+2066…U+2069) wrapped around the token, so the amount keeps its symbol
-/// placement inside the Arabic sentence.
 const String _isolatedLbp = '\u2066LBP 1,250,000.00\u2069';
 
 void main() {
@@ -130,8 +119,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // MoneyFormat wraps the token so the bidi algorithm cannot reorder `LBP`
-      // away from its digits inside an RTL paragraph (JEBV4-98 / F10). The
-      // isolate has to survive interpolation into the localized sentence.
       for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
         await pumpPreview(tester, chatFeeBannerLongAmount, locale: locale);
 
@@ -143,11 +130,6 @@ void main() {
       'the order-picked pill takes more of the band than the notice at 320 dp',
       (WidgetTester tester) async {
         // Characterization pin for the layout defect the 200% rendering of this
-        // preview makes fatal: the pill is a NON-FLEX child of the banner's
-        // Row, so it is laid out with an unbounded main axis and claims its
-        // full intrinsic width BEFORE the Expanded notice is given the
-        // remainder. At the narrowest shipped width that leaves the sentence
-        // less room than the button next to it.
         await pumpPreview(tester, chatFeeBannerSmallPhoneOrderPicked);
 
         final double pillWidth = tester.getSize(find.byKey(_pillKey)).width;
@@ -168,8 +150,6 @@ void main() {
       await pumpPreview(tester, chatFeeBannerBoundedHeaderSlot);
 
       // The banner is the first chrome child inside a bounded, scrollable slot,
-      // so an oversized band degrades to a scroll rather than an overflow. The
-      // thread below it must keep its own space.
       expect(find.byType(SingleChildScrollView), findsOneWidget);
       expect(find.byType(ChatFeeBanner), findsOneWidget);
       expect(find.byType(ChatMessageBubble), findsNWidgets(2));

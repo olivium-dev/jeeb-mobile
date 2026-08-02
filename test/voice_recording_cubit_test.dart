@@ -7,9 +7,7 @@ import 'package:jeeb_mobile/features/voice_request/data/voice_recording_reposito
 import 'package:jeeb_mobile/features/voice_request/domain/voice_player.dart';
 import 'package:jeeb_mobile/features/voice_request/domain/voice_recorder.dart';
 
-/// Test harness — drives the cubit through a manual ticker so we can step the
-/// recording-elapsed counter deterministically. The cubit treats each yielded
-/// duration as the cumulative elapsed time at that tick.
+/// Test harness — drives the cubit through a manual ticker so w
 class _Harness {
   _Harness({
     FakeVoiceRecorder? recorder,
@@ -40,7 +38,7 @@ class _Harness {
     return controller.stream;
   }
 
-  /// Pushes a cumulative elapsed value into the most recently created ticker.
+/// Pushes a cumulative elapsed value into the most recently cre
   Future<void> tick(Duration elapsed) async {
     expect(
       _tickers,
@@ -48,7 +46,6 @@ class _Harness {
       reason: 'tick() called before any recording started',
     );
     _tickers.last.add(elapsed);
-    // Let pending listeners run.
     await Future<void>.delayed(Duration.zero);
   }
 
@@ -148,7 +145,6 @@ void main() {
 
         await cubit.startRecording();
         await harness.tick(VoiceRecordingState.maxDuration);
-        // Give the cubit a microtask to run _autoStopAtCap to completion.
         await Future<void>.delayed(Duration.zero);
 
         expect(cubit.state.phase, VoiceRecordingPhase.recorded);
@@ -286,19 +282,15 @@ void main() {
     test(
       'send refuses when the clip is shorter than the min sendable length',
       () async {
-        // Force a short clip into the state by mocking the recorder return.
         final harness = _Harness();
         final cubit = _bind(harness);
 
-        // Build a manual clip below the threshold and inject it via stop.
         await cubit.startRecording();
         await harness.tick(const Duration(milliseconds: 1100));
         await cubit.stopRecording();
-        // Sanity — we're in recorded with a >= 1s clip.
         expect(cubit.state.canSend, isTrue);
 
         await cubit.discardClip();
-        // No clip → send is a no-op.
         await cubit.send();
         expect(cubit.state.phase, VoiceRecordingPhase.idle);
         expect(harness.repository.uploadCalls, 0);

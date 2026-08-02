@@ -149,7 +149,6 @@ GoRouter _router(ValueListenable<bool> visibility) {
   );
 }
 
-
 Future<_DashboardFixture> _pumpDashboard(
   WidgetTester tester,
   LocalizationsDelegate<AppLocalizations> delegate,
@@ -203,16 +202,10 @@ void main() {
   tearDown(() async {
     AppLifecycleGate.debugReset();
     // N2: the resume one-shot rides the process-wide `AppResumeSignals`
-    // singleton, whose coalescing window and `_sawBackground` latch would
-    // otherwise bleed between cases and make a resume refetch look dropped.
     await AppResumeSignals.debugReset();
   });
 
   // N2 — INVERTED. This was "AC5 F10 poller is running and ticks with no root
-  // gate install and no MaterialApp": the root-free arm of the presence
-  // control. The root-free PROPERTY survives (the cubit must behave the same
-  // with and without a gate on the root, because bare `test()` bodies have
-  // none); what it must do in both cases is now arm NOTHING.
   test(
     'AC5 F10 no periodic timer exists with no root gate install and no '
     'MaterialApp — and a push still reads',
@@ -256,9 +249,6 @@ void main() {
   );
 
   // N2 — INVERTED. Was "polls once per 60s safety-net interval while visible
-  // and foreground". Every precondition the poll needed is still established
-  // here (foreground gate on, dashboard visible), and the same six-interval
-  // window is still pumped — only the expected value inverts, 6 becoming 0.
   testWidgets(
     'AC1 F10 arms NO cadence while visible and foreground — six retired '
     'intervals cost zero reads, and a push costs exactly one',
@@ -292,7 +282,6 @@ void main() {
       );
 
       // POSITIVE CONTROL — the fixture is live and the surface is watchable, so
-      // the six zeros above are silence rather than a dead harness.
       fixture.pushSignals.signalStatusChange();
       await tester.pump();
       await tester.pump();
@@ -314,8 +303,6 @@ void main() {
       await tester.pump();
       final visibleBaseline = fixture.activeRepository.calls;
       // PRESENCE ARM, re-based on the push bus now that there is no timer to
-      // arm: the same fixture and the same `listActive` seam must produce a
-      // VISIBLE read before its hidden zero is trusted.
       fixture.pushSignals.signalStatusChange();
       await tester.pump();
       await tester.pump();
@@ -344,13 +331,6 @@ void main() {
     'costs ZERO reads and is paid with exactly ONE on refocus',
     (tester) async {
       // ⚠️ THIS ASSERTION WAS INVERTED ON PURPOSE. It previously read "still
-      // refreshes on a push signal while the Dashboard tab is hidden" and
-      // asserted `hiddenBaseline + 1` — a `GET /v1/deliveries?role=jeeber` for a
-      // card behind the active-delivery / request-detail route. The GUARANTEE
-      // that assertion existed to protect is "a hidden dashboard is never left
-      // stale", and it is intact and asserted below: the read is DEFERRED, not
-      // dropped, and lands the moment the surface is looked at. What changed is
-      // only WHEN it is paid — see `core/lifecycle/deferred_refresh_gate.dart`.
       final gate = ManualAppLifecycleGate(isForeground: false);
       AppLifecycleGate.install(gate);
       final fixture = await _pumpDashboard(tester, delegate);
@@ -374,8 +354,6 @@ void main() {
       );
 
       // Refocus pays the debt ONCE — not three times, and not twice (the
-      // deferred push read and the refocus read collapse through the cubit's
-      // single-flight latch).
       fixture.visibility.value = true;
       await tester.pump();
       await tester.pump();
@@ -456,9 +434,6 @@ void main() {
     expect(fixture.activeRepository.calls, backgroundBaseline);
 
     // The RESUME one-shot — `_ActiveDeliveriesResumeRefetch` on
-    // `AppResumeSignals`, which replaced the poller's `tickOnResume: true`.
-    // This is the backstop for a dropped push and it must still fire exactly
-    // once.
     await _driveToForeground(tester);
     await tester.pump();
     expect(fixture.activeRepository.calls, backgroundBaseline + 1);

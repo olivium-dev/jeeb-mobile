@@ -1,12 +1,4 @@
 // Render tests for the DeliveryLifecycleBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// The banner has one enum input and two ARB sentences, so several previews
-// legitimately paint the SAME words. That makes the `expectedText` pins
-// load-bearing: each is the delivery id only that card renders, because a suite
-// pinned on 'Delivered successfully' would pass while building the wrong card.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,8 +39,6 @@ void main() {
       await pumpPreview(tester, deliveryLifecycleBannerActive);
 
       // The widget is mounted — the screen always builds it — but it must
-      // collapse to nothing. A visible band here would tell a customer their
-      // parcel arrived while the courier is still riding.
       expect(find.byType(DeliveryLifecycleBanner), findsOneWidget);
       expect(find.byKey(DeliveryLifecycleBanner.rootKey), findsNothing);
       expect(find.text(_completedCopy), findsNothing);
@@ -165,17 +155,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Records the CURRENT behaviour the 200% rendering of the preview matrix
-      // exposes, so the preview cannot quietly stop showing it:
-      //
-      //   * `Icon(icon, color: foreground)` takes the default 24 dp and the
-      //     app's IconThemeData never sets `applyTextScaling`, so the glyph
-      //     stays 24 dp while the sentence beside it doubles.
-      //   * the `Row` uses the default `crossAxisAlignment: center`, so once
-      //     the sentence wraps the icon drifts to the vertical middle of the
-      //     text block instead of sitting on its first line.
-      //
-      // If this test fails because the icon grew or moved up, the fix landed —
-      // update the expectation, don't delete it.
       tester.view.physicalSize = const Size(320 * 3, 844 * 3);
       tester.view.devicePixelRatio = 3.0;
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;

@@ -86,25 +86,11 @@ WidgetsBindingAppLifecycleGate _installBindingGate(WidgetTester tester) {
 
 void main() {
   // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
-  // floor. Without a per-test reset the floor bleeds across cases in this file
-  // (they run milliseconds apart) and a genuine resume in test N is silently
-  // folded into test N-1's window.
   setUp(() async => AppResumeSignals.debugReset());
 
   tearDown(AppLifecycleGate.debugReset);
 
   // b02 wave C / N7. These tests used to assert the 5s `LifecyclePoller`'s
-  // CADENCE MECHANICS (isRunning / debugTickCount / one fetch per elapsed
-  // interval). That poller is deleted: a `type=delivery` push drives the STATUS
-  // read (`Notifications/DeliveryStatusPushNotifier.cs:211`, fanned to
-  // `req.ClientId` by `Controllers/DeliveriesController.cs:1296-1300`) and the
-  // gateway's SSE feed drives POSITION.
-  //
-  // The cadence assertions are gone BY DESIGN. Every BEHAVIOURAL claim survives,
-  // re-expressed against the push bus, and each terminal-stop claim is now
-  // STRONGER than the timer version: the bus is app-wide, so a subscription left
-  // armed on a dead row would keep re-reading it on every unrelated push for the
-  // rest of the session — where a stale timer only affected this one screen.
 
   test('N7 (was AC11) no root gate install, no MaterialApp: a push drives the '
       'read and elapsed time does NOT', () {
@@ -274,21 +260,12 @@ void main() {
             'and no push can reach it');
 
     // ONE paused → resumed pair, driven directly. The `_driveToForeground`
-    // helper walks paused → hidden → inactive → resumed, and the test binding
-    // synthesizes its own intermediate notifications along that walk, so a delta
-    // measured across it counts harness internals rather than product
-    // behaviour. A single explicit transition is what the anti-double-fetch
-    // claim is actually about.
     final beforeResume = repository.calls;
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     await tester.pump();
 
     // The resume backstop is UNCHANGED and now MORE load-bearing: it catches a
-    // `type=delivery` push the OS dropped or coalesced while backgrounded, and
-    // it re-opens the SSE position stream the OS tore down with the socket.
-    // EXACTLY one read — a double-fetch here would be two full round trips on
-    // every app switch.
     expect(repository.calls, beforeResume + 1);
     await tester.pump(_resumePollInterval);
     await tester.pump();

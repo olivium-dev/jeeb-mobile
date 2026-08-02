@@ -1,15 +1,4 @@
 // b02 fg-suppression — the on-screen-chat-thread registry.
-//
-// Two hazards are locked down here.
-//
-// 1. ORDERING: navigating chat A → chat B mounts B BEFORE A is disposed, so an
-//    unguarded `clear()` in A's dispose would wipe B's registration and
-//    silently re-enable a banner for the thread the user is actually reading.
-//    `leave` is therefore owner-guarded.
-// 2. STALENESS: the registry holds a READER, not a snapshot, so ids that only
-//    exist after the async `?correlationKey=` resolution are visible without
-//    anyone remembering to republish. A hardware run caught the snapshot
-//    version missing exactly that moment.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/notifications/domain/active_chat_thread.dart';

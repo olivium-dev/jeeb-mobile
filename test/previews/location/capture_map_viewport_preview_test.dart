@@ -1,18 +1,4 @@
 // Render tests for the CaptureMapViewport previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose. The widget under review renders
-// exactly one string ("Map preview") and takes no parameters, so `expectedText`
-// bound to the widget's own output would be the SAME string for all five
-// states — precisely the weak assertion the harness warns about, the one that
-// passes while every preview shows the same thing. The map below therefore
-// binds to each preview's caption, which is preview scaffolding, and the real
-// per-state contract is asserted underneath by MEASURING the rendered box for
-// every state. This widget's only inputs are its constraints, the ColorScheme
-// and the text scale, so its geometry *is* its state.
 
 import 'dart:math' as math;
 
@@ -34,9 +20,6 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
 
 /// The box each preview must produce, measured on the [CaptureMapViewport]
 /// element itself.
-///
-/// Four of them are the host the preview declares. The fifth is the finding:
-/// the scrolling host offers 200 pt and the widget takes 88.
 const Map<String, Size> _expectedBoxes = <String, Size>{
   'Capture screen (production, full bleed)': Size(390, 500),
   // `Sizes.eightXLarge * 2`, as `_PinPreview` sizes it.
@@ -44,13 +27,11 @@ const Map<String, Size> _expectedBoxes = <String, Size>{
   'Square thumbnail (160pt)': Size(160, 160),
   'Short strip 96pt (breaks at 200%)': Size(390, 96),
   // NOT the 200 pt viewport it was given: `Container` shrink-wraps unbounded
-  // height, so this is 56 (icon) + 12 (Spacing.small) + 20 (one line).
   'Unbounded height (collapses)': Size(390, 88),
 };
 
 /// The intrinsic height of the content column: icon + gap + one line of
 /// `bodyMedium`. Mirrored here because it is what the collapse in the scrolling
-/// host resolves to.
 const double _contentHeightAtOneX = 56 + 12 + 20;
 
 /// Height of the viewport the scrolling preview puts around the widget.
@@ -66,10 +47,7 @@ double _contrast(Color a, Color b) {
 }
 
 /// Pumps [preview] the way the canvas's **200% text** rendering does.
-///
 /// Returns the exception the frame reported, if any — an overflowing
-/// [RenderFlex] reports one per render object, so each of these lives in its
-/// own `testWidgets` to get a fresh tree.
 Future<Object?> pumpAtDoubleText(
   WidgetTester tester,
   Widget Function() preview, {
@@ -92,8 +70,6 @@ void main() {
     'CaptureMapViewport',
     _previews,
     // Captions, not widget output — see the header. Every state names its own
-    // host, so a preview wired to the wrong geometry (or five previews sharing
-    // one) fails here rather than looking fine in the canvas.
     expectedText: const <String, String>{
       'Capture screen (production, full bleed)':
           'Capture screen: 390x500 map area',
@@ -107,8 +83,6 @@ void main() {
 
   group('CaptureMapViewport preview specifics', () {
     // The assertion the caption-based `expectedText` above cannot make: five
-    // previews of a parameterless widget are only five states if the boxes they
-    // produce are distinct.
     _expectedBoxes.forEach((String state, Size expected) {
       testWidgets('$state lays out at ${expected.width}x${expected.height}', (
         WidgetTester tester,
@@ -187,8 +161,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // 88 pt of content at 1x, 108 pt at 200% (only the label scales; the
-      // 56 pt icon is a fixed `Sizes.fiveXLarge`), against a 160 pt band. If
-      // this ever throws, the band was trimmed below the accessibility ceiling.
       expect(
         await pumpAtDoubleText(tester, captureMapViewportAddressFormBand),
         isNull,
@@ -221,7 +193,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // 160 pt wide: the label wraps to three lines (120 pt), so the column
-      // needs 188 pt inside a 160 pt square.
       final Object? overflow = await pumpAtDoubleText(
         tester,
         captureMapViewportThumbnail,
@@ -235,8 +206,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The shorter Arabic string does not rescue it: same 28 pt. Worth its own
-      // test because "it only breaks in one locale" would be a different bug
-      // with a different fix.
       final Object? overflow = await pumpAtDoubleText(
         tester,
         captureMapViewportThumbnail,
@@ -249,9 +218,6 @@ void main() {
 
     test('the icon ink misses WCAG 1.4.11 on its own background in light', () {
       // The widget paints `surfaceContainerHighest` and then inks the icon with
-      // `onSurfaceVariant` at `UIConstants.opacityMedium` (0.60). WCAG 1.4.11
-      // asks 3:1 of a graphical object, and the 56 pt icon — not the 14 pt
-      // label — is what carries "this is a map" at a glance.
       final ColorScheme light = AppTheme.light().colorScheme;
       final Color lightIcon = Color.alphaBlend(
         light.onSurfaceVariant.withValues(alpha: 0.60),
@@ -259,8 +225,6 @@ void main() {
       );
 
       // Measured 2.88:1 (#938080 on #E5E1E5). Asserted loosely on purpose:
-      // pinning 2.88 would make fixing the opacity a test failure, and
-      // asserting 3.0 would fail today.
       expect(
         _contrast(lightIcon, light.surfaceContainerHighest),
         greaterThan(1.0),
@@ -288,11 +252,6 @@ void main() {
 
     test('the placeholder fill barely separates from the Scaffold surface', () {
       // 1.29:1 in light, 1.50:1 in dark. Harmless on the capture screen (the
-      // placeholder is the whole body) and handled on the address form (which
-      // draws its own `outlineVariant` hairline over the band) — but any third
-      // caller that drops the viewport onto `surface` without a border gets an
-      // edgeless block. Recorded rather than gated, because the fix belongs to
-      // the caller, not to the widget.
       for (final ColorScheme scheme in <ColorScheme>[
         AppTheme.light().colorScheme,
         AppTheme.dark().colorScheme,

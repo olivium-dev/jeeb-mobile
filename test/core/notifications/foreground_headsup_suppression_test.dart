@@ -1,18 +1,4 @@
 // b02 fg-suppression — the TRANSPORT-level early return.
-//
-// `FirebaseMessagingTransport._handleForeground` used to call
-// `_localNotifications.show(...)` on EVERY `onMessage`, with no silent check
-// and no open-thread check. It was never covered because `initialize()` touches
-// three platform channels, so the only way to reach the handler on the VM is
-// the `debugHandleForeground` seam.
-//
-// What this file can and cannot prove, stated plainly:
-//   * PROVEN here — a suppressed push takes the early return BEFORE the render
-//     path (observable via `debugForegroundShownIds`, which is written on the
-//     line after the guard), and a normal push does NOT.
-//   * NOT provable here — the `_localNotifications.show(...)` call itself is
-//     inside `if (Platform.isAndroid)`, which is false on the macOS test VM.
-//     That half is device evidence (a33 / s24); emulators cannot receive FCM.
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -120,9 +106,6 @@ void main() {
     'the DEFAULT wiring reads ActiveChatThread — no injection, no fake',
     () async {
       // Every other test here injects `openChatThreadIds`, so all of them would
-      // pass even if the production default were wired to nothing. This one
-      // constructs the transport the way `app.dart:509` does and drives the
-      // real registry.
       addTearDown(ActiveChatThread.instance.resetForTest);
       final transport = FirebaseMessagingTransport(
         messaging: _MockMessaging(),
@@ -177,10 +160,6 @@ void main() {
     'silent therefore SHOWS (fail-loud, the recoverable direction)',
     () async {
       // Scope note: an earlier revision added `silent` to kNestedRoutingKeys.
-      // No captured payload nests it (the push service emits it flat), so the
-      // key was dropped. This test pins the resulting behaviour so the choice
-      // is explicit rather than accidental: a nested-only `silent` reads as
-      // "not silent" and the push renders.
       final data = <String, String>{
         'data': "{'requestId':'req-1','type':'new_request','silent':'True'}",
       };

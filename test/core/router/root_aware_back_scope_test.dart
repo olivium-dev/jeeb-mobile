@@ -1,11 +1,4 @@
 // Unit guard for `RootAwareBackScope` — the reusable wrapper that fixes the
-// "system BACK exits the app" defect for screens that can be the stack ROOT.
-//
-// Proves the contract in isolation (no DI / no real screens):
-//   * stack ROOT (reached via `go`) → system BACK redirects to the fallback
-//     parent instead of exiting;
-//   * has a back stack (reached via `push`) → system BACK pops normally and the
-//     fallback redirect is NOT used.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,8 +9,6 @@ import 'package:jeeb_mobile/core/router/root_aware_back_scope.dart';
 
 /// Dispatches the platform `popRoute` message — the exact channel the OS uses
 /// for the Android system BACK gesture, routed through the Router's
-/// `BackButtonDispatcher` → the top route's `PopScope`. (Equivalent to the
-/// newer `simulateSystemBack`, written explicitly for this Flutter version.)
 Future<void> systemBack(WidgetTester tester) async {
   await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'flutter/navigation',

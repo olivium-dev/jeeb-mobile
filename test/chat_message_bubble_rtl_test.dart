@@ -9,13 +9,8 @@ import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_message_bubb
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 /// Directional bubble-alignment regression test.
-///
 /// Round-1 shipped non-directional `Alignment.centerRight/centerLeft`, so the
 /// self bubble stayed pinned to the physical RIGHT even in Arabic/RTL —
-/// violating Figma `design-spec.md` §4/§7-10 ("full mirror … trailing/leading,
-/// not right/left"). The fix routes alignment through
-/// `AlignmentDirectional.centerEnd/centerStart`; these tests assert the row
-/// actually flips between LTR and RTL.
 class _SyncAppLocalizationsDelegate
     extends LocalizationsDelegate<AppLocalizations> {
   const _SyncAppLocalizationsDelegate(this._arbByTag);

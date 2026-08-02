@@ -1,20 +1,4 @@
 // Render tests for the KycIdAlignmentGuide previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-// All five previews are the SAME widget told apart only by two strings and the
-// width they are given, so every state that has copy of its own pins a DISTINCT
-// ARB string. Two states cannot be pinned that way and are pinned harder
-// instead, in the specifics group below:
-//
-//   * `Empty caption` has no text to match — it is pinned negatively (an empty
-//     Text that still occupies a band, and none of the other states' copy).
-//   * `Tablet · full-width step body` deliberately carries the SAME production
-//     copy as `National ID · production copy`, because it is a width state —
-//     it is told apart by geometry (a 240 pt frame under a 794 pt body).
-//
-// The last two groups are not preview hygiene. They are what these previews
-// exposed: an accessibility tree that says the caption twice and never shows
-// the title, and corner brackets that stay left-handed in Arabic.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -89,7 +73,6 @@ void main() {
 
       expect(find.text(_caption), findsOneWidget);
       // `title` reaches Semantics and nothing else, so the visible guide has
-      // no heading at any width.
       expect(find.text(_title), findsNothing);
       expect(find.byType(Text), findsOneWidget);
     });
@@ -104,7 +87,6 @@ void main() {
         find.byKey(KycIdAlignmentGuide.rootKey),
       );
       // `container: true` without `explicitChildNodes`, so the caption Text is
-      // merged into this node's label — and `hint` then repeats it.
       expect(node.label, '$_title\n$_caption');
       expect(node.hint, _caption);
       expect(node.childrenCount, 0);
@@ -155,7 +137,6 @@ void main() {
         closeTo(KycIdAlignmentGuide.idCardAspectRatio, 1e-6),
       );
       // Nothing clamps the step to a readable column (no `ResponsiveBody`), so
-      // the caption line runs several times wider than the frame it describes.
       expect(
         tester.getRect(find.text(_caption)).width,
         greaterThan(frame.width * 2),
@@ -214,17 +195,6 @@ void main() {
   });
 
   // The RTL defect these previews exposed, held as assertions so it cannot
-  // regress unnoticed — and so that FIXING it fails this file loudly rather
-  // than leaving a stale claim behind.
-  //
-  // `PositionedDirectional` mirrors the four tick BOXES, but each tick is
-  // painted by a CustomPainter that treats `isStart` as "left" and never reads
-  // a TextDirection. A canvas is not flipped for RTL, so the elbows keep
-  // pointing the same way in Arabic while the boxes move to the opposite side.
-  //
-  // The two directions are deliberately SEPARATE tests: the assertion is about
-  // the first-frame layout of one locale, and re-pumping the same preview under
-  // a different Directionality inside one test reconciles element-for-element.
   group('KycIdAlignmentGuide corner brackets', () {
     testWidgets('LTR: the start tick hugs the frame corner (correct)', (
       WidgetTester tester,
@@ -244,7 +214,6 @@ void main() {
         reason: 'the start tick sits on the LEFT in English',
       );
       // Elbow anchored at the tick's own top-left — the side facing the
-      // frame's top-left corner. This is the right answer in LTR.
       expect(
         startTick,
         paints
@@ -269,7 +238,6 @@ void main() {
       final Rect tick = tester.getRect(startTick);
 
       // PositionedDirectional did its job: the start tick moved to the
-      // trailing (right) edge of the frame.
       expect(
         tick.left,
         greaterThan(frame.center.dx),
@@ -278,16 +246,11 @@ void main() {
       expect(
         frame.right - tick.right,
         // Spacing.small inset, plus the 1 pt border the frame's Container
-        // insets its own child by.
         closeTo(Spacing.small + 1, 0.01),
         reason: 'inset from the trailing edge, mirrored correctly',
       );
 
       // The painter did not: identical local coordinates to the LTR case, so
-      // the elbow is anchored at the tick's LEFT edge — pointing INTO the
-      // frame instead of hugging its top-right corner. All four ticks invert
-      // the same way. Fixing `_CornerPainter` to read the ambient
-      // TextDirection is what should break this expectation.
       expect(
         startTick,
         paints

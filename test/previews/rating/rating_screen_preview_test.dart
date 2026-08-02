@@ -1,19 +1,4 @@
 // Render tests for the RatingScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// Pinning a DISTINCT string per state matters more for a screen than for a
-// widget: all seven previews are the same screen behind the same app bar, and
-// five of them differ only in a private `State` field that
-// `_RatingScreenDriver` reaches by walking the subtree. A suite that asserted
-// "the app bar rendered" would pass with the driver silently doing nothing —
-// which is the one failure mode this file exists to catch.
-//
-// One preview is not in the shared suite and has a group of its own:
-// `Submitting · CTA spinner` cannot settle. The groups after it assert the
-// defects the previews were written for, because a defect nobody asserts is a
-// defect that gets "fixed" by deleting the preview.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,8 +11,6 @@ import '../preview_test_harness.dart';
 
 /// The size every preview in this file declares (`_ratingScreenPhoneBox`). The
 /// harness pumps at the `flutter_test` default of 800x600, which is 244 pt
-/// SHORTER than the phone the screen is drawn for — at that height the star row
-/// is laid out below the scroll viewport and cannot be tapped at all.
 const Size _canvasBox = Size(390, 844);
 
 void main() {
@@ -45,14 +28,9 @@ void main() {
     },
     expectedText: const <String, String>{
       // The interpolated ratee, which is the only string that differs between
-      // the two states the Screen Catalog signs off — the title, subtitle,
-      // hint and CTA are shared by every state in this file.
       'Client rates the jeeber': 'Rate Rami Chidiac',
       'Jeeber rates the client': 'Rate Layla Haddad',
       // The defect, pinned verbatim: the localized template with an empty
-      // interpolation, trailing space and all. If this ever stops matching,
-      // either the placeholder gained a fallback (good — delete this preview)
-      // or the copy changed under it.
       'Deep link · no ratee name': 'Rate ',
       'Long ratee name': 'Rate Abd Al-Rahman Al-Muhandis Al-Trabulsi',
       'Four stars picked': 'Rate Karim Nassar',
@@ -62,11 +40,6 @@ void main() {
   );
 
   // The in-flight sub-state is an indeterminate `CircularProgressIndicator`
-  // (`OmdsButtonLoading` inside `OmdsLoadingButton`) held open by a write that
-  // never lands. `pumpAndSettle` — which `pumpPreview` calls — never returns
-  // while one is on screen, so this preview gets the same three assertions the
-  // shared suite makes (builds in EN, builds in AR, renders its OWN state)
-  // driven by fixed pumps instead.
   group('RatingScreen previews · Submitting · CTA spinner', () {
     Future<void> pumpSubmitting(
       WidgetTester tester, {
@@ -105,15 +78,10 @@ void main() {
     });
 
     // The defect this preview exists for: `_submitting` gates a second submit
-    // and nothing else. The rating on screen can still be changed after the
-    // value has already gone to the gateway.
     testWidgets('nothing behind the spinner is disabled', (
       WidgetTester tester,
     ) async {
       // Pumped at the size the preview DECLARES — see [_canvasBox]. At the
-      // 800x600 default the star row is off the bottom of its own viewport and
-      // the tap below would silently miss, making this assertion vacuous
-      // instead of false.
       await tester.binding.setSurfaceSize(_canvasBox);
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await pumpSubmitting(tester);
@@ -141,10 +109,6 @@ void main() {
 
   group('RatingScreen preview specifics', () {
     // The dead end. `OmdsLoadingButton` is built with `isEnabled` at its `true`
-    // default, so the CTA is fully inked and hit-testable from the first frame,
-    // and `_onSubmit` returns immediately while `_stars == 0`. With
-    // `PopScope(canPop: false)` and no close X, picking a star is the only exit
-    // from this screen — and nothing on it says so.
     testWidgets('the CTA is live at zero stars and silently does nothing', (
       WidgetTester tester,
     ) async {
@@ -167,8 +131,6 @@ void main() {
     });
 
     // The shipped route builds `rateeName` from an OPTIONAL query parameter
-    // (`app_router.dart`), and nothing in `lib/` navigates here, so this is
-    // what a deep link without `?name=` renders.
     testWidgets('the deep-link default asks for a rating of nobody', (
       WidgetTester tester,
     ) async {
@@ -188,14 +150,11 @@ void main() {
       expect(find.byIcon(Icons.star), findsNWidgets(4));
       expect(find.byIcon(Icons.star_border), findsOneWidget);
       // ...and the footer is byte-identical to the zero-star state: nothing
-      // about the CTA marks the moment its tap stops being a no-op.
       expect(find.text('Submit feedback'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
     // A rejected submit is swallowed by `_onSubmit` and routed home exactly as
-    // a success would be. This screen has no error surface at all, and the user
-    // is never told the rating and comment were dropped.
     testWidgets('a rejected submit lands where a successful one would', (
       WidgetTester tester,
     ) async {

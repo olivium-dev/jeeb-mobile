@@ -14,10 +14,6 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 /// Round-2 UX-fix regression pins for the DM chat header (Figma 56560:1605):
 ///   D1 — peer avatar renders as a circular image (never a bare glyph).
 ///   D2 — the back chevron mirrors with the ambient text direction.
-///   D3 — the incoming (counterpart) bubble shows NO timestamp; only the
-///        sender's bubble carries the time + ticks meta row.
-///   pill — the "Order picked" action exposes its OWN semantics node so
-///        Maestro/TalkBack can target it (the banner no longer merges it).
 class _SyncAppLocalizationsDelegate
     extends LocalizationsDelegate<AppLocalizations> {
   const _SyncAppLocalizationsDelegate(this._arbByTag);
@@ -124,7 +120,6 @@ void main() {
       await tester.pump();
 
       // Fallback is still a circular avatar carrying the initial — never a
-      // bare glyph floating in the bar.
       expect(find.bySemanticsIdentifier('chat_detail_avatar'), findsOneWidget);
       expect(find.text('S'), findsOneWidget);
     });
@@ -147,7 +142,6 @@ void main() {
       ));
       await tester.pump();
       // RTL: the chevron mirrors so it still reads as "back" (points to the
-      // start/right edge) — no stray forward-arrow leaks into the header.
       expect(find.byIcon(Icons.arrow_forward_ios), findsOneWidget);
       expect(find.byIcon(Icons.arrow_back_ios), findsNothing);
     });
@@ -167,7 +161,6 @@ void main() {
       await tester.pump();
 
       // Exactly one "09:41" — the sender's. The counterpart slot is empty
-      // (Figma 56560:1605 leaves the incoming timestamp blank).
       expect(find.text('09:41'), findsOneWidget);
     });
   });

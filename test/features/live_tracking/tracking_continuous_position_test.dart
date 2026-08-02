@@ -11,28 +11,7 @@ import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
 
 /// Continuous courier position — the CUBIT half.
-///
 /// ## The two claims, and they pull in opposite directions
-///
-///  1. **With a channel, the marker moves on its own.** Frames arrive, the
-///     snapshot on `state.trackingInfo` changes, and the map has somewhere new
-///     to draw. This is the whole feature.
-///  2. **Without one — or with one that fails in any way — nothing changes at
-///     all.** Same reads, same triggers, same emissions, no timers, no crash.
-///
-/// Every test below belongs to one of those two, and the second set is the
-/// larger one on purpose: this is a flagged feature landing on the money path's
-/// customer-facing screen, so the interesting claim is not that it works but
-/// that it cannot hurt.
-///
-/// ## What is NOT proved here
-///
-/// No socket, no HTTP, no map. `CourierPositionChannel` is an interface and
-/// this file drives it directly, so what it establishes is the cubit's
-/// behaviour GIVEN a channel. The wire is
-/// `courier_position_socket_test.dart` + `realtime_courier_position_channel_
-/// test.dart`; whether a real courier's GPS reaches a real phone is a device
-/// claim and is still open.
 
 const _id = 'DLV-GLIDE';
 
@@ -143,7 +122,6 @@ void main() {
       await pumpEventQueue();
 
       // Baseline: the four-trigger read happened once and produced nothing,
-      // so any position on the row after this came from the subscription.
       expect(repo.positionReads, 1);
       expect(cubit.state.trackingInfo?.jeeberPosition, isNull);
 
@@ -247,8 +225,6 @@ void main() {
       expect(streamed.single['n'], 1);
 
       // THE separation that matters: the READ instrument still counts exactly
-      // the reads. Folding arrivals into it would make MB1's "no cadence" leg
-      // report a cadence on the change that removes the need for one.
       expect(diag.named(kTrackingPositionEvent), hasLength(1));
       await cubit.close();
     });

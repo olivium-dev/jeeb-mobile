@@ -3,27 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'mb1_source_lens.dart';
 
 /// MB1 member item **W1.1c** — the rework of the two KEPT test files.
-///
 /// `live_tracking_push_driven_test.dart` and
-/// `tracking_live_position_overlay_test.dart` were written against the deleted
-/// stream capability. MB1's contract for them is specific and easy to satisfy
-/// the wrong way:
-///
-/// > *the position-stream cases must be **re-expressed against
-/// > `fetchLivePosition`** … keep the payload-adequacy pack.*
-///
-/// The wrong way is to make them compile by **deleting** the position cases.
-/// That yields a green suite, a clean analyze, and zero coverage of the very
-/// method MB1 exists to wire — and nothing else in the pack would notice,
-/// because "does `fetchLivePosition` have a production call site" is a
-/// different question from "does anything TEST it".
-///
-/// So this row asserts what survived, by NAME. Line numbers are deliberately
-/// not used: `MB1.md` cites overlay `:151` / `:180`, and PR #204 has already
-/// moved them — a line-numbered receipt would red on correct work.
-///
-/// Class: `static`. The two files' own green run is the behavioural half and
-/// the MB1 runner executes them as part of this same item.
 
 const String _pushDriven =
     'test/features/live_tracking/live_tracking_push_driven_test.dart';
@@ -100,8 +80,6 @@ void main() {
 
     test('the no-clock cases are still present in BOTH files', () {
       // These are the cases that would have caught the original P0 and did
-      // not, because they were asserted against the stream. They are the most
-      // valuable thing in either file and the easiest to lose in a rework.
       expect(
         MB1Source.raw(_pushDriven),
         contains('60 virtual seconds'),
@@ -119,17 +97,6 @@ void main() {
   group('MB1 W1.1c — the rework did not thin the files out', () {
     test('case counts are at or above the floor MB1 committed to', () {
       // The floors are the values COUNTED on this branch, asserted as `>=` so
-      // ADDING cases is fine and DELETING them reds.
-      //
-      // My first draft put the push-driven floor at 11 and it went red at 9 —
-      // because I had read the figure off a `grep` whose alternation included
-      // `group(`. Two groups, nine cases. Recorded rather than quietly fixed:
-      // a floor set from an eyeballed grep is a fabricated threshold, and it
-      // fails on correct work.
-      //
-      // MB1.md accounts for 13 cases across these two files, 7 of them
-      // position cases. That figure is against the PRE-#204 base; the pair
-      // carries 16 now, so 13 is a floor the current tree clears with room.
       final pushCount = _countCases(MB1Source.raw(_pushDriven));
       final overlayCount = _countCases(MB1Source.raw(_overlay));
       expect(

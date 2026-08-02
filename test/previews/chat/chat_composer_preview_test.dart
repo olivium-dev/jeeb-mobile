@@ -1,10 +1,4 @@
 // Render tests for the ChatComposer previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Each state pins a DISTINCT string, which is
-// what separates "the previews render" from "the previews render their own
-// state" — six previews all showing the empty composer would pass the weaker
-// check.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,7 +16,6 @@ void main() {
   setUpAll(loadPreviewArbs);
 
   // Every preview except `Attaching · spinner`, which cannot settle — see the
-  // dedicated group below.
   testPreviewsRender(
     'ChatComposer',
     const <String, Widget Function()>{
@@ -46,10 +39,6 @@ void main() {
   );
 
   // The attaching state renders `OmdsButtonLoading`, i.e. an INDETERMINATE
-  // `CircularProgressIndicator`. `pumpAndSettle` (which `pumpPreview` calls)
-  // never returns while one is on screen, so this preview gets the same three
-  // assertions the shared suite makes — builds in EN, builds in AR, renders its
-  // OWN state — driven by fixed pumps instead.
   group('ChatComposer previews · Attaching · spinner', () {
     Future<void> pumpAttaching(
       WidgetTester tester, {

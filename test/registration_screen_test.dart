@@ -62,12 +62,6 @@ void main() {
       'value intact, so 8 valid digits stay parseable and Send code stays '
       'enabled (no state↔controller corruption)', (tester) async {
     // The on-device defect: the listener mirrored the cubit's *normalised*
-    // phoneInput back into the field on every keystroke. Typing a 9th digit
-    // made `normalise` front-truncate to the first 8 and overwrite the field,
-    // so erasing the (now-wrong) trailing digit dropped a valid one — the field
-    // stuck below 8 digits, `LebanonPhone.tryParse` returned null, and
-    // `sendCode()` bailed at its guard. No OTP was ever requested → login
-    // impossible on-device.
     when(() => otp.sendCode(any()))
         .thenAnswer((_) async => OtpSendOutcome.sent);
     final cubit = makeCubit();
@@ -78,7 +72,6 @@ void main() {
     final field = find.byKey(const Key('registration.phoneField'));
 
     // 1) Type exactly 8 valid digits — controller and state must agree, and the
-    // field must hold all 8 (no per-keystroke overwrite dropping characters).
     await tester.enterText(field, '71123456');
     await tester.pump();
     expect(cubit.state.phoneInput, '71123456');
@@ -90,8 +83,6 @@ void main() {
     );
 
     // 2) Erase down to 6 digits (a single contiguous edit, never a
-    // corrupted/reordered value). Send code disables because 6 < the 7-digit
-    // minimum (a Lebanese national number is 7 or 8 digits).
     await tester.enterText(field, '711234');
     await tester.pump();
     expect(cubit.state.phoneInput, '711234');
@@ -106,8 +97,6 @@ void main() {
     );
 
     // 3) Re-type the 8th digit → back to a valid 8-digit number. The value is
-    // NOT corrupted, Send code re-enables, and tapping it actually fires the
-    // OTP request (the path that was dead on-device).
     await tester.enterText(field, '71123456');
     await tester.pump();
     expect(cubit.state.phoneInput, '71123456');
@@ -124,7 +113,6 @@ void main() {
     await tester.tap(find.byKey(const Key('registration.sendCode')));
     await tester.pump();
     // The OTP request actually goes out with the correct E.164 number — the
-    // exact step that never happened with the corrupted value.
     verify(() => otp.sendCode('+96171123456')).called(1);
   });
 
@@ -132,10 +120,6 @@ void main() {
       'REGRESSION (Maestro P0): typing a 9th digit then erasing the visible '
       'trailing digit still recovers a sendable number', (tester) async {
     // Pre-fix, typing a 9th digit front-truncated the value to the first 8 and
-    // overwrote the field; erasing the visibly-trailing digit then dropped a
-    // VALID digit, leaving 7 — unrecoverable without clearing the field. This
-    // asserts the field now holds what the user typed so a normal erase
-    // recovers a parseable 8-digit number.
     when(() => otp.sendCode(any()))
         .thenAnswer((_) async => OtpSendOutcome.sent);
     final cubit = makeCubit();
@@ -161,19 +145,6 @@ void main() {
       'CURRENT text, not a stale cubit phoneInput (submit-path divergence fix)',
       (tester) async {
     // On-device defect: "Send code" enabled off a fresh rebuild (which reflects
-    // the field/controller), but `state.phoneInput` could lag the final
-    // committed keystroke (Android IME composing/autocorrect finalisation does
-    // not always re-fire `onChanged` with the last value). So the button looked
-    // valid yet `sendCode()`'s `tryParse(state.phoneInput)` guard saw a stale
-    // value, flipped the field red, and sent NOTHING — login impossible
-    // on-device. The fix re-commits the controller text into the cubit at tap
-    // time, so the value Send validates == the value the user sees/typed.
-    //
-    // Faithful model of the divergence while keeping the button enabled (the
-    // on-device symptom): the cubit holds a VALID-but-STALE 8-digit number
-    // (button enabled) while the controller/display holds a DIFFERENT, current
-    // 8-digit number (what the user actually typed last). Send must use the
-    // CONTROLLER's number — proving the field is the source of truth at submit.
     when(() => otp.sendCode(any()))
         .thenAnswer((_) async => OtpSendOutcome.sent);
     final cubit = makeCubit();
@@ -192,7 +163,6 @@ void main() {
         reason: 'precondition: button is enabled (stale value is still valid)');
 
     // ...while the field/display holds the DIFFERENT number the user last typed,
-    // set WITHOUT routing through `onChanged` (the on-device lag).
     controller.text = '71123456';
     await tester.pump();
     expect(controller.text, '71123456');
@@ -200,8 +170,6 @@ void main() {
         reason: 'precondition: cubit phoneInput is stale, diverged from field');
 
     // Tap Send. Pre-fix it would have sent the STALE +96171000000 (or, when the
-    // stale value was short, bailed entirely). Post-fix it commits the field
-    // first and sends the CURRENT +96171123456 — the field is the one truth.
     await tester.tap(find.byKey(const Key('registration.sendCode')));
     await tester.pump();
 
@@ -216,13 +184,6 @@ void main() {
       'but NOT mirrored into cubit state still sends — Send reads the live '
       'controller text, not a stale state.phoneInput', (tester) async {
     // The on-device divergence: the field owns its text while the user types
-    // (PR #45 stopped mirroring the normalised value back). Any path that sets
-    // the controller text WITHOUT routing through `onChanged`/`phoneChanged`
-    // (programmatic seed, platform autofill, certain paste paths) leaves
-    // `state.phoneInput` empty while the field shows a valid number. The old
-    // `sendCode()` validated the empty `state.phoneInput`, flipped the field red
-    // and emitted ZERO OTP requests. With the fix, Send reads the rendered
-    // controller text, so a valid rendered number sends.
     when(() => otp.sendCode(any()))
         .thenAnswer((_) async => OtpSendOutcome.sent);
     final cubit = makeCubit();
@@ -233,18 +194,10 @@ void main() {
     final field = find.byKey(const Key('registration.phoneField'));
 
     // 1) Type a first valid number normally so state + field agree and the CTA
-    // is live.
     await tester.enterText(field, '71123456');
     await tester.pump();
     expect(cubit.state.phoneInput, '71123456');
 
-    // 2) Now a DIFFERENT valid value lands in the field WITHOUT firing onChanged
-    // (platform autofill / programmatic seed): mutate ONLY the controller. No
-    // rebuild, no `phoneChanged` — so the cubit's `phoneInput` is now STALE
-    // relative to the rendered field. This is the exact divergence that, with
-    // the old `sendCode()` (which read `state.phoneInput`), would either send
-    // the WRONG number or — when state was empty — flip the field red and emit
-    // zero OTP rows.
     final controller = tester.widget<TextField>(field).controller!;
     controller.text = '+9613000002';
 
@@ -255,8 +208,6 @@ void main() {
     );
 
     // The CTA was enabled at the last build; its onTap closure reads the LIVE
-    // controller text. Tapping must fire the OTP request for the number the user
-    // ACTUALLY sees (`3000002`), not the stale state value.
     await tester.tap(find.byKey(const Key('registration.sendCode')));
     await tester.pump();
 
@@ -303,7 +254,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // OTP screen is now on top — its OTP-field key is the unambiguous
-    // anchor.
     expect(find.byKey(const Key('registration.otpField')), findsOneWidget);
     expect(find.byKey(const Key('registration.verify')), findsOneWidget);
     verify(() => otp.sendCode('+96171123456')).called(1);
@@ -319,8 +269,6 @@ void main() {
     await tester.pump();
 
     // P1 MOVE: the two super-login affordances now live on the LOGIN screen.
-    // `flutter test` runs under kDebugMode=true, yet neither link is present
-    // here — proving the MOVE removed them from registration (no duplicate).
     expect(kDebugMode, isTrue);
     expect(find.byKey(const Key('registration.superLogin')), findsNothing);
     expect(find.byKey(const Key('registration.superLoginPlus')), findsNothing);
@@ -353,10 +301,8 @@ void main() {
     await tester.pump();
 
     // The screen owns a single keyed divider. The social section must NOT
-    // render its own — that produced the two `content-desc="or"` nodes QA saw.
     expect(find.byKey(const Key('registration.orDivider')), findsOneWidget);
     // The divider label ("or", `registrationSocialDivider`) must appear exactly
-    // once — this is the literal QA matched (`content-desc="or"`).
     expect(find.text('or'), findsOneWidget);
   });
 
@@ -393,5 +339,4 @@ void main() {
   });
 
   // The "Super user login plus" picker→sheet placement tests moved with the
-  // feature to test/login_screen_test.dart (P1 MOVE).
 }

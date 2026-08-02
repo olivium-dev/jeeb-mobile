@@ -1,29 +1,4 @@
 // Render tests for the KycWizardScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-// `KycWizardScreen` picks ONE of four bodies off `KycWizardState.step` — the
-// schema spinner, the identity form, the submit spinner, or the status view —
-// and two of those four are *spinners with no text at all*. A render-only check
-// would pass on nine copies of the same grey circle, so every state below pins
-// a string only IT can produce, and the one state that can produce none is
-// pinned NEGATIVELY in the specifics group.
-//
-// The last two groups are not preview hygiene. They are what these previews
-// exposed: the schema-load error view (and the only retry CTA in the feature)
-// is erased by the wizard's own error listener before it can ever render in the
-// app, and the identity route scrolls while the status route — same route, same
-// AppBar — does not.
-//
-// ## Fonts
-//
-// `preview_test_harness.dart` deliberately does NOT load the real faces, so
-// every glyph is a 1-em square there — Latin measures ~2x and Arabic ~2.4x what
-// it does on a device. That is fine for "did this build and show its own
-// state", which is all the shared suite claims. It is NOT fine for any claim
-// about fitting, so the geometry group below pumps through
-// [_kycWizardScreenCanvas], which is the same canvas with `withGoldenTestFonts`
-// applied: real Inter for Latin, a deterministic Noto subset for Arabic. Every
-// measurement in this file lives there and nowhere else.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -88,8 +63,6 @@ Finder _byIdentifier(String id) {
 
 /// How many pixels a captured layout error overflowed by, or 0 when [error] is
 /// not an overflow at all. Read from the message rather than pinned as an exact
-/// constant: the fact under test is "this does not fit on a phone", and an exact
-/// pixel count would break on a font metric change without meaning anything.
 int _overflowPixels(Object? error) {
   if (error == null) return 0;
   final RegExpMatch? match = RegExp(
@@ -100,11 +73,7 @@ int _overflowPixels(Object? error) {
 }
 
 /// [previewCanvas] with the real font faces installed on the theme.
-///
 /// The shared canvas builds `AppTheme.light()` unmodified and the theme carries
-/// no `fontFamilyFallback`, so Arabic falls back to the 1-em test face there.
-/// `withGoldenTestFonts` is what adds the deterministic Noto family, and only
-/// through it is a measurement on this screen worth anything.
 Widget _kycWizardScreenCanvas(Widget Function() preview, Locale locale) {
   return MaterialApp(
     theme: withGoldenTestFonts(AppTheme.light()),
@@ -123,9 +92,6 @@ Widget _kycWizardScreenCanvas(Widget Function() preview, Locale locale) {
 
 /// Pumps a preview into the real device box the annotation declares, at
 /// [textScale] and with the REAL faces, instead of into the 800 x 600 default
-/// test surface. Both axes matter here: the status bodies do not scroll, so the
-/// height decides whether their CTAs are reachable, and the width decides how
-/// many lines the copy above them takes.
 Future<void> _pumpInDeviceBox(
   WidgetTester tester,
   Widget Function() preview, {
@@ -167,29 +133,22 @@ void main() {
     },
     expectedText: const <String, String>{
       // The affordance that exists only while no selfie is captured — so it is
-      // on the cold-entry form and on none of the other identity states.
       'Identity · cold entry': _scrollHint,
       // The two identity states that ARE fully captured are told apart by the
-      // document number each one seeds.
       'Identity · ready to submit': _nationalIdNumber,
       'Longest content · compact 320': _passportNumber,
       // The failure line `_SchemaErrorView` renders, which no other state can
-      // produce (see the group below for why the app never renders it either).
       'Schema · load FAILED (retry unreachable in-app)': _schemaLoadFailed,
       'Submitting · POST hung': _submittingTitle,
       'Status · pending review': _pendingTitle,
       'Status · approved': _approvedTitle,
       'Status · rejected': _idUnreadable,
       // 'Schema · load in flight' renders a bare spinner and no text at all; it
-      // is pinned negatively in the specifics group instead.
     },
   );
 
   group('KycWizardScreen preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does NOT rebuild these — the canvas produces the same widget types, so
-    // the `BlocProvider` element is UPDATED rather than replaced and keeps the
-    // cubit the first preview created.
 
     testWidgets('every body keeps the wizard AppBar', (
       WidgetTester tester,
@@ -207,14 +166,11 @@ void main() {
       await pumpPreview(tester, kycWizardScreenSchemaLoading);
 
       expect(find.byType(OmdsLoadingState), findsOneWidget);
-      // No title, no copy, no accessible label — the only text on the screen is
-      // the AppBar's, which every state carries.
       expect(find.text(_wizardTitle), findsOneWidget);
       expect(find.byType(Text), findsOneWidget);
       for (final String marker in _otherBodyMarkers) {
         expect(find.text(marker), findsNothing, reason: marker);
       }
-      // …and not the retry either: that is the FAILED branch, one flag away.
       expect(_byIdentifier('kyc_wizard_retry_cta'), findsNothing);
     });
 
@@ -225,12 +181,9 @@ void main() {
       expect(find.text(_schemaLoadFailed), findsOneWidget);
       expect(_byIdentifier('kyc_wizard_retry_cta'), findsOneWidget);
       expect(find.text(_retryCta), findsOneWidget);
-      // The spinner is gone — the two schema states are mutually exclusive.
       expect(find.byType(OmdsLoadingState), findsNothing);
     });
 
-    // The finding the preview above exists for. The state is real — the cubit
-    // emits it — but the SCREEN erases it, so no jeeber has ever seen this view.
     testWidgets('a schema load that fails IN-APP never renders the retry: the '
         "wizard's own error listener acknowledges the failure in the same turn",
         (WidgetTester tester) async {
@@ -253,8 +206,6 @@ void main() {
       expect(_byIdentifier('kyc_wizard_retry_cta'), findsNothing);
 
       // The real path: `loadSchema` catches the gateway failure and emits
-      // `error: schemaLoadFailed`, which is exactly what `_SchemaLoadingView`
-      // keys its error branch off.
       await cubit.loadSchema();
       await tester.pump();
 
@@ -273,12 +224,9 @@ void main() {
         findsOneWidget,
         reason: 'the body degrades back to the indefinite schema spinner',
       );
-      // What the jeeber actually gets: a transient snackbar over a spinner that
-      // will never resolve, and no way to ask again.
       expect(find.text(_schemaLoadFailed), findsOneWidget);
 
       // Unmount so the snackbar's auto-dismiss timer is cancelled with its
-      // ScaffoldMessenger rather than left pending past the test.
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
     });
@@ -289,8 +237,6 @@ void main() {
       await pumpPreview(tester, kycWizardScreenIdentityColdEntry);
 
       expect(find.byKey(KycWizardScreen.progressKey), findsOneWidget);
-      // Nothing has been captured and nothing typed, yet the header already
-      // claims a step is done — `_ProgressHeader` floors `displayStep` at 1.
       expect(find.text(_stepOneOfTwo), findsOneWidget);
       expect(find.text(_stepTwoOfTwo), findsNothing);
       expect(find.byKey(KycIdentityStep.submitButtonKey), findsOneWidget);
@@ -322,7 +268,6 @@ void main() {
 
       expect(find.byKey(KycSubmittingView.rootKey), findsOneWidget);
       expect(find.text(_submittingTitle), findsOneWidget);
-      // No progress header, no form, no CTA — and nothing to cancel with.
       expect(find.byKey(KycWizardScreen.progressKey), findsNothing);
       expect(find.byKey(KycIdentityStep.submitButtonKey), findsNothing);
       expect(find.text(_stepTwoOfTwo), findsNothing);
@@ -343,8 +288,6 @@ void main() {
             'this fails the fixture is showing a pre-probe frame, and the '
             'render test is no longer covering the state it claims to',
       );
-      // Still the ACTIVE pending body: the poller has budget left, so "Top up"
-      // is the primary and the re-check sits under it (FM5-F11-W4).
       expect(_byIdentifier('kyc_status_poll_expired'), findsNothing);
       expect(
         tester.getTopLeft(_byIdentifier('kyc_status_topup_cta')).dy,
@@ -384,10 +327,6 @@ void main() {
     });
   });
 
-  // Geometry and fitting. These pump through [_kycWizardScreenCanvas] — the only
-  // canvas in this file with the real faces on the theme — because a measurement
-  // taken under the 1-em test face is inflated ~2x in Latin and ~2.4x in Arabic
-  // and reports overflows that exist on no device.
   group('KycWizardScreen geometry · real fonts', () {
     testWidgets('the identity route SCROLLS', (WidgetTester tester) async {
       await _pumpInDeviceBox(
@@ -429,10 +368,6 @@ void main() {
       );
 
       expect(_overflowPixels(tester.takeException()), greaterThan(0));
-      // Not merely clipped decoration — the third post-approval entry point is
-      // laid out past the bottom of the phone, with nothing to scroll to it.
-      // The approved body is the SHORTEST of the four `_StatusScaffold`
-      // variants, so every other one is worse.
       expect(
         tester.getRect(_byIdentifier('kyc_status_topup_cta')).bottom,
         greaterThan(568),
@@ -442,8 +377,6 @@ void main() {
     testWidgets('the identity route survives the same box and scale, because '
         'it scrolls', (WidgetTester tester) async {
       // Same phone, same text scale, same AppBar — the only difference is that
-      // this body is a `SingleChildScrollView`. It is the contrast that makes
-      // the assertion above a finding rather than a fact about 200% text.
       await _pumpInDeviceBox(
         tester,
         kycWizardScreenCompactCeiling,
@@ -459,10 +392,6 @@ void main() {
       testWidgets('the 320 pt ceiling lays out clean in ${locale.languageCode}',
           (WidgetTester tester) async {
         // The `_ProgressHeader` is the risk: it is the ONE thing on the identity
-        // route that does not scroll — a progress line over an
-        // `OMDSLabeledStepperProgress` carrying both step labels, on the
-        // narrowest phone the app supports. Measured through the real faces so a
-        // pass here means it fits on a device.
         await _pumpInDeviceBox(
           tester,
           kycWizardScreenCompactCeiling,

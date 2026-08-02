@@ -1,8 +1,4 @@
 // G3: BadgeCountCubit must re-derive its counts from the durable LocalPushInbox
-// on hydrate (cold start / resume) so a background/terminated new_request push —
-// which the cubit's own increment() never sees — still badges the feed tab. And
-// the clears must write-through so a cleared badge does not resurrect on the
-// next hydrate.
 
 import 'package:flutter_test/flutter_test.dart';
 

@@ -1,35 +1,4 @@
 // INTERLEAVED-TRAFFIC ORDER regression (chat).
-//
-// SYMPTOM (probed, both viewers): for the whole life of a session the thread
-// read "all of theirs, then all of mine". A counterpart reply that arrived
-// AFTER the user's own message rendered ABOVE it, and the thread only
-// self-repaired on the next resume.
-//
-// THE TWO DEFECTS THIS FILE PINS
-//
-//  1. ORDERING. A history row the server did not date was anchored inside
-//     1970-01-01 (`DeliveryChatMessage.syntheticSentAt`), while the user's own
-//     optimistic bubbles kept the real clock — so every undated server row
-//     sorted below every locally composed one. The amplifier was the poll
-//     merge: `_mergeInbound` dropped own rows outright (`.where((m) =>
-//     !m.isMine)`), and the own server ECHO is the only thing that ties the
-//     user's own message into the server's array. Without it the optimistic
-//     bubble kept its local clock forever and the counterpart's undated reply
-//     had no way to sort after it.
-//
-//  2. DESTRUCTIVE FULL-REPLACE on the customer's accept path.
-//     `ChatCubit.acceptOffer()` did `messages: _ordered(history)` — the same
-//     amplifier `refresh()` was fixed for. A post-accept history read that
-//     decodes to nothing blanked the thread and destroyed the user's own
-//     bubbles.
-//
-// WHY THE PREVIOUS SUITE WAS GREEN WHILE DEFECT 1 WAS LIVE: it had no case
-// with COUNTERPART TRAFFIC ARRIVING AFTER AN OWN SEND. Every scenario either
-// read history with no local bubble in play, or sent without anything arriving
-// afterwards. `T1` below is that missing case and is RED before the fix.
-//
-// Everything here runs through the REAL `DioChatGateway` decode + the REAL
-// `ChatCubit` merge paths, off raw wire bodies. Ids/authors are synthetic.
 library;
 
 import 'dart:async';
@@ -45,10 +14,6 @@ const _conversationId = 'conv-interleaved';
 const _customerId = 'user-customer-0001';
 const _jeeberId = 'user-jeeber-0002';
 
-// ---------------------------------------------------------------------------
-// Wire rows. `_textRow` emits NO timestamp under any alias — the legacy
-// projection shape. `_datedRow` adds the `created_at` the gateway now emits
-// (jeeb-gateway PR #326), so both wires are exercised.
 // ---------------------------------------------------------------------------
 
 Map<String, Object?> _textRow(String id, String author, String body) =>
@@ -182,7 +147,6 @@ List<String> _texts(ChatCubit cubit) =>
 
 /// Drives ONE history re-pull off the push bus and waits for it to land AND
 /// merge. N4: the trigger moved from a 60 s clock to a push; the interleave
-/// hazard is a property of the merge, so every assertion below is unchanged.
 Future<void> _awaitPollTick(_ChatWire wire) async {
   final before = wire.historyReads;
   _bus.add(null);
@@ -223,7 +187,6 @@ void main() {
         expect(_texts(cubit), <String>['row-01 jeeber', 'mine-1']);
 
         // The server persists it and the jeeber replies AFTER it — the reply is
-        // strictly later in the server's array than the echo of my message.
         wire.rows = <Map<String, Object?>>[
           _textRow('srv-01', _jeeberId, 'row-01 jeeber'),
           _textRow('srv-echo-1', _customerId, 'mine-1'),
@@ -356,10 +319,6 @@ void main() {
       'renders BELOW the reply that prompted it',
       () async {
         // Routing the optimistic append through the full chronological sort
-        // looks tidy and is wrong: the draft carries the LOCAL clock, so a
-        // device that is behind would paint a brand-new message above traffic
-        // that is already on screen. A draft belongs at the bottom; the server's
-        // echo is what later gives it a real position.
         final wire = _ChatWire(
           initialRows: <Map<String, Object?>>[
             _datedRow('srv-01', _jeeberId, 'row-01',
@@ -374,7 +333,6 @@ void main() {
 
         await cubit.load();
         // A reply lands, stamped by the SERVER at 12:10 — ten minutes ahead of
-        // what this device believes the time is.
         wire.rows = <Map<String, Object?>>[
           ...wire.rows,
           _datedRow('srv-b1', _jeeberId, 'their reply', '2026-07-27T12:10:00Z'),
@@ -393,7 +351,6 @@ void main() {
         );
 
         // Once the server dates it, the server time is authoritative and the
-        // order still holds.
         wire.rows = <Map<String, Object?>>[
           ...wire.rows,
           _datedRow('srv-a1', _customerId, 'my reply to their reply',
@@ -539,7 +496,6 @@ void main() {
         expect(cubit.state.messages, hasLength(2));
 
         // The accept resolves, but the history read that follows it decodes to
-        // nothing (the exact shape of the bilateral empty-thread collapse).
         wire.rows = <Map<String, Object?>>[];
         await cubit.acceptOffer('offer-1');
 

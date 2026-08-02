@@ -1,8 +1,4 @@
 // iter6 B11 — ComposeRequestController unit tests.
-//
-// Verifies the controller assembles the `POST /requests` payload correctly from
-// the chosen tier + the confirmed location, echoing the live tier UUID
-// (`Tier.wireId`) and satisfying the gateway's required-coordinates contract.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/location/application/location_select_state.dart';
@@ -14,7 +10,6 @@ import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 import '../../support/fake_request_submission_service.dart';
 
 // [wireId] maps to the constructor's [Tier.serverId]; the model exposes it back
-// via the [Tier.wireId] getter — the exact value the create RPC must echo.
 Tier _flash({String? wireId}) => Tier(
       id: TierId.flash,
       serverId: wireId,
@@ -25,8 +20,6 @@ Tier _flash({String? wireId}) => Tier(
     );
 
 // JEBV4-176 (Q-060): the "Current Location" choice now carries a REAL resolved
-// device-GPS coordinate (Hamra, non-Beirut) instead of the removed
-// `33.8886, 35.4955` fallback. Every current-location create test seeds one.
 const double _gpsLat = 33.8959;
 const double _gpsLng = 35.4797;
 
@@ -76,9 +69,6 @@ void main() {
         'a serverId-less fallback tier must not put a fake id on the wire',
         () async {
       // A tier with no serverId comes from the bundled fallback catalog; its
-      // enum slug is NOT an id the gateway ever minted (and On-the-Way / Eco
-      // are tiers the server does not sell). Sending null yields a tier-less
-      // create (accepted; only the delivery-row seed is skipped) instead.
       controller.setTier(_flash());
 
       await controller.submitFromLocation(
@@ -146,7 +136,6 @@ void main() {
         controller.setTier(_flash(wireId: 'uuid'));
 
         // A current choice whose GPS never resolved (permission denied / off).
-        // The UI gates this out, but the controller must not invent a point.
         expect(
           () => controller.submitFromLocation(
             const LocationSelectState(
@@ -162,10 +151,6 @@ void main() {
     );
 
     // iter6 feed-drop fix — an order created via "Current Location" (no Saved
-    // address) must carry a NON-NULL pickup/dropoff address, else the jeeber
-    // feed parser (`dio_request_feed_repository._parseLocation`) drops the row
-    // and no jeeber can ever see the order. The label must embed the coords so
-    // the jeeber can still locate the point until reverse-geocoding lands.
     test(
       'current-location order carries a non-null address embedding the REAL '
       'GPS coords (so the jeeber feed parser keeps the row)',
@@ -186,7 +171,6 @@ void main() {
     );
 
     // A freshly-pinned map point (no Saved address) takes the same address-label
-    // path as current-location — it must also carry a non-null address.
     test('pinned map-point order also carries a non-null address', () async {
       controller.setTier(_flash(wireId: 'uuid'));
 
@@ -220,8 +204,6 @@ void main() {
     });
 
     // iter6 OTP-phone v2 — the recipient phone the customer enters on the
-    // location-confirm step must reach the create draft so the gateway
-    // request-store row is non-null and the at-door OTP-1234 verify works.
     test('threads the entered recipientPhone into the draft', () async {
       controller.setTier(_flash(wireId: 'uuid'));
       controller.setRecipientPhone('+9613000001');
@@ -303,7 +285,6 @@ void main() {
 
         final draft = submission.lastDraft!;
         // The gateway 400s on a blank description, so a non-empty fallback
-        // must exist — but it must NOT be the old '"Flash delivery request"'.
         expect(draft.description, isNotEmpty);
         expect(draft.description, 'Delivery request');
         expect(draft.description, isNot('Flash delivery request'));

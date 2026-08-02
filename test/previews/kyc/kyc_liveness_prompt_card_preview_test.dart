@@ -1,18 +1,4 @@
 // Render tests for the KycLivenessPromptCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-//
-// All five previews are the SAME widget told apart only by its `title` and the
-// length of its `prompts` list, so every state pins a string that appears in NO
-// other state. That is load-bearing here: two of the localized states share the
-// ARB title, and a suite that pinned the title would pass on the wrong card.
-// The empty state carries `kycSelfieStepTitle` instead of the liveness title for
-// exactly this reason — a title-only card has nothing else to be pinned by.
-//
-// The last two groups are not preview hygiene. They are what these previews
-// exposed: the 12 dp gap the card pays for a list it does not have, the icon
-// that never grows with the text it labels, and a card fill that is 1.16:1
-// against the surface it is supposed to sit on top of.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,13 +50,7 @@ ThemeData _cardTheme(WidgetTester tester) =>
     Theme.of(tester.element(find.byType(KycLivenessPromptCard)));
 
 /// Pumps a preview into a phone-WIDTH box, the way the canvas renders it.
-///
 /// The width is the point — every measurement below is about how a cue wraps
-/// and where its icon lands, and at the 800 dp default test surface nothing
-/// wraps at all. The height is deliberately generous: this card grows instead of
-/// overflowing (it lives inside the wizard's `SingleChildScrollView`), so a
-/// short box would only produce a render-overflow exception that says nothing
-/// about the widget.
 Future<void> _pumpAtPhoneWidth(
   WidgetTester tester,
   Widget Function() preview, {
@@ -109,10 +89,8 @@ void main() {
       // The smile cue exists only in the shipping two-cue state.
       'Wizard default · blink + smile': _smile,
       // The single-cue state borrows the selfie step's subtitle, which no other
-      // state renders.
       'Single cue · no inter-row gap': _selfieSubtitle,
       // The title-only card's whole content — and the reason it does not reuse
-      // the liveness title.
       'No cues · title only': _selfieTitle,
       'Longest plausible copy · multi-line cue': _longCueTail,
       'Extended checklist · five cues': _checklistTurn,
@@ -144,7 +122,6 @@ void main() {
       expect(find.text(_blink), findsNothing);
       expect(find.text(_smile), findsNothing);
       // The `if (i > 0)` guard: below the only cue there must be padding and
-      // nothing else. An off-by-one there is invisible at two cues.
       expect(
         tester.getRect(find.byType(KycLivenessPromptCard)).bottom -
             tester.getRect(find.text(_selfieSubtitle)).bottom,
@@ -175,7 +152,6 @@ void main() {
       final Element card = tester.element(find.byType(KycLivenessPromptCard));
       expect(Directionality.of(card), TextDirection.rtl);
       // `Row` mirrors and the symmetric `EdgeInsets.all` has no side to get
-      // wrong, so the icon must end up to the RIGHT of its text.
       expect(
         tester.getRect(find.byIcon(Icons.wb_sunny_outlined)).left,
         greaterThan(tester.getRect(find.text(_selfieSubtitleAr)).right),
@@ -184,8 +160,6 @@ void main() {
   });
 
   // The defects the previews exposed, held as assertions so they cannot regress
-  // unnoticed — and so that FIXING them fails this file loudly rather than
-  // leaving a stale claim behind.
   group('KycLivenessPromptCard layout defects', () {
     testWidgets('an empty list still pays the 12 dp gap under the title', (
       WidgetTester tester,
@@ -195,7 +169,6 @@ void main() {
       final Rect card = tester.getRect(find.byType(KycLivenessPromptCard));
       final Rect title = tester.getRect(find.text(_selfieTitle));
       // `SizedBox(height: Spacing.small)` is emitted before the `for`, not
-      // inside it, so a card with no cues closes with 16 + 12 instead of 16.
       expect(
         card.bottom - title.bottom,
         moreOrLessEquals(Spacing.medium + Spacing.small),
@@ -241,7 +214,6 @@ void main() {
   group('KycLivenessPromptCard container contrast', () {
     /// WCAG 1.4.11 asks 3:1 of a UI component's boundary against what is
     /// adjacent to it. This card has no border and no elevation, so its fill is
-    /// its only boundary.
     const double nonTextContrastFloor = 3.0;
 
     testWidgets('light: the 60% fill is 1.16:1 against the surface', (
@@ -262,7 +234,6 @@ void main() {
             'the card has no perceivable edge',
       );
       // The alpha is what spends it: the opaque token was already only 1.288:1,
-      // and 60% removes ~44% of the little separation it had.
       expect(
         _contrastRatio(theme.colorScheme.primaryContainer, surface),
         greaterThan(_contrastRatio(composited, surface)),
@@ -310,8 +281,6 @@ void main() {
           theme.scaffoldBackgroundColor,
         );
         // app_theme.dart chose the tone-90/tone-10 pair precisely so that
-        // `onPrimaryContainer` keeps its headroom; fading the CONTAINER (rather
-        // than the ink, which that audit banned) leaves the text alone.
         expect(
           _contrastRatio(theme.colorScheme.onPrimaryContainer, composited),
           greaterThan(7.0),

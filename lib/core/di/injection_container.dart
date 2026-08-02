@@ -161,7 +161,6 @@ void configureDependencies({
     () => MockGatewayClient.createDio(
       baseUrl: DevBaseUrl.read(sl<SharedPreferences>()),
       // b02 P0: rate limit window trailing edge — screen holds pre-429 snapshot
-      // until unrelated push wakes it; on window close, publish unclassified refresh.
       onRateLimitWindowClosed: () {
         if (!sl.isRegistered<PushRefreshSignals>()) return;
         sl<PushRefreshSignals>().signalStatusChange();
@@ -391,7 +390,6 @@ void configureDependencies({
   );
 
   // BUG-6: ComposeRequestController was not registered (dead code), so create fell through.
-  // Fallback handed literal 'new' sentinel, storing tierId:null + pickup:{}, never materializing.
   sl.registerLazySingleton<ComposeRequestController>(
     () => ComposeRequestController(sl<RequestSubmissionService>()),
   );
@@ -404,8 +402,6 @@ void configureDependencies({
   );
 
   // JEBV4-269 P1: was registerFactory (screen-scoped). On route pop, cubit closed → GPS uploader
-  // stopped for rest of delivery. FIX: lazy SINGLETON outlives widget. ActiveDeliveryCubit still
-  // start/stops by status but must NOT close() — closed cubit cannot emit; closing singleton bricks GPS.
   sl.registerLazySingleton<BackgroundGpsCubit>(
     () => BackgroundGpsCubit(
       gateway: GeolocatorGeocaptureGateway(),

@@ -1,10 +1,3 @@
-// sprint-009 scenario matrix #8 (feat/request-scenarios).
-//
-// PROVES the request-unavailable terminal screen (cancelled/expired/matched
-// request reached from a push tap or cold deep link) is a graceful, localized
-// surface — not the sanity-build stub that hard-coded English "Request
-// unavailable"/"Back" and gave no forward affordance.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';

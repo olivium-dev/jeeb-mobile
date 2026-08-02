@@ -1,33 +1,4 @@
 // Designed states for the Jeeber dashboard (`JeeberHomeScreen`) — ONE source of
-// truth, two consumers.
-//
-//   lib/devtool/catalog/entries/batch_04_entries.dart   the designer-facing,
-//                                                       on-device Screen Catalog
-//   lib/features/jeeber_home/presentation/jeeber_home_screen.dart
-//                                                       the JEEB PREVIEWS
-//                                                       section at its bottom
-//
-// The catalog entry owned these fakes privately, so the previews would have had
-// to re-declare them and the two would have drifted the first time a fixture
-// changed. Everything either consumer needs to reach a designed state lives
-// here instead; each consumer supplies only its own host chrome (the catalog
-// mounts the screen straight into the catalog page, the preview host frames it
-// to a device box inside the [Scaffold] `jeebPreviewHost` already supplies).
-//
-// NOTHING here touches the network. Every gateway/repository below answers from
-// a const list, throws, or never completes, and every cubit is either seeded in
-// its constructor or driven only by the screen's own mount-time `load()`. The
-// `CatalogNetworkGuard` both hosts install is a net, not the plan.
-//
-// Two collaborators are deliberately inert rather than merely fake:
-//
-//  * [AvailabilityCubit.tickerFactory] defaults to `Stream.periodic(1 min)`,
-//    and the cubit subscribes to it the moment the jeeber is online. That is a
-//    pending timer that fails every widget test which mounts this screen, so
-//    every cubit built here gets an empty ticker.
-//  * [RequestFeedCubit.start] opens three subscriptions and a 1 s expiry sweep.
-//    [SeededRequestFeedCubit] never calls it — it emits its one frame in the
-//    constructor instead — so the feed renders with no timer behind it.
 
 import 'dart:async';
 
@@ -46,10 +17,7 @@ import '../../../features/jeeber_request_feed/domain/submitted_offers_repository
 
 /// Availability gateway whose cold `fetch()` never resolves, freezing the cubit
 /// on [AvailabilityLoadPhase.loading] for as long as the host is open.
-///
 /// A [Completer] that is never completed holds no timer and no subscription; it
-/// simply never settles — which is exactly what a `GET /v1/availability` on a
-/// dead-air connection looks like before the transport times out.
 class StalledAvailabilityGateway implements AvailabilityGateway {
   const StalledAvailabilityGateway();
 
@@ -62,12 +30,8 @@ class StalledAvailabilityGateway implements AvailabilityGateway {
 }
 
 /// A submitted-offers fake that never lists anything.
-///
 /// [SubmittedOffersCubit] only calls `load()` lazily when the feed's
 /// Pending-Response sub-tab is first selected, so this keeps that path
-/// fake-backed with zero network regardless of whether GetIt happens to be
-/// configured in the host app. Without it the screen's own
-/// `_resolveSubmittedOffersCubit` falls through to `sl<Dio>()`.
 class EmptySubmittedOffersRepository implements SubmittedOffersRepository {
   const EmptySubmittedOffersRepository();
 
@@ -79,7 +43,6 @@ class EmptySubmittedOffersRepository implements SubmittedOffersRepository {
 }
 
 /// Answers one canned list of won orders, with no latency.
-///
 /// Filling [JeeberActiveDeliveriesBanner.repository] with this is what stops
 /// the banner resolving `sl<Dio>()` and issuing `GET /requests?role=jeeber`.
 class CannedAcceptedConversationsRepository
@@ -93,12 +56,8 @@ class CannedAcceptedConversationsRepository
 }
 
 /// [RequestFeedCubit] pinned to one frame.
-///
 /// Never `start()`ed, so none of its three live subscriptions and neither of
 /// its timers exist. The repository is the in-memory
-/// [SeededRequestFeedRepository] holding the SAME snapshot, so the
-/// pull-to-refresh the screen wires up replays the fixture instead of reaching
-/// `GET /v1/jeebers/me/feed`.
 class SeededRequestFeedCubit extends RequestFeedCubit {
   SeededRequestFeedCubit(List<DeliveryRequest> requests)
     : super(repository: SeededRequestFeedRepository(requests)) {
@@ -109,10 +68,8 @@ class SeededRequestFeedCubit extends RequestFeedCubit {
 }
 
 /// The designed states of `JeeberHomeScreen`, as collaborators + copy.
-///
 /// Deliberately NOT a widget builder: the two consumers need different chrome
 /// around the same screen, and a shared builder that took a `frameToDevice`
-/// flag would just be two builders wearing one name.
 class JeeberHomeScreenPreviewFixtures {
   const JeeberHomeScreenPreviewFixtures._();
 
@@ -243,7 +200,6 @@ class JeeberHomeScreenPreviewFixtures {
 
   /// Every availability cubit these fixtures hand out: real cubit, fake
   /// gateway, and an empty inactivity ticker so the 8 h auto-offline rule
-  /// never schedules a timer behind a preview or a catalog page.
   static AvailabilityCubit _availability(AvailabilityGateway gateway) =>
       AvailabilityCubit(gateway: gateway, tickerFactory: _noTicker);
 

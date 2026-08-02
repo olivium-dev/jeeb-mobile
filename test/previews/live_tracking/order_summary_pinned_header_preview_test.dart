@@ -1,13 +1,4 @@
 // Render tests for the OrderSummaryPinnedHeader previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Every state pins a string only IT renders. That half is not ceremony: a suite
-// that merely checks "something rendered" passes even when every preview is
-// showing the same widget, which is a failure this project has already shipped
-// once.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,7 +35,6 @@ void main() {
       // The item summary — only this state carries the pharmacy line.
       'Tracking surface': 'painkillers from the pharmacy',
       // The Track CTA exists on exactly one state; the tracking surface itself
-      // omits it to avoid a self-navigating button.
       'Chat parity (both CTAs)': 'Track order',
       // Between accept and the first GPS fix. 11 chars in EN, 25 in AR.
       'ETA pending, no tier': 'ETA pending',
@@ -63,7 +53,6 @@ void main() {
       await pumpPreview(tester, orderSummaryPinnedHeaderTracking);
 
       // JM-032: on the tracking screen "Track order" IS the current surface, so
-      // the CTA is null there and the node must not exist at all.
       expect(find.bySemanticsIdentifier('order_summary_track'), findsNothing);
       expect(find.text('Track order'), findsNothing);
       expect(
@@ -100,9 +89,6 @@ void main() {
       await pumpPreview(tester, orderSummaryPinnedHeaderUnmappedTier);
 
       // The clamp inside `_HeaderFactStrip` is what stops a single wire-sourced
-      // token longer than the line from painting the overflow stripe: `Wrap`
-      // hands its children unbounded main-axis constraints, so the ellipsis is
-      // load-bearing, not cosmetic.
       final Text tier = _textUnder(tester, 'order_summary_tier');
       expect(tier.maxLines, 1);
       expect(tier.overflow, TextOverflow.ellipsis);
@@ -118,7 +104,6 @@ void main() {
       expect(price.maxLines, 1);
       expect(price.overflow, TextOverflow.ellipsis);
       // The long name is still the full string in the tree, clipped only at
-      // paint — nothing here silently truncates the Jeeber's name.
       expect(
         _textUnder(tester, 'order_summary_jeeber_name').data,
         'Abdulrahman Al-Muhandis Al-Trabulsi',
@@ -129,7 +114,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The header is CUSTOMER-facing. The cash reminder is the only money copy
-      // it is allowed beyond the price the customer actually pays.
       for (final MapEntry<String, Widget Function()> entry
           in _previews.entries) {
         await pumpPreview(tester, entry.value);

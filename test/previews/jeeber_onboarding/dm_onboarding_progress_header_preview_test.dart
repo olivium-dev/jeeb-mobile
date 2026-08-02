@@ -1,19 +1,4 @@
 // Render tests for the DmOnboardingProgressHeader previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose, the same one
-// `tracking_map_surface_preview_test.dart` makes. The widget under review
-// renders NO text: `OMDSStepperProgress` is a `CustomPaint` drawing two lines,
-// and the "Step n of N" string is a `Semantics` *value*, deliberately invisible
-// to match Figma. `expectedText` bound to the widget's own output would
-// therefore be empty for every state, which is the weak assertion the harness
-// warns about. The map below binds to each preview's caption, which is preview
-// scaffolding, and the real per-state contract is asserted underneath: the
-// `completedSteps` the header forwards, the screen-reader value it publishes,
-// and the pixels the bar actually paints.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,7 +19,6 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
 
 /// The phone the wizard ships on, and the width the previews declare. The
 /// shared harness pumps onto the default 800 × 600 surface, so anything
-/// measured in pixels has to set this explicitly.
 const Size _kPhone = Size(390, 844);
 
 /// `_ProgressBarTrack` pads the bar by `Spacing.xLarge` on each side, so this
@@ -120,8 +104,6 @@ void main() {
     'DmOnboardingProgressHeader',
     _previews,
     // Captions, not widget output — see the header. Every state names itself,
-    // so a preview wired to the wrong fixture (or five previews sharing one)
-    // fails here rather than looking plausible in the canvas.
     expectedText: const <String, String>{
       'Step 1 · photo': 'Step 1 of 3 — bar empty',
       'Step 2 · address': 'Step 2 of 3 — one third',
@@ -133,7 +115,6 @@ void main() {
 
   group('DmOnboardingProgressHeader preview state', () {
     // The assertion the caption-based `expectedText` above cannot make: five
-    // previews are only five states if what the header FORWARDS differs.
     const Map<String, int> completedByState = <String, int>{
       'Step 1 · photo': 0,
       'Step 2 · address': 1,
@@ -169,7 +150,6 @@ void main() {
 
         expect(_semanticsValue(tester), value);
         // The value is a11y-only by design (Figma) — it must never become
-        // visible copy, or the header stops matching the design.
         expect(find.text(value), findsNothing);
       });
     });
@@ -184,7 +164,6 @@ void main() {
       );
 
       // Latin digits are correct here: the generated accessor interpolates
-      // `'$current'` rather than running the numbers through `NumberFormat`.
       expect(_semanticsValue(tester), 'الخطوة 3 من 3');
     });
   });
@@ -196,8 +175,6 @@ void main() {
       await _pumpOnPhone(tester, dmOnboardingProgressHeaderStepPhoto);
 
       // `completedSteps` is `step.index`, so the first step is 0/3 and
-      // `_StepperPainter` takes its `if (progress > 0)` early-out. The Jeeber
-      // is told "Step 1 of 3" over a bar with nothing in it.
       expect(tester.renderObject(_barPainter),
           paintsExactlyCountTimes(#drawLine, 1));
 
@@ -229,8 +206,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The contract behind the deliberately identical-looking preview: the
-      // header's `buildWhen` watches only `step` and `isSubmitted`, so tapping
-      // Continue must not advance the bar on an outcome that has not happened.
       await _pumpOnPhone(tester, dmOnboardingProgressHeaderSubmitting);
       final double submitting = _paintedLines(tester).last.to.dx;
 
@@ -244,8 +219,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The bar carries no text of its own, so the accessibility ceiling should
-      // be a non-event. Pinned so a later label added inside the header cannot
-      // silently start overflowing the 32 pt strip.
       expect(await _pumpAtDoubleText(tester, dmOnboardingProgressHeaderSubmitted),
           isNull);
     });
@@ -254,14 +227,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The previews declare `Size(390, 128)`. A box too small clips the canvas
-      // card and a reviewer reads the clipping as a widget bug, so the number
-      // is checked against the tallest rendering of the matrix rather than
-      // eyeballed once. The longest caption is the binding constraint, not the
-      // 32 pt bar: this measures 110 pt, of which the bar is 32.
-      //
-      // `flutter_test` renders every glyph as a square of the font size, so
-      // this is the pessimistic end — a real proportional font wraps the
-      // caption in fewer lines, never more.
       expect(
         await _pumpAtDoubleText(tester, dmOnboardingProgressHeaderSubmitting),
         isNull,
@@ -282,22 +247,9 @@ void main() {
   });
 
   // FINDING, and the reason these previews were worth writing.
-  //
-  // `_StepperPainter.paint` draws from `Offset(0, …)` to
-  // `Offset(size.width * progress, …)` on a raw `Canvas`
-  // (`omds_library/lib/src/indicators/omds_stepper_progress.dart:154-167`), and
-  // Flutter does not mirror canvas coordinates for text direction. So in Arabic
-  // the fill grows from the LEFT edge — the trailing end of an RTL layout —
-  // and the bar appears to EMPTY as the Jeeber advances through the wizard.
-  //
-  // The header's own padding is `EdgeInsetsDirectional`, and `OMDSStepperProgress`
-  // wraps the painter in a `Row`, so the surrounding layout mirrors correctly.
-  // That is exactly what makes this easy to miss in a screenshot review:
-  // everything around the bar flips, and only the fill does not.
   group('DmOnboardingProgressHeader RTL mirroring', () {
     testWidgets('the padding DOES mirror', (WidgetTester tester) async {
       // The control. Without it, "the fill does not mirror" could be read as
-      // "nothing in this header is direction-aware"; the padding is.
       await _pumpOnPhone(tester, dmOnboardingProgressHeaderStepAddress);
       final Rect ltr = tester.getRect(_bar);
 
@@ -309,7 +261,6 @@ void main() {
       final Rect rtl = tester.getRect(_bar);
 
       // Symmetric insets, so the track occupies the same band either way —
-      // which is the point: the geometry below is measured on an identical box.
       expect(ltr, rtl);
       expect(ltr.width, _kTrackWidth);
     });
@@ -325,8 +276,6 @@ void main() {
       expect(lines, hasLength(2));
 
       // Under RTL the filled third should hug the RIGHT edge of the track
-      // (from `_kTrackWidth` back to `_kTrackWidth * 2/3`). It does not: it is
-      // drawn from x = 0 rightwards, identically to the English rendering.
       final ({Offset from, Offset to}) fill = lines.last;
       expect(fill.from.dx, 0);
       expect(fill.to.dx, closeTo(_kTrackWidth / 3, 0.01));

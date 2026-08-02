@@ -1,21 +1,4 @@
 // Render tests for the MixedDirectionText previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Every state pins a DISTINCT string, because all six previews are one line of
-// body copy in the same box and would otherwise be told apart by nothing at all
-// — a suite that only asked "did something render?" would pass on six copies of
-// the English baseline.
-//
-// The group at the bottom is what the shared harness cannot see. The harness
-// asserts that each preview BUILDS and shows its own text; it cannot assert the
-// one thing this widget actually does, which is choose a [TextDirection]. Those
-// tests read the direction off the [Directionality] the widget wraps its [Text]
-// in — including the case where the choice is wrong (see `leading digit`), so
-// that a future fix fails here loudly instead of silently changing the copy a
-// courier reads.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,9 +62,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Same preview, Arabic app locale: the surrounding app has mirrored, and
-      // this English line must NOT follow it. The widget never reads
-      // `Directionality.of(context)`, and this is the assertion that keeps it
-      // that way.
       await pumpPreview(
         tester,
         mixedDirectionTextEnglish,
@@ -98,8 +78,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The frame decides, not the name — "Rate …" opens with `R`. The Arabic
-      // run is reordered by the Unicode bidi algorithm inside the LTR
-      // paragraph, which is what the rating screen depends on.
       await pumpPreview(tester, mixedDirectionTextArabicNameInEnglish);
 
       expect(_directionOf(tester, 'Rate محمد الحلبي'), TextDirection.ltr);
@@ -108,8 +86,6 @@ void main() {
     testWidgets('KNOWN MISFIRE · a leading digit forces a mostly-Arabic note '
         'to LTR', (WidgetTester tester) async {
       // `detectDirection` reads exactly one character, so `2` outvotes three
-      // Arabic words. Asserted as-is rather than as the desired behaviour: this
-      // is the state the preview shows a reviewer, and a fix must change both.
       await pumpPreview(tester, mixedDirectionTextLeadingDigit);
 
       expect(_directionOf(tester, '2 boxes - توصيل سريع'), TextDirection.ltr);
@@ -121,7 +97,6 @@ void main() {
 
       expect(_directionOf(tester, '  توصيل من الأشرفية'), TextDirection.rtl);
       // The spaces survive into the Text — trimming happens in the detector
-      // only, so under RTL they indent the line from the right edge.
       expect(find.text('توصيل من الأشرفية'), findsNothing);
     });
 

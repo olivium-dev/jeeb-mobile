@@ -1,18 +1,3 @@
-// Render tests for the ObsOverlayBubble previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose — the same one
-// `chat/delivery_confirm_illustration_preview_test.dart` makes. The widget
-// under review renders no text at all (an icon in a circle), so the
-// `expectedText` map below binds to each preview's caption, which is preview
-// scaffolding rather than widget output. On its own that would be exactly the
-// weak assertion the harness warns about. The real per-state contract is
-// asserted underneath, by MEASURING where the bubble lands and what it covers:
-// this widget's state IS its geometry against the content behind it.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -37,9 +22,6 @@ Rect _stageRect(WidgetTester tester) =>
     tester.getRect(find.byKey(obsOverlayBubbleStageKey));
 
 /// The red badge dot `_BubbleIcon` adds while recording. It is a private class,
-/// so it is matched by its shape: the only circular [BoxDecoration] anywhere in
-/// the bubble's subtree (the bubble itself is a `Material` with a
-/// `CircleBorder`, not a decorated container).
 Finder _recordingDot() => find.descendant(
       of: find.byType(ObsOverlayBubble),
       matching: find.byWidgetPredicate((Widget widget) {
@@ -53,8 +35,6 @@ Finder _recordingDot() => find.descendant(
 void main() {
   setUpAll(loadPreviewArbs);
 
-  // `obsOverlayBubbleRecordingRequested` writes the global runtime switch (the
-  // widget's only seam — see the preview's doc comment), so put it back.
   tearDown(ObservabilityConfig.instance.reset);
 
   testPreviewsRender(
@@ -106,11 +86,6 @@ void main() {
       );
       final Rect rtl = _bubbleRect(tester);
 
-      // Characterization, not endorsement: `ObsOverlayBubble` uses
-      // `Positioned.right`, not `PositionedDirectional.end`, so the bubble
-      // stays in the physically-right corner while the app around it flips.
-      // If someone switches it to the directional variant this test fails —
-      // which is the point: that is a decision worth making deliberately.
       expect(rtl, ltr, reason: 'the bubble is anchored to the physical right');
       expect(
         stage.right - rtl.right,
@@ -137,7 +112,6 @@ void main() {
       );
       expect(bubbleEn.overlaps(firstEn), isFalse);
 
-      // 64pt bar occupies 0-64pt from the bottom; the bubble occupies 24-72pt.
       expect(bubbleEn.bottom - lastEn.top, closeTo(40, 0.01));
 
       await pumpPreview(
@@ -153,9 +127,6 @@ void main() {
         find.byKey(obsOverlayBubbleFirstDestinationKey),
       );
 
-      // The bar mirrors and the bubble does not, so it covers the OTHER end of
-      // the navigation — a tester who loses "Profile" in English loses "Home"
-      // in Arabic instead.
       expect(bubbleAr.overlaps(lastAr), isFalse);
       expect(bubbleAr.overlaps(firstAr), isTrue);
     });
@@ -218,14 +189,7 @@ void main() {
 
       await pumpPreview(tester, obsOverlayBubbleRecordingRequested);
 
-      // The preview really did ask for it...
       expect(ObservabilityConfig.instance.enabled, isTrue);
-      // ...but `recording` is `kObsCompiledIn && enabled`, and `kObsCompiledIn`
-      // needs BOTH `JEEB_DEVTOOL_ENABLED=true` and `JEEB_OBS_OVERLAY=true` at
-      // compile time. A plain `flutter test` (and a plain preview canvas) has
-      // neither, so the dot is unreachable there. Asserted as the contract
-      // rather than as `findsNothing` so this still passes — and still means
-      // something — in a build that does carry the defines.
       expect(
         _recordingDot(),
         Observability.instance.recording ? findsOneWidget : findsNothing,
@@ -267,9 +231,6 @@ void main() {
         obsOverlayBubbleDocked,
         locale: const Locale('ar'),
       );
-      // Hardcoded, not localized. Defensible for a devtool-only affordance —
-      // but it is the one string a screen-reader user gets from this widget,
-      // and it is the same string in both locales.
       expect(find.bySemanticsLabel('Session trace overlay'), findsOneWidget);
 
       handle.dispose();

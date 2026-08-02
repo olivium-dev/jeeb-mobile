@@ -1,16 +1,4 @@
 // Render tests for the LocationSearchBar previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Four of the six states draw no dropdown at all, and two of those four are the
-// SAME widget inputs read two different ways ("no matches" and "you just picked
-// this"). "Did something render" is therefore a weak question here: the expected
-// strings pin the fixture each preview was wired to, and the group below pins
-// what the canvas can only show — where the dropdown pushes the draft card, that
-// selecting a suggestion produces a false empty state, and that the row mirrors
-// in Arabic while the coordinate fallback does not.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -31,8 +19,6 @@ void main() {
   setUpAll(loadPreviewArbs);
 
   // Every preview except `Searching · nothing to list`, whose indeterminate
-  // `LinearProgressIndicator` never lets `pumpAndSettle` return — see the
-  // dedicated group below.
   testPreviewsRender(
     'LocationSearchBar',
     const <String, Widget Function()>{
@@ -43,9 +29,6 @@ void main() {
       'Long address + coordinates only': locationSearchBarLongAndCoordinateOnly,
     },
     // The bar draws nothing of its own in three of these states, and 'No
-    // matches' / 'Just selected' draw the SAME line, so the pinned string is the
-    // triple that fed it. Without it a preview wired to the wrong fixture would
-    // pass here and mislead in the canvas.
     expectedText: const <String, String>{
       'Idle · nothing typed': 'fixture: nothing typed',
       'Five matches': 'fixture: five matches',
@@ -56,10 +39,6 @@ void main() {
   );
 
   // `isSearching` puts an indeterminate `LinearProgressIndicator` on screen, and
-  // `pumpAndSettle` — which `pumpPreview` calls — never returns while one is
-  // animating. This preview gets the same three assertions the shared suite
-  // makes (builds in EN, builds in AR, renders its OWN state) driven by fixed
-  // pumps instead.
   group('LocationSearchBar previews · Searching · nothing to list', () {
     Future<void> pumpSearching(
       WidgetTester tester, {
@@ -87,8 +66,6 @@ void main() {
 
       expect(find.text('fixture: searching, nothing yet'), findsOneWidget);
       // A 2 pt progress line is the entire feedback: the dropdown stays shut
-      // (`showResults` needs results, or a finished search), so there is no
-      // empty-state line and no skeleton row while the request is in flight.
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
       expect(find.text('No matching addresses'), findsNothing);
       expect(find.byIcon(Icons.place_outlined), findsNothing);
@@ -104,8 +81,6 @@ void main() {
       expect(find.text('Search for a place or address'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       // Not "No matching addresses": the empty-results line is suppressed until
-      // the user has typed something, which is the point of the `hasQuery`
-      // guard in `build`.
       expect(find.text('No matching addresses'), findsNothing);
       expect(
         _cardTop(tester),
@@ -148,9 +123,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The static state the cubit lands in after `selectSearchResult`:
-      // non-empty query, empty list, not searching — the same triple as a
-      // fruitless search. So the bar tells a user who has just chosen an
-      // address that there are no matching addresses.
       await pumpPreview(tester, locationSearchBarJustSelected);
 
       expect(find.text('Downtown, Beirut'), findsOneWidget); // in the field
@@ -173,7 +145,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The host mirrors `LocationPickerCubit.selectSearchResult` exactly:
-      // address into the query, list cleared, `isSearching` false.
       expect(find.text('Hamra Street, Beirut'), findsOneWidget); // the field
       expect(find.text('Downtown, Beirut'), findsNothing); // list is gone
       expect(find.text('No matching addresses'), findsOneWidget);
@@ -185,10 +156,8 @@ void main() {
       await pumpPreview(tester, locationSearchBarLongAndCoordinateOnly);
 
       // `address ?? '$latitude, $longitude'` — a pin the reverse geocoder has
-      // not resolved is presented to the user as two numbers to choose between.
       expect(find.text('33.8938, 35.5018'), findsOneWidget);
       // The long one is not truncated in the tree, only painted with an
-      // ellipsis, so the full string is what a screen reader gets.
       expect(
         find.text(
           'Beirut Souks — Parking Level B2, Weygand Street, Downtown Beirut',
@@ -221,8 +190,6 @@ void main() {
       );
 
       // '33.8938, 35.5018' carries no `textDirection`, so it inherits the RTL
-      // paragraph direction: the two number runs stay LTR internally but are
-      // ORDERED right-to-left, and an Arabic reader sees the longitude first.
       final RenderParagraph paragraph =
           tester.renderObject<RenderParagraph>(find.text('33.8938, 35.5018'));
       final List<TextBox> latitude = paragraph.getBoxesForSelection(
@@ -248,8 +215,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The canvas box this preview declares — a phone-width slab, not the
-      // 800x600 the other tests get, because the question is whether the
-      // dropdown fits on a phone.
       tester.view.physicalSize = const Size(390, 460);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -267,8 +232,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // `_ResultsList` is `shrinkWrap: true` + `NeverScrollableScrollPhysics`,
-      // so it takes whatever height its rows want and cannot be scrolled to
-      // give any of it back. Everything under the bar pays for that.
       expect(
         tester.getSize(find.byKey(locationSearchBarPreviewCardKey)).height,
         lessThan(cardAtOneX / 3),
@@ -316,11 +279,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Built here rather than driven through a preview because the defect is
-      // in the callback count, which the preview host (like the cubit) is
-      // idempotent about and therefore hides: `OmdsSearchBar._clearSearch`
-      // calls `onChanged('')` AND `onClear()`, and `LocationSearchBar` wires
-      // `onClear` to `onChanged('')` as well. On the picker screen that is two
-      // `searchAddress('')` calls, two emits and two rebuilds per tap.
       final List<String> changes = <String>[];
       final TextEditingController controller =
           TextEditingController(text: 'beirut');

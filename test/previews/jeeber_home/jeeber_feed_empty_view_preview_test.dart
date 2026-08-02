@@ -1,12 +1,4 @@
 // Render tests for the JeeberFeedEmptyView previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// The empty copy ("No Requests yet") is identical in all six states, so the
-// pinned string for each one is its GREETING line — that is the only text this
-// widget varies, and pinning the shared copy instead would let six previews of
-// the same state pass.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,8 +60,6 @@ void main() {
       await pumpPreview(tester, jeeberFeedEmptyViewDeadToggle);
 
       // What the dev-seam host renders today: no callback, so the Switch is
-      // disabled — yet `enabled` stays true, so the title is NOT dimmed and the
-      // control reads as live.
       expect(_switchTile(tester).onChanged, isNull);
       expect(_switchTile(tester).enabled, isTrue);
       expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);

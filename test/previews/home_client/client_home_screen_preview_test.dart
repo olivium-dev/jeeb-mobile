@@ -1,15 +1,4 @@
 // Render tests for the ClientHomeScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// This screen picks ONE of four bodies off `ClientHomeState.status` and then
-// ONE of three lists off the selected chip, so most of these previews would
-// satisfy a render-only check while showing the wrong surface entirely — an
-// "empty" preview whose fixture stopped arriving looks exactly like a "loading"
-// one that resolved. Every state therefore pins a string only IT can produce,
-// and the groups below pin the surface-exclusive contracts on top of that.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,8 +10,6 @@ import '../preview_test_harness.dart';
 
 /// The longest-content preview's header — the customer's free-text line on a
 /// request that never got a server order id. Declared here rather than imported
-/// so a preview quietly rewired to a short fixture fails instead of silently
-/// losing the one state that contests the header with the tier badge.
 const String _kLongTitle =
     'Pharmacy pickup on Rue Gouraud, then the bakery two streets down, '
     'then drop everything at the clinic on Independence Street';
@@ -31,7 +18,6 @@ void main() {
   setUpAll(loadPreviewArbs);
 
   // Every preview except `Loading · cold`, which cannot settle — see the
-  // dedicated group below.
   testPreviewsRender(
     'ClientHomeScreen',
     const <String, Widget Function()>{
@@ -63,11 +49,6 @@ void main() {
   );
 
   // The loading body is a centred `OmdsLoadingState`, i.e. an INDETERMINATE
-  // `CircularProgressIndicator`. `pumpAndSettle` (which `pumpPreview` calls)
-  // never returns while one is on screen, so this preview gets the same three
-  // assertions the shared suite makes — builds in EN, builds in AR, renders its
-  // OWN state — driven by fixed pumps instead. It has no body text to pin, so
-  // its state is pinned by the spinner plus the absence of every other body.
   group('ClientHomeScreen previews · Loading · cold', () {
     Future<void> pumpLoading(
       WidgetTester tester, {
@@ -105,12 +86,6 @@ void main() {
     });
 
     // DOCUMENTED DEFECT, not a desired behaviour. `_LoadingLayout` hard-codes
-    // `ClientHomeGreeting(name: null)` while `_FailedLayout` and `_ReadyLayout`
-    // both pass `state.greetingName` — which `ClientHomeCubit.load()` has
-    // already emitted by the time this frame paints. So the header greets the
-    // signed-in customer generically and then re-greets them by name when the
-    // snapshot lands. DELETE this test when the layout reads state; it will
-    // start failing, which is the point.
     testWidgets('DEFECT: the loading header forgets a name it already has', (
       WidgetTester tester,
     ) async {
@@ -123,10 +98,6 @@ void main() {
 
   group('ClientHomeScreen preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does NOT rebuild these — `previewCanvas` produces the same widget types,
-    // so the `BlocProvider` element is UPDATED rather than replaced and keeps
-    // the cubit the first preview created. The screen would still show the
-    // first state under the second preview's name.
     testWidgets('the ready surface keeps both on-hold chips and no third', (
       WidgetTester tester,
     ) async {
@@ -142,11 +113,6 @@ void main() {
     });
 
     // DOCUMENTED DEFECT, not a desired behaviour. `initialTab` still accepts
-    // `ClientHomeTab.inProgress` (the dev seam and the Screen Catalog pin it),
-    // but `_ClientHomeTabBar` renders chips for Pending and Replies only — so
-    // the In-Progress body paints under a tab bar in which NOTHING is selected.
-    // DELETE this test when the surface is fixed; it will start failing, which
-    // is the point.
     testWidgets('DEFECT: the In-Progress body renders with no chip selected', (
       WidgetTester tester,
     ) async {
@@ -155,7 +121,6 @@ void main() {
       // The In-Progress list really is the body on screen.
       expect(find.byKey(const Key('active-request-card-ip-1')), findsOneWidget);
       // …yet neither visible chip is selected, so the tab bar — the only signal
-      // of which list is on screen — says nothing at all.
       for (final Key key in const <Key>[
         Key('client-home-tab-pendingRequests'),
         Key('client-home-tab-replies'),

@@ -1,17 +1,4 @@
 // Render tests for the TranscriptionAudioCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// The card renders no copy of its own — every glyph on it is either an icon or
-// the `mm:ss / mm:ss` read-out — so a suite that only asked "did something
-// render" would pass with all six previews showing the same clip. The
-// `expectedText` pins below therefore key on the read-out, which is unique per
-// state by construction.
-//
-// The specifics group pins the three things the preview matrix surfaced that no
-// other test in the repo asserts: the card does not shrink-wrap, the progress
-// track is invisible at 0%, and the RTL mirroring is half-done.
 
 import 'dart:math' as math;
 
@@ -100,7 +87,6 @@ void main() {
       expect(await iconOf(transcriptionAudioCardPlaying),
           Icons.pause_circle_filled);
       // A spent clip is NOT paused — togglePlayback restarts from zero, so the
-      // play glyph is the honest one even though the bar reads 100%.
       expect(await iconOf(transcriptionAudioCardFinished),
           Icons.play_circle_filled);
       expect(await iconOf(transcriptionAudioCardUnknownDuration),
@@ -136,7 +122,6 @@ void main() {
       _usePhone(tester);
 
       // Production geometry: `_hosted`'s MainAxisSize.min Column reproduces the
-      // unbounded main axis the real ListView parent supplies.
       await pumpPreview(tester, transcriptionAudioCardPlaying);
       expect(
         _box(tester, find.byType(TranscriptionAudioCard)).size,
@@ -158,10 +143,8 @@ void main() {
       final Offset icon = _topLeft(tester, find.byType(IconButton));
 
       // _PlaybackProgress's Column is MainAxisSize.max, so the card takes the
-      // whole 400 pt slot instead of its 96 pt of content...
       expect(card.size.height, 400);
       // ...leaving the bar pinned near the top while the Row centres the icon
-      // 150 pt below it. No exception, no overflow stripe — it just separates.
       expect(bar.dy, lessThan(32));
       expect(icon.dy, greaterThan(150));
       expect(icon.dy - bar.dy, greaterThan(100));
@@ -191,9 +174,6 @@ void main() {
       expect(barLeftAr, lessThan(iconLeftAr));
 
       // And the unpinned '$position / $total' string reorders with it: elapsed
-      // paints to the RIGHT of total, which is what keeps it in step with a bar
-      // that now fills from the right. If someone ever pins this Text to LTR,
-      // this expectation flips and the numbers stop matching the fill.
       final RenderParagraph readOut =
           tester.renderObject<RenderParagraph>(find.text('00:17 / 00:42'));
       final Rect elapsed = readOut
@@ -220,14 +200,9 @@ void main() {
       );
 
       // Icons.play_circle_filled / pause_circle_filled carry no
-      // matchTextDirection, so the triangle keeps pointing right in Arabic
-      // while the playhead it controls now travels leftwards.
       final Icon icon = tester.widget<Icon>(find.byType(Icon));
       expect(icon.icon!.matchTextDirection, isFalse);
       // `Icon.build` only inserts the flipping Transform when the IconData opts
-      // in AND the ambient direction is RTL. Directionality here IS rtl (the
-      // bar mirrored), so the absence of that Transform is the mirroring not
-      // happening, not the locale failing to apply.
       expect(
         Directionality.of(tester.element(find.byType(Icon))),
         TextDirection.rtl,
@@ -247,8 +222,6 @@ void main() {
         'Pause',
       );
       // Enabled even in the state whose audio cannot actually be played: the
-      // card offers no disabled treatment at all (JEBV4-13 — togglePlayback
-      // swallows the failure and resets the toggle, so the tap looks dead).
       await pumpPreview(tester, transcriptionAudioCardUnknownDuration);
       expect(
         tester.widget<IconButton>(find.byType(IconButton)).onPressed,
@@ -288,15 +261,11 @@ void main() {
       final RenderParagraph readOut =
           tester.renderObject<RenderParagraph>(find.text('00:59 / 01:00'));
       // The Text has no maxLines and no overflow, so it soft-wraps around the
-      // ' / ' and grows the card. NOTE: `flutter test` substitutes a
-      // one-em-per-glyph font, so the wrap is a worst case — with the shipping
-      // Inter face this 13-character read-out fits on one line at 2.0.
       expect(readOut.size.height, greaterThan(16));
       expect(readOut.didExceedMaxLines, isFalse);
       expect(tester.takeException(), isNull);
 
       // The toggle, by contrast, is pinned: iconSize is a fixed 48 pt at every
-      // scale, so the button stays 64x64 while the read-out doubles.
       expect(_box(tester, find.byType(IconButton)).size, const Size(64, 64));
     });
 
@@ -315,8 +284,6 @@ void main() {
         );
 
         // The FILLED portion is fine — this is not a "the bar is unreadable"
-        // claim, it is a "the empty part of the bar is invisible" claim, which
-        // is what makes the Idle preview (progress 0.0) a blank 8 pt strip.
         expect(
           _contrast(scheme.primary, track),
           greaterThan(3.0),

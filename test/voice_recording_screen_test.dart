@@ -223,7 +223,6 @@ void main() {
       tester,
     ) async {
       // Pre-seed a cubit already in the sent state to verify the
-      // post-send UI: no raw "Send" button, "Record another" visible.
       final cubit = _buildCubit();
       addTearDown(cubit.close);
 
@@ -246,7 +245,6 @@ void main() {
       await tester.pump();
 
       // In sent phase, there should be no Send button (send is disabled AC3).
-      // "Record another" CTA replaces the send button.
       expect(find.text('إرسال'), findsNothing); // AR: send
       expect(find.text('Send'), findsNothing); // EN: send
     });

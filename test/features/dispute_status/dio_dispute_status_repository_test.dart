@@ -1,9 +1,4 @@
 // Unit tests for DioDisputeStatusRepository (JM-065). Locks the compliment-
-// service wire contract (`GET /v1/disputes/:disputeId`, 42_GUARDRAILS_MOCK §4):
-//   - parses the flat dispute object (open) + the auto-attached evidence (D53);
-//   - derives the typed outcome (refund / penalty / dismissed, D2) from the
-//     back-office `resolution` string once resolved;
-//   - maps 404 → notFound, 401/403 → unauthorized, timeouts → network.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';

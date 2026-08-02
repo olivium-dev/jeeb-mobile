@@ -56,7 +56,6 @@ void main() {
     expect(find.bySemanticsIdentifier('availability_switch'), findsOneWidget);
     expect(find.text("You're offline"), findsOneWidget);
     // The simplified dashboard deliberately removed the legacy supporting
-    // block from settled states; it now appears only while a toggle is pending.
     expect(find.byKey(AvailabilityStatusBlock.rootKey), findsNothing);
     expect(
       find.byKey(AvailabilityStatusBlock.activeDeliveriesKey),
@@ -87,8 +86,6 @@ void main() {
     expect(find.bySemanticsIdentifier('availability_switch'), findsOneWidget);
     expect(find.text("You're online — receiving requests"), findsOneWidget);
     // WP-B intentionally collapsed the settled online card to a two-line
-    // maximum. Active work is disclosed by the separate active-deliveries
-    // banner, so restoring this legacy line would duplicate that information.
     expect(
       find.byKey(AvailabilityStatusBlock.activeDeliveriesKey),
       findsNothing,
@@ -110,14 +107,12 @@ void main() {
     await tester.pumpAndSettle();
 
     // Cold-start fetch succeeded; flip the gateway into error mode and
-    // tap the toggle to drive the failure path.
     gateway.setError(true);
     await tester.tap(find.byKey(AvailabilityCard.toggleKey));
     await tester.pump(); // let the snackbar enqueue
     await tester.pump(const Duration(milliseconds: 50));
 
     // Targeted by the snackbar's localized content rather than a Key, so the
-    // screen can use the org-standard `showOmdsSnackbar` (which takes no Key).
     final l10n = AppLocalizations.of(
       tester.element(find.byType(JeeberHomeScreen)),
     );
@@ -148,7 +143,6 @@ void main() {
     final ticker = StreamController<DateTime>.broadcast();
     addTearDown(ticker.close);
     // Zero-threshold policy: the first tick after going online raises the
-    // warning, so we don't need a fake clock that runs 7h30 forward.
     const policy = AvailabilityInactivityPolicy(
       warnAfter: Duration.zero,
       autoOfflineAfter: Duration(days: 365),
@@ -179,12 +173,6 @@ void main() {
   });
 
   // Screen-19 crash regression. The unregistered home-tab seam path mounts
-  // `JeeberHomeScreen(isRegistered: false)` with NO `BlocProvider<
-  // AvailabilityCubit>` ancestor (the upsell view never reads the cubit). On
-  // the pre-fix source `didChangeDependencies` called
-  // `context.read<AvailabilityCubit>()` unconditionally and threw
-  // `ProviderNotFound<AvailabilityCubit>` before the first frame painted, so
-  // the upsell never rendered. (Verified: throws pre-fix → renders post-fix.)
   testWidgets(
     'unregistered path mounts without an AvailabilityCubit and renders the '
     'upsell root (screen 19)',
@@ -209,11 +197,6 @@ void main() {
   );
 
   // JM-036: the DELIVERY-tab gate passes `registerCtaIdentifier:
-  // 'delivery_register_now_cta'` so the register-prompt CTA is addressable by
-  // the coined screen id (65_W2_TEST_PLAN §2 JM-036) IN ADDITION TO the W0
-  // `jeeber_unregistered_register_button`. This verifies both ids surface as
-  // distinct nodes and that the coined id forwards the tap to `onRegister`
-  // (which the gate host wires to the onboarding wizard, AC1b).
   testWidgets(
     'register prompt exposes delivery_register_now_cta alongside the W0 id '
     'and forwards the tap (JM-036)',
@@ -253,7 +236,6 @@ void main() {
 
 /// Hosts `JeeberHomeScreen` on the UNREGISTERED path with NO availability
 /// cubit provider — exactly the `DashboardTab` `jeeb.home_tab=unregistered`
-/// seam condition that crashed before the didChangeDependencies guard.
 Widget _unregisteredHost({
   String? registerCtaIdentifier,
   VoidCallback? onRegister,

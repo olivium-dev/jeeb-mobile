@@ -1,10 +1,3 @@
-// Core Flow step 7 — V3 status → delivered/completed final-state mapping.
-//
-// Proves both client consumers map the V3 `Done` terminal correctly:
-//   * Customer tracking (DeliveryTrackingInfo): Done/completed → delivered step
-//     (4-step stepper index 3) + isDelivered, driving the receipt/final state.
-//   * Jeeber lifecycle (JeeberDeliveryStatus): Done is the terminal stage.
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
@@ -71,8 +64,6 @@ void main() {
       expect(JeeberDeliveryStatus.ordered.isTerminal, isFalse);
       expect(JeeberDeliveryStatus.inTransit.next, JeeberDeliveryStatus.atDoor);
       // P6/B2: `AtDoor → Done` is NOT a client-patchable edge — the frozen SM
-      // (DeliverySm.cs:53-62) opens that door only for `otp_verified`, so the
-      // forward ladder deliberately dead-ends here.
       expect(JeeberDeliveryStatus.atDoor.next, isNull);
       expect(JeeberDeliveryStatus.done.apiValue, 'Done');
     });

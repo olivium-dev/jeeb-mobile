@@ -19,7 +19,6 @@ import '../../domain/kyc_submission.dart';
 enum _ProbeSource { scheduled, resume }
 
 /// Loading state rendered while [KycWizardCubit.submit] is in flight.
-///
 class KycSubmittingView extends StatefulWidget {
   const KycSubmittingView({super.key});
 
@@ -273,101 +272,28 @@ class _SubmittingSpinner extends StatelessWidget {
 
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/kyc/kyc_submitting_view_preview_test.dart
-// ===========================================================================
-//
-// This is the spinner the wizard shows while `POST /v1/kyc/submit` is in
-// flight (`KycWizardStep.submitting`), and it is also the owner of the
-// JEBV4-259/271 submit-hang SAFETY NET: a bounded poller — five scheduled
-// probes 2 s apart plus three app-resume probes — that re-reads
-// `GET /v1/kyc/status` and advances the wizard off the spinner when the server
-// shows the submission already recorded.
-//
-// **The whole point of these previews is that the four wired states below are
-// PIXEL-IDENTICAL.** The body is a fixed icon + headline + copy + spinner; it
-// takes no arguments and reads nothing off the cubit, so a healthy two-second
-// submit, a submit whose upload has stalled, a submit whose automatic recovery
-// budget is fully spent, and a submit the safety net has already rescued all
-// render exactly the same frame. Open them side by side in the canvas and look
-// for the difference — there is none, and there is no retry, no cancel, no
-// elapsed-time hint and no error branch. That is the finding, held as an
-// assertion in `test/previews/kyc/kyc_submitting_view_preview_test.dart`.
-//
-// **What else the canvas shows.** Two things that only appear away from the
-// default reading, both pinned in the render test:
-//
-// * **200% text puts the spinner off the bottom of the phone.**
-//   `_SubmittingBody` is a centred `Column` with no scroll view, so on the
-//   390x700 body below it overflows by 84 dp in EN and 124 dp in AR at the
-//   accessibility ceiling, laying the spinner out at y=740 — below a 700 dp
-//   viewport, with nothing to scroll it back. On the 320 dp small-phone box
-//   the overflow is 528 dp (EN) / 344 dp (AR). At 100% text both boxes fit.
-//   The one element that says "something is still happening" is the first
-//   thing to leave the screen.
-// * **The live region stutters.** The `Semantics` container sets `label` and
-//   `hint` from the same two ARB keys the body already renders as `Text`, and
-//   excludes neither, so the descendants merge into the container's label: a
-//   screen reader announces the headline TWICE, then the body, then the body
-//   again as the hint.
-//
-// **Network-free by construction.** Every wired state is an ambient
-// `KycWizardCubit` built over `_KycSubmittingViewPreviewGateway`, a canned
-// in-memory `KycGateway`; no `Dio`, no DI, no `DioKycGateway`. The guard in
-// `jeebPreviewHost` is the net, not the plan.
-//
-// **Why `_KycSubmittingViewFrameClock` exists.** Unlike `KycStatusView` — which
-// takes an injectable `KycPollSchedule` a preview can shorten to 10 ms — this
-// view hardcodes its schedule as private `static const`s (2 s grace, 2 s
-// interval), so a preview cannot shorten it and must instead let the clock run.
-// The spinner itself is frozen with `TickerMode` (an indeterminate
-// `CircularProgressIndicator` never stops scheduling frames, so the render
-// tests' `pumpAndSettle` would hang on it), which leaves nothing driving the
-// frame clock — and a frozen canvas would then park every state before its
-// first probe. `_KycSubmittingViewFrameClock` keeps frames scheduled for
-// exactly as long as the state under review needs, and nothing longer.
 
 /// A phone body box: 390 dp wide, and as tall as an 844 dp phone leaves once
 /// the wizard's own AppBar, status bar and home indicator are taken out. Same
-/// box as the `KycStatusView` previews, so the two halves of the KYC tail are
-/// reviewed at the same scale.
 const Size _kycSubmittingViewWizardBody = Size(390, 700);
 
 /// The small-phone floor: a 320x568 handset (iPhone SE 1 / a 320 dp Android)
 /// minus the same chrome. The copy here is three lines of prose in a `Column`
-/// with no scroll view, so this is where it stops fitting first.
 const Size _kycSubmittingViewSmallBody = Size(320, 480);
 
 /// How long the safety net needs to reach each state, in frames.
-///
 /// `2 s` grace + `2 s` × 5 scheduled probes = the full automatic budget at
-/// t=10 s; the small margin on top is so the *last* probe has resolved rather
-/// than being in flight when the canvas settles.
 const Duration _kycSubmittingViewFirstProbe = Duration(milliseconds: 2200);
 const Duration _kycSubmittingViewBudgetSpent = Duration(milliseconds: 10500);
 
 /// Canned, in-memory [KycGateway] for previews.
-///
 /// It answers exactly one endpoint — `GET /v1/kyc/status` — because that is the
 /// only one this view can reach (through [KycWizardCubit.refreshWhileSubmitting]).
-/// Submit / schema / sign throw: this view is mounted BECAUSE a submit is
-/// already in flight, so a preview that reached them would be wrong, and a loud
-/// failure beats a plausible fake.
-///
-/// [resolvedReads] is how the hung state is pinned. Reads past that count are
-/// held open forever — never erroring, never resolving — which is what a status
-/// probe against a silent gateway looks like on a stalled upload, and what
-/// leaves the poller parked mid-request with no timer armed.
 class _KycSubmittingViewPreviewGateway implements KycGateway {
   _KycSubmittingViewPreviewGateway(this.snapshot, {this.resolvedReads = 1 << 20});
 
   /// What every resolved status read answers with. [KycStatus.notSubmitted] is
   /// "the server has no record of this submission yet", which is precisely the
-  /// answer that does NOT advance the wizard (see `refreshWhileSubmitting`).
   final KycSubmission snapshot;
 
   /// How many status reads resolve before the gateway goes silent.
@@ -420,12 +346,8 @@ class _KycSubmittingViewCubit extends KycWizardCubit {
 }
 
 /// Keeps frames scheduled for [duration], then stops.
-///
 /// The view arms a real [Timer] in `initState` and exposes no seam to shorten
 /// it, so the only way to see a state that lives past the 2 s grace window is
-/// to let the clock run. It sits ABOVE the [TickerMode] that freezes the
-/// spinner, so freezing the spinner does not also freeze the clock. It paints
-/// nothing.
 class _KycSubmittingViewFrameClock extends StatefulWidget {
   const _KycSubmittingViewFrameClock({
     required this.duration,
@@ -464,12 +386,6 @@ class _KycSubmittingViewFrameClockState
 
 /// Mounts the view the way `KycWizardScreen` does — as the whole body of the
 /// wizard, under an ambient [KycWizardCubit] sitting on
-/// [KycWizardStep.submitting].
-///
-/// Pass a null [gateway] for the unwired reading (no cubit in scope at all).
-/// [TickerMode] is disabled because the in-line `OmdsLoadingState` is an
-/// indeterminate spinner that never stops scheduling frames; a still preview
-/// wants a still spinner anyway.
 Widget _kycSubmittingViewHosted({
   KycGateway? gateway,
   Duration runFor = _kycSubmittingViewFirstProbe,
@@ -491,12 +407,7 @@ Widget _kycSubmittingViewHosted({
 }
 
 /// The view's own pixels, with no wizard around it.
-///
 /// This is the reading to review for layout, contrast and RTL: an 88 dp icon
-/// disc, a centred headline, two-to-three lines of body copy and a 24 dp
-/// spinner, centred in the wizard body. It is also an honest state — the poller
-/// reads `context.read<KycWizardCubit?>()` nullably, so with no cubit in scope
-/// the safety net silently does nothing at all and the spinner is terminal.
 @JeebPreview(
   group: 'kyc',
   name: 'Spinner only · no wizard cubit',
@@ -506,14 +417,6 @@ Widget kycSubmittingViewDetached() => _kycSubmittingViewHosted();
 
 /// The normal few seconds: the submit is in flight and the server has no record
 /// of it yet, so every safety-net probe comes back `notSubmitted` and correctly
-/// declines to advance the wizard.
-///
-/// The clock is run past the FULL automatic budget (t=10 s, five scheduled
-/// probes), which is the state worth staring at: the eight-request budget is
-/// spent, nothing is polling any more, and the screen looks precisely as it did
-/// at t=0. From here the only recoveries left are the submit future itself, the
-/// CDN-upload timeout, and `KycWizardCubit.onJeeberRoleGranted` — none of which
-/// the user can trigger, because this screen has no control on it.
 @JeebPreview(
   group: 'kyc',
   name: 'Probe budget spent · nothing recorded',
@@ -528,11 +431,6 @@ Widget kycSubmittingViewBudgetSpent() => _kycSubmittingViewHosted(
 
 /// JEBV4-259/271, the defect this view was built around: `submit()` HANGS — a
 /// half-open CDN-upload socket — and the status read hangs with it.
-///
-/// The poller issues its first probe at t=2 s and never gets an answer, so it
-/// parks mid-request with no timer armed and no budget spent. On rev2 this is
-/// the spinner that "sat for minutes". Rendered, it is indistinguishable from
-/// [kycSubmittingViewDetached] and from every other state here.
 @JeebPreview(
   group: 'kyc',
   name: 'Submit HUNG · status read never answers',
@@ -547,14 +445,6 @@ Widget kycSubmittingViewHung() => _kycSubmittingViewHosted(
 
 /// The safety net doing its job: the client never saw the 201, but the server
 /// has the submission recorded (`pending`), so the first probe at t=2 s advances
-/// the wizard onto [KycWizardStep.status] — no force-stop, no relaunch.
-///
-/// In the app that swaps the body to `KycStatusView`. In the canvas this preview
-/// mounts the submitting view directly, so what you see AFTERWARDS is still the
-/// spinner: the state change is real (the render test asserts the cubit left
-/// `submitting`) but this widget has no way to show it. Worth knowing before
-/// debugging a device that "stayed on the spinner" — the step may already have
-/// moved on underneath.
 @JeebPreview(
   group: 'kyc',
   name: 'Safety net fires · server recorded it',
@@ -567,11 +457,7 @@ Widget kycSubmittingViewSelfHeal() => _kycSubmittingViewHosted(
     );
 
 /// Layout ceiling: the same body on the 320 dp small-phone floor.
-///
 /// Nothing here scrolls — `_SubmittingBody` is a bare centred [Column] — so the
-/// narrower the box, the more lines the body copy takes and the sooner the
-/// column outgrows the viewport. This is the box where the 200% rendering of
-/// the matrix stops fitting; the exact overflow is pinned in the render test.
 @JeebPreview(
   group: 'kyc',
   name: 'Small phone body (320x480)',

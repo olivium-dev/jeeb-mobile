@@ -1,26 +1,4 @@
 // Render tests for the KycStatusScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// KycStatusScreen renders the SAME icon and the SAME two sentences in every
-// state — it has no data axis at all — so "did it render" is a weak question
-// here: all five previews would pass a render-only check while showing
-// identical content. The suite therefore does two extra jobs. The expected
-// strings pin WHICH window each preview simulates (the caption the fixture host
-// paints), and the group below measures what the screen actually did inside
-// that window. Those measurements are the only contract this screen has.
-//
-// One caveat on the overflow numbers. `flutter test` substitutes the
-// `FlutterTest` font, whose glyphs are squares of the font size and therefore
-// considerably wider than Inter's, so English wraps more often here than on a
-// device and the *threshold* at which the column stops fitting is more
-// pessimistic than a phone would show. The claims the suite leans on are the
-// font-INDEPENDENT ones: the screen contains no scrollable at all, and its
-// 100 pt icon does not follow the text scaler, so whenever the composition does
-// not fit there is nothing that can absorb the shortfall — it is clipped, and
-// the clipped part is unreachable.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -50,12 +28,6 @@ void main() {
   setUpAll(loadPreviewArbs);
 
   // `Compact · 200% text` is deliberately NOT in this map. It overflows by
-  // design-defect (see "the smallest phone at 200% clips" below), and
-  // `testPreviewsRender` asserts `takeException() is null` for every state it is
-  // given. Rather than weaken that assertion for the other four, the fifth
-  // preview gets its own pair of tests further down which pump it in BOTH
-  // locales, pin its caption the way `expectedText` would, and assert the
-  // overflow instead of tolerating it.
   testPreviewsRender(
     'KycStatusScreen',
     const <String, Widget Function()>{
@@ -65,9 +37,6 @@ void main() {
       'Notched · 200% text': kycStatusScreenNotchedLargeText,
     },
     // Every state names its own window. The screen shows the same icon and the
-    // same two sentences in all five, so without this a preview wired to the
-    // wrong window — or five previews accidentally sharing one — would pass
-    // unnoticed.
     expectedText: const <String, String>{
       'Phone 390 × 844': 'Phone · 390 × 844 · 100% text',
       'Compact 320 × 568': 'Compact · 320 × 568 · 100% text',
@@ -79,10 +48,6 @@ void main() {
   group('KycStatusScreen preview specifics', () {
     test('every window the fixture publishes has a preview above', () {
       // `KycStatusScreenWindows.all` is what the Screen Catalog enumerates, so
-      // a window added there without a matching `@JeebPreview` would silently
-      // exist for the designer and not for the engineer. That is exactly the
-      // drift the shared fixture file exists to prevent, so it is asserted
-      // rather than trusted.
       expect(
         KycStatusScreenWindows.all
             .map((KycStatusScreenWindow w) => w.label)
@@ -111,7 +76,6 @@ void main() {
 
     /// Pumps [preview] and returns the rect of the screen inside its simulated
     /// window, draining any layout exception so the caller decides what to do
-    /// with it.
     Future<Rect> frameRect(
       WidgetTester tester,
       Widget Function() preview, {
@@ -126,8 +90,6 @@ void main() {
     testWidgets('each preview simulates its own window, not the 800 × 600 host',
         (WidgetTester tester) async {
       // If the fixture ever stopped pinning the MediaQuery/SizedBox, every
-      // state would collapse onto the test surface and the rest of this group
-      // would be asserting nothing.
       expect(
         (await frameRect(tester, kycStatusScreenPhone)).size,
         _phoneFrame,
@@ -154,8 +116,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `KycStatusScreenWindow.textScale` is nullable on purpose: a window that
-      // pinned 1.0 would overwrite the `matrix: true` 200% card and label a
-      // 100% rendering "EN 200% text". This pins both halves of that.
       Future<double> scale(Widget Function() preview) async {
         await pumpPreview(tester, preview);
         final double s = MediaQuery.textScalerOf(
@@ -176,14 +136,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The structural half of the clipping defect, and the half that does not
-      // depend on the test font. `OmdsEmptyStatePage` is
-      // `Scaffold(body: Center(child: OmdsEmptyState(...)))` and
-      // `OmdsEmptyState` is a bare `Column(mainAxisSize: min)` — no ListView,
-      // no SingleChildScrollView. Whatever does not fit is not merely below the
-      // fold, it is unreachable.
-      //
-      // The fixture host's own two SingleChildScrollViews sit ABOVE the screen,
-      // which is why this is scoped to descendants of KycStatusScreen.
       await pumpPreview(tester, kycStatusScreenPhone);
 
       expect(
@@ -194,8 +146,6 @@ void main() {
         findsNothing,
       );
       // The screen brings its own Scaffold (OmdsEmptyStatePage returns one), so
-      // `jeebPreviewHost`'s wrapper Scaffold nests around a second one. Recorded
-      // because the canvas shows the doubled surface and it looks like a bug.
       expect(
         find.descendant(
           of: find.byType(KycStatusScreen),
@@ -209,9 +159,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The other font-independent half. `OmdsEmptyStatePage` passes a fixed
-      // `iconSize` of 100, so at the accessibility ceiling the text doubles
-      // around an illustration that stays exactly as tall — the column can only
-      // grow, never rebalance.
       await pumpPreview(tester, kycStatusScreenPhone);
       final Size atDefault =
           tester.getSize(find.byIcon(Icons.construction_outlined));
@@ -233,8 +180,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The reference reading, and the reason the state below went unnoticed:
-      // in the one window everybody reviews, this screen is exactly as simple
-      // as it looks.
       final Rect frame = await frameRect(tester, kycStatusScreenPhone);
       final Rect column = tester.getRect(
         find.descendant(
@@ -252,10 +197,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `appBar: null` means nothing consumes the 59 pt status bar, and
-      // `Scaffold` does not SafeArea its body, so the only thing keeping this
-      // screen out from under the notch is that its content is centred and
-      // short. Asserted rather than assumed — it stops being true the moment
-      // someone gives the placeholder a third line or a CTA.
       final Rect frame = await frameRect(
         tester,
         kycStatusScreenNotchedLargeText,
@@ -285,15 +226,6 @@ void main() {
         'the smallest phone at 200% clips, in ${locale.languageCode}',
         (WidgetTester tester) async {
           // The state that breaks, and the reason `Compact · 200% text` is kept
-          // out of `testPreviewsRender` above. The centred column asks for more
-          // height than the padded window has; with no scrollable and no icon
-          // that can give way, the ends of the composition are cut off and the
-          // user has no gesture that would bring them back.
-          //
-          // Both locales, because the copy is identical in both (it is
-          // hardcoded English) and the padding is symmetric, so the defect is
-          // locale-independent — asserted rather than assumed, since "it is
-          // only an English problem" is the usual first guess.
           await pumpPreview(
             tester,
             kycStatusScreenCompactLargeText,
@@ -301,7 +233,6 @@ void main() {
           );
 
           // Pins WHICH window this preview simulates, the same job
-          // `expectedText` does for the other four states.
           expect(find.text('Compact · 320 × 568 · 200% text'), findsOneWidget);
           expect(
             tester.takeException().toString(),
@@ -318,9 +249,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Both sentences are string literals in `build`, not `AppLocalizations`
-      // lookups, so the AR RTL card of the `Phone 390 × 844` matrix shows
-      // English inside a right-to-left layout. If this test starts failing,
-      // someone localized the screen — delete it, that is the fix.
       await pumpPreview(
         tester,
         kycStatusScreenPhone,
@@ -339,20 +267,11 @@ void main() {
       WidgetTester tester,
     ) async {
       // `Semantics(container: true, label: 'KYC Status coming soon. This screen
-      // is not yet available.')` wraps a subtree that already publishes both
-      // sentences as Text, and does not set `explicitChildNodes`, so the
-      // wrapper's label and the two Texts MERGE into a single node. A screen
-      // reader reads the pair, then reads it again.
-      // Disposed inline rather than via `addTearDown`: the framework's
-      // end-of-test verification runs BEFORE tear-downs and fails on a live
-      // handle.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, kycStatusScreenPhone);
 
       // One node covers the whole screen — the wrapper's label and both Texts
-      // collapsed into it — so asking for the title's node returns the merged
-      // announcement.
       final SemanticsNode node = tester.getSemantics(find.text(_title));
       final String label = node.label;
 

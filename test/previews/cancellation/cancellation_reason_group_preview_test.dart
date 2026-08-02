@@ -1,23 +1,6 @@
 // Render tests for the CancellationReasonGroup previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-//
-// Four of the five previews are the SAME widget told apart only by their reason
-// list and which row is selected, and two of them render the identical four
-// client labels. So `expectedText` pins a string that appears in NO other state
-// where one exists, and the selection — the thing text cannot express — is
-// pinned separately below by counting checked/unchecked glyphs. The empty
-// preview renders no text at all; it is pinned by absence, which is the only
-// assertion a zero-height Column can carry.
-//
-// The last group is not preview hygiene. It is what these previews exposed: a
-// 24 dp selection indicator that does not grow at the 200% accessibility
-// ceiling, and a per-row Semantics container that duplicates the label of the
-// ListTile underneath it while advertising a button role it has no tap action
-// for.
 
 // `Tristate`/`CheckedState` are the types `SemanticsFlags` now uses and are not
-// re-exported by `package:flutter/semantics.dart`.
 import 'dart:ui' as ui show CheckedState, Tristate;
 
 import 'package:flutter/material.dart';
@@ -47,13 +30,7 @@ const String _longLabel =
 const String _longLabelSibling = 'Something else, described below';
 
 /// Pumps a preview into a phone-WIDTH box, the way the canvas renders it.
-///
 /// The width is load-bearing for every measurement below: at the 800 dp default
-/// test surface no label wraps, so the state whose whole point is wrapping would
-/// be reviewed at a width the app never uses. The height is generous because the
-/// group grows rather than overflowing (production scrolls it), so a short box
-/// would only produce a render-overflow exception that says nothing about the
-/// widget.
 Future<void> _pumpAtPhoneWidth(
   WidgetTester tester,
   Widget Function() preview, {
@@ -110,7 +87,6 @@ void main() {
       // Fixture copy that exists in no ARB.
       'Long label · wraps to several lines': _longLabel,
       // 'No reasons · renders nothing' renders no text by design — it is pinned
-      // by absence in `preview specifics` instead. A string here would be a lie.
     },
   );
 
@@ -129,8 +105,6 @@ void main() {
         expect(find.text(label), findsOneWidget, reason: label);
       }
       // The submit button on the screen stays disabled until one of these is
-      // tapped, so a checked ring here would be a one-tap cancellation of a
-      // delivery the user never picked a reason for.
       expect(find.byIcon(Icons.radio_button_checked), findsNothing);
       expect(find.byIcon(Icons.radio_button_unchecked), findsNWidgets(4));
     });
@@ -150,7 +124,6 @@ void main() {
         isTrue,
       );
       // It is the LAST row, which is what puts the free-text field it reveals
-      // below the fold on a short phone.
       expect(
         tester.getRect(_rowOf(_other)).top,
         greaterThan(tester.getRect(_rowOf(_changedMind)).top),
@@ -161,8 +134,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The previews seed a selection and then own it, so a reviewer can click
-      // in the canvas instead of reading a frozen picture. If this breaks, the
-      // canvas silently becomes a set of dead images.
       await _pumpAtPhoneWidth(tester, cancellationReasonGroupClientUnselected);
       expect(find.byIcon(Icons.radio_button_checked), findsNothing);
 
@@ -204,7 +175,6 @@ void main() {
       await _pumpAtPhoneWidth(tester, cancellationReasonGroupLongLabel);
 
       // No `maxLines` and no `overflow` on the tile's title, so the whole
-      // string is laid out rather than clipped with an ellipsis.
       final Text title = tester.widget<Text>(find.text(_longLabel));
       expect(title.maxLines, isNull);
       expect(title.overflow, isNull);
@@ -225,9 +195,6 @@ void main() {
       );
 
       // `ListTile` centres its leading slot unless `isThreeLine` is set, and
-      // `OmdsSettingsRow` never sets it — so the radio floats at the MIDDLE of
-      // a multi-line label rather than beside the first line the reader starts
-      // on. Worth knowing before a longer reason ships.
       final Rect glyph =
           tester.getRect(find.byIcon(Icons.radio_button_checked));
       final Rect label = tester.getRect(find.text(_longLabel));
@@ -245,7 +212,6 @@ void main() {
       expect(find.byType(Icon), findsNothing);
       expect(find.byType(Text), findsNothing);
       // A zero-height Column: the screen degrades to its prompt above a blank
-      // gap and a submit button that can never enable.
       expect(
         tester.getSize(find.byType(CancellationReasonGroup)).height,
         0.0,
@@ -268,7 +234,6 @@ void main() {
       );
       expect(Directionality.of(group), TextDirection.rtl);
       // `ListTile` mirrors its own leading slot, so the radio must land to the
-      // RIGHT of the label it marks.
       expect(
         tester.getRect(find.byIcon(Icons.radio_button_checked)).left,
         greaterThan(tester.getRect(find.text('أخرى')).right),
@@ -282,7 +247,6 @@ void main() {
       await _pumpAtPhoneWidth(tester, cancellationReasonGroupOtherSelected);
 
       // The id is built from the CODE, not the label, so it survives i18n and
-      // reordering — that is what the Maestro suite addresses rows by.
       for (final String code in const <String>[
         'changed_mind',
         'wait_too_long',
@@ -315,8 +279,6 @@ void main() {
   });
 
   // The defects the previews exposed, held as assertions so they cannot regress
-  // unnoticed — and so that FIXING them fails this file loudly rather than
-  // leaving a stale claim behind.
   group('CancellationReasonGroup defects', () {
     testWidgets('the radio glyph never grows with the label it marks', (
       WidgetTester tester,
@@ -356,15 +318,10 @@ void main() {
         find.bySemanticsIdentifier('cancellation_reason_other'),
       );
       // `_ReasonTile` wraps `OmdsSettingsRow` in `Semantics(container: true,
-      // label: label, button: true)`, and the `ListTile` underneath publishes
-      // its own labelled, tappable node. Both are focusable, so swiping through
-      // four reasons costs eight stops and says "Other" twice.
       expect(row.label, _other);
       expect(_descendantLabels(row), contains(_other));
 
       // The outer node claims a button role it cannot service: `onTap` was
-      // passed to the row, not to the Semantics wrapper, so the node that owns
-      // the identifier has no tap action of its own.
       final SemanticsData data = row.getSemanticsData();
       expect(data.flagsCollection.isButton, isTrue);
       expect(
@@ -387,12 +344,8 @@ void main() {
           .getSemanticsData()
           .flagsCollection;
       // The widget's own doc promises the selected reason is announced, and
-      // `selected:` does deliver that much.
       expect(flags.isSelected, ui.Tristate.isTrue);
       // But nothing marks these four rows as ONE mutually exclusive choice, and
-      // nothing gives them a checked state, so a screen-reader user hears
-      // "Other, selected, button" with no signal that picking it unpicked
-      // another row — the flags `Radio` sets for exactly this shape.
       expect(
         flags.isInMutuallyExclusiveGroup,
         isFalse,

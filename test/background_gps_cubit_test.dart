@@ -209,7 +209,6 @@ void main() {
       expect(cubit.state.stationary, isTrue);
 
       // 100 ms later — past the active interval (50 ms) but below
-      // the stationary interval (300 ms). Must be dropped.
       await gateway.emit(_sample(
         speed: 0.1,
         capturedAt: base.add(const Duration(milliseconds: 100)),

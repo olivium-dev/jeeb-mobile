@@ -1,20 +1,4 @@
 // Render tests for the DeliveryEtaBadge previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Two deviations from that template, both on purpose:
-//
-//   * Inter is loaded. Half of what this widget can get wrong is geometry — how
-//     much of the header row the pill eats and what that does to the caption
-//     beside it — and widths measured under the square test font are fiction.
-//   * Two states cannot be pinned on the pill's own text. `Past due` and
-//     `Arriving now` both render "Arriving now" (that IS the contract for a
-//     non-positive ETA), and `Narrow phone` renders the same "120 min" as
-//     `Ceiling`. Those two are pinned on their caption — a per-state delivery
-//     id — and the behaviour that actually distinguishes them is asserted in
-//     the specifics group below.
 
 import 'dart:math' as math;
 
@@ -71,7 +55,6 @@ void main() {
   setUpAll(() async {
     loadPreviewArbs();
     // Geometry, not glyphs, is what half of these states are for — the widths
-    // are meaningless under the square test font.
     await loadInterTestFont();
   });
 
@@ -80,14 +63,11 @@ void main() {
     _previews,
     expectedText: const <String, String>{
       // Pinned on the pill's OWN output wherever that output is unique to the
-      // state: the value is the entire point of the widget, so binding to
-      // anything else would pass on a badge showing the wrong number.
       'In transit · 7 min': '7 min',
       'Arriving now · 1 min': 'Arriving now',
       'Threshold · 2 min': '2 min',
       'Ceiling · 120 min': '120 min',
       // These two repeat a pill above — see the header note. Pinned on their
-      // captions; their real contracts are asserted below.
       'Past due · negative ETA': 'Delivery #PAST-DUE-9',
       'Narrow phone · 120 min': _narrowCaption,
     },
@@ -102,8 +82,6 @@ void main() {
       expect(find.textContaining('1 min'), findsNothing);
 
       // The neighbouring value must still be a number. If this ever flips, the
-      // `minutes <= 1` comparison was widened and every courier gained a
-      // minute of grace they did not earn.
       await pumpPreview(tester, deliveryEtaBadgeThreshold);
       expect(find.text('2 min'), findsOneWidget);
       expect(find.text('Arriving now'), findsNothing);
@@ -115,12 +93,8 @@ void main() {
       await pumpPreview(tester, deliveryEtaBadgePastDue);
 
       // `DeliverySnapshot.etaMinutes` is an unvalidated `int?` and nothing
-      // between the gateway stream and this widget clamps it. `minutes <= 1`
-      // is the only thing standing between a past-due delivery and a pill
-      // reading "-6 min".
       expect(find.text('Arriving now'), findsOneWidget);
       // Scoped to the pill: the caption ("Delivery #PAST-DUE-9") is allowed its
-      // hyphens, the ETA value is not allowed any.
       expect(
         find.descendant(
           of: find.byKey(DeliveryEtaBadge.rootKey),
@@ -169,9 +143,6 @@ void main() {
       final Rect rtlPill = _pill(tester);
       final Rect rtlRow = _row(tester);
       // Arabic: the whole row mirrors, so the pill is hard against the LEFT
-      // edge. Nothing in the badge arranges this — its padding is
-      // `EdgeInsets.symmetric` and its gaps are `SizedBox`es, so there is no
-      // directional inset to get wrong. This asserts that stays true.
       expect(rtlPill.left, closeTo(rtlRow.left, 0.5));
       expect(rtlPill.right, lessThan(ltrPill.right));
     });
@@ -192,11 +163,6 @@ void main() {
       expect(_pill(tester).size.width, greaterThan(pillAt100.width * 1.3));
 
       // ...but `Icon(size: 16)` does not, because `applyTextScaling` defaults
-      // to false and nothing in `AppTheme` registers an `iconTheme` to turn it
-      // on. At the 200% ceiling a 16pt glyph sits beside a 28pt value.
-      // Asserted as the gap it currently is: if the icon ever starts scaling,
-      // this fails and the notes on the previews need deleting, which is the
-      // point.
       expect(tester.getSize(find.byType(Icon)), iconAt100);
       expect(iconAt100, const Size(16, 16));
     });
@@ -214,15 +180,9 @@ void main() {
       await pumpPreview(tester, deliveryEtaBadgeNarrowCeiling);
 
       // The pill is the non-flexible child of the row, so it is laid out first
-      // against unbounded width and takes what it wants — three quarters of the
-      // narrowest phone the app supports.
       expect(_pill(tester).width, greaterThan(rowWidth * 0.7));
 
       // The caption pays for all of it. It has no `maxLines`/`overflow` either,
-      // so it does not ellipsize — it wraps into a stack of fragments and drags
-      // the header several times its own height. This is the failure mode to
-      // recognise: not a RenderFlex overflow (there is none — the assertion
-      // below is deliberate), but a header that stops reading as one.
       expect(_lineCount(tester, _narrowCaption), greaterThanOrEqualTo(4));
       expect(_row(tester).height, greaterThan(_pill(tester).height * 2));
       expect(tester.takeException(), isNull);
@@ -237,7 +197,6 @@ void main() {
           .decoration! as BoxDecoration;
 
       // Binds the colour finding below to this widget: whatever that role
-      // resolves to in a scheme is what the ETA pill wears.
       expect(decoration.color, AppTheme.light().colorScheme.primaryContainer);
     });
 
@@ -246,7 +205,6 @@ void main() {
       final ColorScheme dark = AppTheme.dark().colorScheme;
 
       // Legibility is not the issue at either end — 13.28:1 and 7.23:1, both
-      // well clear of the 4.5:1 WCAG AA asks of the 11pt label.
       expect(
         _contrast(light.onPrimaryContainer, light.primaryContainer),
         greaterThan(4.5),
@@ -257,11 +215,6 @@ void main() {
       );
 
       // Identity is. `AppTheme.light()` overrides `primaryContainer` to the
-      // brand ORANGE container (#FFDBD1, hue 13°); `AppTheme.dark()` takes the
-      // M3 tone off the NAVY seed (#3C4279, hue 234°). So the ETA pill — one of
-      // the few coloured fills on the delivery screen — is orange in light and
-      // blue in dark, which only the AR RTL dark rendering of the matrix makes
-      // obvious.
       final double hueGap = (HSLColor.fromColor(light.primaryContainer).hue -
               HSLColor.fromColor(dark.primaryContainer).hue)
           .abs();

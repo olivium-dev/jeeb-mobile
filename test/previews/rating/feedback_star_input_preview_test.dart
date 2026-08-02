@@ -1,17 +1,4 @@
 // Render tests for the FeedbackStarInput previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Every state pins a DISTINCT title, because a
-// suite that only asked "did something render?" would pass on five copies of
-// the same row.
-//
-// FeedbackStarInput renders no text at all — five glyphs and nothing else — so
-// the title alone would be a weak pin: it lives in the preview's specimen, not
-// in the widget. The `fill` group below therefore counts filled vs empty stars
-// per state, which is the only thing the widget itself puts on screen, and the
-// `geometry` group measures the row the way a reviewer squints at the canvas.
-// Both of those groups also pin behaviour that is currently WRONG (see the
-// comments on each); they are regression pins, not endorsements.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -25,7 +12,6 @@ import '../preview_test_harness.dart';
 
 /// `OmdsStarRating` renders empty stars as [Icons.star_border] and filled ones
 /// as [Icons.star]; there is no other signal, in the widget or in semantics,
-/// that says how many are selected.
 Finder get _filled => find.byIcon(Icons.star);
 Finder get _empty => find.byIcon(Icons.star_border);
 
@@ -96,7 +82,6 @@ void main() {
       await pumpPreview(tester, feedbackStarInputOneStar);
 
       // The hardest reading in the set: one 40 dp glyph is the entire
-      // difference between a screen that will not submit and one that will.
       expect(_filled, findsOneWidget);
       expect(_empty, findsNWidgets(4));
       expect(find.text('value 1 / 5'), findsOneWidget);
@@ -126,10 +111,6 @@ void main() {
       await pumpPreview(tester, feedbackStarInputOutOfRange);
 
       // `stars` is an unvalidated int. 9 asserts nothing, throws nothing and
-      // paints EXACTLY what a genuine five-star rating paints — the readout is
-      // the only thing on screen that can tell the two apart, and the readout
-      // belongs to this preview, not to the widget. Upstream, the score payload
-      // is parsed with `(raw as num?)?.toInt() ?? 0` and clamped nowhere.
       expect(tester.takeException(), isNull);
       expect(_filled, findsNWidgets(5));
       expect(_empty, findsNothing);
@@ -142,7 +123,6 @@ void main() {
       await pumpPreview(tester, feedbackStarInputUnrated);
 
       // Tap the 4th star. At rating 0 every star is an outline, so the
-      // tappable glyphs are the borders (same trick as feedback_screen_test).
       await tester.tap(_empty.at(3));
       await tester.pumpAndSettle();
 
@@ -159,10 +139,6 @@ void main() {
       await _pumpOnPhone(tester, feedbackStarInputThreeOfFive);
 
       // `starSize: Sizes.threeXLarge` is 40, and the glyph is the whole hit
-      // box — OmdsStarRating puts the 4 dp spacer OUTSIDE the icon and
-      // RenderPadding does not hit-test its own padding. So all five targets
-      // are 40 x 40 against a 48 dp floor (A11y.minTapTargetSize, AC
-      // T-mobile-036), and nothing wraps them in MinTapTarget.
       for (final Rect rect in _starRects(tester)) {
         expect(rect.size, const Size(40, 40));
         expect(rect.height, lessThan(A11y.minTapTargetSize));
@@ -184,8 +160,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // 5 x 40 + 4 x 4. Icon sizes are logical pixels, not text, so the text
-      // scaler does not touch them: at the 200% ceiling the AC asks for, the
-      // label describing this control doubles and the control does not move.
       expect(atNormal, const Size(216, 40));
       expect(tester.getSize(find.byType(OmdsStarRating)), atNormal);
     });
@@ -215,15 +189,6 @@ void main() {
       final Rect row = tester.getRect(find.byType(OmdsStarRating));
 
       // OmdsStarRating spaces with a PHYSICAL `EdgeInsets.only(right: …)`
-      // instead of `EdgeInsetsDirectional.only(end: …)`. The Row mirrors, the
-      // padding does not, so the whole gap sequence slides one glyph over: a
-      // stray 4 dp inset appears on the leading (right) edge and the gap
-      // between the 4th and 5th stars disappears entirely.
-      //
-      // REGRESSION PIN, NOT AN ENDORSEMENT: when OMDS switches to
-      // EdgeInsetsDirectional these expectations become [4, 4, 4, 4] and 0/4,
-      // matching the LTR test above. Update them then — the fix is upstream in
-      // omds_library/lib/src/reviews/omds_star_rating.dart, not here.
       expect(_gaps(rects, rtl: true), <double>[4, 4, 4, 0]);
       expect(row.right - rects.first.right, 4);
       expect(rects.last.left - row.left, 0);
@@ -235,7 +200,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Disposed inline rather than in a tearDown: the end-of-test handle
-      // verification runs BEFORE tearDowns and fails on a live handle.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, feedbackStarInputUnrated);
@@ -249,10 +213,6 @@ void main() {
       expect(data.value, '0 / 5');
 
       // ...but wires up neither adjust action, so a screen reader offers
-      // "swipe up/down to adjust" on a control where that does nothing. The
-      // only way to set a rating is to hit one of the 40 dp stars. There is no
-      // label either: the node announces "0 / 5" with nothing to say it is a
-      // rating, and "/ 5" is not localized copy.
       expect(data.hasAction(SemanticsAction.increase), isFalse);
       expect(data.hasAction(SemanticsAction.decrease), isFalse);
       expect(data.label, isEmpty);

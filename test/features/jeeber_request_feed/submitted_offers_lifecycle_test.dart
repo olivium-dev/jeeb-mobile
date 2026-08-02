@@ -1,7 +1,4 @@
 // sprint-009 offer-lifecycle: the pending-offers list now surfaces EVERY offer
-// the jeeber submitted (with an Accepted / Not selected / awaiting badge off
-// [OfferStatus]) instead of filtering to submitted-only, and reacts to an
-// offer_accepted/offer_lost push (flip in place + authoritative re-pull).
 
 import 'dart:async';
 import 'dart:convert';
@@ -97,7 +94,6 @@ void main() {
       expect(cubit.state.offers.single.status, OfferStatus.submitted);
 
       // Server now reports it accepted; the flip is optimistic, the re-pull is
-      // authoritative.
       repo.next = [
         const SubmittedOffer(
           id: 'o1',
@@ -167,7 +163,6 @@ class _RecordingAdapter implements HttpClientAdapter {
   ) async {
     if (options.method == 'DELETE') {
       // Return the raw status; Dio's validateStatus turns a 4xx into a
-      // DioException whose `response.statusCode` the repo reads.
       return ResponseBody.fromString('', deleteStatus);
     }
     return ResponseBody.fromString(

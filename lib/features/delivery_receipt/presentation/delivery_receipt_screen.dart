@@ -308,105 +308,12 @@ class _LoadedBody extends StatelessWidget {
   }
 }
 // ============================== JEEB PREVIEWS ==============================
-// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/delivery_receipt/delivery_receipt_screen_preview_test.dart
 // ===========================================================================
-//
-// This is a SCREEN, so four things differ from a widget preview.
-//
-// 1. It owns its own `Scaffold` (OMDSAppBar + body) and [jeebPreviewHost] wraps
-//    every child in one as well, so the canvas shows two nested Scaffolds. The
-//    inner one is the real surface; the outer contributes only a background.
-//    The canvas box is therefore a real device
-//    ([_deliveryReceiptScreenPhoneBox], 390x844) rather than the harness's
-//    default 390x200 — a scrolling prompt with a 200 pt photo slot and two
-//    stacked CTAs cannot be judged in a 200 pt strip.
-//
-// 2. It is not merely un-tappable without a `Router` — it is un-SURVIVABLE.
-//    BOTH CTAs navigate: `receipt_confirm_cta` reaches
-//    `context.goNamed('mutual-rating')` through the confirm listener the moment
-//    the settlement lands, and `receipt_not_yet_cta` reaches
-//    `context.pushNamed('escalate')` directly. A router-less host would throw
-//    on either tap — that is, on both of the only two things this screen does.
-//    [_DeliveryReceiptScreenHost] supplies a local [GoRouter] whose LONE ROOT
-//    page is the receipt prompt (the deep-link stack shape, nothing to pop)
-//    plus stand-ins at the two real paths and names.
-//
-// 3. The ONLY injectable seam is `repository:`. Unlike the rating terminal
-//    there is no `cubit:`/`seed:` seam — `DeliveryReceiptScreen.build` builds
-//    its own [DeliveryReceiptCubit] inside `BlocProvider.create` and calls
-//    `load()` on it — so every state below is reached the way production
-//    reaches it: through a repository that answers, stalls, or throws. Two real
-//    states are consequently NOT constructible as a first frame:
-//    `ReceiptConfirmStatus.inFlight` and `.failed` exist only after a tap.
-//    `Confirm rejected · 422` is the closest a preview can get: it loads
-//    normally and is bound to reject, so pressing the CTA in the canvas paints
-//    `receipt_confirm_error` in place. The render test performs that tap.
-//
-// 4. Two previews CANNOT settle, and the render test treats them separately.
-//    `Loading · fetch in flight` is an indeterminate `CircularProgressIndicator`
-//    (`OmdsLoadingState`), and `Loaded · proof photo + $9.00 cash` renders
-//    `OmdsCachedImage`, whose shimmer placeholder animates until the CDN
-//    answers — which under `flutter test` is never. Every other state below
-//    deliberately carries `proofPhotoUrl: null`, which is both the commoner
-//    production case and what keeps them poolable by `testPreviewsRender`.
-//
-// Every state is driven by a fake shared verbatim with the Screen Catalog entry
-// (`lib/devtool/catalog/fixtures/delivery_receipt_screen_fixtures.dart`).
-// Nothing here builds a `DioDeliveryReceiptRepository` and nothing resolves
-// GetIt — network-free by construction rather than by the guard in
-// [jeebPreviewHost]. That is load-bearing here: `_resolveRepository()` falls
-// back to the Dio implementation whenever `sl<Dio>()` is registered, so a
-// preview that forgot `repository:` would read a live delivery.
-//
-// Each card carries a caption ([DeliveryReceiptScreenCaptions]) because two of
-// these states put NO distinguishing copy on screen — the loading spinner has
-// none at all, and `Confirm rejected` opens on an ordinary loaded body. Same
-// device as `MutualRatingScreenCaptions`.
-//
-// What these previews surfaced in the screen — see the notes on each:
-//
-//  * `receipt_proof_photo` announces itself as an IMAGE labelled "Proof of
-//    delivery photo" even when the jeeber uploaded none. The `Semantics` node
-//    wraps the whole `ClipRRect`, so the neutral `image_not_supported`
-//    placeholder inherits `image: true` and the same label: a screen-reader
-//    user is told proof of delivery exists whenever this screen is open. Every
-//    amount-less/photo-less preview below shows it, and the render test pins it.
-//  * the 404 state is a DEAD END. `OMDSAppBar(showBackButton: false)` is
-//    deliberate for the confirm/dispute fork, but `DeliveryReceiptStatus.failed`
-//    replaces the whole body — including `receipt_not_yet_cta`, the escape
-//    hatch — and leaves one `Retry` that re-runs the same 404. Reached as the
-//    deep link it is documented to be, there is nothing to pop either.
-//    `Error · 404 receipt not found` is that screen.
-//  * `DeliveryReceiptCubit.acknowledgeConfirmError()` is dead code: nothing in
-//    this file (or anywhere in `lib/`) calls it. The confirm banner is cleared
-//    only by starting another confirm, so there is no dismiss.
-//  * the amount-less degrade is honest but silent: `Pay the order amount in
-//    cash to Kamal Hajj` asks the customer to hand over a sum the app declines
-//    to name, with no "check with your courier" hint. That is the run-22 P1-A
-//    trade — never fabricate `$0.00` — made visible rather than argued about.
-//  * at 200% text the whole confirm/dispute fork leaves the first screenful.
-//    The proof-photo slot is a hardcoded `height: 200` in BOTH branches, so it
-//    does not shrink to make room while everything around it grows: measured on
-//    the 390x844 device these previews declare, neither `receipt_confirm_cta`
-//    nor `receipt_not_yet_cta` is even built, under a heading still asking a
-//    yes/no question. Both are one scroll away, and the render test pins the
-//    measurement. Visible in the 200% card of the matrixed states.
 
 /// The canvas box for a whole screen: a real phone, not the harness default.
 const Size _deliveryReceiptScreenPhoneBox = Size(390, 844);
 
 /// The caption each preview is pinned by.
-///
-/// Public because the render test's `expectedText` map is the reason two of
-/// them exist — see note 4 in the section prose. Dev chrome, never shipped
-/// copy, so they are deliberately un-localized and rendered LTR at a fixed
-/// text scale.
 final class DeliveryReceiptScreenCaptions {
   DeliveryReceiptScreenCaptions._();
 
@@ -440,10 +347,6 @@ final class DeliveryReceiptScreenCaptions {
 }
 
 /// Stands in for the two surfaces this screen hands the customer off to:
-/// `mutual-rating` (JM-034) on confirm, `escalate` (JM-060) on "Not yet".
-///
-/// The real destinations are DI-backed screens; here they only have to exist,
-/// so a tap lands somewhere and shows WHICH fork the screen took.
 class _DeliveryReceiptScreenEdgeStandIn extends StatelessWidget {
   const _DeliveryReceiptScreenEdgeStandIn({required this.label});
 
@@ -466,13 +369,6 @@ class _DeliveryReceiptScreenEdgeStandIn extends StatelessWidget {
 }
 
 /// Puts a real `Router` above [DeliveryReceiptScreen] and captions the state.
-///
-/// Stateful, and both the router and the repository are built once and disposed
-/// with the host: a [GoRouter] rebuilt every frame would drop the navigation
-/// state `goNamed`/`pushNamed` depend on, and a repository rebuilt every frame
-/// would re-arm a fake whose `confirmed` flag is supposed to be observable
-/// across a tap. The receipt prompt is the LONE ROOT page — the deep-link stack
-/// shape, where `showBackButton: false` really does mean no way back.
 class _DeliveryReceiptScreenHost extends StatefulWidget {
   const _DeliveryReceiptScreenHost({
     required this.createRepository,
@@ -496,7 +392,6 @@ class _DeliveryReceiptScreenHostState
 
   /// The three real routes this screen touches, at their real paths and names
   /// (`app_router.dart`): the prompt itself, the rating terminal the confirm
-  /// listener `goNamed`s to, and the dispute screen "Not yet" `pushNamed`s.
   late final GoRouter _router = GoRouter(
     initialLocation:
         '/orders/${DeliveryReceiptScreenFixtures.deliveryId}/receipt',
@@ -546,8 +441,6 @@ class _DeliveryReceiptScreenHostState
           child: Text(
             widget.caption,
             // Dev chrome: LTR and unscaled, so the AR card still reads it as
-            // one latin line and the 200% card does not spend a third of the
-            // device on a label.
             textDirection: TextDirection.ltr,
             textScaler: TextScaler.noScaling,
             style: theme.textTheme.labelSmall?.copyWith(
@@ -571,14 +464,6 @@ Widget _deliveryReceiptScreenHosted(
     );
 
 /// The happy path: `$9.00` owed to Kamal Hajj, with the proof-of-delivery photo
-/// the jeeber uploaded (D3).
-///
-/// The one state that renders `OmdsCachedImage`, and therefore the one that
-/// never settles: the shimmer placeholder animates until `cdn.jeeb.app`
-/// answers. Under `flutter test` it never does, so this preview is asserted by
-/// fixed pumps rather than by `pumpAndSettle` — see the dedicated group in the
-/// render test. In the canvas it is also the only card that shows the photo
-/// slot doing anything other than the neutral placeholder.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'Loaded · proof photo + \$9.00 cash',
@@ -590,12 +475,6 @@ Widget deliveryReceiptScreenLoaded() => _deliveryReceiptScreenHosted(
     );
 
 /// `GET /v1/deliveries/{id}` still in flight — the first frame EVERY customer
-/// sees, because `load()` is fired from `BlocProvider.create` on the first
-/// build.
-///
-/// A bare centred spinner: no copy, no skeleton of the prompt, and nothing that
-/// says what is being fetched. It is also the state with no text of its own at
-/// all, which is why the captions exist.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'Loading · fetch in flight',
@@ -607,16 +486,6 @@ Widget deliveryReceiptScreenLoading() => _deliveryReceiptScreenHosted(
     );
 
 /// Run-22 P1-A regression guard, made visible: the live
-/// `GET /v1/deliveries/{id}` drops `amount` once the delivery reaches `Done`.
-///
-/// The line must degrade to `receiptCashToJeeberNoAmount` — "Pay the order
-/// amount in cash to Kamal Hajj" — and must NEVER read `Pay $0.00`. If this
-/// card ever shows a `$` again, `hasKnownAmount` has broken.
-///
-/// Matrixed because the degraded sentence is a DIFFERENT sentence in each
-/// locale (Arabic reorders it around the name) and it is the longest of the two
-/// templates; the 200% card is where the amount-less line and the pinned CTAs
-/// compete for the fold.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'Amount unknown · gateway dropped it',
@@ -629,11 +498,6 @@ Widget deliveryReceiptScreenAmountUnknown() => _deliveryReceiptScreenHosted(
     );
 
 /// The other half of the same guard: the amount arrived as `0`.
-///
-/// `hasKnownAmount` treats zero and negative as unknown, because the cash owed
-/// on a priced delivery is never actually zero — a `0` means enrichment broke
-/// upstream. Renders the identical degraded copy as `Amount unknown`, against a
-/// different courier so the two cards can be told apart.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'Amount zero · never fabricate \$0.00',
@@ -645,10 +509,6 @@ Widget deliveryReceiptScreenAmountZero() => _deliveryReceiptScreenHosted(
     );
 
 /// No courier name on file: the copy falls back to the localized generic noun
-/// ("the Jeeber" / "الجيبر") rather than asking for cash to nobody.
-///
-/// The amount is known here, so this is the one card where the fallback noun
-/// and a real `$` token share the line.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'No jeeber name · generic fallback',
@@ -660,15 +520,6 @@ Widget deliveryReceiptScreenNoJeeberName() => _deliveryReceiptScreenHosted(
     );
 
 /// The layout ceiling for the cash-on-delivery row: the longest plausible name
-/// plus the widest money token `MoneyFormat` produces
-/// (`LBP 1,250,000.00` — ISO code, separators, two decimals).
-///
-/// Matrixed because this is where the money token's RTL handling is actually
-/// testable. `MoneyFormat` wraps every amount in a Unicode LTR isolate
-/// (U+2066…U+2069) precisely so `LBP 1,250,000.00` does not scramble inside an
-/// Arabic sentence; the AR card is the only place that is visible. The 200%
-/// card is the one that decides whether `Icon + Expanded(Text)` wraps cleanly
-/// or collides.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'Long jeeber name · LBP amount',
@@ -681,12 +532,6 @@ Widget deliveryReceiptScreenLongContent() => _deliveryReceiptScreenHosted(
     );
 
 /// 404 — the delivery id resolved no receipt, and this screen is a dead end.
-///
-/// `DeliveryReceiptStatus.failed` replaces the WHOLE body, so
-/// `receipt_not_yet_cta` — the dispute escape hatch — goes with it. What is
-/// left is a `Retry` that re-runs the same 404 against the same id, under an
-/// app bar with `showBackButton: false`. On the deep-link entry this screen is
-/// documented for, the router has nothing to pop either.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'Error · 404 receipt not found',
@@ -698,12 +543,6 @@ Widget deliveryReceiptScreenNotFound() => _deliveryReceiptScreenHosted(
     );
 
 /// The read never reached the server — the retryable failure, and the one a
-/// customer standing at their own door on a bad connection actually hits.
-///
-/// Same shape as the 404 and a different message, which is the point: the two
-/// are told apart only by copy, and only one of them can be fixed by the button
-/// underneath it. The fixture keeps failing, so `Retry` behaves here the way it
-/// behaves on a dead connection.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'Error · network, retry keeps failing',
@@ -715,15 +554,6 @@ Widget deliveryReceiptScreenNetworkDown() => _deliveryReceiptScreenHosted(
     );
 
 /// A receipt that loads perfectly and whose CONFIRM is rejected with the 422
-/// `transition_not_allowed`.
-///
-/// The first frame is an ordinary loaded body (`$42.00` to Rami Saab) because
-/// `ReceiptConfirmStatus.failed` is not constructible without a tap — see note
-/// 3 in the section prose. TAP `receipt_confirm_cta` in the canvas: the button
-/// spins, then `receipt_confirm_error` appears between the cash line and the
-/// CTAs, and nothing dismisses it (`acknowledgeConfirmError()` is never called
-/// by this screen). The render test performs the tap so the state is asserted
-/// in CI and not only by hand.
 @JeebPreview(
   group: 'delivery_receipt',
   name: 'Confirm rejected · 422 transition',

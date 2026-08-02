@@ -13,7 +13,6 @@ void main() {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   // Session-trace observability tool (devtool-only inner-loop default): THIS
-  // --dart-define=JEEB_DEVTOOL_ENABLED=true` traces from the first frame
   if (kObsCompiledIn) {
     ObservabilityConfig.instance.enableAll();
     unawaited(Observability.instance.install(role: 'devtool'));

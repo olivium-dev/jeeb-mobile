@@ -1,26 +1,4 @@
 // Render tests for the CaptureLocationPin previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`, with the same deliberate deviation
-// as its sibling `capture_map_viewport_preview_test.dart`.
-//
-// The widget under review renders NO text — its only string is a Semantics
-// label — and takes no parameters, so `expectedText` bound to its own output
-// could not distinguish two states at all. The map below therefore binds to
-// each preview's caption, which is preview scaffolding, and the real per-state
-// contract is asserted underneath by MEASURING the pin against the host that
-// owns it. This widget's only inputs are the box it is centred in and the
-// ColorScheme, so its geometry IS its state.
-//
-// One thing below is deliberately NOT asserted. The preview library doc points
-// out that the pin marks a point ~3.3 pt north of the coordinate it claims,
-// because the Material `location_on` path bottoms out at y=22 of a 24-unit grid
-// while the widget anchors on the icon's 40 pt BOX. That gap is inside the
-// glyph outline, and widget tests run on a test font that draws every icon as a
-// filled block — so it can be seen in the canvas
-// (`captureLocationPinAnchorCrosshair`) but not measured here. What is measured
-// here is the box arithmetic that surrounds it.
 
 import 'dart:math' as math;
 
@@ -63,7 +41,6 @@ Rect _box(WidgetTester tester) =>
 
 /// Where the glyph is actually PAINTED. `getRect` walks the ancestor paint
 /// transforms, so this includes the `Transform.translate` lift that [_box] does
-/// not.
 Rect _glyph(WidgetTester tester) =>
     tester.getRect(find.byIcon(Icons.location_on));
 
@@ -100,8 +77,6 @@ void main() {
     'CaptureLocationPin',
     _previews,
     // Captions, not widget output — see the header. Every state names its own
-    // host, so a preview wired to the wrong geometry (or five previews sharing
-    // one) fails here rather than looking fine in the canvas.
     expectedText: const <String, String>{
       'Capture screen (production, full bleed)':
           'Capture screen: pin centred on a 390x500 map area',
@@ -142,8 +117,6 @@ void main() {
     });
 
     // The assertion the caption-based `expectedText` above cannot make: five
-    // previews of a parameterless widget are only five states if the hosts they
-    // are centred in really differ.
     _centredHosts.forEach((String state, Size expected) {
       testWidgets('$state hosts the pin in ${expected.width}x'
           '${expected.height} and anchors on its centre', (
@@ -200,8 +173,6 @@ void main() {
         TextDirection.rtl,
       );
       // The only offset in the widget is vertical, so this is the correct
-      // answer — asserted so that a future `EdgeInsets.only(left: …)` or a
-      // horizontal nudge cannot be added without mirroring it.
       expect(ar.dx, closeTo(en.dx, 0.01));
       expect(ar.dy, closeTo(en.dy, 0.01));
     });
@@ -217,10 +188,6 @@ void main() {
       final Offset anchor2x = at2x.bottomCenter - _host(tester).center;
 
       // `Icon.applyTextScaling` is unset here and defaults to false, so the
-      // 40 pt glyph and the 20 pt lift stay in step. If an IconTheme ever turns
-      // icon text-scaling on app-wide, the glyph doubles while the lift does
-      // not and the pin stops marking the point the CTA returns — this is where
-      // that gets caught.
       expect(at2x.size, at1x.size);
       expect(anchor2x.dx, closeTo(anchor1x.dx, 0.01));
       expect(anchor2x.dy, closeTo(anchor1x.dy, 0.01));
@@ -228,7 +195,6 @@ void main() {
   });
 
   // What the two failing hosts expose. Both are paint-outside-the-box problems,
-  // which is why neither produces an overflow stripe or an exception.
   group('CaptureLocationPin host requirements', () {
     testWidgets('the 160 pt address-form band clears the clip by 40 pt', (
       WidgetTester tester,
@@ -279,7 +245,6 @@ void main() {
       final Rect glyph = _glyph(tester);
 
       // The layout box is a good citizen: it starts exactly where the row above
-      // ends. Only the paint escapes.
       expect(box.top, closeTo(row.bottom, 0.01));
       expect(
         row.bottom - glyph.top,
@@ -324,9 +289,6 @@ void main() {
       await pumpPreview(tester, captureLocationPinCaptureScreen);
 
       // `IgnorePointer.ignoringSemantics` is deprecated and unset here, so the
-      // subtree keeps its semantics and only stops being hit-testable. Pinned
-      // because "invisible to touch" and "invisible to TalkBack" are one
-      // keystroke apart in this widget.
       final Finder pin = find.bySemanticsIdentifier('capture_location_pin');
       expect(pin, findsOneWidget);
 
@@ -365,12 +327,6 @@ void main() {
 
     test('the pin ink clears WCAG 1.4.11 on the map fill in both schemes', () {
       // The pin is a graphical object carrying meaning, so 1.4.11 asks 3:1.
-      // Measured 5.66:1 in light (#B00020 on #E5E1E5) and 7.28:1 in dark
-      // (#FFB4AB on #343439) — this one is a regression guard, not a finding.
-      //
-      // Only against the PLACEHOLDER, note. Production injects a live
-      // `ofl_geo_capture` map, and no unit test can measure a red pin against
-      // whatever tile is under it; that is what the drop shadow below is for.
       for (final ColorScheme scheme in <ColorScheme>[
         AppTheme.light().colorScheme,
         AppTheme.dark().colorScheme,
@@ -388,7 +344,6 @@ void main() {
       final ColorScheme dark = AppTheme.dark().colorScheme;
 
       // `colorScheme.shadow` is #000000 in BOTH schemes — M3 does not tone it
-      // for dark — and the widget takes it at `UIConstants.opacityLow` (0.38).
       expect(light.shadow, dark.shadow);
 
       final double lightHalo = _contrast(
@@ -407,11 +362,6 @@ void main() {
       );
 
       // 2.59:1 in light, 1.31:1 in dark. The halo is the only thing that lifts
-      // the pin off a busy map tile, and in the dark scheme it is black on a
-      // dark surface: it does roughly nothing, on the night map where a
-      // saturated marker needs it most. Asserted as an ordering plus a ceiling
-      // rather than as exact numbers, so toning the shadow for dark FIXES this
-      // test instead of breaking it.
       expect(lightHalo, greaterThan(2.0));
       expect(darkHalo, lessThan(1.5));
       expect(lightHalo, greaterThan(darkHalo));

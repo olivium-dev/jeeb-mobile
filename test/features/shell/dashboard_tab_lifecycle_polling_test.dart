@@ -170,11 +170,6 @@ void main() {
   });
 
   // AC2b USED TO READ "hidden Dashboard cancels feed polling and visible
-  // resumes it" — an assertion about a cadence that no longer exists (b02,
-  // POLLING-ELIMINATION-PLAN A.1). Restated as the mandate's own criterion:
-  // the VISIBLE, foregrounded Dashboard is the worst case, and it must issue
-  // zero repeat calls. The old "hidden ⇒ zero" case is now the weaker one and
-  // is kept only as a regression guard.
   testWidgets(
     'AC2b: a VISIBLE, foregrounded Dashboard issues ZERO repeat feed GETs '
     'over five minutes of idle time',
@@ -187,8 +182,6 @@ void main() {
       expect(tester.takeException(), isNull);
 
       // POSITIVE CONTROL — the mount must have fetched at least once, which
-      // is what proves the counting Dio is actually wired to this feed. A
-      // "zero repeat calls" assertion against an unwired Dio passes vacuously.
       expect(
         dio.getCount,
         greaterThan(0),
@@ -219,8 +212,6 @@ void main() {
       );
 
       // Regaining the tab is a USER ACTION, and a one-shot catch-up on it is
-      // explicitly allowed. Assert it is EXACTLY one, and that nothing
-      // periodic follows it.
       visibility.value = true;
       await tester.pump();
       await tester.pump();
@@ -259,15 +250,9 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
       // BlocProvider does not await an async cubit close. Flush its continuation
-      // before proving teardown at the feature seam below: a new cubit must
-      // fetch through the same DI singleton.
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();
 
-      // Change the payload BEFORE the remount: the remount's own one-shot
-      // `start()` fetch is now the only thing that will pull it. Under the old
-      // build a periodic tick would have picked it up eventually — which is
-      // exactly the difference this test now discriminates.
       final preRemountBaseline = dio.getCount;
       dio.responseBody = const <String, Object>{
         'items': <Object>[

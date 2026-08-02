@@ -49,7 +49,6 @@ void main() {
     expect(find.byKey(const Key('language-row-ar')), findsOneWidget);
 
     // English is active, so its row carries the check mark while the Arabic
-    // row does not.
     final englishCheck = find.descendant(
       of: find.byKey(const Key('language-row-en')),
       matching: find.byIcon(Icons.check),
@@ -87,9 +86,6 @@ void main() {
     expect(direction, TextDirection.rtl);
 
     // Persistence: the cubit wrote the choice to shared_preferences so the
-    // next cold start picks it up (verified separately in
-    // locale_switching_test.dart's "Persisted locale wins over device locale"
-    // case).
     expect(prefs.getString('app.locale.languageCode'), 'ar');
 
     // The check mark moved to the Arabic row.
@@ -123,8 +119,6 @@ void main() {
     // No emission means no state change — the cubit reference is stable.
     expect(identical(cubit.state, localeBefore), isTrue);
     // The pref must not have been written either — re-tapping English when it
-    // was the device fallback would otherwise clobber resetToDeviceLocale's
-    // contract.
     expect(prefs.getString('app.locale.languageCode'), isNull);
   });
 }

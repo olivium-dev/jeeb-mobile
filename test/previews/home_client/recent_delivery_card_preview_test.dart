@@ -1,18 +1,4 @@
 // Render tests for the RecentDeliveryCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The specifics group pins the three things the card's fixtures are chosen to
-// expose: the clip-never-wrap contract on both lines, the empty-string
-// destination the Dio parser really produces, and the fact that the CTA label
-// is the only localized string on the card.
-//
-// Note the viewport: these tests pump into the standard 800×600 surface, where
-// the text column is ~575 pt and nothing clips. The truncation documented in
-// the preview library doc is a 390/360/320 pt finding and is deliberately NOT
-// asserted here — asserting it would only pin the test viewport.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +22,6 @@ void main() {
     expectedText: const <String, String>{
       'Typical': 'Mini-market run',
       // Content, not chrome: this string comes from the gateway, so it renders
-      // identically in the EN and AR canvases.
       'Arabic content': 'طلبية سوبرماركت',
       'Degraded payload': 'Delivery #CC42E6',
       'Long title + long destination':
@@ -71,8 +56,6 @@ void main() {
         await pumpPreview(tester, recentDeliveryCardDegradedPayload);
 
         // `_parseRecentDelivery` emits '' for a row with no dropoff address,
-        // and the card renders it verbatim: an empty line where the address
-        // belongs, with no "unknown destination" copy in its place.
         expect(
           find.descendant(
             of: find.byType(RecentDeliveryCard),
@@ -111,7 +94,6 @@ void main() {
       expect(find.text('إعادة الطلب'), findsOneWidget);
       expect(find.text('Re-order'), findsNothing);
       // …while the gateway-supplied title/destination stay exactly as stored.
-      // This is why 'Arabic content' exists as a separate preview.
       expect(find.text('Mini-market run'), findsOneWidget);
     });
 
@@ -121,8 +103,6 @@ void main() {
       await pumpPreview(tester, recentDeliveryCardTypical);
 
       // `completedAt` is required by RecentDeliverySummary and used by nothing
-      // in this widget: two repeats of the same order are indistinguishable on
-      // the "order again" surface.
       expect(find.textContaining('2026'), findsNothing);
       expect(find.textContaining('May'), findsNothing);
       expect(find.textContaining('ago'), findsNothing);

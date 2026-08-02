@@ -11,7 +11,6 @@ enum SocialAuthStatus {
   // Gateway returned JWT bundle and persisted it.
   authenticated,
   // Gateway returned 409 email_collision (D22, JM-019): email already registered.
-  // Routes to social-collision-prompt sheet; NOT a failure banner.
   collision,
   // Flow ended with non-cancellation, non-collision failure.
   failed,
@@ -40,7 +39,6 @@ class SocialAuthState extends Equatable {
       isBusy && activeProvider == provider;
 
   // G8: authenticated social user with no phone must complete phone-OTP step (JM-009)
-  // before landing home. False once phone on file or while not authenticated.
   bool get requiresPhoneVerification =>
       status == SocialAuthStatus.authenticated &&
       session != null &&

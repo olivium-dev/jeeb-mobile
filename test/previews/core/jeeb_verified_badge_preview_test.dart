@@ -1,19 +1,3 @@
-// Render tests for the JeebVerifiedBadge previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose — the same one
-// `delivery_confirm_illustration_preview_test.dart` makes. The widget under
-// review renders no text of its own (its `semanticsLabel` is invisible by
-// design), so the `expectedText` map below binds to each preview's caption,
-// which is preview scaffolding rather than widget output. On its own that would
-// be exactly the weak assertion the harness warns about: it would pass even if
-// all six previews drew an identical 20dp seal. So the real per-state contract
-// is asserted underneath, against the two things this widget actually emits —
-// the box it occupies, and the semantics node it announces.
-
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -47,11 +31,7 @@ double _contrast(Color a, Color b) {
 Size _badgeBox(WidgetTester tester) =>
     tester.getSize(find.byType(JeebVerifiedBadge));
 
-/// How many lines [text] wrapped onto, counted from the laid-out glyph boxes.
-///
-/// Line COUNTS rather than pixel heights: `flutter_test` substitutes its own
-/// metrics for Inter, so an absolute height measured here would be a property
-/// of the test font rather than of the layout.
+/// How many lines [text] wrapped onto, counted from the laid-ou
 List<TextBox> _lineBoxes(WidgetTester tester, String text) {
   final RenderParagraph paragraph =
       tester.renderObject<RenderParagraph>(find.text(text));
@@ -74,8 +54,6 @@ void main() {
     'JeebVerifiedBadge',
     _previews,
     expectedText: const <String, String>{
-      // The two production rows are told apart by the name they host, not by
-      // the caption: same widget, same geometry, different caller.
       'Customer row (production)': 'Sami Fawaz',
       'Jeeber row (production)': 'Kamal Hajj',
       'Long name (wraps)': 'Abdulrahman Al-Muhandis Al-Trabulsi',
@@ -121,8 +99,6 @@ void main() {
         const Size(32, 32),
         const Size(40, 40),
       ]);
-      // Measured, not just declared: a strip whose swatches all lay out the
-      // same is one state with four labels.
       for (final Size declared in boxes) {
         final int index = boxes.indexOf(declared);
         expect(
@@ -146,9 +122,6 @@ void main() {
       final Rect longBadge = tester.getRect(find.byType(JeebVerifiedBadge));
       final List<TextBox> longLines = _lineBoxes(tester, longName);
 
-      // Production wraps the name (`AutoDirectionText`, no `maxLines`) instead
-      // of ellipsizing it, so in the 250pt the identity column really gets, a
-      // full compound name becomes a multi-line block.
       expect(
         longLines.length,
         greaterThan(shortLines),
@@ -157,14 +130,8 @@ void main() {
       );
       expect(longLines.length, greaterThanOrEqualTo(3));
 
-      // Both rows keep the badge on screen: `Flexible` gives the text the
-      // leftovers, so the 20dp seal and its 8pt gap are always reserved and the
-      // badge is never pushed past the trailing edge of the row.
       expect(longBadge.right, lessThanOrEqualTo(longNameBox.right + 28.0));
 
-      // But `CrossAxisAlignment.center` parks it against the middle of the
-      // block. On a one-line name that is the name; on a wrapped one it is
-      // whitespace, with the name it verifies one or more lines above.
       expect((shortBadge.center.dy - shortName.center.dy).abs(), lessThan(1.0));
       expect(
         longBadge.center.dy - longNameBox.top,
@@ -215,9 +182,6 @@ void main() {
       final SemanticsNode node = tester.getSemantics(
         find.byType(JeebVerifiedBadge),
       );
-      // `required` only means present. The node still claims to be an image —
-      // i.e. content, not decoration — while carrying nothing to announce, so a
-      // screen reader stops on it and says nothing.
       expect(node.label, isEmpty);
       expect(
         node.flagsCollection.isImage,
@@ -257,8 +221,6 @@ void main() {
     });
 
     test('the glyph role only clears non-text contrast in the light scheme', () {
-      // The badge inks with `colorScheme.secondaryContainer` on
-      // `colorScheme.surface`. WCAG 1.4.11 asks 3:1 of a graphical object.
       final ColorScheme light = AppTheme.light().colorScheme;
       expect(
         _contrast(light.secondaryContainer, light.surface),
@@ -267,13 +229,6 @@ void main() {
             'it must not regress',
       );
 
-      // The light scheme hard-codes that role to the brand navy, so painting
-      // with it happens to work. The dark scheme is
-      // `ColorScheme.fromSeed(_jeebNavy, dark)`, where `secondaryContainer` is
-      // what M3 actually means by a container — a dark fill meant to sit BEHIND
-      // ink — on a surface of nearly the same tone. Asserted loosely on
-      // purpose: pinning today's ratio would make fixing the palette a test
-      // failure, and asserting 3.0 would fail today.
       final ColorScheme dark = AppTheme.dark().colorScheme;
       expect(
         _contrast(dark.secondaryContainer, dark.surface),

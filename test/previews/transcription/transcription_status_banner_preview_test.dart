@@ -1,14 +1,4 @@
 // Render tests for the TranscriptionStatusBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`: build every state in both locales,
-// and pin a DISTINCT string per state so the suite cannot pass while every
-// preview renders the same banner.
-//
-// The banner has exactly two visual shapes (info/queued and error/failed) and
-// four copy branches, so "it rendered" is a weak signal here — the specifics
-// group below pins the branch each preview is supposed to be exercising.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -28,8 +18,6 @@ Finder _byIdentifier(String identifier) => find.byWidgetPredicate(
 
 /// Pumps [preview] on a real phone-sized viewport instead of the 800x600 test
 /// surface, optionally at a raised text scale. The banner is a Row whose text
-/// column is `Expanded`; at 800pt wide the body never wraps and a broken
-/// layout stays invisible.
 Future<void> _pumpOnPhone(
   WidgetTester tester,
   Widget Function() preview, {
@@ -94,8 +82,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The gate is `isFailed && onRetry != null`. Loosening it to
-      // `onRetry != null` would let a user re-fire a transcription that is
-      // already queued.
       await pumpPreview(tester, transcriptionStatusBannerQueuedRetryIgnored);
 
       expect(find.text('Transcription is queued'), findsOneWidget);
@@ -120,10 +106,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `TranscriptionScreen` builds `TranscriptionStatusBanner(state: state)`
-      // with no `onRetry` (transcription_screen.dart:141), so the affordance
-      // the class doc advertises is unreachable in the shipped flow — while the
-      // copy still ends "…or retry". Pinned so a future wiring of `onRetry`
-      // is a deliberate, visible change rather than an accident.
       await pumpPreview(tester, transcriptionStatusBannerFailedGenericNoRetry);
 
       expect(find.textContaining('or retry.'), findsOneWidget);
@@ -153,7 +135,6 @@ void main() {
       expect(find.text(network), findsNothing);
 
       // `TranscriptionFailure.none` must fall through to the generic copy, not
-      // to an empty body: an unlabelled error card is worse than a vague one.
       await pumpPreview(tester, transcriptionStatusBannerFailedUnclassified);
       expect(find.text(title), findsOneWidget);
       expect(find.text(generic), findsOneWidget);
@@ -178,7 +159,6 @@ void main() {
       expect(Directionality.of(icon), TextDirection.rtl);
 
       // The icon leads the Row, so once mirrored it must sit to the RIGHT of
-      // the title it labels.
       final double iconX = tester.getCenter(find.byIcon(Icons.schedule)).dx;
       final double titleX =
           tester.getCenter(find.text('التحويل في قائمة الانتظار')).dx;
@@ -203,19 +183,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // KNOWN DEFECT, pinned. `_BannerSurface` wraps the card in
-      // `Semantics(container: true, label: '$title. $body')` while leaving the
-      // two `Text` children to contribute their own labels, so the merged node
-      // reads:
-      //
-      //   "Transcription unavailable. We couldn't reach the server. …
-      //    Transcription unavailable
-      //    We couldn't reach the server. …"
-      //
-      // i.e. TalkBack/VoiceOver say the whole banner twice. The fix is on the
-      // widget (drop the explicit label, or add `excludeSemantics: true`),
-      // which is out of scope for a preview-only change — this test is the
-      // tripwire. When the widget is fixed, `titleCount` drops to 1 and this
-      // expectation should be flipped to `equals(1)`.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, transcriptionStatusBannerFailedNetwork);
@@ -237,7 +204,6 @@ void main() {
       );
 
       // The handle must be disposed inside the test body — an `addTearDown`
-      // runs after the framework's end-of-test handle verification.
       handle.dispose();
     });
 
@@ -245,9 +211,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The 200%-text rendering of the preview matrix, asserted. Title, body
-      // and the Retry button share one `Expanded` column, so this is where a
-      // fixed-height container would blow out. English is clean at every
-      // width/scale combination probed (320/360/390 × 1.0–2.0).
       await _pumpOnPhone(
         tester,
         transcriptionStatusBannerFailedPayloadTooLarge,
@@ -262,9 +225,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Isolates the defect pinned below: the same banner MINUS the Retry
-      // button survives the narrowest phone at the accessibility ceiling in
-      // Arabic. The title/body column wraps correctly; only the button does
-      // not.
       await _pumpOnPhone(
         tester,
         transcriptionStatusBannerFailedGenericNoRetry,
@@ -282,21 +242,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_RetryButton` hands the localized label to `OMDSOutlinedButton`, which
-      // lays it out in `Row(mainAxisSize: MainAxisSize.min)` with the `Text`
-      // unwrapped by any `Flexible` — so a label wider than the available
-      // column overflows instead of wrapping or ellipsizing. Arabic
-      // ("إعادة المحاولة") is far wider than "Retry", so only AR trips it:
-      //
-      //   width  first bad scale   overflow @2.0x
-      //   320pt  1.15x (17px)      184px
-      //   360pt  1.30x (6.8px)     144px
-      //   390pt  1.50x (16px)      114px
-      //
-      // English is clean at every combination. The fix belongs to the button
-      // (wrap the label in `Flexible`) or to `_RetryButton` (constrain it), so
-      // it is out of scope for a preview-only change — this is the tripwire.
-      // When the overflow is fixed this test starts failing: delete it and
-      // fold the case into the clean-render tests above.
       await _pumpOnPhone(
         tester,
         transcriptionStatusBannerFailedPayloadTooLarge,

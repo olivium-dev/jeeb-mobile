@@ -1,11 +1,4 @@
 // Tests for EarningsCubit (T-MOB-019).
-//
-// Design note: EarningsCubit fires loadEarnings() in its constructor.
-// Because bloc_test subscribes to the stream AFTER build() returns, the
-// synchronous emit(loading) that happens before the first await in
-// loadEarnings() is not captured by the test listener — only states
-// emitted after await points are observable.  Tests therefore assert the
-// final observable state(s) rather than the transient loading intermediate.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,8 +14,6 @@ class _FakeEarningsRepository implements EarningsRepository {
   final EarningsErrorKind? failWith;
 
   // Fee-only reframe (JM-052, D41/D44): total cash earned (net, off-wallet COD)
-  // + captured 10% fees + delivery count + member-since. No gross/commission/
-  // net-payout (the removed platform-takes-a-cut model).
   static const _sample = EarningsSummary(
     totalCashEarned: 1000,
     feesPaid: 100,
@@ -54,8 +45,6 @@ class _FakeEarningsRepository implements EarningsRepository {
 
 void main() {
   // JM-052 fee-only reframe (D41/D44/D37): EarningsSummary.fromJson against the
-  // REAL mock wire shape (GET /wallet-service/v1/jeeb/earnings). The endpoint
-  // returns net off-wallet COD entries only; the 10% fee (D37) is DERIVED.
   group('EarningsSummary.fromJson — fee-only parse (real mock shape)', () {
     // Verbatim mock payload for user-jeeber-002 (2 deliveries: 4.5 + 6 = 10.5).
     final mockBody = <String, dynamic>{
@@ -167,15 +156,6 @@ void main() {
   });
 
   // §6B real-app regression: the LIVE gateway `GET /v1/jeeb/earnings` body keys
-  // on `entries`/`totalGross`/`totalCommission`/`rowCount` — NONE of which the
-  // prior parser read, so the screen bound 0.00/0 despite a real 200. This locks
-  // that the parser now binds those live keys (non-zero headline). Fee-only COD
-  // framing (D37/D41/D44): `totalCashEarned` is the cash physically COLLECTED
-  // off-wallet (`totalGross` = 137.50), `feesPaid` is the captured commission
-  // (`totalCommission` = 22.13), and `netPerOffer` derives (gross − fees)/count.
-  // (`totalNet` = gross − commission is the take-home, NOT the cash-collected
-  // headline — binding it here would double-subtract the fee.) VERBATIM S22 body
-  // for c23efd76 (3 rows).
   group('EarningsSummary.fromJson — LIVE gateway shape (§6B)', () {
     final liveBody = <String, dynamic>{
       'jeeberId': 'c23efd76-6fa4-40cf-814c-116f67ea5e95',
@@ -282,7 +262,6 @@ void main() {
         await c.loadEarnings();
       },
       // Constructor load emits: [ready].  Explicit reload emits: [loading, ready].
-      // We skip 1 (constructor ready) and assert the 2 reload states.
       skip: 1,
       expect: () => [
         predicate<EarningsState>(

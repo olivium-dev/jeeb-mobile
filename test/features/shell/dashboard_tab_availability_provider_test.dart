@@ -16,22 +16,8 @@ import 'package:jeeb_mobile/features/shell/tabs/dashboard_tab.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 /// Regression for the E2E "Switch to Jeeber" crash.
-///
 /// The in-app role toggle lands on [DashboardTab], which in the production
 /// (non-dev-seam) path mounts `JeeberHomeScreen(isRegistered: true)`. That
-/// screen reads `AvailabilityCubit` in `didChangeDependencies` and in its
-/// `_RegisteredBody` `BlocConsumer`. The app root deliberately does NOT
-/// provide a global `AvailabilityCubit` (it is screen-scoped with an idle
-/// ticker), so [DashboardTab] itself must provide it. Before the fix it did
-/// not — only the dev-seam feed path provided one — so the registered screen
-/// threw `ProviderNotFound<AvailabilityCubit>` on entry and the Jeeber surface
-/// crashed.
-///
-/// This test pumps the REAL [DashboardTab] under a router with DI registered
-/// and WITHOUT any ancestor `AvailabilityCubit` provider, exactly matching the
-/// production path. It fails (throws ProviderNotFound) on the pre-fix source
-/// and passes once [DashboardTab] wraps the screen in a
-/// `BlocProvider<AvailabilityCubit>`.
 class _ScriptedAvailabilityGateway extends InMemoryAvailabilityGateway {}
 
 LocalizationsDelegate<AppLocalizations> _loadSyncDelegate() {
@@ -59,9 +45,6 @@ class _SyncAppLocalizationsDelegate
 
 GoRouter _router() {
   // Minimal router: the dashboard tab uses context.pushNamed for its
-  // feed/onboarding tap-throughs, so a GoRouter must be in scope. We only
-  // need the home route to render the tab; the named targets are declared so
-  // a stray push does not error the test setup.
   return GoRouter(
     initialLocation: '/',
     routes: [
@@ -110,15 +93,10 @@ void main() {
 
   setUp(() {
     // The DI registrations the production DashboardTab resolves. An in-memory
-    // gateway keeps the cubit's cold-start fetch deterministic and offline.
     sl.registerLazySingleton<AvailabilityGateway>(
       _ScriptedAvailabilityGateway.new,
     );
     // JEEBER-LOOP F3: the host now also builds a RequestFeedCubit from a
-    // DI-registered RequestFeedRepository, so this regression harness must
-    // register one too. An empty seeded feed keeps this test focused on the
-    // availability-provider contract (the feed-render contract is covered by
-    // dashboard_tab_request_feed_provider_test.dart).
     sl.registerLazySingleton<RequestFeedRepository>(
       () => SeededRequestFeedRepository(const []),
     );
@@ -136,7 +114,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // 1. Bringing the Jeeber surface up threw nothing (pre-fix: a
-      //    FlutterError carrying `ProviderNotFound<AvailabilityCubit>`).
       expect(
         tester.takeException(),
         isNull,
@@ -150,9 +127,6 @@ void main() {
       expect(find.byKey(JeeberHomeScreen.scaffoldKey), findsOneWidget);
 
       // 3. The cubit is STRUCTURALLY resolvable from inside JeeberHomeScreen's
-      //    subtree (not merely "no error") — proving a live cubit is wired, not
-      //    that the read was swallowed. read<T>() throws if the provider is
-      //    absent, so a non-null instance is the structural guarantee.
       final BuildContext screenCtx = tester.element(
         find.byType(JeeberHomeScreen),
       );
@@ -160,7 +134,6 @@ void main() {
       expect(cubit, isA<AvailabilityCubit>());
 
       // 4. Dashboard simplify: the personalized greeting is the ONE page title;
-      //    neither former generic title may remain anywhere in its subtree.
       final dashboard = find.byType(JeeberHomeScreen);
       expect(
         find.descendant(

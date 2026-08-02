@@ -1,13 +1,4 @@
 // BUG-8 (sprint-008 run-5) regression guard — customer live-tracking read route.
-//
-// The CUSTOMER live-tracking screen used the SINGULAR `GET /v1/delivery/{id}`,
-// which the live origin gateway (`:10090`) answers with 404 "Delivery not found"
-// — the materialized delivery aggregate is served ONLY at the PLURAL
-// `GET /v1/deliveries/{id}` (Contract 8c), the same route the jeeber side reads
-// with 200 (`dio_active_delivery_origin_routes_test.dart`). This test pins the
-// customer read to the plural route on the origin base, and keeps the legacy
-// `:4010` mock singular alias intact — at the WIRE level with a recording
-// HttpClientAdapter (no host, no socket).
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -28,7 +19,6 @@ void main() {
   setUp(() {
     adapter = _RecordingAdapter();
     // ORIGIN-ONLY base (ARCH-01): host is irrelevant to the contract — the
-    // recording adapter never opens a socket. Path-shape is what we assert.
     dio = Dio(BaseOptions(baseUrl: 'http://origin.test'))
       ..httpClientAdapter = adapter;
   });

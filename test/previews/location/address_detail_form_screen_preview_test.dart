@@ -1,20 +1,4 @@
 // Render tests for the AddressDetailFormScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// This is a SCREEN, and every preview pins its own device window inside the
-// tree (the render tests all pump onto one fixed 800 x 600 surface, so the
-// annotation `size` alone would measure six states at the same box). The
-// shared suite therefore addresses each state by its caption, and the
-// `preview specifics` group pins the two things the captions cannot: that each
-// frame really is the window it claims, and that the add/edit gate the whole
-// screen turns on — JEBV4-176's "no Save without a REAL dropped pin" — is the
-// state actually being drawn.
-//
-// The `documented defects` group guards behaviour the previews exposed and the
-// screen has NOT fixed. If one starts failing because the screen was fixed,
-// delete the guard — do not restore the expectation.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,14 +54,11 @@ void main() {
       await pumpPreview(tester, addressDetailFormScreenAddPath);
 
       // The JEBV4-176 gate: no pin was dropped, so the CTA must be dead. If
-      // this ever comes up enabled, the fabricated-Beirut-coordinate defect is
-      // back and a customer can save an address they never pointed at.
       expect(find.byType(CaptureLocationPin), findsNothing);
       expect(_saveButton(tester).isEnabled, isFalse);
       expect(_saveButton(tester).isLoading, isFalse);
 
       // Nothing is pre-filled — the fields carry the empty string, not a hint
-      // masquerading as a value.
       expect(find.text('Home'), findsNothing);
       expect(find.text('Nassif Building'), findsNothing);
     });
@@ -111,7 +92,6 @@ void main() {
         findsOneWidget,
       );
       // Long content does not un-gate the CTA: the fixture carries a real
-      // saved point, so Save is live for the same reason the edit path's is.
       expect(_saveButton(tester).isEnabled, isTrue);
     });
 
@@ -122,7 +102,6 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       // The `FutureBuilder` waiting branch returns its own bare Scaffold, so
-      // none of the form's chrome exists yet.
       expect(find.text(_screenTitle), findsNothing);
       expect(find.byType(OmdsLoadingButton), findsNothing);
       expect(find.byType(CaptureLocationPin), findsNothing);
@@ -152,7 +131,6 @@ void main() {
 
       await pumpPreview(tester, addressDetailFormScreenEditPath);
       // Same title, same CTA copy: nothing DRAWN tells a user whether they are
-      // creating an address or editing one.
       expect(find.text(_screenTitle), findsOneWidget);
       expect(find.text(_saveCta), findsOneWidget);
     });
@@ -163,8 +141,6 @@ void main() {
       await pumpPreview(tester, addressDetailFormScreenAddPath);
 
       // `_PinPreview` puts "Pick a location on the map" in a Semantics label
-      // and nowhere else, so the only on-screen signal that a pin is required
-      // is a dimmed button.
       expect(_saveButton(tester).isEnabled, isFalse);
       expect(find.text('Pick a location on the map'), findsNothing);
       expect(
@@ -179,9 +155,6 @@ void main() {
       await pumpPreview(tester, addressDetailFormScreenAddPath);
 
       // Every controller is empty, yet three complete-looking answers are on
-      // screen: `AddressFormL10n` writes its hints as finished values rather
-      // than as formats, and `InputDecorator` draws them in the field. Only
-      // the ink colour separates "you typed this" from "we suggested this".
       expect(_saveButton(tester).isEnabled, isFalse);
       expect(find.text('4th floor, Apt 12'), findsOneWidget);
       expect(find.text('Ring twice; blue door.'), findsOneWidget);
@@ -194,9 +167,6 @@ void main() {
       await pumpPreview(tester, addressDetailFormScreenEditPath);
 
       // `_category` and `isDefault` are read in `_onSave` but `_FormBody`
-      // renders neither a category picker nor a default toggle: five text
-      // fields and the map band are the whole form. Every address created on
-      // the add path is therefore saved as `home`.
       expect(find.byType(OmdsTextField), findsNWidgets(5));
       expect(find.byType(Switch), findsNothing);
       expect(find.byType(SegmentedButton<Object?>), findsNothing);

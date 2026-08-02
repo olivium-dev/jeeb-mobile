@@ -1,23 +1,4 @@
 // READ ECONOMICS — the buried chat thread must not pay three reads for a chip
-// nobody can see.
-//
-// `ChatDetailScreen` stays MOUNTED while the order summary, the dispute route or
-// `/delivery/:id` is pushed on top of it, and `_refreshSummary` is THREE gateway
-// reads on the owner-scoped (customer) leg: `GET /v1/deliveries/{id}` +
-// `/v1/requests/{id}` + `/v1/offers`. Before this fix every `order` push paid
-// all three regardless of whether the thread was the visible route — the
-// second-largest term in the TEN wire reads one `delivery` push produced on the
-// customer phone.
-//
-// The screen already knows the answer: `_onScreen`, maintained by `RouteAware` on
-// the production `appRouteObserver` for foreground push-suppression. This suite
-// pins that the same signal now gates the READ, and pins the two directions that
-// make it a gate rather than a mute:
-//
-//   * buried  → ZERO reads, and a burst is still zero;
-//   * exposed → exactly ONE summary read (three wire reads), so the chip the user
-//               comes back to is never stale;
-//   * CONTROL → on screen, one push still costs one summary read, unchanged.
 library;
 
 import 'dart:async';
@@ -113,8 +94,6 @@ Widget _host(RoleCubit role, Stream<void> refreshSignals) => MaterialApp(
   ],
   supportedLocales: AppLocalizations.supportedLocales,
   // The PRODUCTION observer the screen's own RouteAware subscribes to — the
-  // route-visibility signal under test travels over it, so a harness that
-  // omitted it would prove nothing.
   navigatorObservers: <NavigatorObserver>[appRouteObserver],
   home: BlocProvider<RoleCubit>.value(
     value: role,

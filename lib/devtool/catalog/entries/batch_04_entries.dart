@@ -28,7 +28,6 @@ import '../fixtures/dm_onboarding_screen_fixtures.dart';
 
 /// Batch 04: escalate, goods_cost, home_client, jeeber_active_deliveries,
 /// jeeber_home, jeeber_onboarding — each state renders the real screen with
-/// explicit local fakes (no GetIt, no network).
 List<CatalogEntry> get batch04Entries => <CatalogEntry>[
   _escalateEntry,
   _goodsCostEntry,

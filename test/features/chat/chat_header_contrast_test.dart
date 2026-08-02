@@ -1,24 +1,5 @@
 /// b02 chat-header redesign — the MEASURED contrast gate for both chat headers.
-///
 /// The owner's verdict on the previous headers was "does not comply with
-/// material design system concepts neither accessibility neither contrast".
-/// This file is the contrast half, and it is deliberately built in two layers,
-/// because either layer alone is an instrument that can lie:
-///
-///  1. **Binding.** Pump the real widgets in the real [AppTheme] and read the
-///     colours the widgets ACTUALLY paint out of the rendered tree. Without
-///     this, the table below is a table about a design document.
-///  2. **Measurement.** Compute the WCAG 2.2 ratio for every text and icon
-///     element and every component boundary, in light AND dark, and fail below
-///     threshold. Without this, the binding is just "it uses some role".
-///
-/// Plus a **negative control** (`contrastRatio` must be able to FAIL): the
-/// pairing that actually shipped — white faded to `UIConstants.opacityHigh`
-/// over the old saturated `primaryContainer` — is asserted to be BELOW AA. A
-/// checker that has never been shown failing is not a checker.
-///
-/// Thresholds (WCAG 2.2 AA): 4.5:1 body text, 3:1 large text (≥18.66 px bold or
-/// ≥24 px) and non-text — icons and UI component boundaries (SC 1.4.11).
 library;
 
 import 'package:flutter/material.dart';
@@ -56,8 +37,6 @@ void main() {
     statusId: 'in_transit',
   ); // no ETA/tier → the disclosed chips read the "Pending" placeholder
 
-  // -------------------------------------------------------------------------
-  // Layer 1 — BINDING: the widgets really do paint these roles.
   // -------------------------------------------------------------------------
   group('binding — the rendered widgets use the roles the table measures', () {
     testWidgets('pinned summary', (tester) async {
@@ -124,7 +103,6 @@ void main() {
       );
 
       // Expanded content: the cash reminder — the element the owner reported
-      // as unreadable. Full-strength role, no alpha.
       await tester.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
       await tester.pump();
       expect(
@@ -141,7 +119,6 @@ void main() {
       );
 
       // A NEUTRAL chip (disclosed by the expand): surfaceContainerLowest under
-      // an `outline` hairline.
       final tierDecoration = tester
           .widget<Container>(find.ancestor(
             of: find.text('Pending'),
@@ -155,7 +132,6 @@ void main() {
     testWidgets('no foreground in the pinned summary is alpha-faded',
         (tester) async {
       // The 3.85:1 failure was NOT a wrong role — it was a right role faded to
-      // `UIConstants.opacityHigh`. Guard the technique, not just the numbers.
       await tester.pumpWidget(themedHost(Scaffold(
         body: OrderChatPinnedSummary(
           summary: summary,
@@ -229,8 +205,6 @@ void main() {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Layer 2 — MEASUREMENT.
   // -------------------------------------------------------------------------
   group('measured WCAG 2.2 AA contrast', () {
     List<_Row> rowsFor(ThemeData theme) {
@@ -329,14 +303,11 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // NEGATIVE CONTROLS — proof the measurement can fail.
-  // -------------------------------------------------------------------------
   group('negative controls — the instrument is able to report a FAIL', () {
     const oldPrimaryContainer = Color(0xFFD73B00); // the pre-fix role value
 
     test('the pairing that actually shipped is BELOW AA when measured', () {
       // White at `UIConstants.opacityHigh` over the old saturated container —
-      // the "Pay cash on delivery" line the owner could not read.
       final faded = blend(
         const Color(0xFFFFFFFF),
         oldPrimaryContainer,
@@ -383,8 +354,6 @@ void main() {
     test('the FALSE comment this redesign removed: onSecondaryContainer on '
         'secondaryContainer was never "~3:1"', () {
       // `offer_accepted_banner.dart` carried a comment asserting #777FC0 on the
-      // navy container "is ~3:1 on navy and fails WCAG 2.2 AA", and used
-      // `onPrimary` to work around it. Measured, it passes.
       final cs = AppTheme.light().colorScheme;
       expect(
         contrastRatio(cs.onSecondaryContainer, cs.secondaryContainer),

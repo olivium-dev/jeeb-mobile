@@ -1,10 +1,4 @@
 // Tests for MutualRatingCubit (JM-034).
-//
-// Verifies:
-//   - submit transitions inputting → submitting → submitted (mandatory
-//     terminal; the screen navigates home/dashboard on `submitted`).
-//   - stars=0 prevents submit.
-//   - submit failure emits error phase.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';

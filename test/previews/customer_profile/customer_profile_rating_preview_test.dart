@@ -1,19 +1,4 @@
 // Render tests for the CustomerProfileRating previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`, with two deviations, both on
-// purpose:
-//
-//   * It loads the production Inter faces (and, through the same helper, the
-//     deterministic Arabic subset the goldens use). Every width below is a
-//     device number; under the square test font they are all roughly double,
-//     and every state would look truncated.
-//   * Two states — 'Unrated (cold start)' and 'Reviews, no average' — share the
-//     string "No reviews yet" in the `expectedText` map, because the widget
-//     folds two different payloads onto identical output. That is the defect,
-//     not a lazy fixture, so those two are told apart underneath by asserting
-//     what each one must NOT say.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -66,7 +51,6 @@ void main() {
   setUpAll(() async {
     loadPreviewArbs();
     // Geometry, not glyphs, is what the states below are for — the widths are
-    // meaningless under the square test font.
     await loadInterTestFont();
   });
 
@@ -122,8 +106,6 @@ void main() {
       await pumpPreview(tester, customerProfileRatingCountWithoutAverage);
 
       // `_hasRating` is one `&&` over two independent getMe fields, so a
-      // payload carrying 42 ratings without an aggregated average takes the
-      // cold-start branch and asserts the opposite of what it knows.
       expect(find.text('No reviews yet'), findsOneWidget);
       expect(
         find.textContaining('42'),
@@ -156,9 +138,6 @@ void main() {
       await pumpPreview(tester, customerProfileRatingSingleReview);
 
       // D59: hide the aggregate until N >= 5. `DeliveryManProfileHeader.
-      // _RatingRow` implements it (isColdStart -> deliveryManProfileReviewsCount,
-      // no score); this widget renders the score from the first review, out of
-      // the same two ARB keys.
       expect(find.text('5.0 . 1 Reviews'), findsOneWidget);
       expect(
         find.byIcon(Icons.star_rounded),
@@ -167,8 +146,6 @@ void main() {
       );
 
       // And the label reads "1 Reviews": AppLocalizations resolves keys by
-      // `replaceFirst('{count}', '$count')`, so there is no ICU plural to reach
-      // for even if the ARB grew one.
       expect(find.textContaining('1 Reviews'), findsOneWidget);
     });
 
@@ -221,8 +198,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The control for the truncation asserted below: nothing here is broken
-      // at the default text size, so the failures at 200% are the scale's doing
-      // and not a fixture that was too long to begin with.
       for (final MapEntry<String, List<String>> entry in _labels.entries) {
         for (int i = 0; i < 2; i++) {
           final Locale locale = i == 0 ? const Locale('en') : const Locale('ar');
@@ -244,13 +219,10 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
       // English on a 390pt phone survives: 209pt of label in the 226pt the
-      // 250pt identity column leaves after the star and its gap.
       await pumpPreview(tester, customerProfileRatingRated);
       expect(_truncated(tester, '4.9 . 312 Reviews'), isFalse);
 
       // Arabic does not. The cold-start copy is the widest string this widget
-      // can render ("لا توجد تقييمات بعد" against "No reviews yet"), and it is
-      // the EMPTY state — the one every unrated account lands on.
       await pumpPreview(
         tester,
         customerProfileRatingUnrated,
@@ -264,8 +236,6 @@ void main() {
       );
 
       // And the longest label on the smallest phone loses its review count.
-      // `Text` ellipsizes the END, so what survives is the score and what is
-      // cut is the number of ratings backing it.
       const List<String> longest = <String>[
         '5.0 . 1284 Reviews',
         '5.0 . 1284 تقييم',
@@ -301,8 +271,6 @@ void main() {
           tester.getSize(find.byType(CustomerProfileRating)).width;
 
       // `Flexible` + `MainAxisSize.min` means the row shrink-wraps its label
-      // and stops at the column width. This half of the layout is fine, and
-      // pinning it is what makes the truncation above attributable to the text.
       expect(shortWidth, lessThanOrEqualTo(250.0));
       expect(smallPhoneWidth, lessThanOrEqualTo(180.0));
     });

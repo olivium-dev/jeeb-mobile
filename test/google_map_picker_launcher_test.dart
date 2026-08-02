@@ -8,10 +8,6 @@ import 'support/sync_app_localizations.dart';
 
 void main() {
   // T-MOB-012: the production MapPickerLauncher pushes the capture screen and
-  // returns the coordinate parked under the centre pin. The GoogleMap is a
-  // platform view that does not paint headless, but the route push + the
-  // pin-returns-the-centre contract are exercised here; the gateway is omitted
-  // so no real GPS/plugin call happens in `flutter test`.
   testWidgets('pickOnMap pushes the capture screen and pins return the centre',
       (tester) async {
     LocationPoint? result;

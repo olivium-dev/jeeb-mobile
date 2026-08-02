@@ -1,18 +1,4 @@
 // Render tests for the DmOnboardingPhotoStep previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose — the same one
-// `delivery_confirm_illustration_preview_test.dart` makes. Every state of this
-// step renders the SAME copy (one title, one subtitle, one "Continue"), so the
-// `expectedText` map below binds to each preview's caption, which is preview
-// scaffolding rather than widget output. On its own that would be exactly the
-// weak assertion the harness warns about: six previews of one state with six
-// labels would pass. The per-state contract is asserted underneath, against the
-// three things this step actually varies — whether the CTA is enabled, what the
-// drop-area contains, and the box that drop-area lays out in.
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -52,10 +38,7 @@ double _scrollExtent(WidgetTester tester) => tester
     .maxScrollExtent;
 
 /// The laid-out line boxes of the step's wrapped title, top to bottom.
-///
 /// Line boxes rather than the widget rect: the title wraps to the full content
-/// width in both locales, so the rect is identical either way and only the
-/// glyph runs inside it can show whether the header mirrored.
 List<TextBox> _titleLines(WidgetTester tester, String title) {
   final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(
     find.text(title),
@@ -104,9 +87,6 @@ void main() {
 
   group('DmOnboardingPhotoStep preview specifics', () {
     // One pump per test, deliberately: two of these trees differ only in the
-    // cubit's seed, so pumping them into the same tester relies on the
-    // `ValueKey` in `_hosted` to force `BlocProvider.create` to re-run. Tests
-    // that do pump twice below are the ones comparing states on purpose.
     testWidgets('the empty step offers the "+" drop-area and an inert CTA', (
       WidgetTester tester,
     ) async {
@@ -149,7 +129,6 @@ void main() {
       final Image wide = tester.widget<Image>(find.byType(Image));
 
       // Same card, same fit, different payload: the 3:1 fixture is cropped to
-      // 4:5 with no reframe control anywhere in the step.
       expect(portrait.fit, BoxFit.cover);
       expect(wide.fit, BoxFit.cover);
       expect(
@@ -177,9 +156,6 @@ void main() {
       await pumpPreview(tester, dmOnboardingPhotoStepPickFailed);
 
       // Pinning the gap, not endorsing it: DmOnboardingError.photoPickFailed is
-      // surfaced only by the host screen's one-shot SnackBar (JEBV4-13 P1-5),
-      // which is acknowledged immediately. The drop-area keeps no trace of the
-      // failure and offers no retry affordance of its own.
       expect(_cardBox(tester), emptyBox);
       expect(find.byIcon(Icons.add), findsOneWidget);
       expect(find.byType(Image), findsNothing);
@@ -235,7 +211,6 @@ void main() {
       );
 
       // The overflow becomes scroll, not a RenderFlex stripe, and Continue
-      // stays inside the step's own box instead of being pushed off it.
       final Rect step = tester.getRect(
         find.byKey(DmOnboardingPhotoStep.rootKey),
       );
@@ -255,9 +230,6 @@ void main() {
 
       await pumpPreview(tester, dmOnboardingPhotoStepWithPhoto);
       // DmOnboardingPhotoUploadCard builds its Semantics label OUTSIDE the
-      // BlocBuilder that swaps "+" for the image, so the announcement never
-      // changes: a screen-reader user is told to add a photo they have already
-      // added, and is never told the required step is satisfied.
       expect(
         find.bySemanticsLabel('Tap to add a photo'),
         findsOneWidget,
@@ -280,9 +252,6 @@ void main() {
         find.bySemanticsIdentifier('dm_onboarding_continue'),
       );
       // Pinning the gap: OmdsLoadingButton drops its GestureDetector callback
-      // and fades the fill to 60% alpha, but the wrapping Semantics never sets
-      // `enabled: false`, so assistive tech announces a plain button and the
-      // user is left tapping a control that cannot respond.
       expect(node.flagsCollection.isButton, isTrue);
       expect(
         node.flagsCollection.isEnabled,
@@ -323,10 +292,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The step has no icons or rows to mirror — its only directional surface
-      // is the header block, which relies on `CrossAxisAlignment.start`
-      // resolving against `Directionality`. Both title lines wrap to the full
-      // content width, so a rect comparison cannot see the difference; the
-      // laid-out line boxes can.
       await pumpPreview(tester, dmOnboardingPhotoStepEmpty);
       final List<TextBox> en = _titleLines(
         tester,
@@ -391,10 +356,6 @@ void main() {
                 'clipped',
           );
           // The CTA is the one part of the step that does NOT grow: an
-          // `OmdsLoadingButton` is a fixed 48pt box whatever the text scale.
-          // At 200% the label is 40pt of those 48, so the shipping copy still
-          // clears the box — with 8pt to spare in EN and no room for a longer
-          // localized label or a taller scale.
           expect(tester.getSize(find.byType(OmdsLoadingButton)).height, 48.0);
           expect(
             tester
@@ -412,7 +373,6 @@ void main() {
 
     test('the drop-area boundary and the subtitle miss their contrast floors', () {
       // Measured through the previews, asserted here on the palette itself so
-      // the numbers cannot drift silently.
       for (final ThemeData theme in <ThemeData>[
         AppTheme.light(),
         AppTheme.dark(),
@@ -420,11 +380,6 @@ void main() {
         final ColorScheme cs = theme.colorScheme;
 
         // `DmOnboardingPhotoUploadCard` paints `surfaceContainerLow` inside a
-        // `outlineVariant` hairline, on the page's `surface`. Both readings are
-        // far under the 3:1 WCAG 1.4.11 asks of the boundary that identifies a
-        // control — and this control IS the step: a 342x427 tap target whose
-        // only visible edge is that hairline. What actually marks it is the
-        // "+" glyph (8.9:1 light / 10.1:1 dark).
         expect(
           _contrast(cs.outlineVariant, cs.surface),
           lessThan(3.0),
@@ -436,11 +391,6 @@ void main() {
       }
 
       // `DmOnboardingStepHeader` inks the subtitle with `onSecondaryContainer`
-      // — the light-indigo emphasis tint — over the white scaffold. At 3.76:1
-      // it misses WCAG AA's 4.5:1 for normal-size text (`titleSmall` is 14pt
-      // Inter, well under the 18.66pt large-text exemption). The dark scheme is
-      // fine at 14.29:1, so this is a light-mode-only defect and the EN light
-      // rendering of every preview above is where it shows.
       final ColorScheme light = AppTheme.light().colorScheme;
       expect(
         _contrast(light.onSecondaryContainer, light.surface),

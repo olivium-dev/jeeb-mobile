@@ -1,11 +1,3 @@
-// Render tests for the JeeberHomeGreeting previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. The shared suite asserts each preview renders
-// ITS OWN state; the group below pins the two behaviours unique to the jeeber
-// header — ambient-over-threaded precedence, and the avatar-less shape three of
-// its call sites produce.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
@@ -33,8 +25,6 @@ void main() {
       'Threaded name, no avatar': 'Hello, Kamal',
       'Ambient profile wins': 'Hello, Layla',
       // The two suppressed-name states below also render 'Welcome back' — that
-      // IS the assertion — so the specifics group distinguishes them by what
-      // the avatar does.
       'Synthetic handle suppressed': 'Welcome back',
       'Long name ellipsis': 'Hello, Abdulrahman',
     },
@@ -65,11 +55,8 @@ void main() {
       expect(find.textContaining('jeeb-e1a35ea8a520'), findsNothing);
       expect(find.text('Welcome back'), findsOneWidget);
       // Documents current behaviour, not desired behaviour: the ambient handle
-      // wins precedence before suppression runs, so the threaded 'Rami' is
-      // discarded rather than used as the fallback.
       expect(find.text('Hello, Rami'), findsNothing);
       // The picture still resolves, but the initial degrades to '?' because it
-      // is derived from the suppressed name.
       final OmdsProfileAvatar avatar = tester.widget<OmdsProfileAvatar>(
         find.byType(OmdsProfileAvatar),
       );

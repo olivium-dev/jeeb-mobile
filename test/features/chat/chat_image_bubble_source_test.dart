@@ -1,20 +1,4 @@
 // P4 + P5 (b01-20260725) — image/photo bubble RENDER-SOURCE precedence.
-//
-// TC-C14 / TC-C15 in docs/batches/b01-20260725/testcases/P45.md §C.
-//
-// Two independent defects lived here:
-//
-//   1. `_ImageBubble` handed `message.imageUrl` straight to `OmdsCachedImage`
-//      whenever it was non-empty. But a chat attachment's `imageUrl` is a CDN
-//      **object_ref** (`chat_attachment/<guid>.jpg`), NOT a fetchable URL — the
-//      cached-image widget would issue a doomed, unauthenticated GET against a
-//      relative path. Local bytes must win, and a bare ref must degrade to the
-//      placeholder rather than to a network attempt.
-//
-//   2. `_PhotoBubble` dereferenced `message.photoBytes!`. A `photo` row with no
-//      bytes — exactly what the pre-fix build persisted on the wire — threw. And
-//      neither bubble passed `errorBuilder`, so undecodable bytes surfaced a red
-//      `ErrorWidget` inside the thread.
 
 import 'dart:io';
 import 'dart:typed_data';
@@ -150,15 +134,6 @@ void main() {
 
       expect(find.byType(OmdsCachedImage), findsOneWidget);
       // PRE-EXISTING (not introduced here, and not on any P4/P5 path): the
-      // bubble hands OmdsCachedImage no width/height, and its loading shimmer
-      // is an unconstrained Container, so under the bubble's
-      // `mainAxisSize: min` Column it asserts "BoxConstraints forces an
-      // infinite height" while the network image is still pending. Chat
-      // attachments are object_refs or local bytes and never take this branch;
-      // the http branch exists only for legacy/external URLs. Consumed
-      // explicitly so this test asserts the ROUTING decision (its actual
-      // subject) without silently swallowing anything else. Filed as an OMDS
-      // follow-up.
       expect(tester.takeException(), isNotNull);
     });
 

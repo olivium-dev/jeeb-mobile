@@ -1,19 +1,4 @@
 // Render tests for the RecentReviewsSection previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The `expectedText` map is the load-bearing half: each state is bound to a
-// string only that state puts on screen, so a suite that accidentally rendered
-// the same three-card feed six times fails instead of passing. One binding is a
-// caption rather than widget output — the empty state renders NOTHING, which is
-// its entire contract, so there is no text of the widget's own to address it
-// with. Its real assertion is the measured zero height below.
-//
-// The specifics group underneath pins the five defects the previews expose, so
-// that each of them fails HERE the day it is fixed rather than quietly
-// disagreeing with the prose in the preview section.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,7 +46,6 @@ void main() {
     expectedText: const <String, String>{
       'Three reviews, view all': 'Reviews (3)',
       // Caption-bound: this state draws nothing of its own. The zero-height
-      // assertion in the specifics group is what really separates it.
       'Empty (renders nothing)':
           'Empty list — the section collapses to zero height',
       'Twelve reviews, three shown': 'Reviews (12)',
@@ -78,8 +62,6 @@ void main() {
       await pumpPreview(tester, recentReviewsSectionEmpty);
 
       // `SizedBox.shrink()`: the section keeps the width its stretching parent
-      // gives it and no height at all. A parent that spaces its children can
-      // therefore end up with a doubled gap and nothing to explain it.
       expect(tester.getSize(find.byType(RecentReviewsSection)).height, 0);
       expect(find.byType(OmdsReviewCard), findsNothing);
       expect(find.textContaining('Reviews'), findsNothing);
@@ -91,7 +73,6 @@ void main() {
       await pumpPreview(tester, recentReviewsSectionTruncated);
 
       // Defect 2: `count: reviews.length` over `reviews.take(maxItems)`. The
-      // header promises twelve; three cards arrive.
       expect(find.text('Reviews (12)'), findsOneWidget);
       expect(find.byType(OmdsReviewCard), findsNWidgets(_maxItems));
 
@@ -128,14 +109,10 @@ void main() {
       );
 
       // `title` and `viewAllText` are constructor DEFAULTS, not ARB lookups, so
-      // the header stays English in an RTL locale. Delete these two
-      // expectations when the widget starts reading AppLocalizations — they
-      // are a gap, not a contract.
       expect(find.text('Reviews (3)'), findsOneWidget);
       expect(find.text(_viewAll), findsOneWidget);
 
       // Both translations already exist in `app_ar.arb`
-      // (deliveryManProfileReviewsTitle / deliveryManProfileViewAllReviews).
       expect(find.text(_reviewsTitleAr), findsNothing);
       expect(find.text(_viewAllAr), findsNothing);
     });
@@ -150,9 +127,6 @@ void main() {
       );
 
       // `RecentReviewsSection` does not expose
-      // `OmdsReviewCard.verifiedPurchaseLabel`, so no caller can localize this
-      // even by passing every parameter the section has. `reviewerVerifiedBadge`
-      // ("عميل موثّق") sits unused in the ARB.
       expect(find.text(_verifiedBadge), findsOneWidget);
       expect(find.text('عميل موثّق'), findsNothing);
     });
@@ -163,14 +137,10 @@ void main() {
       await pumpPreview(tester, recentReviewsSectionArabicReviewer);
 
       // Defect 3: `OmdsReviewCard._buildUserAvatar` matches `[a-zA-Z]` and
-      // falls back to '?' for everything else. Both reviewers in this state
-      // have Arabic names, so both avatars are '?' — the name is on screen but
-      // the avatar has nothing to do with the person.
       expect(find.text('?'), findsNWidgets(2));
       expect(find.text('ليلى الحاج'), findsOneWidget);
 
       // The contrast with a Latin name, so this pins the regex and not the
-      // avatar in general.
       await pumpPreview(tester, recentReviewsSectionNoViewAll);
       expect(find.text('?'), findsNothing);
       expect(find.text('T'), findsOneWidget);
@@ -192,9 +162,6 @@ void main() {
       await pumpPreview(tester, recentReviewsSectionLongContent);
 
       // The trailing `timeAgo` stamp is neither Flexible nor maxLines-capped,
-      // so it is laid out at its full intrinsic width and the Expanded name
-      // column is squeezed past zero. Delete this expectation when the OMDS
-      // card constrains the stamp — it is a gap, not a contract.
       expect(
         tester.takeException(),
         isA<FlutterError>(),
@@ -207,18 +174,9 @@ void main() {
       WidgetTester tester,
     ) async {
       // Deliberately NOT a preview state: the harness above requires every
-      // preview to build clean at 1.0, so the fixture in the file uses the
-      // longest stamp the shipping formatters can emit ("365 days ago").
-      // This pins the reason that choice matters — `timeAgo` is a free-form
-      // String with no contract, so a caller that spells its timestamps out in
-      // words breaks the header row on the DEFAULT rendering, not just at the
-      // 200% ceiling. 350 px is the content column a 390 px phone leaves.
       await tester.pumpWidget(
         previewCanvas(
           // Mirrors the preview host: the Align is load-bearing (a Scaffold
-          // body passes TIGHT constraints, which a bare SizedBox cannot
-          // narrow), and the scroll view keeps this to the HORIZONTAL overflow
-          // under test instead of also reporting a vertical one.
           () => const Align(
             alignment: AlignmentDirectional.topStart,
             child: SizedBox(
@@ -243,8 +201,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // Measured: the stamp alone is 310 px of the 318 px content row, so the
-      // Expanded name column is handed ZERO width and the name wraps to one
-      // character per line.
       expect(tester.getSize(find.text('11 months and 3 weeks ago')).width, 310);
       expect(
         tester.getSize(find.text('Abdulrahman Al-Muhandis Al-Trabulsi')).width,
@@ -261,8 +217,6 @@ void main() {
 
     test('the stars are OMDS gold, not the brand orange', () {
       // Defect 5: `_ReviewCardItem` passes no `starColor`, so these cards paint
-      // the OMDS default while `ReviewRow` and `DeliveryReviewCard` both pass
-      // `colorScheme.primary`. Three review surfaces, two star colours.
       expect(AppTheme.light().colorScheme.primary, isNot(_omdsGold));
     });
   });

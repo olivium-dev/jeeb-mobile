@@ -44,16 +44,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // First tap: the dead no-op is gone — the button opens the picker. On the
-      // ADD path there is NO seeded coordinate (JEBV4-176 removed the hardcoded
-      // Beirut fallback 33.8886/35.4955), so `initial` is null and the live
-      // picker centres on its own neutral camera start — nothing is assumed.
       await tester.tap(find.text('Edit pin'));
       await tester.pumpAndSettle();
       expect(launcher.calls, 1);
       expect(launcher.lastInitial, isNull);
 
       // Second tap: now seeded with the point the first pick returned — proving
-      // the returned coordinate was adopted into the form state.
       await tester.tap(find.text('Edit pin'));
       await tester.pumpAndSettle();
       expect(launcher.calls, 2);

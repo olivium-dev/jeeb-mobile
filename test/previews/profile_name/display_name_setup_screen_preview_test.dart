@@ -1,29 +1,4 @@
 // Render tests for the DisplayNameSetupScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Two things shape this file.
-//
-// **Three of the five states paint identical copy.** The screen's whole data
-// axis is one enum, and only `failure` adds a string (a snackbar) — `idle`,
-// `saved` and the compact ceiling render the same title, subtitle, field label,
-// hint, "Continue" and "Skip for now". So `expectedText` cannot pin a designed
-// state here; it pins the dev caption each preview carries
-// ([DisplayNameSetupScreenCaptions]), which proves each card rendered its own
-// FIXTURE. Proof that each rendered its own STATE is the enabled/disabled
-// matrix — which of the field, the CTA and Skip are live — asserted per state
-// in the groups below.
-//
-// **Fonts.** `preview_test_harness.dart` does not load real faces, so text lays
-// out in Flutter's 1-em test face — Latin ~2x too wide, Arabic ~2.4x. That is
-// fine for "did this build and show its own fixture", which is all the shared
-// suite claims, and it is useless for anything about fitting. The ceiling group
-// pumps through [_displayNameSetupScreenCanvas] instead: the same canvas with
-// `withGoldenTestFonts` applied (real Inter for Latin, a deterministic Noto
-// subset for Arabic) and a text scaler, which is the only place a measurement
-// on this screen is worth anything.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -74,10 +49,6 @@ const Map<String, Widget Function()> _kPreviews = <String, Widget Function()>{
 
 /// [previewCanvas] with the real font faces installed on the theme, and an
 /// optional text scaler.
-///
-/// The shared canvas builds `AppTheme.light()` unmodified and the theme carries
-/// no `fontFamilyFallback`, so Arabic falls back to the 1-em test face there —
-/// and it has no way to render the 200% variant of the matrix at all.
 Widget _displayNameSetupScreenCanvas(
   Widget Function() preview,
   Locale locale, {
@@ -111,11 +82,7 @@ void main() {
   });
 
   /// Pumps [preview] on a surface large enough to hold its pinned device box.
-  ///
   /// The tree is cleared first: two of these previews are the same widget type
-  /// with no key, so pumping one after another lets Flutter reuse the elements
-  /// and `BlocProvider.create` — which runs only on first build — hands the
-  /// second preview the first one's cubit.
   Future<void> pumpOnDevice(
     WidgetTester tester,
     Widget Function() preview, {
@@ -146,8 +113,6 @@ void main() {
     'DisplayNameSetupScreen',
     _kPreviews,
     // The dev caption is the only string that separates `idle`, `saved` and the
-    // ceiling — see the file header. What each state actually IS gets asserted
-    // below.
     expectedText: const <String, String>{
       'Idle · nothing typed': DisplayNameSetupScreenCaptions.idle,
       'Saving · PUT in flight': DisplayNameSetupScreenCaptions.saving,
@@ -178,8 +143,6 @@ void main() {
     testWidgets('Idle · the CTA is rendered but DEAD, and Skip is the only '
         'live control', (WidgetTester tester) async {
       // `_SubmitButton` gates on `controller.text`, and the controller is
-      // private to the State with no seam to seed it — so this is the ONLY
-      // reading of the CTA any dev surface can produce. See the section prose.
       await pumpOnDevice(tester, displayNameSetupScreenIdle);
 
       expect(fieldEnabled(tester), isTrue);
@@ -193,10 +156,6 @@ void main() {
     testWidgets('Saving · the field, the CTA and SKIP are all disabled at once',
         (WidgetTester tester) async {
       // FINDING, pinned so a fix has to come through here: `_NameStepBody`
-      // passes `enabled: !state.isSaving` to the field AND to `_SkipButton`,
-      // and `DioDisplayNameRepository` sets no timeout. A PUT that hangs
-      // therefore strands the user on a step whose whole contract is
-      // "optional, never blocks registration", with no cancel and no exit.
       await pumpOnDevice(tester, displayNameSetupScreenSaving);
 
       expect(fieldEnabled(tester), isFalse);
@@ -215,8 +174,6 @@ void main() {
 
       expect(find.text(_errorEn), findsOneWidget);
       // The host nests a second Scaffold around the screen's own — but the root
-      // ScaffoldMessenger still paints the snackbar exactly once, so the card
-      // is an honest rendering of the shipped surface.
       expect(find.byType(Scaffold), findsNWidgets(2));
       // Nothing is left disabled by the failure: the user can retype or skip.
       expect(fieldEnabled(tester), isTrue);
@@ -228,11 +185,6 @@ void main() {
     testWidgets('Error · the ONLY difference from Idle is a transient snackbar',
         (WidgetTester tester) async {
       // FINDING, characterized: `DisplayNameStatus.failure` changes no pixel of
-      // the form — no inline error, no field highlight. Once the snackbar's
-      // four seconds elapse the screen cannot tell a user who never submitted
-      // from one whose name was just lost. If someone gives the failure a
-      // persistent rendering, this fails, and the fix is to assert the new
-      // rendering — not to delete it.
       await pumpOnDevice(tester, displayNameSetupScreenIdle);
       final bool idleField = fieldEnabled(tester);
       final bool idleSkip = skipButton(tester).isEnabled;
@@ -253,9 +205,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // FINDING, characterized: `DisplayNameStatus.saved` leaves `isSaving`
-      // false and nothing else consults the status, so the terminal state of
-      // this step has no rendering at all. The only feedback a user gets is the
-      // HOST navigating away.
       await pumpOnDevice(tester, displayNameSetupScreenSavedWithoutRepository);
 
       expect(fieldEnabled(tester), isTrue);
@@ -270,11 +219,6 @@ void main() {
   group('DisplayNameSetupScreen previews · the fixtures', () {
     test('savedWithoutRepository reaches `saved` with NO transport', () {
       // FINDING, pinned on the fixture because it is a production branch, not a
-      // dev contrivance: `_resolveRepository()` returns null when the
-      // `repository:` seam is null and `Dio` is not registered, and
-      // `DisplayNameCubit.submit` then emits `saved` without sending anything.
-      // A user on such a build types their name, sees the step resolve, and the
-      // name is silently dropped.
       final DisplayNameCubit cubit =
           DisplayNameSetupScreenPreviewFixtures.savedWithoutRepository();
       addTearDown(cubit.close);
@@ -284,9 +228,6 @@ void main() {
 
     test('`saving()` is already on `saving` the moment it is handed over', () {
       // `submit` emits `saving` before its first `await`, which is what lets a
-      // synchronous `Widget Function()` preview mount straight onto the state.
-      // It works for `saving` because the screen's BUILDER reads it; it does
-      // NOT work for `failure`, which only the listener reads — see below.
       final DisplayNameCubit saving =
           DisplayNameSetupScreenPreviewFixtures.saving();
       addTearDown(saving.close);
@@ -296,12 +237,6 @@ void main() {
 
     test('`rejecting()` is INERT until something submits on it', () async {
       // FINDING, pinned: the failure state cannot be seeded. `_showSaveError`
-      // is raised from `BlocConsumer.listener`, which does not fire for the
-      // state present at first build, so a cubit handed over already on
-      // `failure` renders a clean, error-free form. The fixture therefore hands
-      // back an idle cubit and
-      // [DisplayNameSetupScreenPreviewDriver] fires the PUT one frame after the
-      // screen has mounted.
       final DisplayNameCubit cubit =
           DisplayNameSetupScreenPreviewFixtures.rejecting();
       addTearDown(cubit.close);
@@ -337,9 +272,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The body is a `SingleChildScrollView`, so growth is absorbed by
-      // scrolling. Measured with the real faces — under the 1-em test face
-      // every one of these numbers is ~2x (Latin) / ~2.4x (Arabic) inflated and
-      // would report overflow that does not exist on a device.
       for (final double scale in const <double>[1.0, 2.0]) {
         for (final Locale locale in const <Locale>[
           Locale('en'),
@@ -370,9 +302,6 @@ void main() {
     testWidgets('at 200% Skip goes BELOW the fold and is reachable only by '
         'scrolling', (WidgetTester tester) async {
       // Not a defect — the body scrolls — but it is the thing to look at on
-      // this card: at the accessibility ceiling the only live control on the
-      // step starts off screen, under a CTA that is itself dead until a name is
-      // typed. Nothing on the screen suggests there is more below.
       await pumpCeiling(tester, textScale: 2.0);
 
       final double fold = deviceFrame(tester).bottom;

@@ -80,10 +80,6 @@ class _CountingDio extends Fake implements Dio {
 }
 
 void main() {
-  // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
-  // floor. Without a per-test reset the floor bleeds across cases in this file
-  // (they run milliseconds apart) and a genuine resume in test N is silently
-  // folded into test N-1's window.
   setUp(() async => AppResumeSignals.debugReset());
 
   test(
@@ -126,9 +122,6 @@ void main() {
     },
   );
 
-  // AC2c USED TO READ "production feed safety-net first polls at 60s, not
-  // 10s". The safety net is gone (b02, POLLING-ELIMINATION-PLAN A.1), so the
-  // AC is inverted: the production repository must arm no cadence at ALL.
   test('AC2c: production feed arms no cadence — 60s, 10s or otherwise', () {
     FakeAsync().run((async) {
       final dio = _CountingDio();
@@ -136,7 +129,6 @@ void main() {
 
       repository.addPollInterest(Object());
 
-      // Walk past every cadence this feed has ever shipped, and then some.
       for (final t in const <Duration>[
         Duration(seconds: 10),
         Duration(seconds: 60),
@@ -213,8 +205,6 @@ void main() {
           '/v1/jeebers/me/feed?status=pending',
         ]);
 
-        // …and it must be the LAST one. Under the old build a fresh 60s
-        // interval re-armed here; a `pump` past it now must add nothing.
         final settledBaseline = dio.getCount;
         await tester.pump(const Duration(minutes: 5));
         await tester.pump();

@@ -1,39 +1,4 @@
 // Render tests for the NoOfferTimeoutScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// This screen picks ONE of four bodies off `WaitingState` — shimmer, centred
-// error, terminal exit, or the waiting surface — and then re-drives the waiting
-// surface's header off three independent signals (offers, the clock, and
-// whether the server sent a window at all). Most of these previews would
-// therefore satisfy a render-only check while showing the wrong surface
-// entirely: a "zero notified" preview whose fixture drifted into an elapsed
-// window looks exactly like the no-coverage state to a render-only assertion,
-// and that particular confusion IS the BUG-4 defect. Every state below pins a
-// string only IT can produce, and the groups after that pin the contracts the
-// pairs exist for: zero-notified vs window-elapsed, and network vs contract
-// break.
-//
-// ## Fonts
-//
-// `loadInterTestFont()` runs before every test here, because the shared harness
-// does not load fonts and Flutter's test face makes every glyph a 1-em square —
-// Latin measures ~2x too wide, Arabic ~2.4x. No assertion in this file claims
-// an overflow. The one geometry claim that could be distorted by the fake face
-// (the compact 320 pt frame, in both locales) is measured through
-// `withGoldenTestFonts`, which is the only way to get real Arabic metrics: the
-// preview host builds `AppTheme.light()` unmodified and the theme carries no
-// `fontFamilyFallback`, so under the shared harness every Arabic glyph still
-// falls back to the test face.
-//
-// ## Why `Loading · cold read` is not in the shared suite
-//
-// Its body is an `OmdsShimmer`, i.e. a `Shimmer.fromColors` whose controller
-// repeats forever. `pumpAndSettle` (which `pumpPreview` calls) never returns
-// while one is on screen, so that preview gets the same three assertions the
-// shared suite makes, driven by fixed pumps instead.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -51,8 +16,6 @@ import '../preview_test_harness.dart';
 
 /// One fragment of the customer-typed paragraph that ONLY the longest-content
 /// fixture carries. Spelled out here rather than imported so a preview quietly
-/// rewired to a short fixture fails instead of silently losing the one state
-/// that contests the 320 pt frame.
 const String _kLongestFragment =
     'Two sealed envelopes from the notary office on Bliss Street, then a 5 kg '
     'bag of cat litter and four bottles of sparkling water from the Spinneys '
@@ -111,7 +74,6 @@ void main() {
     },
     expectedText: const <String, String>{
       // The frozen clock is what makes this an exact string rather than
-      // "4:30-or-4:29 depending on how fast the fake resolved".
       'Broadcasting · counting down': '4:30 left to find a Jeeber',
       // Only a snapshot with offers in it renders the review CTA.
       'Offers arrived': 'Review offers',
@@ -132,16 +94,11 @@ void main() {
       // The terminal body's own title; the waiting surface can never show it.
       'Terminal · expired': 'Request expired',
       // The 24 h window, promoted to h:mm:ss — the `1433:18` regression, at the
-      // width it broke on.
       'Longest content · compact 320': '23:53:18 left to find a Jeeber',
     },
   );
 
   // The loading body is an `OmdsShimmer`, i.e. a repeating animation.
-  // `pumpAndSettle` never returns while one is on screen, so this preview gets
-  // the shared suite's three assertions driven by fixed pumps. It has no text
-  // of its own at all, so its state is pinned by the shimmer plus the absence
-  // of every other body.
   group('NoOfferTimeoutScreen previews · Loading · cold read', () {
     Future<void> pumpLoading(
       WidgetTester tester, {
@@ -181,21 +138,16 @@ void main() {
         findsNothing,
       );
       // …and nothing to tap, including the free pre-accept cancel, for as long
-      // as the read takes.
       expect(find.bySemanticsIdentifier('waiting_cancel_cta'), findsNothing);
     });
   });
 
   group('NoOfferTimeoutScreen preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does NOT rebuild these — `previewCanvas` produces the same widget types,
-    // so the `BlocProvider` element is UPDATED rather than replaced and keeps
-    // the cubit the first preview created.
     testWidgets('the phone previews pin a 390 pt frame, not the canvas width', (
       WidgetTester tester,
     ) async {
       // The harness pumps an 800 pt surface: a preview that left its width to
-      // the host would measure 800 here, and none of this layout applies there.
       await pumpPreview(tester, noOfferTimeoutScreenBroadcasting);
 
       expect(tester.getSize(find.byType(NoOfferTimeoutScreen)).width, 390);
@@ -236,9 +188,6 @@ void main() {
     });
 
     // The BUG-4 pair. `notifiedCount` is informational and effectively always
-    // zero in production, so a screen that gated no-coverage on it told every
-    // healthy waiting customer that nobody was nearby. Only the CLOCK may raise
-    // that block, and these two fixtures differ only in the clock.
     testWidgets('zero notified with the window still running is NOT '
         'no-coverage (BUG-4)', (WidgetTester tester) async {
       await pumpPreview(tester, noOfferTimeoutScreenZeroNotified);
@@ -267,7 +216,6 @@ void main() {
         findsOneWidget,
       );
       // The block REPLACES the header: the customer loses both the count and
-      // the countdown at the moment they have been waiting longest.
       expect(find.bySemanticsIdentifier('waiting_countdown'), findsNothing);
       expect(
         find.bySemanticsIdentifier('waiting_notified_count'),
@@ -295,8 +243,6 @@ void main() {
     });
 
     // The network/contract pair. Same body, same Retry, different claim — and
-    // the whole reason `WaitingFailure.contractViolation` carries its own copy
-    // is so a QA run reports a backend break rather than a flaky connection.
     testWidgets('the network failure blames the connection', (
       WidgetTester tester,
     ) async {
@@ -354,7 +300,6 @@ void main() {
       await _pumpWithFonts(tester, noOfferTimeoutScreenLongestContent);
 
       // `CountdownFormat` promotes the hours field instead of letting the
-      // minute field run away — the `1433:18` regression.
       expect(find.text('23:53:18 left to find a Jeeber'), findsOneWidget);
       expect(find.text('1433:18 left to find a Jeeber'), findsNothing);
       // The echo card sets no `maxLines`, so the whole paragraph is laid out.

@@ -1,6 +1,4 @@
 // Unit tests for DisplayNameCubit (profile-name lane): submit lifecycle,
-// fail-soft failure handling, the fixture-mode (null repo) path, and the
-// profile-changed broadcast fired on a successful save.
 
 import 'package:flutter_test/flutter_test.dart';
 

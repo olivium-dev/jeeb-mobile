@@ -1,14 +1,4 @@
 // Render tests for the ReviewRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// Note what the `expectedText` strings are pinned to. The reviewer's first name
-// is NOT usable as a per-state fingerprint here: `ReviewRow` renders its own
-// D58 attribution node and `OmdsReviewCard` renders `userName` again, so every
-// name matches twice. The bodies are the distinguishing content, and the
-// star-only row — which has no body — is pinned to its relative age instead.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,7 +72,6 @@ void main() {
       await pumpPreview(tester, reviewRowStarsOnly);
 
       // `body: null` is coerced to '' and OmdsReviewCard drops the text block;
-      // the row must not fall back to printing an empty paragraph or the name.
       expect(find.text(''), findsNothing);
       expect(find.text('Fast and friendly.'), findsNothing);
     });
@@ -93,10 +82,6 @@ void main() {
         await pumpPreview(tester, reviewRowWithComment);
 
         // Documented, not endorsed: `ReviewRow` paints the D58 attribution node
-        // and then hands the same string to `OmdsReviewCard` as `userName`. If
-        // the duplication is ever removed this expectation should drop to one,
-        // and the preview prose above the fixtures should lose its first
-        // bullet.
         expect(find.text('Sami'), findsNWidgets(2));
       },
     );

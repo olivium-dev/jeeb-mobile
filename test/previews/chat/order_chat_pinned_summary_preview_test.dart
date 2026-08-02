@@ -1,17 +1,4 @@
 // Render tests for the OrderChatPinnedSummary previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Two things beyond "it built" are pinned here. Each state asserts a string
-// only IT renders — a suite that just checks "something rendered" passes even
-// when every preview shows the same widget. And the collapsed/expanded pair is
-// asserted structurally, because those previews seed the process-wide
-// `ChatHeaderExpansionStore` with a key the preview file re-derives; if that
-// copy ever drifts from `_OrderChatPinnedSummaryState._expansionKey`, every
-// "expanded" preview silently opens collapsed and the expectedText checks below
-// are the only thing that would notice.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,9 +19,6 @@ Text _descriptionText(WidgetTester tester) => tester.widget<Text>(
 void main() {
   setUpAll(loadPreviewArbs);
   // The expansion choice is remembered for the SESSION and widget tests share
-  // one process. Every preview re-seeds its own key, so this is belt-and-braces
-  // — but it is what keeps a failure here meaning "the preview is wrong" rather
-  // than "the previous test leaked".
   setUp(ChatHeaderExpansionStore.instance.reset);
 
   testPreviewsRender(
@@ -51,7 +35,6 @@ void main() {
       // The collapsed row paints the reference and nothing disclosed.
       'Collapsed (default)': 'ORD-23470',
       // Only rendered once the strip is expanded — so this doubles as the
-      // proof that the expanded previews really open expanded.
       'Expanded (all fields)': '2 kilos apples from Spinneys',
       // Derived from the delivery id: never a raw UUID, never the screen title.
       'Pending (nothing resolved)': '#7719D4',
@@ -90,8 +73,6 @@ void main() {
       await pumpPreview(tester, orderChatPinnedSummaryExpanded);
 
       // If the preview file's `_expansionKeyFor` ever drifts from the widget's
-      // own `_expansionKey`, the seed lands under a key nobody reads and this
-      // is the assertion that catches it.
       for (final String id in const <String>[
         'order_summary_eta',
         'order_summary_tier',
@@ -147,7 +128,6 @@ void main() {
       expect(description.maxLines, 2);
       expect(description.overflow, TextOverflow.ellipsis);
       // The long reference ellipsises rather than pushing the amount and the
-      // expand control off the trailing edge.
       expect(find.text('ORD-2026-0801-BEIRUT-HAMRA-0042'), findsOneWidget);
       expect(find.text('1,250,000 L.L.'), findsOneWidget);
       expect(

@@ -1,16 +1,4 @@
 // Render tests for the BottomSheetSafeArea previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Every state pins a DISTINCT title, because a
-// suite that only asked "did something render?" would pass on five copies of
-// the same sheet.
-//
-// This widget also needs a second kind of test the other preview suites do not.
-// Half of what it computes — the nav-bar inset — is read from the raw
-// FlutterView, which NO widget can substitute, so the canvas always renders it
-// as zero. `tester.view` is the only place that half can be seeded, so the
-// geometry group below is the only proof that these previews are reviewing a
-// widget that reserves anything at all.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,10 +15,7 @@ const double _kNavBarInsetDp = 48;
 const double _kKeyboardDp = 300;
 
 /// Seeds the FlutterView's nav-bar inset, where the helper reads it from.
-///
 /// `padding` is seeded alongside `viewPadding` because the preview host wraps
-/// every preview in a [SafeArea], which pads from `MediaQuery.padding`; seeding
-/// only one of the two would model a device that does not exist.
 void _seedNavBar(WidgetTester tester, {double dp = _kNavBarInsetDp}) {
   final double dpr = tester.view.devicePixelRatio;
   tester.view.viewPadding = FakeViewPadding(bottom: dp * dpr);
@@ -81,8 +66,6 @@ void main() {
       await pumpPreview(tester, bottomSheetSafeAreaKeyboardClosed);
 
       // The exact regression the widget exists for: viewInsets.bottom is 0 here,
-      // so a keyboard-only padding would reserve nothing and hand the CTA to the
-      // soft buttons.
       expect(_reservedInset(tester), _kNavBarInsetDp);
     });
 
@@ -115,7 +98,6 @@ void main() {
       await pumpPreview(tester, bottomSheetSafeAreaKeyboardOpen);
 
       // Not decoration: this line is how a reviewer in the canvas tells a gap
-      // caused by the keyboard from one caused by the nav bar.
       expect(
         find.text('reserved 348 dp = keyboard 300 + nav bar 48'),
         findsOneWidget,
@@ -128,12 +110,6 @@ void main() {
       await pumpPreview(tester, bottomSheetSafeAreaKeyboardClosed);
 
       // jeebPreviewHost wraps every preview in Scaffold(body: SafeArea(...)),
-      // which already consumed the 48 dp bottom padding. sheetBottomInset reads
-      // the raw FlutterView, so it cannot see that and adds 48 again: the CTA
-      // ends up ~96 dp + the body's own 16 dp padding clear of the screen edge.
-      // Correct for a real sheet (nothing above it consumes the padding), a
-      // double pad anywhere else — unlike scrollBodyBottomInset, which reads
-      // MediaQuery and is documented as double-pad safe.
       final double screenBottom = tester.getRect(find.byType(Scaffold)).bottom;
       final double ctaBottom = tester.getRect(find.text('Apply')).bottom;
 
@@ -148,8 +124,6 @@ void main() {
       await pumpPreview(tester, bottomSheetSafeAreaInModalRoute);
 
       // Pushed through showModalBottomSheet, not hand-placed: the widget's whole
-      // reason to exist is this framing, where no ancestor SafeArea reserves the
-      // nav-bar inset for the body.
       expect(find.byType(BottomSheet), findsOneWidget);
     });
 
@@ -167,8 +141,6 @@ void main() {
       await pumpPreview(tester, bottomSheetSafeAreaInModalRouteWithKeyboard);
 
       // The half of the extension's contract that only this preview covers:
-      // whatever showModalBottomSheet does to the padding, viewInsets is
-      // propagated into the sheet intact, so the CTA still clears the keyboard.
       expect(_reservedInset(tester), _kKeyboardDp);
     });
   });

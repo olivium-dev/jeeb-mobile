@@ -1,14 +1,4 @@
 // Render tests for the AnimatedMicButton previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// The widget renders no text, so `expectedText` pins each specimen's caption.
-// A caption is only half the proof for an icon-only widget, so the specifics
-// group below also pins the PROPS each specimen carries: six frozen circles
-// are the easiest possible case for a preview file to render one state six
-// times and still pass.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,7 +53,6 @@ void main() {
     });
 
     // The caption is preview chrome — it would keep passing if every specimen
-    // built the same button. These are the props the captions claim.
     testWidgets('the specimens differ in the props, not just the caption', (
       WidgetTester tester,
     ) async {
@@ -93,7 +82,6 @@ void main() {
       await pumpPreview(tester, animatedMicButtonCompact);
       expect(buttonIn(tester).diameter, lessThan(production));
       // Material's minimum tap target — the widget composes a raw
-      // GestureDetector, so nothing enforces this for it.
       expect(
         buttonIn(tester).diameter,
         greaterThanOrEqualTo(kMinInteractiveDimension),
@@ -101,8 +89,6 @@ void main() {
     });
 
     // The semantics label is the only user-facing string this widget has and
-    // the caller supplies it, so a preview that hardcoded English would render
-    // an identical-looking canvas while hiding a missing translation.
     testWidgets('semantics labels come from the ambient locale', (
       WidgetTester tester,
     ) async {
@@ -131,9 +117,6 @@ void main() {
     });
 
     // The recording specimens are only reviewable because `TickerMode` mutes
-    // the repeating pulse — an unmuted `AnimationController.repeat` schedules
-    // frames forever and `pumpPreview`'s `pumpAndSettle` never returns. If
-    // this test starts timing out, the TickerMode wrapper was deleted.
     testWidgets('the recording specimens settle', (WidgetTester tester) async {
       await pumpPreview(tester, animatedMicButtonRecording);
       expect(tester.binding.hasScheduledFrame, isFalse);
@@ -143,10 +126,6 @@ void main() {
     });
 
     // The premise of the halo-ceiling specimen: the widget reserves
-    // `diameter × 1.6` but the halo reaches `diameter × 1.6875` at the top of
-    // the pulse, so the peak is clamped by the constraints. If the widget is
-    // ever fixed — reserve the peak, or cap the tween — this expectation is
-    // the thing to update.
     testWidgets('the reserved box is smaller than the peak halo', (
       WidgetTester tester,
     ) async {

@@ -1,26 +1,4 @@
 // App-wide system-BACK regression guard (item 1: "fix back buttons across ALL
-// screens in one shot").
-//
-// DEFECT: any screen that can become the ROOT of the go_router stack — reached
-// via a stack-REPLACING `context.go(...)`/`goNamed(...)`, an inbound platform
-// deep link, or a push-notification tap (`GoRouter.go(...)`) — exited the app to
-// the launcher on the SYSTEM back gesture, because a lone root page has nothing
-// to pop and the event propagates to the OS.
-//
-// FIX: `AppRouter` wraps every root-capable route (enumerated in
-// `AppRouter.backFallbacks`) in a `RootAwareBackScope` via the central
-// `_wrapRootAware` transformer, so system BACK pops when a stack exists and
-// otherwise redirects to the route's logical parent — never the launcher.
-//
-// This suite proves the contract WITHOUT the per-screen DI/timer/network cost:
-//   * Group 1 — the `backFallbacks` map is coherent and the deliberately
-//     EXCLUDED routes (home/first-run/gate/mandatory-rating/self-wrapping) are
-//     absent, while the high-risk deep-link/push targets are present.
-//   * Group 2 — parameterized over EVERY entry: a placeholder wrapped exactly
-//     as the router wraps it, entered as the stack ROOT, never exits on system
-//     BACK — it lands on the mapped fallback and the Navigator is never emptied.
-//   * Group 3 — the REAL `AppRouter` actually applies the wrapper to a real
-//     route (structural check on the built route table).
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -38,8 +16,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Dispatches the platform `popRoute` message — the exact channel the OS uses
 /// for the Android system BACK gesture (routed through the Router's
-/// `BackButtonDispatcher`, which a `RootAwareBackScope`'s `BackButtonListener`
-/// intercepts before go_router's delegate).
 Future<void> systemBack(WidgetTester tester) async {
   await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'flutter/navigation',
@@ -66,9 +42,6 @@ void main() {
 
     test('deliberately EXCLUDED routes are never wrapped', () {
       // Home/first-run roots (BACK must be allowed to exit), gate screens (BACK
-      // must not bypass the gate), mandatory blind-rating screens (own
-      // PopScope(canPop:false)), self-wrapping screens, and the redirect-only /
-      // debug placeholders.
       const excluded = <String>[
         'shell',
         'onboarding',
@@ -95,8 +68,6 @@ void main() {
 
     test('high-risk deep-link / push-notification targets ARE wrapped', () {
       // These are the routes reachable as a stack ROOT from a notification tap
-      // or deep link (see notifications_list_screen.dart + the router's
-      // deep-link normalisers) — exactly the ones that used to exit the app.
       const mustWrap = <String>[
         'chat-detail',
         'jeeber-request-detail',
@@ -122,11 +93,6 @@ void main() {
 
   group('system BACK never exits from any root-capable route', () {
     // A minimal router that mounts a PLACEHOLDER wrapped exactly as the real
-    // router wraps it (same RootAwareBackScope, same fallback from the same
-    // map), plus a leaf for every distinct fallback destination. Driving the
-    // real screens is covered by back_nav_system_back_test.dart /
-    // back_nav_offer_composer_test.dart; this proves the wrapping CONTRACT for
-    // EVERY entry without their per-screen DI.
     final distinctFallbacks = AppRouter.backFallbacks.values.toSet();
 
     GoRouter buildRouter(String probePath, String fallback) {
@@ -139,7 +105,6 @@ void main() {
                 const Scaffold(body: Center(child: Text('HOME'))),
           ),
           // Register every distinct fallback destination so go(fallback)
-          // resolves to a real page (never the error surface).
           for (final fb in distinctFallbacks)
             if (fb != '/')
               GoRoute(
@@ -171,7 +136,6 @@ void main() {
           await tester.pumpAndSettle();
 
           // Stack-REPLACING entry (deep-link / push / go): the probe is the
-          // lone page — exactly the state that used to exit the app.
           router.go(probePath);
           await tester.pumpAndSettle();
           expect(find.text('PROBE'), findsOneWidget);
@@ -181,7 +145,6 @@ void main() {
           await tester.pumpAndSettle();
 
           // Consumed the gesture and resolved to the fallback parent — the app
-          // was NOT exited and the surface is never blank.
           expect(_locationOf(router), entry.value);
           expect(find.text('PROBE'), findsNothing);
         },
@@ -214,9 +177,6 @@ void main() {
 
   group('the real AppRouter applies the wrapper', () {
     // Structural proof that `_wrapRootAware` actually ran on the production
-    // route table: locate a real root-capable route by name and assert the
-    // route object exists. (End-to-end behaviour on real screens is covered by
-    // back_nav_system_back_test.dart and back_nav_offer_composer_test.dart.)
     GoRoute? findByName(List<RouteBase> routes, String name) {
       for (final route in routes) {
         if (route is GoRoute) {
@@ -249,8 +209,6 @@ void main() {
         addTearDown(router.dispose);
 
         // Build the wrapped route's widget (the builder constructs the widget
-        // tree lazily — no screen `build` / DI is invoked by construction). A
-        // static, DI-free screen keeps this pure.
         final wrapped =
             findByName(router.configuration.routes, 'delivery-register-prompt');
         expect(wrapped, isNotNull);

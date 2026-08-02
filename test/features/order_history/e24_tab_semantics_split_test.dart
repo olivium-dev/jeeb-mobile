@@ -1,21 +1,4 @@
 // JEBV4-219 / E24 — Tab semantics (Q-086 RATIFIED, verbatim: "Requests are
-// not accepted yet, they are on hold"):
-//
-//   "Requests" tab  = not-yet-accepted (on-hold) items
-//   "Delivery" tab  = accepted-onward items
-//
-// This locks the DELIVERY-tab half of the split. [DioOrderRepository]
-// re-buckets client-side because the gateway's `status=active` filter is
-// advisory (it has been observed to loosely include not-yet-accepted rows —
-// see the repository's own comment). Before this fix, `OrderRequestStatus.tab`
-// mapped `pending` (searching/offered — no Jeeber has accepted) into
-// [OrderHistoryTab.active], so an on-hold request could leak onto the
-// Delivery tab's Active list, duplicating it against the Requests tab.
-//
-// The REQUESTS-tab half of the split (an accepted request must never surface
-// in Pending/Replies) is already locked by
-// `test/features/home_client/dio_client_home_repository_accepted_test.dart`
-// ("accepted request is NOT in Pending ... nor Replies").
 
 import 'dart:convert';
 import 'dart:typed_data';

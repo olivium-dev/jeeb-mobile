@@ -1,22 +1,3 @@
-// Render tests for the JeebBootstrap previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Every state pins a DISTINCT string, because a
-// suite that only asked "did something render?" would pass on five copies of
-// the same boot host — and four of these five ARE the same host, told apart
-// only by the payload it prints.
-//
-// The cold-start preview is the one state `expectedText` cannot reach, and not
-// for a harness reason: the splash host builds its own MaterialApp with the
-// app's REAL AppLocalizations delegate, which parses the ARB out of the asset
-// bundle asynchronously, so its subtree — every string it would render — is
-// withheld until that load completes. It never completes under this binding
-// (that is the same limitation `test/app/jeeb_bootstrap_test.dart` documents,
-// and warming the bundle inside `tester.runAsync` deadlocks on the widget's own
-// already-pending, cached load). So that state is pinned on the host it builds
-// and on that host's configuration, in the group below — which is a stronger
-// discriminator than a string anyway: no error preview can produce it.
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,24 +12,14 @@ import '../preview_test_harness.dart';
 
 /// The exact line the error host renders — `'App failed to start: $error'`.
 /// Mirrors the format string in `_BootstrapErrorApp` so the test breaks if that
-/// copy ever changes.
 String _errorLine(Object error) => 'App failed to start: $error';
 
 /// The branded-splash host: the [MaterialApp] `_SplashApp` builds.
-///
 /// Matches on the widget, not on its children, because the children are behind
-/// the async ARB load described above. This is the same discriminator
-/// `test/app/jeeb_bootstrap_test.dart` uses, for the same reason.
 Finder _splashHost() => find.byWidgetPredicate(
       (Widget w) => w is MaterialApp && w.home is BrandedSplash,
     );
 
-/// Unmounts the tree between two `pumpPreview` calls in one test.
-///
-/// `JeebBootstrap` caches its future in a `late final` and has no
-/// `didUpdateWidget`, so pumping a second preview of the same widget type reuses
-/// the element — and therefore the FIRST preview's bootstrap future. Without
-/// this, a loop over four states silently asserts the same one four times.
 Future<void> _unmount(WidgetTester tester) =>
     tester.pumpWidget(const SizedBox.shrink());
 
@@ -82,9 +53,6 @@ void main() {
 
       expect(_splashHost(), findsOneWidget);
       // The reason the ready state has no preview: mounting JeebApp fires
-      // Bootstrap.deferred (Firebase.initializeApp) from a post-frame callback,
-      // and the widget exposes no seam to suppress it. A never-completing
-      // bootstrap future is what keeps this preview inside the no-network rule.
       expect(find.byType(JeebApp), findsNothing);
     });
 
@@ -95,8 +63,6 @@ void main() {
 
       final MaterialApp host = tester.widget<MaterialApp>(_splashHost());
       // What this preview exists to review: the splash is NOT a bare frame — it
-      // carries both real themes and the real delegates, so it consumes
-      // colorScheme roles and ARB strings rather than literals.
       expect(host.theme, isNotNull);
       expect(host.darkTheme, isNotNull);
       expect(host.themeMode, ThemeMode.system);
@@ -114,10 +80,6 @@ void main() {
       );
 
       // Prefs are not loaded yet, so the splash resolves its own locale from
-      // PlatformDispatcher.instance.locale (en under this binding, and the host
-      // machine's locale in the canvas). The AR RTL rendering of this preview is
-      // therefore English and LTR: the mirrored splash is not reviewable from
-      // the canvas at all, only from a device whose system locale is Arabic.
       expect(tester.widget<MaterialApp>(_splashHost()).locale, const Locale('en'));
     });
 
@@ -127,11 +89,6 @@ void main() {
       await pumpPreview(tester, jeebBootstrapColdStart);
 
       // Documents, rather than asserts as desirable: AppLocalizations.delegate
-      // reads the ARB from the asset bundle asynchronously, and Localizations
-      // renders an empty Container until every delegate resolves. So the host
-      // is mounted (previous tests) while BrandedSplash is not — on device that
-      // is a blank frame between the native launch screen and the branded one,
-      // which is exactly the window the splash exists to fill.
       expect(_splashHost(), findsOneWidget);
       expect(find.byType(BrandedSplash), findsNothing);
     });
@@ -144,8 +101,6 @@ void main() {
       await pumpPreview(tester, jeebBootstrapFailedMissingPlugin);
 
       // FutureBuilder reports hasError before it reports done, so a broken boot
-      // never shows a branded frame — the first thing the user sees is the
-      // error host.
       expect(find.byType(BrandedSplash), findsNothing);
       expect(
         find.text(_errorLine(jeebBootstrapMissingPluginError)),
@@ -180,8 +135,6 @@ void main() {
       final Finder line = find.text(_errorLine(jeebBootstrapArabicError));
       expect(line, findsOneWidget);
       // No `locale:`, no delegates, no Directionality of its own: the inner
-      // MaterialApp resolves to en/LTR regardless of the ambient locale, so the
-      // English label and the Arabic message share one LTR bidi run.
       expect(Directionality.of(tester.element(line)), TextDirection.ltr);
     });
 
@@ -189,7 +142,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The failure this whole suite exists to catch: four previews of one
-      // widget that all render the same thing.
       final Set<String> seen = <String>{};
       for (final Widget Function() preview in <Widget Function()>[
         jeebBootstrapFailedOpaque,
@@ -221,8 +173,6 @@ void main() {
       await pumpPreview(tester, jeebBootstrapFailedVerbose);
 
       // The structural half of the overflow finding below: the longest payload
-      // sits in a centred Text with nothing to scroll, no ellipsis, and no way
-      // out of the screen.
       expect(find.byType(Scrollable), findsNothing);
       expect(find.byType(ButtonStyleButton), findsNothing);
       final Text message = tester.widget<Text>(find.byType(Text).last);
@@ -234,9 +184,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding the `EN 200% text` rendering of this preview surfaces, held
-      // as a number so it cannot regress unnoticed. Nothing else in the suite
-      // would catch it: clipped text throws no exception, so `takeException`
-      // stays null and every render test passes while half the message is gone.
       double clippedHeight() {
         final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(
           find.byType(Text).last,
@@ -281,4 +228,3 @@ void main() {
     });
   });
 }
-

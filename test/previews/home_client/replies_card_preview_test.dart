@@ -1,15 +1,4 @@
 // Render tests for the RepliesCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-// Every state pins a DISTINCT string, because all six previews are the same
-// widget over the same two no-op callbacks, told apart only by the
-// `ClientHomeRequest` they are handed — a suite that only asked "did something
-// render?" would pass on six copies of the same row.
-//
-// The last group is not preview hygiene. Those are the defects these previews
-// exposed in `RepliesCard` itself, held as assertions so they cannot regress
-// unnoticed. Every one of them is invisible in the EN-light-100% rendering,
-// which is the only one a reviewer sees without the matrix.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,7 +15,6 @@ const String _zeroOfferRowId = 'rep-4';
 
 /// Pumps a preview into a real 390 dp phone-width box at [textScale], the way
 /// the canvas renders it, rather than into the 800×600 default test surface.
-/// The width is the whole point: at 800 dp nothing here overflows.
 Future<void> _pumpInPreviewBox(
   WidgetTester tester,
   Widget Function() preview, {
@@ -65,8 +53,6 @@ void main() {
       'Counted, no avatars': '+4',
       'Zero offers · CTAs still shown': 'ORD-23473',
       // findsOneWidget is the assertion here: the header renders this string,
-      // and `summaryLine` must NOT echo it onto the subtitle. A G1 regression
-      // makes this find TWO widgets, not zero.
       'No display id · echo guard': 'Pharmacy run for Mom',
       'Long content · +117': '+117',
     },
@@ -77,8 +63,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Nine offers, three inline avatars -> "+6", the Figma cluster. The card
-      // derives the counter from `offerCount - inlineAvatars`, so a row whose
-      // avatar list is shorter than its count still tells the truth.
       await pumpPreview(tester, repliesCardWithOverflowCount);
 
       expect(find.text('ORD-23470'), findsOneWidget);
@@ -89,7 +73,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `extra > 0` is what hides the counter; an off-by-one there would print
-      // "+0" next to the one avatar that is already visible.
       await pumpPreview(tester, repliesCardSingleOffer);
 
       expect(find.text('+0'), findsNothing);
@@ -125,7 +108,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The failure this suite exists to catch: six previews of one widget that
-      // all render the same row.
       final Set<String> headers = <String>{};
       for (final Widget Function() preview in <Widget Function()>[
         repliesCardWithOverflowCount,
@@ -147,8 +129,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The previews pass empty avatar URLs so `OmdsProfileAvatar` short-
-      // circuits to its initials placeholder instead of constructing a
-      // `CachedNetworkImage`. If a future edit puts a URL back, this fails.
       await pumpPreview(tester, repliesCardWithOverflowCount);
 
       expect(find.byType(Image), findsNothing);
@@ -161,10 +141,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_OfferAvatar` passes `initial: 'J'` — a literal, not the offerer's
-      // initial, which the card never receives. Any offerer without a profile
-      // picture (the empty-URL path these previews use, and a real production
-      // path) is drawn as "J". Three offerers -> three identical "J" circles,
-      // so the stack claims to identify people it cannot tell apart.
       await pumpPreview(tester, repliesCardWithOverflowCount);
 
       expect(
@@ -178,10 +154,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `RepliesCard`'s doc opens with "Layout: title + tier badge, …" and the
-      // Figma row carries one, but `_RepliesHeader` builds only the title and
-      // the avatar stack. The fixture is `ClientRequestTier.flash` — the most
-      // urgent tier there is — and nothing on the row says so, while the
-      // sibling `PendingRequestCard` renders the badge from the same field.
       await pumpPreview(tester, repliesCardWithOverflowCount);
 
       expect(find.byType(ClientHomeTierBadge), findsNothing);
@@ -191,10 +163,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_RepliesActions` is an end-aligned Row of two `IntrinsicWidth` pills
-      // with no Wrap, Flexible or FittedBox, so its width scales with the text
-      // scale while the card does not. Measured in the preview's own 390 dp
-      // box, which is what makes this a preview finding: the 800 dp default
-      // test surface is wide enough to hide it, and so is 100% text.
       await _pumpInPreviewBox(
         tester,
         repliesCardWithOverflowCount,
@@ -251,7 +219,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Shorter labels (قبول / عرض العروض) shrink the overflow but do not
-      // remove it, so this is a layout defect and not a copy-length one.
       await _pumpInPreviewBox(
         tester,
         repliesCardWithOverflowCount,

@@ -6,7 +6,6 @@ class AppConfig {
 
   /// Base URL of the live jeeb-gateway BFF. ORIGIN-ONLY: scheme + host (+ port),
   /// NO `/v1`, no trailing slash. Every request path carries exactly one `/v1`;
-  /// Dio merges `baseUrl + path`, so a `/v1` here doubles to `/v1/v1`.
   static const String gatewayBaseUrl = String.fromEnvironment(
     'GATEWAY_BASE_URL',
     defaultValue: 'https://api.jeeb.app',
@@ -31,15 +30,6 @@ class AppConfig {
 
   /// Committed dev fallback = the REAL passcode the dev gateway
   /// (`http://192.168.2.39:10090`) validates `super-login/users` +
-  /// `user-id-login` against (host env `SuperAdmin__PassCode`, length 6).
-  ///
-  /// SECURITY / RELEASE-SAFETY: this constant is a dev-backend-only secret. It
-  /// is referenced ONLY inside the `kDebugMode` branch of [superAdminPassCode]
-  /// below. In a release build `kDebugMode` is a compile-time `false`, so that
-  /// branch — and therefore the only reference to this constant — is
-  /// dead-code-eliminated by the Dart AOT compiler and the literal never ships
-  /// in the release binary. Do NOT reference this field anywhere outside a
-  /// `kDebugMode`/`assert` guard, and NEVER log it.
   static const String _devSuperAdminPassCode = '123768';
 
   /// Resolution: `--dart-define` > `kDebugMode` fallback > empty in release.

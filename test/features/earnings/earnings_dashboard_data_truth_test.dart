@@ -1,8 +1,4 @@
 // T11 / SW-01: earnings must never render a wall of confident zeros after a
-// real (or not-yet-synced) delivery. Proves:
-//   * EarningsSummary.isEmpty is true only when nothing is recorded;
-//   * an empty period renders the honest OmdsEmptyState (no "0.00" anywhere);
-//   * a non-empty period renders amounts through the single MoneyFormat rule.
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -98,7 +94,6 @@ void main() {
 
     expect(find.text('No earnings yet this period'), findsOneWidget);
     // The trust-breaker the audit caught: "0.00 USD · 0 Deliveries · 0.00 fees"
-    // must NOT be rendered as if real.
     expect(find.textContaining('0.00'), findsNothing);
     expect(find.text('Total cash earned'), findsNothing);
   });
@@ -110,7 +105,6 @@ void main() {
     expect(find.text('No earnings yet this period'), findsNothing);
     expect(find.text('Total cash earned'), findsOneWidget);
     // Rendered through the one money rule ($ for USD), not "1000.00 USD".
-    // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
     expect(find.text('\u2066\$1,000.00\u2069'), findsOneWidget);
   });
 }

@@ -1,20 +1,4 @@
 // Render tests for the DeliveryStatusStepper previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// Pinning this widget takes one extra step. Its only per-state TEXT is the
-// advance CTA, and the CTA exists in exactly two of the seven states — every
-// other state paints the same five stage labels and differs only in WHICH
-// circle is accented. So `expectedText` pins the two CTA states, and the
-// `current stage` group below pins all seven by the key `_StageIcon` stamps on
-// the accented circle (`active_delivery_stage_<status>_current`), which is the
-// thing that actually distinguishes them. Without that group, six previews of
-// the same stepper would all pass while showing the same picture.
-//
-// Every dimension asserted here is measured on the test fallback font, whose
-// glyphs are wider than the bundled Inter, so widths are an upper bound rather
-// than a promise about the shipped font.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -72,7 +56,6 @@ void main() {
   );
 
   // The half of the suite `expectedText` cannot express: each preview renders
-  // ITS OWN stage as the accented one, and no other.
   group('DeliveryStatusStepper previews · current stage', () {
     const Map<String, String> accentedStageByPreview = <String, String>{
       'Ordered · step 1 + CTA': 'ordered',
@@ -111,8 +94,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // From inTransit onward the journey to Done belongs to
-      // MarkDeliveredPanel's `mark_delivered_cta`, which carries the proof
-      // photo. A second way to finish a delivery would skip that.
       for (final Widget Function() preview in <Widget Function()>[
         deliveryStatusStepperInTransit,
         deliveryStatusStepperAtDoor,
@@ -133,7 +114,6 @@ void main() {
       await pumpPreview(tester, deliveryStatusStepperCancelled);
 
       // `stepIcon` / `statusLabel` throw StateError for unsuccessful
-      // terminals — the shrink is what stands between this state and a crash.
       expect(tester.takeException(), isNull);
       expect(find.byType(OmdsStepIndicator), findsNothing);
       expect(_advanceCta, findsNothing);
@@ -154,9 +134,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The icon overlay Row and the OmdsStepIndicator underneath it are two
-      // independent Rows stacked on top of each other. If only one of them
-      // mirrors, every icon ends up on the wrong circle in Arabic, which no
-      // amount of reading the English card would reveal.
       await pumpPreview(tester, deliveryStatusStepperOrdered);
       final double ltrX = tester
           .getCenter(find.byIcon(Icons.receipt_long_outlined))
@@ -182,11 +159,6 @@ void main() {
   });
 
   // These two pin the layout ceilings the 200% rendering of the matrix exists
-  // to surface. Both are upper bounds on the test font — see the header note —
-  // but the mechanism (a fixed-height button and a width/5 label column, both
-  // holding text that scales) is font-independent. If either stops failing to
-  // fit, the widget has grown a real defence and this test should be deleted
-  // rather than relaxed.
   group('DeliveryStatusStepper previews · 200% text', () {
     testWidgets('the CTA label outgrows its fixed 48 dp button', (
       WidgetTester tester,
@@ -198,8 +170,6 @@ void main() {
         find.text('Mark as Picked'),
       );
       // `OmdsLoadingButton` hard-codes `height: Sizes.fourXLarge` (48) and
-      // centres a plain Text in it, so the wrapped label is clipped, not
-      // ellipsized and not given more room.
       expect(button.height, 48);
       expect(label.getMaxIntrinsicHeight(label.size.width), greaterThan(48));
     });
@@ -213,17 +183,12 @@ void main() {
         find.text('In Transit'),
       );
       // 310 dp of content / 5 stages. The column is a bare `Expanded`, so a
-      // word wider than it has nowhere to go.
       expect(label.size.width, 62);
       expect(label.getMinIntrinsicWidth(double.infinity), greaterThan(62));
     });
   });
 
   // `isTransitioning` swaps the CTA label for `OmdsButtonLoading`, i.e. an
-  // indeterminate `CircularProgressIndicator`. `pumpAndSettle` (which
-  // `pumpPreview` calls) never returns while one is on screen, so this preview
-  // gets the same three assertions the shared suite makes — builds in EN,
-  // builds in AR, renders its OWN state — driven by fixed pumps instead.
   group('DeliveryStatusStepper previews · Picked · transitioning', () {
     Future<void> pumpTransitioning(
       WidgetTester tester, {
@@ -252,14 +217,11 @@ void main() {
       await pumpTransitioning(tester);
 
       // Same stage as `Picked · longest CTA` — the optimistic advance is the
-      // server's to confirm, so the circles must NOT have moved on…
       expect(_accentedStage('picked'), findsOneWidget);
       // …but the label is gone, replaced by the spinner. That pair is true of
-      // no other preview in this file.
       expect(find.text('Mark as In Transit'), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       // The button must not collapse while it loads — a shrinking CTA makes the
-      // whole card jump under the jeeber's thumb.
       expect(tester.getSize(find.byType(OmdsLoadingButton)).height, 48);
     });
 
@@ -267,7 +229,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // A live tap target here is how a jeeber fires a second
-      // `POST /v1/delivery/status/transition` for the same step.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, deliveryStatusStepperPicked);

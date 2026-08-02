@@ -62,7 +62,6 @@ void main() {
   setUpAll(_loadArbs);
 
   // A tall surface so the lazy ListView builds the whole Request type screen
-  // (5 tier cards + Location section) without needing to scroll in-test.
   setUp(() {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     final view = binding.platformDispatcher.views.first;
@@ -71,7 +70,6 @@ void main() {
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
     // JEBV4-176: the location-select screen resolves a device-GPS fix; provide
-    // a fake so it renders normally (no real geolocator in the headless test).
     sl.registerLazySingleton<CurrentLocationResolver>(
       FakeCurrentLocationResolver.new,
     );
@@ -92,7 +90,6 @@ void main() {
 
       expect(find.byType(RequestTierCard), findsNWidgets(5));
       // Tier titles are plain text now; the leading glyph is an OMDS vector
-      // icon (Icons.bolt_outlined / Icons.eco_outlined …), not an emoji.
       expect(find.text('Flash'), findsOneWidget);
       expect(find.text('Eco'), findsOneWidget);
       expect(find.byIcon(Icons.bolt_outlined), findsOneWidget);
@@ -102,7 +99,6 @@ void main() {
       expect(find.text('Change Location'), findsOneWidget);
 
       // JM-024 / 63_W1_TEST_PLAN §2.2: the EXACT 5 tier-radio ids + the Continue
-      // CTA id the create-flow Maestro flow asserts (on-the-way → on_the_way).
       for (final id in const [
         'request_type_flash_radio',
         'request_type_express_radio',
@@ -122,7 +118,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // JM-024 / 63_W1_TEST_PLAN §2.2: tier radios carry the contract
-      // `request_type_<tier>_radio` id (was `request_type_tier_<enum>`).
       final ecoCard = find.bySemanticsIdentifier('request_type_eco_radio');
       expect(ecoCard, findsOneWidget);
       // Every tier starts unchecked until the customer makes a choice.
@@ -191,8 +186,6 @@ void main() {
         findsOneWidget,
       );
       // JM-024 / 63_W1_TEST_PLAN §2.3: the new-location CTA carries the
-      // contract `location_select_new_location_cta` id (the underlying row
-      // widget defaults to the legacy `client_location_add_new` elsewhere).
       expect(
         find.bySemanticsIdentifier('location_select_new_location_cta'),
         findsOneWidget,

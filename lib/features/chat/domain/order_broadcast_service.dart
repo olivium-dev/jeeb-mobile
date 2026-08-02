@@ -23,7 +23,6 @@ class OrderBroadcastException implements Exception {
 abstract class OrderBroadcastService {
   /// Broadcast request behind [conversationId] (conversation id or fresh-compose request id).
   /// [tier] + [origin] forwarded to matching (may be empty if upstream create-leg pinned them).
-  /// Throws [OrderBroadcastException] on failure.
   Future<OrderBroadcastResult> broadcast({
     required String conversationId,
     required String requestId,

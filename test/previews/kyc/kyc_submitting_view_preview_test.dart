@@ -1,22 +1,4 @@
 // Render tests for the KycSubmittingView previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// A word on `expectedText`, because this file breaks the house rule that every
-// state pins a DISTINCT string: it cannot. [KycSubmittingView] takes no
-// arguments and reads nothing off the cubit — its body is a fixed icon,
-// `kycSubmittingTitle`, `kycSubmittingBody` and a spinner — so the two strings
-// below are the ONLY text any state can render. What tells the states apart is
-// the safety net underneath them, so the discrimination the shared harness
-// normally does with text is done here in `preview specifics`, against the
-// wizard step each state leaves the cubit on. The identical copy is asserted
-// deliberately in `renders the SAME frame in every state`: it is the finding,
-// not an accident of the fixtures.
-//
-// The last group is the other thing these previews exposed — the body is an
-// unscrollable centred Column, and at 200% text on a real phone the spinner is
-// laid out off the bottom of the screen.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -50,9 +32,6 @@ const Map<String, Widget Function()> _stuckOnSubmitting =
 
 /// How many pixels a captured layout error overflowed by, or 0 when [error] is
 /// not an overflow at all. Read from the message rather than pinned as an exact
-/// constant: the fact under test is "this does not fit on a phone", and an
-/// exact pixel count would break on a font metric change without meaning
-/// anything.
 int _overflowPixels(Object? error) {
   if (error == null) return 0;
   final RegExpMatch? match = RegExp(
@@ -72,7 +51,6 @@ KycWizardCubit _cubitOf(WidgetTester tester) {
 
 /// Pumps [preview], asserts the full body is there, and returns the headline's
 /// rect — then UNMOUNTS, so the next preview in the same test builds a fresh
-/// element tree instead of silently reusing this one's cubit.
 Future<Rect> _frameOf(WidgetTester tester, Widget Function() preview) async {
   await pumpPreview(tester, preview);
 
@@ -92,7 +70,6 @@ Future<Rect> _frameOf(WidgetTester tester, Widget Function() preview) async {
 
 /// Pumps a preview into a real phone box at [textScale], the way the canvas
 /// renders it, instead of into the 800x600 default test surface. The size is
-/// the point: at 800x600 this body has room it never has on a phone.
 Future<void> _pumpInPreviewBox(
   WidgetTester tester,
   Widget Function() preview, {
@@ -125,8 +102,6 @@ void main() {
       'Small phone body (320x480)': kycSubmittingViewSmallPhone,
     },
     // Both strings this widget owns, alternated so a state that stopped
-    // rendering either one is caught. They cannot be distinct per state — see
-    // the header, and `renders the SAME frame in every state` below.
     expectedText: const <String, String>{
       'Spinner only · no wizard cubit': _title,
       'Probe budget spent · nothing recorded': _body,
@@ -168,9 +143,6 @@ void main() {
       await pumpPreview(tester, kycSubmittingViewBudgetSpent);
 
       // After the eight-request budget the automatic recovery is over, and
-      // there is nothing on screen to retry, cancel or leave with — recovery
-      // is entirely off-screen (the submit future, the CDN-upload timeout,
-      // KycWizardCubit.onJeeberRoleGranted).
       expect(find.byWidgetPredicate((Widget w) => w is ButtonStyleButton),
           findsNothing);
       expect(find.byType(InkWell), findsNothing);
@@ -195,8 +167,6 @@ void main() {
       await pumpPreview(tester, kycSubmittingViewSelfHeal);
 
       // JEBV4-259/271: the server recorded the submission even though the
-      // client never saw the 201, so the probe moves the wizard on — this is
-      // the self-heal that replaced "force-stop and relaunch".
       final KycWizardCubit cubit = _cubitOf(tester);
       expect(cubit.state.step, KycWizardStep.status);
       expect(cubit.state.submission.status, KycStatus.pending);
@@ -212,8 +182,6 @@ void main() {
       await pumpPreview(tester, kycSubmittingViewDetached);
 
       // `context.read<KycWizardCubit?>()` is a nullable read: outside the
-      // wizard this view polls nothing and never throws — the spinner is
-      // simply terminal.
       expect(tester.takeException(), isNull);
       expect(find.byKey(KycSubmittingView.spinnerKey), findsOneWidget);
     });
@@ -240,37 +208,22 @@ void main() {
       await pumpPreview(tester, kycSubmittingViewDetached);
 
       // It IS a live region, so the step change is announced rather than
-      // waiting for the user to swipe back to it.
       final Semantics root = tester.widget<Semantics>(
         find.byKey(KycSubmittingView.rootKey),
       );
       expect(root.properties.liveRegion, isTrue);
 
       // FINDING — the announcement STUTTERS. The container sets its own
-      // `label`/`hint` from the same two ARB keys the body already renders as
-      // Text, and it neither excludes those descendants
-      // (`excludeSemantics: true`) nor makes them explicit child nodes, so
-      // their labels are merged into the container's own. The live region
-      // therefore announces the headline twice, then the body, then repeats
-      // the body as the hint. Pinned exactly: fixing this must fail here
-      // rather than leave a stale claim behind.
       final node = tester.getSemantics(find.byKey(KycSubmittingView.rootKey));
       expect(node.label, '$_title\n$_title\n$_body');
       expect(node.hint, _body);
 
       // Disposed inline, not in a tearDown: the framework verifies handles
-      // before tearDowns run.
       handle.dispose();
     });
   });
 
   // What the previews exposed, held as assertions so it cannot regress
-  // unnoticed — and so that FIXING it fails this file loudly rather than
-  // leaving a stale claim behind.
-  //
-  // None of it is visible in the default reading: `testPreviewsRender` pumps
-  // into the 800x600 test surface, where the headline fits on one line and the
-  // body has ~200 dp of headroom it never has on a phone.
   group('KycSubmittingView layout ceiling (phone-sized boxes)', () {
     testWidgets('nothing scrolls: the body is a bare centred Column', (
       WidgetTester tester,
@@ -314,8 +267,6 @@ void main() {
           // Measured: 84 dp of overflow in EN, 124 dp in AR.
           expect(_overflowPixels(tester.takeException()), greaterThan(0));
           // Not merely clipped decoration: the ONLY indication that anything
-          // is still happening is laid out below the phone, and nothing
-          // scrolls to it.
           expect(
             tester.getRect(find.byKey(KycSubmittingView.spinnerKey)).top,
             greaterThan(700),
@@ -336,7 +287,6 @@ void main() {
       );
 
       // Measured: 528 dp in EN, 344 dp in AR — the body copy alone is taller
-      // than the viewport.
       expect(_overflowPixels(tester.takeException()), greaterThan(300));
       expect(
         tester.getRect(find.byKey(KycSubmittingView.spinnerKey)).top,

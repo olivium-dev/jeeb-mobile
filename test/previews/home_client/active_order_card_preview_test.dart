@@ -1,14 +1,3 @@
-// Render tests for the ActiveOrderCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The specifics group below pins the two CTA gates the card owns
-// (`_canTrack` / `_hasJeeber`), because every fixture passes a non-null
-// `onOpenChat` exactly as `in_progress_tab.dart` does — so if a gate opens too
-// wide, the preview silently starts showing a pill production would show too.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -34,8 +23,6 @@ void main() {
       'Delivered · no actions': 'Bakery order',
       'Long title + long summary':
           'Pharmacy pickup for Mrs. Haddad on Rue Sursock',
-      // Untitled by design — the destination is the only text that identifies
-      // this card, which is exactly the point of the state.
       'Untitled · unknown tier': 'Mar Mikhael, Beirut',
     },
   );
@@ -61,8 +48,6 @@ void main() {
     ) async {
       await pumpPreview(tester, activeOrderCardSearching);
 
-      // The fixture passes a non-null onOpenChat, as production always does:
-      // suppression here is `_hasJeeber`, not a null callback.
       expect(
         find.byKey(const Key('active-open-chat-preview-searching')),
         findsNothing,
@@ -90,8 +75,6 @@ void main() {
       );
       expect(find.text('Track my order'), findsNothing);
       expect(find.text('Open chat'), findsNothing);
-      // The stage legend survives a card with no buttons: it is what overflows
-      // on its own in the Arabic canvas rendering.
       expect(find.text('In Transit'), findsOneWidget);
     });
 
@@ -119,10 +102,6 @@ void main() {
       await pumpPreview(tester, activeOrderCardUntitledUnknownTier);
 
       expect(find.text('?'), findsOneWidget);
-      // ClientRequestTier.unknown resolves to an empty label rather than a
-      // fabricated tier name. Scoped to the badge because the empty title
-      // renders a second `Text('')` right beside it — the header row really is
-      // blank on both ends in this state.
       expect(
         find.descendant(
           of: find.byType(ClientHomeTierBadge),

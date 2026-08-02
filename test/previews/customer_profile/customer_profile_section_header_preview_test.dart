@@ -1,14 +1,4 @@
 // Render tests for the CustomerProfileSectionHeader previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The `expectedText` map below binds each state to a string only that state
-// puts on screen, so a suite that accidentally rendered the same header five
-// times fails instead of passing. Underneath it, the specifics group pins the
-// three things this widget is actually made of and that `find.text` cannot
-// see: the gutter/rhythm geometry, the paragraph mirroring, and the ink colour.
 
 import 'dart:math' as math;
 
@@ -35,7 +25,6 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
 
 /// The widget's own padding, restated from `customer_profile_section_header.dart`
 /// (`Spacing.xLarge` / `Spacing.large` / `Spacing.xSmall`) so a change to either
-/// side shows up here as a failure rather than as a silent redesign.
 const double _gutter = 24;
 const double _padAbove = 20;
 const double _padBelow = 8;
@@ -53,10 +42,6 @@ double _contrast(Color a, Color b) {
 
 /// The union of the laid-out glyph boxes of [text], in paragraph-local
 /// coordinates.
-///
-/// The `Text`'s own render box spans the full width of its parent in BOTH text
-/// directions, so it cannot tell LTR from RTL. Where the glyphs actually landed
-/// inside that box can.
 Rect _glyphSpan(WidgetTester tester, String text) {
   final RenderParagraph paragraph =
       tester.renderObject<RenderParagraph>(find.text(text));
@@ -70,10 +55,7 @@ Rect _glyphSpan(WidgetTester tester, String text) {
 }
 
 /// How many lines [text] wrapped onto, counted from the laid-out glyph boxes.
-///
 /// Line COUNTS rather than pixel heights: `flutter_test` substitutes its own
-/// metrics for Inter, so an absolute height measured here would be a property
-/// of the test font rather than of the layout.
 int _lineCount(WidgetTester tester, String text) {
   final RenderParagraph paragraph =
       tester.renderObject<RenderParagraph>(find.text(text));
@@ -94,12 +76,9 @@ void main() {
       'Account (production)': 'Account',
       'Support (production)': 'Support',
       // Pinned on the row BELOW the header, which no other state renders — the
-      // header itself says "Support" here, same as the state above it, so
-      // keying on the header would not tell the two apart.
       'Account → Support boundary': 'Contact us',
       'Longest ARB title, 320pt device': 'What the client says',
       // The state's whole content IS the empty string: exactly one `Text`
-      // rendering nothing. No other preview here produces one.
       'Empty title (invisible, still spaced)': '',
     },
   );
@@ -144,10 +123,6 @@ void main() {
       final Rect arGlyphs = _glyphSpan(tester, 'الحساب');
 
       // `EdgeInsetsDirectional` mirrors, but 24/24 is symmetric — so the
-      // paragraph gets the same box in both directions and the box itself
-      // proves nothing. (It is the same box only because `_stretched` gives the
-      // header the width its production parent gives it; loose, both would
-      // shrink-wrap to their own glyph runs and differ for the wrong reason.)
       expect(arBox.width, enBox.width);
 
       // The glyphs are where the mirroring is observable.
@@ -222,9 +197,6 @@ void main() {
       expect(tester.getSize(find.byType(CustomerProfileSectionHeader)).width,
           320.0);
       // Deliberately NOT asserted as "one line at 1.0": `flutter_test`
-      // substitutes its own metrics for Inter, so the wrap point here is a
-      // property of the test font. What is asserted below is that the count
-      // GROWS, which is a property of the layout.
       final int linesAt100 = _lineCount(tester, longest);
 
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;
@@ -235,7 +207,6 @@ void main() {
       );
 
       // No `maxLines`, no `overflow`: it degrades by wrapping. If either is
-      // ever added, this becomes an ellipsis and the count stops growing.
       final int linesAt200 = _lineCount(tester, longest);
       expect(linesAt200, greaterThan(linesAt100));
       expect(linesAt200, greaterThanOrEqualTo(2));
@@ -274,9 +245,6 @@ void main() {
       await pumpPreview(tester, customerProfileSectionHeaderAccount);
 
       // Documents today's behaviour rather than endorsing it: the widget wraps
-      // its title in no `Semantics`, so TalkBack/VoiceOver read "Account" as
-      // ordinary text and heading navigation cannot jump between the Account
-      // and Support sections. The grouping is purely visual.
       expect(
         tester.getSemantics(find.text('Account')).flagsCollection.isHeader,
         isFalse,
@@ -289,7 +257,6 @@ void main() {
 
     test('the title ink clears AA in light and fails it badly in dark', () {
       // The title paints with `colorScheme.secondaryContainer` — a container
-      // role, i.e. a fill meant to sit BEHIND ink.
       final ColorScheme light = AppTheme.light().colorScheme;
       expect(
         _contrast(light.secondaryContainer, light.surface),
@@ -299,8 +266,6 @@ void main() {
       );
 
       // The dark scheme is `ColorScheme.fromSeed(_jeebNavy, dark)`, where the
-      // role resolves to what M3 actually means by a container: a dark fill, on
-      // a surface of nearly the same tone. Measured 1.98:1.
       final ColorScheme dark = AppTheme.dark().colorScheme;
       expect(
         _contrast(dark.secondaryContainer, dark.surface),

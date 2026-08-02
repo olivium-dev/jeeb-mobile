@@ -1,16 +1,4 @@
 // Render tests for the DeliveryJeeberCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// `expectedText` pins a DIFFERENT string per state on purpose: every state here
-// renders the same section card, so a suite that only asked "did something
-// render?" would pass even if every preview were handed the same summary.
-//
-// The `preview specifics` group pins the two things the previews exposed that
-// no existing test covers — the blank-name hole and the chip's effect on the
-// name column's width budget — plus the RTL mirroring the AR reading is for.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,10 +16,6 @@ const double _phoneBodyHeight = 700;
 
 /// Pumps [preview] at a real device width and text scale and returns the height
 /// of the whole card.
-///
-/// The shared [pumpPreview] pumps at the default 800x600 surface, where a row
-/// this small trivially fits; every claim about wrapping below therefore has to
-/// pin the width itself.
 Future<double> _cardHeight(
   WidgetTester tester,
   Widget Function() preview, {
@@ -84,7 +68,6 @@ void main() {
       expect(find.text('Your Jeeber'), findsOneWidget);
       expect(find.text('Looking for a Jeeber…'), findsOneWidget);
       // ...and nothing from the matched row is mounted: no avatar disc, no
-      // vehicle line, no chip.
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.textContaining('★'), findsNothing);
     });
@@ -97,8 +80,6 @@ void main() {
       // `_initial()` guards the avatar...
       expect(find.text('?'), findsOneWidget);
       // ...and nothing guards the name, so the card paints a blank line where
-      // the name goes. This is asserted, not tolerated: if a fallback copy is
-      // ever added, this expectation is where it announces itself.
       expect(find.text(''), findsOneWidget);
       expect(find.text('Pickup truck'), findsOneWidget);
     });
@@ -137,8 +118,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Same 390 dp box, same 200% text scale. The chipped state carries the
-      // SHORTER name ('Karim H.' vs 'Kamal Hajj') and is still the taller card,
-      // because the chip is not in an Expanded and takes its width first.
       final double withChip = await _cardHeight(
         tester,
         deliveryJeeberCardMatched,
@@ -164,9 +143,6 @@ void main() {
       expect(atNormalText, lessThan(_phoneBodyHeight));
 
       // Neither Text sets maxLines/overflow, so at 200% the single card is
-      // taller than the whole body it sits in. Both call sites scroll, so this
-      // degrades rather than overflowing — but the card cannot be dropped into
-      // a fixed-height slot.
       final double atLargeText = await _cardHeight(
         tester,
         deliveryJeeberCardLongContent,

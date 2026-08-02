@@ -7,21 +7,9 @@ import 'package:jeeb_mobile/core/notifications/domain/notification_deep_link.dar
 import 'package:jeeb_mobile/core/notifications/domain/notification_message.dart';
 
 /// S16 ACCEPTANCE LOCK — receive-side of the chat-send => push chain.
-///
 /// The live gate requires that a >=6-message two-way conversation produces a
-/// SEPARATE real push for EVERY inbound message (no collapse, no dedup of
-/// legitimately-distinct messages), and that each push lands the recipient on
-/// the ORIGINAL thread when tapped. This test locks the Flutter receive-side of
-/// that contract using the REAL jeeb-gateway `EventPushNotifier` chat payload
-/// shape (`type=chat` discriminator on the flattened FCM `data` map, camelCase
-/// `conversationId`) — NOT an id-only stand-in.
-///
-/// What it does NOT prove (out of scope for a unit test — see the live dual-
-/// device plan): that the deployed gateway actually FIRES an FCM push on chat
-/// send. That is a backend behaviour and is the acceptance gate's hard blocker.
 NotificationMessage _chatPush(String id, String text, String conversationId) {
   // Mirrors FirebaseMessagingTransport._toDomain output for a gateway chat
-  // fan-out push: category resolved from `type`, ids flattened into `data`.
   final data = <String, String>{
     'type': 'chat',
     'conversationId': conversationId,
@@ -50,7 +38,6 @@ void main() {
       transport: transport,
       badgeCount: badge,
       // Acceptance needs >=6 retained; keep the default-class limit so the
-      // test also guards that 6 distinct messages are NOT capped away.
       historyLimit: 20,
     );
   });
@@ -76,11 +63,9 @@ void main() {
     await sub.cancel();
 
     // 1) Every one of the six distinct messages produced its own banner —
-    //    none were collapsed by the id-dedup guard.
     expect(banners, ['m-1', 'm-2', 'm-3', 'm-4', 'm-5', 'm-6']);
 
     // 2) All six are retained in history (newest-first), proving none were
-    //    silently dropped before reaching the inbox.
     expect(
       handler.state.history.map((m) => m.id).toList(),
       ['m-6', 'm-5', 'm-4', 'm-3', 'm-2', 'm-1'],
@@ -90,8 +75,6 @@ void main() {
     expect(badge.state.unread, 6);
 
     // 4) Each message is categorised as chat and deep-links back to the
-    //    ORIGINAL thread (regression against `type=chat` being bucketed as
-    //    `other` and becoming un-routable on tap).
     for (final msg in handler.state.history) {
       expect(msg.category, NotificationCategory.chat);
       expect(deepLinkForMessage(msg), '/chat/$conversationId');
@@ -104,7 +87,6 @@ void main() {
     transport.emitForeground(_chatPush('m-dup', 'hello', conversationId));
     await Future<void>.delayed(Duration.zero);
     // FCM can deliver the same messageId twice (retry/at-least-once). That must
-    // NOT inflate the count, but it also must not suppress a later distinct id.
     transport.emitForeground(_chatPush('m-dup', 'hello', conversationId));
     await Future<void>.delayed(Duration.zero);
     transport.emitForeground(_chatPush('m-next', 'world', conversationId));

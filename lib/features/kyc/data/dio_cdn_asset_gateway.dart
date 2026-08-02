@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import '../domain/cdn_asset_gateway.dart';
 
 /// Dio-backed [CdnAssetGateway].
-///
 class DioCdnAssetGateway implements CdnAssetGateway {
   DioCdnAssetGateway(this._brokerDio, {Dio? uploadDio})
       : _uploadDio = uploadDio ?? _bareUploadDio();
@@ -124,7 +123,6 @@ class DioCdnAssetGateway implements CdnAssetGateway {
     }
     try {
       // `/` must stay a PATH SEPARATOR so the gateway's `content/{**objectPath}`
-      // catch-all binds it. Do NOT percent-encode it here — the gateway does
       final res = await _brokerDio.get<List<int>>(
         '$_contentPath/$objectRef',
         options: Options(

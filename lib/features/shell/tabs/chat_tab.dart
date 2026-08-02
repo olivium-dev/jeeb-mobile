@@ -159,65 +159,16 @@ class _ConversationSummary {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/shell/chat_tab_preview_test.dart
-// ===========================================================================
-//
-// **The seam.** [ChatTab] takes no repository and no cubit: it reaches into the
-// service locator (`GetIt.instance<Dio>()`) from `initState`, GETs
-// `/v1/requests?status=active`, and parses the envelope inline. The locator is
-// therefore the only seam it offers, so every preview here mounts the tab under
-// [_ChatTabGetItDioScope], which registers a [Dio] whose [HttpClientAdapter]
-// answers from a canned map. Nothing opens a socket: the adapter is the
-// transport, so the request never reaches `dart:io`. [jeebPreviewHost]'s
-// `CatalogNetworkGuard` is, as always, the net rather than the plan.
-//
-// That the previews stay independent of each other is not luck. The tab
-// resolves its client SYNCHRONOUSLY inside `initState` — `isRegistered<Dio>()`
-// and `getIt<Dio>()` both run before the first `await` — so each tab captures
-// the transport its own scope installed during the same depth-first mount pass,
-// even when the canvas has six of them on screen at once.
-// [_ChatTabGetItDioScope] re-installs on every build for the same reason (see
-// its doc).
-//
-// **Fixture data.** [ChatTab] is an orphan (JEBV4-227: zero references, only
-// the conversations-inbox UX was ever built) and has no widget test, so there
-// is no existing fixture to lift. The envelope shape instead comes from the
-// sibling consumer of the SAME endpoint, `dio_order_repository.dart`
-// (`{items: [ {id, createdAt, pickup, dropoff, status, tier} ]}`), and the row
-// titles from `test/features/home_client/in_progress_tab_test.dart`
-// ("Pharmacy run" / "Grocery run"), so the previews and the rest of the app
-// describe the same gateway.
-//
-// Three things these previews make visible, all of them in the widget rather
-// than in the fixtures:
-//
-//  * `on DioException { _loading = false }` swallows the failure, so a 503
-//    renders the SAME "No conversations yet." screen as a genuinely empty
-//    inbox, with no retry affordance — see `Gateway 503 · reads as empty`;
-//  * rows the gateway sends WITHOUT a `conversationId` are dropped silently,
-//    and the real `/v1/requests` row carries neither `conversationId` nor
-//    `title` — see `Real row shape · 1 of 3 survives`;
-//  * `conv.status` and the `'Delivery'` title fallback are printed raw, so the
-//    AR RTL rendering of every preview shows English wire tokens.
 
 /// Phone width — the tab fills a shell body in production.
 const double _chatTabPhoneWidth = 390;
 
 /// A row is a 40 pt avatar inside 16 pt vertical padding (~72 pt), so three of
 /// them plus separators need ~230 pt; the rest is headroom for the EN 200%
-/// rendering to grow into before the `ListView` starts scrolling.
 const Size _chatTabListBox = Size(_chatTabPhoneWidth, 340);
 
 /// `OmdsEmptyState` is an 80 pt icon over a headline and a subtitle, centred and
 /// wrapped in 32 pt padding. Measured: it needs exactly 384 pt in the EN 200%
-/// rendering (and the same in AR), so anything shorter would make the FIXTURE
-/// report a `RenderFlex` overflow that says nothing about the tab. 400 pt keeps
-/// a little headroom over that.
 const Size _chatTabPlaceholderBox = Size(_chatTabPhoneWidth, 400);
 
 /// One row, with room for it to wrap at 200%.
@@ -225,16 +176,6 @@ const Size _chatTabOneRowBox = Size(_chatTabPhoneWidth, 240);
 
 /// What the canned transport was asked for, and what it answered
 /// (`'GET /v1/requests → 200 · 3 items'`). Dev-only diagnostics.
-///
-/// It exists because two of the states below are — by the widget's own design —
-/// pixel-identical: a swallowed 503 and an empty inbox both render
-/// "No conversations yet.". Text alone cannot tell those previews apart, so the
-/// render test pins them here instead, at the transport. Not const-initialized
-/// on purpose: it is appended to.
-///
-/// PUBLIC by necessity: `test/previews/shell/chat_tab_preview_test.dart` clears
-/// and asserts on it. It is the one declaration below this banner that is not
-/// a preview function and not private.
 final List<String> chatTabPreviewTransportLog = List<String>.empty(
   growable: true,
 );
@@ -261,10 +202,7 @@ class _ChatTabCannedAdapter implements HttpClientAdapter {
 }
 
 /// A [Dio] that can only ever answer from [answer].
-///
 /// [SyncTransformer] replaces the default `FusedTransformer` so decoding can
-/// never hop to an isolate, and no timeouts are set so a stalled answer leaves
-/// no pending timer behind for the render test to trip over.
 Dio _chatTabCannedDio(
   Future<ResponseBody> Function(RequestOptions options) answer,
 ) {
@@ -313,8 +251,6 @@ Map<String, dynamic> _chatTabRow({
       'status': status,
       'tier': tier,
       // Carried by the real row (see `dio_order_repository._parseOrder`) and
-      // ignored by ChatTab. Present so the fixture is the gateway's envelope
-      // rather than a shape only this widget would ever receive.
       'createdAt': '2026-08-01T09:14:00Z',
       'pickup': <String, dynamic>{'address': 'Hamra, Beirut'},
       'dropoff': <String, dynamic>{'address': 'Ashrafieh, Beirut'},
@@ -322,13 +258,7 @@ Map<String, dynamic> _chatTabRow({
 
 /// Registers [dio] as the ambient gateway client for its subtree, or — when
 /// [dio] is null — guarantees that NO client is registered.
-///
 /// Installation happens in `build`, not just `initState`, on purpose: the canvas
-/// mounts many previews into one process against a single global locator, and a
-/// tab whose element is recycled (scrolled out and back) re-reads `GetIt` at
-/// that moment. Re-installing on every build keeps the right client registered
-/// at the instant this subtree mounts or re-mounts. The registration is undone
-/// on dispose, but only if it is still ours.
 class _ChatTabGetItDioScope extends StatefulWidget {
   const _ChatTabGetItDioScope({required this.dio, required this.child});
 
@@ -370,15 +300,7 @@ Widget _chatTabHosted(Dio? dio) =>
     _ChatTabGetItDioScope(dio: dio, child: const ChatTab());
 
 /// The happy path the widget was written for: three live conversations.
-///
 /// Three rows rather than one because what goes wrong in a list is the rhythm —
-/// the hairline `Divider`, the 16 pt vertical padding, and the trailing
-/// disclosure chevron lining up down the column. The chevron comes from
-/// `DirectionalIcons.disclosure`, so the AR RTL rendering is where you check it
-/// actually flipped to `chevron_left` instead of merely moving.
-///
-/// The third row deliberately arrives WITHOUT a `title`: the tab substitutes the
-/// hardcoded literal `'Delivery'`, which stays English in the AR rendering.
 @JeebPreview(
   group: 'shell',
   name: 'Three conversations',
@@ -408,15 +330,7 @@ Widget chatTabThreeConversations() => _chatTabHosted(
     );
 
 /// The cold frame: `GET /v1/requests` is still in flight.
-///
 /// Every session starts here, and the tab has no timeout of its own — if the
-/// gateway never answers, this spinner IS the rest of the session. Held open by
-/// an adapter that never completes, so it is the one preview that cannot be
-/// pumped to settlement; its render test drives fixed frames instead.
-///
-/// What to check in the canvas: the indicator is centred in the tab rather than
-/// pinned top-left, and it survives the AR RTL dark rendering (a spinner tinted
-/// `colorScheme.primary` against the dark surface is easy to lose).
 @JeebPreview(
   group: 'shell',
   name: 'Loading · request in flight',
@@ -425,10 +339,7 @@ Widget chatTabThreeConversations() => _chatTabHosted(
 Widget chatTabLoading() => _chatTabHosted(_chatTabStalledDio());
 
 /// The honest empty inbox: 200 with `{items: []}`.
-///
 /// `OmdsEmptyState` is the tab's whole surface here — 80 pt icon, headline,
-/// subtitle, and no CTA — which makes it the state most exposed to the 200%
-/// rendering: three stacked elements, centred, with no scroll of their own.
 @JeebPreview(
   group: 'shell',
   name: 'Empty · gateway returned none',
@@ -438,13 +349,7 @@ Widget chatTabEmpty() =>
     _chatTabHosted(_chatTabEnvelopeDio(const <Map<String, dynamic>>[]));
 
 /// The gateway is down — and the tab cannot say so.
-///
 /// `_loadConversations` catches `DioException` and only flips `_loading` to
-/// false, so a 503 lands on the same `OmdsEmptyState` as a genuinely empty
-/// inbox: same icon, same "No conversations yet.", no error copy, no retry, and
-/// no pull-to-refresh (the body is a bare `ListView`/`Center`, never a
-/// `RefreshIndicator`). Compare this rendering side by side with
-/// `Empty · gateway returned none` — they are identical, which is the point.
 @JeebPreview(
   group: 'shell',
   name: 'Gateway 503 · reads as empty',
@@ -464,14 +369,7 @@ Widget chatTabGatewayError() => _chatTabHosted(
     );
 
 /// The contract mismatch, rendered: three active requests in, one row out.
-///
 /// The live `/v1/requests` row is `{id, createdAt, pickup, dropoff, status,
-/// tier, amount}` — no `conversationId` and no `title` (see
-/// `dio_order_repository._parseOrder`, which consumes the same endpoint). The
-/// tab `continue`s past every row whose `conversationId` is null or empty, with
-/// no counter and no diagnostic, so those two rows vanish. The one row that does
-/// carry a conversation id has no title either, so it renders as the hardcoded
-/// English `'Delivery'` — in Arabic too.
 @JeebPreview(
   group: 'shell',
   name: 'Real row shape · 1 of 3 survives',
@@ -491,20 +389,6 @@ Widget chatTabRealRowShape() => _chatTabHosted(
 
 /// The layout ceiling: the longest title a real request produces, beside a raw
 /// wire status.
-///
-/// Three squeezes meet in this row and none of them can ellipsize — both `Text`s
-/// are unconstrained (`maxLines` unset, no `overflow`), so at 200% they wrap and
-/// grow the row instead of clipping, while the 40 pt `CircleAvatar` and the
-/// chevron do NOT scale with the text. The status line is `conv.status` printed
-/// verbatim: `'awaiting_jeeber_acceptance'` is what the user reads, untranslated
-/// and unspaced, and it is the string most likely to wrap mid-token in the
-/// narrow column left between the avatar and the chevron.
-///
-/// Measured while writing this preview: the GEOMETRY is sound. At 200% the row
-/// grows to ~432 pt and the `ListView` scrolls rather than overflowing, and the
-/// AR rendering mirrors properly — the avatar moves to the trailing (right)
-/// edge and `DirectionalIcons.disclosure` really does flip to `chevron_left`.
-/// What breaks in Arabic is the CONTENT, not the layout.
 @JeebPreview(
   group: 'shell',
   name: 'Long title + raw status',

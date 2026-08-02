@@ -1,14 +1,4 @@
 // Render tests for the CustomerProfileRows previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The five states share one label set — they are the SAME eight rows, and the
-// only prop is a bool — so `expectedText` alone cannot tell them apart the way
-// it can for a widget whose copy changes. The `preview specifics` group below
-// carries that weight instead: it pins the row COUNT, the pinned width and the
-// pinned text scale, which is what actually distinguishes these five.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,7 +25,6 @@ void main() {
       'Client · 390': 'Register as a delivery',
       '200% text · 390': 'Register',
       // Rows every state carries, one each, so no two states are pinned on the
-      // same string.
       'Jeeber · register hidden': 'Sign out',
       'Narrow 320': 'Saved addresses',
       'Jeeber narrow · 200% text': 'Contact us',
@@ -72,7 +61,6 @@ void main() {
         findsNothing,
       );
       // The rest of the Account section stays — hiding the row must not take
-      // the section with it.
       expect(find.text('Account'), findsOneWidget);
       expect(find.text('Password and security'), findsOneWidget);
       handle.dispose();
@@ -82,8 +70,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The render harness pumps an 800 pt surface. If the width were left to
-      // the canvas `size`, this state would lay out at 800 pt here and be
-      // indistinguishable from the default one.
       await pumpPreview(tester, customerProfileRowsNarrowPhone);
       expect(tester.getSize(find.byType(CustomerProfileRows)).width, 320.0);
 
@@ -117,17 +103,11 @@ void main() {
       final double pill2x = tester.getSize(find.text('Register')).width;
 
       // The pill is intrinsically sized and grows with the text; the label is
-      // the Expanded child and pays for it. Same phone width, opposite signs.
       expect(pill2x, greaterThan(pill1x));
       expect(label2x, lessThan(label1x));
     });
 
     // DOCUMENTED DEFECT, not a desired behaviour. On a 320 pt phone at the 200%
-    // accessibility ceiling the register row overflows its trailing edge and the
-    // label is allotted zero width — see the notes on
-    // `customerProfileRowsNarrowPhone`. Pinned so the defect cannot be widened
-    // silently; DELETE this test when the row is fixed (it will start failing,
-    // which is the point).
     testWidgets('DEFECT: register row overflows at 320 pt + 200% text', (
       WidgetTester tester,
     ) async {

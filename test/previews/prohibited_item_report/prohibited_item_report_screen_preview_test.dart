@@ -1,41 +1,3 @@
-// Render tests for the ProhibitedItemReportScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// ## Why every state is pinned by a CAPTION
-//
-// This screen renders five hardcoded English strings and one free-text field,
-// and nothing else. Four of the eight states below therefore share every pixel
-// of chrome — `Empty` and `Whitespace only` are pixel-for-pixel identical apart
-// from the colour of one button — so there is no shipped string that says WHICH
-// designed state a card is showing. The fixture paints a caption above each
-// frame for exactly that reason (the same device the
-// `ProfileUnavailableScreen` fixtures use), and that caption is what
-// `expectedText` pins. The substance is in the `preview specifics` group below,
-// which asserts the CTA gate, the frame geometry and the untranslated chrome.
-//
-// ## Fonts
-//
-// `loadInterTestFont()` runs before every test here, because the shared harness
-// does not load fonts and Flutter's test face makes every glyph a 1-em square —
-// Latin measures ~2x too wide, Arabic ~2.4x. Every geometry claim in this file,
-// and in particular the ONE overflow it asserts, is measured through
-// `withGoldenTestFonts`, which is the only way to get real Arabic metrics: the
-// preview host builds `AppTheme.light()` unmodified and the theme carries no
-// `fontFamilyFallback`, so under the shared harness every Arabic glyph falls
-// back to the test face.
-//
-// ## Why `Typing · keyboard up` is not in the shared suite
-//
-// It overflows, by design of the preview and by defect of the screen: the body
-// is a non-scrolling `Column` with a `Spacer()` and `Scaffold` hands it 216 pt
-// less height once the keyboard is up. The shared suite asserts
-// `takeException() == null` for every state, so this one gets a dedicated group
-// that asserts the overflow instead — measured with real fonts, at a real
-// device size, in both locales.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,9 +12,6 @@ import '../../support/load_test_fonts.dart';
 import '../../support/sync_app_localizations.dart';
 import '../preview_test_harness.dart';
 
-// The captions, spelled out rather than imported from the fixtures. A preview
-// quietly rewired to a different case then fails here instead of silently
-// renaming what it claims to be.
 const String _kEmptyCaption =
     'Empty · nothing typed · Report disabled · Phone 390 × 844';
 const String _kFilledCaption =
@@ -71,7 +30,6 @@ const String _kKeyboardCaption = 'Typing · compact phone, keyboard up · '
     'Compact 320 × 568 · keyboard 216';
 
 /// A fragment only the longest-content fixture carries, so a preview rewired to
-/// a short description loses the one state that contests the 320 pt frame.
 const String _kLongestFragment =
     'five-kilo camping gas cylinder from the shop under their building in';
 
@@ -79,7 +37,6 @@ const String _kLongestFragment =
 const String _kArabicFragment = 'طلب مني الزبون نقل قنينتين من الكحول';
 
 /// The five hardcoded English strings this screen ships. Not one of them is an
-/// ARB key, which is what the Arabic assertions below are about.
 const List<String> _kUntranslatedChrome = <String>[
   'Report Prohibited Item',
   'Describe the prohibited item',
@@ -89,7 +46,6 @@ const List<String> _kUntranslatedChrome = <String>[
 ];
 
 /// `previewCanvas`, but with the deterministic Arabic face wired into the
-/// theme. Used everywhere a geometry claim is made.
 Widget _prohibitedItemReportCanvasWithFonts(
   Widget Function() preview,
   Locale locale,
@@ -132,7 +88,6 @@ void main() {
     loadPreviewArbs();
   });
 
-  // Every preview except `Typing · keyboard up`, which overflows by design.
   testPreviewsRender(
     'ProhibitedItemReportScreen',
     const <String, Widget Function()>{
@@ -159,8 +114,6 @@ void main() {
   );
 
   group('ProhibitedItemReportScreen previews · Typing · keyboard up', () {
-    // The one state the shared suite cannot host. Measured with real fonts on a
-    // real 320 x 568 frame: the shortfall is the screen's, not the test face's.
     for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
       testWidgets('the body overflows once the keyboard is up · '
           '${locale.languageCode}', (WidgetTester tester) async {
@@ -195,9 +148,6 @@ void main() {
     testWidgets('the phone previews pin a 390 x 844 frame, not the canvas', (
       WidgetTester tester,
     ) async {
-      // The harness pumps an 800 x 600 surface: a preview that left its window
-      // to the host would measure 800 x 600 here and none of this layout
-      // applies there.
       await pumpPreview(tester, prohibitedItemReportScreenEmpty);
 
       expect(
@@ -223,8 +173,6 @@ void main() {
       await pumpPreview(tester, prohibitedItemReportScreenEmpty);
 
       expect(_reportButton(tester).isEnabled, isFalse);
-      // …and the Attach Photo affordance is offered regardless, since it is
-      // never gated on anything.
       expect(find.widgetWithText(OmdsPrimaryButton, 'Attach Photo'),
           findsOneWidget);
     });
@@ -241,9 +189,6 @@ void main() {
       );
     });
 
-    // The gate is `text.isNotEmpty`, never `text.trim().isNotEmpty`. Three
-    // spaces are not a report, and this state is otherwise pixel-identical to
-    // the empty one.
     testWidgets('whitespace alone arms the destructive CTA', (
       WidgetTester tester,
     ) async {
@@ -262,8 +207,6 @@ void main() {
     ) async {
       await _pumpWithFonts(tester, prohibitedItemReportScreenLongest);
 
-      // `maxLines: 4` stops the box growing and scrolls inside it, with no
-      // scrollbar and nothing saying there is more text below the fold.
       expect(tester.getSize(find.byType(TextField)).height, 120);
       expect(
         tester.widget<EditableText>(find.byType(EditableText)).maxLines,
@@ -272,8 +215,6 @@ void main() {
       expect(find.textContaining(_kLongestFragment), findsOneWidget);
     });
 
-    // The screen imports no `AppLocalizations` at all: every string is a Dart
-    // literal. Pumping it in Arabic mirrors the layout and translates nothing.
     testWidgets('the chrome stays English in the Arabic rendering', (
       WidgetTester tester,
     ) async {
@@ -297,13 +238,9 @@ void main() {
           reason: '…and "$english" is a Dart literal, so it never translates',
         );
       }
-      // The jeeber's own Arabic text is the only Arabic on the card.
       expect(find.textContaining(_kArabicFragment), findsOneWidget);
     });
 
-    // `Scaffold` drops the TOP padding for a body under an `appBar` but not the
-    // bottom one, and this body has no `SafeArea`. On a 393 x 852 notch the
-    // home indicator claims y >= 818; the CTA is painted at 788..836.
     testWidgets('the Report CTA is painted into the home-indicator strip', (
       WidgetTester tester,
     ) async {

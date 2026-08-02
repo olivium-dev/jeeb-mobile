@@ -1,12 +1,4 @@
 // QA-PRE for JEB-1423 (T-MOB-FIX-005). Binds the codec contract that ENG
-// (JEB-1425) must satisfy. Per the LEAD pin (comment #14900): the canonical
-// wire-shape `ChatMessage` exposes 8 fields — clientId, serverId,
-// conversationId, senderId, body, createdAt, status, attempts — with
-// hand-written fromJson/toJson, default status `pending`, default attempts
-// `0`, and UTC-ISO-8601 serialization of `createdAt`. Note: the parent-issue
-// description listed status enum as `{queued, sending, sent, delivered, read,
-// failed}`; the LEAD pin (binding) overrides that to `{pending, sent,
-// delivered, read, failed}`. Tests follow the LEAD pin.
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,8 +20,6 @@ void main() {
       );
       final hydrated = ChatMessage.fromJson(original.toJson());
       // Whole-object equality covers Equatable's props (which must list all 8
-      // fields per the LEAD pin); the per-field checks below pin each one so
-      // a future props omission is caught precisely.
       expect(hydrated, original);
       expect(hydrated.clientId, 'c-1');
       expect(hydrated.serverId, 's-99');
@@ -81,8 +71,6 @@ void main() {
     test('toJson serializes createdAt in UTC even when given a local TZ',
         () {
       // Build a wall-clock 2026-05-17 10:30 in a +03:00 zone; UTC equivalent
-      // is 07:30 the same day. The cubit and outbox both call toUtc() on the
-      // way in but the codec must defend the invariant anyway.
       final local = DateTime.parse('2026-05-17T10:30:00+03:00');
       final json = ChatMessage(
         clientId: 'c-tz',
@@ -171,8 +159,6 @@ void main() {
 
     test('round-trip identity: copyWith with no args equals original', () {
       // Some implementations omit a no-arg copyWith — exercise field-by-field
-      // and reassemble manually to verify nothing is lost going through any
-      // single setter.
       final round = base
           .copyWith(status: base.status)
           .copyWith(attempts: base.attempts);

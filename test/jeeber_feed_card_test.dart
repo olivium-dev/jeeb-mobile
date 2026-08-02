@@ -7,7 +7,6 @@ import 'package:omds/omds.dart';
 
 import 'support/sync_app_localizations.dart';
 
-/// Wraps a feed card in the same themed Scaffold host used by production.
 Widget _host(Widget child, {Locale locale = const Locale('en')}) =>
     wrapForTest(Scaffold(body: child), locale: locale);
 
@@ -146,7 +145,6 @@ void main() {
   });
 
   // G1 (sprint-009 P0): the description is the request CONTENT the jeeber
-  // prices — it gets a prominent TWO-line preview in the on-surface role.
   testWidgets(
       'G1: description preview is 2-line, ellipsised, and body-prominent',
       (tester) async {
@@ -263,10 +261,6 @@ void main() {
   });
 
   // Figma 56560:1523 — the accepted-action pill is a content-hugging navy pill
-  // pinned to the END, NOT a gutter-to-gutter full-width button. `OmdsLoadingButton`
-  // expands to `double.infinity` unless given a tight content-width constraint via
-  // `IntrinsicWidth`; without that wrap this assertion fails (pill == card width).
-  // Fails-without-fix: removing `IntrinsicWidth` makes pillWidth == cardWidth.
   testWidgets('accepted-action pill is content-hugging (not full-width)',
       (tester) async {
     // Fixed surface so card width is deterministic.
@@ -292,8 +286,6 @@ void main() {
     final cardWidth = tester.getSize(find.byType(JeeberFeedCard)).width;
 
     // The pill must hug its label, leaving a clear horizontal gap to the gutter.
-    // A full-width pill (the defect) would be ~cardWidth; a hugging pill is far
-    // narrower. Guard with a generous margin so the test is robust to font metrics.
     expect(
       pillWidth,
       lessThan(cardWidth * 0.7),
@@ -302,7 +294,6 @@ void main() {
   });
 
   // End-alignment proof: the hugged pill's right edge is flush with the card's
-  // tokenized inset (LTR), while the tier stays at the opposite edge.
   testWidgets('accepted-action pill is end-aligned (right-flush in LTR)',
       (tester) async {
     tester.view.physicalSize = const Size(800, 600);
@@ -327,7 +318,6 @@ void main() {
     final cardRect = tester.getRect(find.byType(JeeberFeedCard));
 
     // Right edges flush within the outer + inner OMDS inset, and the pill does
-    // NOT start at the card's left gutter (so it is not full-width).
     expect(
       (cardRect.right - pillRect.right).abs(),
       lessThan(Spacing.threeXLarge),
@@ -439,8 +429,6 @@ void main() {
           reason: 'the card must format the local wall clock');
 
       // On any host whose zone differs from UTC, the raw-UTC rendering
-      // ("09:41" under a 2h-ahead clock — the audit's SW-03 leak) must be
-      // GONE. Skipped when the host zone IS UTC (strings coincide).
       final utcRendering = DateFormat.Hm('en').format(utcInstant);
       if (utcRendering != localExpected) {
         expect(find.text(utcRendering), findsNothing,

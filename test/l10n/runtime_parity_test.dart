@@ -1,11 +1,4 @@
 // Runtime parity gate for T-MOB-FIX-002 (JEB-2).
-// Authoritative spec: JEB-2 LEAD comment 14782 §3.
-//
-// Asserts that every key in the EN + AR ARB resolves to a non-null,
-// non-key, non-empty value via `AppLocalizations.byKey`.
-// Catches stub strings that were never translated (value == key) which the
-// static `qa/t-mob-fix-002/l10n_parity_check.sh` would also flag but only
-// at the ARB layer — this runtime test exercises the loader path.
 
 import 'dart:convert';
 import 'dart:io';

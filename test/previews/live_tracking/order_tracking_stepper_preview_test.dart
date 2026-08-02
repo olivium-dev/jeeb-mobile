@@ -1,21 +1,6 @@
 // Render tests for the OrderTrackingStepper previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose, and the same one
-// `delivery_confirm_illustration_preview_test.dart` makes. The widget renders
-// the SAME four labels at every step — only the third changes, and only at the
-// door — so `expectedText` binds to each preview's caption, which is preview
-// scaffolding rather than widget output. On its own that would be exactly the
-// weak assertion the harness warns about. The per-state contract is therefore
-// asserted underneath, from the three things that DO vary: the progress
-// fraction handed to the OMDS bar, the done/active/pending icon census, and
-// which step carries the `selected` semantics flag.
 
 // `flagsCollection.isSelected` is a tristate, and `Tristate` is only reachable
-// from dart:ui — `package:flutter/semantics.dart` imports it without exporting.
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
@@ -86,8 +71,6 @@ void main() {
 
   group('OrderTrackingStepper preview states are distinct', () {
     // The assertion the caption-based `expectedText` above cannot make: six
-    // previews of a two-scalar widget are only distinct states if the fill and
-    // the icons differ.
     _currentStep.forEach((String state, int step) {
       testWidgets('$state fills the bar to ${step + 1}/4', (
         WidgetTester tester,
@@ -99,7 +82,6 @@ void main() {
         );
         expect(bar.totalSteps, 4);
         // `completedSteps: currentStep + 1` — the CURRENT step counts as
-        // complete, so a brand-new order already shows a quarter-full bar.
         expect(bar.completedSteps, step + 1);
       });
 
@@ -127,7 +109,6 @@ void main() {
               .getSemantics(find.bySemanticsIdentifier(_stepIds[i]))
               .getSemanticsData();
           // `selected:` is a tristate on the wire; the widget always passes a
-          // bool, so every step is explicitly true or explicitly false.
           expect(
             data.flagsCollection.isSelected == Tristate.isTrue,
             i == step,
@@ -156,7 +137,6 @@ void main() {
       expect(node.value, 'At Door');
       expect(find.text('At Door'), findsOneWidget);
       // …but the id a Maestro flow addresses is unchanged, and no fifth step
-      // was invented for it.
       expect(node.identifier, 'tracking_step_in_transit');
       expect(find.bySemanticsIdentifier('tracking_step_at_door'), findsNothing);
       expect(find.text('In transit'), findsNothing);
@@ -184,9 +164,6 @@ void main() {
       await pumpPreview(tester, orderTrackingStepperDelivered);
 
       // `isDone` is `i < currentStep`, so the terminal step can never satisfy
-      // it. The bar underneath is 100% full while the column above it shows the
-      // same ring the in-transit state shows — three ticks and an open circle
-      // is what a COMPLETED delivery looks like.
       expect(find.byIcon(Icons.check_circle), findsNWidgets(3));
       expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
       final OMDSStepperProgress bar = tester.widget<OMDSStepperProgress>(
@@ -214,9 +191,6 @@ void main() {
       expect(inTransit, greaterThan(delivered));
 
       // The bar does not. `_StepperPainter` draws from x=0 to x=width*progress
-      // in raw canvas coordinates and never reads Directionality
-      // (`omds_stepper_progress.dart`), so the fill still grows from the LEFT
-      // edge: 4pt track across the full 390, then half of it inked.
       expect(
         _progressPainter,
         paints
@@ -225,8 +199,6 @@ void main() {
       );
 
       // Which puts the ink under the wrong steps: the two completed ones sit in
-      // the BARE half of the track, and the two that have not happened sit on
-      // the filled half.
       final Rect bar = tester.getRect(_progressPainter);
       expect(
         ordered - bar.left,
@@ -250,8 +222,6 @@ void main() {
       expect(tester.takeException(), isNull);
 
       // 320 / 4 = 80pt per column. "Delivered" is one unbreakable word, so
-      // `maxLines: 2` cannot save it — it is ellipsized, silently and with no
-      // overflow stripe, on the step that matters most.
       final RenderParagraph label = tester.renderObject<RenderParagraph>(
         find.text('Delivered'),
       );
@@ -273,13 +243,6 @@ void main() {
       await pumpPreview(tester, orderTrackingStepperDelivered);
 
       // Not a compact-device edge case: at 390pt the columns are 97.5pt and
-      // NONE of the four labels fits on one line. Two of them ("Ordered",
-      // "Delivered") are single words that `maxLines: 2` cannot rescue.
-      //
-      // Measured under flutter_test's fixed-advance test font, which is wider
-      // than Inter — so the exact numbers overstate a device. What does not
-      // depend on the font is the shape of the result: the widest unbreakable
-      // word in each column is a multiple of the column, not a few points over.
       for (final String label in const <String>[
         'Ordered',
         'Picked',

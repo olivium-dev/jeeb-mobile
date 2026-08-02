@@ -1,12 +1,4 @@
 // Render tests for the OrderHistoryCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The pinned strings are deliberately the MONEY and STATUS tokens rather than
-// the date: the card renders `createdAt.toLocal()` (SW-03), so the date label
-// moves with the machine's timezone and is not assertable here.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,8 +22,6 @@ void main() {
     },
     expectedText: const <String, String>{
       // MoneyFormat wraps every token in a Unicode LTR isolate
-      // (U+2066 … U+2069 — JEBV4-98 / F10), spelled as escapes so the source
-      // does not carry invisible direction marks.
       'Delivered · priced': '\u2066\$1,234.00\u2069',
       'Amount unknown (em-dash)': '—',
       'Cancelled · zero wire amount': 'Cancelled',
@@ -98,8 +88,6 @@ void main() {
       await pumpPreview(tester, orderHistoryCardLongContent);
 
       // The text is ellipsized on screen, but the Text widget still carries the
-      // whole string — the addresses are `maxLines: 2` + ellipsis, not clipped
-      // data.
       expect(find.textContaining('American University of Beirut'), findsOneWidget);
       expect(find.textContaining('beside the bakery'), findsOneWidget);
       expect(find.text('\u2066LBP 1,335,000.00\u2069'), findsOneWidget);

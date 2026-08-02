@@ -1,15 +1,4 @@
 // Render tests for the PendingOfferRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The specifics group pins the four structural claims the previews document:
-// the terminal branch really does drop the Withdraw control, the busy state
-// does not resize the row, the price is the only thing that yields at 200%
-// text, and the price is painted with a container FILL role (which is what
-// makes it vanish in dark mode). All four are measured off the render tree, so
-// they hold under the test font as well as under bundled Inter.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -26,7 +15,6 @@ final Finder _withdrawCta = find.byKey(const Key('pending-offer-withdraw-0'));
 
 /// The price paragraph. It is the first [Text] the row builds, which is how the
 /// Arabic rendering is reached without pasting a bidi-marked literal into the
-/// source (`NumberFormat` prefixes the AR string with U+200F).
 final Finder _price = find.byType(Text).first;
 
 /// Width a [Text] was actually given, and the width it wanted. The gap between
@@ -65,7 +53,6 @@ void main() {
       'Long price + ETA': pendingOfferRowLongContent,
     },
     // One distinct money string per state: a suite that only asked "did
-    // something render" would pass even if every preview showed the same offer.
     expectedText: const <String, String>{
       'Awaiting decision': r'$12.50',
       'Withdraw in flight': r'$18.00',
@@ -93,8 +80,6 @@ void main() {
 
       await pumpPreview(tester, pendingOfferRowLost);
       // Borrowed copy: a snackbar string about declining a REQUEST, shown to a
-      // jeeber whose OFFER was not selected. Pinned so the placeholder cannot
-      // be quietly forgotten once JM-047's own ARB keys land.
       expect(find.text('Request declined'), findsOneWidget);
       expect(_withdrawCta, findsNothing);
     });
@@ -125,7 +110,6 @@ void main() {
       expect(tester.getSize(find.byType(PendingOfferRow)).height, idle);
 
       // The height holds, but the control itself collapses from a 197dp pill to
-      // a 20dp disc — the only on-screen signal that this row is busy.
       expect(tester.getSize(_withdrawCta).width, lessThan(idleCta / 2));
     });
 
@@ -142,8 +126,6 @@ void main() {
           _budget(tester, find.text('1440 min'));
 
       // `_PriceEtaRow` gives the price an Expanded and the ETA a bare Text, so
-      // the ETA is served first at its full intrinsic width and the price
-      // ellipsizes into the remainder — 150dp of the 353.6dp it wants.
       expect(eta.given, eta.wanted);
       expect(price.given, lessThan(price.wanted / 2));
     });
@@ -164,7 +146,6 @@ void main() {
       final ({double given, double wanted}) ar = _budget(tester, _price);
 
       // "1440 دقيقة" costs 242dp against "1440 min"'s 196dp, and every dp of
-      // that comes off the Expanded price: 104dp given against 385.9 wanted.
       expect(ar.wanted, greaterThan(en.wanted));
       expect(ar.given, lessThan(en.given));
     });
@@ -175,10 +156,6 @@ void main() {
 
       final Text price = tester.widget<Text>(find.text(r'$12.50'));
       // `secondaryContainer` is a background role. Light hand-authors it as
-      // navy, so #0B1351 on white measures 17.13:1 and the defect is invisible;
-      // dark derives #444559 from the seed, which is 1.98:1 on the #131318
-      // surface — under even the 3:1 large-text floor. The M3 foreground for
-      // that fill, `onSecondaryContainer`, would measure 14.29:1.
       expect(price.style?.color, AppTheme.light().colorScheme.secondaryContainer);
     });
   });

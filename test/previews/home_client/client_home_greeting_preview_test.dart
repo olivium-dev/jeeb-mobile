@@ -1,8 +1,4 @@
 // Render tests for the ClientHomeGreeting previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This is the template every preview test
-// follows — see `test/previews/preview_test_harness.dart`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

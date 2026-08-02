@@ -1,31 +1,4 @@
 // Render tests for the PasswordSecurityScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// This screen is a hard case for "does this preview render ITS OWN state?".
-// The two error nodes both paint one hardcoded sentence
-// (`l10n.setpwValidationError`), and `PasswordSecurityStatus.unavailable`
-// paints nothing at all — so SIX of these ten previews cannot be told apart by
-// shipped copy. `expectedText` therefore runs on captions
-// ([PasswordSecurityScreenCaptions]) and the groups below assert the real state
-// behind each caption: which fields are enabled, which are masked, which
-// `Semantics` node is mounted, how wide the frame is. A preview wired to the
-// wrong fixture fails here rather than passing on its caption alone.
-//
-// The identity of the four error states is itself asserted ("one sentence for
-// four causes"). That test is a CHARACTERIZATION of the defect, not an approval
-// of it: if someone gives `sameAsCurrent` its own copy, it fails, and the fix
-// is to split the expectation — not to re-merge the copy.
-//
-// ## Fonts
-//
-// `preview_test_harness.dart` does NOT load real fonts, so text lays out in
-// Flutter's 1-em test face (Latin ~2x too wide, Arabic ~2.4x). Every geometry
-// claim in this file is measured through [_passwordSecurityCanvasWithFonts],
-// which is the same canvas with real Inter + the deterministic Noto Arabic
-// subset wired into the theme — `loadInterTestFont()` alone only REGISTERS the
-// Arabic family, `withGoldenTestFonts` is what selects it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -76,10 +49,6 @@ Finder _onScreen(Finder matching) => find.descendant(
 
 /// `previewCanvas`, but with the real Inter faces and the deterministic Arabic
 /// family wired into the theme.
-///
-/// The shared harness cannot do this — it builds `AppTheme.light()` directly —
-/// and without it every glyph is laid out in the 1-em test face. Used wherever
-/// a geometry claim is being made.
 Widget _passwordSecurityCanvasWithFonts(
   Widget Function() preview,
   Locale locale,
@@ -100,11 +69,7 @@ Widget _passwordSecurityCanvasWithFonts(
 }
 
 /// Pumps [preview] into a FRESH element tree, with real fonts.
-///
 /// Two of these previews pumped back to back are identical widget types with no
-/// keys, so Flutter reuses the elements — and `BlocProvider.create` runs only on
-/// first build, which hands the SECOND preview the FIRST one's cubit and
-/// silently asserts the wrong state.
 Future<void> _pumpFresh(
   WidgetTester tester,
   Widget Function() preview, {
@@ -160,14 +125,11 @@ void main() {
       WidgetTester tester,
     ) async {
       // The harness pumps an 800 pt surface: a preview that left its width to
-      // the host would measure 800 here, and none of this layout applies there.
       await _pumpFresh(tester, passwordSecurityScreenMismatch);
       expect(tester.getSize(find.byType(PasswordSecurityScreen)).width, 390.0);
 
       await _pumpFresh(tester, passwordSecurityScreenCompact);
       expect(tester.getSize(find.byType(PasswordSecurityScreen)).width, 320.0);
-      // Same designed state, narrower device — the caption and the box are the
-      // only things that differ in the fixture wiring.
       expect(find.text(_errorCopyEn), findsOneWidget);
     });
 
@@ -186,13 +148,8 @@ void main() {
         expect(_fieldAt(tester, i).controller!.text, isEmpty);
       }
 
-      // Nothing anywhere states the strength floor (8 chars, a letter and a
-      // digit) before it is failed.
       expect(_onScreen(find.textContaining('8')), findsNothing);
 
-      // The only gate on submit is `!submitting` — a status nothing emits (see
-      // below) — so an empty form can always be submitted. That is what
-      // produces `Error · blank form submitted`.
       expect(_submitButton(tester).isEnabled, isTrue);
       expect(_submitButton(tester).text, _submitCtaEn);
     });
@@ -210,7 +167,6 @@ void main() {
       expect(find.text(_setEntryCtaEn), findsOneWidget);
 
       // The finding: the password account gets that button too, so "Set a
-      // password" sits directly under a form for changing the one it has.
       await _pumpFresh(tester, passwordSecurityScreenIdle);
       expect(find.bySemanticsIdentifier('password_set_entry'), findsOneWidget);
       expect(find.text(_setEntryCtaEn), findsOneWidget);
@@ -225,9 +181,6 @@ void main() {
       }
       expect(_submitButton(tester).isEnabled, isFalse);
 
-      // In-flight looks exactly like disabled: `OmdsPrimaryButton` has no
-      // loading state and the screen adds none, so the only signal is the
-      // 45%-alpha fill — the label is unchanged and there is no spinner.
       expect(_submitButton(tester).text, _submitCtaEn);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.byType(LinearProgressIndicator), findsNothing);
@@ -249,19 +202,12 @@ void main() {
       for (final MapEntry<String, Widget Function()> entry in causes.entries) {
         await _pumpFresh(tester, entry.value);
 
-        // Each mounts its OWN node — that much is discriminated...
         expect(find.bySemanticsIdentifier(entry.key), findsOneWidget);
-        // ...and then both paint the identical sentence.
         expect(find.text(_errorCopyEn), findsOneWidget);
-        // Fields stay live and the CTA still offers the same retry.
         expect(_submitButton(tester).isEnabled, isTrue);
         expect(_currentField(tester).enabled, isTrue);
       }
 
-      // `empty` and `sameAsCurrent` do not even get their own node: both are
-      // folded into `hasStrengthError`. So a user who typed nothing, and a user
-      // whose new password is strong AND matching but unchanged, are both told
-      // it fails the strength requirements.
       for (final Widget Function() preview in strengthCauses.values) {
         await _pumpFresh(tester, preview);
 
@@ -274,9 +220,6 @@ void main() {
           findsNothing,
         );
         expect(find.text(_errorCopyEn), findsOneWidget);
-        // Nothing on the SCREEN names the actual cause. Scoped to the screen
-        // subtree because the preview caption above the device frame says
-        // "new equals current" — that is dev chrome, not shipped copy.
         expect(_onScreen(find.textContaining('current')), findsNothing);
         expect(_onScreen(find.textContaining('different')), findsNothing);
         expect(_onScreen(find.textContaining('blank')), findsNothing);
@@ -287,9 +230,6 @@ void main() {
         'form again', (WidgetTester tester) async {
       await _pumpFresh(tester, passwordSecurityScreenUnavailable);
 
-      // The snackbar is fired from `listenWhen` on a status CHANGE. A fixture
-      // that is already `unavailable` when the consumer subscribes never fires
-      // it, which is exactly what a rebuild/rotate looks like.
       expect(find.byType(SnackBar), findsNothing);
       expect(
         find.text("Changing your password isn't available yet. "
@@ -297,8 +237,6 @@ void main() {
         findsNothing,
       );
 
-      // And the state itself renders nothing: no error node, every field live
-      // and empty, the CTA live. Identical to `Change form · idle`.
       expect(find.bySemanticsIdentifier('password_strength_error'), findsNothing);
       expect(find.bySemanticsIdentifier('password_mismatch_error'), findsNothing);
       expect(find.text(_errorCopyEn), findsNothing);
@@ -313,7 +251,6 @@ void main() {
         'the screen offers no control for it', (WidgetTester tester) async {
       await _pumpFresh(tester, passwordSecurityScreenIdle);
 
-      // Two eye buttons for three maskable fields.
       expect(
         find.bySemanticsIdentifier('password_new_visibility_toggle'),
         findsOneWidget,
@@ -332,17 +269,11 @@ void main() {
 
       await _pumpFresh(tester, passwordSecurityScreenRevealed);
 
-      // `currentObscured` is honoured by the screen — so this IS a state the
-      // widget can render, and `toggleCurrentObscured` has no caller under
-      // `lib/` that could ever produce it.
       expect(_currentField(tester).obscureText, isFalse);
       expect(_newField(tester).obscureText, isFalse);
       expect(_confirmField(tester).obscureText, isFalse);
-      // Still only two icons, and both flipped.
       expect(find.byIcon(Icons.visibility_off), findsNWidgets(2));
       expect(find.byIcon(Icons.visibility), findsNothing);
-      // The typed characters live in `_PasswordSecurityViewState`'s
-      // controllers, so no fixture can put text behind the lifted masks.
       for (int i = 0; i < 3; i++) {
         expect(_fieldAt(tester, i).controller!.text, isEmpty);
       }
@@ -351,15 +282,11 @@ void main() {
     testWidgets('the compact ceiling scrolls rather than overflows, and the '
         'CTA leaves the viewport', (WidgetTester tester) async {
       // Measured through `withGoldenTestFonts`, so the metrics are the device's
-      // rather than the 1-em test face's — an overflow claim taken under the
-      // test face would be a phantom.
       await _pumpFresh(tester, passwordSecurityScreenCompact);
 
       expect(tester.takeException(), isNull);
       expect(find.byType(ListView), findsOneWidget);
 
-      // The whole form fits at 100% text on the 320 pt floor: both buttons and
-      // the error node are on screen.
       expect(find.text(_errorCopyEn), findsOneWidget);
       expect(find.text(_submitCtaEn), findsOneWidget);
       expect(find.text(_setEntryCtaEn), findsOneWidget);

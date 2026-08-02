@@ -1,13 +1,4 @@
 // Render tests for the JeeberRemovedBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// JeeberRemovedBanner takes no arguments, so its previews differ only in the
-// CONTEXT they place it in. That makes the `expectedText` pins load-bearing
-// here: without a string that only one preview can produce, a suite over five
-// renderings of the same parameterless band would pass no matter which one it
-// actually built.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +27,6 @@ void main() {
       // The bare strip has no content but its own sentence.
       'Strip alone': _bannerCopy,
       // Each remaining state is pinned by a string ONLY that state renders:
-      // a Jeeber name unique to it, or its own fee amount.
       'Small phone 320dp': "Rana's offer was withdrawn",
       'Above frozen thread': 'I can be at the pickup in 10 minutes.',
       'Under fee notice': r'Note $0.50 will be reduced from your Balance',
@@ -102,7 +92,6 @@ void main() {
       await pumpPreview(tester, jeeberRemovedBannerBoundedHeaderSlot);
 
       // The chrome lives inside a scrollable bound, so an oversized stack
-      // degrades to a scroll. The banner must still be laid out, not dropped.
       expect(find.byType(SingleChildScrollView), findsOneWidget);
       expect(find.byType(JeeberRemovedBanner), findsOneWidget);
       expect(tester.takeException(), isNull);

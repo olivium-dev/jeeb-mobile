@@ -1,22 +1,5 @@
 /// JEBV4-259 — KYC ID-photo signed-PUT through a DEDICATED, interceptor-free
 /// [Dio] ("approach B": the gateway proxies the PUT to cdn-service and returns
-/// an ABSOLUTE upload URL + `method` + `required_headers`).
-///
-/// Pins [DioCdnAssetGateway] to the contract:
-///   1. `POST /api/cdn/assets {slot, content_type}` on the SHARED authenticated
-///      Dio → `{upload_url (absolute), object_ref, expires_in, method,
-///      required_headers}`.
-///   2. Upload the RAW bytes with `method` to the absolute `upload_url`,
-///      carrying `required_headers` VERBATIM, through a Dio that has NO
-///      interceptors — so no Bearer/auth header, no JSON transform, no
-///      `application/json`, no baseUrl-join can corrupt the binary body (the
-///      415 root cause).
-///   3. Return `object_ref`.
-///
-/// House style: no mock framework — a recording [Dio] resolves the broker POST
-/// (it legitimately carries interceptors), and an [HttpClientAdapter] (NOT an
-/// interceptor, so the upload Dio stays interceptor-free) captures the exact
-/// bytes + headers Dio put on the wire for the PUT.
 library;
 
 import 'dart:typed_data';
@@ -31,7 +14,6 @@ const _signedUrl = 'https://signed.cdn.test/api/cdn/put-signed/'
 
 void main() {
   // A non-trivial, multi-chunk body so a byte-for-byte comparison is meaningful
-  // (Dio chunks request bodies at 1024 bytes).
   final bytes = Uint8List.fromList(
     List<int>.generate(2048, (i) => (i * 7 + 255) % 256),
   );
@@ -99,7 +81,6 @@ void main() {
       final opts = gateway.uploadDio.options;
 
       // The raw Dio() used to have NONE of these — a half-open socket during the
-      // signed-PUT blocked DioKycGateway.submit() (and the KYC wizard) unbounded.
       expect(opts.connectTimeout, isNotNull,
           reason: 'connect must be bounded');
       expect(opts.sendTimeout, isNotNull,
@@ -128,7 +109,6 @@ void main() {
       final put = upload.captured!;
       expect(put.method, 'PUT');
       // Query string (incl. the signature) is preserved byte-for-byte and the
-      // decoy baseUrl host is nowhere in the resolved URI.
       expect(put.uri.toString(), _signedUrl);
       expect(put.uri.host, 'signed.cdn.test');
     });
@@ -264,14 +244,6 @@ void main() {
     });
   });
 
-  // ===========================================================================
-  // P4 + P5 (b01-20260725) — TC-C17: the AUTHENTICATED read proxy.
-  //
-  // cdn-service exposes NO signed-DOWNLOAD endpoint (the gateway's
-  // `GET /api/cdn/assets/{id}/signed-url` dials `api/v1/assets/{id}/signed-url`,
-  // which does not exist upstream). `GET /api/cdn/assets/content/{**objectPath}`
-  // on the gateway is the only working read path, and it is capability-gated —
-  // so the read MUST ride the SHARED authenticated Dio, not the bare upload one.
   // ===========================================================================
   group('DioCdnAssetGateway.fetchAsset — authenticated read proxy', () {
     test('GETs /api/cdn/assets/content/<ref> on the SHARED Dio as raw bytes',
@@ -418,7 +390,6 @@ String? _header(RequestOptions options, String name) {
 /// Broker (shared, authenticated gateway Dio) recorder — resolves the
 /// `POST /api/cdn/assets` ticket with the approach-B fields. Interceptor-based
 /// on purpose: the SHARED Dio legitimately carries interceptors; the upload Dio
-/// must not.
 class _BrokerRecorder {
   _BrokerRecorder({
     this.method = 'PUT',
@@ -471,7 +442,6 @@ class _BrokerRecorder {
 /// Dedicated upload Dio recorder — an [HttpClientAdapter] (NOT an interceptor,
 /// so the upload Dio stays interceptor-free) capturing the outgoing
 /// [RequestOptions] and the exact bytes Dio put on the wire. Its Dio carries a
-/// decoy baseUrl to prove the absolute upload_url is never joined to it.
 class _UploadRecorder {
   _UploadRecorder({this.status = 200, this.throwError = false}) {
     _adapter = _CapturingAdapter(this);

@@ -21,8 +21,6 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
 
   /// Android requires foregroundNotificationConfig to avoid background throttling (API 26+).
   /// Keeps uploader alive across screens by exempting stream from background throttling.
-  /// Does NOT survive app force-stop or process death; needs separate background isolate.
-  /// iOS uses plain settings with `always` authorization.
   @visibleForTesting
   static geo.LocationSettings defaultSettings(TargetPlatform platform) {
     if (platform != TargetPlatform.android) {

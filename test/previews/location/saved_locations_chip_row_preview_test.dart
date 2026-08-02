@@ -1,15 +1,4 @@
 // Render tests for the SavedLocationsChipRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Three of the six states render nothing at all (empty / loading / fetch
-// failed), so "did it render" is a weak question here. The expected strings pin
-// the repository fixture each preview was wired to, and the group below pins
-// what the canvas cannot show: that a hidden row leaves the map flush at the
-// top, that a failed fetch is indistinguishable from an empty account, that the
-// shelf loads exactly once, and the two size limits the chips run into.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -47,9 +36,6 @@ void main() {
       'Fetch failed · row hidden': savedLocationsChipRowFetchFailed,
     },
     // The widget paints nothing in three of these states, so the pinned string
-    // is the fixture that fed it. Without it, empty / loading / fetch-failed
-    // are three identical blank boxes and a preview wired to the wrong fake
-    // would pass here and mislead in the canvas.
     expectedText: const <String, String>{
       'Home + Work': 'fixture: home + work',
       'Other · long + unnamed': 'fixture: long + unnamed',
@@ -70,8 +56,6 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Work'), findsOneWidget);
       // The seam seeds this address as `Office`. For the home/work categories
-      // the chip discards `SavedLocation.label` entirely, so the address the
-      // manage screen lists as "Office" is captioned "Work" here.
       expect(find.text('Office'), findsNothing);
     });
 
@@ -82,7 +66,6 @@ void main() {
 
       expect(find.text('Other'), findsOneWidget);
       // No maxLines, no ellipsis: the long label renders in full and the chip
-      // grows past the viewport instead of truncating.
       expect(
         find.text('Beirut Souks — Parking Level B2, Weygand Street'),
         findsOneWidget,
@@ -114,8 +97,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The fetch is fired from `initState` and never lands in this fixture, so
-      // this is the state a user on a slow connection sits in: no skeleton, no
-      // reserved height, and the map creeping down when the chips arrive.
       await pumpPreview(tester, savedLocationsChipRowLoading);
 
       _expectRowHidden(tester);
@@ -125,10 +106,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_load` swallows the throw and leaves `_locations` null, so there is no
-      // error, no retry, and nothing separating "we could not load your
-      // addresses" from "you have none" — compare the manage screen, which has
-      // `savedLocationsError` + `savedLocationsRetry`. If that gap is ever
-      // closed, this expectation is the one that should fail first.
       await pumpPreview(tester, savedLocationsChipRowFetchFailed);
 
       _expectRowHidden(tester);
@@ -180,10 +157,6 @@ void main() {
       await pumpPreview(tester, savedLocationsChipRowHomeAndWork);
 
       // OmdsChip pads its capsule out to a 48x48 tappable box on purpose
-      // (`Sizes.fourXLarge`, WCAG 2.2 target size). The shelf wraps the list in
-      // a hardcoded `SizedBox(height: 40)`, which becomes a tight 40 pt
-      // cross-axis constraint and silently clamps that box back down — no
-      // overflow error, just an 8 pt shortfall on every chip in the row.
       expect(
         tester.getSize(find.widgetWithText(OmdsChip, 'Home')).height,
         40,
@@ -201,7 +174,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `JeebPreview` renders every state a third time at textScaleFactor 2.0
-      // and nothing else in this suite exercises that.
       await pumpPreview(tester, savedLocationsChipRowHomeAndWork);
       final double shelfAtOneX = tester.getSize(find.byType(ListView)).height;
       final double capsuleAtOneX = tester
@@ -269,7 +241,6 @@ void main() {
       expect(find.text('Home'), findsOneWidget);
 
       // Same widget position, a different repository: the fetch lives in
-      // `initState` and there is no `didUpdateWidget`, so nothing re-reads.
       await pumpPreview(tester, savedLocationsChipRowEmpty);
 
       expect(

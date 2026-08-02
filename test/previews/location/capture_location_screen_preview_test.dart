@@ -1,26 +1,6 @@
 // Render tests for the CaptureLocationScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`: every preview builds in both
-// locales, and each one is pinned to a string only IT renders.
-//
-// Half the pinned strings are the screen's own copy — "Map preview",
-// "Location access required", "Outside service area" — and half are the
-// previews' scenario captions. That split is forced by the screen: its own text
-// is an app-bar title and a CTA label, neither of which varies by state, so the
-// three states built on the live-map stand-in are indistinguishable by product
-// copy alone and a suite that pinned "Pin Location" would pass on six copies of
-// the same preview.
-//
-// Below the render suite are the assertions the canvas can only show a human:
-// that the CTA is live in the state that ships today (with nothing to pin),
-// that `isConfirming` disables the button and nothing else, and that the two
-// error surfaces reach the screen only by displacing the map — pin on top,
-// live CTA underneath.
 
 // `Tristate` is a dart:ui type that `package:flutter/semantics.dart` does not
-// re-export; it is what `SemanticsFlags.isEnabled` actually returns.
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
@@ -56,11 +36,6 @@ final Finder _ctaLabel = find.text('Pin Location');
 final Finder _fakeMap = find.byType(CaptureLocationScreenFakeMap);
 
 /// Drags the map by [delta] the way a user pans it under the fixed pin.
-///
-/// The drag starts at the centre of the map — which is exactly where the pin
-/// is drawn. It lands on the map anyway because `CaptureLocationPin` wraps
-/// itself in an [IgnorePointer]; if that ever changes, this is the assertion
-/// that notices.
 Future<void> _panMap(WidgetTester tester, Offset delta) async {
   await tester.drag(_fakeMap, delta);
   await tester.pumpAndSettle();
@@ -79,7 +54,6 @@ void main() {
       'Live map (production shape)':
           CaptureLocationScreenPreviewFixtures.beirutReadout,
       // Identical product copy to the state above it, so the caption is what
-      // distinguishes them.
       'Confirming (CTA disabled, nothing else is)':
           'Confirming · map and back still live',
       // Shipped ARB copy, reachable only through the map seam.
@@ -94,9 +68,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `/capture-location` builds `CaptureLocationScreen` with no mapBuilder
-      // (`CaptureLocationRoute`), so the map is the neutral placeholder: it has
-      // no gesture handling and no coordinate to give, and JEBV4-176 made the
-      // route pop WITHOUT one rather than fabricate downtown Beirut.
       await pumpPreview(tester, captureLocationScreenPlaceholderMap);
 
       expect(find.byType(CaptureMapViewport), findsOneWidget);
@@ -126,9 +97,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The class doc calls this "a busy state (reverse-geocode / save in
-      // flight)", but `_PinCta` only forwards it to `isEnabled`. What lands on
-      // screen is `OmdsPrimaryButton`'s ordinary disabled treatment: the same
-      // label, no spinner, no progress copy.
       await pumpPreview(tester, captureLocationScreenConfirming);
 
       expect(_ctaLabel, findsOneWidget);
@@ -148,7 +116,6 @@ void main() {
       await _panMap(tester, const Offset(0, -40));
 
       // The user is still moving the point while the host is already
-      // committing the one it read at tap time.
       expect(find.text('33.89300, 35.50180'), findsOneWidget);
       expect(
         find.text(CaptureLocationScreenPreviewFixtures.beirutReadout),
@@ -160,7 +127,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Disposed inline rather than in a tearDown: the end-of-test handle
-      // verification runs BEFORE tearDowns and fails on a live handle.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, captureLocationScreenLiveMap);
@@ -170,10 +136,6 @@ void main() {
       final SemanticsData busy = tester.getSemantics(_cta).getSemanticsData();
 
       // `Semantics(identifier: …, button: true)` in `_PinCta` never passes
-      // `enabled:`, so the node advertises no enabled state in EITHER rendering
-      // — assistive tech is told "Pin Location, button" while the screen is
-      // busy exactly as it is told while the screen is idle, and the only
-      // difference is that taps stop landing.
       expect(idle.flagsCollection.isButton, isTrue);
       expect(busy.flagsCollection.isButton, isTrue);
       expect(idle.flagsCollection.isEnabled, Tristate.none);
@@ -188,8 +150,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The screen has no denied state. `GpsDeniedState` reaches it only by
-      // displacing the map, and the screen then layers its fixed centre pin on
-      // top of the denial copy and leaves the confirm CTA live underneath.
       await pumpPreview(tester, captureLocationScreenPermissionDenied);
 
       expect(find.byType(GpsDeniedState), findsOneWidget);
@@ -229,7 +189,6 @@ void main() {
       );
 
       // Started dead centre, i.e. on the pin: `CaptureLocationPin` is an
-      // [IgnorePointer], so the gesture reaches the map.
       await _panMap(tester, const Offset(0, 40));
 
       expect(find.text('33.89460, 35.50180'), findsOneWidget);

@@ -1,8 +1,4 @@
 // Render tests for the OrderStatusChip previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,9 +32,6 @@ void main() {
     'OrderStatusChip',
     _previews,
     // One distinct label per state. The chip's colour is chosen from
-    // `status.tab`, so several states paint identically — the label is the only
-    // thing that proves a preview rendered ITS OWN state rather than a
-    // neighbour's.
     expectedText: const <String, String>{
       'In flight · En route': 'En route',
       'Completed · Delivered': 'Delivered',
@@ -56,9 +49,6 @@ void main() {
       await pumpPreview(tester, orderStatusChipUnknown);
 
       // The forward-compatibility contract: `parse` funnels every status the
-      // client has not heard of into `unknown`, and the chip must still say
-      // something a customer can read — not an empty pill and not a raw wire
-      // value such as `AtDoor`.
       final Text label = tester.widget<Text>(
         find.descendant(
           of: find.byType(OrderStatusChip),
@@ -84,11 +74,6 @@ void main() {
     testWidgets('Disputed and Cancelled paint the SAME pill — only the word '
         'differs', (WidgetTester tester) async {
       // Not an endorsement: `disputed` buckets to `OrderHistoryTab.cancelled`,
-      // so `_paletteFor` gives both the `errorContainer` fill. Pinned because
-      // the two states mean opposite things to a customer (a dispute is open
-      // and needs them; a cancellation is closed and needs nothing), and a
-      // reviewer scrolling the canvas should know the identical colour is the
-      // current contract rather than a canvas artefact.
       await pumpPreview(tester, orderStatusChipCancelled);
       final Color cancelled = _decoration(tester).color!;
 
@@ -105,9 +90,6 @@ void main() {
       await pumpPreview(tester, orderStatusChipHeaderRow);
 
       // The chip is the non-flexible child of the header `Row`, so it is
-      // measured against unbounded width and never squeezed. Both children must
-      // stay inside the 358pt the card really gives the row — an overflow here
-      // is the yellow-and-black stripe on a real phone.
       final Rect row = tester.getRect(find.byType(Row).last);
       final Rect chip = tester.getRect(find.byType(OrderStatusChip));
 
@@ -120,10 +102,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The chip's padding is `EdgeInsetsDirectional.symmetric`, and horizontal
-      // symmetric padding has no side to get wrong — mirroring is the `Row`'s
-      // job. This asserts the chip ends up on the START edge (left in Arabic)
-      // and the date on the other side, which is what the AR rendering of the
-      // matrix is there to show.
       await pumpPreview(tester, orderStatusChipHeaderRow);
       final Rect ltrChip = tester.getRect(find.byType(OrderStatusChip));
       final Rect ltrRow = tester.getRect(find.byType(Row).last);

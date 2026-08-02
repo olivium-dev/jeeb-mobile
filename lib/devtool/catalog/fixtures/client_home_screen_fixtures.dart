@@ -1,21 +1,4 @@
 // Designed states for the Client Home screen — ONE source of truth, two
-// consumers.
-//
-//   lib/devtool/catalog/entries/batch_04_entries.dart   the designer-facing,
-//                                                       on-device Screen Catalog
-//   lib/features/home_client/presentation/client_home_screen.dart
-//                                                       the JEEB PREVIEWS
-//                                                       section at its bottom
-//
-// The catalog entry owned these fakes privately, so the previews would have had
-// to re-declare them and the two would have drifted the first time a fixture
-// changed. Everything either consumer needs to reach a designed state lives
-// here instead; each consumer supplies only its own host chrome (the catalog
-// wraps the screen in a [Scaffold], the preview host already supplies one).
-//
-// NOTHING here touches the network. Every repository below answers from a const
-// list, throws, or never completes — the [CatalogNetworkGuard] both hosts
-// install is a net, not the plan.
 
 import 'dart:async';
 
@@ -26,11 +9,8 @@ import '../../../features/home_client/domain/client_home_repository.dart';
 import '../../../features/home_client/domain/client_home_request.dart';
 
 /// Fake [ClientHomeRepository] whose cold load always throws.
-///
 /// A COLD failure is the only way to reach [ClientHomeStatus.failed]:
 /// `ClientHomeCubit._fetch` deliberately swallows a failed *refresh* when data
-/// is already painted, so a repository that fails on the second read would show
-/// the previous rows instead of the retry CTA.
 class FailingClientHomeRepository implements ClientHomeRepository {
   const FailingClientHomeRepository();
 
@@ -42,9 +22,7 @@ class FailingClientHomeRepository implements ClientHomeRepository {
 
 /// Fake [ClientHomeRepository] whose read never resolves, freezing the cubit on
 /// [ClientHomeStatus.loading] for as long as the host is open.
-///
 /// A [Completer] that is never completed holds no timer and no subscription; it
-/// simply never settles.
 class StalledClientHomeRepository implements ClientHomeRepository {
   const StalledClientHomeRepository();
 
@@ -64,10 +42,8 @@ class SeededClientHomeRepository implements ClientHomeRepository {
 }
 
 /// The designed states of `ClientHomeScreen`, as repositories + a cubit factory.
-///
 /// Deliberately NOT a widget builder: the two consumers need different chrome
 /// around the same screen, and a shared builder that took a `wrapInScaffold`
-/// flag would just be two builders wearing one name.
 class ClientHomeScreenPreviewFixtures {
   const ClientHomeScreenPreviewFixtures._();
 
@@ -112,7 +88,6 @@ class ClientHomeScreenPreviewFixtures {
 
   /// Pending EMPTY, Replies POPULATED — the one-shot "land where the content
   /// is" affordance in `_resolveInitialTab`, which must advance to Replies and
-  /// never to the relocated In-Progress surface (JEBV4-298 / JM-023 AC2).
   static ClientHomeRepository repliesOnly() =>
       const SeededClientHomeRepository(
         ClientHomeSnapshot(
@@ -127,7 +102,6 @@ class ClientHomeScreenPreviewFixtures {
               tier: ClientRequestTier.express,
               offerCount: 5,
               // Empty strings on purpose: the avatar falls back to its initials
-              // placeholder instead of reaching a CDN the host cannot reach.
               offerAvatarUrls: <String>['', '', ''],
               conversationId: 'conv-rep-auto',
             ),
@@ -153,10 +127,7 @@ class ClientHomeScreenPreviewFixtures {
   );
 
   /// The cubit both hosts mount above the screen.
-  ///
   /// No `load()` here on purpose — `ClientHomeScreen.initState` posts its own
-  /// first load, so calling it here would double the cold read and hide the
-  /// mount path the screen actually ships.
   static ClientHomeCubit cubit(
     ClientHomeRepository repository, {
     String? name = greetingName,

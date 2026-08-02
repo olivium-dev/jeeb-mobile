@@ -11,7 +11,6 @@ import 'support/sync_app_localizations.dart';
 
 /// Sprint-6 Stream-B polish: the mic pre-condition failures (permission denied,
 /// recorder unavailable) must render a persistent, recoverable surface — not a
-/// transient snackbar that leaves the user in a tap-deny-tap dead-end.
 VoiceRecordingCubit _buildCubit({VoiceRecorder? recorder}) {
   return VoiceRecordingCubit(
     recorder: recorder ?? FakeVoiceRecorder(),

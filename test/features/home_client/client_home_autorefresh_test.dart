@@ -31,7 +31,6 @@ class _SequencedRepo implements ClientHomeRepository {
   );
 
   // The order that becomes active only after the client accepts an offer —
-  // present from the SECOND snapshot onward.
   static const _orderB = ClientHomeRequest(
     id: 'ip-2',
     title: 'Nadia Saab',
@@ -77,8 +76,6 @@ void _loadArbs() {
 
 /// Hosts [ClientHomeScreen] under a controllable [TabVisibility] whose
 /// `isVisible` is driven by [visible]. The [BlocProvider] sits ABOVE the
-/// listenable so the SAME cubit instance survives visibility flips (mirroring
-/// the shell's IndexedStack, which keeps the tab body mounted).
 Widget _harness({
   required ClientHomeRepository repo,
   required ValueListenable<bool> visible,
@@ -102,10 +99,6 @@ Widget _harness({
         child: ValueListenableBuilder<bool>(
           valueListenable: visible,
           // JEBV4-298: the In-Progress live-tracking list was relocated off
-          // the default Requests view (now Pending/Replies). This test asserts
-          // the S13 refocus re-pull surfaces a freshly-accepted IN-PROGRESS
-          // order, so pin that surface explicitly. The refocus re-pull itself
-          // is a Requests-tab-level behavior and is unchanged.
           builder: (_, isVisible, _) => TabVisibility(
             isVisible: isVisible,
             child: const ClientHomeScreen(
@@ -147,7 +140,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The tab re-fetched (call #2) and the freshly-accepted order is shown,
-      // with NO manual pull-to-refresh.
       expect(repo.calls, 2);
       expect(find.text('Kamal Hajj'), findsOneWidget);
       expect(find.text('Nadia Saab'), findsOneWidget);
@@ -175,7 +167,6 @@ void main() {
       visible.value = true;
 
       // Drive frames one at a time across the in-flight refresh and assert the
-      // status never regresses to loading/initial (which would blank the list).
       for (var i = 0; i < 5; i++) {
         await tester.pump();
         expect(cubit().state.status, ClientHomeStatus.ready);

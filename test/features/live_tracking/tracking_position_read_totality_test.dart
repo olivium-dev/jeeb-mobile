@@ -1,20 +1,4 @@
 // MB1 — "deliberately total" must actually BE total.
-//
-// Ported from `b05/mb1@0ad2752`, second half. `fetchLivePosition`'s doc comment
-// promises `null` on ANY failure, but the implementation caught only
-// `DioException` and `FormatException`. `DeliveryTrackingInfo.fromTrackingJson`
-// reaches the wire through UNCHECKED CASTS —
-//
-//   json['position'] as Map<String, dynamic>?     (a list / string 200)
-//   (posObj['lat'] as num).toDouble()             (a STRING latitude)
-//   json['status'] as String?                     (a numeric status)
-//
-// — and every one of those throws `TypeError`, which is neither of the two
-// caught types. On the call path this rides (`_readLivePosition`, reached from
-// an unawaited `_fetchAndSchedule`) that escapes as an unhandled zone error.
-//
-// The matching NEGATIVE control is in `tool/mb1/neg-control-dropped-edge.sh`,
-// which strips the bare `catch` and re-runs this file expecting RED.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -73,7 +57,6 @@ void main() {
         adapter.body = body;
 
         // The whole contract in one line: it RETURNS, and it returns null.
-        // Pre-fix each of these threw `TypeError` straight out of the repo.
         await expectLater(
           repo().fetchLivePosition(deliveryId: _deliveryId),
           completion(isNull),

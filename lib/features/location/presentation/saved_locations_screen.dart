@@ -506,74 +506,11 @@ class _ErrorView extends StatelessWidget {
   }
 }
 // ============================== JEEB PREVIEWS ==============================
-// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/location/saved_locations_screen_preview_test.dart
-// ===========================================================================
-//
-// This is a SCREEN, so two things differ from a widget preview.
-//
-// 1. It owns its own `Scaffold` (app bar + FAB) and [jeebPreviewHost] wraps
-//    every child in one as well, so the canvas shows two nested Scaffolds. The
-//    inner one is the real surface; the outer contributes only a background.
-//    The canvas box is therefore a real device
-//    ([_savedLocationsScreenPhoneBox], 390x844) rather than the harness's
-//    default 390x200 — an app bar, a list and a floating CTA cannot be judged
-//    in a 200 pt strip.
-//
-// 2. It needs a `Router` ABOVE it to build at all. `_SavedLocationsView` wraps
-//    its Scaffold in [RootAwareBackScope] → `BackButtonListener`, whose
-//    `didChangeDependencies` calls `Router.of(context)`; under a plain
-//    `MaterialApp` (which is what both the canvas host and the render harness
-//    provide) there is no `Router` and the screen throws before it paints.
-//    [_SavedLocationsScreenHost] supplies one via `Router.withConfig` over a
-//    local [GoRouter]. That also makes the canvas honest to tap in: `Add` and
-//    the per-row edit affordance both `pushNamed('address-detail')`, and the
-//    stand-in route below catches them instead of throwing.
-//
-// The state itself is driven the only way this screen allows: through the
-// `repository:` constructor seam, with the fakes shared with the Screen Catalog
-// entry (`lib/devtool/catalog/fixtures/saved_locations_screen_fixtures.dart`).
-// No preview builds a `DioSavedLocationRepository`, and `_resolveRepository()`
-// — the GetIt path — is never reached, so these are network-free by
-// construction rather than by the guard in [jeebPreviewHost].
-//
-// Two states cannot be reached from here, and both are worth knowing about:
-// `SavedLocationsMutating` (the delete-in-flight overlay) and
-// `SavedLocationsMutationError` (the cap-reached / delete-failed snackbar) are
-// only emitted AFTER a tap, and the screen builds its own
-// [SavedLocationsCubit] internally — there is no `cubit:` seam to seed one
-// with. In the canvas you can still reach them by hand: "…" → Delete on a row
-// whose fake `deleteLocation` hangs or throws.
-//
-// What these previews surfaced in the screen — see the notes on each:
-//
-//  * the Add CTA is a `FloatingActionButton.extended`, which has no disabled
-//    rendering, so during the initial load it looks exactly as tappable as it
-//    does when it works (`Loading · spinner`);
-//  * the title line of a tile is `Flexible(label) + _DefaultBadge`, and the
-//    badge is NOT flexible — it takes its natural width first and the label
-//    ellipsizes into what is left. In Arabic at 200% text the badge
-//    (`الافتراضي`, wider than `Default`) is alone wider than the 206 pt the
-//    title line gets, so the row overflows by 42 pt: `RenderFlex overflowed by
-//    42 pixels` on `Row ← Column ← Expanded ← Row` in BOTH list previews.
-//    EN at 200% clears it, AR at 100% clears it; only the two together break.
-//    Note that the standard matrix cannot show you this — it renders AR at
-//    100% and 200% in EN — so it is asserted nowhere and has to be read here.
+// DEV-ONLY, NOT SHIPPED.
 
 /// The canvas box for a whole screen: a real phone, not the harness default.
 const Size _savedLocationsScreenPhoneBox = Size(390, 844);
 
-/// The `address-detail` (JM-050) form the manager hands off to, stubbed.
-///
-/// The real route lives in `app_router.dart` and owns persistence; here it only
-/// has to exist so a tap on `saved_address_add_cta` or `saved_address_<n>_edit`
-/// lands somewhere and shows WHICH path was taken — add (no id) or edit
-/// (`?id=<addressId>`).
 class _SavedLocationsScreenFormStandIn extends StatelessWidget {
   const _SavedLocationsScreenFormStandIn({this.addressId});
 
@@ -587,7 +524,6 @@ class _SavedLocationsScreenFormStandIn extends StatelessWidget {
       body: Center(
         child: Text(
           // Forced LTR: diagnostic, not shipped copy, and a latin identifier
-          // reorders visually inside an RTL paragraph.
           'id: ${addressId ?? '<add>'}',
           textDirection: TextDirection.ltr,
           style: theme.textTheme.bodyLarge,
@@ -597,14 +533,6 @@ class _SavedLocationsScreenFormStandIn extends StatelessWidget {
   }
 }
 
-/// Puts a real `Router` above [SavedLocationsScreen] so it can build.
-///
-/// Stateful, and the router is built once and disposed with the host: a
-/// [GoRouter] rebuilt on every frame would drop the navigation state the
-/// screen's own `pushNamed`/`canPop` calls depend on. `Router.withConfig` is
-/// exactly what `MaterialApp.router` does internally, so this adds a Router and
-/// nothing else — the ambient theme, locale and text scale still come from the
-/// preview host above it.
 class _SavedLocationsScreenHost extends StatefulWidget {
   const _SavedLocationsScreenHost({required this.repository});
 
@@ -654,18 +582,6 @@ Widget _savedLocationsScreenWith(List<SavedLocation> locations) =>
       SavedLocationsScreenFakeRepository(locations),
     );
 
-/// The happy path, and the state the JM-049 ACs are written against: `Home` is
-/// the default (it carries `saved_address_default_badge`), `Office` is not.
-///
-/// Matrixed because this row is the whole layout question — icon, label,
-/// badge, edit and overflow affordances all competing for one horizontal run.
-/// The AR rendering is where the badge changes width (`الافتراضي` vs
-/// `Default`) and the whole row mirrors; the 200% rendering is where the badge
-/// starts taking the label's space.
-///
-/// The two together is the state that actually breaks (42 pt overflow, see the
-/// section header) and the matrix does not render that combination — to see it,
-/// pump this preview at `TextScaler.linear(2)` under `Locale('ar')`.
 @JeebPreview(
   group: 'location',
   name: 'Loaded · Home + Office',
@@ -675,12 +591,6 @@ Widget _savedLocationsScreenWith(List<SavedLocation> locations) =>
 Widget savedLocationsScreenLoaded() =>
     _savedLocationsScreenWith(savedLocationsScreenHomeAndOffice);
 
-/// A new account: nothing saved yet.
-///
-/// The zero-state is guidance only — the Add CTA stays on the FAB, so this is
-/// the one surface where the FAB is the sole way forward. Worth checking that
-/// the centred [OmdsEmptyState] body and the floating CTA do not collide at
-/// 200% text.
 @JeebPreview(
   group: 'location',
   name: 'Empty · nothing saved',
@@ -689,15 +599,6 @@ Widget savedLocationsScreenLoaded() =>
 Widget savedLocationsScreenEmpty() =>
     _savedLocationsScreenWith(const <SavedLocation>[]);
 
-/// `GET /users/:userId/saved-locations` failed.
-///
-/// The cubit collapses every failure to `SavedLocationsError('fetch_failed')`,
-/// so this one picture covers offline, 401 and 500 alike — the user is told
-/// only "could not load" and offered `Try again`, which re-runs the real load.
-///
-/// Note what the FAB does here: it stays ENABLED on a list that failed to load,
-/// so `Add` remains reachable even though the manager cannot show what is
-/// already saved — a user can add a duplicate of an address they cannot see.
 @JeebPreview(
   group: 'location',
   name: 'Error · load failed',
@@ -710,14 +611,6 @@ Widget savedLocationsScreenError() => _savedLocationsScreenHosted(
       ),
     );
 
-/// The cold-start window, held open by a read that never lands.
-///
-/// The list area is a centred [OmdsLoadingState] spinner, and the FAB is built
-/// with `enabled: false` → `onPressed: null`. `FloatingActionButton.extended`
-/// has no disabled rendering: it keeps its filled container colour and its
-/// label at full opacity, so the Add CTA here is pixel-identical to the working
-/// one two previews up. On a slow connection that is a CTA that looks live and
-/// silently swallows taps.
 @JeebPreview(
   group: 'location',
   name: 'Loading · spinner',
@@ -727,15 +620,6 @@ Widget savedLocationsScreenLoading() => _savedLocationsScreenHosted(
       const SavedLocationsScreenPendingRepository(),
     );
 
-/// The layout ceiling: TEN saved addresses — the cap — with the longest label
-/// and address a user can plausibly save on the default row.
-///
-/// Read the first row in the matrix. The tile lays the title line out as
-/// `Flexible(label) + badge`, so the badge takes its width first and the label
-/// ellipsizes into whatever is left; the row carrying the default badge is
-/// therefore the row whose name is cut shortest, which is the opposite of what
-/// a user scanning for "my usual address" needs. Row 1 (`Teta`) has no
-/// `address` at all and shows the tile's other, single-line layout.
 @JeebPreview(
   group: 'location',
   name: 'Ten saved · at the cap',

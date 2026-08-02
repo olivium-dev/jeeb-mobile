@@ -1,57 +1,4 @@
 // Designed states for `DeliveryStatusScreen` — ONE source of truth, two
-// consumers.
-//
-//   lib/devtool/catalog/entries/batch_03_entries.dart
-//       the designer-facing, on-device Screen Catalog
-//   lib/features/delivery_status/presentation/delivery_status_screen.dart
-//       the JEEB PREVIEWS section at its bottom
-//
-// The catalog owned a private `_statusSnapshot()` builder and a private
-// `_ErroringDeliveryStatusGateway`; both are extracted here verbatim in
-// meaning, so the two surfaces cannot end up with two different notions of
-// "the delivery status screen, in transit".
-//
-// ## The screen has exactly ONE seam, and it bounds what can be a state
-//
-// `DeliveryStatusScreen` takes either a pre-built `cubit` or a `gateway`
-// (asserted mutually exclusive), and falls back to
-// `InMemoryDeliveryStatusGateway(seed: demoDeliverySnapshot(...))` when given
-// neither. Every state below drives the `gateway` seam, never `cubit`:
-//
-//  * `DeliveryStatusCubit` subscribes to the gateway inside its CONSTRUCTOR,
-//    so a cubit built outside the widget tree starts streaming before the tree
-//    that owns it exists. `test/delivery_status_screen_test.dart` documents the
-//    consequence at length — that pending subscription plus the loading
-//    spinner's ticker deadlocks `pumpWidget` — and passes a gateway for the
-//    same reason.
-//  * The cubit has NO `initialState`/seed constructor, so
-//    `DeliveryStatusState.isCancelling` (the "Cancelling…" label) cannot be
-//    seeded by either surface. The only way to reach it is to tap Cancel and
-//    have the gateway's `cancel()` future stay in the air, which is what
-//    [DeliveryStatusScreenPendingCancelGateway] is for.
-//
-// ## Network-free by construction
-//
-// Every gateway here answers from a const snapshot, throws, or never
-// completes. None of them builds a Dio client or touches GetIt, so neither
-// surface depends on the `CatalogNetworkGuard` its host installs — that is a
-// net, not the plan.
-//
-// ## Two deliberate departures from the catalog's old private fixtures
-//
-//  1. **Timestamps are a fixed timeline, not `DateTime.now()`.** The old
-//     builder anchored every milestone to the wall clock, so the same designed
-//     state rendered different captions every time it was opened and could not
-//     be pinned by a render test. Stage captions are absolute times of day
-//     ("at 10:04"), never "4 minutes ago", so nothing is lost by fixing the
-//     base instant — and the catalog now shows the same card twice in a row.
-//  2. **Each state carries its OWN delivery id.** The four catalog states all
-//     said `ORD-4821`, so a card that silently rendered its neighbour's fixture
-//     looked correct. `Delivery #<id>` is the one per-state string the screen
-//     paints, which makes it the cheapest possible tell.
-//
-// This file lives under `lib/devtool/`, which `tool/preview_inventory.dart`
-// excludes from preview coverage and which no shipping code path reaches.
 
 import 'dart:async';
 
@@ -63,10 +10,7 @@ import 'package:jeeb_mobile/features/delivery_status/domain/delivery_tier.dart';
 import 'package:jeeb_mobile/features/delivery_status/domain/jeeber_summary.dart';
 
 /// One designed state: the id the screen echoes, and the gateway that feeds it.
-///
 /// Both are needed together — the id is only a subtitle, the timeline lives in
-/// the gateway's snapshot — so they travel as a pair rather than as two
-/// constants a caller could mismatch.
 final class DeliveryStatusScreenDesignedState {
   const DeliveryStatusScreenDesignedState({
     required this.deliveryId,
@@ -81,18 +25,11 @@ final class DeliveryStatusScreenDesignedState {
 }
 
 /// The instant every fixed milestone timeline is anchored to.
-///
 /// Local time on purpose: `DeliveryStageIndicator` formats with
-/// `DateFormat.Hm(tag).format(when.toLocal())`, so a UTC anchor would render a
-/// different caption on every machine. Matches the date
-/// `test/delivery_status_screen_test.dart` already uses.
 final DateTime deliveryStatusScreenTimelineStart = DateTime(2026, 5, 17, 10);
 
 /// The Jeeber every in-flight state is matched with.
-///
 /// The same person `test/delivery_status_screen_test.dart` and the demo
-/// snapshot use, so the tests, the catalog and the canvas all describe one
-/// courier rather than three.
 const JeeberSummary deliveryStatusScreenJeeber = JeeberSummary(
   displayName: 'Karim H.',
   vehicleLabel: 'Scooter',
@@ -111,15 +48,7 @@ const DeliveryAddress _dropoff = DeliveryAddress(
 );
 
 /// Builds a snapshot with a deterministic milestone timeline.
-///
 /// Every stage at or before [stage] is stamped, four minutes apart, starting
-/// at [deliveryStatusScreenTimelineStart] — matched 10:00, picked up 10:04, in
-/// transit 10:08, delivered 10:12. Later stages are absent from the map, which
-/// is exactly what the gateway does and what makes the indicator render
-/// "Waiting…" for them.
-///
-/// Pass `jeeber: null` for the states where no courier is on the snapshot: the
-/// pre-match wait, and (as the catalog has always had it) the terminal ones.
 DeliverySnapshot deliveryStatusScreenSnapshot({
   required String id,
   required DeliveryStage stage,
@@ -149,11 +78,8 @@ DeliverySnapshot deliveryStatusScreenSnapshot({
 }
 
 /// A stream that never emits and never closes — the cold-load state.
-///
 /// This is not a synthetic condition: it is the first frame of EVERY delivery,
 /// because `DeliveryStatusState` starts at `mode: loading` and only leaves it
-/// when the gateway's first snapshot lands. Holding it open is the only way to
-/// inspect that frame without a real slow connection.
 class DeliveryStatusScreenPendingGateway implements DeliveryStatusGateway {
   const DeliveryStatusScreenPendingGateway();
 
@@ -167,10 +93,8 @@ class DeliveryStatusScreenPendingGateway implements DeliveryStatusGateway {
 }
 
 /// A stream that fails on subscribe — the D30 error state.
-///
 /// Extracted from the catalog's private `_ErroringDeliveryStatusGateway`.
 /// `retry()` re-subscribes and gets the same error, so the card is stable to
-/// look at and the Retry button is honest about being a no-op here.
 class DeliveryStatusScreenErroringGateway implements DeliveryStatusGateway {
   const DeliveryStatusScreenErroringGateway();
 
@@ -184,12 +108,8 @@ class DeliveryStatusScreenErroringGateway implements DeliveryStatusGateway {
 }
 
 /// A stream that delivers ONE good snapshot and then drops.
-///
 /// The realistic failure — a tunnel, a backgrounded app, a websocket idle
 /// timeout — as opposed to "the service was down when you opened the screen".
-/// The cubit keeps `state.snapshot`, so this fixture is what makes it visible
-/// that the view throws it away: see the preview section in
-/// `delivery_status_screen.dart`.
 class DeliveryStatusScreenDroppedStreamGateway implements DeliveryStatusGateway {
   const DeliveryStatusScreenDroppedStreamGateway(this.lastGoodSnapshot);
 
@@ -208,12 +128,8 @@ class DeliveryStatusScreenDroppedStreamGateway implements DeliveryStatusGateway 
 }
 
 /// A live delivery whose `cancel()` never lands.
-///
 /// Delegates `watch` to the shipped [InMemoryDeliveryStatusGateway] and only
 /// replaces the write, so the state a reviewer taps from is the ordinary
-/// pre-pickup one. Because the cubit cannot be seeded (see the header), this
-/// is the ONLY way either dev surface can hold `isCancelling: true` still
-/// enough to look at.
 class DeliveryStatusScreenPendingCancelGateway
     implements DeliveryStatusGateway {
   DeliveryStatusScreenPendingCancelGateway(this.seed)
@@ -233,20 +149,10 @@ class DeliveryStatusScreenPendingCancelGateway
 }
 
 /// The designed states, named once for both dev surfaces.
-///
 /// Every member is a GETTER, not a constant: [InMemoryDeliveryStatusGateway]
-/// keeps a `StreamController` per `watch()` call, and the preview canvas mounts
-/// many cards at once, so each read hands out a fresh gateway rather than
-/// letting two live screens share one fake's bookkeeping.
-///
-/// The first four are the states the Screen Catalog has shown since DT-04. The
-/// rest are reachable only from the preview canvas today; they are kept here,
-/// beside their siblings, so that adding them to the catalog later is a
-/// one-line change rather than a re-derivation.
 abstract final class DeliveryStatusScreenFixtures {
   /// ACTIVE, pre-pickup: the only state where BOTH CTAs render, because
   /// `canCancel` is gated on `stage.isBefore(pickedUp)` (BR-4) and
-  /// `canContactJeeber` on the gateway having exposed a phone number.
   static DeliveryStatusScreenDesignedState get matched =>
       _inMemory(deliveryStatusScreenSnapshot(
         id: 'ORD-4821',
@@ -263,9 +169,7 @@ abstract final class DeliveryStatusScreenFixtures {
       ));
 
   /// COMPLETED terminal: the banner appears and both CTAs collapse.
-  ///
   /// `jeeber: null` is the catalog's long-standing choice, kept deliberately —
-  /// see the preview section for what the screen then does with it.
   static DeliveryStatusScreenDesignedState get delivered =>
       _inMemory(deliveryStatusScreenSnapshot(
         id: 'ORD-4823',
@@ -289,10 +193,7 @@ abstract final class DeliveryStatusScreenFixtures {
       );
 
   /// ACTIVE, matched, but the snapshot carries NO courier.
-  ///
   /// The empty state of the Jeeber card. Contact is withheld (no number to
-  /// dial) while Cancel stays, which is the correct pairing and the only state
-  /// that shows the two CTAs decoupled.
   static DeliveryStatusScreenDesignedState get awaitingJeeber =>
       _inMemory(deliveryStatusScreenSnapshot(
         id: 'ORD-4826',
@@ -301,10 +202,7 @@ abstract final class DeliveryStatusScreenFixtures {
       ));
 
   /// CANCELLED terminal.
-  ///
   /// `stage` stays at `matched` — cancellation is a lifecycle, not a stage —
-  /// which is what drives `DeliveryStageIndicator` to zero its stepper while
-  /// keeping the milestone timestamps.
   static DeliveryStatusScreenDesignedState get cancelled =>
       _inMemory(deliveryStatusScreenSnapshot(
         id: 'ORD-4827',
@@ -339,12 +237,7 @@ abstract final class DeliveryStatusScreenFixtures {
       );
 
   /// The longest plausible content on every axis at once.
-  ///
   /// A real Beirut address with a landmark line, a courier whose display name
-  /// is a full Arabic-transliterated name rather than the privacy-trimmed
-  /// "Karim H.", a pickup-truck tier (the longest tier label), a three-digit
-  /// ETA, and a gateway reference that is a UUID rather than `ORD-####` —
-  /// which the gateway does return for requests created outside the app.
   static DeliveryStatusScreenDesignedState get longestContent =>
       _inMemory(deliveryStatusScreenSnapshot(
         id: 'REQ-2f8c1d94-7b6a-4e05-9c3f-0a1b2c3d4e5f',
@@ -370,9 +263,7 @@ abstract final class DeliveryStatusScreenFixtures {
       ));
 
   /// The in-transit reading again, on the narrowest supported viewport.
-  ///
   /// A separate id so a 320-wide card cannot be mistaken for the 390-wide one
-  /// in a canvas that renders both.
   static DeliveryStatusScreenDesignedState get compactViewport =>
       _inMemory(deliveryStatusScreenSnapshot(
         id: 'ORD-4830',
@@ -382,7 +273,6 @@ abstract final class DeliveryStatusScreenFixtures {
 
   /// Wraps [snapshot] in the shipped in-memory fake, which emits it on listen
   /// and then holds the stream open — no polling, no timers, no close, so the
-  /// screen parks in `ready` for as long as the surface is mounted.
   static DeliveryStatusScreenDesignedState _inMemory(
     DeliverySnapshot snapshot,
   ) =>

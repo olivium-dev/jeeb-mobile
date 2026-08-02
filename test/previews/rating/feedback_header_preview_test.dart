@@ -1,19 +1,4 @@
 // Render tests for the FeedbackHeader previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The `expectedText` map below binds each state to a string only that state
-// puts on screen, so a suite that accidentally rendered the same header five
-// times fails instead of passing. Two of those strings are the previews' own
-// captions rather than widget output — the compact and bounded-band states
-// differ from a production state only in the box they are given, so the widget
-// emits identical text in all three. For those two the real per-state contract
-// is the measured geometry in the specifics group underneath, which is where
-// this file pins the four things `find.text` cannot see: the audience switch,
-// the 12pt title/subtitle rhythm, the greedy `MainAxisSize.max` column, and the
-// two contrast defects in the ink roles.
 
 import 'dart:math' as math;
 
@@ -36,7 +21,6 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
 
 /// The three ARB strings this widget can put on screen, as `app_en.arb` spells
 /// them. Restated here so a copy edit that changes the audience wording has to
-/// come through this file.
 const String _title = 'We appreciate your feedback';
 const String _subtitleJeeber =
     'We are always looking for ways to improve your experience. Please take a '
@@ -56,7 +40,6 @@ const double _compactContentWidth = 320 - 40;
 
 /// `Spacing.small`, restated from `feedback_header.dart` so a change to the
 /// title/subtitle gap shows up here as a failure rather than as a silent
-/// redesign.
 const double _titleToSubtitle = 12;
 
 /// `Spacing.xLarge` — what `_FeedbackContent` puts between the header and each
@@ -74,10 +57,7 @@ double _contrast(Color a, Color b) {
 }
 
 /// How many lines [text] wrapped onto, counted from the laid-out glyph boxes.
-///
 /// Line COUNTS rather than pixel heights: `flutter_test` substitutes its own
-/// metrics for Inter, so an absolute height measured here would be a property
-/// of the test font rather than of the layout.
 int _lineCount(WidgetTester tester, String text) {
   final RenderParagraph paragraph =
       tester.renderObject<RenderParagraph>(find.text(text));
@@ -95,11 +75,9 @@ void main() {
     _previews,
     expectedText: const <String, String>{
       // The audience switch is the widget's only input, so the two production
-      // states are told apart by the subtitle they resolve — not by a caption.
       'Client rates the jeeber': _subtitleJeeber,
       'Jeeber rates the client': _subtitleClient,
       // Caption-bound: same widget, same two strings, different box. The
-      // geometry assertions below are what actually separate these.
       'Compact 320pt device': '320pt device — narrowest supported',
       // Bound to a neighbour no other state renders, rather than to a caption.
       'In screen context': 'Rate Sami Fawaz',
@@ -148,7 +126,6 @@ void main() {
       expect(subtitle.bottom, header.bottom);
 
       // The block is centred on the content column, which is what makes it read
-      // as a heading rather than as a paragraph.
       expect((title.center.dx - header.center.dx).abs(), lessThan(0.5));
       expect((subtitle.center.dx - header.center.dx).abs(), lessThan(0.5));
     });
@@ -185,9 +162,6 @@ void main() {
       await pumpPreview(tester, feedbackHeaderCompact);
 
       // Deliberately NOT asserted as an exact line count: `flutter_test`
-      // substitutes its own metrics for Inter, so the wrap point here is a
-      // property of the test font. That the count GROWS is a property of the
-      // layout.
       final int linesAt200 = _lineCount(tester, _subtitleJeeber);
       expect(linesAt200, greaterThan(linesAt100));
       expect(
@@ -221,9 +195,6 @@ void main() {
       final Rect title = tester.getRect(find.text(_title));
 
       // The widget's Column leaves `mainAxisSize` at MainAxisSize.max, so it
-      // swells to the parent's height and pins its content to the top. Today's
-      // single caller nests it in a Column inside a SingleChildScrollView and
-      // so hands it unbounded height, which hides this.
       expect(band.height, _bandHeight);
       expect(
         title.top - band.top,
@@ -253,7 +224,6 @@ void main() {
       final Rect rateName = tester.getRect(find.text('Rate Sami Fawaz'));
 
       // `Spacing.xLarge` on both sides, and no margin of the header's own —
-      // padding added inside the widget would show up here as 24 + n.
       expect(header.top - avatar.bottom, _neighbourGap);
       expect(rateName.top - header.bottom, _neighbourGap);
 
@@ -272,13 +242,11 @@ void main() {
       );
 
       // Both strings come from the ARB, so an English leak here would mean the
-      // widget hardcoded one of them.
       expect(find.text(_title), findsNothing);
       expect(find.text(_subtitleJeeber), findsNothing);
       expect(find.text(_titleAr), findsOneWidget);
 
       // `TextAlign.center` is direction-agnostic, so the block must sit on the
-      // same axis in RTL — nothing here should flip to an edge.
       final Rect header = tester.getRect(find.byType(FeedbackHeader));
       final Rect title = tester.getRect(find.text(_titleAr));
       expect((title.center.dx - header.center.dx).abs(), lessThan(0.5));
@@ -290,8 +258,6 @@ void main() {
       await pumpPreview(tester, feedbackHeaderClientAudience);
 
       // Documents today's behaviour rather than endorsing it: the title is a
-      // bare `Text`, so TalkBack/VoiceOver read the screen's own heading as
-      // ordinary text and heading navigation has nothing to land on.
       expect(
         tester.getSemantics(find.text(_title)).flagsCollection.isHeader,
         isFalse,
@@ -308,8 +274,6 @@ void main() {
       final ColorScheme dark = AppTheme.dark().colorScheme;
 
       // The title paints with `colorScheme.secondaryContainer` — a container
-      // role, i.e. a fill meant to sit BEHIND ink, which `app_theme.dart` says
-      // in its own words must never be used to paint.
       expect(
         _contrast(light.secondaryContainer, light.surface),
         greaterThanOrEqualTo(4.5),
@@ -331,9 +295,6 @@ void main() {
       );
 
       // The subtitle paints with `colorScheme.onSecondaryContainer`, the ON
-      // colour of that same container — but there is no secondaryContainer
-      // fill anywhere on this screen for it to sit on. It is being read
-      // against `surface`, which is not the pair it was contrast-tested for.
       expect(
         _contrast(light.onSecondaryContainer, light.surface),
         lessThan(4.5),

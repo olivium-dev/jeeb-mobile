@@ -1,10 +1,4 @@
 // Widget/unit tests for DioOffersRepository (T-MOB-001 / T-MOB-015).
-//
-// Verifies:
-//   - fetchOffers parses a valid JSON response into an OffersSnapshot.
-//   - acceptOffer returns normally on 200.
-//   - acceptOffer throws OffersRepositoryException(offerNotPending) on 409.
-//   - fetchOffers throws OffersRepositoryException(network) on DioException.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -74,10 +68,6 @@ void main() {
     test('renders a LIVE-gateway offer with status "pending" (regression)',
         () async {
       // The live jeeb-gateway/offer-service stamps a fresh acceptable offer as
-      // status:"pending" (the :4010 mock used "submitted"). Before the fix the
-      // client filtered "pending" out, leaving "Choose a Jeeber" stuck on
-      // "Waiting for offers" even though the offer arrived 200. This is the
-      // exact wire shape captured from the live gateway on 2026-06-30.
       when(() => mockDio.get<dynamic>(
             '/v1/offers',
             queryParameters: any(named: 'queryParameters'),
@@ -151,10 +141,8 @@ void main() {
       await repo.acceptOffer(requestId: 'req-1', offerId: 'offer-9');
 
       // Accept IS /v1-prefixed (V1/JeebOffersController), asymmetric with the
-      // /v1-less offer-create route.
       expect(capturedPath, '/v1/offers/offer-9/accept');
       // S07 fix: the accept call carries NO request body (data is null), so no
-      // client-minted status (e.g. "accepted") can leak into the accept DTO.
       expect(capturedNamed?[#data], isNull,
           reason: 'accept sends no body — status must not be leaked client-side');
     });
@@ -228,10 +216,6 @@ void main() {
     });
 
     // sprint-009 scenario matrix #7: the gateway reuses 409 for several
-    // distinct accept conflicts and discriminates via the ProblemDetails body
-    // (OffersController.cs / RequestNotOpen409FidelityTests). Request-level
-    // closures must map to requestNotOpen ("This request is no longer open."),
-    // offer-level conflicts stay offerNotPending.
     void stubAcceptError(int statusCode, [Map<String, dynamic>? body]) {
       when(() => mockDio.post<dynamic>(any())).thenThrow(
         DioException(
@@ -297,9 +281,6 @@ void main() {
 
     test('409 too-many-active-deliveries -> jeeberAtCapacity (JEBV4-158)', () {
       // BR-10: the winning Jeeber already holds the max concurrent active
-      // deliveries — the offer is still pending upstream, so this is a distinct,
-      // more specific failure than the generic offer-level conflict. The UI
-      // renders "choose another offer", NOT "this offer is no longer available".
       stubAcceptError(409, const {
         'title': 'Jeeber already has the maximum active deliveries.',
         'status': 409,

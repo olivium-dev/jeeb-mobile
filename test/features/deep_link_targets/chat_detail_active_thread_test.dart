@@ -1,33 +1,4 @@
 // b02 fg-suppression — proves the "currently open chat thread" mechanism is
-// actually WIRED, not just implementable.
-//
-// The pure predicate tests take `openChatThreadIds` as an argument, so they
-// would all pass even if no screen ever populated it — the exact "publisher
-// with no subscriber" shape that let the newRequest push arrive and drive
-// nothing all through b01. This file closes that hole from the other side:
-// mount the real `ChatDetailScreen` under the real `appRouteObserver` and read
-// the real registry.
-//
-// ## Why every case here is mounted under a real GoRouter
-//
-// The first version of this file used `MaterialApp(home: ChatDetailScreen(...))`.
-// That harness cannot see the two defects hardware found, because it is not how
-// the app mounts this screen:
-//
-//  * `go_router` keys its pages on the ROUTE OBJECT, not the location
-//    (`go_router-13.2.5/lib/src/match.dart:178` —
-//    `pageKey: ValueKey<String>(route.hashCode.toString())`), so
-//    `context.go('/chat/B')` from `/chat/A` matches the SAME `/chat/:id` route,
-//    reuses the page, and — without a widget key — reuses the `State`. No
-//    `didPush`/`didPop` fires. A `home:`-mounted screen never navigates, so the
-//    old harness could not express the case at all.
-//  * `home:` also pushes exactly one route ever, so it cannot distinguish
-//    "registered because the mechanism works" from "registered because
-//    `subscribe()` happens to fire `didPush`".
-//
-// The router built below mirrors `AppRouter.create`'s `/chat/:id` entry
-// verbatim, INCLUDING its `ValueKey(id)`; `_unkeyedRouter` drops the key so the
-// key itself is proven load-bearing rather than assumed.
 
 import 'dart:async';
 
@@ -56,9 +27,6 @@ const _conversationIdB = 'conv-2';
 
 /// Resolves `/chat/req-N` the way the live gateway does: the route param is the
 /// REQUEST id, and `GET /v1/conversations?correlationKey=` yields a DIFFERENT
-/// conversation id (`req-1` → `conv-1`). That asymmetry is the whole reason the
-/// registry holds a set — and the reason a snapshot registry that misses the
-/// resolution moment lets a conversation-id-stamped push through to the shade.
 Dio _resolvingDio() {
   final dio = Dio(BaseOptions(baseUrl: 'http://test'));
   dio.interceptors.add(
@@ -97,9 +65,6 @@ Dio _resolvingDio() {
 
 /// PRODUCTION factory — the exact child `AppRouter.create`'s `/chat/:id` route
 /// builds (`core/router/app_router.dart`). Using it, rather than re-declaring
-/// an equivalent route here, is what makes these cases falsifiable against the
-/// app: deleting the `ValueKey(id)` in `app_router.dart` reds the
-/// `go('/chat/B')` case below. A locally-declared copy would not notice.
 Widget _chatProd(String id) => buildChatDetailRouteChild(id);
 
 /// CONTROL — the same screen with the key deliberately removed. Exists only to
@@ -110,7 +75,6 @@ Widget _chatUnkeyed(String id) =>
 GoRouter _router({bool keyed = true, String initialLocation = '/'}) => GoRouter(
       initialLocation: initialLocation,
       // The production registration: `AppRouter.create`'s `observers:` list
-      // calls `newAppRouteObserver()`, which mints and publishes the instance.
       observers: <NavigatorObserver>[newAppRouteObserver()],
       routes: <RouteBase>[
         GoRoute(
@@ -204,10 +168,6 @@ void main() {
     'republish — the reader mechanism, not a publish moment',
     (tester) async {
       // This is the assertion that was TRUE in the old harness and FALSE on
-      // hardware. It is pinned to the ORDER, not just the end state: read the
-      // registry at the instant the screen registers (before the async
-      // `?correlationKey=` resolution can have completed), then read it again
-      // after, with nothing in between calling `enter`.
       final router = _router();
       await tester.pumpWidget(_host(await _clientRole(), router));
       await tester.pumpAndSettle();
@@ -301,9 +261,6 @@ void main() {
     'than lying about which thread is on screen',
     (tester) async {
       // Proves both halves of the didUpdateWidget fail-safe: that a reused
-      // State really is what an unkeyed mount produces (so the ValueKey above
-      // is load-bearing, not decoration), and that the registry refuses to
-      // claim a thread when the route param and the resolved ids disagree.
       final router = _router(keyed: false);
       await tester.pumpWidget(_host(await _clientRole(), router));
       await tester.pumpAndSettle();
@@ -346,7 +303,6 @@ void main() {
       );
 
       // The chat screen's own CTAs push exactly this way (order summary,
-      // dispute evidence). The State stays mounted; the conversation does not.
       unawaited(router.push<void>('/on-top'));
       await tester.pumpAndSettle();
       expect(

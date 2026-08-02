@@ -1,22 +1,7 @@
 // Render tests for the WalletChargeInfoScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// A note on what `expectedText` can and cannot prove HERE. JM-054 is a static
-// screen: it takes no parameters, builds no cubit and makes no network call, so
-// four of the five previews render byte-identical English copy and differ only
-// in the navigation stack under them or in the MediaQuery over them. Pinning a
-// different real string per state therefore keeps the previews honest about
-// rendering their own COPY, but it cannot tell them apart — only the AR preview
-// is discriminated that way. The assertions that actually separate the five
-// live in the `preview specifics` group below: each pins the one thing that
-// makes its state that state (where back lands, whether the CTA is on screen,
-// how large the digits get).
 
 import 'package:flutter/material.dart';
 // `RenderParagraph.textSize` — the laid-out text box, which is what exposes the
-// step badge overflow. `getSize` reports the CLAMPED render box and hides it.
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
@@ -47,8 +32,6 @@ void main() {
       'EN · 200% text': 'Your wallet balance updates automatically once the '
           'store confirms — there is no in-app payment.',
       // The one state the shared suite can genuinely discriminate: the AR
-      // preview forces `Locale('ar')` from inside the preview function, so it
-      // renders Arabic even under the English pump the suite uses here.
       'AR · 200% text': 'توجّه إلى أي متجر معتمد من جيب قريب منك.',
     },
   );
@@ -56,9 +39,6 @@ void main() {
   group('WalletChargeInfoScreen preview specifics', () {
     /// Pumps [preview] with the surface set to the canvas box the preview's
     /// `@JeebPreview` declares, so the render test sees what the canvas draws.
-    /// `@JeebPreview(size:)` is honoured by the preview canvas only — calling
-    /// the function alone gets the tester's default 800x600 desktop surface,
-    /// which is not a phone and would hide every fold question below.
     Future<void> pumpOnDevice(
       WidgetTester tester,
       Widget Function() preview,
@@ -107,7 +87,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // ...different destination. The CTA says "Back to wallet" and lands on
-      // the `+ Top up` caller — the wallet hub is never reached.
       expect(find.text(walletChargeInfoScreenCallerLabel), findsOneWidget);
       expect(find.text(walletChargeInfoScreenWalletHubLabel), findsNothing);
     });
@@ -139,8 +118,6 @@ void main() {
       );
 
       // The baseline the other two layout cards are read against: on a
-      // full-size phone at normal text size the list does not scroll at all,
-      // so every step, both notes and the way out are visible together.
       final ScrollableState scrollable = tester.state(find.byType(Scrollable));
       expect(scrollable.position.maxScrollExtent, 0);
       expect(find.byType(OmdsPrimaryButton), findsOneWidget);
@@ -149,7 +126,6 @@ void main() {
         lessThan(walletChargeInfoScreenPhoneBox.height),
       );
       // At 100% the step digit still fits inside its fixed 24 pt badge — the
-      // contrast the 200% test below is measured against.
       final RenderParagraph digit = tester.renderObject<RenderParagraph>(
         find.text('1'),
       );
@@ -172,8 +148,6 @@ void main() {
       );
       expect(find.bySemanticsIdentifier('charge_info_fee_note'), findsOneWidget);
       // ...but on the smallest supported phone, at NORMAL text size, the CTA
-      // has not even been built. Measured 192 pt of overrun; asserted as
-      // "scrolls at all" so a copy edit that makes it worse still fails here.
       final ScrollableState scrollable = tester.state(find.byType(Scrollable));
       expect(scrollable.position.maxScrollExtent, greaterThan(0));
       expect(find.byType(OmdsPrimaryButton), findsNothing);
@@ -205,11 +179,8 @@ void main() {
         find.text('1'),
       );
       // ...the paragraph is clamped to it, which is why a plain `getSize`
-      // reports a healthy 24x24 and hides this entirely...
       expect(digit.size, const Size(24, 24));
       // ...while the text it actually lays out is 40 pt tall and paints
-      // straight through the circle. `Container(alignment:)` is an `Align`: no
-      // clip, no overflow exception, nothing any other test would notice.
       expect(digit.textSize.height, greaterThan(24));
       expect(tester.takeException(), isNull);
     });
@@ -234,7 +205,6 @@ void main() {
       expect(find.byType(OmdsPrimaryButton), findsNothing);
 
       // Measured 1198 pt of overrun against a 788 pt viewport — asserted as
-      // "more than one whole screen", which is the claim that matters.
       final ScrollableState scrollable = tester.state(find.byType(Scrollable));
       expect(
         scrollable.position.maxScrollExtent,
@@ -263,12 +233,10 @@ void main() {
       );
       expect(Directionality.of(stepContext), TextDirection.rtl);
       // The badges keep latin digits while the copy beside them mirrors, so the
-      // numbered order still reads 1-2-3 top to bottom.
       expect(find.text('1'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
       // The step badge is right-aligned in Arabic (it leads the row, and the
-      // row is mirrored) — the one layout claim the RTL rendering has to keep.
       expect(
         tester.getCenter(find.text('1')).dx,
         greaterThan(walletChargeInfoScreenPhoneBox.width / 2),

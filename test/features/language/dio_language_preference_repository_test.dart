@@ -1,13 +1,4 @@
 // Unit tests for DioLanguagePreferenceRepository (JEBV4-205, E10).
-//
-// Verifies the remote-user-preferences BFF contract used for the SERVER-
-// persisted app language (GR-2 store — never user-management, never gateway-
-// local):
-//   POST /api/UserPreferences/preferences        body { "key":"language", "value" }
-//   GET  /api/UserPreferences/preferences/language → { "value": "<code>" }
-// Plus the unset (404 → null) case, trimming, the empty-input no-op, and typed
-// failure mapping. Crucially, it asserts ZERO writes ever hit /api/User/* so
-// the GR-2 disposition holds.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';

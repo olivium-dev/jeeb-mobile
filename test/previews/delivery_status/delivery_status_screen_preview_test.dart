@@ -1,17 +1,4 @@
 // Render tests for the DeliveryStatusScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// `expectedText` pins the dev-chrome CAPTION each card carries, not screen
-// copy. Three pairs of these states are indistinguishable to `find.text`: the
-// two stream failures render the identical error page (that IS the finding),
-// and cancel-in-flight opens as an ordinary pre-pickup delivery. A suite that
-// pinned screen copy would either have nothing to pin or would pass with two
-// previews wired to the same fixture. The `preview specifics` group below then
-// asserts the real state behind every caption, so the caption is never the
-// whole proof.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,7 +9,6 @@ import '../preview_test_harness.dart';
 
 /// The pulsing halo painted under the active milestone. Private to
 /// `delivery_stage_indicator.dart` (`_StageDotState.activeKey`), but [Key]
-/// equality is by value.
 const Key _activeDotKey = Key('delivery-status-active-dot');
 
 /// The one-shot toast the screen raises for `DeliveryStatusError.streamLost`.
@@ -69,7 +55,6 @@ void main() {
 
       expect(find.text('Loading delivery…'), findsOneWidget);
       // No subtitle, no stepper, no CTAs: `mode` is still `loading`, so the
-      // whole body is the spinner. A gateway that never answers leaves it here.
       expect(find.textContaining('Delivery #'), findsNothing);
       expect(find.text('Cancel delivery'), findsNothing);
       expect(find.text('Contact Jeeber'), findsNothing);
@@ -95,7 +80,6 @@ void main() {
       expect(find.text('Looking for a Jeeber…'), findsOneWidget);
       expect(find.text('Cancel delivery'), findsOneWidget);
       // `canContactJeeber` needs a phone number on the snapshot; there is no
-      // courier at all, so the button is correctly absent.
       expect(find.text('Contact Jeeber'), findsNothing);
     });
 
@@ -114,11 +98,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned: `_ReadyView` hands `snapshot.jeeber` to
-      // `DeliveryJeeberCard` with no regard for lifecycle, so a terminal
-      // snapshot without a courier renders the pre-match spinner under the
-      // success banner. This is the card the Screen Catalog has shipped since
-      // DT-04. If someone makes the card lifecycle-aware, this test fails and
-      // should be updated — deliberately, not by accident.
       await pumpPreview(tester, deliveryStatusScreenDelivered);
 
       expect(find.text('Delivered successfully'), findsOneWidget);
@@ -138,7 +117,6 @@ void main() {
       // … while the stepper is zeroed and nothing pulses.
       expect(find.byKey(_activeDotKey), findsNothing);
       // The ARB has `deliveryStageCancelled`; nothing on this screen reads it,
-      // so the red banner is the only element that names the state.
       expect(find.text('Cancelled'), findsNothing);
       expect(find.text('Cancel delivery'), findsNothing);
     });
@@ -151,8 +129,6 @@ void main() {
       expect(find.text('Connection lost'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
       // …and simultaneously a toast claiming the opposite. Nothing
-      // re-subscribes without a tap: `_subscribe()` is only reachable from
-      // `retry()`, which only the button calls.
       expect(find.text(_reconnectingToast), findsOneWidget);
     });
 
@@ -160,8 +136,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The strongest finding these previews produced. The cubit is holding a
-      // full in-transit snapshot — ETA, both addresses, the courier — and the
-      // view discards all of it because it branches on `mode` alone.
       await pumpPreview(tester, deliveryStatusScreenStreamDropped);
 
       expect(find.text('Connection lost'), findsOneWidget);
@@ -175,12 +149,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // A dropped stream reaches the cubit TWICE — `onError` emits
-      // `streamLost`, and then the same stream's `onDone` sees
-      // `snapshot.isInFlight` and emits it again. The second emit is identical
-      // to the first and `DeliveryStatusState` is `Equatable`, so `Cubit`
-      // discards it and the listener never runs twice. Pinned because the
-      // double path is real and the de-duplication that saves it is not
-      // obvious from either end.
       await pumpPreview(tester, deliveryStatusScreenStreamDropped);
       expect(find.text(_reconnectingToast), findsOneWidget);
 
@@ -194,7 +162,6 @@ void main() {
         reason: 'the onDone re-emit is identical and must be de-duplicated',
       );
       // The page underneath does NOT recover when the toast goes: this is a
-      // dead end until the user taps Retry.
       expect(find.text('Connection lost'), findsOneWidget);
     });
 
@@ -202,8 +169,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The control: with no snapshot in hand, `onDone` finds
-      // `isInFlight == false` and stays quiet for a different reason. Same
-      // count, so the two failures really are one picture.
       await pumpPreview(tester, deliveryStatusScreenStreamLostOnOpen);
       expect(find.text(_reconnectingToast), findsOneWidget);
 
@@ -230,11 +195,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // The gateway's `cancel()` future never completes, so this is the whole
-      // in-flight treatment, held still:
       expect(find.text('Cancelling…'), findsOneWidget);
       expect(find.text('Cancel delivery'), findsNothing);
       // …and nothing else on the screen acknowledges the write. Contact stays
-      // live and the stepper still says the delivery is on its way.
       expect(find.text('Contact Jeeber'), findsOneWidget);
       expect(find.text('Delivery #ORD-4829'), findsOneWidget);
     });
@@ -245,7 +208,6 @@ void main() {
       await pumpPreview(tester, deliveryStatusScreenLongestContent);
 
       // `deliveryEtaMinutes` is the only ETA plural in the ARB and the screen
-      // clamps nothing on the way in, so hours are shown as minutes.
       expect(find.text('240 min'), findsOneWidget);
       expect(find.textContaining(' h'), findsNothing);
     });
@@ -256,7 +218,6 @@ void main() {
       await pumpPreview(tester, deliveryStatusScreenLongestContent);
 
       // Every long string is rendered in full — nothing is ellipsized or
-      // clipped; the column just grows inside the scroll view.
       expect(
         find.text('Delivery #REQ-2f8c1d94-7b6a-4e05-9c3f-0a1b2c3d4e5f'),
         findsOneWidget,
@@ -282,11 +243,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Not a defect in this screen and not a regression in this section: the
-      // four stepper labels sit in a flex-less `Row` inside
-      // `OMDSLabeledStepperProgress`, which `delivery_stage_indicator.dart`
-      // already documents and pins. It is recorded here so the yellow-and-black
-      // stripe on the 200% matrix cards is recognized as that known OMDS issue
-      // rather than something these previews introduced.
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);

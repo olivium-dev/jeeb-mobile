@@ -1,6 +1,4 @@
 // JEBV4-13: the OfflineBanner's DISMISS action was `onTap: () {}` — a dead
-// CTA (atlas P1 #18 dead-CTA class). This suite proves the dismissal is real
-// and re-arms per offline episode, and that the copy is localized.
 import 'dart:io';
 
 import 'package:flutter/material.dart';

@@ -1,10 +1,4 @@
 // Tests for OfferFormCubit (T-MOB-030).
-//
-// Verifies:
-//   - AC2: Successful submit emits success with conversationId.
-//   - AC3: Price ≤ 0 blocks submit and sets inline priceError.
-//   - AC4: Server 409 emits requestGone mode.
-//   - Network failure emits error mode.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';

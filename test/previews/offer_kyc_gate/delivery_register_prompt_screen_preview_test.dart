@@ -1,18 +1,4 @@
 // Render tests for the DeliveryRegisterPromptScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// DeliveryRegisterPromptScreen renders the SAME four strings in every state — it
-// has no data axis at all — so "did it render" is a weak question here: all six
-// previews would pass a render-only check while showing identical content, and
-// two of them (`Phone 390 × 844` and `Pushed from the gate`) are pixel-identical
-// BY DESIGN. The suite therefore does two extra jobs. The expected strings pin
-// WHICH window each preview simulates (the caption the fixture host paints), and
-// the group below measures what the screen actually did inside that window —
-// geometry, reachability, and where each of its three exits leads. Those are the
-// only contract this screen has.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,11 +38,6 @@ void main() {
       'Pushed from the gate': deliveryRegisterPromptScreenPushed,
     },
     // Every state names its own window. The screen shows the same icon, the
-    // same headline and the same two buttons in all six, so without this a
-    // preview wired to the wrong window — or seven previews accidentally sharing
-    // one — would pass unnoticed. `Pushed from the gate` is the case that makes
-    // this mandatory rather than tidy: it is the phone window with one more page
-    // under it, and NOTHING on screen distinguishes the two.
     expectedText: const <String, String>{
       'Phone 390 × 844': 'Phone · 390 × 844 · 100% text · stack root',
       'Compact 320 × 568': 'Compact · 320 × 568 · 100% text',
@@ -84,8 +65,6 @@ void main() {
     testWidgets('each preview simulates its own window, not the 800 × 600 host',
         (WidgetTester tester) async {
       // If the fixture ever stopped pinning the MediaQuery/SizedBox, every
-      // state would collapse onto the test surface and the rest of this group
-      // would be asserting nothing.
       expect((await frameRect(tester, deliveryRegisterPromptScreenPhone)).size,
           _phoneFrame);
       expect((await frameRect(tester, deliveryRegisterPromptScreenCompact)).size,
@@ -112,9 +91,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `DeliveryRegisterPromptScreenWindow.textScale` is nullable on purpose: a
-      // window that pinned 1.0 would overwrite the `matrix: true` 200% card on
-      // `Phone 390 × 844` and label a 100% rendering "EN 200% text". This pins
-      // both halves of that.
       Future<double> scale(Widget Function() preview) async {
         await pumpPreview(tester, preview);
         return MediaQuery.textScalerOf(
@@ -135,12 +111,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned as text. Every string on the register-as-a-jeeber
-      // prompt is an `offerKycGate*` / `gate*` key: the screen talks about
-      // verification and about SENDING OFFERS, never about registering or
-      // delivering, and the CTA labelled "Start verification" opens the
-      // onboarding wizard rather than KYC. If someone rewrites the copy for this
-      // route, this test fails and that is the correct outcome — replace it with
-      // the new strings.
       await pumpPreview(tester, deliveryRegisterPromptScreenPhone);
 
       expect(find.bySemanticsIdentifier('delivery_register_prompt'),
@@ -167,8 +137,6 @@ void main() {
     testWidgets('on a 390 × 844 phone everything fits and both actions are '
         'on screen', (WidgetTester tester) async {
       // The reference reading, and the reason the states below went unnoticed:
-      // in the one window everybody reviews, this screen is exactly as simple as
-      // it looks.
       final Rect frame =
           await frameRect(tester, deliveryRegisterPromptScreenPhone);
 
@@ -185,7 +153,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The small-phone axis alone does not break this screen — which is why
-      // the 200% state below is the one that matters.
       await pumpPreview(tester, deliveryRegisterPromptScreenCompact);
 
       expect(bodyScrollable(tester).position.maxScrollExtent, 0);
@@ -198,10 +165,6 @@ void main() {
     testWidgets('the notched insets are handled at the top and survived at the '
         'bottom', (WidgetTester tester) async {
       // The top half is the app bar's arithmetic and it is right: 56 pt of
-      // toolbar plus the 59 pt status bar. The bottom half only looks right —
-      // at 100% the content is short enough that the back link stops well clear
-      // of the home indicator, which is why the missing bottom SafeArea stays
-      // invisible until `Notched · 200% text`.
       final Rect frame =
           await frameRect(tester, deliveryRegisterPromptScreenNotched);
 
@@ -218,16 +181,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Both actions live inside the ListView rather than pinned to the bottom
-      // of the Scaffold, and the list does not paint past its viewport.
-      // `delivery_register_prompt_cta` and `delivery_register_prompt_back` —
-      // the two ids the screen's dartdoc publishes as its QA targets — are
-      // therefore absent from the widget tree AND from the semantics tree on
-      // arrival, while the ROOT id the Maestro flows actually assert is still
-      // there. A flow that checks "the prompt opened" stays green with both of
-      // the prompt's actions off the display.
-      //
-      // The ordinary 390 × 844 phone is in this list on purpose: this is not a
-      // small-device edge case, it is a text-size setting on a mainstream phone.
       for (final Widget Function() preview in <Widget Function()>[
         deliveryRegisterPromptScreenLargeText,
         deliveryRegisterPromptScreenCompactLargeText,
@@ -246,7 +199,6 @@ void main() {
           findsNothing,
         );
         // The screen root and the app-bar arrow are both still there — the user
-        // is not trapped, they just cannot see either button the copy points at.
         expect(
           find.bySemanticsIdentifier('delivery_register_prompt'),
           findsOneWidget,
@@ -259,9 +211,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The ListView is what saves this screen: at the worst window the app
-      // supports the composition becomes a long scroll rather than clipped copy,
-      // in both locales. Recorded because it is cheap to lose — a `Column` here
-      // instead would clip the CTA off the bottom.
       for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
         await pumpPreview(
           tester,
@@ -276,10 +225,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Worth pinning because the instinct is the opposite. On this screen the
-      // AR copy costs more vertical room than the EN copy at 200% (measured 220
-      // pt of scroll against 180 on a 390 × 844 phone), so a reviewer who only
-      // opens the English card is reading the better case — which is why the
-      // reference preview is matrixed.
       await pumpPreview(tester, deliveryRegisterPromptScreenLargeText);
       final double english = bodyScrollable(tester).position.maxScrollExtent;
 
@@ -298,8 +243,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `app_router.dart` mounts this screen as a bare top-level GoRoute — no
-      // ShellRoute, no SafeArea — and `Scaffold` does not SafeArea its body, so
-      // the scroll viewport ends at the physical bottom edge of the display.
       final Rect frame = await frameRect(
         tester,
         deliveryRegisterPromptScreenNotchedLargeText,
@@ -313,7 +256,6 @@ void main() {
       );
 
       // Scrolled to the end, the back link comes to rest on the ListView's own
-      // 24 pt bottom padding. The home indicator claims 34.
       final ScrollableState scrollable = bodyScrollable(tester);
       scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
       await tester.pumpAndSettle();
@@ -333,9 +275,6 @@ void main() {
     });
 
     // The three exits. Each gets its OWN test: pumping a second preview into
-    // the same tester reuses the first preview's element, and with it the
-    // fixture host's State — the router would still be sitting on the page the
-    // previous tap navigated to.
     Future<void> tapExit(
       WidgetTester tester,
       Widget Function() preview,
@@ -345,7 +284,6 @@ void main() {
       expect(find.byType(DeliveryRegisterPromptScreen), findsOneWidget);
 
       // The 390 × 844 frame is taller than the 800 × 600 test surface, so the
-      // target has to be scrolled into the hit-testable area first.
       await tester.ensureVisible(target);
       await tester.pumpAndSettle();
       await tester.tap(target);
@@ -358,9 +296,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // JEBV4-13 P1-6: the screen passes an explicit `onBackPressed`, so the
-      // arrow is a working exit even as the stack root — without it
-      // `OMDSAppBar`'s default `maybePop()` would no-op and the arrow would be
-      // dead. This is that fix, made visible.
       await tapExit(
         tester,
         deliveryRegisterPromptScreenPhone,
@@ -376,10 +311,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `gateBackCta` is the offer-KYC gate's string, where "requests" is the
-      // jeeber feed the gate was opened from. Here the tap resolves to
-      // `context.go('/')` — the shell root — because both shipped callers reach
-      // this route with a stack-REPLACING `goNamed`. For a customer sent here
-      // from the profile row, "requests" is a place they have never been.
       await tapExit(
         tester,
         deliveryRegisterPromptScreenPhone,
@@ -394,10 +325,6 @@ void main() {
     testWidgets('the CTA replaces the stack the onboarding wizard expects to '
         'pop', (WidgetTester tester) async {
       // `dm_onboarding_screen.dart:216` documents step-1 Back as returning "to
-      // the `delivery-register-prompt` the wizard was pushed from", and
-      // implements it as `canPop() ? pop() : go('/')`. This screen uses
-      // `goNamed`, which REPLACES — so the wizard opens on a one-page stack and
-      // its Back drops the user on the shell instead of back here.
       await tapExit(
         tester,
         deliveryRegisterPromptScreenPhone,
@@ -419,8 +346,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The contrast state. Same pixels as `Phone 390 × 844`, different
-      // destination — which is the whole reason a navigation state is worth a
-      // preview card of its own.
       await tapExit(
         tester,
         deliveryRegisterPromptScreenPushed,
@@ -440,7 +365,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // And the copy mismatch is not an English-only problem: the AR strings are
-      // the gate's too — "verification required" / "start verification".
       await pumpPreview(
         tester,
         deliveryRegisterPromptScreenPhone,

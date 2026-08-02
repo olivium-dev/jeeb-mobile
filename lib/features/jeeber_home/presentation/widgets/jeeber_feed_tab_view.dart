@@ -712,94 +712,16 @@ class _PendingEmptyState extends StatelessWidget {
   }
 }
 // ============================== JEEB PREVIEWS ==============================
-// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/jeeber_home/jeeber_feed_tab_view_preview_test.dart
 // ===========================================================================
-//
-// Widget previews for [JeeberFeedTabView] — run with
-// `flutter widget-preview start`.
-//
-// Unlike the leaf widgets it composes ([JeeberHomeGreeting],
-// [AvailabilityCard], [JeeberFeedCard], [PendingOfferRow], each previewed in
-// its own file), this widget is a whole PAGE. Its states are not "what does
-// one card look like" but "which of five structurally different bodies is the
-// jeeber looking at", and the page's own chrome — greeting, availability
-// control, search bar, two chip strips — changes with them:
-//
-// * ONLINE + rows → the full chrome over a `SliverList` of [JeeberFeedCard]s.
-// * ONLINE + nothing matching the active filter → the same chrome over one
-//   centred empty state, whatever the reason (no requests, a tier chip that
-//   excludes them all, or a search query that matches none).
-// * OFFLINE → a warning banner, and the search bar + BOTH chip strips are
-//   gone: `_buildBody` drops `_feedControls()` entirely, so an offline jeeber
-//   cannot even see which tab they were on.
-// * PENDING-RESPONSE with a [SubmittedOffersCubit] → a completely different
-//   body ([_PendingOffersList]: its own back bar, its own list, its own empty
-//   and loading states) mounted under the same chrome.
-// * REPLIES → the same sliver as Requests, filtered to accepted rows, whose
-//   cards carry an advance-delivery pill instead of Ignore/Offer.
-//
-// ## Network-free by construction
-//
-// Both ambient cubits are seeded subclasses that [Cubit.emit] one frame in
-// their constructor and are never `start()`ed / `load()`ed, so no poll, no
-// sweep timer and no socket exists behind these previews. Their repositories
-// are the in-memory [SeededRequestFeedRepository] and a local canned
-// [_JeeberFeedTabViewOffersRepository], so even the pull-to-refresh and
-// withdraw affordances a reviewer taps in the canvas resolve locally. The
-// guard in [jeebPreviewHost] is a net, not the plan.
-//
-// [JeeberFeedTabView.onMakeOffer] is deliberately left null, matching
-// `jeeber_home_screen.dart`: the view then self-routes through
-// `_defaultMakeOffer`, which returns early when `GoRouter.maybeOf` is null —
-// so the production wiring is what is on review and the canvas still cannot
-// navigate anywhere.
-//
-// ## What these previews expose
-//
-// * **The feed has no loading and no error surface at all.**
-//   `_FeedRequestSliverBody` reads `state.requests` and nothing else, so
-//   `RequestFeedStatus.loading` and `.error` both render "No Requests yet" —
-//   byte-identical to a genuinely empty feed. A jeeber whose
-//   `GET /v1/jeebers/me/feed` is failing is told there is no work. That is why
-//   there is no separate "loading" or "error" preview below: there would be
-//   nothing to look at. [jeeberFeedTabViewEmptyFeed] is all three states.
-// * **Offline hides the tabs.** [jeeberFeedTabViewOffline] is seeded WITH a
-//   request in the cubit precisely to show that going offline empties the feed
-//   (T-MOB-029 AC3) *and* removes the tab strip — so a jeeber sitting on
-//   Pending who toggles off loses the affordance to get back.
-// * **The offline copy is printed twice**, once in the banner and once in the
-//   empty body under it, with no other information between them.
-// * The action row of an incoming card is where this page overflows first;
-//   [jeeberFeedTabViewLongContent] pins it at the 360 pt Galaxy S22 width this
-//   project ships against, which is where the Arabic Ignore/Offer pair runs out
-//   of room. See the measured table in `jeeber_feed_card.dart`'s own section.
-//
-// The fixture values are the ones the existing widget tests already use —
-// `Spinneys Dbayeh` / `Home, Ashrafieh` from `jeeber_feed_make_offer_test.dart`
-// and the `12.5 USD / 25 min` offer from the same file — so a reviewer
-// comparing the canvas against the suite sees the same page.
 
 /// A phone page. 844 pt is the iPhone 14 viewport, i.e. enough that the feed's
-/// header stack and at least two cards are on screen at once — which is the
-/// whole question this widget answers (JEBV4-284 / the banner regression were
-/// both "the rows exist but are below the fold").
 const Size _jeeberFeedTabViewPageBox = Size(390, 844);
 
 /// The Galaxy S22 width — the device this project runs its final on-device
-/// check on, and the narrowest mainstream Android. 30 pt narrower than
-/// [_jeeberFeedTabViewPageBox] is the difference between a card's Ignore/Offer
-/// row fitting in Arabic and losing the Offer button off the edge.
 const Size _jeeberFeedTabViewNarrowBox = Size(360, 844);
 
 /// The instant the gateway reports, as a UTC instant. The card converts to
 /// device-local before formatting (SW-03); a constant keeps the canvas from
-/// re-rendering on a clock tick.
 final DateTime _jeeberFeedTabViewReceivedAtUtc = DateTime.utc(
   2026,
   6,
@@ -814,7 +736,6 @@ final DateTime _jeeberFeedTabViewExpiresAt = DateTime.utc(2030);
 
 /// One feed row. Defaults are the happy path from
 /// `test/jeeber_feed_make_offer_test.dart`; each preview overrides only the
-/// fields that define its state.
 DeliveryRequest _jeeberFeedTabViewRequest({
   required String id,
   JeeberFeedItemStatus status = JeeberFeedItemStatus.incoming,
@@ -852,9 +773,6 @@ DeliveryRequest _jeeberFeedTabViewRequest({
 }
 
 /// An inert ticker. [AvailabilityCubit]'s default factory is
-/// `Stream.periodic(1 min)`, which a toggle in the canvas would start for real
-/// and leave running behind every card; an empty stream keeps the toggle live
-/// without the timer.
 Stream<DateTime> _jeeberFeedTabViewNoTicker() => const Stream<DateTime>.empty();
 
 /// [AvailabilityCubit] pinned to one frame: seeded in the constructor rather
@@ -870,12 +788,6 @@ class _JeeberFeedTabViewAvailabilityCubit extends AvailabilityCubit {
 }
 
 /// [RequestFeedCubit] pinned to one frame.
-///
-/// Never `start()`ed, so none of its three live subscriptions and neither of
-/// its timers exist. The repository is the in-memory
-/// [SeededRequestFeedRepository] holding the SAME snapshot, so the
-/// pull-to-refresh the view wires up replays the fixture instead of reaching
-/// `GET /v1/jeebers/me/feed`.
 class _JeeberFeedTabViewFeedCubit extends RequestFeedCubit {
   _JeeberFeedTabViewFeedCubit(List<DeliveryRequest> requests)
     : super(repository: SeededRequestFeedRepository(requests)) {
@@ -904,9 +816,6 @@ class _JeeberFeedTabViewOffersRepository implements SubmittedOffersRepository {
 }
 
 /// [SubmittedOffersCubit] pinned to one frame. Seeded past
-/// [SubmittedOffersStatus.initial] on purpose: that is the only status the
-/// view's `_loadPendingOffers` will call `load()` for, so a seeded cubit is
-/// never asked to fetch.
 class _JeeberFeedTabViewOffersCubit extends SubmittedOffersCubit {
   _JeeberFeedTabViewOffersCubit(SubmittedOffersState seed)
     : super(repository: _JeeberFeedTabViewOffersRepository(seed.offers)) {
@@ -915,12 +824,6 @@ class _JeeberFeedTabViewOffersCubit extends SubmittedOffersCubit {
 }
 
 /// The page as `jeeber_home_screen.dart` mounts it: both cubits ambient, a
-/// profile name threaded for the greeting, `onOpenRequest` wired and
-/// `onMakeOffer` left null so the view's own KYC-gate routing is what renders.
-///
-/// [leadingBanner] is not exercised here — the active-deliveries card belongs
-/// to another feature and carries its own cubit; its interaction with this feed
-/// is pinned by `test/features/shell/jeeber_feed_banner_hides_requests_test.dart`.
 Widget _jeeberFeedTabViewHosted({
   AvailabilityState availability = AvailabilityState.online,
   List<DeliveryRequest> requests = const <DeliveryRequest>[],
@@ -957,19 +860,6 @@ Widget _jeeberFeedTabViewHosted({
 }
 
 /// State 3 of the jeeber home, and the reason the widget exists: online, with
-/// live auctions on the board.
-///
-/// The full chrome is stacked above the rows — greeting, compact availability
-/// switch, search bar, three sub-tabs, four tier chips — and that stack is what
-/// makes this page fragile: it is ~290 pt of non-flexible header before the
-/// first card, on a viewport that shrinks to ~370 pt the moment the search
-/// field takes focus and the keyboard opens (JEBV4-284, measured on SM-S921B).
-/// Everything is one `CustomScrollView` for that reason; the second card being
-/// reachable by scrolling here is the contract.
-///
-/// Two rows, deliberately unlike each other — a Flash request with a rating and
-/// a 3 km distance line, and a Standard one with a short description — so the
-/// card's optional-field branches are both on screen for comparison.
 @JeebPreview(
   group: 'jeeber_home',
   name: 'Requests · live feed',
@@ -989,20 +879,6 @@ Widget jeeberFeedTabViewLiveFeed() => _jeeberFeedTabViewHosted(
 );
 
 /// Nothing on the board — **and also every failure this page can have.**
-///
-/// `_FeedRequestSliverBody` branches on `state.requests.isEmpty` and reads
-/// `RequestFeedState.status` not at all, so this exact rendering is what a
-/// jeeber sees for all four of:
-///
-///   * a genuinely empty feed (this fixture),
-///   * `RequestFeedStatus.loading` — the cold-start frame, with no spinner,
-///   * `RequestFeedStatus.error` — a failed `GET /v1/jeebers/me/feed`, whose
-///     `errorMessageKey` the cubit sets and nothing here renders,
-///   * a non-empty feed filtered to nothing by a tier chip or a search query.
-///
-/// "No Requests yet / All requests will show up here" is a confident claim to
-/// make in the last three of those. Worth reviewing as the page a jeeber stares
-/// at while wondering why no work is arriving.
 @JeebPreview(
   group: 'jeeber_home',
   name: 'Requests · empty feed',
@@ -1011,18 +887,6 @@ Widget jeeberFeedTabViewLiveFeed() => _jeeberFeedTabViewHosted(
 Widget jeeberFeedTabViewEmptyFeed() => _jeeberFeedTabViewHosted();
 
 /// The layout ceiling: the longest plausible row on the narrowest real device.
-///
-/// A client name that cannot fit on one line, a real-world food order as the
-/// description, a two-digit distance — still incoming, so the Ignore and Offer
-/// buttons compete for the same footer — all at 360 pt.
-///
-/// The name and the description hold (`maxLines` 1 and 2, both ellipsized).
-/// The action row does not: in Arabic the Ignore/Offer pair is a
-/// `Row(mainAxisSize: min)` that does not wrap, and its labels are wider than
-/// the English ones. This is the width and the state where a jeeber loses the
-/// Offer button off the trailing edge, which is why this is one of the two
-/// previews here that draws the full matrix — the EN light rendering looks
-/// clean long after the other two have broken.
 @JeebPreview(
   group: 'jeeber_home',
   name: 'Requests · longest content · 360 pt',
@@ -1045,24 +909,6 @@ Widget jeeberFeedTabViewLongContent() => _jeeberFeedTabViewHosted(
 );
 
 /// T-MOB-029 AC3: the jeeber toggled themselves off.
-///
-/// Seeded WITH a live request in the cubit, because the point of the state is
-/// what disappears. Going offline does not just add a banner:
-///
-///   * the feed is replaced wholesale by `_OfflineEmptyBody` — the request in
-///     the cubit is still there and is not drawn;
-///   * `_feedControls()` is skipped entirely, so the search bar, the three
-///     sub-tabs and the four tier chips are all gone. A jeeber who was reading
-///     the Pending tab and toggles off has no visible way back to it, and no
-///     indication the tabs ever existed;
-///   * pull-to-refresh is dropped too (`_buildBody` returns the bare scroll
-///     view), so the page's only refresh affordance goes with it.
-///
-/// The full matrix is on here because the banner is the page's only [Row] of
-/// icon + text and the state has to survive RTL mirroring and dark mode — and
-/// because "You are offline / Go online to see available requests" is printed
-/// **twice**, in the banner and again in the empty body, with nothing between
-/// them; at 200% text those two identical blocks are most of the screen.
 @JeebPreview(
   group: 'jeeber_home',
   name: 'Offline · feed cleared, controls hidden',
@@ -1075,25 +921,6 @@ Widget jeeberFeedTabViewOffline() => _jeeberFeedTabViewHosted(
 );
 
 /// JM-047/048 AC3: the Pending-Response sub-tab, backed by the jeeber's own
-/// submitted offers.
-///
-/// A structurally different body under the same chrome — [_PendingOffersList]
-/// brings its own leading back bar (`pending_offers_back`, the tab's stand-in
-/// for an app bar it does not have) and its own `ListView`, and the tier chips
-/// vanish because `_feedControls` only emits them on the Requests tab.
-///
-/// Two offers on purpose: one still open (price, ETA, the "Pending" awaiting
-/// label and a Withdraw pill) and one the customer accepted (an outcome badge,
-/// no Withdraw). Per the measurements in `pending_offer_row.dart`'s own section
-/// those are 141 pt and 89 pt tall at this width, so this is also where the
-/// list's ragged vertical rhythm shows up in a real list rather than in
-/// isolation.
-///
-/// The matrix is deliberately OFF here — the row's own previews already carry
-/// it, and this state is about the LIST. Switch the canvas to dark to see the
-/// defect that matters: `PendingOfferRow` paints the price in
-/// `colorScheme.secondaryContainer`, a container-fill role used as a
-/// foreground, which measures 1.98:1 on the dark surface.
 @JeebPreview(
   group: 'jeeber_home',
   name: 'Pending · submitted offers',
@@ -1125,18 +952,6 @@ Widget jeeberFeedTabViewPendingOffers() => _jeeberFeedTabViewHosted(
 );
 
 /// Screen 26: the Replies tab, where accepted work lives.
-///
-/// The same `_FeedRequestSliver` as the Requests tab, filtered to
-/// `JeeberFeedItemStatus.accepted` — but the cards are a different control
-/// surface. Ignore/Offer is replaced by a single advance-delivery pill, and the
-/// card's tap target no longer opens the request detail: it pushes
-/// `chat-detail` keyed on the request id, which is the jeeber's only route into
-/// the order conversation from this page.
-///
-/// The longer of the two action labels ("Heading to drop off") is used on
-/// purpose — `_AcceptedAction` wraps the button in an [IntrinsicWidth] meant to
-/// make it hug its label, and at phone width it does not: the label is wider
-/// than the content column, so the pill renders gutter-to-gutter.
 @JeebPreview(
   group: 'jeeber_home',
   name: 'Replies · accepted work',

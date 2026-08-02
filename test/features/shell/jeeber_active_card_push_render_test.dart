@@ -1,20 +1,4 @@
 // PUSH-UI-REACTION widget proof (fix/active-card-push-render).
-//
-// The last link in the offer-accepted push chain: when the customer accepts a
-// jeeber's offer, an `offer_accepted` push lands (~1.2s) and drives an immediate
-// `GET /v1/deliveries?role=jeeber` refetch that returns the just-won delivery
-// (status "Ordered"). The ActiveDeliveriesCubit emits — but the Dashboard "Your
-// active deliveries" disclosure only rendered in the NO-REQUESTS scope, never above
-// the live feed. Right after offering, the offered (still-pending) request keeps
-// the feed NON-EMPTY, so the feed body renders and the banner's BlocBuilder was
-// absent from the tree; active work therefore surfaced only ~95s later, when the
-// feed emptied and the no-requests scope finally mounted the banner.
-//
-// This test drives the exact failing state: an ONLINE jeeber with a non-empty
-// feed (feed body path), then a refresh signal (the push) with a repo that now
-// returns the won Ordered delivery. It proves the compact disclosure re-renders
-// within a couple frames — above the feed — and the full card appears only after
-// explicit expansion, not on the slow poll cadence.
 
 import 'dart:async';
 
@@ -102,7 +86,6 @@ Widget _host({
       ],
       child: JeeberHomeScreen(
         // A non-null feed cubit drives the ONLINE + non-empty-feed body (the
-        // state that hid the card before this fix).
         requestFeedCubit: feed,
         activeDeliveriesBanner: ActiveDeliveriesBanner(
           onOpenChat: (_) {},
@@ -121,7 +104,6 @@ void main() {
     'or the slow poll)',
     (tester) async {
       // 360-wide: the card actions stack full-width (no RenderFlex overflow —
-      // see jeeber_dashboard_overflow_test).
       await tester.binding.setSurfaceSize(const Size(360, 720));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -142,7 +124,6 @@ void main() {
       await availability.load();
 
       // Non-empty feed → the feed body renders (the offered request still
-      // pending), NOT the no-requests scope.
       final feed = RequestFeedCubit(
         repository: SeededRequestFeedRepository([_feedRequest('pending-1')]),
       );
@@ -150,7 +131,6 @@ void main() {
 
       final repo = _MutableRepo();
       // Long poll so the ONLY refetch that can surface the card comes from the
-      // push signal — proving the card reacts to the push, not the poll.
       final deliveries = ActiveDeliveriesCubit(
         repository: repo,
         refreshSignals: signals.stream,
@@ -165,7 +145,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       // We are in the feed body (online, request pending) and active work is
-      // hidden pre-accept.
       expect(find.byType(JeeberHomeScreen), findsOneWidget);
       expect(
         find.bySemanticsIdentifier('jeeber_feed_request_card_pending-1'),
@@ -178,7 +157,6 @@ void main() {
       );
 
       // Customer accepts: the next refetch returns the won delivery and the
-      // `offer_accepted` push publishes a refresh signal.
       repo.result = [_wonDelivery];
       signals.add(null);
 
@@ -187,8 +165,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       // The compact disclosure is now on screen (rebuilt off the push-triggered
-      // refetch), mounted above the still-showing feed. The full delivery card
-      // remains unbuilt until the Jeeber explicitly expands it.
       expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
       expect(find.text('Your active deliveries'), findsOneWidget);
       expect(find.text('View all (1)'), findsOneWidget);

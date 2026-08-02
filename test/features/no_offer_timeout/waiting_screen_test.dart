@@ -1,19 +1,4 @@
 // JM-026 — Waiting / No-Coverage state (waiting-no-coverage).
-//
-// Proves, against the real ARBs + OMDS theme, that:
-//   AC1  (broadcast): `waiting_notified_count` + `waiting_countdown` render, and
-//        the re-target + cancel CTAs are present.
-//   AC1b (no-coverage): a 0-notified snapshot shows `waiting_no_coverage_state`
-//        and NOT `waiting_notified_count`.
-//   AC2  (offers arrived): an offers-arrived snapshot shows
-//        `waiting_review_offers_cta`.
-//
-// The screen self-provides a ticker-driven WaitingCubit; the test injects the
-// `cubitFactory` seam with EMPTY poll/clock tick streams so no real
-// `Stream.periodic` timer leaks into the headless binding (mirrors how the
-// client_offers widget tests drive ClientOffersCubit). Nav edges (review →
-// offer-review, retarget → request-type, cancel → sheet) require a router and
-// are asserted by the jm-026 Maestro flow, not here.
 
 import 'dart:async';
 
@@ -30,7 +15,6 @@ import '../../support/sync_app_localizations.dart';
 
 /// Builds the screen with a deterministic cubit: the scripted [repository]
 /// snapshot + empty tick streams (no leaking timers). The injected clock is
-/// fixed so the countdown is stable.
 NoOfferTimeoutScreen _screen(WaitingRequest seed, {DateTime? now}) {
   final fixedNow = now ?? DateTime.utc(2026, 6, 18, 9, 0, 0);
   return NoOfferTimeoutScreen(
@@ -48,7 +32,6 @@ NoOfferTimeoutScreen _screen(WaitingRequest seed, {DateTime? now}) {
 
 /// P7: seeds carry the ANCHOR PAIR (device receive instant + server-relative
 /// remaining), not a server absolute. The default pair reproduces the previous
-/// 09:04:30 deadline against the fixed 09:00:00 clock.
 WaitingRequest _broadcast({
   int notified = 4,
   int offers = 0,
@@ -109,7 +92,6 @@ void main() {
     });
 
     // G1 (sprint-009 P0): the waiting surface echoes the customer's OWN
-    // request content — the same text the jeeber feed is rendering right now.
     testWidgets('G1 — echoes the request content under "Your request"', (
       tester,
     ) async {
@@ -149,10 +131,6 @@ void main() {
     );
 
     // BUG-4 / JM-026 false-no-coverage: the gateway never populates
-    // notifiedCount (jeebers pull `GET /v1/jeebers/me/feed`, there is no
-    // push-notify counter), so it is effectively always 0. A 0-notified
-    // snapshot WHILE broadcasting within the window must NOT collapse to the
-    // no-offers-yet state — it must stay on the optimistic broadcast header.
     testWidgets(
       'AC1b — 0 notified within the broadcast window keeps the broadcast '
       'header, never the no-offers-yet state',
@@ -185,14 +163,11 @@ void main() {
     );
 
     // The ONLY place a no-coverage-style state appears: the offer-wait window
-    // has fully elapsed (the SERVER said zero seconds remain) and zero offers
-    // are in. Clock-driven via WaitingState.remaining == zero.
     testWidgets(
       'AC1c — broadcast window elapsed + 0 offers shows the no-offers-yet '
       'state',
       (tester) async {
         // P7: the server itself reports zero remaining — the client no longer
-        // needs to outrun an absolute it parsed off the wire.
         await tester.pumpWidget(
           wrapForTest(
             _screen(_broadcast(notified: 0, remaining: Duration.zero)),
@@ -223,15 +198,11 @@ void main() {
     );
 
     // Regression: the contradictory screenshot state (no-coverage header AND a
-    // Review-offers CTA on screen at once) must never happen. notifiedCount: 0
-    // with offers in -> review CTA shows, no-offers-yet state absent — even if
-    // the clock were elapsed, hasOffers wins.
     testWidgets(
       'AC1d — 0 notified WITH offers shows the review CTA and never the '
       'no-offers-yet state',
       (tester) async {
         // Past the deadline AND offers in: hasOffers must keep the no-offers-yet
-        // state suppressed (isNoOffersYet requires !hasOffers).
         await tester.pumpWidget(
           wrapForTest(
             _screen(
@@ -357,10 +328,6 @@ void main() {
     });
 
     // Regression: the broadcast-state signature ids (`waiting_notified_count` /
-    // `waiting_countdown`) must NOT be gated behind the offers read. On device
-    // the cold load makes two reads; if the second (offers) read stalls, the
-    // count + countdown must still paint from the first (request) read. This is
-    // the screen-side root cause of jm-026 RED in 64_W1_QA_RESULTS.
     testWidgets('AC1 — count + countdown paint even when the offers read hangs', (
       tester,
     ) async {
@@ -398,8 +365,6 @@ void main() {
     });
 
     // P7 T5.5 — a backend-contract break gets its OWN copy, so a QA run reports
-    // "backend contract break" rather than "network problem". Critically there
-    // is NO countdown on screen: no fabricated 0:00, no fabricated 5:00.
     testWidgets('T5.5 — a contract violation renders the contract-break copy', (
       tester,
     ) async {

@@ -3,12 +3,8 @@ import 'package:jeeb_mobile/features/settings/domain/profile_repository.dart';
 import 'package:jeeb_mobile/features/settings/domain/user_profile.dart';
 
 /// Test-only seams for the settings surface (T-mobile-031).
-///
 /// These were previously shipped under `lib/` and wired as the DI default,
 /// which let release builds bypass the real persistence + gateway seams. They
-/// now live under `test/` so production resolves the real
-/// `SharedPrefsProfileRepository` + `DioAccountService` from GetIt, while widget
-/// and cubit tests keep a zero-network, in-memory double.
 
 /// In-memory [ProfileRepository] for widget/cubit tests that don't care about
 /// persistence. Production wires [SharedPrefsProfileRepository] via DI.

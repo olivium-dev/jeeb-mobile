@@ -1,28 +1,4 @@
 // Render tests for the CurrentLocationStatusCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`: every preview builds in both
-// locales, and each one is pinned to the localized string ITS status produces —
-// the card's whole job is to say something different in each state, so identical
-// text would mean the switch in `_detail` had collapsed.
-//
-// `idle` is the one state with no string of its own (it renders
-// `SizedBox.shrink()`), so it is pinned by the option label it shares with the
-// others and then distinguished by an ABSENCE assertion in the specifics group.
-//
-// Below that, the assertions the canvas can only show a human: that each
-// recovery CTA reaches its OWN handler, that the row mirrors in Arabic, and the
-// two ways the card degrades at the 200% accessibility ceiling.
-//
-// One caveat on the text measurements. `flutter test` substitutes the
-// `FlutterTest` font, whose glyphs are wider than the shipped one's, so the
-// *threshold* at which a label runs out of room here is more pessimistic than on
-// a device. The claim that does not depend on the font is the structural one
-// both tests below assert: `OmdsPrimaryButton` pins its height to a fixed 48pt
-// (`Sizes.fourXLarge`) that does not follow the text scaler, and the option row
-// gives its label a single ellipsized line — so whatever the font, neither can
-// grow to absorb a doubled text scale.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -49,8 +25,6 @@ final Finder _spinner = find.byType(CircularProgressIndicator);
 
 /// Pumps [preview] on a real 390pt phone instead of the 800x600 test surface,
 /// optionally at a raised text scale. Both ceiling tests need the card to be as
-/// narrow as it is on a device — at 800pt wide nothing runs out of room and the
-/// defect is invisible.
 Future<void> _pumpOnPhone(
   WidgetTester tester,
   Widget Function() preview, {
@@ -97,8 +71,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `idle` has no string of its own, so this absence is what distinguishes
-      // it from the other five previews: no spinner, no confirmation, no
-      // recovery panel, no CTA — and a card no taller than the option row.
       await _pumpOnPhone(tester, currentLocationStatusCardIdle);
 
       expect(find.text('Current Location'), findsOneWidget);
@@ -121,7 +93,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The two recovery panels are near-identical; only the destination
-      // differs. A swapped handler would look perfectly correct on the canvas.
       await _pumpOnPhone(tester, currentLocationStatusCardPermissionDenied);
 
       await tester.tap(find.text('Open settings'));
@@ -162,7 +133,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `failed` passes no onRetry/retryLabel to _Recovery, so the secondary
-      // text button disappears and "Try again" becomes the primary pill.
       await _pumpOnPhone(tester, currentLocationStatusCardFailed);
 
       expect(_ctas, findsOneWidget);
@@ -179,11 +149,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Reachable today: GPS fails, the customer works around it by picking a
-      // saved address (`LocationSelectCubit.selectSaved` does not clear
-      // `currentGpsStatus`), and `_detail` switches on `status` alone — so the
-      // error panel keeps demanding action for an option that is no longer
-      // selected. This test pins the CURRENT behaviour so a fix is a
-      // deliberate, visible change rather than a silent one.
       await _pumpOnPhone(
         tester,
         currentLocationStatusCardServiceDisabledUnselected,
@@ -228,9 +193,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `OmdsPrimaryButton` fixes its height to `Sizes.fourXLarge` (48) and
-      // centres the label inside it. The label follows the text scaler; the
-      // pill does not. Doubling the scale therefore does not grow the button —
-      // it clamps the paragraph, and everything past 48pt is cut off.
       await _pumpOnPhone(tester, currentLocationStatusCardPermissionDenied);
       final double pillHeight = tester.getSize(_ctas.first).height;
       RenderParagraph label = _paragraph(tester, 'Open settings');
@@ -264,8 +226,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `ClientLocationOptionCard._Label` is a single ellipsized line inside an
-      // `Expanded`, so it cannot wrap and cannot grow the row: past a certain
-      // scale the option simply reads "Current Locat…".
       await _pumpOnPhone(tester, currentLocationStatusCardIdle);
       expect(
         _paragraph(tester, 'Current Location').didExceedMaxLines,

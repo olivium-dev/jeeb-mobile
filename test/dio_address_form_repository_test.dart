@@ -6,8 +6,6 @@ import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 
 /// Captures the outbound request (path/method/body) and replies with a fixed
 /// response, so the iter6 D-ADDRESS-SAVE repoint can be asserted without a live
-/// gateway. Mirrors the capturing-Dio helper in
-/// `dio_saved_location_repository_test.dart`.
 String? _capturedPath;
 String? _capturedMethod;
 Object? _capturedBody;
@@ -64,8 +62,6 @@ AddressFormDraft _draft() => const AddressFormDraft(
 void main() {
   group('DioAddressFormRepository — iter6 me-scoped live route', () {
     // iter6 D-ADDRESS-SAVE: the form save must hit the LIVE gateway's
-    // `me`-scoped Saved-Locations BFF — NOT the legacy mock path
-    // `/users/<id>/saved-locations`, and with NO hardcoded `user-client-001`.
     test('create POSTs /api/users/me/saved-locations (no userId, no mock path)',
         () async {
       _capturedPath = null;
@@ -103,12 +99,6 @@ void main() {
     test('create sends the gateway-required fields with correct values',
         () async {
       // Contract note: the repo intentionally submits the FULL address-detail
-      // field set (label/coords/isDefault/address + building/floorApt/
-      // deliveryNotes/codPhone) — this body was VERIFIED 201 on the live gateway
-      // (:10090, 2026-06-30, see dio_address_form_repository.dart). This test
-      // locks the REQUIRED gateway CreateSavedLocationRequest fields are present
-      // and correctly valued; whether the live DTO also persists the extended
-      // delivery-detail fields is an open product question (see report flag).
       _capturedBody = null;
       final repo = DioAddressFormRepository(
         _capturingDio(<String, dynamic>{'id': 'addr-1', 'label': 'HomeQA'}),

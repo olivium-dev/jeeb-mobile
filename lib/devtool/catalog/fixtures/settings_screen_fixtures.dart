@@ -1,60 +1,4 @@
 // Shared dev-only fixtures for `SettingsScreen`.
-//
-// ONE source of truth for the two dev surfaces that mock this screen:
-//
-//   * the designer-facing Screen Catalog entry
-//     (`lib/devtool/catalog/entries/batch_10_entries.dart`), and
-//   * the engineer-facing preview section at the bottom of
-//     `lib/features/settings/presentation/screens/settings_screen.dart`.
-//
-// The catalog owned a private `_settingsCubit()` factory over the neighbouring
-// profile-edit fakes, plus a `_SettingsPreview` host that resolved a REAL
-// `SharedPreferences` through the platform channel. Copying either into the
-// preview section would have given the two surfaces two different "Maya
-// Haddad", free to drift — and on a settings list the designed state IS the
-// copy in the rows. Both surfaces now import this file. The fakes are declared
-// here rather than borrowed from `profile_edit_screen_fixtures.dart` so this
-// screen's designed states cannot move when that screen's do; they are three
-// methods each.
-//
-// Three deliberate changes came with the extraction:
-//
-//  * **The prefs are in-memory.** [LocaleCubit] is a hard requirement of this
-//    screen (`_LanguageSection` calls `context.watch<LocaleCubit>()`
-//    unconditionally) and it REQUIRES a `SharedPreferences`. The real one is
-//    async and platform-channel backed, which a synchronous
-//    `Widget Function()` preview cannot have, so the catalog had to render a
-//    `SizedBox.shrink()` until `getInstance()` resolved. [SettingsScreenInMemoryPrefs]
-//    answers from a map, so both surfaces build synchronously — and tapping a
-//    language row in a dev tool no longer writes to the real user's prefs.
-//  * **`deletionPending` is SEEDED, not driven.** The catalog reached that
-//    state by chaining `requestAccountDeletion()` onto the load future, which
-//    also sets `SettingsBanner.accountDeletionRequested` and therefore pops a
-//    SnackBar over the surface for four seconds. [SettingsScreenSeededCubit]
-//    puts the cubit straight into the designed state, so the card shows the
-//    row and nothing else. Same pixels, minus the transient.
-//  * **Each state has its own account holder** — see
-//    [SettingsScreenPreviewFixtures]. Only the reference state keeps "Maya
-//    Haddad"; the deletion-pending card, which used to be a byte-identical
-//    twin of it apart from one row at the bottom of a scrolling list, now
-//    names itself in its first row.
-//
-// Everything here is a LOCAL fake over the screen's own seams: `SettingsScreen`
-// takes `cubit:`, and [SettingsCubit] takes `profileRepository:` /
-// `accountService:`, so neither surface ever resolves `sl<ProfileRepository>()`
-// / `sl<AccountService>()`. Network-free by construction, not merely by the
-// guard the hosts install.
-//
-// NOT covered by any fixture here, because the screen cannot reach it: the
-// destructive rows open [LogoutDeleteConfirmSheet], which terminates the
-// session through its own `AccountSessionTerminator` and never calls
-// `SettingsCubit.requestAccountDeletion()` / `signOut()`. Every state below
-// that those methods would produce is therefore a state only a fixture can
-// build. See the preview section for what that implies.
-//
-// This file lives under `lib/devtool/`, which `tool/preview_inventory.dart`
-// excludes from preview coverage and which is not reachable from any shipping
-// code path.
 
 import 'dart:async';
 
@@ -93,10 +37,7 @@ class SettingsScreenFakeProfileRepository implements ProfileRepository {
 
 /// A profile read that never lands, holding [SettingsCubit] on
 /// `isLoading: true` for as long as the surface is open.
-///
 /// `load()` emits the loading flag and only leaves it when the future
-/// completes, so this is the only way to inspect the cold-start rendering
-/// without a real slow connection.
 class SettingsScreenPendingProfileRepository implements ProfileRepository {
   const SettingsScreenPendingProfileRepository();
 
@@ -124,14 +65,8 @@ class SettingsScreenFakeAccountService implements AccountService {
 }
 
 /// A [SettingsCubit] parked in one exact [SettingsState].
-///
 /// Three of the states this screen renders — the latched `deletionPending`
 /// row, `isDeletingAccount`, `isSigningOut` — are produced by cubit methods
-/// the screen never calls, so there is no gesture and no fake that reaches
-/// them. Seeding is not a shortcut here; it is the only route.
-///
-/// Inert by construction: no repository call is ever made, so nothing async is
-/// in flight and the state cannot move.
 class SettingsScreenSeededCubit extends SettingsCubit {
   SettingsScreenSeededCubit(SettingsState seed)
       : super(
@@ -143,12 +78,8 @@ class SettingsScreenSeededCubit extends SettingsCubit {
 }
 
 /// An in-memory stand-in for [SharedPreferences].
-///
 /// [LocaleCubit] REQUIRES a `SharedPreferences`, and the real one is async
 /// (`getInstance()`) and platform-channel backed — neither of which a
-/// synchronous `Widget Function()` preview can have. This answers from a plain
-/// map, so construction is synchronous and a write in the canvas or the
-/// catalog is simply a map write.
 class SettingsScreenInMemoryPrefs implements SharedPreferences {
   SettingsScreenInMemoryPrefs([Map<String, Object>? seed])
       : _store = <String, Object>{...?seed};
@@ -221,17 +152,8 @@ class SettingsScreenInMemoryPrefs implements SharedPreferences {
 }
 
 /// Seats a previewed [SettingsScreen] the way the app seats it, minus the app.
-///
 /// Supplies the ambient [LocaleCubit] the screen's language section watches
 /// unconditionally, owns the [SettingsCubit] lifecycle (both surfaces rebuild
-/// their state builders, so the cubit has to be created and closed by
-/// something with a `State`), and optionally pins a device width — a settings
-/// list is all row copy, and row copy breaks at a width, not at a size.
-///
-/// [builder] receives the cubit so the CALLER constructs the screen. That is
-/// deliberate: `tool/preview_coverage.dart` counts a screen as covered only
-/// when its own preview section literally constructs it, and it is also what
-/// keeps this host reusable for `LiveSettingsScreen`-shaped hosts later.
 class SettingsScreenPreviewHost extends StatefulWidget {
   const SettingsScreenPreviewHost({
     super.key,
@@ -261,14 +183,7 @@ class _SettingsScreenPreviewHostState extends State<SettingsScreenPreviewHost> {
   final SharedPreferences _prefs = SettingsScreenInMemoryPrefs();
 
   /// Swapping the fixture must swap the STATE on screen.
-  ///
   /// Both surfaces move between states in place — the catalog's state picker
-  /// and a render test that pumps two previews in a row both replace this
-  /// widget with another of the same type and no key, which Flutter treats as
-  /// an update rather than a remount. Without this the [State] survives and
-  /// keeps the first fixture's cubit, so the surface goes on showing the
-  /// previous designed state under the new state's name. `create` is a static
-  /// tear-off at both call sites, so the comparison is stable.
   @override
   void didUpdateWidget(covariant SettingsScreenPreviewHost oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -287,17 +202,10 @@ class _SettingsScreenPreviewHostState extends State<SettingsScreenPreviewHost> {
   @override
   Widget build(BuildContext context) {
     // The ambient locale decides which language row carries the check, so the
-    // AR rendering of a matrix card checks "العربية" — as it does in the app,
-    // where one cubit drives both the check and `MaterialApp.locale`. Read it
-    // HERE, in a build: a `Localizations.maybeLocaleOf` inside the provider's
-    // `create` would register an inherited dependency in a callback that never
-    // runs again, which `provider` rejects outright.
     final Locale ambient =
         Localizations.maybeLocaleOf(context) ?? const Locale('en');
     final Widget seated = BlocProvider<LocaleCubit>(
       // Keyed on the ambient locale: `create` runs once per element, so
-      // without this a card re-rendered in the other locale would keep the
-      // cubit seeded from the first one and tick the wrong language row.
       key: ValueKey<Locale>(ambient),
       create: (_) => LocaleCubit(
         prefs: _prefs,
@@ -315,14 +223,7 @@ class _SettingsScreenPreviewHostState extends State<SettingsScreenPreviewHost> {
 }
 
 /// The designed states both dev surfaces render.
-///
 /// **Every state has its own account holder.** Four of them differ from the
-/// reference only in the Account section at the BOTTOM of a scrolling list —
-/// a latched row, two greyed rows — which is both hard to tell apart when
-/// scrolling the catalog and, in a render test on anything shorter than the
-/// whole list, not built at all. A distinct name in the FIRST row makes each
-/// card self-identifying at a glance and gives the render tests a discriminator
-/// they can actually reach. The reference customer stays with `loadedProfile`.
 abstract final class SettingsScreenPreviewFixtures {
   /// The catalog's reference customer, and the string its "Loaded — Profile"
   /// state is recognised by.
@@ -393,7 +294,6 @@ abstract final class SettingsScreenPreviewFixtures {
 
   /// The ceiling reading: the longest name on file with every optional
   /// notification opted OUT, so the switch rows are reviewable in their off
-  /// state in the one card that already stresses the row layout.
   static SettingsCubit longestContent() => SettingsScreenSeededCubit(
         const SettingsState(
           profile: UserProfile(phoneE164: longestPhone, name: longestName),

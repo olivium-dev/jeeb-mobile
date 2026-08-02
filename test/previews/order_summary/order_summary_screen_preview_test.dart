@@ -1,31 +1,4 @@
 // Render tests for the OrderSummaryScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// ## What `expectedText` pins
-//
-// Real screen copy wherever a state produces some that ONLY it can produce —
-// the item summary, the uuid standing in for a jeeber name, the fake's canned
-// order. Four states have nothing of their own: the cold read paints no text at
-// all (`OmdsLoadingState` is built with no `message:`), the two error cards are
-// copy-identical (which IS the finding), and the compact card is the reference
-// card at a different width. Those four pin their dev-chrome CAPTION, and the
-// `preview specifics` group below asserts the real state behind each one, so a
-// caption is never the whole proof.
-//
-// ## Fonts
-//
-// `loadInterTestFont()` runs before every test here. The shared harness does
-// not load fonts, and Flutter's test face makes every glyph a 1-em square —
-// Latin measures ~2x too wide, Arabic ~2.4x. Nothing in this file asserts an
-// overflow (the price-pill overflow the previews document is a live defect;
-// pinning the broken measurement would turn the fix into a test failure), and
-// the two geometry claims that the fake face would distort — the 320 pt frame
-// in EN and in AR — are measured through `withGoldenTestFonts`, which is the
-// only way to get real Arabic metrics: `jeebPreviewHost` builds
-// `AppTheme.light()` unmodified and the theme carries no `fontFamilyFallback`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -47,10 +20,6 @@ const String _kGenericError = 'Something went wrong. Please try again.';
 
 /// `previewCanvas`, but with the deterministic Arabic face wired into the
 /// theme.
-///
-/// The shared harness cannot do this — it builds `AppTheme.light()` directly —
-/// and without it every Arabic glyph is laid out in the 1-em test face, which
-/// is ~2.4x too wide. Used only where a geometry claim is being made.
 Widget _orderSummaryCanvasWithFonts(
   Widget Function() preview,
   Locale locale,
@@ -81,7 +50,6 @@ Future<void> _pumpWithFonts(
 
 /// Every visible string inside one of the card's semantics containers, joined
 /// so a label + value cell reads as one string. Mirrors the helper in
-/// `test/previews/order_summary/order_summary_pinned_preview_test.dart`.
 String _factText(WidgetTester tester, String identifier) => tester
     .widgetList<Text>(
       find.descendant(
@@ -93,21 +61,14 @@ String _factText(WidgetTester tester, String identifier) => tester
     .join('|');
 
 /// [matching], restricted to the device frame.
-///
 /// Every "this word appears nowhere" assertion has to be scoped this way: the
-/// dev-chrome caption above the frame deliberately NAMES the state ("error ·
-/// NETWORK (offline)"), so an unscoped `findsNothing` would be asserting
-/// against the label instead of the screen.
 Finder _inScreen(Finder matching) => find.descendant(
       of: find.byType(OrderSummaryScreen),
       matching: matching,
     );
 
 /// Every string painted inside the device frame, in tree order.
-///
 /// Used to compare two error states as WHOLE pictures rather than one assertion
-/// at a time — the claim is that nothing distinguishes them, and a list of
-/// `findsNothing`s can only ever check the differences somebody thought of.
 List<String> _screenText(WidgetTester tester) => tester
     .widgetList<Text>(
       find.descendant(
@@ -157,15 +118,11 @@ void main() {
 
   group('OrderSummaryScreen preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does NOT rebuild these — the canvas produces the same widget types, so
-    // the `BlocProvider` element is UPDATED rather than replaced and keeps the
-    // cubit the first preview created.
 
     testWidgets('the phone previews pin a 390 pt frame, not the canvas width', (
       WidgetTester tester,
     ) async {
       // The harness pumps an 800 pt surface: a preview that left its width to
-      // the host would measure 800 here, and none of this layout applies there.
       await pumpPreview(tester, orderSummaryScreenLoaded);
 
       expect(tester.getSize(find.byType(OrderSummaryScreen)).width, 390);
@@ -216,11 +173,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned. `OrderSummary` carries `deliveryId`, `requestId`
-      // and `conversationId`; the screen renders none of them, so two accepted
-      // orders with the same jeeber and the same price are the same picture —
-      // on the screen JM-056 deep-links INTO from a transaction row. If a
-      // reference is ever surfaced here, this test fails and should be updated
-      // deliberately, not by accident.
       await pumpPreview(tester, orderSummaryScreenLoaded);
 
       for (final String reference in const <String>[
@@ -243,8 +195,6 @@ void main() {
 
       expect(find.byType(OmdsLoadingState), findsOneWidget);
       // `Center(child: OmdsLoadingState())` passes no `message:`, so the app-bar
-      // title is the ONLY string inside the device frame for as long as the
-      // fetch takes.
       expect(_screenText(tester), <String>['Order summary']);
       // No card, no error, no route to anything.
       expect(find.bySemanticsIdentifier('order_summary_pinned'), findsNothing);
@@ -256,9 +206,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned. `OrderSummaryFailure` classifies network /
-      // notFound / unknown and `OrderSummaryCubit` stores the value in
-      // `state.error` — which `_OrderSummaryView` never reads. Its `failed` arm
-      // hardcodes `l10n.errorGeneric`, so every failure is one card.
       await pumpPreview(tester, orderSummaryScreenNotFound);
       final List<String> notFoundText = _screenText(tester);
 
@@ -266,8 +213,6 @@ void main() {
       final List<String> networkText = _screenText(tester);
 
       // Body first, app bar last — `Scaffold` paints its body below the bar in
-      // the tree. Three strings is the WHOLE card: an icon, one sentence and a
-      // button.
       expect(
         notFoundText,
         <String>[_kGenericError, 'Refresh now', 'Order summary'],
@@ -278,8 +223,6 @@ void main() {
         reason: 'two different typed failures, one indistinguishable card',
       );
       // Neither card names its own failure, so neither can advise the user:
-      // the 404 offers a Retry that cannot succeed, and the offline case never
-      // mentions the connection.
       for (final String word in const <String>[
         'not found',
         'Not found',
@@ -296,10 +239,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned. The CTA calls `refresh()`, which — unlike `load()`
-      // — never emits `loading`; it awaits the repository and on a second
-      // failure emits `copyWith(error: …)` with the status still `failed`, i.e.
-      // the frame already on screen. Nothing spins, nothing greys out, nothing
-      // is said. On a 404 that is permanent.
       await pumpPreview(tester, orderSummaryScreenNotFound);
       final List<String> before = _screenText(tester);
 
@@ -319,9 +258,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned. `DioOrderSummaryRepository` null-coalesces `price`
-      // to `0.0` and `currency` to `'USD'` INDEPENDENTLY, so a thin delivery row
-      // renders an authoritative zero in a currency nobody chose — directly
-      // above "Pay cash on delivery".
       await pumpPreview(tester, orderSummaryScreenMinimalPayload);
 
       expect(_factText(tester, 'order_summary_price'), 'Price|0.00 USD');
@@ -338,8 +274,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Same fixture, second finding: `jeeberName: … ?? (jeeberId ?? '')`, and
-      // all three enrichment reads that could have supplied a name are
-      // swallowed by design.
       await pumpPreview(tester, orderSummaryScreenMinimalPayload);
 
       expect(
@@ -361,19 +295,15 @@ void main() {
       WidgetTester tester,
     ) async {
       // The finding, pinned. This is the one preview that hands the screen
-      // nothing — exactly what production does — so the assertion starts by
-      // proving there is no injected repository to explain the card away.
       expect(OrderSummaryScreenFixtures.unconfiguredDi.repository, isNull);
 
       await pumpPreview(tester, orderSummaryScreenUnconfiguredDi);
 
       // `_resolveRepository()` fell through `sl.isRegistered<…>()` to
-      // `FakeOrderSummaryRepository()`, whose built-in default answers ANY id.
       expect(find.text('Kamal Hajj'), findsOneWidget);
       expect(_factText(tester, 'order_summary_price'), 'Price|9.00 USD');
       expect(find.text('Pay cash on delivery'), findsOneWidget);
       // Nothing marks it as unreal: no error, no banner, no placeholder — the
-      // card is indistinguishable from the loaded one above.
       expect(find.text(_kGenericError), findsNothing);
       for (final String word in const <String>[
         'Sample',
@@ -407,10 +337,6 @@ void main() {
     testWidgets('the 320 pt frame survives the reference card in EN and AR, '
         'measured through the real faces', (WidgetTester tester) async {
       // Measured through `withGoldenTestFonts`, so the Arabic here is Noto Sans
-      // Arabic rather than the 1-em test face. The card is the only thing on
-      // the screen and it lives in a `ListView`, so the narrow frame costs reach
-      // rather than layout — but the header Row (avatar + name + price pill) is
-      // rigid in both directions and is what would break first.
       await _pumpWithFonts(tester, orderSummaryScreenCompact);
       expect(tester.takeException(), isNull);
       expect(tester.getSize(find.byType(OrderSummaryScreen)).width, 320);

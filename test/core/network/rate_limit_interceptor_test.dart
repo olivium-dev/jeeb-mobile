@@ -6,9 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/network/rate_limit_interceptor.dart';
 
 /// Lowest-level Dio adapter that returns a scripted [ResponseBody] per request
-/// and counts how many actually reach the wire. A request suppressed by the
-/// [RateLimitInterceptor] must NOT increment [callCount] — that is the whole
-/// point of the back-off (F3: kill the offers polling storm on a 429).
 class _ScriptedAdapter implements HttpClientAdapter {
   _ScriptedAdapter(this._respond);
 
@@ -56,8 +53,6 @@ void main() {
 
   test('a 429 with Retry-After suppresses subsequent GET polls until it clears',
       () async {
-    // Only the FIRST read that reaches the wire trips the 429; a suppressed
-    // read never reaches the adapter, so the next wire hit (post-window) is 200.
     var wireHits = 0;
     final adapter = _ScriptedAdapter((opts) {
       wireHits++;
@@ -67,15 +62,12 @@ void main() {
     });
     final dio = buildDio(adapter);
 
-    // First poll trips the 429.
     await expectLater(
       dio.get<dynamic>('/deliveries'),
       throwsA(isA<DioException>()),
     );
     expect(adapter.callCount, 1);
 
-    // A poll fired INSIDE the Retry-After window is short-circuited locally —
-    // it never reaches the adapter (no retry-on-schedule into a 429).
     await expectLater(
       dio.get<dynamic>('/deliveries'),
       throwsA(isA<DioException>()),
@@ -86,7 +78,6 @@ void main() {
     );
     expect(adapter.callCount, 1, reason: 'suppressed reads must not hit the wire');
 
-    // Once Retry-After (30s) elapses, reads flow again.
     now = now.add(const Duration(seconds: 31));
     final ok = await dio.get<dynamic>('/deliveries');
     expect(ok.statusCode, 200);
@@ -96,23 +87,12 @@ void main() {
   test(
       'a concurrent 2xx does NOT wipe an open Retry-After window '
       '(BUG-C fan-out storm regression)', () async {
-    // Reproduces the run-26 storm: the customer-home poll fires many reads
-    // near-simultaneously. When the gateway rate limits, ONE of the batch 429s
-    // and opens the back-off window, but the OTHER in-flight reads — which
-    // passed onRequest before the window opened — land as 2xx a moment later.
-    // The OLD onResponse cleared the window on any 2xx, so that trailing success
-    // wiped the pause and the next scheduled poll immediately re-hammered the
-    // still rate-limited gateway. The window must now stand for the full
-    // Retry-After regardless of concurrent successes.
     final adapter = _ScriptedAdapter((opts) {
       if (opts.path == '/req429') return _body(429, headers: {'retry-after': ['30']});
       return _body(200); // /req200 (the concurrent success) and /poll
     });
     final dio = buildDio(adapter);
 
-    // Fire the 429-bound read and a sibling success CONCURRENTLY: both pass
-    // onRequest (window still closed — the 429's onError runs only after its
-    // async adapter resolves) and both reach the wire.
     final f429 = dio.get<dynamic>('/req429');
     final f200 = dio.get<dynamic>('/req200');
     await expectLater(f429, throwsA(isA<DioException>()));
@@ -120,9 +100,6 @@ void main() {
     expect(ok.statusCode, 200);
     expect(adapter.callCount, 2, reason: 'both concurrent reads hit the wire');
 
-    // The trailing 2xx must NOT have cleared the window: a poll fired inside the
-    // still-open 30s window is short-circuited locally and never reaches the
-    // wire. (Under the old clear-on-2xx logic this read would have hit the wire.)
     await expectLater(
       dio.get<dynamic>('/poll'),
       throwsA(isA<DioException>()),
@@ -130,7 +107,6 @@ void main() {
     expect(adapter.callCount, 2,
         reason: 'window still open after a concurrent success — poll suppressed');
 
-    // And it still self-heals once Retry-After elapses.
     now = now.add(const Duration(seconds: 31));
     final resumed = await dio.get<dynamic>('/poll');
     expect(resumed.statusCode, 200);
@@ -151,8 +127,6 @@ void main() {
     );
     expect(adapter.callCount, 1);
 
-    // A user action (accept offer / create request) must go through even while
-    // the read back-off window is open.
     final res = await dio.post<dynamic>('/v1/offers/accept', data: {'id': 'o-1'});
     expect(res.statusCode, 200);
     expect(adapter.callCount, 2, reason: 'the POST must reach the wire');
@@ -169,7 +143,6 @@ void main() {
       dio.get<dynamic>('/requests'),
       throwsA(isA<DioException>()),
     );
-    // Within the default window the next read is suppressed.
     await expectLater(
       dio.get<dynamic>('/requests'),
       throwsA(isA<DioException>()),
@@ -192,7 +165,6 @@ void main() {
       dio.get<dynamic>('/deliveries'),
       throwsA(isA<DioException>()),
     );
-    // 10s later → still inside the 20s date window → suppressed.
     now = now.add(const Duration(seconds: 10));
     await expectLater(
       dio.get<dynamic>('/deliveries'),
@@ -200,7 +172,6 @@ void main() {
     );
     expect(adapter.callCount, 1);
 
-    // Past the date → flows again.
     now = now.add(const Duration(seconds: 15));
     final ok = await dio.get<dynamic>('/deliveries');
     expect(ok.statusCode, 200);

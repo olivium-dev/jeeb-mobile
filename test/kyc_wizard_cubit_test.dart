@@ -33,7 +33,6 @@ KycWizardCubit _buildCubit({
 
 /// Loads schema (transitions schema → identity) then completes every capture,
 /// the ID number (E3/JEBV4-197 hard gate), and the ToS tick so
-/// [KycWizardState.canSubmitIdentity] is true.
 Future<void> _completeIdentity(KycWizardCubit cubit) async {
   await cubit.loadSchema();
   await cubit.captureIdFront();
@@ -91,9 +90,6 @@ class _HangingSubmitKycGateway extends FakeKycGateway {
 /// Mimics a submit whose round-trip FAILS or times out — a slow inline-approve
 /// that outran the receive-timeout, or a 201 the client never received — even
 /// though the gateway already RECORDED (and here auto-approved) the submission
-/// server-side. `submit()` throws a plain transport error (NOT a field
-/// rejection); `GET /v1/kyc/status` reports the recorded decision so the cubit
-/// can reconcile off the spinner with no restart (JEBV4-271).
 class _FailingSubmitButRecordedKycGateway extends FakeKycGateway {
   _FailingSubmitButRecordedKycGateway({required this.serverStatus});
 
@@ -175,7 +171,6 @@ void main() {
       await _completeIdentity(cubit);
 
       // Kick off a submit that HANGS forever — the wizard is stranded on the
-      // submitting spinner, exactly the on-device ~98s hang.
       unawaited(cubit.submit());
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
@@ -183,7 +178,6 @@ void main() {
           reason: 'submit() emitted submitting then hung on the gateway');
 
       // The safety-net poll reconciles against the server, which already
-      // recorded the auto-approved submission → advance off the spinner.
       await cubit.refreshWhileSubmitting();
 
       expect(cubit.state.step, KycWizardStep.status);
@@ -244,7 +238,6 @@ void main() {
       expect(cubit.state.step, KycWizardStep.submitting);
 
       // The role landed via /v1/users/me (RoleAvailabilityCubit gained jeeber);
-      // that authoritative grant advances the wizard with no server re-read.
       cubit.onJeeberRoleGranted();
 
       expect(cubit.state.step, KycWizardStep.status);
@@ -534,8 +527,6 @@ void main() {
 
       expect(cubit.state.submitFieldError, isNull);
       // Not submitFailed ("check your connection") — this 400 means the BFF
-      // parsed the request and rejected its content, which is not a
-      // connectivity problem.
       expect(cubit.state.error, KycWizardError.submitValidationFailed);
     });
 
@@ -582,7 +573,6 @@ void main() {
       final cubit = _buildCubit();
       await _completeIdentity(cubit);
       // Manually pin the in-flight step; a second submit must early-return.
-      // (We cannot easily race the await here, so assert the guard directly.)
       await cubit.submit();
       expect(cubit.state.step, KycWizardStep.status);
     });
@@ -602,7 +592,6 @@ void main() {
       expect(cubit.state.submission.status, KycStatus.notSubmitted);
       expect(cubit.state.submission.hasIdFront, isFalse);
       // Review finding 4: the identity fields reset with the draft — the
-      // bound text field mirrors this via the controller sync.
       expect(cubit.state.submission.idNumber, isNull);
       expect(cubit.state.submission.idType, KycIdType.nationalId);
       expect(cubit.state.submitFieldError, isNull);
@@ -655,7 +644,6 @@ void main() {
       await seeder.submit();
 
       // A fresh cubit binding to the same gateway should land on status, NOT
-      // re-fire the funding navigation (justSubmitted stays false on re-entry).
       final next = _buildCubit(gateway: shared);
       await next.loadStatus();
       expect(next.state.step, KycWizardStep.status);
@@ -689,9 +677,6 @@ void main() {
         'isLoadingStatus spinner that stranded the on-device rev2/round-5 jeeber',
         () async {
       // Production entry path: the wizard is created with `..loadStatus()`.
-      // A fresh jeeber has no prior submission, so the gateway's fetchStatus
-      // reports notSubmitted (the live GET /v1/kyc/status 404), and submit
-      // echoes the inline auto-approve (state:Verified → approved).
       final cubit = _buildCubit(
         gateway: FakeKycGateway(decision: KycStatus.approved),
       );
@@ -700,8 +685,6 @@ void main() {
       expect(cubit.state.step, KycWizardStep.identity,
           reason: 'a notSubmitted cold read routes into the capture flow');
       // REGRESSION GUARD: before the round-6 fix, loadStatus left
-      // isLoadingStatus=true here (notSubmitted → loadSchema returned without
-      // resetting it), and it stayed true through capture + submit.
       expect(cubit.state.isLoadingStatus, isFalse,
           reason: 'entering the interactive schema/identity flow must clear the '
               'loadStatus loading flag');
@@ -720,12 +703,6 @@ void main() {
           reason: 'an auto-approved submit stays on the in-wizard approved view '
               '(fires JeeberRoleActivator), it does NOT chain to funding');
       // THE DECISIVE ASSERTION: with isLoadingStatus stuck true (pre-fix),
-      // KycStatusView.build short-circuits to `Center(OmdsLoadingState())` and
-      // never builds _ApprovedBody, so the jeeber role is never activated and
-      // the wizard is stuck on the spinner until a restart. The status-view
-      // poller then sees `approved` (not pending) and cancels immediately, so
-      // the diag stream goes silent right after the 201 — exactly the round-5
-      // device repro.
       expect(cubit.state.isLoadingStatus, isFalse,
           reason: 'the approved emit must not carry a stale isLoadingStatus=true; '
               'otherwise KycStatusView renders a bare spinner instead of the '

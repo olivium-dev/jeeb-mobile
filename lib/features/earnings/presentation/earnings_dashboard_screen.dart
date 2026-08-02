@@ -546,72 +546,6 @@ class _ExportButton extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/earnings/earnings_dashboard_screen_preview_test.dart
-// ===========================================================================
-//
-// [EarningsDashboardScreen] is the jeeber's money surface: cash collected
-// off-wallet, fees captured from the wallet, and the per-delivery breakdown
-// behind them. It has NO seam of its own — no repository parameter, no cubit
-// factory — it reads [EarningsCubit] off a `BlocProvider` ancestor. So every
-// preview below provides that ancestor itself, over a local fixture repository,
-// which is exactly how the route (`EarningsTab`) and the Screen Catalog build
-// it. The real cold-load path runs in all three.
-//
-// The repositories and the summaries they answer with are NOT declared here.
-// They live in
-// `lib/devtool/catalog/fixtures/earnings_dashboard_screen_fixtures.dart`,
-// shared with the on-device Screen Catalog entry for this screen
-// (`devtool/catalog/entries/batch_03_entries.dart`), so the designer's in-app
-// browser and this canvas cannot drift into showing two different "designed
-// states". None of those repositories can reach the network — they answer from
-// a `const` summary, throw, or never complete — and every one of them FAILS
-// `exportEarningsPdf`, because a successful export is handed straight to
-// `OpenFile.open` by [_onStateChange] and a preview must not call a platform
-// channel. The `CatalogNetworkGuard` in [jeebPreviewHost] is the net, not the
-// plan.
-//
-// Two things about this harness are worth knowing before editing it:
-//
-//  * **The screen owns a Scaffold and [jeebPreviewHost] supplies another.**
-//    They nest: the host's `Scaffold + SafeArea` frames the card and this
-//    screen's own `Scaffold + OMDSAppBar` paints inside it. That is the same
-//    nesting the Screen Catalog produces.
-//  * **The frame is pinned in the TREE, not just in `size:`.**
-//    [_earningsDashboardScreenFramed] pins the same width the annotation asks
-//    for, so the render tests measure a phone instead of the 800 pt test
-//    surface — and width is the whole point here, since every layout problem
-//    below disappears at 800 dp. Height is pinned too, but the render surface
-//    is 800x600, so a `SizedBox` asking for 844 is enforced down to what the
-//    host has; the COMPACT box (320x568) fits and is therefore exact.
-//
-// The states are the two the Screen Catalog names plus four it does not, all
-// four of which are states that break:
-//
-//   * **Loading.** The cold read in flight — a bare centred spinner with no
-//     copy and nothing to tap. Its render test cannot use `pumpAndSettle`.
-//   * **Load failed.** The retry body. Note what it does NOT show: the cubit
-//     classifies the failure into three distinct messages
-//     (`EarningsCubit._mapError`) and [_buildBody] renders the generic
-//     localized `earningsLoadFailed` instead, so network / server / parse are
-//     indistinguishable to the jeeber.
-//   * **Totals without breakdown rows.** A rollup-only payload — a count with
-//     no `items` — which sends [_DeliveryBreakdownList] down its
-//     `deliveries.isEmpty` branch. That branch is a bare `OmdsEmptyState()`
-//     with no icon, title, subtitle or button: an empty box under a heading
-//     that never renders. `earningsBreakdownEmpty` is already translated in
-//     both ARBs and is not wired to it.
-//   * **Longest content at 320 pt.** The layout ceiling on the narrowest phone
-//     the app supports, in the launch market's own currency.
-//
-// And one PAIR worth reading together: [earningsDashboardScreenEmptyPeriod]
-// (nothing recorded — the honest T11 / SW-01 block) beside
-// [earningsDashboardScreenTotalsOnly] (something recorded, nothing itemized).
-// Both are "there is no list here", and only the first is allowed to say so.
 
 /// The phone this screen is designed against.
 const Size _earningsDashboardScreenPhoneBox = Size(390, 844);
@@ -648,20 +582,6 @@ Widget _earningsDashboardScreenHosted(
 
 /// The reference reading: a week with cash collected, fees captured, a join
 /// date and a two-row breakdown.
-///
-/// Both money framings are on screen at once (D41/D44) — the cash the jeeber
-/// keeps off-wallet, and the platform fee paid from the wallet — which is the
-/// whole reason this screen was reframed fee-only.
-///
-/// This is the one the matrix is for, and it is the only place three separate
-/// problems show up side by side. In AR the `member since` row keeps a
-/// Latin-script month ("Nov 2025"), because [_MemberSinceRow] calls a bare
-/// `DateFormat.yMMM()` that resolves through `Intl.getCurrentLocale()` rather
-/// than the ambient locale. At 200% text the period pills — an unwrapped,
-/// unscrollable `Row` — run 70 dp past the trailing edge, and because nothing
-/// scrolls there is no gesture that brings the hidden pill back. And the
-/// fees-paid amount is the one child of its `Row` with no flex, so the wider
-/// the money token, the narrower the label column beside it.
 @JeebPreview(
   group: 'earnings',
   name: 'Populated · cash, fees and breakdown',
@@ -673,16 +593,7 @@ Widget earningsDashboardScreenPopulated() => _earningsDashboardScreenHosted(
 );
 
 /// T11 / SW-01 regression guard, made visible.
-///
 /// A period with nothing recorded must render the honest "nothing yet" block —
-/// never "0.00 USD earned · 0 Deliveries · 0.00 fees", which reads as a betrayal
-/// ten minutes after a completed cash delivery. If this preview ever shows a
-/// headline card, `EarningsSummary.isEmpty` has broken.
-///
-/// The period pills stay above the block, deliberately: switching period is the
-/// one useful thing to do from here. They are also the only control this state
-/// offers besides pull-to-refresh, which is why the 200% clip described on
-/// [earningsDashboardScreenPopulated] is worse here than anywhere else.
 @JeebPreview(
   group: 'earnings',
   name: 'Empty · nothing recorded this period',
@@ -693,15 +604,7 @@ Widget earningsDashboardScreenEmptyPeriod() => _earningsDashboardScreenHosted(
 );
 
 /// The cold read in flight: a centred `OmdsLoadingState` and nothing else.
-///
 /// Note what is NOT on screen — no period pills, no copy, no way to leave
-/// except the app bar. `EarningsState.mode` defaults to `loading`, so this is
-/// also the very first frame of every other state below.
-///
-/// It is the one state whose render test cannot use `pumpAndSettle`: a
-/// `CircularProgressIndicator` is an indefinite animation, so the harness's
-/// settle would time out. See the dedicated pump-once group in
-/// `test/previews/earnings/earnings_dashboard_screen_preview_test.dart`.
 @JeebPreview(
   group: 'earnings',
   name: 'Loading · cold read',
@@ -713,12 +616,6 @@ Widget earningsDashboardScreenLoading() => _earningsDashboardScreenHosted(
 
 /// The cold read failed (a dropped transport, a 500, an unparseable body): the
 /// `OmdsErrorState` body with a Retry that re-enters the load.
-///
-/// The body replaces everything — including the period pills, so a jeeber who
-/// failed to load "This month" cannot drop back to "Today" without a successful
-/// read first. And the copy is the SAME whatever went wrong: the cubit builds
-/// three different (hardcoded, English) messages in `_mapError` and stores them
-/// on `state.errorMessage`, which [_buildBody] never reads.
 @JeebPreview(
   group: 'earnings',
   name: 'Load failed · retry',
@@ -730,20 +627,6 @@ Widget earningsDashboardScreenLoadFailed() => _earningsDashboardScreenHosted(
 
 /// Totals arrived, the itemization did not: nine deliveries counted, none
 /// listed, and no join date on the wire.
-///
-/// `EarningsSummary.fromJson` reads `deliveryCount` from its own wire field
-/// independently of the `items` array, so this is a shape the live gateway can
-/// serve, not a stress fixture. It is the only way to see two branches that are
-/// otherwise invisible:
-///
-///  * [_DeliveryBreakdownList] renders `const OmdsEmptyState()` — no icon, no
-///    title, no subtitle, no button. It occupies 48 dp of padding and says
-///    nothing, under a "Recent deliveries" heading that this branch does not
-///    render either. `earningsBreakdownEmpty` ("Completed deliveries for this
-///    period will appear here.") is already translated in both ARBs.
-///  * [_MemberSinceRow] is skipped entirely, which is the correct behaviour —
-///    the join date is never fabricated — but it means the ready body has two
-///    quite different heights and only this preview shows the shorter one.
 @JeebPreview(
   group: 'earnings',
   name: 'Totals only · no breakdown rows',
@@ -754,25 +637,7 @@ Widget earningsDashboardScreenTotalsOnly() => _earningsDashboardScreenHosted(
 );
 
 /// The layout ceiling, on the narrowest phone the app supports.
-///
 /// Everything that can be long is long at once, in the launch market's own
-/// currency: `MoneyFormat` renders non-USD as `LBP 128,450,000.00`, which is
-/// the widest token this screen can emit — it lands in [_TotalCashCard]'s
-/// `displaySmall` headline, in [_FeesPaidCard]'s unflexed trailing `Text`, and
-/// in the `ListTile.trailing` of each breakdown row beside a 42-character
-/// gateway delivery id.
-///
-/// `memberSince` here is epoch SECONDS delivered as a string rather than
-/// ISO-8601, and that is the second reason this preview exists.
-/// [_MemberSinceRow] guards with `DateTime.tryParse(iso) ?? iso`, which reads as
-/// "unparseable input is echoed rather than formatted" — but `tryParse` does not
-/// return null here. It matches the basic-ISO `yyyyyy-mm-dd` shape
-/// (`173059-20-00`), normalizes the out-of-range month, and yields
-/// `173060-07-31`, so the row renders a confident **"Member since Jul 173060"**.
-/// The guard never fires; the screen states a date it has no basis for.
-///
-/// Read the AR RTL and 200% renderings rather than the English one: the English
-/// stays plausible long after the other two have stopped fitting.
 @JeebPreview(
   group: 'earnings',
   name: 'Longest content · compact 320',

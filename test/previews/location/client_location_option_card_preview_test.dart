@@ -1,10 +1,4 @@
 // Render tests for the ClientLocationOptionCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. The shared suite below asserts each preview
-// renders ITS OWN state; the specifics group pins the three layout facts the
-// previews were written to expose — the card never grows past one line, the row
-// mirrors in Arabic, and the selected/unselected pair really do differ.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -24,8 +18,6 @@ const String _rtlLabel = 'ساسين، الأشرفية (مبنى 12)';
 
 /// Pumps a preview at the phone width the previews are sized for (390pt), so
 /// the label has the same 350pt card to fit into that the canvas gives it.
-/// At the 800pt default test surface nothing truncates and the layout facts
-/// below would all pass vacuously.
 Future<void> _pumpAtPhoneWidth(
   WidgetTester tester,
   Widget Function() preview, {
@@ -84,8 +76,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Both production states read their label through AppLocalizations, so a
-      // preview that stopped localizing (or an ARB key that lost its Arabic)
-      // shows up here rather than in the canvas.
       await pumpPreview(
         tester,
         clientLocationOptionCardSelected,
@@ -112,9 +102,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_Label` sets `overflow: ellipsis` with no `maxLines`, and the card has
-      // no height constraint of its own — so the only reason a long label does
-      // not push the card taller is that the ellipsis clamps it to one line.
-      // Both long previews exist to make that visible; this pins it.
       await _pumpAtPhoneWidth(tester, clientLocationOptionCardSelected);
       final double baseline =
           tester.getSize(find.byType(ClientLocationOptionCard)).height;
@@ -164,11 +151,6 @@ void main() {
       expect(_cardFill(tester, index: 1), AppTheme.light().colorScheme.surface);
 
       // The reuse hazard this preview exposes: the semantics identifier is
-      // hardcoded inside the widget, so BOTH cards publish
-      // `client_location_option_current` — the id
-      // test/delivery_create_screens_test.dart asserts `findsOneWidget` on. If
-      // this expectation ever fails because only one node carries it, the fix
-      // (making the identifier a parameter) has landed; update this to match.
       expect(
         find.bySemanticsIdentifier('client_location_option_current'),
         findsNWidgets(2),

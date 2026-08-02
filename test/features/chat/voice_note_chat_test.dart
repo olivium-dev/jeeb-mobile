@@ -1,10 +1,4 @@
 /// T-MOB-016 — Voice-note input in coordination chat.
-///
-/// Tests cover:
-///   - Voice bubble renders with durationMs (AC1)
-///   - Transcription fills in on success (AC2)
-///   - Transcription unavailable on timeout (AC3)
-///   - Upload failure marks bubble as failed + emits error (AC5)
 library;
 
 import 'dart:async';
@@ -16,8 +10,6 @@ import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 
-// ---------------------------------------------------------------------------
-// Test double with controllable voice upload
 // ---------------------------------------------------------------------------
 
 class _ControllableGateway extends ChatGateway {

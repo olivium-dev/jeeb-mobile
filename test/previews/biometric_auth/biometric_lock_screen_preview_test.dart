@@ -1,29 +1,4 @@
 // Render tests for the BiometricLockScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Two things about this screen make "did it render" a weak question, so the
-// suite below does more than pump.
-//
-// 1. Several states are the SAME pixels. `locked` and `prompting` differ only in
-//    a disabled tint on the CTA, and four of the previews are one composition in
-//    four windows. The expected strings therefore pin the fixture's diagnostic
-//    CAPTION — the only thing that distinguishes a preview wired to the wrong
-//    state from a correct one — and the specifics group pins the controls each
-//    state is supposed to be showing.
-// 2. Both of this screen's OUTCOMES are invisible in a rendering. It never
-//    navigates on success (the central router gate does) and its fallback link
-//    navigates without changing anything on screen. The fixture mounts the gate
-//    and two labelled stand-in pages so both can be followed and asserted.
-//
-// Two previews are deliberately absent from `testPreviewsRender`:
-// `biometricLockScreenCompactLargeText` and
-// `biometricLockScreenFailedCompactLargeText` both overflow, and the shared
-// suite asserts that nothing throws. They are covered by the KNOWN DEFECT cases
-// at the bottom of this file, which pin the overflow AND the resulting geometry
-// — a plain "it throws" would keep passing if the composition changed shape.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +11,6 @@ import '../preview_test_harness.dart';
 
 /// The shipped EN copy, verbatim from `lib/l10n/app_en.arb`. These are the
 /// per-state fingerprints: the `prompt` sub-status swaps the CTA label and adds
-/// the hint, and nothing else on the screen changes.
 const String _title = 'Unlock Jeeb';
 const String _cta = 'Authenticate';
 const String _retryCta = 'Try biometrics again';
@@ -52,7 +26,6 @@ const String _osPromptReason = "Confirm it's you to open Jeeb";
 
 /// The smallest display the app supports, mirrored from the fixture so a
 /// preview quietly rewired to another window fails here instead of looking
-/// plausible in the canvas.
 const Size _compactFrame = Size(320, 568);
 
 /// `OmdsPrimaryButton`'s fixed height — the CTA and the link are both one of
@@ -61,7 +34,6 @@ const double _buttonHeight = 48;
 
 /// Hosts one seeded cubit the way the preview section does, for the states that
 /// exist to be INTERACTED with rather than looked at (the succeeding gateway,
-/// the PIN-only enrolment). Keyed, so pumping two in one test remounts.
 Widget Function() _hosted(
   BiometricLockCubit Function() create, {
   BiometricLockScreenWindow window = BiometricLockScreenWindows.phone,
@@ -89,10 +61,6 @@ void main() {
       'Phone · 200% text': biometricLockScreenLargeText,
     },
     // Every state names its own cubit state AND its own window. The screen shows
-    // the same icon, the same title and the same two buttons in all six, and
-    // `Awaiting authentication` / `Prompting` are separated on screen by nothing
-    // but a tint — so without this a preview wired to the wrong state, or six
-    // previews accidentally sharing one, would pass unnoticed.
     expectedText: const <String, String>{
       'Awaiting authentication': 'Awaiting authentication · Phone 390 × 844',
       'Prompting': 'Prompting · Phone 390 × 844',
@@ -114,7 +82,6 @@ void main() {
       expect(find.text(_cta), findsOneWidget);
       expect(find.text(_passwordLink), findsOneWidget);
       // A first-frame failure hint would tell a returning user their biometric
-      // is broken before they have tried it.
       expect(find.text(_failureHint), findsNothing);
       expect(find.text(_retryCta), findsNothing);
     });
@@ -133,10 +100,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Worth pinning because it is the whole design of the state: while the OS
-      // sheet is being asked for, the screen says nothing at all. There is no
-      // spinner, no copy, and the label does not change — only the fill dims. On
-      // a device where the platform sheet fails to appear, this frame is the
-      // entire feedback the user gets.
       await pumpPreview(tester, biometricLockScreenPrompting);
 
       expect(find.text(_cta), findsOneWidget);
@@ -154,9 +117,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // Two guards agree here — `isEnabled: false` nulls the GestureDetector's
-      // handler, and `authenticate()` returns early while `isPrompting`. If this
-      // ever reads 1, a second platform sheet is being requested on top of the
-      // first.
       expect(cubit.fakeGateway.authenticateCalls, 0);
     });
 
@@ -164,9 +124,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The screen has no success branch at all: it never listens for
-      // `phase == unlocked` and never navigates. The fixture carries the app's
-      // own gate redirects, so this is the first place the AC2 path can actually
-      // be watched end to end.
       final BiometricLockScreenSeededCubit cubit =
           biometricLockScreenSucceedingCubit()
               as BiometricLockScreenSeededCubit;
@@ -184,10 +141,6 @@ void main() {
       'AC3: the fallback releases the gate BEFORE it routes',
       (WidgetTester tester) async {
         // The hazard the screen's comment describes is real and the ordering
-        // handles it: the fixture gate pulls any off-`/lock` location back to
-        // `/lock` while the phase is `locked`, so a `goNamed` issued before the
-        // release would bounce straight back. Landing on the stand-in is the
-        // proof that it does not.
         await pumpPreview(
           tester,
           _hosted(biometricLockScreenLockedCubit, caption: 'fallback'),
@@ -208,16 +161,6 @@ void main() {
       'KNOWN DEFECT: "Use password instead" leads to phone-OTP, not a password',
       (WidgetTester tester) async {
         // `biometricUnlockUsePasswordLink` is "Use password instead" in EN and
-        // "استخدم كلمة المرور بدلاً من ذلك" in AR, and its ARB metadata still
-        // documents the destination as `/login`. That funnel was deleted in
-        // JEBV4-199, so the tap lands on `/register` — phone number, SMS code,
-        // no password anywhere. The user is being offered a credential the app
-        // no longer has.
-        //
-        // Pins the CURRENT behaviour. If it starts failing because the link now
-        // reaches something password-shaped, or because the copy was changed to
-        // match the destination, delete this test and the matching note in
-        // `biometric_lock_screen.dart`.
         await pumpPreview(
           tester,
           _hosted(biometricLockScreenLockedCubit, caption: 'password-copy'),
@@ -239,15 +182,12 @@ void main() {
       'KNOWN DEFECT: the failure copy offers a PIN the screen cannot take',
       (WidgetTester tester) async {
         // `biometricLockFailure` reads "…Try again or use your PIN." and there
-        // is no PIN entry on this screen, in this feature, or on this route —
-        // `SharedPrefsPinRepository` is write-only from the UI's point of view.
         await pumpPreview(tester, biometricLockScreenFailed);
 
         expect(find.text(_failureHint), findsOneWidget);
         expect(find.byType(TextField), findsNothing);
         expect(find.byType(EditableText), findsNothing);
         // The two controls the user is actually given, neither of which is a
-        // PIN: retry the biometric, or leave for registration.
         expect(find.text(_retryCta), findsOneWidget);
         expect(find.text(_passwordLink), findsOneWidget);
       },
@@ -257,11 +197,6 @@ void main() {
       'KNOWN DEFECT: a PIN-only enrolment can never satisfy the CTA',
       (WidgetTester tester) async {
         // `evaluate()` locks a user whenever `enabled && (available || hasPin)`,
-        // so a PIN alone is enough to hold them here. The CTA then drives the
-        // gateway — `UnavailableBiometricGateway` in production, which hard
-        // returns false — and the screen offers no way to present the PIN that
-        // locked them. Every tap fails, forever; the only exit is the fallback
-        // link out to registration.
         final BiometricLockScreenSeededCubit cubit =
             biometricLockScreenPinOnlyCubit() as BiometricLockScreenSeededCubit;
         await pumpPreview(tester, _hosted(() => cubit, caption: 'pin-only'));
@@ -280,9 +215,6 @@ void main() {
       'KNOWN DEFECT: the OS prompt reason is English for an Arabic user',
       (WidgetTester tester) async {
         // `BiometricLockCubit._osPromptReason` is a hardcoded literal handed
-        // straight to the gateway, and it is the only user-visible string on
-        // this flow that never passes through a `Text` — no preview, golden or
-        // screenshot can show it. The fake gateway records it instead.
         final BiometricLockScreenSeededCubit cubit =
             biometricLockScreenSucceedingCubit()
                 as BiometricLockScreenSeededCubit;
@@ -306,12 +238,6 @@ void main() {
       'the Screen Catalog form renders, and swapping its state swaps the cubit',
       (WidgetTester tester) async {
         // The catalog builds the same fixtures with `window: null` — no frame,
-        // no caption, the device IS the display — and moves between states with
-        // a picker that replaces this host with another of the same type and no
-        // key. That is an UPDATE, not a remount, so without the `create` check
-        // in `didUpdateWidget` the catalog would go on showing the first state
-        // under the second state's name. Both halves are asserted here because
-        // nothing else in CI opens the catalog.
         Widget catalogForm(BiometricLockCubit Function() create) =>
             BiometricLockScreenPreviewHost(
               create: create,
@@ -340,9 +266,6 @@ void main() {
       'on arrival',
       (WidgetTester tester) async {
         // The preview this asserts is `biometricLockScreenCompactLargeText`,
-        // held out of the shared suite because it throws. Nothing has gone wrong
-        // in this state — it is the cold-start gate, first frame, before any
-        // interaction.
         await pumpPreview(tester, biometricLockScreenCompactLargeText);
 
         final Object? error = tester.takeException();
@@ -357,8 +280,6 @@ void main() {
         expect(frame.size, _compactFrame);
 
         // 4 pt of the 48 pt CTA is above the bottom edge; the fallback link is
-        // entirely below it. There is no scroll view in the body's chain, so
-        // neither can be brought into view.
         final Rect cta = tester.getRect(find.text(_cta));
         final Rect link = tester.getRect(find.text(_passwordLink));
         expect(cta.bottom, greaterThan(frame.bottom));
@@ -366,7 +287,6 @@ void main() {
         expect(link.top, greaterThan(frame.bottom));
 
         // The caption, so a rewired preview fails here rather than passing on
-        // another window's overflow.
         expect(
           find.text('Awaiting authentication · Compact 320 × 568 · 200% text'),
           findsOneWidget,
@@ -378,9 +298,6 @@ void main() {
       'KNOWN DEFECT: the failed state pushes the same two controls further out',
       (WidgetTester tester) async {
         // `biometricLockScreenFailedCompactLargeText`, also held out of the
-        // shared suite. The failure hint is what adds the extra height, so the
-        // state that says "try again or use your PIN" is the state in which
-        // neither tappable thing is on screen.
         await pumpPreview(tester, biometricLockScreenFailedCompactLargeText);
 
         final Object? error = tester.takeException();

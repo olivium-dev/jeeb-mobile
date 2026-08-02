@@ -1,16 +1,4 @@
 // Widget tests for AccountStatusScreen (JM-066, D5). Proves:
-//   - the EXACT Semantics identifiers render off an injected repository
-//     (account_status_root, account_status_support_cta, account_status_signout_cta,
-//      account_status_banner, account_status_reason) — 30_BACKLOG JM-066;
-//   - the D30 4-state machine (loading → failed(retry) → loaded);
-//   - the banner distinguishes suspended vs locked (D5 status branch);
-//   - a server-supplied reason wins over the localized default;
-//   - the two exit CTAs land on the REGISTERED targets (support-ticket / settings).
-//
-// A minimal GoRouter with stub destination screens (each carrying a *_root id)
-// backs the CTA nav assertions, since context.goNamed needs a router. This test
-// imports ONLY the account_status feature (not app_router), so it is independent
-// of sibling W4 screens.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -193,11 +181,6 @@ void main() {
   testWidgets('signout CTA → logout/delete confirm sheet (both actions)',
       (tester) async {
     // W4 restructure (JM-066 AC3): the signout CTA no longer routes to a
-    // `/settings` host — it opens the shared `LogoutDeleteConfirmSheet` in
-    // `both` mode directly (the same sheet JM-062's profile row raises). The
-    // on-device jm-066 flow asserts `logout_delete_sheet` here; the confirm CTAs
-    // then clear the session → splash → /login (D5). Assert the sheet + both
-    // terminal CTAs open, matching the live behaviour.
     await pump(
       tester,
       _ScriptedRepository(

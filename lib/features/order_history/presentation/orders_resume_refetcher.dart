@@ -10,7 +10,6 @@ import '../../shell/tab_visibility.dart';
 import '../application/order_history_cubit.dart';
 
 /// Recovery triggers for the customer's Delivery-tab order list.
-///
 class OrdersResumeRefetcher extends StatefulWidget {
   const OrdersResumeRefetcher({
     super.key,

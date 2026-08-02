@@ -1,9 +1,4 @@
 // Render tests for the WalletActivityRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. `testPreviewsRender` pumps each state in BOTH
-// locales and pins a string unique to that state — see
-// `test/previews/preview_test_harness.dart`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,7 +100,6 @@ void main() {
       final Rect rowRect = tester.getRect(row);
       expect(Directionality.of(tester.element(row)), TextDirection.rtl);
       // Leading icon swaps to the trailing (right) half, the signed amount to
-      // the leading (left) half.
       expect(
         tester.getRect(find.byIcon(Icons.percent_outlined)).center.dx,
         greaterThan(rowRect.center.dx),
@@ -115,7 +109,6 @@ void main() {
         lessThan(rowRect.center.dx),
       );
       // The type label and the `Ref:` prefix localize; the reference id itself
-      // is server data and does not.
       expect(find.text('رسوم'), findsOneWidget);
       expect(find.text('مرجع: off-led-b'), findsOneWidget);
     });
@@ -131,7 +124,6 @@ void main() {
         TextOverflow.ellipsis,
       );
       // The amount is neither clamped nor flexible — it takes its intrinsic
-      // width and the ref ellipsizes into what is left.
       expect(tester.widget<Text>(find.text('+1250.00 USD')).maxLines, isNull);
     });
 

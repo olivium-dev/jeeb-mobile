@@ -1,14 +1,4 @@
 // Render tests for the DeliveryReviewsList previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// `expectedText` can tell these six states apart on copy alone — each pins a
-// string only its own state can render. The `preview specifics` group then pins
-// what copy cannot: which branch of the widget is live (list vs empty state),
-// that the anonymous card really discards its avatar URL, and the two header
-// defects the 200% renderings expose.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,8 +41,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The render harness pumps an 800 pt surface. If the width were left to
-      // the canvas `size`, every state would lay out at 800 pt here — wide
-      // enough to hide the header overflow pinned at the bottom of this file.
       await pumpPreview(tester, deliveryReviewsListTwoReviews);
       expect(tester.getSize(find.byType(DeliveryReviewsList)).width, 390.0);
 
@@ -99,7 +87,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The fixtures carry `helpfulCount: 24` precisely so a resurrected
-      // control would be visible here rather than silently reappearing.
       await pumpPreview(tester, deliveryReviewsListTwoReviews);
 
       expect(find.byIcon(Icons.thumb_up_outlined), findsNothing);
@@ -116,7 +103,6 @@ void main() {
       expect(find.text('Jeeb customer'), findsOneWidget);
       expect(find.text('?'), findsNothing);
       // The URL in the fixture must never reach an image loader: the avatar
-      // falls back to the neutral "J" initial with a null `profilePicUrl`.
       expect(
         find.byWidgetPredicate(
           (Widget widget) =>
@@ -163,7 +149,6 @@ void main() {
 
       expect(tester.takeException(), isNull);
       // The body is unbounded and the parent scrolls, so the card grows taller
-      // than a header-only card rather than clipping its text.
       final double tall = tester
           .getSize(find.byType(DeliveryReviewCard))
           .height;
@@ -191,14 +176,6 @@ void main() {
     });
 
     // DOCUMENTED DEFECT, not desired behaviour. The card header is
-    // `Row(avatar, gap, Expanded(name/badge/stars), Text(daysAgo))` and the
-    // timestamp has no Flexible around it, so it takes its natural width and
-    // the Expanded column absorbs the whole deficit. At the 200% accessibility
-    // ceiling the reviewer's name is allotted ZERO width and the row overflows
-    // its trailing edge — the review is attributed to nobody.
-    //
-    // Pinned so the defect cannot widen silently; DELETE this test when the
-    // timestamp learns to yield (it will start failing, which is the point).
     testWidgets('DEFECT: at 200% text the reviewer name is squeezed to zero', (
       WidgetTester tester,
     ) async {
@@ -224,8 +201,6 @@ void main() {
     });
 
     // DOCUMENTED DEFECT. `_ReviewStars` builds `Icon(..., size: Sizes.small)`
-    // with no `applyTextScaling`, so the score a review card exists to convey
-    // is the one element that ignores the user's text-size setting.
     testWidgets('DEFECT: the stars do not scale with text', (
       WidgetTester tester,
     ) async {

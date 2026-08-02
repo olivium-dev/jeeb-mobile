@@ -15,9 +15,6 @@ import 'support/sync_app_localizations.dart';
 
 /// Fake repository that resolves synchronously to a fixed snapshot, so the
 /// cubit lands in `ready` on the first microtask without sitting on the
-/// infinite loading ticker. The cubit is built via BlocProvider.create (owns
-/// its own lifecycle) — never BlocProvider.value with a live spinner, which
-/// hangs the test binding.
 class _FakeRepo implements LiveTrackingRepository {
   _FakeRepo(this.info);
 
@@ -31,7 +28,6 @@ class _FakeRepo implements LiveTrackingRepository {
 }
 
 // Mirrors the mock's public slice for dlv-golden-001 — avatarUrl present, so
-// the card paints the OMDS avatar disc via its network-image branch.
 const _kamal = JeeberSummary(
   displayName: 'Kamal Hajj',
   vehicleLabel: 'Motorbike',
@@ -41,7 +37,6 @@ const _kamal = JeeberSummary(
 DeliveryTrackingInfo _info({JeeberSummary? jeeber}) => DeliveryTrackingInfo(
       deliveryId: 'dlv-golden-001',
       // inTransit (not atDoor) so the stepper panel — not the OTP card — is the
-      // footer the Jeeber card must sit above.
       currentStage: TrackingStage.inTransit,
       stageTimestamps: const {},
       distanceLabel: '3 km',
@@ -63,8 +58,6 @@ Future<void> _pumpScreen(WidgetTester tester, DeliveryTrackingInfo info) async {
     ),
   );
   // Two pumps: frame 1 = loading; the synchronous fetch resolves on the next
-  // microtask and the cubit emits `ready`. Single pump()s (never
-  // pumpAndSettle — the loading frame holds a live ticker before `ready`).
   await tester.pump();
   await tester.pump();
 }
@@ -84,7 +77,6 @@ void main() {
     expect(find.text('Motorbike'), findsOneWidget);
 
     // ...the avatar disc paints the network image from the public avatarUrl,
-    // scoped inside the Jeeber card so we don't match an unrelated Image.
     expect(
       find.descendant(of: card, matching: find.byType(Image)),
       findsOneWidget,
@@ -103,8 +95,6 @@ void main() {
     await _pumpScreen(tester, _info(jeeber: null));
 
     // The card is absent entirely — the screen only mounts it once a jeeber
-    // is genuinely assigned, so the "looking for a Jeeber…" placeholder never
-    // shows on an already GPS-streaming delivery.
     expect(find.byKey(DeliveryJeeberCard.rootKey), findsNothing);
 
     // The stepper panel still renders (the screen is in its ready state).

@@ -106,8 +106,6 @@ abstract final class Diag {
 
   /// GESTURE record: Flutter engine interaction including Maestro-injected taps.
   /// [id]=Semantics.identifier at tap point (Maestro matches this),
-  /// [idInner]=innermost id when nested (debugging only, omitted if null),
-  /// coordinates in device pixels. Gated by diag stream enablement.
   static void gesture({
     required String type,
     required int x,

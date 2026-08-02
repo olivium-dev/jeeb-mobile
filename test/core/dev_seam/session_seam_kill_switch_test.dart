@@ -49,11 +49,6 @@ class _SpyTokenStore implements AuthTokenStore {
 
 /// JEBV4-272 — the production kill-switch that stops the persistent
 /// `/data/local/tmp/jeeb-dev-seam.json` device-file seed (`super_login_plus`)
-/// from CLEARING the real OTP login and re-seeding a stale user (kamal,
-/// `c23efd76…`) on every cold start. A production build passes
-/// `--dart-define=JEEB_DISABLE_DEV_SEAM=true`; these tests drive the same gate
-/// via the `@visibleForTesting` override (a compile-time const can't be toggled
-/// at runtime).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -112,7 +107,6 @@ void main() {
     await SessionSeamBootstrap.seed(prefs: prefs, tokenStore: tokens);
 
     // Default behaviour is preserved: the seam runs, clears the store, and
-    // writes the seed user — exactly why a production build must disable it.
     expect(tokens.clears, greaterThan(0));
     expect(await tokens.accessToken, 'seed-jwt-for-kamal');
     expect(await tokens.userId, 'c23efd76-6fa4-40cf-814c-116f67ea5e95');

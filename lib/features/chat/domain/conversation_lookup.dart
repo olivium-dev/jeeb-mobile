@@ -8,9 +8,6 @@ enum ConversationLookup {
 
   /// We COULD NOT FIND OUT. No response at all (network down, DNS, TLS,
   /// timeout, cancelled) or a response that is not evidence of absence (5xx,
-  /// 429, 401/403, an unparseable body). This must surface as an error with a
-  /// retry — never as compose, never as "still broadcasting", never as an
-  /// empty thread.
   unavailable,
 }
 

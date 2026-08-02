@@ -120,8 +120,6 @@ void main() {
       await tester.pump();
 
       // Make-offer routing fired with the first request (the gate/composer
-      // decision is the host's; here we assert the make-offer hook, not a
-      // detail open).
       expect(offered, isNotNull);
       expect(offered!.id, 'req-feed-001');
     },

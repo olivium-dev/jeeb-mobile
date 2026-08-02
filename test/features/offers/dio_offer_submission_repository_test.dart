@@ -1,11 +1,4 @@
 // iter6 offer-405 fix — DioOfferSubmissionRepository unit tests.
-//
-// Proves the jeeber offer-submit now hits the FROZEN gateway route
-// `POST /v1/requests/{requestId}/offers` (NOT the dead mock route `/v1/offers`
-// that returned 405), sends the gateway `CreateOfferBody` field names
-// (`fee`/`etaMinutes`/`note`), and parses the 201 `OfferDto` `id` as the
-// offerId + resolves the conversationId (falling back to the requestId, since
-// the live 201 carries no conversationId — the jeeber is seated server-side).
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,9 +75,6 @@ void main() {
       );
 
       // LIVE TRUTH (live-api-route-corrections.md + RequestOffersController
-      // `[HttpPost("requests/{requestId}/offers")]`, no route/version prefix):
-      // the offer-create route is origin-relative with NO `/v1`. The Dio base
-      // is origin-only (:10090), so the path is sent verbatim.
       expect(capturedPath, '/requests/req-fcb53e13/offers');
       expect(capturedPath, isNot(contains('/v1/offers')),
           reason: 'the bare /v1/offers route 405s on the live gateway');

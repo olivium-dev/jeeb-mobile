@@ -1,27 +1,4 @@
 // Render tests for the LanguageSettingsScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Two things shape this file.
-//
-// **Every state renders the same three strings.** The app-bar title, "English"
-// and "العربية" are all this screen ever paints, in either locale — the two
-// language names are ENDONYMS and identical in both ARBs. So `expectedText`
-// cannot pin a designed state here at all; it pins the dev caption each preview
-// carries ([LanguageSettingsScreenCaptions]), which proves each card rendered
-// its own FIXTURE. Proof that each rendered its own STATE is the tick: which of
-// the two rows carries `Icons.check`, asserted per state in the groups below.
-//
-// **Fonts.** `preview_test_harness.dart` does not load real faces, so text lays
-// out in Flutter's 1-em test face — Latin ~2x too wide, Arabic ~2.4x. That is
-// fine for "did this build and show its own fixture", which is all the shared
-// suite claims, and it is useless for anything about fitting. The ceiling group
-// pumps through [_languageSettingsScreenCanvas] instead: the same canvas with
-// `withGoldenTestFonts` applied (real Inter for Latin, a deterministic Noto
-// subset for Arabic) and a text scaler, which is the only place a measurement
-// on this screen is worth anything.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -51,10 +28,6 @@ const Size _kCompactSurface = Size(360, 620);
 
 /// The three pieces of copy this screen paints, each scoped to the ONE place it
 /// is painted.
-///
-/// Scoped because `l10n.settingsLanguage` is used twice — see the last test in
-/// the ceiling group — so a bare `find.text('Language')` matches two widgets and
-/// `renderObject` throws on it.
 const String _kAppBarTitle = 'app-bar title';
 
 final Map<String, Finder> _titleFinders = <String, Finder>{
@@ -83,10 +56,6 @@ const Map<String, Widget Function()> _kPreviews = <String, Widget Function()>{
 
 /// [previewCanvas] with the real font faces installed on the theme, and an
 /// optional text scaler.
-///
-/// The shared canvas builds `AppTheme.light()` unmodified and the theme carries
-/// no `fontFamilyFallback`, so Arabic falls back to the 1-em test face there —
-/// and it has no way to render the 200% variant of the matrix at all.
 Widget _languageSettingsScreenCanvas(
   Widget Function() preview,
   Locale locale, {
@@ -145,7 +114,6 @@ void main() {
     'LanguageSettingsScreen',
     _kPreviews,
     // The dev caption is the ONLY string that differs between these states —
-    // see the file header. What each state actually IS gets asserted below.
     expectedText: const <String, String>{
       'Reference · follows the app locale':
           LanguageSettingsScreenCaptions.followsAppLocale,
@@ -184,9 +152,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Nothing is persisted, so the cubit resolves to the device locale, which
-      // the host seeds from `Localizations.localeOf`. This is what makes the AR
-      // card of the matrix a coherent Arabic screen instead of an Arabic screen
-      // with the English row ticked.
       await pumpOnDevice(tester, languageSettingsScreenFollowsAppLocale);
       expect(iconOf(tester, _enRow), Icons.check);
       expect(iconOf(tester, _arRow), isNot(Icons.check));
@@ -204,12 +169,9 @@ void main() {
       WidgetTester tester,
     ) async {
       // The persisted key is read before the device locale, so these two states
-      // do not move with the card — which is the whole reason the Screen
-      // Catalog can show "Arabic selected" without flipping the running app.
       await pumpOnDevice(tester, languageSettingsScreenArabicSaved);
       expect(iconOf(tester, _arRow), Icons.check);
       // …in an ENGLISH, LTR screen: the divergent reading only a dev surface
-      // can produce (the shipped app drives both from one cubit).
       expect(find.text('Language'), findsWidgets);
       expect(
         Directionality.of(tester.element(find.byKey(_list))),
@@ -233,10 +195,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_isSupported` rejects `de` and resolution continues to the device
-      // locale (Arabic in this fixture). A regression that passed the saved
-      // string straight to `Locale(saved)` would tick NEITHER row — the
-      // assertion the shared "exactly one tick" invariant above cannot make
-      // for a value the fixtures never persist.
       await pumpOnDevice(tester, languageSettingsScreenUnsupportedSavedValue);
       expect(iconOf(tester, _arRow), Icons.check);
       expect(iconOf(tester, _enRow), isNot(Icons.check));
@@ -246,14 +204,10 @@ void main() {
       WidgetTester tester,
     ) async {
       // Nothing persisted + an unsupported device locale resolves to the hard
-      // `en` default, and the screen says "English is selected" to a user who
-      // has never selected anything. Everything below the caption is identical
-      // to `English saved`, which is the finding.
       await pumpOnDevice(tester, languageSettingsScreenColdStart);
       expect(iconOf(tester, _enRow), Icons.check);
       expect(iconOf(tester, _arRow), isNot(Icons.check));
       // No third row, no "follow system" affordance —
-      // `LocaleCubit.resetToDeviceLocale()` has no caller anywhere.
       expect(find.byType(OmdsSettingsRow), findsNWidgets(2));
     });
   });
@@ -263,17 +217,11 @@ void main() {
       WidgetTester tester,
     ) async {
       // FINDING, pinned so a fix has to come through here: `_LanguageRow` passes
-      // `trailing: selected ? Icon(check) : null`, and `OmdsSettingsRow` falls
-      // back to its default `icon: Icons.chevron_right` when `trailing` is
-      // null. The unselected member of a group the code declares
-      // `inMutuallyExclusiveGroup: true` therefore carries the same
-      // "tap to navigate" affordance as every ordinary settings row.
       await pumpOnDevice(tester, languageSettingsScreenEnglishSaved);
 
       expect(tester.widget<OmdsSettingsRow>(find.byKey(_arRow)).trailing, isNull);
       expect(iconOf(tester, _arRow), Icons.chevron_right);
       // And it is a real chevron on the ticked row's counterpart only: the
-      // ticked row's trailing slot is the check, so exactly one of each.
       expect(
         find.descendant(of: find.byKey(_list), matching: find.byIcon(Icons.chevron_right)),
         findsOneWidget,
@@ -289,8 +237,6 @@ void main() {
         locale: const Locale('ar'),
       );
       // `Icons.chevron_right` is `matchTextDirection: true`, so the glyph is
-      // flipped by the RTL Directionality rather than left pointing the wrong
-      // way. The affordance is wrong; the mirroring is not.
       expect(iconOf(tester, _enRow), Icons.chevron_right);
       final RenderParagraph title = tester.renderObject<RenderParagraph>(
         find.text('English'),
@@ -341,18 +287,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Nothing on this screen has a `maxLines` or an `overflow`: the
-      // `OmdsSettingsRow` titles and the `OmdsSettingsSection` header are bare
-      // `Text`, and `OMDSAppBar` hands its title straight to `AppBar`. A title
-      // that stopped fitting would WRAP and grow, so "one line" is the claim
-      // worth pinning — and it is only worth pinning under the real faces,
-      // where "English" measures ~half what the 1-em test face gives it.
-      //
-      // Measured as a RATIO between the two scales rather than against a pixel
-      // constant: it proves the scaler actually reached the tree (a single line
-      // at 2x is ~2x tall) and that nothing wrapped (a second line would put it
-      // near 4x), without hard-coding a font's metrics.
-      // The app-bar title is excluded: `AppBar` clamps its toolbar text scaling
-      // at 1.34x, which the next test pins on its own.
       Map<String, double> heights(WidgetTester tester) => <String, double>{
             for (final MapEntry<String, Finder> entry in _titleFinders.entries)
               if (entry.key != _kAppBarTitle)
@@ -386,12 +320,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // FINDING, measured with the real faces and pinned here: `AppBar` wraps
-      // its title in `MediaQuery.withClampedTextScaling(maxScaleFactor: 1.34)`,
-      // so `OMDSAppBar`'s 24 pt `headlineSmall` stops growing at ~32 pt while
-      // the `OmdsSettingsSection` header 24 pt below it — the SAME word, see
-      // the next test — keeps going all the way to 200%. A user at the
-      // accessibility ceiling gets a screen whose section header is visibly
-      // larger than the screen's own title.
       double heightOf(WidgetTester tester, String label) => tester
           .renderObject<RenderParagraph>(_titleFinders[label]!)
           .textSize
@@ -420,11 +348,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // FINDING, pinned: the app bar's centred headline and the only section
-      // header below it are both `l10n.settingsLanguage`. On a screen with two
-      // rows that is a third of the visible copy spent saying the same word
-      // twice, 24 pt apart. `SettingsScreen` reaches the same section header
-      // through a route whose app bar says "Settings", so the duplication is
-      // specific to this screen.
       await pumpCeiling(tester);
       expect(find.text('Language'), findsNWidgets(2));
 

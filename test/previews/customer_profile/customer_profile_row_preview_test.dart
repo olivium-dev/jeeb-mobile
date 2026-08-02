@@ -1,14 +1,4 @@
 // Render tests for the CustomerProfileRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The specifics group below pins the two structural claims the previews are
-// documenting: the label truncates instead of wrapping (so the row never grows
-// past 56dp), and the trailing "Register" pill is charged to the label rather
-// than to the row. Both are measured off the render tree, so they hold under
-// the test font as well as under bundled Inter.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -19,9 +9,6 @@ import 'package:jeeb_mobile/features/customer_profile/presentation/widgets/custo
 import '../preview_test_harness.dart';
 
 // The three preview fixture strings, restated here. They are library-private in
-// `customer_profile_row.dart` (nothing below a JEEB PREVIEWS banner is exported)
-// so this file pins the same literals; a drift in either place fails the
-// `expectedText` assertions below rather than passing silently.
 const String kNarrowPhoneCaption = 'Narrow phone · 320dp';
 const String kLongLabel =
     'Password, security and two-factor authentication settings';
@@ -87,7 +74,6 @@ void main() {
         reason: 'the state is only interesting while the label overflows',
       );
       // No `maxLines`, so `TextOverflow.ellipsis` caps the paragraph at one
-      // line: the tail is dropped rather than reflowed onto a second line.
       expect(tester.getSize(find.byType(CustomerProfileRow)).height, 56.0);
     });
 
@@ -117,8 +103,6 @@ void main() {
           _labelBudget(tester, 'Register as a delivery').given;
 
       // Same 390dp row; the pill's intrinsic width comes straight off the
-      // Expanded label's budget, which is why the register row reaches the
-      // truncation ceiling before its seven chevron siblings.
       expect(pillBudget, lessThan(chevronBudget));
       expect(tester.getSize(find.byType(CustomerProfileRow)).height, 56.0);
     });

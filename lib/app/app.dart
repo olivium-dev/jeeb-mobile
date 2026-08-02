@@ -60,7 +60,6 @@ import '../features/biometric_auth/domain/biometric_gateway.dart';
 import '../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../l10n/app_localizations.dart';
 
-// Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../core/previews/jeeb_preview.dart';
 
 class JeebApp extends StatefulWidget {
@@ -416,89 +415,22 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/app/jeeb_app_preview_test.dart
-// ===========================================================================
-//
-// Widget previews for [JeebApp] — run with `flutter widget-preview start`.
-//
-// [JeebApp] renders no pixels of its own. What it decides is which SURFACE the
-// user lands on, and every one of those decisions is a pure function of two
-// injectable inputs: the [SharedPreferences] snapshot it is handed, and the
-// [SessionGate]/[BiometricGateway] overrides. That is what these previews vary
-// — one seed per branch of `AppRouter._firstRunRedirect` and of the biometric
-// gate — so a reviewer can see the four gate outcomes side by side without
-// installing four builds or driving four real logins.
-//
-// Network-free by construction, not merely by the guard in [jeebPreviewHost]:
-//
-//   * `pushTransport` is an injected [FakePushTransport], so the post-frame
-//     chain never reaches [_defaultFirebaseInitializer] and never touches FCM.
-//   * `sessionGate` is injected, so no [AuthTokenStore] keystore read runs.
-//   * GetIt is not configured in a preview, so [RoleSync.sync] resolves a null
-//     repository and returns without a `GET /v1/users/me`, and every screen
-//     below falls back to its inert stub repository for the same reason.
-//   * The prefs snapshot is an in-memory store seeded per preview, so nothing
-//     is read from — or written to — the host machine's real preferences.
-//
-// Three router outcomes are deliberately NOT previewed:
-//
-//   * `/register` (onboarded, no token) — the surface the session gate produces.
-//     `RegistrationScreen` resolves `sl<OtpService>()` eagerly inside its
-//     `BlocProvider.create`, so with no DI graph it throws before it paints
-//     (verified: the preview renders a red error box, not a screen). Previewing
-//     it would mean building the DI container — i.e. a Dio — inside the canvas,
-//     which the no-network rule forbids. Consequence for review: the RC-9
-//     "biometric-enrolled but logged out must NOT be captured onto `/lock`"
-//     branch is unreachable from here too, since its correct answer is
-//     `/register`. Both stay covered by the router's own tests.
-//   * The jeeber surface. Seeding `RoleCubit.rolePrefKey` to `jeeber` does NOT
-//     change what renders: `ShellScreen` lights the jeeber bodies from
-//     `RoleAvailabilityCubit`, which is empty until `RoleSync.sync()` resolves
-//     `available_roles` from getMe — a network read, and correctly a no-op
-//     here. A "jeeber" preview would be the client shell with a different
-//     label, which is worse than none.
-//   * The empty-Navigator recovery (`builder`'s `child == null` branch) paints
-//     `SizedBox.shrink()` for one frame and then calls `_router.go('/')`. There
-//     is no seam to empty go_router's stack from outside the widget, and a
-//     preview of one blank frame would show nothing anyway.
 
 /// This widget owns the whole viewport, so the canvas box is a phone frame:
 /// 390×844 is the iPhone 14 / Galaxy S22 logical size the screen goldens use.
 const Size _jeebAppPreviewBox = Size(390, 844);
 
 /// Preview-only override for [JeebApp.localizationsDelegateOverride].
-///
 /// Left `null` in the canvas, where the production [AppLocalizations.delegate]
-/// resolves its ARB from the real asset bundle. The render test assigns a
-/// synchronous, filesystem-backed delegate instead: `rootBundle.loadString`
-/// does not settle under the headless `flutter test` binding, and until every
-/// delegate resolves `Localizations` withholds the entire route subtree — so
-/// without this hook no preview here could be pinned to a string.
-///
-/// Public (and widget-prefixed) for exactly that reason; it is set from
-/// `test/previews/app/jeeb_app_preview_test.dart` and read nowhere else.
 LocalizationsDelegate<AppLocalizations>? jeebAppPreviewLocalizations;
 
 /// The key [LocaleCubit] reads its persisted language from.
-///
 /// Duplicated as a literal because the cubit keeps it private. It is asserted
-/// against the cubit's real behaviour by the Arabic preview's render test: if
-/// the key ever changes, that test fails rather than the preview silently
-/// falling back to English.
 const String _jeebAppLocalePrefKey = 'app.locale.languageCode';
 
 /// A gate that reports "evaluation has RUN and there is no token".
-///
 /// Not the same as the cold-start `unknown` phase, which
 /// [AlwaysAuthenticatedSessionGate] stands in for above: `isUnauthenticated`
-/// must stay false there or the router flashes `/register` during the keystore
-/// read. Used by [jeebAppFirstLaunch], the one preview whose user genuinely has
-/// no session.
 class _JeebAppSignedOutSessionGate implements SessionGate {
   const _JeebAppSignedOutSessionGate();
 
@@ -507,11 +439,8 @@ class _JeebAppSignedOutSessionGate implements SessionGate {
 }
 
 /// A device whose biometric sensor is enrolled and always says yes.
-///
 /// Injected so the lock preview is deterministic: the debug default
 /// ([DevBiometricGateway]) and the release default ([LocalAuthBiometricGateway])
-/// both answer from the host, and `BiometricLockCubit.evaluate` only reaches
-/// [BiometricLockPhase.locked] when the gateway reports an available sensor.
 class _JeebAppEnrolledBiometricGateway implements BiometricGateway {
   const _JeebAppEnrolledBiometricGateway();
 
@@ -522,21 +451,11 @@ class _JeebAppEnrolledBiometricGateway implements BiometricGateway {
   Future<bool> authenticate({required String reason}) async => true;
 }
 
-/// Mounts [JeebApp] over an in-memory prefs snapshot seeded with [seed].
-///
-/// `SharedPreferences.getInstance()` is asynchronous and a preview function is
-/// not, so the wait is modelled honestly with a [FutureBuilder] — the blank
-/// first frame it renders is the same one a real cold start shows while
-/// `Bootstrap.minimal()` runs. Seeding nulls the package's cached instance, so
-/// each preview gets its OWN snapshot rather than sharing one mutated map.
 Widget _jeebAppHosted({
   Map<String, Object> seed = const <String, Object>{},
   SessionGate session = const AlwaysAuthenticatedSessionGate(),
   BiometricGateway biometrics = const UnavailableBiometricGateway(),
 }) {
-  // The only way to hand [JeebApp] a prefs snapshot without touching the host
-  // machine's real store. Line-scoped, never file-scoped, so nothing above the
-  // banner loses analysis.
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues(seed);
   return FutureBuilder<SharedPreferences>(
@@ -548,8 +467,6 @@ Widget _jeebAppHosted({
         preferences: prefs,
         sessionGate: session,
         biometricGateway: biometrics,
-        // Short-circuits the Firebase-init gate AND the real transport builder:
-        // with this set, `_initPushChainAsync` uses it verbatim.
         pushTransport: FakePushTransport(),
         localizationsDelegateOverride: jeebAppPreviewLocalizations,
       );
@@ -561,13 +478,6 @@ Widget _jeebAppHosted({
 Map<String, Object> _jeebAppOnboarded([Map<String, Object> extra = const {}]) =>
     <String, Object>{OnboardingCubit.completedKey: true, ...extra};
 
-/// Fresh install: nothing in prefs, and no token either.
-///
-/// The seed is "no seed", which is the only honest way to render the very first
-/// surface of the product. It also pins the ORDER of the first-run gate:
-/// `_firstRunRedirect` evaluates onboarding BEFORE the session, so this
-/// tokenless user sees the carousel rather than `/register` — easy to read
-/// backwards off the four `if`s, and this is the visible proof.
 @JeebPreview(
   group: 'app',
   name: 'First launch · onboarding',
@@ -576,18 +486,6 @@ Map<String, Object> _jeebAppOnboarded([Map<String, Object> extra = const {}]) =>
 Widget jeebAppFirstLaunch() =>
     _jeebAppHosted(session: const _JeebAppSignedOutSessionGate());
 
-/// Returning, onboarded, authenticated, unblocked: the router lets `/` render
-/// and [ShellScreen] picks the tab.
-///
-/// The state the app is in for ~all of its life, and the one that proves the
-/// gates are inert when they should be — four `if`s in `_firstRunRedirect` all
-/// have to decline for this to appear.
-///
-/// `matrix: true`: this is the densest surface the root widget can produce — a
-/// greeting row, an empty-state CTA and a five-item bottom bar — so it is where
-/// the 200%-text cell earns its place. The AR cell is the other half of the
-/// point: it renders ENGLISH, which is the [JeebApp]-specific catch documented
-/// on [jeebAppArabicLanguage].
 @JeebPreview(
   group: 'app',
   name: 'Signed in · shell',
@@ -596,12 +494,6 @@ Widget jeebAppFirstLaunch() =>
 )
 Widget jeebAppSignedIn() => _jeebAppHosted(seed: _jeebAppOnboarded());
 
-/// Biometric-enrolled returning user, held on `/lock` (JM-005).
-///
-/// Needs BOTH halves — the persisted opt-in and a gateway that reports an
-/// available sensor — which is why the gateway is injected rather than left to
-/// the debug default. Worth reviewing because it is the one full-screen gate a
-/// user meets before any content: if it renders wrong there is no way past it.
 @JeebPreview(group: 'app', name: 'Biometric lock', size: _jeebAppPreviewBox)
 Widget jeebAppBiometricLocked() => _jeebAppHosted(
       seed: _jeebAppOnboarded(<String, Object>{
@@ -610,12 +502,6 @@ Widget jeebAppBiometricLocked() => _jeebAppHosted(
       biometrics: const _JeebAppEnrolledBiometricGateway(),
     );
 
-/// Suspended/locked account, forced to `/account-status` (JM-066, D5).
-///
-/// The gate that blocks EVERY tab — the only exits are support and sign-out —
-/// so it is the highest-consequence redirect in the app and the least likely to
-/// be seen by hand. Driven through the debug [SeededAccountStatusGate], the
-/// same seam the QA harness uses.
 @JeebPreview(
   group: 'app',
   name: 'Account suspended',
@@ -627,23 +513,6 @@ Widget jeebAppAccountSuspended() => _jeebAppHosted(
       }),
     );
 
-/// The signed-in shell in Arabic — driven from prefs, because nothing else can
-/// drive it.
-///
-/// [JeebApp] builds its OWN `MaterialApp.router` and sets `locale:` from
-/// [LocaleCubit], which resolves persisted prefs → device locale → English. The
-/// canvas locale therefore does NOT reach it, and neither does the canvas
-/// brightness (`themeMode: ThemeMode.system` resolves from the platform): the
-/// `AR RTL dark` cell of [jeebAppSignedIn] renders English. This is the only
-/// preview in this file that is actually Arabic, and the only way to review the
-/// app's own RTL mirroring without changing the host machine's system language.
-///
-/// Deliberately the SAME surface as [jeebAppSignedIn] so the two can be read as
-/// a mirror pair — the bottom bar, the greeting row and the empty-state CTA all
-/// have to flip.
-///
-/// `matrix: true` for that comparison; the 200% cell also stacks the longer
-/// Arabic copy against the same box.
 @JeebPreview(
   group: 'app',
   name: 'Arabic app language',

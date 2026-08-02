@@ -1,14 +1,4 @@
 // Render tests for the BroadcastTtlIndicator previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The two hidden states (`Expired window`, `No window`) cannot be pinned
-// through `expectedText` — their whole contract is that they render NO text —
-// so they are pinned below instead, by asserting the widget's own
-// `Key('broadcast-ttl-indicator')` is absent. That is a stricter check than a
-// string match, not a weaker one.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

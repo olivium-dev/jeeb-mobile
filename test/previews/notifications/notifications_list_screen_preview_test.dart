@@ -1,30 +1,4 @@
 // Render tests for the NotificationsListScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// ## Why every state pins a string only IT can produce
-//
-// This screen picks ONE of four bodies off `state.status` — spinner, error,
-// empty illustration, list — and three of the four carry almost no copy. The
-// app-bar title is identical in all of them, and the two error cards are the
-// same widget with one sentence swapped. A render-only check would pass with
-// every preview wired to the same fixture, so each state below is pinned by
-// copy unique to it, and the `preview specifics` group asserts the body behind
-// the string.
-//
-// ## Fonts
-//
-// `loadInterTestFont()` runs before every test here, because the shared harness
-// does not load fonts and Flutter's test face makes every glyph a 1-em square —
-// Latin measures ~2x too wide, Arabic ~2.4x. No assertion in this file claims
-// an overflow measured under that face: the one geometry claim that could be
-// distorted by it (the 320 pt ceiling card in Arabic) is measured through
-// `withGoldenTestFonts`, which is the only way to get real Arabic metrics. The
-// preview host builds `AppTheme.light()` unmodified and the theme carries no
-// `fontFamilyFallback`, so under the shared harness every Arabic glyph still
-// falls back to the test face.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -42,18 +16,11 @@ import '../../support/sync_app_localizations.dart';
 import '../preview_test_harness.dart';
 
 /// The ceiling row's headline, declared here rather than imported so a preview
-/// quietly rewired to a short fixture fails instead of silently losing the one
-/// state that contests the 320 pt frame.
 const String _kCeilingTitle =
     'Abdulrahman Al-Muhandis accepted your offer and is on the way to the '
     'pickup point';
 
 /// `previewCanvas`, but with the deterministic Arabic face wired into the
-/// theme.
-///
-/// The shared harness cannot do this — it builds `AppTheme.light()` directly —
-/// and without it every Arabic glyph is laid out in the 1-em test face, which is
-/// ~2.4x too wide. Used only where a geometry claim is being made.
 Widget _notificationsListCanvasWithFonts(
   Widget Function() preview,
   Locale locale,
@@ -114,17 +81,6 @@ void main() {
   );
 
   // `Loading · cold read` is not in the suite above, for two reasons that both
-  // come from the same fact: the body is a bare `OmdsLoadingState`.
-  //
-  //  * A `CircularProgressIndicator` is an indefinite animation, so
-  //    `pumpAndSettle` — which `pumpPreview` calls — never returns. Fixed pumps
-  //    below instead.
-  //  * It has NO copy of its own to pin. The app-bar title is common to all six
-  //    states, so this state is pinned by the indicator plus the absence of
-  //    every other body.
-  //
-  // It still gets the same three assertions the shared suite makes: it builds
-  // in EN, it builds in AR, and it renders its own state.
   group('NotificationsListScreen previews · Loading · cold read', () {
     Future<void> pumpLoading(
       WidgetTester tester, {
@@ -158,10 +114,6 @@ void main() {
       expect(find.byType(OmdsEmptyState), findsNothing);
       expect(find.byType(OmdsErrorState), findsNothing);
       // `OmdsLoadingState` is built with no `message:`, so the app-bar title is
-      // the only text on the card — and there is nothing to pull, nothing to
-      // retry and no timeout behind it. `load()` guards re-entry on
-      // `status != initial`, so this is where a read that never lands leaves
-      // the inbox for as long as it is open.
       expect(find.byType(OmdsPullToRefresh), findsNothing);
       expect(find.text('Retry'), findsNothing);
     });
@@ -169,15 +121,11 @@ void main() {
 
   group('NotificationsListScreen preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does NOT rebuild these — the canvas produces the same widget types, so
-    // the `BlocProvider` element is UPDATED rather than replaced and keeps the
-    // cubit the first preview created.
 
     testWidgets('the phone previews pin a 390 x 844 frame, not the canvas', (
       WidgetTester tester,
     ) async {
       // The harness pumps an 800 x 600 surface: a preview that left its size to
-      // the host would measure that, and none of this layout applies there.
       await pumpPreview(tester, notificationsListScreenPopulated);
 
       expect(
@@ -216,12 +164,10 @@ void main() {
         lessThan(tester.getTopLeft(_row('n-3')).dy),
       );
       // Unread is carried by a dot, and the READ row is the one that has none.
-      // A cast of three unread rows would never show that difference.
       expect(_row('n-1_unread_badge'), findsOneWidget);
       expect(_row('n-2_unread_badge'), findsNothing);
       expect(_row('n-3_unread_badge'), findsOneWidget);
       // P0-X08: the eyebrow is the per-KIND category label, never the payload
-      // headline rendered twice.
       expect(find.text('New offer'), findsOneWidget);
       expect(find.text('Order update'), findsOneWidget);
       expect(find.text('Low balance'), findsOneWidget);
@@ -231,11 +177,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_LoadedList` never passes `now:` to `NotificationRow`, so every age is
-      // measured against the wall clock. The fixtures answer that by expressing
-      // each row as an OFFSET from the read — which is what makes these three
-      // strings assertable at all. A fixture carrying a literal instant (what
-      // the catalog held before this file existed) would print a number that
-      // grows every day, and this test would have to be deleted.
       await pumpPreview(tester, notificationsListScreenPopulated);
 
       expect(find.text('12m ago'), findsOneWidget);
@@ -252,7 +193,6 @@ void main() {
       expect(find.byType(OmdsErrorState), findsNothing);
       expect(find.byType(NotificationRow), findsNothing);
       // Empty is `loaded` with no rows, not a fifth status — so the list is
-      // still there and still pullable, and there is nothing else to press.
       expect(find.byType(OmdsPullToRefresh), findsOneWidget);
       expect(find.text('Retry'), findsNothing);
     });
@@ -268,10 +208,8 @@ void main() {
         findsOneWidget,
       );
       // An error the user cannot act on is barely better than the empty state
-      // it replaced.
       expect(find.text('Retry'), findsOneWidget);
       // The cold failure replaces the whole body: no empty illustration, no
-      // stale rows, and no pull-to-refresh either.
       expect(find.byType(OmdsEmptyState), findsNothing);
       expect(find.byType(OmdsPullToRefresh), findsNothing);
     });
@@ -282,8 +220,6 @@ void main() {
       await pumpPreview(tester, notificationsListScreenSessionExpired);
 
       // `_errorCopy` maps `unauthorized` onto the generic line, so a 401 and an
-      // unclassified 500 are the same page — and the Retry offered here cannot
-      // succeed until the user signs in again, which nothing says.
       expect(find.text('Could not load notifications.'), findsOneWidget);
       expect(
         find.text('No connection. Check your network and try again.'),
@@ -297,12 +233,10 @@ void main() {
       await pumpPreview(tester, notificationsListScreenLongestContent);
 
       // Nothing on the row sets `maxLines`, so the headline is present in full
-      // and the row is most of a 320 pt viewport on its own.
       expect(find.text(_kCeilingTitle), findsOneWidget);
       expect(tester.getSize(_row('n-long')).height, greaterThan(200));
 
       // G3: a data-only push persists an empty title and body; the render layer
-      // supplies the localized fallback so the row is never blank.
       expect(find.text('New request nearby'), findsOneWidget);
       expect(
         find.text('A customer is looking for a jeeber. Tap to view.'),
@@ -310,13 +244,11 @@ void main() {
       );
 
       // …and the same shape with no fallback: an `unknown` kind whose title,
-      // body and timestamp are all empty leaves a bare category eyebrow.
       expect(_row('n-unknown'), findsOneWidget);
       expect(find.text('Notification'), findsOneWidget);
       expect(_row('n-unknown_timestamp'), findsNothing);
 
       // The cubit sorts a timestamp-less row LAST, so a malformed row can never
-      // jump to the top of the inbox.
       expect(
         tester.getTopLeft(_row('n-unknown')).dy,
         greaterThan(tester.getTopLeft(_row('n-bg')).dy),
@@ -326,9 +258,6 @@ void main() {
     testWidgets('the ceiling survives 320 pt in EN and AR, measured through '
         'the real faces', (WidgetTester tester) async {
       // Measured through `withGoldenTestFonts`, so the Latin really is Inter
-      // and the Arabic really is Noto — the only footing on which "this does
-      // not overflow" is a claim about a device rather than about the 1-em test
-      // face, which is ~2.4x too wide for Arabic.
       await _pumpWithFonts(tester, notificationsListScreenLongestContent);
       expect(tester.takeException(), isNull);
       expect(find.text(_kCeilingTitle), findsOneWidget);
@@ -340,7 +269,6 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       // The row mirrors rather than reflows: the leading icon swaps to the
-      // right of the row and the trailing unread dot to the left (AC-16 FM1).
       final Rect ceiling = tester.getRect(_row('n-long'));
       expect(
         tester.getRect(_row('n-long_unread_badge')).center.dx,

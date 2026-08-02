@@ -35,7 +35,6 @@ void main() {
 
   /// Drives the cubit from the initial phone-entry state through `sendCode`
   /// so its state machine ends up on the OTP step naturally. Avoids
-  /// touching the protected [Cubit.emit].
   Future<RegistrationCubit> primedOnOtpStep({
     RegistrationAttemptPolicy policy = const RegistrationAttemptPolicy(),
   }) async {
@@ -65,8 +64,6 @@ void main() {
     await tester.pump();
     expect(find.byKey(const Key('registration.otpField')), findsOneWidget);
     // The input length must match the live 4-digit gateway contract
-    // (`/v1/auth/otp/verify` issues a 4-digit code, e.g. seed `1234`),
-    // sourced from kCustomerOtpLength.
     final otpInput = tester.widget<OmdsOtpInput>(
       find.byKey(const Key('registration.otpField')),
     );
@@ -152,8 +149,6 @@ void main() {
       'OTP test-seam auto-submits jeeb.seam.otp_code through verifyCode',
       (tester) async {
     // The debug-only `jeeb.seam.otp_code` seam lets an automated / on-device
-    // driver inject the known code (here the run-branch `1234`) so the verify
-    // step advances deterministically without typing into the per-cell input.
     when(() => otp.verifyCode(
           e164Phone: any(named: 'e164Phone'),
           code: any(named: 'code'),

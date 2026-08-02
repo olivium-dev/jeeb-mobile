@@ -3,17 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Regression guard for the sprint-009 color-role sweep (UX-AUDIT §T1/T2).
-///
 /// The files below were migrated from ad-hoc state coloring (brand `tertiary`
-/// orange doing warning/success duty, `errorContainer` for recoverable
-/// attention states, container roles used as text ink) onto the semantic
-/// role layer (`context.jeebRoles.success/warning/info/...`).
-///
-/// This test greps those files so the old patterns cannot silently return.
-/// When migrating a new screen onto `jeebRoles`, ADD it to [migratedFiles] —
-/// do not weaken the forbidden patterns. If a migrated file genuinely needs
-/// a brand-accent (non-state) tertiary usage again, remove it from the list
-/// with a justification in the PR instead of special-casing here.
 void main() {
   /// Feature files migrated onto the semantic role layer.
   const migratedFiles = <String>[
@@ -43,7 +33,6 @@ void main() {
   /// Patterns that indicate a regression to pre-sweep state coloring.
   final forbidden = <String, RegExp>{
     // Brand tertiary (orange) doing semantic-state duty. Tier/brand accents
-    // live in JeebTierColors / explicit brand constants, never in these files.
     'M3 tertiary role': RegExp(r'\.(tertiary|tertiaryContainer|onTertiary\w*)\b'),
     // Raw hex literals — everything must resolve through a role or token.
     'raw Color(0x...) literal': RegExp(r'Color\(0x'),

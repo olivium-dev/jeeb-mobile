@@ -1,25 +1,4 @@
 // Render tests for the JeeberRequestDetailLoader previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// The loader is a ROUTER: every preview resolves to one of three screens, so
-// "does this preview render ITS OWN state" is literally "did the loader pick
-// the right screen". The shared suite below pins that by text; the
-// `preview specifics` and `layout ceiling` groups pin the things the canvas
-// exposed that the branch tests in
-// `test/features/jeeber_request_detail/jeeber_request_detail_loader_test.dart`
-// cannot see, because they assert widget TYPES on an 800x600 surface and never
-// look at the copy or the geometry:
-//
-//   * the unavailable fallback prints the RAW UUID while the resolved detail
-//     prints `#775EAE` — the same loader, two conventions;
-//   * a dead request and a dead network render the same screen, with no retry;
-//   * at 200% text on a 390x700 phone that screen does not scroll, and its one
-//     CTA is laid out below the viewport.
-//
-// Both are recorded as DEFECTS, not contracts. If one starts failing because
-// the screen was fixed, delete the guard — do not restore the expectation.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,9 +34,6 @@ const Key _deadEndCta = Key('jeeber-request-unavailable-back-cta');
 
 /// How many pixels a captured layout error overflowed by, or 0 when [error] is
 /// not an overflow at all. Read out of the message rather than pinned as a
-/// constant: the fact under test is "this does not fit on a phone", and an
-/// exact pixel count would break on a font-metric change without meaning
-/// anything.
 int _overflowPixels(Object? error) {
   if (error == null) return 0;
   final RegExpMatch? match =
@@ -68,7 +44,6 @@ int _overflowPixels(Object? error) {
 
 /// Pumps a preview into the 390x700 box its annotation declares, instead of
 /// into the 800x600 default test surface. The size is the point: at 800 pt the
-/// summary card and the dead end both have room they never have on a phone.
 Future<void> _pumpInPhoneBox(
   WidgetTester tester,
   Widget Function() preview, {
@@ -87,13 +62,7 @@ Future<void> _pumpInPhoneBox(
 }
 
 /// Pumps [preview] into a FRESH element tree.
-///
 /// Two previews in one test cannot simply be pumped one after the other: the
-/// canvas wrapper is identical down to the loader itself, so Flutter reuses the
-/// [State] — which already resolved — and the second preview silently renders
-/// the first one's request. (That reuse is not only a test artifact; see the
-/// `requestId` note in `preview specifics`.) Unmounting first forces
-/// `initState` to run again.
 Future<void> _pumpFresh(
   WidgetTester tester,
   Widget Function() preview, {
@@ -132,9 +101,6 @@ void main() {
       'Accepted · redirecting': jeeberRequestDetailLoaderRedirecting,
     },
     // One distinct string per state, except the two that CANNOT differ: the
-    // redirect branch deliberately holds the same loading scaffold up while
-    // the route swap happens, and that scaffold renders exactly one string.
-    // They are told apart in `preview specifics` instead.
     expectedText: <String, String>{
       'Feed-row tap · cached payload': _cachedPickup,
       'Push tap · recovering by id': _detailTitle,
@@ -167,7 +133,6 @@ void main() {
       await pumpPreview(tester, jeeberRequestDetailLoaderRecovering);
 
       // The run-20 defect, held: while the by-id read is in flight the jeeber
-      // must NOT be told the request is unavailable.
       expect(find.byType(JeeberRequestDetailLoadingView), findsOneWidget);
       expect(find.byType(JeeberRequestUnavailableScreen), findsNothing);
       expect(find.byType(JeeberRequestDetailScreen), findsNothing);
@@ -180,8 +145,6 @@ void main() {
       await pumpPreview(tester, jeeberRequestDetailLoaderRedirecting);
 
       // run-22: an accepted request misses the pending-scoped feed, and the
-      // loader must hold the loading scaffold up for the route swap rather
-      // than fall through to "Request unavailable".
       expect(find.byType(JeeberRequestDetailLoadingView), findsOneWidget);
       expect(find.byType(JeeberRequestUnavailableScreen), findsNothing);
     });
@@ -195,9 +158,6 @@ void main() {
             await _frameOf(tester, jeeberRequestDetailLoaderRedirecting);
 
         // Still fetching, and about to jump to a delivery you already own,
-        // render identically: one app-bar title and a spinner. `requestId` is
-        // taken by the loading scaffold and never rendered, so there is not
-        // even a reference on screen to tell the two apart.
         expect(recovering, equals(redirecting));
         expect(recovering.keys, <String>[_detailTitle]);
       },
@@ -209,7 +169,6 @@ void main() {
         await _pumpFresh(tester, jeeberRequestDetailLoaderRecovered);
 
         // Resolved: sprint-009 audit §T5 is honoured — short reference, no
-        // UUID anywhere on screen.
         expect(find.text(friendlyReference(_requestId)), findsOneWidget);
         expect(find.text('#775EAE'), findsOneWidget);
         expect(find.textContaining(_requestId), findsNothing);
@@ -217,7 +176,6 @@ void main() {
         await _pumpFresh(tester, jeeberRequestDetailLoaderUnavailable);
 
         // Same loader, same id, one route later: the raw 36-character UUID is
-        // interpolated straight into the subtitle.
         expect(find.textContaining(_requestId), findsOneWidget);
         expect(find.text(friendlyReference(_requestId)), findsNothing);
       },
@@ -233,8 +191,6 @@ void main() {
           await _pumpFresh(tester, preview);
 
           // `_recover` swallows the fetch error, so "expired" and "offline"
-          // land on identical copy — and the only affordance is a CTA that
-          // makes the same failing read again. No retry, no offline notice.
           expect(find.byType(JeeberRequestUnavailableScreen), findsOneWidget);
           expect(find.text(_unavailableTitle), findsNWidgets(2));
           expect(find.text(_browseCta), findsOneWidget);
@@ -256,7 +212,6 @@ void main() {
       expect(find.text('تفاصيل الطلب'), findsOneWidget);
       expect(find.text('ما يقوله العميل'), findsOneWidget);
       // The client's own text is NOT translated — it is user content, and it
-      // stays LTR inside the mirrored layout.
       expect(find.text(_longDescription), findsOneWidget);
       final Element description = tester.element(find.text(_longDescription));
       expect(Directionality.of(description), TextDirection.rtl);
@@ -281,8 +236,6 @@ void main() {
       await _pumpInPhoneBox(tester, jeeberRequestDetailLoaderUnavailable);
 
       // A bare centred Column: anything that outgrows the viewport is off the
-      // screen rather than scrolled to. The resolved detail, reached through
-      // the same loader, wraps its summary in a SingleChildScrollView.
       expect(find.byType(Scrollable), findsNothing);
     });
 
@@ -299,12 +252,8 @@ void main() {
           );
 
           // Measured: 240 dp of overflow in EN, 72 dp in AR. Part of that is
-          // the raw 36-character UUID this subtitle interpolates — at 200% it
-          // is several lines of text that `#775EAE` would not be.
           expect(_overflowPixels(tester.takeException()), greaterThan(0));
           // "Browse other requests" is the ONLY thing on this screen a jeeber
-          // can act on, and it is laid out entirely below the viewport
-          // (y 872 in EN, y 704 in AR) with nothing to scroll it back.
           expect(
             tester.getRect(find.byKey(_deadEndCta)).top,
             greaterThan(700),
@@ -324,9 +273,6 @@ void main() {
       );
 
       // The contrast that makes the dead end a defect rather than a house
-      // style: the same loader's resolved branch puts its summary in a scroll
-      // view and pins the action bar, so the longest plausible request still
-      // leaves "Send your offer" on screen (measured: y 568–616).
       expect(_overflowPixels(tester.takeException()), 0);
       expect(find.byType(Scrollable), findsAtLeastNWidgets(1));
       expect(tester.getRect(find.text('Send your offer')).bottom, lessThan(700));

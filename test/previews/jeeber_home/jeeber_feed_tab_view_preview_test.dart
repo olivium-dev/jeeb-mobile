@@ -1,18 +1,4 @@
 // Render tests for the JeeberFeedTabView previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// Pinning a DISTINCT string per state matters more than usual here. All six
-// previews are the same page under the same greeting and the same availability
-// control, and three of them differ only in which of the three sub-tabs is
-// active — so a suite that asserted only "something rendered" would still pass
-// if every fixture collapsed onto the Requests tab.
-//
-// Each pinned string is therefore something only ITS state can produce: a
-// client name that appears on exactly one card, the availability title that
-// only an offline page shows, the money string only the pending list formats,
-// the action label only an accepted card carries.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,8 +28,6 @@ void main() {
       'Requests · longest content · 360 pt':
           'Abdulrahman Al-Muhandis Al-Trabulsi',
       // The AVAILABILITY title, not the offline banner's own copy: the banner
-      // string is printed twice on this page (banner + empty body), so it
-      // could not be pinned with `findsOneWidget`.
       'Offline · feed cleared, controls hidden': "You're offline",
       'Pending · submitted offers': r'$12.50',
       'Replies · accepted work': 'Heading to drop off',
@@ -52,8 +36,6 @@ void main() {
 
   group('JeeberFeedTabView preview specifics', () {
     // The three sub-tabs render three structurally different bodies. Text
-    // assertions alone cannot tell "the Pending tab is showing" from "the
-    // Requests tab happens to be empty", so pin the bodies by their keys.
     testWidgets('the live feed renders the request list, not an empty state', (
       WidgetTester tester,
     ) async {
@@ -63,7 +45,6 @@ void main() {
       expect(find.byKey(JeeberFeedTabView.pendingListKey), findsNothing);
       expect(find.text('No Requests yet'), findsNothing);
       // Both seeded rows are in the tree — the second is the one JEBV4-284 and
-      // the banner regression used to push out of a too-small inner viewport.
       expect(find.text('Layla Hamdan'), findsOneWidget);
     });
 
@@ -77,7 +58,6 @@ void main() {
       // Its own back affordance, which the Requests tab does not have.
       expect(find.bySemanticsIdentifier('pending_offers_back'), findsOneWidget);
       // The open offer keeps Withdraw; the accepted one carries a badge and
-      // must NOT offer to withdraw a bid that already became a delivery.
       expect(
         find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'),
         findsOneWidget,
@@ -91,16 +71,12 @@ void main() {
     });
 
     // T-MOB-029 AC3, and the finding this preview exists for: going offline
-    // does not merely add a banner, it removes every control on the page.
     testWidgets('offline hides the search bar and BOTH chip strips', (
       WidgetTester tester,
     ) async {
       await pumpPreview(tester, jeeberFeedTabViewOffline);
 
       // `JeeberFeedTabView.offlineBannerKey` is declared but never attached to
-      // `_OfflineBanner`, so nothing can key off the banner today. Pinned as
-      // `findsNothing` so that wiring it up is a deliberate change here rather
-      // than a silent one.
       expect(find.byKey(JeeberFeedTabView.offlineBannerKey), findsNothing);
       expect(find.byKey(JeeberFeedTabView.searchBarKey), findsNothing);
       expect(find.byKey(JeeberFeedTabView.tabStripKey), findsNothing);
@@ -117,11 +93,6 @@ void main() {
     });
 
     // The tier strip is a Requests-tab control only; the sub-tab strip is not.
-    //
-    // One test per preview, NOT three pumps in one: `initialTab` is read once,
-    // in the State's field initializer, so re-pumping a second preview into the
-    // same tree reuses `_JeeberFeedTabViewState` and keeps the FIRST preview's
-    // active tab. Three pumps in one test therefore asserted the wrong page.
     const Map<String, Widget Function()> tabScoped =
         <String, Widget Function()>{
           'Requests · live feed': jeeberFeedTabViewLiveFeed,
@@ -147,8 +118,6 @@ void main() {
     }
 
     // An accepted row is a delivery control, not an auction row: the
-    // Ignore/Offer pair must be gone or a jeeber could "ignore" work they have
-    // already committed to.
     testWidgets('an accepted row shows the advance pill, never Ignore/Offer', (
       WidgetTester tester,
     ) async {
@@ -169,9 +138,6 @@ void main() {
     });
 
     // The empty preview is doubling as the loading and error renderings: the
-    // feed body reads `state.requests` and never `state.status`. If a spinner
-    // or an error surface is ever added, this assertion is the one that should
-    // fail and force the preview set to grow.
     testWidgets('the empty feed offers no retry and no diagnosis', (
       WidgetTester tester,
     ) async {

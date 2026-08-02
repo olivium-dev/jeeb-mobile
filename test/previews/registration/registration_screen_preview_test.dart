@@ -1,21 +1,4 @@
 // Render tests for the RegistrationScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// Seven of the eight states are pinned on REAL rendered content — the digits in
-// the phone field — which is why the shared fixtures give every state a
-// distinct number. `Idle · empty field` is the exception and gets its own
-// group: its only distinguishing copy is the "Phone number" hint, and Flutter
-// keeps the hint mounted at zero opacity in every other state
-// (`InputDecorator` builds it under `maintainHintSize`, which defaults to
-// true), so pinning it would not discriminate. That state is proved by its
-// empty controller and its dead CTA instead.
-//
-// `Send in flight` is also handled separately: `OmdsLoadingButton(isLoading:
-// true)` renders an indeterminate `CircularProgressIndicator`, and
-// `pumpAndSettle` — which `pumpPreview` calls — never returns while one is on
-// screen.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,7 +12,6 @@ import '../preview_test_harness.dart';
 
 /// The one line of error copy the screen has — reused for all three
 /// `RegistrationPhoneError` values, which is the defect the previews exist to
-/// show. Verbatim from `lib/l10n/app_en.arb`.
 const String _invalidCopy = 'Enter a valid Lebanese phone number.';
 
 /// `registrationPhoneHint`, verbatim from `lib/l10n/app_en.arb`.
@@ -41,8 +23,6 @@ const Key _prefixKey = Key('registration.phonePrefix');
 
 /// [pumpPreview] twice in ONE test is a trap: every preview builds the same
 /// element shape, so Flutter would update in place. The previews carry distinct
-/// `ValueKey`s to defeat that, but tearing the tree down in between is the
-/// belt-and-braces version and costs nothing.
 Future<void> pumpPreviewFresh(
   WidgetTester tester,
   Widget Function() preview,
@@ -72,8 +52,6 @@ void main() {
       'Pasted +961 block · doubled dial code': registrationScreenPasted,
     },
     // The digits each state carries, straight from the shared fixtures — the
-    // catalog and the canvas cannot pin different numbers from the ones they
-    // render.
     expectedText: const <String, String>{
       'Typing · below the 7-digit minimum': registrationScreenTypingPhone,
       'Valid number · CTA live': registrationScreenReadyPhone,
@@ -85,8 +63,6 @@ void main() {
   );
 
   // `Idle` renders an EMPTY field, so it has no digits to pin. Same three
-  // assertions the shared suite makes — builds in EN, builds in AR, renders its
-  // OWN state — with the third done by state rather than by copy.
   group('RegistrationScreen previews · Idle', () {
     for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
       testWidgets('Idle · ${locale.languageCode}', (WidgetTester tester) async {
@@ -112,9 +88,6 @@ void main() {
   });
 
   // `isSendingCode` swaps the CTA label for `OmdsButtonLoading`, i.e. an
-  // indeterminate `CircularProgressIndicator`. `pumpAndSettle` never returns
-  // while one is mounted, so this preview gets the shared suite's three
-  // assertions driven by fixed pumps instead.
   group('RegistrationScreen previews · Send in flight', () {
     Future<void> pumpSending(
       WidgetTester tester, {
@@ -147,8 +120,6 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(_cta(tester).isLoading, isTrue);
       // …and the field is locked, so the number cannot be edited out from under
-      // a request that is already carrying it. That pair is true of no other
-      // preview here.
       expect(_field(tester).enabled, isFalse);
       expect(find.text(_invalidCopy), findsNothing);
     });
@@ -159,10 +130,6 @@ void main() {
         'JEEB-56: two VALID numbers are told they are invalid — the send-failure '
         'states reuse the local-validation copy', (WidgetTester tester) async {
       // `_phoneErrorCopy` maps networkError and rateLimited onto
-      // `registrationPhoneInvalid`. The consequence is not cosmetic: the only
-      // remedy the copy suggests is "fix your number", and for these two states
-      // the number is already correct, so following the instruction cannot
-      // clear the error.
       for (final MapEntry<Widget Function(), String> entry
           in <Widget Function(), String>{
         registrationScreenNetworkError: registrationScreenNetworkErrorPhone,
@@ -194,8 +161,6 @@ void main() {
       await pumpPreview(tester, registrationScreenRateLimited);
 
       // The screen offers exactly one action after a rate-limit, and it is
-      // "send again". `sendCode` has no client-side cooldown; compare the
-      // sibling OTP screen, which routes its own 429 into a lockout step.
       expect(_field(tester).enabled, isTrue);
       expect(_cta(tester).isEnabled, isTrue);
       expect(_cta(tester).isLoading, isFalse);
@@ -207,9 +172,6 @@ void main() {
       await pumpPreview(tester, registrationScreenPasted);
 
       // `_PhoneField` documents "The TextField only ever receives the 8
-      // national digits; the prefix is decorative". Both of these finding one
-      // widget is that contract failing: the decorative prefix AND a pasted
-      // dial code are on screen together.
       expect(find.byKey(_prefixKey), findsOneWidget);
       expect(find.text(LebanonPhone.dialCode), findsOneWidget);
       expect(find.text(registrationScreenPastedPhone), findsOneWidget);
@@ -217,7 +179,6 @@ void main() {
           isTrue);
 
       // The request itself is still correct — normalisation happens on Send —
-      // so this is a display defect, not a delivery one.
       expect(
         LebanonPhone.tryParse(registrationScreenPastedPhone)?.digits,
         registrationScreenReadyPhone,
@@ -231,15 +192,11 @@ void main() {
       await pumpPreview(tester, registrationScreenTyping);
 
       // The distinction from `Rejected locally · too short`: both fields are
-      // unparseable, but only the submitted one is red. `phoneChanged` clears
-      // `phoneError` on every keystroke, which is what keeps the screen from
-      // yelling at a half-typed number.
       expect(LebanonPhone.tryParse(registrationScreenTypingPhone), isNull);
       expect(_cta(tester).isEnabled, isFalse);
       expect(find.text(_invalidCopy), findsNothing);
 
       // The same six digits after a Send tap DO go red — same field contents,
-      // opposite treatment.
       await pumpPreviewFresh(tester, registrationScreenInvalidNumber);
       expect(_cta(tester).isEnabled, isFalse);
       expect(find.text(_invalidCopy), findsOneWidget);
@@ -261,8 +218,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // A screen preview that quietly lost its hero or its social column would
-      // still satisfy every per-state pin above, because those all live on the
-      // phone field.
       for (final Widget Function() preview in <Widget Function()>[
         registrationScreenIdle,
         registrationScreenTyping,
@@ -277,7 +232,6 @@ void main() {
         expect(find.bySemanticsIdentifier('registration_root'), findsOneWidget);
         expect(find.byKey(const Key('registration.welcome')), findsOneWidget);
         // D4: exactly ONE "or" divider — the social section must not render a
-        // second one.
         expect(find.byKey(const Key('registration.orDivider')), findsOneWidget);
         expect(find.text('or'), findsOneWidget);
         expect(

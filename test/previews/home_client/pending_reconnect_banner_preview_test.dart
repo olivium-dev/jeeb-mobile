@@ -1,15 +1,3 @@
-// Render tests for the PendingReconnectBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The banner has exactly two content states, so `expectedText` pins each
-// preview by the stand-in list-top label it hosts — that is the only string
-// that differs between "reconnecting at 390" and "reconnecting at 320". The
-// widget's OWN contract (the localized label, the collapse to zero height, RTL
-// mirroring) is pinned in the specifics group below.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,7 +6,6 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../preview_test_harness.dart';
 
-/// The key the banner puts on its own body — present only when visible.
 const Key _bannerBody = Key('pending-reconnect-banner');
 
 String _reconnectingLabel(WidgetTester tester) => AppLocalizations.of(

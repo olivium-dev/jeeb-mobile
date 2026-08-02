@@ -1,15 +1,4 @@
 // Render tests for the BecomeJeeberCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// BecomeJeeberCard has NO data inputs — its copy is fixed by the ARB and its
-// only flag is `isAlreadyJeeber` — so three of the four previews render exactly
-// the same words and differ only in the width they are laid out against. Text
-// alone therefore cannot tell them apart, and a suite that stopped at
-// `expectedText` would pass even if every preview were the 390 pt one. The
-// `preview specifics` group below is the real discriminator: it pins the
-// measured geometry of each width, which is also the defect this widget has.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,15 +38,12 @@ void main() {
       // The subtitle — the first thing to be squeezed away on a phone.
       'Wide 700': _subtitle,
       // Scaffolding text that exists ONLY in the hidden state, so this one
-      // string genuinely fails if the wrong preview is rendered.
       'Already a Jeeber · hidden': 'Settings row below the card',
     },
   );
 
   group('BecomeJeeberCard preview specifics', () {
     // One pump per test, deliberately: the width states differ only in a
-    // SizedBox constraint, so assertions are kept next to the pump that
-    // produced them rather than chained through one tester.
 
     testWidgets('the phone state is laid out at 390 pt, not the 800 pt test '
         'surface', (WidgetTester tester) async {
@@ -125,21 +111,11 @@ void main() {
       // Zero height, not merely invisible: no ghost padding left behind.
       expect(tester.getSize(find.byType(BecomeJeeberCard)).height, 0);
       // ...and the neighbours are still there, so an empty canvas cannot be
-      // mistaken for a preview that failed to build.
       expect(find.text('Settings row above the card'), findsOneWidget);
       expect(find.text('Settings row below the card'), findsOneWidget);
     });
 
     // KNOWN DEFECT GUARD — delete this test when the card is fixed.
-    //
-    // The preview matrix renders every state at 200% text, but the canvas is
-    // the only place that happens; these render tests run at 1×, so the worst
-    // state this widget has would otherwise be asserted nowhere. At 200% the
-    // CTA label grows to ~253 pt and the avatar takes ~72 pt more, driving the
-    // `Expanded` text column to ZERO width — the title and subtitle disappear
-    // entirely — and the Row still overflows the phone by 15 pt (85 pt at
-    // 320). Fixing the card (wrapping the Row, or dropping to a Column above a
-    // width threshold) will fail this test; that is the point.
     testWidgets('at 200% text the card row overflows and loses its text', (
       WidgetTester tester,
     ) async {

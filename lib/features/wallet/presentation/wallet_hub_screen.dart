@@ -12,7 +12,6 @@ import '../application/wallet_hub_state.dart';
 import '../domain/wallet_repository.dart';
 import 'wallet_hub_l10n.dart';
 
-// Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/wallet_hub_screen_fixtures.dart';
 
@@ -470,88 +469,9 @@ class _StatRow extends StatelessWidget {
   }
 }
 // ============================== JEEB PREVIEWS ==============================
-// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/wallet/wallet_hub_screen_preview_test.dart
-// ===========================================================================
-//
-// This is a SCREEN, so two things differ from a widget preview.
-//
-// 1. It owns its own `Scaffold` (OMDSAppBar + body) and [jeebPreviewHost] wraps
-//    every child in one as well, so the canvas shows two nested Scaffolds. The
-//    inner one is the real surface; the outer contributes only a background.
-//    The canvas box is therefore a real device ([_walletHubScreenPhoneBox],
-//    390x844) rather than the harness's default 390x200 — a scrolling money
-//    screen cannot be judged in a 200 pt strip.
-//
-// 2. Unlike `SavedLocationsScreen`, this screen BUILDS without a `Router`:
-//    every `goNamed`/`canPop` call sits inside a callback, not in `build`. It
-//    is not TAPPABLE without one, though — `wallet_topup_cta`,
-//    `wallet_earnings_row`, `wallet_see_all_activity` and the app-bar back
-//    arrow all reach for GoRouter the moment you touch them, and the canvas is
-//    a surface you tap. [_WalletHubScreenHost] supplies a local [GoRouter] with
-//    stand-ins for the three named destinations, so a tap lands somewhere and
-//    tells you WHICH edge it took instead of throwing.
-//
-// State is driven the only way this screen allows: through the `repository:`
-// and `kycStatusGate:` constructor seams, with the fakes shared verbatim with
-// the Screen Catalog entry
-// (`lib/devtool/catalog/fixtures/wallet_hub_screen_fixtures.dart`). No preview
-// builds a `DioWalletRepository`, and `sl<WalletRepository>()` /
-// `sl<JeeberKycStatusGate>()` are never reached — network-free by construction
-// rather than by the guard in [jeebPreviewHost].
-//
-// One state cannot be reached from here: `refresh()`'s failure branch, which
-// keeps `status: loaded` and only sets `error`, is emitted after a pull-to-
-// refresh and renders NOTHING (the loaded branch never reads `state.error`).
-// In the canvas you can reach it by pulling down on a preview whose fake throws
-// on the second read; there is no `cubit:` seam to seed it directly.
-//
-// What these previews surfaced in the screen — see the notes on each:
-//
-//  * the balance line is `Row(Text(amount), SizedBox, Text(currency))` with no
-//    `Flexible` on either child, and `_fmt` is `toStringAsFixed(2)` — no
-//    grouping, no locale digits. Measured on the 390 pt phone these previews
-//    declare:
-//      - `Ceiling · LBP + every band` overflows the balance Row by 6.5 pt and
-//        the gift chip by 51 pt at 100% TEXT, in EN and AR alike. An LBP
-//        wallet clips its own balance on a stock phone with no accessibility
-//        setting touched.
-//      - `Ready to bid · funded` — 145.00 USD, the most ordinary wallet there
-//        is — overflows by 82 pt at 200% text; the ceiling by 362 pt.
-//      - the gift chip is a `Row` inside a `Container` with nothing flexible
-//        either: 276 pt over in EN at 200% (`50.00 USD starter credit`).
-//    `_StatRow` (reserved-now) is the counter-example — its label is
-//    `Expanded`, so it shrinks instead of overflowing. The same unformatted
-//    number is what an Arabic jeeber sees: latin digits, no separators, and
-//    the currency mirrored to the LEFT of the amount.
-//    The render tests do not see any of this on their own — `previewCanvas`
-//    pumps on the 800x600 test surface, not the `size:` a preview declares, and
-//    everything fits at 800 pt. The 100%-text case is pinned deliberately (see
-//    `does not fit a 390 pt phone` in the render test); the rest is what the
-//    canvas is for.
-//  * `wallet_topup_cta` renders IDENTICALLY offline (`Offline · top-up
-//    blocked`): full-strength `OmdsPrimaryButton`, no disabled state, no
-//    inline notice. The D35 money guard only speaks after the tap, as a
-//    SnackBar. Every other CTA on the screen behaves the same way, so the
-//    offline wallet looks fully operable.
-//  * the error branch (`Error · load failed`) replaces the WHOLE body, so a
-//    jeeber who cannot load a balance also loses `wallet_topup_cta` — the one
-//    action that would fix an empty wallet — along with the fees explainer and
-//    both cross-wave rows. `Retry` is all that is left.
 
-/// The canvas box for a whole screen: a real phone, not the harness default.
 const Size _walletHubScreenPhoneBox = Size(390, 844);
 
-/// One of the three named destinations the hub owns, stubbed.
-///
-/// The real routes live in `app_router.dart`; here they only have to exist so a
-/// tap on `wallet_topup_cta` / `wallet_earnings_row` / `wallet_see_all_activity`
-/// lands somewhere and shows WHICH edge was taken.
 class _WalletHubScreenEdgeStandIn extends StatelessWidget {
   const _WalletHubScreenEdgeStandIn(this.routeName);
 
@@ -564,8 +484,6 @@ class _WalletHubScreenEdgeStandIn extends StatelessWidget {
       appBar: AppBar(title: const Text('preview stand-in')),
       body: Center(
         child: Text(
-          // Forced LTR: a diagnostic, not shipped copy, and a latin route name
-          // reorders visually inside an RTL paragraph.
           routeName,
           textDirection: TextDirection.ltr,
           style: theme.textTheme.bodyLarge,
@@ -575,14 +493,6 @@ class _WalletHubScreenEdgeStandIn extends StatelessWidget {
   }
 }
 
-/// Puts a real `Router` above [WalletHubScreen] so its CTAs are tappable.
-///
-/// Stateful, and the router is built once and disposed with the host: a
-/// [GoRouter] rebuilt on every frame would drop the navigation state
-/// `canPop()`/`goNamed()` depend on. `Router.withConfig` is exactly what
-/// `MaterialApp.router` does internally, so this adds a Router and nothing else
-/// — the ambient theme, locale and text scale still come from the preview host
-/// above it.
 class _WalletHubScreenHost extends StatefulWidget {
   const _WalletHubScreenHost({
     required this.repository,
@@ -592,10 +502,6 @@ class _WalletHubScreenHost extends StatefulWidget {
 
   final WalletRepository repository;
   final JeeberKycStatusGate kycStatusGate;
-
-  /// Mounts an [OfflineCubit] seeded OFFLINE above the screen (D35). Left
-  /// false there is no provider at all, which is the production tree — the
-  /// screen's `_isOffline` catches the lookup and treats it as online.
   final bool offline;
 
   @override
@@ -660,16 +566,6 @@ Widget _walletHubScreenHosted(
 Widget _walletHubScreenWith(WalletBalance balance) =>
     _walletHubScreenHosted(WalletHubScreenFakeRepository(balance));
 
-/// The happy path (D30 `enough`): funded, a live 10% reserve against one open
-/// offer, KYC approved.
-///
-/// Matrixed because the balance line is the screen's signature element and it
-/// is a bare [Row] — amount, then currency, neither of them flexible. The AR
-/// rendering is where that Row mirrors (currency LEFT of the amount, latin
-/// digits unchanged); the 200% rendering is where it overflows the 390 pt phone
-/// by 82 pt, on the plainest three-digit USD wallet the app can produce. Note
-/// that the gift badge is absent here: `giftCredit == 0` hides
-/// `wallet_gift_badge` (D42), so this is also the "no starter credit" layout.
 @JeebPreview(
   group: 'wallet',
   name: 'Ready to bid · funded',
@@ -679,13 +575,6 @@ Widget _walletHubScreenWith(WalletBalance balance) =>
 Widget walletHubScreenReadyToBid() =>
     _walletHubScreenWith(walletHubScreenHealthy);
 
-/// D30 `low` + D42 starter credit — the only state that renders
-/// `wallet_gift_badge`.
-///
-/// Worth reading as a pair: the affordability card says "Running low" in the
-/// warning tone while the badge directly above it announces 50.00 USD of
-/// credit. Both are true (the gift is not spendable against a reserve yet) and
-/// together they are the most confusing 100 pt on the screen.
 @JeebPreview(
   group: 'wallet',
   name: 'Running low · starter credit',
@@ -694,13 +583,6 @@ Widget walletHubScreenReadyToBid() =>
 Widget walletHubScreenRunningLowWithGift() =>
     _walletHubScreenWith(walletHubScreenLowWithGift);
 
-/// The zero state (D30 `empty`) on a jeeber whose KYC is still pending
-/// (D38/D39) — the combination a newly-registered jeeber actually opens the
-/// wallet in, and the only state that renders `wallet_kyc_pending_banner`.
-///
-/// Two stacked banners before the balance is even reached, both in the same
-/// container shape: the pending banner (neutral surface) and the affordability
-/// card (warning tone). The balance itself is `0.00 USD`.
 @JeebPreview(
   group: 'wallet',
   name: 'Empty · KYC pending',
@@ -711,14 +593,6 @@ Widget walletHubScreenEmptyWithKycPending() => _walletHubScreenHosted(
       kycStatusGate: const WalletHubScreenKycGate.pending(),
     );
 
-/// D30 `allReserved`: the balance is real (20.00) but every cent is held
-/// against live offers, so `wallet_available_balance` and `wallet_reserved_now`
-/// show the SAME number.
-///
-/// The screen never says that in so many words — it prints both amounts and
-/// leaves the reader to notice they match. This is the state D43 exists for:
-/// the copy ("Everything is reserved") is what carries the meaning, not the
-/// numbers.
 @JeebPreview(
   group: 'wallet',
   name: 'All reserved',
@@ -727,22 +601,6 @@ Widget walletHubScreenEmptyWithKycPending() => _walletHubScreenHosted(
 Widget walletHubScreenEverythingReserved() =>
     _walletHubScreenWith(walletHubScreenAllReserved);
 
-/// The layout ceiling: a Lebanese-pound wallet with a starter credit and the
-/// KYC-pending banner up — the tallest, widest content the hub can hold.
-///
-/// Not a synthetic stress test. LBP is a live currency here and its amounts run
-/// to eight digits, so `89750000.00` is what a real jeeber sees. Read the
-/// matrix top to bottom:
-///
-///   * EN light — already broken, with no accessibility setting touched: there
-///     is no thousands separator anywhere on the screen (`_fmt` is
-///     `toStringAsFixed(2)`), and on the 390 pt phone this box declares the
-///     balance Row overflows by 6.5 pt and the gift chip by 51 pt.
-///   * AR RTL dark — the digits stay latin (no `NumberFormat`, no arabic-indic)
-///     and the Row mirrors, putting `LBP` to the LEFT of the amount. The
-///     balance Row overflows here too, by the same 6.5 pt.
-///   * EN 200% — 362 pt over on the balance Row and 399 pt on the gift chip.
-///     Neither has a `Flexible` child to give way.
 @JeebPreview(
   group: 'wallet',
   name: 'Ceiling · LBP + every band',
@@ -754,14 +612,6 @@ Widget walletHubScreenCeilingLbp() => _walletHubScreenHosted(
       kycStatusGate: const WalletHubScreenKycGate.pending(),
     );
 
-/// `GET /v1/jeeb/wallet` failed.
-///
-/// The cubit collapses every [WalletFailure] onto one `failed` status, so this
-/// single picture covers offline, 401 and 500 alike. What the picture shows is
-/// the cost of that collapse: the error state replaces the ENTIRE body, so the
-/// jeeber loses `wallet_topup_cta`, the fees explainer and both cross-wave rows
-/// along with the balance. "Retry" re-runs `refresh()`, which is the only way
-/// out.
 @JeebPreview(
   group: 'wallet',
   name: 'Error · load failed',
@@ -770,14 +620,6 @@ Widget walletHubScreenCeilingLbp() => _walletHubScreenHosted(
 Widget walletHubScreenLoadFailed() =>
     _walletHubScreenHosted(const WalletHubScreenFailingRepository());
 
-/// The cold-start window, held open by a read that never lands.
-///
-/// `load()` runs from the `BlocProvider.create`, so this is the first frame of
-/// every entry into the hub: a bare centred spinner with no app-bar-level hint
-/// of what is loading, and no skeleton of the balance line that is about to
-/// appear. `load()` also guards on `status != initial`, so a rebuild cannot
-/// restart it — a request that never lands leaves the screen here for good,
-/// with no retry affordance (unlike the error state, which at least offers one).
 @JeebPreview(
   group: 'wallet',
   name: 'Loading · spinner',
@@ -786,16 +628,6 @@ Widget walletHubScreenLoadFailed() =>
 Widget walletHubScreenLoadingSpinner() =>
     _walletHubScreenHosted(const WalletHubScreenPendingRepository());
 
-/// The D35 money guard, made visible: a healthy wallet with an [OfflineCubit]
-/// seeded OFFLINE above the screen.
-///
-/// Compare it with `Ready to bid · funded` — the only difference on screen is
-/// the balance (63.00 vs 145.00). `wallet_topup_cta` is a full-strength
-/// [OmdsPrimaryButton] in both, because the guard lives inside `_onTopUp` and
-/// only speaks AFTER the tap, as a SnackBar. There is no disabled treatment, no
-/// inline notice, and no offline banner on this screen at all, so an offline
-/// jeeber reads a fully operable wallet and discovers otherwise one tap at a
-/// time.
 @JeebPreview(
   group: 'wallet',
   name: 'Offline · top-up blocked',

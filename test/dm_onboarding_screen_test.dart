@@ -162,8 +162,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Previously: zero error surface (submitFailed had no listener) — the
-    // wizard just sat there. Now a SnackBar carries the honest message and
-    // the transient error is acknowledged (not replayed).
     expect(find.byType(SnackBar), findsOneWidget);
     expect(find.text("Couldn't check coverage for this area. Please try again."),
         findsOneWidget);

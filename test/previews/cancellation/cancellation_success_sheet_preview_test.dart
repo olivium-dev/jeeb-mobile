@@ -1,22 +1,4 @@
 // Render tests for the CancellationSuccessSheet previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose. `CancellationSuccessSheet.build`
-// never reads its `result`, so three of the five previews below render the SAME
-// two strings ("Delivery cancelled" / "Done"). Binding `expectedText` to widget
-// output could therefore not tell them apart — it would be exactly the weak
-// assertion the harness warns about. So `expectedText` binds to each preview's
-// caption, which is preview scaffolding, and the per-state contract is asserted
-// underneath by measurement:
-//
-//   * the three payload previews must render IDENTICAL strings (the drop, made
-//     into a failing condition if anyone ever fixes it — see the note on that
-//     test), and
-//   * the two geometry previews must lay the sheet out at their own width and
-//     their own bottom inset.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,14 +59,6 @@ void main() {
 
   group('CancellationSuccessSheet preview specifics', () {
     // The assertion the caption-based `expectedText` above cannot make, stated
-    // the only way it can be stated honestly: three materially different
-    // gateway payloads produce one rendering.
-    //
-    // `pendingApproval: true` means the cancellation is awaiting admin review;
-    // `restriction: 'red'` means the jeeber has just been gated out of the feed.
-    // Neither reaches the screen. If someone ever teaches the sheet to read
-    // `result`, this test fails — and that failure is the signal to delete it,
-    // not to make the payloads match again.
     testWidgets('all three payloads render identical copy — `result` is dead', (
       WidgetTester tester,
     ) async {
@@ -133,8 +107,6 @@ void main() {
       expect(narrow.width, 320);
 
       // The title is a bare `Text` with no ellipsis, so a wrap would grow the
-      // sheet. At 100% "Delivery cancelled" clears 320 pt on one line, which is
-      // why the two heights match — and what this pins.
       expect(
         narrow.height,
         phone.height,
@@ -156,9 +128,6 @@ void main() {
           _sheetRect(tester).bottom - _ctaRect(tester).bottom;
 
       // The widget's own SafeArea absorbs the 34 pt home indicator on top of
-      // the 20 pt gutter. If this ever reads 20 again, either the SafeArea was
-      // dropped or something above it swallowed `MediaQuery.padding` — which is
-      // how a CTA ends up under a home indicator.
       expect(insetGap, 54);
       expect(_sheetRect(tester).height, flatHeight + 34);
     });
@@ -180,9 +149,6 @@ void main() {
     });
 
     // The preview matrix renders 'Cancelled outright' and 'Narrow phone' at
-    // 200% text, but the canvas is the only place that happens; these render
-    // tests run at 1x, so the accessibility ceiling would otherwise be asserted
-    // nowhere.
     testWidgets('at 200% text the sheet grows without overflowing', (
       WidgetTester tester,
     ) async {
@@ -210,7 +176,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Height, not size: the Column stretches every child, so the icon's box
-      // is content-width wide and only its height carries the 56 pt.
       await pumpPreview(tester, cancellationSuccessSheetCancelled);
       expect(tester.getSize(find.byIcon(Icons.check_circle_outline)).height, 56);
       final double baseTitle =
@@ -225,9 +190,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // A bare `Icon(size: 56)` only text-scales when the ambient
-      // `IconThemeData.applyTextScaling` is set, and it is not. At 200% the
-      // title grows around a glyph that does not move, so the element carrying
-      // "it worked" stops being the largest thing on the sheet.
       expect(tester.getSize(find.byIcon(Icons.check_circle_outline)).height, 56);
       expect(
         tester.getSize(find.text('Delivery cancelled')).height,
@@ -243,7 +205,6 @@ void main() {
       final Rect cta = _ctaRect(tester);
       expect(cta.height, 48, reason: 'Sizes.fourXLarge, fixed at every scale');
       // Stretched by the Column's `crossAxisAlignment.stretch` to the full
-      // content width: 320 - 2 * Spacing.large.
       expect(cta.width, 280);
 
       expect(

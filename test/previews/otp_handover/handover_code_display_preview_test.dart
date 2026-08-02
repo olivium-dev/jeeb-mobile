@@ -1,17 +1,4 @@
 // Render tests for the HandoverCodeDisplay previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// The widget renders exactly one string and no localized copy of its own, so
-// every `expectedText` pin below is the code itself — deliberately distinct per
-// state, which is the only way a pin can prove a preview built ITS OWN state
-// rather than repeating the previous one.
-//
-// The measurements in the specifics group use the widget-test font (every glyph
-// one em wide), so the absolute numbers are a worst case; what they pin is the
-// ORDERING and the behaviour — hero > compact type scale, LTR digits inside an
-// Arabic tree, and the panel never outgrowing the slot it is given.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -68,8 +55,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The two previews exist as a pair because these are the two surfaces
-      // that ship. If `compact` ever stops being the ~half-size variant, the
-      // at-door card and the OTP screen stop looking like one component.
       await pumpPreview(tester, handoverCodeDisplayHero);
       final double heroFont = _codeFontSize(tester, '1234');
       final double heroHeight = _codeSize(tester, '1234').height;
@@ -101,16 +86,12 @@ void main() {
         TextDirection.rtl,
       );
       // ...the digits must not. `0450` mirrored reads as `0540`, a different
-      // code, and the only thing preventing it is the Directionality pin in
-      // HandoverCodeDisplay.build.
       expect(
         tester.renderObject<RenderParagraph>(find.text('0450')).textDirection,
         TextDirection.ltr,
       );
 
       // The live region announces the digits one at a time, under the Arabic
-      // label — a screen-reader user hears the code even when the visual
-      // rendering is the one that broke.
       final SemanticsNode node = tester.getSemantics(
         find.bySemanticsIdentifier('otp_handover_code_display'),
       );
@@ -118,12 +99,6 @@ void main() {
       expect(node.label, contains('رمز التسليم'));
 
       // Documented defect, pinned so it cannot be lost: the Semantics wrapper
-      // sets neither `container` nor `explicitChildNodes`, so the code Text
-      // MERGES into the live region and its unspaced run lands in the label
-      // beside the spaced `value`. TalkBack therefore hears the code twice —
-      // once as a run a screen reader is free to read as the number "four
-      // hundred fifty", once digit by digit. `container: true` on the
-      // Semantics in HandoverCodeDisplay.build would drop the first.
       expect(node.label, contains('0450'));
 
       handle.dispose();
@@ -133,8 +108,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The render harness pumps an 800 px viewport and ignores JeebPreview.size,
-      // so a state about width has to carry its own pin or it is silently
-      // reviewed at 800 pt.
       await pumpPreview(tester, handoverCodeDisplayNarrowPhone);
 
       expect(_panelWidth(tester), 320 - _pagePadding * 2);
@@ -144,13 +117,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // This pins a defect, deliberately. HandoverCodeDisplay has no FittedBox,
-      // no maxLines and no ellipsis, and Flutter's line breaker falls back to
-      // breaking a digit run anywhere rather than overflowing it — so a code
-      // that does not fit is rendered as stacked fragments (`906` / `1`), not
-      // clipped and not scaled down.
-      //
-      // If a FittedBox / AutoSizeText fix lands, this expectation SHOULD fail:
-      // change it to assert a single line, and delete this comment.
       await pumpPreview(tester, handoverCodeDisplayHero);
       final double oneLine = _codeSize(tester, '1234').height;
 
@@ -172,8 +138,6 @@ void main() {
       final SemanticsHandle handle = tester.ensureSemantics();
 
       // Nothing in this widget enforces the 4-digit contract — only the
-      // jeeber's submit button does (`code.length == 4`). A widened code is
-      // shown, and announced, exactly as it arrived.
       await pumpPreview(tester, handoverCodeDisplayWidenedCode);
 
       expect(

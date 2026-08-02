@@ -5,7 +5,6 @@ import '../domain/kyc_form_schema.dart';
 import '../domain/kyc_submission.dart';
 
 /// Which step the wizard is currently showing.
-///
 enum KycWizardStep {
   schema,
   identity,

@@ -6,30 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/devtool/gateway/dev_gateway_client.dart';
 
-/// Wire-contract lock for the Dev Tool's "Send message" action after
-/// `jeeb-gateway` #350 (`3148acff`) retired the legacy channel-write surface.
-///
-/// ## What this pins, and why it is a real check
-/// The retired route (`POST /api/Chat/channels/{id}/messages`) now answers
-/// **410 Gone**. The live surface keys on a **conversation id**, which is a
-/// different aggregate from the **channel id** the old action collected — there
-/// is no channel→conversation mapping, so the action was re-scoped onto the
-/// request id (`correlation_key == request_id`).
-///
-/// These tests drive a REAL [Dio] through a REAL [DevGatewayClient]; only the
-/// socket is scripted, so every assertion is made against the bytes the client
-/// would actually put on the wire (path, query, body, headers). The behaviour
-/// itself was additionally verified end-to-end against the live MSI gateway at
-/// `192.168.2.39:10090` — `GET /v1/conversations?correlationKey=` → 200 with
-/// `conversation_id`, `POST /v1/conversations/{id}/messages` → 201 with the
-/// message read back — so this file locks a contract that was observed, not
-/// one that was assumed.
+/// Wire-contract lock for the Dev Tool's "Send message" action 
 class _ScriptedAdapter implements HttpClientAdapter {
   _ScriptedAdapter(this._respond);
 
   final ResponseBody Function(RequestOptions options) _respond;
 
-  /// Every request that reached the wire, in order.
+/// Every request that reached the wire, in order.
   final List<RequestOptions> requests = <RequestOptions>[];
 
   @override
@@ -57,15 +40,14 @@ ResponseBody _json(Object body, int status) => ResponseBody.fromString(
 const String kRequestId = 'req-8f21';
 const String kConversationId = 'b5e04750-13dc-4881-8315-234a1f8c69d1';
 
-/// The exact projection the live gateway returns (snake_case, per
-/// `JeebConversationResponse`). Observed on MSI, not invented.
+/// The exact projection the live gateway returns (snake_case, p
 const Map<String, Object?> kConversationRow = <String, Object?>{
   'conversation_id': kConversationId,
   'correlation_key': kRequestId,
   'phase': 'broadcasting',
 };
 
-/// Serves the mint, then whatever [onConversationRead] / [onAppend] decide.
+/// Serves the mint, then whatever [onConversationRead] / [onApp
 _ScriptedAdapter _adapterFor({
   ResponseBody Function()? onConversationRead,
   ResponseBody Function()? onAppend,
@@ -120,8 +102,6 @@ void main() {
 
       final append = adapter.requests[2];
       expect(append.method, 'POST');
-      // FROZEN Contract E: `body` is a STRING for a text message. Sending it as
-      // an object is what made the product chat path 400 for every message.
       expect(append.data, <String, dynamic>{'kind': 'text', 'body': 'hello'});
       expect(append.headers['Authorization'], 'Bearer act-as-token');
     });
@@ -132,8 +112,6 @@ void main() {
 
       await _send(_clientOn(adapter));
 
-      // The regression this file exists to prevent. If anyone reinstates the
-      // old path, this fails rather than waiting for a device-E2E 410.
       expect(
         adapter.requests.where(
           (RequestOptions r) => r.path.contains('/api/Chat/channels'),
@@ -161,10 +139,6 @@ void main() {
 
     test('NEGATIVE CONTROL — a row carrying only `id`/`conversationId` FAILS '
         'rather than sending to the wrong place', () async {
-      // The gateway emits `conversation_id` and neither of these (confirmed
-      // live). A client that quietly accepted them would be reading a key the
-      // server never sends — the exact shape of the accept-parser bug that
-      // silently dropped delivery ids.
       final adapter = _adapterFor(
         onConversationRead: () => _json(<String, Object?>{
           'id': kConversationId,
@@ -176,7 +150,6 @@ void main() {
         _send(_clientOn(adapter)),
         throwsA(isA<DevGatewayException>()),
       );
-      // Nothing was appended anywhere.
       expect(
         adapter.requests.where((RequestOptions r) => r.method == 'POST'
             && r.path.endsWith('/messages')),
@@ -196,8 +169,6 @@ void main() {
       } on DevGatewayException catch (e) {
         expect(e.statusCode, 404);
         expect(e.message, contains('no conversation is correlated'));
-        // Executed negative control on the MESSAGE: the generic dev-flag text
-        // would send a reviewer after a knob that is not the problem.
         expect(e.message, isNot(contains('Features:DevEndpoints')));
       }
     });

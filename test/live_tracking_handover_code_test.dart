@@ -1,18 +1,5 @@
 import 'dart:async';
 // G4 (sprint-009 P0) — the customer SEES their handover code.
-//
-// PROVES, over the customer tracking surface:
-//  1. LiveTrackingCubit re-hydrates the accept-time code from the local
-//     HandoverCodeStore (cold-start / restart safe) — and NEVER calls the
-//     SMS-trigger `GET /otp` endpoint for it.
-//  2. At-door: the code renders PROMINENTLY inline in the OtpAtDoorCard
-//     (large glyphs + "Share this code with your Jeeber when they arrive"),
-//     with the "Show OTP" CTA still present.
-//  3. Pre-at-door: a discoverable-but-quiet "Delivery code" row shows the
-//     code from accept time onward.
-//  4. Without a locally-known code both surfaces degrade gracefully (no row,
-//     the pre-fix at-door copy) — the OTP screen then owns the honest SMS
-//     fallback.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -195,14 +182,6 @@ void main() {
     });
 
     // P0 (2026-07-31, ship-p0 run g5). This test used to assert
-    // `findsNothing` — it pinned the behaviour that dead-ended every delivery.
-    // On hardware BOTH gates to the code failed at once: the accept parser had
-    // dropped the code (so the row was hidden), and the status axis is
-    // push-only since #185/N7 while the AtDoor push did not land on the device
-    // (so OtpAtDoorCard, the only other route to `/orders/{id}/otp`, was never
-    // built). The jeeber asked for a code the customer had no surface to see.
-    // The row is unconditional now: no cached code means it becomes the CTA,
-    // and the OTP screen fetches the code.
     testWidgets(
         'InTransit WITHOUT a cached code → the row is STILL there, as the '
         'Show OTP CTA (the only unconditional route to the code)',

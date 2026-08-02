@@ -1,12 +1,4 @@
 // Render tests for the LogoutDeleteConfirmSheet previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Every state pins a DISTINCT string — five
-// previews of one sheet would otherwise all pass while showing the same mode —
-// and the two states whose difference is NOT copy (a spinner, a 320 pt width)
-// get their own assertions, because `Clearing session` cannot be pumped with
-// `pumpAndSettle` (an indeterminate `CircularProgressIndicator` never settles)
-// and `Narrow phone` renders the same strings as `Sign out + delete`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,13 +36,10 @@ void main() {
     },
     expectedText: const <String, String>{
       // The sign-out title — a question about a pending act, and the string the
-      // delete mode must NOT show.
       'Sign out': 'Sign out of Jeeb?',
       // Pinned whole: if the grace window drifts from the gateway purge-worker
-      // SLA, or a sentence of the reversal copy is dropped, this fails.
       'Delete account': _deleteBody,
       // `both` is the only 390 pt state carrying the delete CTA under the
-      // sign-out title.
       'Sign out + delete': 'Delete account',
       // The sign-out body, which delete mode replaces wholesale.
       'Narrow phone · 320 pt':
@@ -59,10 +48,6 @@ void main() {
   );
 
   // `_inFlight` swaps every CTA label for `OmdsButtonLoading`, i.e. an
-  // indeterminate `CircularProgressIndicator`. `pumpAndSettle` (which
-  // `pumpPreview` calls) never returns while one is on screen, so this preview
-  // gets the same three assertions the shared suite makes — builds in EN,
-  // builds in AR, renders its OWN state — driven by fixed pumps instead.
   group('LogoutDeleteConfirmSheet previews · Clearing session', () {
     Future<void> pumpInFlight(
       WidgetTester tester, {
@@ -94,7 +79,6 @@ void main() {
       // Still the sign-out sheet (`both` mode keeps the sign-out title)…
       expect(find.text('Sign out of Jeeb?'), findsOneWidget);
       // …but BOTH confirm labels have been replaced by spinners. That triple is
-      // true of no other preview in this file.
       expect(find.text('Sign out'), findsNothing);
       expect(find.text('Delete account'), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
@@ -106,10 +90,6 @@ void main() {
       await pumpInFlight(tester);
 
       // The preview fires `logout-confirm-cta` only, yet `_confirmCta` passes
-      // `isLoading: _inFlight` to every CTA it builds — so `delete-confirm-cta`
-      // spins too, on the one sheet where the other action is irreversible.
-      // If this ever finds ONE spinner, the sheet started distinguishing the
-      // action in flight and this preview's doc comment is stale.
       expect(
         find.descendant(
           of: find.byKey(const Key('delete-confirm-cta')),
@@ -126,7 +106,6 @@ void main() {
       await pumpInFlight(tester);
 
       // A live tap target here is how a user double-fires the clear, or tears
-      // the sheet down mid-clear and lands in a half-logged-out shell (D5).
       for (final String id in <String>[..._confirmIds, _cancelId]) {
         expect(
           tester.getSemantics(find.bySemanticsIdentifier(id)),
@@ -146,7 +125,6 @@ void main() {
 
       expect(find.bySemanticsIdentifier('logout_confirm_cta'), findsOneWidget);
       // NEGATIVE control: the irreversible action must not be reachable from
-      // the sheet the user opened to sign out.
       expect(find.bySemanticsIdentifier('delete_confirm_cta'), findsNothing);
       expect(find.text('Delete account'), findsNothing);
       expect(find.textContaining('permanently deleted'), findsNothing);
@@ -158,8 +136,6 @@ void main() {
       await pumpPreview(tester, logoutDeleteConfirmSheetDelete);
 
       // The number the user is told must be the one the gateway purge worker
-      // waits (account_deletion_policy.dart) — a drift here is a promise the
-      // backend does not keep.
       expect(find.textContaining('$kAccountPurgeGraceDays days'), findsOneWidget);
       expect(find.textContaining('Sign in again'), findsOneWidget);
       // Delete mode is delete-only: no sign-out escape hatch on this sheet.
@@ -178,15 +154,11 @@ void main() {
       expect(find.text('Sign out'), findsOneWidget);
       expect(find.text('Delete account'), findsOneWidget);
       // …under the SIGN-OUT title and body. The delete warning is nowhere on
-      // this sheet, which is what makes the second CTA worth looking at.
       expect(find.text('Sign out of Jeeb?'), findsOneWidget);
       expect(find.textContaining('permanently deleted'), findsNothing);
     });
 
     // The guard against every preview in this file rendering at one width: the
-    // 320 pt state is distinguishable from `Sign out + delete` ONLY by geometry,
-    // and the render tests pump an 800 px viewport that would hide a dropped
-    // width pin.
     testWidgets('Narrow phone pins 320 pt, the 390 pt states pin 390', (
       WidgetTester tester,
     ) async {
@@ -213,8 +185,6 @@ void main() {
           390,
         );
         // Idle: no clear in flight, so the labels are on screen and the cancel
-        // CTA is live. (`pumpPreview` settling at all proves the same thing —
-        // a spinner would have hung it.)
         expect(find.byType(CircularProgressIndicator), findsNothing);
         expect(find.text('Cancel'), findsOneWidget);
       });

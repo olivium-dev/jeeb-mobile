@@ -10,29 +10,6 @@ import '../../support/fake_web_socket_channel.dart';
 
 /// The WIRE CONTRACT of the courier-position subscription, asserted frame by
 /// frame against the shapes `realtime-comunication-service` actually
-/// implements.
-///
-/// ## What these can and cannot prove
-///
-/// They prove the client dials the right URL, joins the right channel with the
-/// right payload, keeps the channel alive on the server's own schedule, keeps
-/// exactly the `location` envelopes and drops everything else, and closes the
-/// socket when its reader goes away. That is a `suite` claim about the client
-/// half.
-///
-/// They prove nothing about the server. Whether MSI's Phoenix accepts the
-/// gateway-minted credential and fans a real courier's GPS onto this topic is a
-/// `device`/`capture` claim; the gateway lane established it separately against
-/// `192.168.2.39:5804` (3/3 positions on the owning delivery, refused on
-/// another, 0 frames idle).
-///
-/// ## Every silence assertion is paired
-///
-/// A test that asserts "no fix arrived" is satisfied by a socket that never
-/// delivers anything at all. So each negative below runs on the SAME socket
-/// instance that has already been shown to deliver a fix, or is immediately
-/// followed by a frame that MUST land. A probe that cannot see the thing it is
-/// asserting the absence of is not a probe.
 void main() {
   const channelName = 'topic:jeeb:delivery:DLV-1';
   const stream = 'location';
@@ -104,7 +81,6 @@ void main() {
       await socket.connect();
 
       // The token param is what `LiveCommSocket.connect/3` reads; without it
-      // the upgrade is refused `missing_token` and no frame ever arrives.
       expect(dialled.single.queryParameters['token'], 'scoped-subscribe-jwt');
       expect(dialled.single.queryParameters['vsn'], '2.0.0');
       await socket.close();
@@ -177,7 +153,6 @@ void main() {
       await socket.connect();
 
       // 1. Another stream on the same topic. The server does NOT filter its
-      //    fan-out by the join's `streams`, so this is a real arrival.
       ws.serverToClient.add(envelopeFrame(envelopeStream: 'chat'));
       // 2. Phoenix lifecycle frames.
       ws.serverToClient.add(jsonEncode(
@@ -214,11 +189,6 @@ void main() {
 
   group('CourierPositionSocket — keepalive', () {
     // Driven under `fakeAsync`, deliberately. A first draft used real
-    // `Future.delayed` waits and passed in isolation, then went red inside the
-    // full suite: wall-clock waits measured against a 20 s production interval
-    // are a load-dependent coin flip, and a flaky gate teaches people to re-run
-    // rather than to read. Virtual time asserts the SCHEDULE, which is the
-    // actual claim.
     test('sends a CHANNEL ping and a transport heartbeat once the interval '
         'elapses, and NOTHING before it', () {
       fakeAsync((async) {
@@ -243,9 +213,6 @@ void main() {
             .toList();
 
         // The ping must be on OUR channel: `TopicChannel.handle_in("ping", …)`
-        // is the only thing that resets `missed_heartbeats`, and it only runs
-        // for a frame addressed to the channel. A ping sent to `phoenix` would
-        // keep the socket up while the channel died at 75 s anyway.
         expect(pings, hasLength(1));
         expect(pings.first[2], channelName);
         // And the transport heartbeat is on the reserved topic.

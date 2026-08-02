@@ -1,23 +1,4 @@
 // Live-contract resolution + real-session-id guard for ChatDetailScreen.
-//
-// Two bugs are pinned here (both confirmed against the live gateway at
-// 192.168.2.39:10090, see docs/sprints/sprint-006/order-create-trace.md):
-//
-//   1. RESOLUTION ROUTE. The screen used to resolve the conversation via
-//      `GET /v1/chat/jeeb/conversations/{id}` + `/by-request/{id}`. That prefix
-//      is CREATE-ONLY on the live gateway and 404s for reads, so the screen
-//      fell into "compose" and a send wrongly created a NEW request. The fix
-//      resolves against `GET /v1/conversations?correlationKey={requestId}`
-//      (correlationKey == request id) and treats a 200 from
-//      `GET /v1/conversations/{id}/messages` as a real, openable conversation.
-//      This test asserts the live route IS queried and the 404 prefix is NEVER
-//      touched.
-//
-//   2. REAL SESSION ID. The gateway used to be constructed with a hardcoded
-//      `currentUserId: 'user-client-001'`, which folded EVERY message (incl.
-//      the local user's own) as `them`. The fix reads the authenticated user id
-//      from AuthTokenStore. This test asserts the constructed DioChatGateway
-//      carries the real session id, not the hardcoded sentinel.
 library;
 
 import 'package:dio/dio.dart';
@@ -83,12 +64,6 @@ class _RecordingDio {
 /// The REAL live-gateway snake_case shape observed in physical-run7
 /// (`docs/sprints/sprint-008/screenshots/physical-run7/wire-step4-accept.txt`):
 /// the customer opens `chat-detail` keyed on the REQUEST id, the correlationKey
-/// lookup 200s with `{ conversation_id, correlation_key, phase:"broadcasting",
-/// participants:[ …, {role_in_convo:"jeeber_winner"} ] }`, and the ONLY openable
-/// messages route is `/v1/conversations/{conversation_id}/messages`. Posting to
-/// `/v1/conversations/{requestId}/messages` 404s ("Conversation '…' does not
-/// exist"). This double reproduces that wire so the screen must resolve to the
-/// conversation_id for BOTH read and send.
 class _LiveSnakeCaseDio {
   _LiveSnakeCaseDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -118,7 +93,6 @@ class _LiveSnakeCaseDio {
           Object? body = const <String, dynamic>{};
           if (path == '/v1/conversations') {
             // Live snake_case row: id under `conversation_id`, winner seated in
-            // the participants roster, phase still `broadcasting` post-accept.
             body = <String, dynamic>{
               'conversation_id': conversationId,
               'correlation_key': requestId,
@@ -142,8 +116,6 @@ class _LiveSnakeCaseDio {
             body = <String, dynamic>{'title': 'Deliver a parcel'};
           } else if (path == '/v1/deliveries/$requestId') {
             // P3: the participant-scoped delivery read — the ONLY summary leg
-            // the Jeeber fires. It now carries the INITIAL REQUIREMENT, so the
-            // Jeeber-leg assertions below are meaningful, not accidental.
             body = <String, dynamic>{
               'description': 'ROUTE-PROOF apples',
               'status': 'Ordered',
@@ -169,11 +141,6 @@ class _LiveSnakeCaseDio {
 /// Reproduces the PRE-ACCEPT wire (physical-run8 `customer-full-logcat.txt`
 /// lines 532–1048): the customer opens order-chat keyed on the REQUEST id
 /// BEFORE any Jeeber accepts, so there is NO conversation yet. Both resolution
-/// probes 404 — `GET /v1/conversations?correlationKey={requestId}` and
-/// `GET /v1/conversations/{requestId}/messages` ("Conversation does not exist")
-/// — and the screen must hand the gateway the unresolved sentinel so its
-/// history/phase reads short-circuit instead of polling the requestId messages
-/// path every tick.
 class _PreAcceptDio {
   _PreAcceptDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -182,7 +149,6 @@ class _PreAcceptDio {
         onRequest: (options, handler) {
           requests.add(options);
           // No conversation exists for this request id yet → every conversation
-          // read 404s, exactly like the live chat-service pre-accept.
           handler.reject(
             DioException(
               requestOptions: options,
@@ -217,10 +183,6 @@ class _PreAcceptDio {
 /// Reproduces the run-12 JEEBER chat-load wire: the jeeber opens the accepted
 /// order-chat keyed on the CONVERSATION id (from the accepted feed entry). The
 /// chat-service resolves a conversation ONLY by correlationKey == request id and
-/// 404s a `?correlationKey={conversationId}` read ("Conversation … does not
-/// exist"), while `GET /v1/conversations/{conversationId}/messages` 200s. So the
-/// screen must resolve via the messages probe and NEVER issue the guaranteed-404
-/// correlationKey read (BUG-14 / physical-run12 [Med] chat-load 404 ×2).
 class _JeeberConversationIdDio {
   _JeeberConversationIdDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -230,7 +192,6 @@ class _JeeberConversationIdDio {
           requests.add(options);
           final path = options.path;
           // A correlationKey read keyed on the conversation id is the run-12
-          // 404 shape — the screen must not issue it for the jeeber.
           if (path == '/v1/conversations') {
             handler.reject(
               DioException(
@@ -274,11 +235,6 @@ class _JeeberConversationIdDio {
 /// Reproduces a CLIENT opening the order-chat by a CONVERSATION id (e.g. the
 /// dashboard active-delivery `chatRouteId`, which is a conversation id). The
 /// correlationKey lookup 404s (a conversationId is NOT a correlationKey) and
-/// resolution succeeds ONLY via the `/messages` probe — so the resolved row
-/// carries NO `correlation_key`. In that probe-only state the CLIENT pinned-
-/// summary fetch MUST be skipped: feeding the conversationId to the summary
-/// read fires `GET /v1/deliveries/{convId}` + `/v1/requests/{convId}` +
-/// `/v1/offers?requestId={convId}` — a guaranteed triple-404 (BUG-17, fix a3).
 class _ClientConversationIdProbeDio {
   _ClientConversationIdProbeDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -317,8 +273,6 @@ class _ClientConversationIdProbeDio {
             return;
           }
           // Any owner-scoped summary read (deliveries/requests/offers) — this
-          // is EXACTLY the triple-404 storm fix a3 must prevent. Resolve 200 so
-          // that if it (wrongly) fires the test still asserts on `paths`.
           handler.resolve(
             Response(
               data: const <String, dynamic>{},
@@ -369,8 +323,6 @@ Widget _host(RoleCubit role, String chatId) => MaterialApp(
   home: BlocProvider<RoleCubit>.value(
     value: role,
     // JEBV4-282: this suite exercises live-contract RESOLUTION, not the
-    // pinned-summary poll. Disable the poll so its periodic timer never
-    // outlives pumpAndSettle (the poll itself is covered separately).
     child: ChatDetailScreen(chatId: chatId),
   ),
 );
@@ -476,7 +428,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // The chat surface is wired to the RESOLVED conversation id — every
-        // send/loadHistory/subscribe the cubit issues uses this id.
         final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
         expect(
           chatScreen.deliveryId,
@@ -487,7 +438,6 @@ void main() {
         );
 
         // The requestId-keyed messages route must NEVER be called — that is the
-        // path that 404d in run-7. Reads go to the conversationId path.
         expect(
           live.paths.any(
             (p) =>
@@ -520,9 +470,6 @@ void main() {
 
         final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
         // Compose mode wires `onFirstMessageBroadcast`; the accepted state
-        // leaves it null so the composer's send goes straight to the gateway
-        // (POST /v1/conversations/{conversationId}/messages) rather than
-        // creating and broadcasting a brand-new request.
         expect(
           chatScreen.onFirstMessageBroadcast,
           isNull,
@@ -542,9 +489,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // Every conversation-aggregate lookup (resolution + the cubit phase
-        // read) must key off the request id (correlation_key), not the resolved
-        // conversation id — the chat-service only supports the correlationKey
-        // read and 404s a conversationId-keyed one.
         final corrLookups = live.requests
             .where((r) => r.path == '/v1/conversations')
             .toList();
@@ -576,14 +520,12 @@ void main() {
         await tester.pumpAndSettle();
 
         // P3: the Jeeber now GETS the summary, but only via the
-        // participant-scoped delivery route.
         expect(
           live.paths.any((p) => p.startsWith('/v1/deliveries/')),
           isTrue,
           reason: 'P3: the Jeeber reads the participant-scoped delivery leg',
         );
         // The owner-scoped request read is the one that 404d for the non-owner
-        // jeeber in run-8 — it must stay unfired.
         expect(
           live.paths.any((p) => p.startsWith('/v1/requests/')),
           isFalse,
@@ -640,8 +582,6 @@ void main() {
 
         final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
         // The gateway channel id is the sentinel → DioChatGateway short-circuits
-        // loadHistory/loadPhase (no HTTP), so the 5s poll never hits the
-        // requestId messages path.
         expect(
           chatScreen.deliveryId,
           kComposeConversationSentinel,
@@ -650,11 +590,9 @@ void main() {
               'the requestId it would poll to a 404',
         );
         // Still the client compose surface (a first send creates/broadcasts the
-        // request; it does NOT post to the requestId messages path).
         expect(chatScreen.onFirstMessageBroadcast, isNotNull);
 
         // The requestId messages route is touched AT MOST once (the one-shot
-        // resolution probe), never repeatedly polled.
         expect(
           pre.requestIdMessagesReadCount,
           lessThanOrEqualTo(1),
@@ -685,24 +623,16 @@ void main() {
         addTearDown(role.close);
 
         // The jeeber taps the accepted feed row, which is keyed on the
-        // conversation id.
         await tester.pumpWidget(
           _host(role, _JeeberConversationIdDio.conversationId),
         );
         await tester.pumpAndSettle();
 
         // The chat surface is wired to the conversation id (resolved by the
-        // messages probe).
         final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
         expect(chatScreen.deliveryId, _JeeberConversationIdDio.conversationId);
 
         // BUG-17 fix (b) runs correlationKey-FIRST for BOTH roles, so a
-        // conversationId param now attempts the correlationKey lookup exactly
-        // ONCE (it 404s, caught) then resolves via the messages-probe fallback.
-        // Crucially the gateway's loadPhase short-circuit (BUG-14,
-        // dio_chat_gateway.dart L163-165) still prevents any FURTHER
-        // conversationId-keyed correlationKey read — so this is a single caught
-        // attempt, never the repeated chat-load 404 STORM BUG-14 fixed.
         expect(
           jeeb.correlationKeyLookups,
           1,
@@ -725,11 +655,6 @@ void main() {
   });
 
   // BUG-17 fix (b): the role-based resolution ordering is GONE — BOTH roles
-  // resolve correlationKey-FIRST. When the route param is a requestId (the
-  // accept sheet, the chat push tap via notification_deep_link, the accepted-
-  // feed CTA, the In-Progress "Open chat" CTA all hand over the request id),
-  // the `/v1/conversations/{requestId}/messages` probe is a GUARANTEED 404, so
-  // it must NEVER be issued first (the physical-run14 jeeber-probe-first 404).
   group('ChatDetailScreen — correlationKey-first for BOTH roles (BUG-17)', () {
     late _LiveSnakeCaseDio live;
 
@@ -756,8 +681,6 @@ void main() {
           await tester.pumpAndSettle();
 
           // THE FIX: with correlationKey-first, the requestId-keyed messages
-          // probe is never issued for EITHER role (the old jeeber path ran it
-          // first and 404'd on a requestId push tap).
           expect(
             live.paths.contains(
               '/v1/conversations/${_LiveSnakeCaseDio.requestId}/messages',
@@ -793,10 +716,6 @@ void main() {
   });
 
   // BUG-17 fix (a3): when a CLIENT opens by a CONVERSATION id, resolution
-  // succeeds ONLY via the messages probe (the row has no correlation_key), so
-  // the owner-scoped pinned-summary triple-read MUST be skipped — otherwise it
-  // fires GET /v1/deliveries/{convId} + /v1/requests/{convId} +
-  // /v1/offers?requestId={convId}, a guaranteed triple-404.
   group('ChatDetailScreen — probe-only resolution skips the summary '
       'triple-read (BUG-17)', () {
     late _ClientConversationIdProbeDio probe;
@@ -830,7 +749,6 @@ void main() {
         );
 
         // THE FIX: no owner-scoped summary read fires — the probe-only row has
-        // no correlation_key, so `_resolveSummary` is skipped entirely.
         expect(
           probe.emittedSummaryRead,
           isFalse,
@@ -842,9 +760,6 @@ void main() {
   });
 
   // Fix 5: a compose-sentinel ('new') or empty route param has NO backend
-  // conversation yet. Both the correlationKey lookup and the messages probe are
-  // GUARANTEED 404s, so the resolver must skip BOTH and land directly in
-  // compose without touching the network.
   group('ChatDetailScreen — compose sentinel skips guaranteed-404 probes', () {
     late _RecordingDio sentinel;
 
@@ -870,7 +785,6 @@ void main() {
           await tester.pumpAndSettle();
 
           // THE FIX: neither the correlationKey lookup nor the messages probe
-          // fires — the resolver short-circuits on the sentinel/empty param.
           expect(
             sentinel.paths.any((p) => p.startsWith('/v1/conversations')),
             isFalse,
@@ -884,7 +798,6 @@ void main() {
           );
 
           // Still the client compose surface: the gateway holds the sentinel and
-          // the first send creates + broadcasts the request.
           final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
           expect(chatScreen.deliveryId, kComposeConversationSentinel);
           expect(chatScreen.onFirstMessageBroadcast, isNotNull);

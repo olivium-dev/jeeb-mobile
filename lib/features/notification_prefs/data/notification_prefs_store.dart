@@ -3,11 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/notification_prefs_model.dart';
 
 /// Local SharedPreferences cache for notification category preferences.
-///
 /// Offline fallback only — the cubit does not read this on the happy path; it
 /// always fetches from the gateway on mount (JM-058). Kept (and migrated to the
-/// D64 category model) for backward compatibility and a potential offline read.
-/// Registered in DI; the cubit uses the gateway repository, not this store.
 class NotificationPrefsStore {
   NotificationPrefsStore(this._prefs);
 

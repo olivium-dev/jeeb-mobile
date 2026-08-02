@@ -267,8 +267,6 @@ void main() {
       await sub.cancel();
       await cubit.close();
       // Should have at least two emits — one with isCancelling true, then
-      // one back to false. We assert the prefix to avoid coupling to a
-      // future cancel-success snapshot emit from the gateway.
       expect(emits.length, greaterThanOrEqualTo(2));
       expect(emits.first.isCancelling, isTrue);
       expect(emits[1].isCancelling, isFalse);

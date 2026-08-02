@@ -1,16 +1,4 @@
 // Render tests for the TranscriptionTextPanel previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. Each state pins a DISTINCT string, which is
-// what separates "the previews render" from "the previews render their own
-// state" — six previews all showing the same grey card would pass the weaker
-// check.
-//
-// One preview is pinned in the specifics group instead of through
-// `expectedText`: `Whitespace · treated as empty` renders the SAME placeholder
-// as the empty state by design, so there is no string that tells the two apart.
-// What distinguishes it is its input, and that is asserted directly — the raw
-// whitespace must never reach the card.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,7 +69,6 @@ void main() {
       await pumpPreview(tester, transcriptionTextPanelWhitespace);
 
       // Its own state: the raw input never reaches the card, the placeholder
-      // takes its place, and there is still nothing to edit.
       expect(find.text(_kWhitespaceTranscript), findsNothing);
       expect(find.text('Type your request here'), findsOneWidget);
       expect(editButton(), findsNothing);

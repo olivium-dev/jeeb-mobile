@@ -1,8 +1,4 @@
 // G1 (sprint-009 P0) — the waiting screen's request row parse must carry the
-// customer's request content. `GET /v1/requests/:id` returns the `description`
-// the compose flow POSTed (verified against JeebRequestsController: the
-// create requires a non-blank Description and the read echoes it); a dedicated
-// short `title` wins when the gateway mints one.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,10 +93,6 @@ void main() {
     });
 
     // P7: a row the server says has NO countdown (terminal) legitimately omits
-    // `offerDeadlineInSeconds` — that stays null across repeated reads and is
-    // never back-filled with an invented window. (A LIVE row that omits it is a
-    // contract violation and throws — see
-    // dio_waiting_repository_contract_test.dart T4.1.)
     test(
       'an omitted deadline on a terminal row stays unknown across repeated '
       'reads',
@@ -137,7 +129,6 @@ void main() {
       expect(waiting.remainingAtReceipt, const Duration(seconds: 1740));
       expect(waiting.receivedAt, anchor);
       // The deadline is DERIVED in the device clock domain, never parsed from a
-      // server absolute.
       expect(waiting.deadline, anchor.add(const Duration(seconds: 1740)));
     });
 

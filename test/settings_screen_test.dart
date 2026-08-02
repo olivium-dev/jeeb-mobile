@@ -205,10 +205,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The destructive rows expose stable keys for QA and Maestro; the
-      // cubit-level test covers the confirmed-action service interaction
-      // since the OMDS confirmation dialog wraps AlertDialog.actions in
-      // OverflowBar, which doesn't compose with the Expanded children used
-      // by the OMDS dialog implementation today.
       expect(find.byKey(const Key('settings-row-delete-account')),
           findsOneWidget);
       expect(find.byKey(const Key('settings-row-sign-out')), findsOneWidget);

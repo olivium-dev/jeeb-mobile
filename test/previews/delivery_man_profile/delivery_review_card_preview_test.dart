@@ -1,9 +1,4 @@
 // Render tests for the DeliveryReviewCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. The `expectedText` map is the load-bearing
-// half: it proves each preview renders ITS OWN state, which is what separates a
-// real regression from six cards that all happen to draw.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -10,30 +10,7 @@ import 'package:jeeb_mobile/core/notifications/domain/notification_deep_link.dar
 import 'package:jeeb_mobile/core/notifications/domain/notification_message.dart';
 
 /// S0-PUSH-10 — FCM PUSH PAYLOAD CONTRACT (Sprint-3 Contract 9b / 10b).
-///
 /// Locks the app's FCM-data-message RECEIVE contract field-for-field against the
-/// FROZEN gateway `EventPushNotifier` chat `data` shape so any drift between the
-/// gateway DTO and the app parser FAILS this suite. The committed fixture
-/// `test/fixtures/fcm_chat_push_contract.json` IS the byte-shape both sides lock
-/// to (sprint-03/contract.md §9b):
-///
-/// ```json
-/// { "type":"chat", "conversationId":"<uuid>", "messageId":"<uuid>",
-///   "senderId":"<author uuid>", "requestId":"<uuid>",
-///   "title":"<string>", "body":"<preview>" }
-/// ```
-///
-/// Unlike the pre-existing `notification_deep_link_test` / `chat_push_chain_6msg`
-/// tests — which hand-build a `NotificationMessage` and so SKIP the real FCM
-/// decode — every assertion here drives the production
-/// `FirebaseMessagingTransport._toDomain` decode by feeding a real
-/// data-only `RemoteMessage` through `initialMessage()` (the single shared
-/// decoder used by the foreground, opened-app, and cold-start paths). That is
-/// the surface Contract 10 (gateway) must match byte-for-byte.
-///
-/// Failing-first proof (lane notes): rename a field in the fixture file →
-/// `the frozen 9b payload decodes...` + `the committed fixture locks...` go RED;
-/// restore → GREEN.
 
 /// The exact set of keys the FROZEN Contract 9b data block carries. The .NET
 /// side (Contract 10b) asserts the same six required keys + `body`.
@@ -64,8 +41,6 @@ Map<String, dynamic> _flattenToWire(Map<String, dynamic> data) =>
 
 /// Decodes [data] through the PRODUCTION transport exactly as a real inbound
 /// FCM message would, asserting nothing — returns the parsed domain message.
-/// [withNotificationBlock] models the contract-FORBIDDEN (Contract 9a) case
-/// where the gateway wrongly attaches an FCM `notification` block.
 Future<NotificationMessage> _decodeThroughTransport(
   Map<String, dynamic> data, {
   RemoteNotification? withNotificationBlock,
@@ -90,18 +65,12 @@ void main() {
       () {
     final fixture = _loadContractFixture();
 
-    // Field-for-field key lock — adding, removing, or renaming any key in the
-    // fixture (i.e. drift from the gateway DTO) fails here.
     expect(fixture.keys.toSet(), kContractKeys,
         reason: 'fixture drifted from the FROZEN Contract 9b field set');
 
-    // Contract 9a: a chat push is DATA-ONLY — title + body are required keys
-    // INSIDE data (the bg isolate renders from data[title]/data[body]); there
-    // is no separate FCM notification block.
     expect(fixture.containsKey('title'), isTrue);
     expect(fixture.containsKey('body'), isTrue);
 
-    // 8a/9b convention: deliveryId == conversationId == requestId.
     expect(fixture['conversationId'], fixture['requestId']);
     expect(fixture['type'], 'chat');
   });
@@ -112,16 +81,11 @@ void main() {
 
     final message = await _decodeThroughTransport(fixture);
 
-    // type=chat discriminator resolves to the chat category (NOT `other`).
     expect(message.category, NotificationCategory.chat);
-    // messageId is the dedup id/tag.
     expect(message.id, fixture['messageId']);
-    // title/body recovered from data (data-only render contract).
     expect(message.title, fixture['title']);
     expect(message.body, fixture['body']);
-    // conversationId (camelCase) is the deep-link key → original thread.
     expect(deepLinkForMessage(message), '/chat/${fixture['conversationId']}');
-    // The full byte-shape survives onto the domain envelope's data map.
     expect(message.data.keys.toSet(), kContractKeys);
   });
 
@@ -135,23 +99,17 @@ void main() {
     final original = await _decodeThroughTransport(fixture);
     final withOtherSender = await _decodeThroughTransport(swapped);
 
-    // Changing senderId changes nothing the app acts on.
     expect(withOtherSender.category, original.category);
     expect(withOtherSender.title, original.title);
     expect(withOtherSender.body, original.body);
     expect(deepLinkForMessage(withOtherSender),
         deepLinkForMessage(original));
-    // It is merely passed through on data, not promoted to an identity field.
     expect(original.data['senderId'], fixture['senderId']);
   });
 
   test('a nested single-quote `data` blob is hoisted by the transport decode '
       'so a chat push still resolves to /chat/<requestId>', () async {
     // The live gateway chat push nests routing fields inside a single
-    // stringified `data` entry (single-quote pseudo-JSON). _toDomain must call
-    // hoistNestedRoutingFields so `type`/`conversationId`/`requestId` become
-    // visible to category resolution + deep-linking. Without the hoist this
-    // decodes as category=other and routes nowhere.
     final message = await _decodeThroughTransport(<String, dynamic>{
       'data': "{'conversationId': '99b73825-9383-4aec-987d-169c02d96f64', "
           "'requestId': '7a5dffbd-6c05-4068-9b79-0cec377cae0f', 'type': 'chat'}",
@@ -160,7 +118,6 @@ void main() {
     });
 
     expect(message.category, NotificationCategory.chat);
-    // requestId is the primary chat routing key (correlationKey == requestId).
     expect(
       deepLinkForMessage(message),
       '/chat/7a5dffbd-6c05-4068-9b79-0cec377cae0f',
@@ -172,11 +129,6 @@ void main() {
         'drifts (requestId is the proven primary key; conversationId a fallback)',
         () async {
       // Proven sprint-006/007 routing (notification_deep_link.dart): the chat
-      // thread resolves by requestId FIRST — the chat-detail screen looks the
-      // conversation up via correlationKey == requestId, and routing by the
-      // conversationId 404s that first probe. conversationId / snake-case
-      // variants remain accepted fallbacks. So renaming conversationId ALONE is
-      // NOT un-routable: requestId still resolves the thread (resilience).
       final partialDrift = _loadContractFixture()
         ..['conversationIdX'] = '11111111-1111-4111-8111-111111111111'
         ..remove('conversationId');
@@ -186,14 +138,11 @@ void main() {
           '/chat/${partialDrift['requestId']}');
 
       // A push is genuinely un-routable only when EVERY recognized routing key
-      // drifts/drops — the real contract regression this guard protects against.
       final fullDrift = _loadContractFixture()
         ..remove('conversationId')
         ..remove('requestId');
       final message = await _decodeThroughTransport(fullDrift);
       expect(message.category, NotificationCategory.chat);
-      // No requestId / conversationId / snake / legacy key present → cannot
-      // resolve the thread.
       expect(deepLinkForMessage(message), isNull);
     });
 
@@ -214,7 +163,6 @@ void main() {
       final message = await _decodeThroughTransport(drifted);
 
       expect(message.title, '');
-      // body still present, so the message is not wholly silent.
       expect(message.body, isNotEmpty);
     });
   });
@@ -225,7 +173,6 @@ void main() {
     final fixture = _loadContractFixture();
 
     // A notification block must NOT change routing — the discriminator + ids
-    // live in data, which is the only path that deep-links in background.
     final message = await _decodeThroughTransport(
       fixture,
       withNotificationBlock:
@@ -242,10 +189,6 @@ void main() {
       '— the KNOWN type wins over the legacy category so the jeeber tap lands '
       'on the request, not the order surface', () async {
     // NewRequestPushNotifier stamps BOTH a `type=new_request` discriminator and
-    // a legacy `category=delivery` (so pre-sprint-009 APKs still bucket it as a
-    // delivery). Decoding drives the production `_toDomain` — the SAME shared
-    // decoder the onMessageOpenedApp listener uses (`_opened.add(_toDomain(msg))`)
-    // — so this locks the resolved bucket for a real inbound opened-app tap.
     final message = await _decodeThroughTransport(<String, dynamic>{
       'messageId': 'msg-run19',
       'type': 'new_request',

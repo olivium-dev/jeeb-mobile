@@ -88,11 +88,6 @@ Dio _capturingDio(Object? responseBody) {
 void main() {
   group('DioSavedLocationRepository — JM-049 W1 endpoint contract', () {
     // The repo resolves its path via MockGatewayClient.savedLocationsPath. In
-    // `flutter test`, useMockPrefixes defaults to false, so the helper emits the
-    // VERIFIED live gateway contract `/api/users/me/saved-locations` (me-keyed,
-    // /api prefix). In mock mode it would emit `/users/:userId/...` (rewritten to
-    // /user-management/users). The persisted userId no longer changes the LIVE
-    // path — the gateway keys the collection on `me`.
     test('GET uses the live /api/users/me/saved-locations contract', () async {
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
@@ -133,8 +128,6 @@ void main() {
     test('null persisted userId still resolves the live me-keyed path',
         () async {
       // A null userId falls back internally to user-client-001 (used only for
-      // mock-mode + the log line); on the live gateway the path is `me`
-      // regardless, so a missing userId must not crash or change the path.
       _capturedPath = null;
       final repo = DioSavedLocationRepository(
         _capturingDio(<dynamic>[]),
@@ -194,7 +187,6 @@ void main() {
     });
 
     // JM-049: the `has_saved_addresses` seam shape — nested geo + isDefault /
-    // is_default + the JM-050 form fields. The default badge keys off this.
     test('parses seam shape (geo, isDefault, form fields)', () async {
       final dio = _dioWith({
         'items': [

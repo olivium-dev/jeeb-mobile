@@ -1,16 +1,4 @@
 // Render tests for the CustomerProfileScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Two of the six states — the cold start and the failed cold read — render the
-// SAME pixels by design (see the preview section: the screen never looks at
-// `state.error`), so `expectedText` alone cannot tell them apart. The
-// `preview specifics` group carries that weight instead: it pins each card on
-// its cubit's status and typed failure, which is the only thing that actually
-// differs. If that ever stops being true, the screen grew an error affordance
-// and these tests should be rewritten around it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -25,10 +13,7 @@ import 'package:jeeb_mobile/features/customer_profile/presentation/widgets/custo
 import '../preview_test_harness.dart';
 
 /// The state of the cubit the previewed screen built for itself.
-///
 /// `CustomerProfileScreen` owns its `BlocProvider`, so this is the only way to
-/// observe which lifecycle a card is parked in — and for the two empty states
-/// it is the ONLY difference between them.
 CustomerProfileState _state(WidgetTester tester) => tester
     .element(find.byKey(CustomerProfileScreen.rootKey))
     .read<CustomerProfileCubit>()
@@ -50,13 +35,11 @@ void main() {
     },
     expectedText: const <String, String>{
       // Each populated state is pinned on its own account holder — the rows are
-      // identical in every state, so the header copy is the only discriminator.
       'Client · verified + rated': 'Sami Fawaz',
       'Jeeber · register row hidden': 'Kamal Hajj',
       'Stale after 401 · route extra': 'Nadia Client',
       'Longest content · compact 320': 'Abdulrahman Al-Muhandis Al-Trabulsi',
       // The two empty states have no header copy to be pinned on. These strings
-      // are distinct but weak on purpose; the specifics below do the real work.
       'Cold start · getMe in flight': 'No reviews yet',
       'Failed read · network, empty seed': 'Register as a delivery',
     },
@@ -108,8 +91,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The render harness pumps an 800 pt surface. If the width were left to
-      // the canvas `size:`, this state would lay out at 800 pt here and stop
-      // being a compact-device state at all.
       await pumpPreview(tester, customerProfileScreenLongestContent);
       expect(tester.getSize(find.byType(CustomerProfileScreen)).width, 320.0);
 
@@ -120,7 +101,6 @@ void main() {
     testWidgets('the long name wraps instead of ellipsizing, growing the header',
         (WidgetTester tester) async {
       // `_NameText` passes no `maxLines`, so the ceiling state costs vertical
-      // space that the account rows below it pay for.
       await pumpPreview(tester, customerProfileScreenLongestContent);
       final double tall =
           tester.getSize(find.text('Abdulrahman Al-Muhandis Al-Trabulsi'))
@@ -151,9 +131,6 @@ void main() {
         'DEFECT: the failed cold read is indistinguishable from the loading one',
         (WidgetTester tester) async {
       // Pinned, not desired. `_Body` reads `state.data` and nothing else, so a
-      // network failure paints exactly the frame the tab opened with — no
-      // banner, no message, no retry. DELETE this test when the screen grows an
-      // error affordance (it will start failing, which is the point).
       await pumpPreview(tester, customerProfileScreenColdStart);
       final List<String> loadingCopy = tester
           .widgetList<Text>(find.byType(Text))
@@ -182,7 +159,6 @@ void main() {
       final CustomerProfileState state = _state(tester);
       expect(state.error, CustomerProfileFailure.unauthorized);
       // The session is gone and the previous read model is still rendered in
-      // full, with nothing marking it as stale.
       expect(find.text('Nadia Client'), findsOneWidget);
       expect(find.text('nadia.client@jeeb.dev'), findsOneWidget);
       expect(find.byIcon(Icons.error_outline), findsNothing);

@@ -9,7 +9,6 @@ import 'package:jeeb_mobile/core/network/single_flight_get.dart';
 /// Lowest-level Dio adapter that DELAYS each response until its gate completes
 /// and counts how many requests actually reach the wire. The gate lets a test
 /// hold two identical reads concurrently in flight so it can prove the
-/// single-flight coalescer collapses them onto ONE wire call (FIX-A).
 class _GatedAdapter implements HttpClientAdapter {
   final List<RequestOptions> requests = <RequestOptions>[];
   final Completer<void> gate = Completer<void>();
@@ -50,7 +49,6 @@ void main() {
     final b = coalescer.get('/v1/offers', queryParameters: {'requestId': 'r1'});
 
     // Both callers hold the SAME future — the duplicate is coalesced and never
-    // issues a second `Dio.get` (the wire hit itself lands asynchronously).
     expect(identical(a, b), isTrue);
 
     adapter.gate.complete();
@@ -89,7 +87,6 @@ void main() {
     adapter.gate.complete(); // resolve immediately for this scenario
     await coalescer.get('/v1/offers', queryParameters: {'requestId': 'r1'});
     // The first read settled and evicted; the second must hit the wire again
-    // (single-flight, not a cache).
     await coalescer.get('/v1/offers', queryParameters: {'requestId': 'r1'});
     expect(adapter.callCount, 2);
   });

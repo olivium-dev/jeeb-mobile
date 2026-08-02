@@ -1,16 +1,4 @@
 // Render tests for the JeeberKycGateBuilder previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// JeeberKycGateBuilder paints nothing, so "did it render" is a weak question
-// here — all six previews would pass a render-only check while showing the same
-// destination. The expected strings therefore pin `source · status →
-// destination` for each state, and the group below pins the two behaviours the
-// canvas cannot show at all: that a live read landing after the first build
-// re-resolves the subtree, and that a non-Listenable gate is built without a
-// ListenableBuilder at all.
 
 import 'dart:async';
 
@@ -37,11 +25,6 @@ void main() {
       'live · approved lands late': jeeberKycGateBuilderLiveApprovedLandsLate,
     },
     // Each state names the gate it came from AND the destination it resolved,
-    // so a preview wired to the wrong status — or six previews accidentally
-    // sharing one gate — fails here rather than looking fine in the canvas.
-    // `live · approved → feed` is the strongest of these: the live gate reports
-    // `none` synchronously, so that string can only appear if the notify path
-    // ran.
     expectedText: const <String, String>{
       'none · register prompt': 'sync · none → registerPrompt',
       'pending · feed, offering gated': 'sync · pending → feed',
@@ -59,7 +42,6 @@ void main() {
       await pumpPreview(tester, jeeberKycGateBuilderPending);
 
       // The W2-closer fix: `pending` must NOT collapse to the register prompt,
-      // or `feed_make_offer_cta` → `offer_kyc_gate` becomes unreachable.
       expect(find.text('Available requests'), findsOneWidget);
       expect(find.text('Register as a delivery man'), findsNothing);
       expect(find.text('Offering gated'), findsOneWidget);
@@ -71,7 +53,6 @@ void main() {
       await pumpPreview(tester, jeeberKycGateBuilderApproved);
 
       // Same headline as the pending preview — the offering line is the only
-      // thing that separates the two states.
       expect(find.text('Available requests'), findsOneWidget);
       expect(find.text('Offering unlocked'), findsOneWidget);
     });
@@ -91,9 +72,6 @@ void main() {
       await pumpPreview(tester, jeeberKycGateBuilderLiveFetchInFlight);
 
       // JEBV4-267. The conservative half is right; the part this preview
-      // exposes is that the pre-fetch window is rendered as the register prompt
-      // — pixel-identical to "never onboarded" — because JeeberKycStatus has no
-      // `unknown` member to render a loading state from.
       expect(find.text('Register as a delivery man'), findsOneWidget);
       expect(find.text('Offering gated'), findsOneWidget);
       expect(find.text('Available requests'), findsNothing);
@@ -103,9 +81,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The canvas cannot show this: the preview's fake resolves on a
-      // microtask, so the `none` frame is gone before the first paint. Driving
-      // the completer by hand is the only way to assert the ListenableBuilder
-      // branch actually re-runs the builder.
       final _DeferredKycGateway gateway = _DeferredKycGateway();
       final LiveJeeberKycStatusGate gate = LiveJeeberKycStatusGate(
         gateway,
@@ -135,9 +110,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // E19 tri-state (JEBV4-214): `ResubmitRequested` maps to `pending` for
-      // this coarse gate. It has no preview of its own because it is visually
-      // identical to `pending` — that identity is the thing worth pinning, so
-      // that a future split of the mapping shows up here.
       final LiveJeeberKycStatusGate gate = LiveJeeberKycStatusGate(
         FakeKycGateway(
           initial: const KycSubmission(status: KycStatus.resubmitRequested),
@@ -183,9 +155,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `JeebPreview` renders every state a third time at textScaleFactor 2.0,
-      // and nothing else in this suite exercises that. The rejected state
-      // carries the longest headline of the three destinations, so it is the
-      // one that decides whether the declared box is honest.
       await pumpPreview(tester, jeeberKycGateBuilderRejected);
       final double atOneX = tester
           .getRect(find.byKey(jeeberKycGateBuilderPreviewBodyKey))

@@ -1,22 +1,4 @@
 // The Firestore DOCUMENT shape, asserted field by field.
-//
-// This is the seam with no compiler behind it. The document is written by C#
-// (`FirestoreConversationStore.AddMessageAsync` → `SetAsync(message)` with the
-// native `[FirestoreData]` mapper, so the field names ARE the property names on
-// `ConversationMessage` + `BaseModel`) and read by Dart, and nothing in either
-// language checks that the two agree. The HTTP projection renames every field on
-// the way through the gateway — `AuthorId` → `author_id`, `CreatedAt` →
-// `created_at` — so an author who has only ever seen the wire shape would write
-// this mapper against the wrong names and every single document would decode to
-// nothing.
-//
-// That failure is not hypothetical on this project: I-06 records the HTTP path
-// answering 200 with 44 rows on the wire and DECODED=0, for exactly this class
-// of reason, presenting to users as a cheerful empty thread while a Jeeber was
-// in transit. These cases are what stop the stream repeating it.
-//
-// The document fixture below is written PascalCase deliberately. If someone
-// "fixes" it to snake_case to make a test pass, that is the bug.
 
 library;
 
@@ -67,9 +49,6 @@ void main() {
 
     test('falls back to the DOCUMENT ID when Guid is absent', () {
       // The store writes `.Document(message.Guid).SetAsync(...)`, so the
-      // document id and `Guid` are the same value. A document written by any
-      // other path must still get an identity, and the id is the one field
-      // Firestore guarantees.
       final row = _mapper().toWireRow(_change(
         <String, Object?>{'AuthorId': _them, 'Kind': 'text', 'Body': 'hi'},
         id: 'firestore-doc-id',
@@ -79,9 +58,6 @@ void main() {
 
     test('the id is the SAME id the HTTP projection returns', () {
       // Load-bearing, and the reason the whole design works: `ChatCubit`
-      // dedupes by id, so a message that arrives BOTH in the cold history read
-      // and down the stream collapses into one bubble. If these two ids ever
-      // differed, every message would render twice.
       const guid = 'shared-identity-9f2';
       final fromStream = _message(<String, Object?>{
         'Guid': guid,
@@ -108,8 +84,6 @@ void main() {
 
     test('the 0001-01-01 .NET husk is treated as ABSENT, not as a date', () {
       // `default(DateTime)` serialised. Rendering it would put the message at
-      // the top of the thread anchored in year 1 — the ordering inversion I-14
-      // records as live on a green suite.
       final m = _message(<String, Object?>{
         'Guid': 'm1',
         'AuthorId': _them,
@@ -125,7 +99,6 @@ void main() {
 
     test('an absent CreatedAt does not reject the row', () {
       // I-06: a timestamp is not identity. A row with no date is still a
-      // message and must render.
       final m = _message(<String, Object?>{
         'Guid': 'm1',
         'AuthorId': _them,
@@ -140,8 +113,6 @@ void main() {
   group('Payload is a JSON STRING in the document', () {
     test('a structured payload is decoded, not rendered as raw JSON', () {
       // `ConversationMessage.Payload` is `public string`. The HTTP hop parses it
-      // back into an object before the client sees it; the document does not.
-      // Same branch Rahmah writes at chat_screen.dart:307-319.
       final m = _message(<String, Object?>{
         'Guid': 'm-loc',
         'AuthorId': _them,
@@ -166,7 +137,6 @@ void main() {
 
     test('an empty Body does not shadow a structured Payload', () {
       // The codec reads `body ?? payload`. Emitting BOTH — with `Body: ''` —
-      // would make every structured message render as an empty bubble.
       final m = _message(<String, Object?>{
         'Guid': 'm-sys',
         'AuthorId': _them,
@@ -277,9 +247,6 @@ void main() {
 
   group('every kind the chat-service can write decodes', () {
     // POSITIVE CONTROL for the whole "documents that must NOT render" group
-    // above. Without it, a mapper that returned null for EVERYTHING would pass
-    // all six of those cases — the exact shape of a broken scanner scoring a
-    // clean PASS (I-11).
     const cases = <String, Map<String, Object?>>{
       'text': <String, Object?>{'Kind': 'text', 'Body': 'hello'},
       'image': <String, Object?>{
@@ -325,7 +292,6 @@ void main() {
 
     test('the supported set matches the codec, not a private copy', () {
       // Both transports validate against `kSupportedMessageKinds`. This asserts
-      // the set has not been quietly narrowed for the stream.
       for (final kind in cases.keys) {
         expect(
           _message(<String, Object?>{

@@ -25,10 +25,8 @@ class _FetchCall {
 }
 
 /// Mirrors the non-linear-capable [SystemTextScaler] supplied by Android.
-///
 /// Even at the S24's 1.0 system font scale this must not be replaced by
 /// [TextScaler.linear]: the linear implementation optimizes app-level clamps
-/// away and therefore cannot reproduce nested framework clamp composition.
 class _DeviceTextScaler extends TextScaler {
   const _DeviceTextScaler(this.textScaleFactor);
 
@@ -101,8 +99,6 @@ Widget _host(
     child: const Scaffold(body: OrderHistoryScreen()),
   );
   // BUG-A: the Delivery tab is shared; when acting as a jeeber the row tap must
-  // reach the jeeber active-delivery (progression) screen, not the customer
-  // detail. Supply a RoleCubit ancestor so the screen can read the active role.
   final role = roleCubit;
   if (role != null) {
     screen = BlocProvider<RoleCubit>.value(value: role, child: screen);

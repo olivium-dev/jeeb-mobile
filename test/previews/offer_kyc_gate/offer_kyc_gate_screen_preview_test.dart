@@ -1,18 +1,4 @@
 // Render tests for the OfferKycGateScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// This screen makes "did it render" an unusually weak question. `_GateStatusLine`
-// collapses to `SizedBox.shrink()` whenever the phase is not `ready`, and its
-// `switch` falls into `_ => (null, null, null)` for `notSubmitted` AND for
-// `approved` — so FOUR of the six reachable states paint exactly the same five
-// ARB strings. A suite that asserted "the headline rendered" would pass with
-// every preview wired to the same gateway. So the expected strings pin WHICH
-// fixture each preview is built from (the caption the fixture host paints), and
-// the group below asserts the things that actually differ: the status line, the
-// D38/R-F invariant that the exits are always up, where each exit goes, and
-// what survives the accessibility ceiling.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,8 +48,6 @@ void main() {
       'Rejected · compact · 200% text': offerKycGateScreenCompactLargeText,
     },
     // Each state names its own fixture. Four of them paint identical copy, so
-    // without this a preview wired to the wrong gateway — or all four sharing
-    // one — would pass unnoticed.
     expectedText: const <String, String>{
       'Not submitted': 'Not submitted · phone 390 × 844',
       'Pending': 'Pending · phone 390 × 844',
@@ -79,14 +63,7 @@ void main() {
 
   group('OfferKycGateScreen preview specifics', () {
     /// Pumps [preview] onto an EMPTY tree.
-    ///
     /// Calling `pumpPreview` twice in one test reconciles the second preview
-    /// onto the first one's elements — same widget types, same positions — and
-    /// `OfferKycGateScreen` builds its cubit inside `BlocProvider.create`,
-    /// which runs once per `State`. The second fixture's `gateway:` would be
-    /// dropped on the floor and the first fixture's cubit would keep driving
-    /// the screen, so a state comparison would compare one state with itself.
-    /// Unmounting first is what makes the comparison real.
     Future<void> pumpFresh(
       WidgetTester tester,
       Widget Function() preview,
@@ -114,7 +91,6 @@ void main() {
       await pumpFresh(tester, offerKycGateScreenResubmitRequested);
       expect(find.text(_resubmitTitle), findsOneWidget);
       // "Fix the items below, then resubmit" — and there are no items below.
-      // `KycSubmission.resubmitSteps` is never read by this screen.
       expect(
         find.text(
           'We need you to update part of your submission and send it again. '
@@ -128,12 +104,6 @@ void main() {
       'loading, error, notSubmitted and approved are the SAME surface',
       (WidgetTester tester) async {
         // `_GateStatusLine` returns `SizedBox.shrink()` for `phase != ready`,
-        // and `_ => (null, null, null)` swallows `notSubmitted` and `approved`.
-        // So `OfferKycGatePhase.error` is emitted by the cubit and rendered by
-        // nothing: a jeeber whose status read FAILED sees the screen of one who
-        // never started, with no retry and no notice. `state.isApproved` is
-        // defined on the state and read nowhere, so an approved jeeber who
-        // reaches the gate is told to get approved.
         for (final Widget Function() preview in <Widget Function()>[
           offerKycGateScreenNotSubmitted,
           offerKycGateScreenLoading,
@@ -161,9 +131,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The D38 invariant is independent of the network. Assert it on the two
-      // states where the read has NOT produced a decision — a pending fetch and
-      // a failed one — because those are where a screen that gated its body on
-      // the cubit would show an empty surface.
       for (final Widget Function() preview in <Widget Function()>[
         offerKycGateScreenLoading,
         offerKycGateScreenStatusReadFailed,
@@ -184,9 +151,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // All three call into go_router and none of them runs during `build`, so
-      // a host without a `Router` paints fine and throws on the first tap. The
-      // frame is dropped here (`window: null`) so the CTAs sit inside the
-      // 800 x 600 test surface the way they sit inside a real phone.
       Future<void> pumpBare(WidgetTester tester) => pumpFresh(
             tester,
             () => const OfferKycGateScreenPreviewHost(
@@ -211,7 +175,6 @@ void main() {
       await pumpBare(tester);
       await tapId(tester, 'gate_register_link');
       // The W2 RD-1 fix: a POP would have re-resolved the DELIVERY tab and
-      // landed on the feed. This edge must be the standalone route.
       expect(find.text(offerKycGateScreenRegisterStandInLabel), findsOneWidget);
       expect(find.text(offerKycGateScreenFeedStandInLabel), findsNothing);
 
@@ -224,9 +187,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `OMDSAppBar`'s default is `maybePop()`, which no-ops on a stack-root
-      // screen and leaves the arrow dead. The screen passes an explicit
-      // `onBackPressed` mirroring its own back exit; this pins that they land
-      // in the same place.
       await pumpFresh(
         tester,
         () => const OfferKycGateScreenPreviewHost(
@@ -245,7 +205,6 @@ void main() {
       await pumpFresh(tester, offerKycGateScreenCompactLargeText);
 
       // Nothing overflows — the body is a `ListView`, so the composition just
-      // grows a scroll extent instead of clipping.
       expect(tester.takeException(), isNull);
       final ScrollableState body = tester.state<ScrollableState>(
         find.descendant(
@@ -257,11 +216,6 @@ void main() {
       expect(body.position.maxScrollExtent, greaterThan(0));
 
       // FOUR of the five ids 65_W2_TEST_PLAN §2 JM-044 publishes are past the
-      // `ListView`'s viewport plus cache extent, so on arrival they are absent
-      // from the widget tree AND from the semantics tree. A driver or a screen
-      // reader querying them finds nothing until the user scrolls — and that
-      // includes `gate_topup_note`, the D67 note whose whole purpose is to be
-      // read BEFORE the jeeber decides what to do.
       for (final String id in <String>[
         'gate_topup_note',
         'gate_start_kyc_cta',
@@ -271,7 +225,6 @@ void main() {
         expect(find.bySemanticsIdentifier(id), findsNothing, reason: id);
       }
       // The screen root and the headline are up, so this is a reachability
-      // finding rather than a blank screen.
       expect(find.bySemanticsIdentifier('offer_kyc_gate'), findsOneWidget);
       expect(find.text(_headline), findsOneWidget);
 
@@ -291,8 +244,6 @@ void main() {
     testWidgets('each preview simulates its own window, not the 800 × 600 host',
         (WidgetTester tester) async {
       // If the fixture ever stopped pinning the MediaQuery/SizedBox, both
-      // windows would collapse onto the test surface and the compact state
-      // would silently become the phone one.
       Future<Size> frame(Widget Function() preview) async {
         await pumpFresh(tester, preview);
         return tester.getRect(find.byType(OfferKycGateScreen)).size;
@@ -306,8 +257,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `OfferKycGateScreenWindow.textScale` is null on the phone window so the
-      // `matrix: true` 200%-text card is not silently overwritten with a 100%
-      // rendering under a "200% text" label.
       Future<double> scaleOf(Widget Function() preview) async {
         await pumpFresh(tester, preview);
         return MediaQuery.of(
@@ -323,8 +272,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The cubit calls exactly one method. The other four throw rather than
-      // return a plausible fiction, so a future edit that makes the gate submit
-      // or read a form schema fails loudly instead of quietly succeeding.
       const OfferKycGateScreenFakeGateway gateway =
           OfferKycGateScreenFakeGateway(status: KycStatus.pending);
 

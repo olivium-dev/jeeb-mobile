@@ -44,7 +44,6 @@ void main() {
     test('NEVER surfaces phone or pre-completion rating, even if the wire '
         'leaks them (blind-reveal / privacy guard)', () {
       // A defensive contract test: the parser must drop phone + rating so a
-      // backend that over-shares cannot push them into the in-flight UI.
       final info = DeliveryTrackingInfo.fromTrackingJson('dlv-1', {
         'jeeber': {
           'displayName': 'Kamal Hajj',
@@ -80,8 +79,6 @@ void main() {
   });
 
   // T11 / SW-03 family: tracking-event instants are UTC. A zone-less string
-  // must be normalized so the stepper's toLocal() shows the real reached-at
-  // wall clock rather than the UTC digits.
   group('DeliveryTrackingInfo timestamps — UTC normalization', () {
     test('zone-less statusHistory timestamp → UTC instant', () {
       final info = DeliveryTrackingInfo.fromJson('dlv-1', {

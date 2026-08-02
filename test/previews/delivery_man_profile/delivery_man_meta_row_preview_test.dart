@@ -1,17 +1,4 @@
 // Render tests for the DeliveryManMetaRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`, with one deviation, on purpose:
-// it loads the production Inter faces (and, through the same helper, the
-// deterministic Arabic subset the goldens use). Every width asserted below is a
-// device number; under the square test font they are all roughly double and
-// every state would look truncated.
-//
-// Several assertions below pin DEFECTS rather than desired behaviour — the
-// periwinkle label colour, the navy "brand orange" glyph, the frozen icon size.
-// Each says so in its `reason`, so a fix breaks the test loudly and the reader
-// is told which direction to update it in.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -32,8 +19,6 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
   'Longest location (small phone)': deliveryManMetaRowLongestLocation,
 };
 
-/// The label each state renders, `[en, ar]`. Written out rather than derived so
-/// a copy change has to be acknowledged here.
 const Map<String, List<String>> _labels = <String, List<String>>{
   'Rating summary': <String>['4.3 . 113 Reviews', '4.3 . 113 تقييم'],
   'Cold start (D59)': <String>['3 Reviews', '3 تقييم'],
@@ -66,7 +51,6 @@ void main() {
   setUpAll(() async {
     loadPreviewArbs();
     // Geometry, not glyphs, is what the long states are for — the widths are
-    // meaningless under the square test font.
     await loadInterTestFont();
   });
 
@@ -92,8 +76,6 @@ void main() {
 
       expect(find.text('Unavailable'), findsOneWidget);
       // Neither the "· Unavailable" (middle-dot) nor the " . Unavailable" (ARB
-      // template period) stray-separator variants may render — the exact defect
-      // `delivery_man_profile_header_location_test.dart` was filed for.
       expect(find.textContaining('·'), findsNothing);
       expect(find.textContaining('. Unavailable'), findsNothing);
     });
@@ -104,8 +86,6 @@ void main() {
       final SemanticsHandle handle = tester.ensureSemantics();
 
       // The warm branch owns `profile_score`; the D59 cold-start branch must
-      // NOT emit it (the screen test asserts that absence), which is why the
-      // two states carry different ids through the same widget.
       await pumpPreview(tester, deliveryManMetaRowRatingSummary);
       expect(find.bySemanticsIdentifier('profile_score'), findsOneWidget);
 
@@ -136,7 +116,6 @@ void main() {
       expect(label, scheme.onSecondaryContainer);
 
       // #777FC0 on #FFFFFF. `bodyMedium` is 14sp regular, so the threshold is
-      // 4.5:1, not the 3:1 large-text one.
       final double ratio = _contrast(label!, scheme.surface);
       expect(ratio, closeTo(3.76, 0.05));
       expect(
@@ -240,19 +219,12 @@ void main() {
       );
 
       // `location` is gateway free text and is routinely Latin script even in
-      // the Arabic UI. The name one row above this in the same header runs
-      // through `AutoDirectionText` for exactly this reason; `_MetaText` is a
-      // plain `Text`, so the mixed-direction string is laid out by the ambient
-      // RTL paragraph direction alone.
       expect(find.text('Lebanon . متاح'), findsOneWidget);
     });
 
     testWidgets('every state fits the 390pt column at 100% text, except the '
         'small-phone one', (WidgetTester tester) async {
       // The control for the truncation asserted below: nothing here is broken
-      // at the default text size in the full column, so the failures are the
-      // narrow column's and the scale's doing and not a fixture that was too
-      // long to begin with.
       for (final String state in const <String>[
         'Rating summary',
         'Cold start (D59)',
@@ -285,7 +257,6 @@ void main() {
       );
 
       // And it drops content rather than growing: `overflow: ellipsis` wins
-      // over the null `maxLines`, so nothing on the header signals the loss.
       expect(_paragraph(tester, label).size.height, lessThan(32));
     });
 

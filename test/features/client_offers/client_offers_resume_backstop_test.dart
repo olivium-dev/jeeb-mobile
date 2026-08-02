@@ -1,21 +1,3 @@
-// N8 — the RESUME BACKSTOP for `ClientOffersScreen`.
-//
-// The twin of N9 (`test/features/no_offer_timeout/waiting_resume_backstop_test
-// .dart`), same regression: the polling→push conversion deleted the raw 5 s
-// `Stream.periodic` that drove the bid list, and every widget in
-// `client_offers_screen.dart` is a `StatelessWidget` — so the only fetch
-// triggers left were `cubit.load()` in `BlocProvider(create:)` and the push
-// bus. A `type=offer` push delivered while the app is BACKGROUNDED never
-// reaches that bus (only `FirebaseMessaging.onMessage` publishes to it), so a
-// customer returning WITHOUT tapping the notification saw a bid list missing
-// the bid the notification was about.
-//
-// Less severe than N9 only because `OmdsPullToRefresh` exists here — which is
-// a self-rescue the user has to know to perform, not a fix.
-//
-// Mutation proof: every widget-level case fails with `RouteResumeRefetch`
-// removed from `client_offers_screen.dart`; the transcript is in the PR body.
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -158,7 +140,6 @@ void main() {
         await _pumpLoaded(tester, repository);
 
         // A second bid lands while the app is BACKGROUNDED: the push reaches
-        // the background isolate, which never touches the refresh bus.
         repository.offerCount = 2;
         await tester.pump();
         expect(

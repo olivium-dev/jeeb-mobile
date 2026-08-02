@@ -1,19 +1,4 @@
 // Render tests for the ObsOverlayPanelHeader previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose — the same one
-// `delivery_confirm_illustration_preview_test.dart` makes. The widget under
-// review renders ONE constant string ("Session Trace") in every state, so the
-// `expectedText` map below binds to each preview's caption, which is preview
-// scaffolding rather than widget output. On its own that would be exactly the
-// weak assertion the harness warns about: it would pass even if all five
-// previews drew the same row. The real per-state contract is asserted
-// underneath, by MEASURING the header for every state. This widget's only
-// inputs are its constraints, its `Directionality` and the text scaler, so its
-// geometry *is* its state.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,8 +17,6 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
 
 /// The content width each host hands the header. Not copied from a run —
 /// this is the arithmetic the hosts promise: the panel caps at 340 and pads
-/// 16 a side (`340 − 32 = 308`), the compact phone gets `320 − 24 = 296` of
-/// card (`296 − 32 = 264`), and the bare host gets the whole 390.
 const Map<String, double> _expectedWidths = <String, double>{
   'Panel (production, 390pt)': 308,
   'Compact device (320pt)': 264,
@@ -67,8 +50,6 @@ void main() {
 
   group('ObsOverlayPanelHeader preview specifics', () {
     // Every preview shares one inert controller (see the preview library doc),
-    // so a test that taps the close button would otherwise leak `expanded`
-    // into the next test.
     setUp(() {
       if (obsOverlayPanelHeaderPreviewController.expanded) {
         obsOverlayPanelHeaderPreviewController.toggleExpanded();
@@ -76,8 +57,6 @@ void main() {
     });
 
     // The assertion the caption-based `expectedText` above cannot make: five
-    // previews of a widget with no content state are only five states if the
-    // rows they lay out are distinct.
     _expectedWidths.forEach((String state, double width) {
       testWidgets('$state lays out ${width}pt wide', (
         WidgetTester tester,
@@ -133,10 +112,6 @@ void main() {
       await pumpPreview(tester, obsOverlayPanelHeaderWrappingTitle);
 
       // The title `Text` sets no `maxLines` and no `overflow`, so it must
-      // degrade by growing rather than by an ellipsis or an overflow stripe.
-      // (How MANY lines depends on the font — the test font is monospaced and
-      // wider than the shipped one — so this asserts the behaviour, not a
-      // line count.)
       final double titleHeight = tester.getSize(_title).height;
       final double rowHeight =
           tester.getSize(find.byType(ObsOverlayPanelHeader)).height;
@@ -207,12 +182,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `Tooltip` resolves an `Overlay` as part of building. When the overlay
-      // layer was a plain `Stack` sibling of the routed child, this close
-      // button threw "No Overlay widget found" the instant the panel expanded,
-      // and the substituted `ErrorWidget` reported "BOTTOM OVERFLOWED BY 99778
-      // PIXELS" — see the `_ObsOverlayLayer` doc in `obs_overlay.dart`. This
-      // preview mounts the header under its own private `Overlay`, the way the
-      // fix does.
       await pumpPreview(tester, obsOverlayPanelHeaderInPanel);
       expect(tester.takeException(), isNull);
 
@@ -229,7 +198,6 @@ void main() {
       await pumpPreview(tester, obsOverlayPanelHeaderFixedHeightSlot);
 
       // No assertion fires, no overflow stripe is painted and nothing throws —
-      // the tap target simply drops under the Material minimum, silently.
       expect(tester.takeException(), isNull);
       expect(
         tester.getSize(_closeButton).height,
@@ -258,9 +226,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The title is a `Text` and doubles; the close button is an `Icon`, whose
-      // 24pt size ignores the scaler entirely. At the accessibility ceiling the
-      // header therefore grows past the button that anchors it, and the tap
-      // target stays exactly where it was.
       expect(
         tester.getSize(find.byType(ObsOverlayPanelHeader)).height,
         greaterThan(_kMinTapTarget),
@@ -273,11 +238,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Recorded, not endorsed. `ObsOverlayPanelHeader` hardcodes its title and
-      // its `tooltip: 'Close'` (the close button's only screen-reader label)
-      // rather than reading `AppLocalizations`, so the `AR RTL dark` rendering
-      // of every preview here shows English. Defensible for a tool that only
-      // exists in a `--dart-define JEEB_OBS_OVERLAY=true` build; if this test
-      // ever fails because those strings were localized, delete it.
       await pumpPreview(
         tester,
         obsOverlayPanelHeaderInPanel,

@@ -60,7 +60,6 @@ class DioOfferSubmissionRepository implements OfferSubmissionRepository {
   OfferSubmissionException _mapDioError(DioException e) {
     final status = e.response?.statusCode;
     // {needed, available, currency} for the JM-046 sheet (42_GUARDRAILS_MOCK
-    // §5.1). Defensive parse (40_GUARDRAILS_ARCH §4): tolerate snake_case and a
     if (status == 402) {
       return OfferSubmissionException(
         OfferSubmissionFailure.insufficientBalance,

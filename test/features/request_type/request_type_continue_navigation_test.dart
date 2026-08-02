@@ -1,16 +1,4 @@
 // JM-024 — the request-type "Continue" CTA advances to `location-select`.
-//
-// SUPERSEDES the W0-era FIX-B test (Continue → /request-summary): JM-024
-// re-points the customer create flow to the blueprint graph
-// tier → location-select → map-pin → order-chat (20_GAP_MAP customer domain;
-// 30_BACKLOG JM-024 AC1). The screen now OWNS this edge (it self-navigates to
-// the `client-location` route, 40_GUARDRAILS_ARCH §10.8) and no longer routes
-// to the `request-summary` card. The legacy router `onTierSelected`/`onContinue`
-// `→ /request-summary` closures are dead (50_ROUTE_REQUESTS — JM-024 cleanup).
-//
-// This test drives the REAL `AppRouter.create(...)` graph to `/request-type`,
-// taps the Continue CTA (id `request_type_continue_cta`), and proves it lands
-// on `location-select` (`ClientLocationScreen`, `location_select_confirm_cta`).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -68,7 +56,6 @@ _buildRouter() async {
   final locale = LocaleCubit(prefs: prefs);
 
   // Default session gate is AlwaysAuthenticatedSessionGate, so the FR-P0-3
-  // login redirect is inert and protected routes (`/request-type`) render.
   final router = AppRouter.create(onboarding: onboarding, biometricLock: lock);
   return (
     router: router,
@@ -108,15 +95,11 @@ void main() {
     setUp(() async {
       await sl.reset();
       // `/request-type` resolves TierRepository via sl. The customer must tap a
-      // tier before Continue enables.
       sl.registerLazySingleton<CurrentLocationResolver>(
         FakeCurrentLocationResolver.new,
       );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // `/client-location` self-provides LocationSelectCubit; it resolves a
-      // DioLocationSelectRepository when sl<Dio> is present. We DON'T register
-      // Dio here, so it falls back to the in-memory seam — but register the
-      // fake explicitly for determinism (no network in this widget test).
       sl.registerLazySingleton<LocationSelectRepository>(
         FakeLocationSelectRepository.new,
       );
@@ -125,8 +108,6 @@ void main() {
         FakeRequestSubmissionService.new,
       );
       // iter6 B11: the request-type Continue CTA records the chosen tier in the
-      // compose controller before navigating. Register it so the screen's
-      // guarded write resolves (the screen no-ops when it is absent).
       sl.registerLazySingleton<ComposeRequestController>(
         () => ComposeRequestController(sl<RequestSubmissionService>()),
       );
@@ -148,7 +129,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The request-type screen is up; explicitly choose Flash to enable the
-      // Continue action.
       expect(find.byType(RequestTypeScreen), findsOneWidget);
       await tester.tap(find.bySemanticsIdentifier('request_type_flash_radio'));
       await tester.pump();

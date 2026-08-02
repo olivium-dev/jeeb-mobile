@@ -1,15 +1,4 @@
 // P7 T4 — LEGACY-KEY REJECTION: the acceptance proof that the clean break is
-// real.
-//
-// Before the ruling the waiting repository read a legacy absolute key (see the
-// T4.1 payload below) that the gateway NEVER emitted and, on the resulting
-// null, the cubit fabricated a 5-minute countdown unrelated to the tier TTL.
-// The wire contract is now exactly one key: `offerDeadlineInSeconds`, a
-// server-relative remaining value.
-//
-// This whole file would have PASSED trivially before the change (a legacy-only
-// payload used to parse fine and silently produce a fabricated window). It is
-// the test that pins "no compatibility shim, no fallback, no fabrication".
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -132,9 +121,6 @@ void main() {
     });
 
     // Mobile treats `matched` as terminal while the gateway still ships a
-    // deadline for it (it is pre-acceptance server-side). A non-null value on a
-    // terminal phase is accepted and simply unused; only ABSENCE on a live
-    // phase throws. See plan §3.3.
     test('T4.7 — a deadline on a terminal `matched` row is accepted, unused', () async {
       final repo = _repo(const {
         'status': 'matched',
@@ -153,7 +139,6 @@ void main() {
         'status': 'pending',
         'offerDeadlineInSeconds': 600,
         // A server absolute is present and deliberately IGNORED — parsing it
-        // would reintroduce handset-clock-skew corruption.
         'offerDeadlineAt': '2026-07-25T23:59:00Z',
       }, now: anchor);
 

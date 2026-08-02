@@ -1,14 +1,4 @@
 // Render tests for the InactivityWarningBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// InactivityWarningBanner has no data state — its three strings are fixed — so
-// its previews differ only in the CONTEXT they place it in. That makes the
-// `expectedText` pins load-bearing: without a string only one preview can
-// produce, a suite over five renderings of the same card would pass no matter
-// which one it actually built. Each composed state is pinned by its own
-// greeting name, or by its own accepted-order fixture, which no other renders.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,7 +38,6 @@ void main() {
       // The bare card has no content but its own copy.
       'Banner alone': _bannerBody,
       // Every composed state is pinned by a string ONLY that state renders:
-      // its own greeting name, or its own accepted-order fixture.
       'Small phone 320dp': 'Hello, Nadia',
       'Online dashboard': 'Hello, Sami',
       'Under active deliveries': 'Kamal Hajj',
@@ -78,8 +67,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The preview's `onExtend` is inert, so the banner stays up — what is
-      // asserted here is that the CTA can be reached at all, i.e. nothing
-      // stacked above it in the column intercepts the tap.
       expect(tester.takeException(), isNull);
       expect(find.byKey(InactivityWarningBanner.rootKey), findsOneWidget);
     });
@@ -112,16 +99,8 @@ void main() {
         );
 
         // `_BannerCta` wraps the button in
-        // `Align(alignment: AlignmentDirectional.centerEnd)`, which reads as
-        // "pin the pill to the trailing edge". It does nothing:
-        // `OmdsPrimaryButton.width` defaults to full width, so the pill fills
-        // the card's content box and sits dead centre in BOTH directions.
-        // Recorded here so the intent/behaviour gap is not rediscovered — if
-        // the button ever becomes intrinsically sized, this test fails and the
-        // real mirroring assertion (trailing in EN, leading in AR) replaces it.
         expect(cta.center.dx, closeTo(card.center.dx, 0.5));
         // Everything the pill does not occupy is the card's own 16 dp margin,
-        // 16 dp padding and 1 dp border on each side.
         expect(cta.width, closeTo(card.width - 2 * 33, 1.0));
       }
 
@@ -141,7 +120,6 @@ void main() {
       expect(workTop, lessThan(bannerTop));
 
       // The over-long second name degrades by ellipsis, not by pushing the
-      // "Open chat" button off the row.
       expect(
         tester.widget<Text>(find.text(_longCounterpart)).overflow,
         TextOverflow.ellipsis,
@@ -159,9 +137,6 @@ void main() {
       );
 
       // Correct degradation: the column scrolls, so nothing throws and the
-      // card is laid out in full. Worth pinning that the CTA lands entirely
-      // OUTSIDE the visible slot at ordinary text scale — a Jeeber has to
-      // scroll a screen that gives no hint there is more below it.
       expect(tester.takeException(), isNull);
       expect(slot.height, closeTo(260, 0.5));
       expect(cta.top, greaterThan(slot.bottom));
@@ -178,7 +153,6 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
       // The 200% rendering is one third of the preview matrix, and nothing
-      // else in CI asserts it for this widget.
       await pumpPreview(tester, inactivityWarningBannerAlone);
       expect(tester.takeException(), isNull);
 
@@ -189,10 +163,6 @@ void main() {
       expect(card.height, greaterThan(300));
 
       // The CTA cannot: `OmdsPrimaryButton` pins its height to
-      // `Sizes.fourXLarge` (48 dp) whatever the text scale, so the label is
-      // clamped rather than wrapped and its second line is painted nowhere.
-      // A clamped paragraph raises no overflow error, which is exactly why
-      // this needs an explicit assertion instead of `takeException`.
       final RenderBox label = tester.renderObject<RenderBox>(
         find.text(_bannerCta),
       );

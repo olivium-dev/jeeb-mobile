@@ -1,15 +1,4 @@
 // Render tests for the JeeberActiveDeliveriesBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// This widget is unusually easy to test into a false pass: FOUR of its six
-// states are near-identical stacks of the same row, and two more render
-// literally nothing. A render-only check would pass with every preview wired to
-// the same fixture — so each state pins a string only IT can produce, and the
-// two invisible states pin the ABSENCE of the header and the CTA (there is no
-// text to find in a `SizedBox.shrink`).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +9,6 @@ import '../preview_test_harness.dart';
 
 /// The longest-content preview's title. Declared here so a preview quietly
 /// rewired to a short name fails instead of silently losing the one state that
-/// exercises the non-flexible "Open chat" button against an `Expanded` title.
 const String _kLongName = 'Abdulrahman Al-Muhandis Al-Trabulsi';
 
 /// The untitled row's request id — also its route id, hence its button key.
@@ -46,17 +34,12 @@ void main() {
       'Three accepted orders': '3 active deliveries',
       'Longest counterpart name': _kLongName,
       // The `'Order <id>'` fallback is asserted verbatim because it is the
-      // current contract AND it is hardcoded English — see the AR test below.
-      // If it is ever localized, this line must change with it.
       'Untitled order · id fallback': 'Order $_kOrphanRequestId',
     },
   );
 
   group('JeeberActiveDeliveriesBanner preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does NOT reload it — `previewCanvas` produces the same widget types, so
-    // the banner's `State` is UPDATED rather than replaced, `initState` never
-    // re-runs, and the second preview would still show the first one's rows.
 
     testWidgets('the single row pluralizes the header for ONE delivery', (
       WidgetTester tester,
@@ -92,7 +75,6 @@ void main() {
       await pumpPreview(tester, jeeberActiveDeliveriesBannerEmpty);
 
       // Additive by contract: no header, no row, no CTA — the dashboard's
-      // no-requests layout must be byte-identical without accepted orders.
       expect(find.textContaining('active deliver'), findsNothing);
       expect(find.text('Open chat'), findsNothing);
       expect(find.byType(Text), findsNothing);
@@ -105,7 +87,6 @@ void main() {
 
       expect(find.byType(Text), findsNothing);
       // No spinner, no reserved space: the banner has no loading affordance,
-      // which is why an arriving order pops in rather than fading in.
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
@@ -133,9 +114,6 @@ void main() {
       );
 
       // `_ActiveDeliveryRow._title` takes an `AppLocalizations` and never uses
-      // it, so the unlabelled row reads "Order <uuid>" in an Arabic UI. Pinned
-      // on the id (not the whole string) so localizing the prefix — the fix —
-      // keeps this passing as long as the id survives.
       expect(find.textContaining(_kOrphanRequestId), findsOneWidget);
     });
   });

@@ -1,5 +1,4 @@
 // DT-04 / F2 — Screen Catalog entries, batch 06 (language, live_tracking,
-// location, masked_call, mixed_direction, no_offer_timeout).
 
 import 'dart:async';
 

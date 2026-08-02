@@ -1,8 +1,4 @@
 // Widget tests for OrderHistoryCard — T11 / SW-02 money truth + SW-03 local
-// time. Proves a known price renders through the single MoneyFormat rule, a
-// MISSING price degrades to an em-dash (+ "Amount unavailable" a11y label) and
-// never a fabricated "$0.00", and the created-at is rendered in device-local
-// time (the card must call toLocal()).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,7 +65,6 @@ void main() {
   testWidgets('a zero wire amount is treated as unknown (em-dash)',
       (tester) async {
     // A priced request is never worth 0 — a 0 means enrichment broke, so it is
-    // shown as unknown, matching the receipt's hasKnownAmount contract.
     await _pump(tester, _order(amountMinor: 0));
 
     expect(find.text('—'), findsOneWidget);

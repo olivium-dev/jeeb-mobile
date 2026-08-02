@@ -1,27 +1,4 @@
 // Render tests for the SettingsScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// Two things shape this file.
-//
-// **What `expectedText` can and cannot prove HERE.** Two of the six states
-// differ from the reference only in the Account section — a latched row, two
-// greyed rows — which sits at the BOTTOM of a six-section [ListView]. The
-// shared suite pumps onto the tester's default 800x600 surface, where that
-// section is never built, so it cannot see any of it. Each fixture therefore
-// carries its own account holder in the FIRST row (see
-// `settings_screen_fixtures.dart`), which is what the shared suite pins: proof
-// that each preview renders its own fixture. Proof that each renders its own
-// STATE lives in the `preview specifics` group, which sets a surface tall
-// enough to build the whole list — the same thing `test/settings_screen_test.dart`
-// does, for the same reason.
-//
-// **Disablement, not copy, is what separates these states.** A latched or
-// in-flight row carries the same strings as a live one and differs by
-// `onTap == null` and 38% opacity, so every assertion below reads the
-// [ListTile] the row actually built rather than the flag handed to it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -57,11 +34,9 @@ void main() {
       // The reference customer, as the profile row's TITLE.
       'Loaded · name + phone': SettingsScreenPreviewFixtures.sampleName,
       // No name yet, so the row falls back to the placeholder title and the
-      // registration phone is the only thing that identifies this state.
       'Empty · phone only, no name':
           SettingsScreenPreviewFixtures.phoneOnlyPhone,
       // Nothing is hydrated yet, so there is no phone for the subtitle — the
-      // generic profile-edit copy is the tell, and no other state shows it.
       'Loading · cold read in flight': 'Update your name and avatar',
       'Deletion pending · row latched':
           SettingsScreenPreviewFixtures.pendingName,
@@ -74,10 +49,7 @@ void main() {
 
   group('SettingsScreen preview specifics', () {
     /// Pumps [preview] with the surface tall enough to build every section.
-    ///
     /// The `size:` on `@JeebPreview` is honoured by the preview canvas only;
-    /// calling the function alone gets the tester's 800x600 desktop surface,
-    /// which builds the top three sections of this list and nothing else.
     Future<void> pumpWholeList(
       WidgetTester tester,
       Widget Function() preview, {
@@ -103,7 +75,6 @@ void main() {
       await pumpWholeList(tester, settingsScreenColdLoad);
 
       // `isLoading` is true and nothing on screen says so: no spinner, no
-      // shimmer, no disabled row.
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.text('Add your name'), findsOneWidget);
@@ -120,7 +91,6 @@ void main() {
 
       await pumpWholeList(tester, settingsScreenPhoneOnly);
       // Same title, same everything else — only the subtitle tells a user
-      // whose read is still in flight from a user who never set a name.
       expect(find.text('Add your name'), findsOneWidget);
       expect(find.text('Update your name and avatar'), findsNothing);
       expect(
@@ -150,7 +120,6 @@ void main() {
       expect(delete.enabled, isFalse);
       expect(delete.onTap, isNull);
       // Signing in again is how the purge is cancelled, so sign-out must stay
-      // reachable — a latched row that disabled both would strand the user.
       expect(signOut.enabled, isTrue);
       expect(signOut.onTap, isNotNull);
     });
@@ -191,8 +160,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The host seeds its LocaleCubit from `Localizations.localeOf`, so the
-      // AR card of a matrix checks العربية instead of showing an Arabic list
-      // with the English row ticked.
       Widget? checkOf(WidgetTester tester, String key) => tester
           .widget<OmdsSettingsRow>(find.byKey(Key(key)))
           .trailing;
@@ -222,13 +189,10 @@ void main() {
       );
 
       // `OmdsSettingsRow` gives its title Text no maxLines and no overflow, so
-      // the name wraps instead of ellipsizing: the laid-out paragraph is
-      // taller than a single-line row title.
       final RenderParagraph longest = tester.renderObject<RenderParagraph>(
         find.text(SettingsScreenPreviewFixtures.longestName),
       );
       // "App version" is the shortest row title on the screen and cannot wrap
-      // at 320 pt, so it is the single-line reference.
       final RenderParagraph oneLine =
           tester.renderObject<RenderParagraph>(find.text('App version'));
       expect(longest.textSize.height, greaterThan(oneLine.textSize.height));

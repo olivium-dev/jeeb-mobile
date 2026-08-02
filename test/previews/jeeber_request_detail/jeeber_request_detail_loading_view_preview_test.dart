@@ -1,28 +1,4 @@
 // Render tests for the JeeberRequestDetailLoadingView previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// A word on `expectedText`, because this widget has almost no text to pin:
-// [JeeberRequestDetailLoadingView] renders `jeeberRequestDetailTitle` and a
-// spinner, and takes exactly one argument — `requestId` — which it never draws.
-// Every state therefore renders the SAME two elements. What differs is the
-// window each preview simulates, so the strings below are the captions the
-// preview's own frame paints: they pin WHICH device each state is, which is the
-// only thing a state can get wrong. The group after them measures what the
-// captions cannot — that the frames really are different windows, that two
-// different request ids produce one identical frame, that the layout mirrors in
-// AR, and what the text scaler does and does not move.
-//
-// One thing this suite deliberately does NOT assert: whether the title
-// truncates. Widget tests lay text out in the square test font, where every
-// glyph is one em wide, so "Request details" measures 360 dp at 24 pt here
-// against far less in the shipped font. Every width below is therefore either
-// font-independent (a ratio, a band the toolbar reserves, a containment check)
-// or is asserted as a bound rather than an equality. Truncation is a question
-// for the canvas, which draws the real font — which is the division of labour
-// previews exist for.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -61,8 +37,6 @@ const double _homeIndicator = 34;
 
 /// Toolbar geometry the assertions are written against: the width the back
 /// button claims, and the gap `NavigationToolbar` keeps either side of the
-/// title — which is also the width of the trailing `SizedBox` `OMDSAppBar`
-/// appends to `actions`. The title is laid out into what is left.
 const double _leadingWidth = 56;
 const double _middleSpacing = 16;
 
@@ -107,8 +81,6 @@ void main() {
           jeeberRequestDetailLoadingViewCompactLargeText,
     },
     // Each state names its own window. The widget draws the same title and the
-    // same spinner in all six, so without this a state wired to the wrong
-    // frame — or six states sharing one — would pass unnoticed.
     expectedText: const <String, String>{
       'Loading scaffold · phone 390 × 844': _phoneCaption,
       'Redirect hold · same frame, other id': _redirectCaption,
@@ -123,8 +95,6 @@ void main() {
     testWidgets('each preview simulates its own window, not the 800 × 600 host',
         (WidgetTester tester) async {
       // If the frame ever stopped pinning the MediaQuery/SizedBox, every state
-      // would collapse onto the test surface and the rest of this group would
-      // be measuring nothing.
       expect(
         (await _viewRect(tester, jeeberRequestDetailLoadingViewPushTap)).size,
         _phoneFrame,
@@ -146,8 +116,6 @@ void main() {
       await pumpPreview(tester, jeeberRequestDetailLoadingViewPushTap);
 
       // The scaffold takes an id and renders a title and a spinner. Nothing
-      // identifies the request being fetched — not the raw UUID, and not the
-      // `friendlyReference` short form the resolved detail screen shows.
       expect(find.textContaining(_requestId), findsNothing);
       expect(find.textContaining('75EAE'), findsNothing);
       expect(find.text(_title), findsOneWidget);
@@ -170,7 +138,6 @@ void main() {
         expect(redirecting.size, fetching.size);
 
         // Same window, same two elements, and the id the redirect carries is
-        // as invisible as the one the fetch carries.
         await pumpPreview(tester, jeeberRequestDetailLoadingViewRedirectHold);
         expect(find.textContaining(_deliveryId), findsNothing);
         expect(find.text(_title), findsOneWidget);
@@ -191,8 +158,6 @@ void main() {
       );
 
       // 47 dp status bar + 56 dp toolbar come off the top and only the 34 dp
-      // home indicator comes off the bottom, so the body's centre — and the
-      // indicator with it — sits 34.5 dp BELOW the centre of the glass.
       final double bodyCentre =
           (view.top + _statusBar + kToolbarHeight + view.bottom - _homeIndicator) /
               2;
@@ -244,10 +209,6 @@ void main() {
         moreOrLessEquals(centreAr - backAr, epsilon: 0.5),
       );
       // …and the title's offset from the axis is the exact negative of itself
-      // in the other direction. Asserted as a symmetry rather than as a
-      // position, because how far off axis the title sits depends on how wide
-      // the string is in the current font — and this test's font is not the
-      // shipped one. Mirroring is the property that must hold in any font.
       expect(
         titleEn - centreEn,
         moreOrLessEquals(centreAr - titleAr, epsilon: 0.5),
@@ -267,9 +228,6 @@ void main() {
       final double atCeiling = _titleIntrinsic(tester);
 
       // The title is the only thing on this screen that reads the text scaler,
-      // and the toolbar clamps it: at a 2.0 scaler it grows by Material's
-      // `_kMaxTitleTextScaleFactor`, not by 2. Font-independent — it is the
-      // same string measured twice.
       expect(atCeiling / atDefault, moreOrLessEquals(1.34, epsilon: 0.01));
 
       final Rect view = tester.getRect(
@@ -289,7 +247,6 @@ void main() {
       );
       expect(title.width, lessThanOrEqualTo(_titleBand(_phoneFrame.width) + 0.5));
       // …and the indicator ignores the scaler entirely, so at the accessibility
-      // ceiling the screen is the same screen.
       expect(spinner.size, const Size(48, 48));
       expect(spinner.center.dx, moreOrLessEquals(view.center.dx, epsilon: 0.5));
     });
@@ -305,8 +262,6 @@ void main() {
       final Rect title = tester.getRect(find.text(_title));
 
       // 320 − 56 leading − 16 trailing − 16 either side of the title. This is
-      // the narrowest the title is ever laid out into, and it is 70 dp less
-      // than the same state gets on a 390 dp phone.
       expect(_titleBand(_compactFrame.width), 216.0);
       expect(
         _titleBand(_phoneFrame.width) - _titleBand(_compactFrame.width),
@@ -314,9 +269,6 @@ void main() {
       );
 
       // The title is laid out into that band and stays in the toolbar. Whether
-      // the shipped font actually fits 1.34 × 24 pt of "Request details" into
-      // 216 dp is the question the CANVAS answers — under the test font it does
-      // not, and the paragraph is ellipsized at exactly the band width.
       expect(title.width, lessThanOrEqualTo(_titleBand(_compactFrame.width) + 0.5));
       expect(title.bottom, lessThan(view.top + kToolbarHeight));
       expect(find.text(_title), findsOneWidget);

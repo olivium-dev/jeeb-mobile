@@ -1,35 +1,4 @@
 // Render tests for the MarkDeliveredPanel previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// All six previews are the SAME panel told apart by a `ProofPhotoStatus`, an
-// `otpRequired` flag and one delivery record, and four of the six paint an
-// identical set of strings. So every state carries its own amount + recipient,
-// and `expectedText` pins the resulting cash line — the one string in this
-// panel that varies per fixture. A suite that only asked "did something
-// render?" would pass on six copies of the empty state.
-//
-// The groups after that are not preview hygiene. They are what these previews
-// exposed, held as assertions so they cannot regress unnoticed — and so that
-// FIXING one fails this file loudly rather than leaving a stale claim in the
-// widget's doc comments:
-//
-//   * a failed proof-photo upload renders the exact same picture as "no photo
-//     yet" — same icon, same label, same live tap target, no error anywhere;
-//   * the photo slot's visible label is `escalatePhotoLabel`, "Photos
-//     (optional, up to 5)", borrowed from the escalation flow for a slot that
-//     takes one photo;
-//   * a delivery with no `amount` renders "Pay  cash to Drop-off address";
-//   * `otpError` is hardcoded English, so the Arabic rendering mixes scripts;
-//   * `OmdsOtpInput` spaces its cells with a physical `EdgeInsets.only`, so the
-//     four door-OTP boxes are unevenly spaced in Arabic;
-//   * `OmdsLoadingButton` pins 48 dp around a plain `Text`, so the CTA label is
-//     clipped at 200%.
-//
-// Every dimension asserted here is measured on the test fallback font, whose
-// glyphs are wider than the bundled Inter, so widths and heights are upper
-// bounds rather than promises about the shipped font.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -50,7 +19,6 @@ const String _otpTitleArabic = 'أدخل رمز التسليم';
 
 /// The verbatim string `ActiveDeliveryCubit._mapOtpError` returns for
 /// `ActiveDeliveryFailure.invalidOtp` — a hardcoded English literal, not an ARB
-/// key. The door-OTP preview passes the real one.
 const String _otpInvalidCodeError =
     'Incorrect code — ask the recipient and try again';
 
@@ -64,7 +32,6 @@ const String _cashNour = 'Pay 32.00 USD cash to Nour Abou Zeid';
 
 /// What a delivery with no `amount` and no `clientName` produces. The double
 /// space is the empty substitution into `receiptCashToJeeber`, and is copied
-/// here exactly as it renders.
 const String _cashMissing = 'Pay  cash to Drop-off address';
 
 final Finder _proofPhoto = find.bySemanticsIdentifier(
@@ -83,17 +50,6 @@ const Size _otpBox = Size(390, 800);
 
 /// Pumps a preview into the real canvas box instead of the 800x600 default test
 /// surface.
-///
-/// The door-OTP entry needs this. `_DoorOtpEntry` mounts [OmdsOtpInput] with its
-/// default `autoFocus: true`, so cell 1 takes focus on the first frame and asks
-/// the enclosing scrollable to reveal it. On a 600 dp surface the 756 dp panel
-/// cannot show the cell row, so the request becomes a driven scroll animation —
-/// and `Scrollable` wraps its viewport in an `IgnorePointer` for the duration,
-/// which strips the tap action off EVERY semantics node in the panel. The
-/// previews mute the ticker, so that animation never finishes and the block
-/// never lifts. At the box the preview actually declares, the cell row is
-/// already on screen, nothing scrolls, and the semantics below mean what they
-/// say.
 Future<void> _pumpInOtpBox(
   WidgetTester tester,
   Widget Function() preview, {
@@ -125,7 +81,6 @@ Future<void> _pumpScaled(
 
 /// Every string the panel currently paints, in tree order — the cheapest way to
 /// assert that two states are the SAME picture rather than merely both
-/// containing some expected fragment.
 List<String> _renderedText(WidgetTester tester) {
   return tester
       .widgetList<Text>(
@@ -190,7 +145,6 @@ void main() {
       expect(find.byType(Image), findsNothing);
       expect(find.byType(OmdsLoadingState), findsNothing);
       // The visible copy is the escalation flow's, but the accessible name is
-      // the right one — a screen reader is better served here than an eye.
       expect(
         tester.getSemantics(_proofPhoto),
         isSemantics(
@@ -208,7 +162,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // A live tap target here is how a jeeber fires a second camera capture
-      // over an upload that is already on the wire.
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpPreview(tester, markDeliveredPanelUploadingProof);
 
@@ -236,7 +189,6 @@ void main() {
       await pumpPreview(tester, markDeliveredPanelProofCaptured);
 
       // JEBV4-200: `bytes` wins over `proofPhotoUrl`, which keeps a network
-      // fetch (`OmdsCachedImage`) out of both the preview and the canvas.
       expect(find.byType(Image), findsOneWidget);
       expect(find.byType(OmdsCachedImage), findsNothing);
       expect(find.text(_photoSlotLabel), findsNothing);
@@ -247,9 +199,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `ProofPhotoStatus.failed` is what the cubit emits when the CDN upload
-      // throws. The panel has no failure affordance at all: same icon, same
-      // label, same live tap target, no error text. The only difference between
-      // these two renderings is the fixture's own cash line.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, markDeliveredPanelAwaitingProof);
@@ -281,7 +230,6 @@ void main() {
       await pumpPreview(tester, markDeliveredPanelCashDetailsMissing);
 
       // "Pay  cash to Drop-off address" — no amount, and a UI heading standing
-      // in for the recipient's name, on the panel that collects the money.
       expect(find.text(_cashMissing), findsOneWidget);
       expect(find.textContaining('Pay  cash'), findsOneWidget);
     });
@@ -290,8 +238,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `Row(children: [Icon, SizedBox, Expanded(Text)])` inside a `Container`
-      // with symmetric padding. Nothing here is directional by hand, so this is
-      // a check that the whole pill flips rather than only the glyph order.
       await pumpPreview(tester, markDeliveredPanelAwaitingProof);
       final double ltrIcon = tester
           .getCenter(find.byIcon(Icons.payments_outlined))
@@ -323,7 +269,6 @@ void main() {
 
       await _pumpInOtpBox(tester, markDeliveredPanelDoorOtpWrongCode);
       // Both ways to finish a delivery must never be on screen at once: only
-      // the OTP path is an edge the frozen SM opens for `AtDoor → Done`.
       expect(_markDeliveredCta, findsNothing);
       expect(find.byType(OmdsOtpInput), findsOneWidget);
       expect(find.text(_otpTitle), findsOneWidget);
@@ -336,9 +281,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `OmdsOtpInput`'s `autoFocus` defaults to true and `_DoorOtpEntry` does
-      // not override it, so on the real screen the keyboard opens unasked and
-      // the delivering-phase ListView scroll-jumps to the cell row the instant
-      // `otpRequired` flips — under the jeeber's thumb, at the customer's door.
       await _pumpInOtpBox(tester, markDeliveredPanelDoorOtpWrongCode);
 
       final EditableText firstCell = tester.widget<EditableText>(
@@ -352,7 +294,6 @@ void main() {
       expect(firstCell.focusNode.hasFocus, isTrue);
 
       // The CTA state has a text field too — the optional note — and it is
-      // correctly left alone.
       await _pumpInOtpBox(tester, markDeliveredPanelAwaitingProof);
       expect(
         tester.widget<EditableText>(find.byType(EditableText).first)
@@ -369,22 +310,11 @@ void main() {
       await _pumpInOtpBox(tester, markDeliveredPanelDoorOtpWrongCode);
 
       // `isEnabled: _code.length == 4`, and `OmdsLoadingButton` drops its
-      // `onTap` when it cannot be tapped — so an empty entry cannot POST a
-      // verify.
-      //
-      // The second half of this is a defect, not a guard: unlike
-      // `mark_delivered_cta`, the `mark_delivered_otp_submit` wrapper is a bare
-      // `Semantics(container: true)` with no `button: true`, and the
-      // `OmdsLoadingButton` inside it is given no `identifier` of its own — so
-      // the node carries a label and NO button flag. TalkBack reads "Complete
-      // Delivery" as plain text at the one place the delivery is completed.
       expect(
         tester.getSemantics(_otpSubmit),
         isSemantics(label: _ctaLabel, isButton: false, hasTapAction: false),
       );
       // Control: the CTA this entry replaced does declare itself a button and
-      // does carry a live tap action — so the assertion above is a real
-      // difference between the two, not a blocked-viewport artifact.
       await _pumpInOtpBox(tester, markDeliveredPanelAwaitingProof);
       expect(
         tester.getSemantics(_markDeliveredCta),
@@ -397,8 +327,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `otpError` is not an ARB key: `ActiveDeliveryCubit._mapOtpError`
-      // returns hardcoded English literals and this panel prints them verbatim.
-      // An Arabic-speaking jeeber gets an Arabic title over an English error.
       await _pumpInOtpBox(
         tester,
         markDeliveredPanelDoorOtpWrongCode,
@@ -413,9 +341,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `OmdsOtpInput` pads each cell with a physical
-      // `EdgeInsets.only(left: isFirst ? 0 : spacing/2, right: isLast ? 0 : …)`.
-      // Physical, not directional — so when the Row reverses for RTL the zero
-      // paddings end up on the inside and the gaps redistribute.
       await _pumpInOtpBox(tester, markDeliveredPanelDoorOtpWrongCode);
       final List<double> ltr = _otpCellGaps(tester);
 
@@ -446,9 +371,6 @@ void main() {
         find.text(_ctaLabel),
       );
       // `OmdsLoadingButton` hard-codes `height: Sizes.fourXLarge` (48) and
-      // centres a plain Text in it, so the wrapped label is clipped — not
-      // ellipsized, not given more room, and with no overflow stripe to notice
-      // it by.
       expect(button.height, 48);
       expect(label.getMaxIntrinsicHeight(label.size.width), greaterThan(48));
       expect(tester.takeException(), isNull);
@@ -458,8 +380,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The production frame is a ListView, which is what keeps the doubled
-      // text off the overflow path. Guards the fixture as much as the widget:
-      // a preview that dropped the ListView would paint a red stripe here.
       await _pumpScaled(tester, markDeliveredPanelDoorOtpWrongCode, 2.0);
 
       expect(tester.takeException(), isNull);

@@ -1,22 +1,4 @@
 // Render tests for the DeliveryDetailScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// This screen renders ONE list whose membership is the whole contract, and the
-// lists overlap heavily — four of the six states share "Live tracking" and
-// "Verify OTP", two of them are identical by design. A render-only check, or
-// even a single pinned string, would therefore pass on a preview wired to the
-// wrong fixture. Every state pins a string, and the specifics group below pins
-// the SET of rows each bucket may show, which is the actual assertion:
-// JEBV4-309 is about what is absent as much as what is present.
-//
-// One preview per test, always. `previewCanvas` produces the same widget types
-// for every preview, so pumping a second one into the same tester UPDATES the
-// host element rather than replacing it — the `late final` GoRouter and the
-// screen's `initState`-resolved repository both survive, and the second preview
-// would silently show the first one's state under the second one's name.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,7 +22,6 @@ const List<String> _kAllRowIds = <String>[
 
 /// The fail-open list: every legacy affordance, no banner. Shared verbatim by
 /// the in-flight and the failed status previews — the identity is asserted,
-/// not incidental.
 const Set<String> _kFailOpenRows = <String>{
   'order-detail-track',
   'order-detail-chat',
@@ -74,10 +55,8 @@ void main() {
     },
     expectedText: const <String, String>{
       // Rate is offered ONLY by the delivered bucket and by fail-open, and
-      // fail-open is the only one that offers it beside Cancel.
       'Status pending · fails open': 'Rate your delivery',
       // Tracking survives in fail-open and in both active states; the specifics
-      // group below is what separates them.
       'Status unavailable · fails open': 'Live tracking',
       // The free-cancel window, open.
       'Active · pre-pickup (cancel open)': 'Cancel delivery',
@@ -101,10 +80,6 @@ void main() {
       await pumpPreview(tester, deliveryDetailScreenStatusPending);
 
       // This is the first frame of EVERY delivery, a delivered one included:
-      // `_loadStatus()` starts in `initState` and the first build precedes it.
-      // Cancel and Verify OTP are on screen for an order that may already be
-      // Done — the fail-open cost the class doc's "never reached for a
-      // known-Delivered order" does not cover.
       expect(_rows(tester), _kFailOpenRows);
       // Rate AND Cancel together: no real lifecycle state produces that pair.
       expect(find.byKey(const Key('order-detail-rate')), findsOneWidget);
@@ -119,7 +94,6 @@ void main() {
 
       expect(_rows(tester), _kFailOpenRows);
       // `_loadStatus` swallows OrderChatSummaryException and leaves `_statusId`
-      // null, so the surface makes no claim at all about the failure.
       expect(find.text('Try again'), findsNothing);
       expect(find.text('Delivered'), findsNothing);
       expect(find.text('Cancelled'), findsNothing);
@@ -178,8 +152,6 @@ void main() {
     });
 
     // The reason this state has its own preview: `_bucket` folds `expired`,
-    // `disputed`, `rated` and `failedneedsescalation` into the cancelled
-    // branch, which hardcodes the cancelled banner and its body.
     testWidgets('an EXPIRED delivery is presented as cancelled', (
       WidgetTester tester,
     ) async {
@@ -199,8 +171,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The harness pumps an 800 pt surface: a preview that left its width to
-      // the host would measure 800 here, and none of the row layout applies at
-      // that width.
       await pumpPreview(tester, deliveryDetailScreenDelivered);
 
       expect(tester.getSize(find.byType(DeliveryDetailScreen)).width, 390);
@@ -218,8 +188,6 @@ void main() {
     });
 
     // The accessibility ceiling the matrix renders for these two previews, run
-    // in the locale that lengthens the copy. The action rows and the banner are
-    // the only layout here, and both are Rows with one flexible child.
     testWidgets('the fullest list survives AR at 200% text', (
       WidgetTester tester,
     ) async {

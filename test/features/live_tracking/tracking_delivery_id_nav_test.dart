@@ -1,15 +1,3 @@
-// S9 live-tracking defect fix (T-S9-APP-TRACK).
-//
-// PROVES the customer "Live tracking" CTA opens the tracking surface with the
-// SERVER-created delivery id (`delivery-<offerId>`), NOT the parent request id.
-// Opening `GET /v1/delivery/<requestId>` 404s ("Delivery not found") and the
-// screen shows "Server error" — the live defect this fix closes.
-//
-// Two layers:
-//  1. The pure route resolver prefers `?deliveryId=` over the path `:id`.
-//  2. The In-Progress "Track my order" CTA navigates with the delivery id when
-//     the card carries one, falling back to the request id otherwise.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -141,7 +129,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The tracking surface resolved the SERVER delivery id — proving the CTA
-      // threaded `?deliveryId=` and the resolver preferred it over `req-abc`.
       expect(find.text('tracking:delivery-offer-42'), findsOneWidget);
       expect(find.text('tracking:req-abc'), findsNothing);
     });

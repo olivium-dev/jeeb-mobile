@@ -1,15 +1,4 @@
 // Tests for DioRequestFeedRepository — the jeeber discovery feed.
-//
-// Verifies against the FROZEN jeeb-gateway Contract B
-// (`jeeb-gateway/jeeber-feed` v1.0.0, request-centric):
-//   GET /v1/jeebers/me/feed?status=pending → 200 JeeberFeedResponse
-//        { items:[JeeberFeedItem...], totalCount }
-//
-// Regression guard: the feed previously polled `GET /requests?status=pending`
-// (the caller's OWN client requests, status ignored) → a jeeber always saw 0
-// rows. These tests pin (1) the endpoint and (2) the JeeberFeedItem parse
-// alignment (requestId key, nested FeedLocation, myOffer annotation,
-// degrade-don't-drop when routing fields are absent).
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -122,10 +111,6 @@ void main() {
     });
 
     // ── P7 TX — the feed card deadline is SERVER-ANCHORED, never a parsed
-    // absolute. `offerDeadlineInSeconds` (relative) + the device receive
-    // instant = a deadline a skewed handset cannot corrupt. The old dual-read
-    // of two server absolutes (see the TX.2 payload) is gone; the first of the
-    // two keys it tried was never on the wire in the first place.
     test('TX.1 — offerDeadlineInSeconds anchors against the injected clock',
         () async {
       final t0 = DateTime.utc(2026, 6, 30, 9, 41);
@@ -192,8 +177,6 @@ void main() {
       });
 
       // The feed deliberately does NOT throw — only the customer waiting
-      // surface carries the throw contract. Snapshot membership stays the
-      // lifetime authority here.
       final result = await repo.refresh();
 
       expect(result, hasLength(1));
@@ -281,8 +264,6 @@ void main() {
     test('degrade-don\'t-drop: item with no pickup/dropoff still renders',
         () async {
       // pickup/dropoff are RECOMMENDED-nullable in the freeze; the MVP-required
-      // set (requestId/status/description/createdAt/myOffer) must still yield a
-      // visible card so the jeeber can act.
       dio.nextResponse = _resp({
         'items': [
           {

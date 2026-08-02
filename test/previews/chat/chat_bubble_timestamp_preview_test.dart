@@ -1,15 +1,4 @@
 // Render tests for the ChatBubbleTimestamp previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One state deviates from that template on purpose. 'Ordering anchor · no
-// clock' renders `SizedBox.shrink()` — the ABSENCE is the state — so there is
-// no text of the widget's own for `expectedText` to bind to. It binds to the
-// preview's caption instead, and the contract that actually matters (no Text
-// anywhere under the widget) is asserted in the specifics group against a
-// dated sibling, so the assertion cannot pass vacuously.
 
 import 'dart:math' as math;
 
@@ -69,13 +58,10 @@ void main() {
       await pumpPreview(tester, chatBubbleTimestampOrderingAnchor);
 
       // `hasServerTimestamp: false` means sentAt is an ordering anchor, not a
-      // send time. The widget must be present and empty — not "00:00", not a
-      // dimmed placeholder.
       expect(find.byType(ChatBubbleTimestamp), findsOneWidget);
       expect(_clock(), findsNothing);
 
       // The SAME epoch instant with the flag left true proves the assertion
-      // above is not vacuous: the suppression is the flag, not the value.
       await pumpPreview(tester, chatBubbleTimestampEpochDrawn);
       expect(_clock(), findsOneWidget);
       expect(find.text('00:00'), findsOneWidget);
@@ -96,8 +82,6 @@ void main() {
       await pumpPreview(tester, chatBubbleTimestampUtcInstant);
 
       // DateFormat converts no zones: 21:05 UTC stays 21:05 even though the
-      // widget's own callers are all local-time. The two sibling call sites on
-      // the same `Hm` skeleton call `.toLocal()` first; this one cannot.
       expect(find.text('21:05'), findsOneWidget);
       expect(find.text('00:05'), findsNothing);
     });
@@ -113,8 +97,6 @@ void main() {
       }
 
       // The widget's only layout opinion is `AlignmentDirectional.centerEnd`.
-      // A stray `Alignment.centerRight` would pin the clock to the physical
-      // right in both locales, and only this assertion would see it.
       expect(await offsetFromBubbleCentre(const Locale('en')), greaterThan(0));
       expect(await offsetFromBubbleCentre(const Locale('ar')), lessThan(0));
     });
@@ -126,12 +108,6 @@ void main() {
           locale: const Locale('ar'));
 
       // Measured, not assumed. intl 0.20.2 ships no `ZERODIGIT` in the generic
-      // `ar` date symbols — only `ar_EG` has one — so `DateFormat.Hm('ar')`
-      // formats with ASCII digits and the Arabic clock renders "12:34", not
-      // "١٢:٣٤". Worth pinning for two reasons: the neighbouring
-      // `chat_date_separator_preview.dart` documents the opposite ("must show
-      // ... Arabic-Indic digits"), and the day the app adds an `ar_EG` locale
-      // this widget silently switches digit system with no code change.
       expect(find.text('12:34'), findsOneWidget);
       expect(find.text('١٢:٣٤'), findsNothing);
     });
@@ -152,7 +128,6 @@ void main() {
         );
 
         // What `chatBubbleTimestampDefaultInkOnBubble` shows: a surface role
-        // asked to read on a filled brand bubble. 1.65:1 in light.
         expect(
           _contrast(defaultInk, scheme.primary),
           lessThan(3.0),
@@ -161,7 +136,6 @@ void main() {
               'guard can go.',
         );
         // What `chat_message_bubble.dart:574` passes instead, and why the app
-        // does not ship the number above.
         expect(
           _contrast(callerInk, scheme.primary),
           greaterThan(4.5),

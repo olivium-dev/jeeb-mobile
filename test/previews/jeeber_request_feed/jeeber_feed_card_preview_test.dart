@@ -1,14 +1,4 @@
 // Render tests for the JeeberFeedCard previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. The shared suite below does the "does it build
-// and show ITS OWN state, in both locales" half; the `preview specifics` group
-// does the half the canvas is actually for — geometry at real phone widths.
-//
-// Three of those specifics are RECORDED DEFECTS, not contracts: they assert the
-// card as it renders today, with a reason explaining what it should do instead.
-// If one starts failing because the layout was fixed, delete the guard — do not
-// "fix" the expectation back.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,10 +17,6 @@ const Size _phone = Size(390, 900);
 
 /// How many pixels a captured layout error overflowed by, or 0 when [error] is
 /// not an overflow at all.
-///
-/// Read out of the message rather than pinned as a constant: the fact under
-/// test is "this content does not fit", and an exact pixel count would break on
-/// a font-metric change without meaning anything.
 int _overflowPixels(Object? error) {
   if (error == null) return 0;
   final RegExpMatch? match =
@@ -41,8 +27,6 @@ int _overflowPixels(Object? error) {
 
 /// Pumps a preview into a real phone box instead of the 800x600 default test
 /// surface. The size is the whole point: at 800 pt wide this card has room it
-/// never has on a phone, which is why the existing widget suite misses the
-/// overflows below.
 Future<void> _pumpInBox(
   WidgetTester tester,
   Widget Function() preview, {
@@ -75,9 +59,6 @@ void main() {
       'Longest content · 360 pt device': jeeberFeedCardLongContent,
     },
     // One string per state that ONLY that state renders: the client name for
-    // the two identity readings, and the action affordance for the three
-    // lifecycle readings — which is the thing that actually differs between
-    // screens 24, 25 and 26.
     expectedText: const <String, String>{
       'Incoming · full metadata': 'Sami Fawaz',
       'Identity + tier omitted': 'Customer',
@@ -107,7 +88,6 @@ void main() {
       expect(avatar.profilePicUrl, isNull);
 
       // An unrated client must not read as a badly rated one, and an unknown
-      // tier must not be invented — the jeeber prices off both.
       expect(find.byType(OmdsStarRatingDisplay), findsNothing);
       expect(find.byType(OmdsChip), findsNothing);
     });
@@ -143,7 +123,6 @@ void main() {
       tester.takeException(); // the action-row overflow, asserted separately
 
       // G1 (sprint-009 P0): a TWO-line preview of the customer's own words,
-      // ellipsised — the full text lives on the request detail screen.
       final Text summary = tester.widget<Text>(
         find.byKey(const Key('jeeber-feed-card-summary')),
       );
@@ -151,7 +130,6 @@ void main() {
       expect(summary.overflow, TextOverflow.ellipsis);
 
       // The name is one ellipsised line, so it cannot shove the timestamp off
-      // the trailing edge of the card.
       final Text name = tester.widget<Text>(
         find.byKey(const Key('jeeber-feed-card-client-name')),
       );
@@ -171,13 +149,10 @@ void main() {
     });
 
     // ----------------------------------------------------------------------
-    // Recorded defects. See the file header before "fixing" any of these.
-    // ----------------------------------------------------------------------
 
     testWidgets('RECORDED DEFECT: the Ignore/Offer row overflows in Arabic on '
         'a 360 pt device at DEFAULT text size', (WidgetTester tester) async {
       // English is clean at this width, so nothing about this is visible in a
-      // single-locale review — which is why the preview matrix renders AR.
       await _pumpInBox(tester, jeeberFeedCardIncoming, box: _s22);
       expect(tester.takeException(), isNull);
 
@@ -266,7 +241,6 @@ void main() {
           tester.getRect(find.byKey(const Key('jeeber-feed-card-avatar')));
 
       // Directionality is genuinely clean here — every inset is symmetric or
-      // EdgeInsetsDirectional — so the avatar swaps ends exactly.
       expect(avatarEn.left - card.left, closeTo(card.right - avatarAr.right, 1));
       expect(avatarAr.left, greaterThan(card.center.dx));
     });

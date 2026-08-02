@@ -7,13 +7,8 @@ import 'package:local_auth_platform_interface/local_auth_platform_interface.dart
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 /// A scripted fake for the `local_auth` platform channel (JEBV4-213 / E18).
-///
 /// The ticket asks for widget tests with a "fake auth channel"; the robust,
 /// version-stable seam is [LocalAuthPlatform.instance] (what
-/// [LocalAuthentication] delegates every call to). This fake lets each test
-/// pin device-support / enrolment / the authenticate outcome, and records the
-/// [AuthenticationOptions] + reason the gateway actually sent so we can assert
-/// the device-credential fallback is enabled.
 class _FakeLocalAuthPlatform extends LocalAuthPlatform
     with MockPlatformInterfaceMixin {
   bool deviceSupported = true;
@@ -115,7 +110,6 @@ void main() {
 
     test('enables the device-credential (PIN/password) fallback', () async {
       // biometricOnly: false is what lets an emulator with no biometric fall
-      // back to the device PIN/pattern/password and still unlock (the DoD).
       await gateway.authenticate(reason: 'Unlock Jeeb');
       expect(fake.lastOptions, isNotNull);
       expect(fake.lastOptions!.biometricOnly, isFalse);

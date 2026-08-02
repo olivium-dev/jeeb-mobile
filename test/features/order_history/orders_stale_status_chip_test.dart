@@ -1,39 +1,4 @@
 // Regression gate for "the customer's status chip goes stale", seen on real
-// hardware during the live COD run: the chip read "Pending" while the jeeber
-// had already moved to Picked / InTransit.
-//
-// ESTABLISHED FIRST-HAND BEFORE FIXING, because the suspected cause was wrong.
-// The hypothesis was that the chip sat on the push-only status axis that commit
-// 134bea4 introduced. It does not. `OrderStatusChip` is the only customer-facing
-// status chip in the app that can render "Pending" (`orderHistoryStatusPending`),
-// it lives in `OrderHistoryCard` on the Delivery tab, and it was on NO refresh
-// axis at all — a strictly worse failure than push-only:
-//
-//   OrderHistoryScreen.initState  -> initialLoad(), once
-//   shell_screen.dart:128         -> IndexedStack keeps OrdersTab mounted, so
-//                                    initState never runs again
-//   OrderHistoryCubit             -> takes no refreshSignals; no push reaches it
-//   grep -c 'TabVisibility|AppResumeSignals|ResumeRefetch|
-//            resolvePushRefreshStream|RouteAware'
-//     order_history_screen.dart / order_history_cubit.dart / orders_tab.dart
-//                                 -> 0 / 0 / 0
-//
-// So the list held its first-seen snapshot for the life of the process.
-//
-// Controls this file runs, against the REAL screen, the REAL chip and the REAL
-// ARBs, with a repository scripted to advance Pending -> En route between reads
-// exactly as a jeeber does:
-//   NEGATIVE — with the tab never regaining focus, no resume and no push, the
-//              chip stays "Pending" and the repository is read exactly ONCE.
-//              This is the pre-fix behaviour, reproduced rather than described.
-//   POSITIVE — flipping TabVisibility false -> true re-reads and the chip
-//              becomes "En route".
-//   POSITIVE — an `order` push while the tab is visible re-reads.
-//   BOUNDED  — a push while the tab is HIDDEN does not read (the customer is
-//              not looking, and truncating a paginated list they may be
-//              scrolled into is the cost); regaining focus then pays it once.
-//   NO DOUBLE-MOUNT — the refetcher does not add a second read at mount;
-//              `initialLoad` still owns the first one.
 
 import 'dart:async';
 

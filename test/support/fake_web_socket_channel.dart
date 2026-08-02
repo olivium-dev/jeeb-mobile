@@ -6,13 +6,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// A [WebSocketChannel] double whose two directions are ordinary streams, so a
 /// test can BE the server: push frames down [serverToClient] and read what the
 /// client wrote out of [sentByClient].
-///
-/// This is not a mock of the subject. The subject is the Phoenix client's wire
-/// behaviour — the URL it dials, the frames it writes, and what it does with
-/// the frames it is given — and none of that is observable without something on
-/// the other end of the socket. What it substitutes is the TCP connection, at
-/// the one seam (`channelFactory`) the production class already exposes for
-/// exactly this; everything above that seam is the shipped code.
 class FakeWebSocketChannel extends StreamChannelMixin<dynamic>
     implements WebSocketChannel {
   FakeWebSocketChannel({Future<void>? ready})

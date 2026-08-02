@@ -1,48 +1,4 @@
 // Designed states for the Jeeber request feed (`RequestFeedScreen`) — ONE
-// source of truth, two consumers.
-//
-//   lib/devtool/catalog/entries/batch_05_entries.dart   the designer-facing,
-//                                                       on-device Screen Catalog
-//   lib/features/jeeber_request_feed/presentation/request_feed_screen.dart
-//                                                       the JEEB PREVIEWS
-//                                                       section at its bottom
-//
-// The catalog entry owned the three fake repositories privately, so the preview
-// section would have had to re-declare them and the two would have drifted the
-// first time a fixture changed. Everything either consumer needs to reach a
-// designed state lives here instead; each supplies only its own host chrome (the
-// catalog mounts the screen into a catalog page and drives a REAL
-// `RequestFeedCubit.start()`; the preview host frames it to a device box and
-// seeds an inert cubit — see "Two ways to drive it" below).
-//
-// NOTHING here touches the network. Every repository answers from a const list
-// or throws, and every cubit handed out by [RequestFeedScreenPreviewFixtures] is
-// seeded in its constructor rather than started. The `CatalogNetworkGuard` both
-// hosts install is a net, not the plan.
-//
-// ## Two ways to drive it, and why both exist
-//
-// [RequestFeedCubit.start] opens three subscriptions and a 1 s expiry sweep, and
-// reaches the designed state only by way of a real `refresh()` round trip. That
-// is what the catalog wants — a live screen a designer can pull-to-refresh and
-// tap — and it is exactly what a preview canvas and a widget test do not want.
-// So the repositories below serve the catalog, and [SeededRequestFeedScreenCubit]
-// serves the previews by emitting one designed [RequestFeedState] in its
-// constructor with no subscription and no timer behind it.
-//
-// The two paths agree on the data because they share it: the catalog's snapshot
-// repositories are built over the same feed lists the seeded cubit emits.
-//
-// ## Deadlines are deliberately absent from most feeds
-//
-// `DeliveryRequest.expiresAt` is turned into a countdown against
-// `DateTime.now()` by the screen, so any fixture that carries one renders a
-// number that changes every second and differs on every run. The feeds below
-// therefore pass `expiresAt: null` — which is a real gateway shape, documented
-// on the model as "no countdown applies to this row" — except where the
-// countdown itself is the thing under review, which is what
-// [RequestFeedScreenPreviewFixtures.incomingFeed] (the catalog's Figma screen-24
-// row, verbatim) already covers.
 
 import '../../../features/jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../../features/jeeber_request_feed/cubit/request_feed_state.dart';
@@ -51,7 +7,6 @@ import '../../../features/jeeber_request_feed/data/request_feed_models.dart';
 import '../../../features/jeeber_request_feed/data/request_feed_repository.dart';
 
 /// Answers every snapshot with an empty board and never pushes.
-///
 /// The successful read of an empty feed — NOT a failure. The screen renders
 /// these two very differently and the difference is easy to lose.
 class EmptyRequestFeedRepository implements RequestFeedRepository {
@@ -142,13 +97,8 @@ class PollingRequestFeedRepository implements RequestFeedRepository {
 }
 
 /// [RequestFeedCubit] pinned to one designed frame.
-///
 /// Never `start()`ed, so none of its three live subscriptions exist and neither
 /// the expiry sweep nor the deferred-refresh gate is ever constructed (both are
-/// `late final` and only `start()`/`close()` touch them). The repository behind
-/// it is still real enough to answer the pull-to-refresh the screen wires up —
-/// that is what [seed] carries — so a reviewer who pulls the list in the canvas
-/// replays the fixture instead of reaching `GET /v1/jeebers/me/feed`.
 class SeededRequestFeedScreenCubit extends RequestFeedCubit {
   SeededRequestFeedScreenCubit(
     RequestFeedState seed, {
@@ -161,17 +111,10 @@ class SeededRequestFeedScreenCubit extends RequestFeedCubit {
 }
 
 /// The designed states of `RequestFeedScreen`, as feeds + inert cubits.
-///
 /// Deliberately NOT a widget builder: the catalog needs a live, startable cubit
-/// inside its own stateful host and the previews need a frozen one inside a
-/// device-sized box, and a shared builder taking a `live` flag would just be two
-/// builders wearing one name.
 abstract final class RequestFeedScreenPreviewFixtures {
   /// The Figma screen-24 row, verbatim (`dev-feed-incoming`) — the catalog's
   /// "Incoming — Ignore / Offer card" state.
-  ///
-  /// Carries the dev fixture's far-future `expiresAt`, so this is the one feed
-  /// whose countdown badge is live.
   static List<DeliveryRequest> incomingFeed() => DevJeeberFeedFixtures.incoming();
 
   /// The Figma screen-25 row — the jeeber has offered and is awaiting a reply.
@@ -182,7 +125,6 @@ abstract final class RequestFeedScreenPreviewFixtures {
 
   /// One row per [JeeberFeedItemStatus] bucket, each with its own pickup so the
   /// three can be told apart on screen — which is the whole question this feed
-  /// is here to answer.
   static List<DeliveryRequest> lifecycleFeed() => <DeliveryRequest>[
         _row(
           id: 'preview-feed-incoming',
@@ -225,7 +167,6 @@ abstract final class RequestFeedScreenPreviewFixtures {
 
   /// The content ceiling: two addresses long enough to hit the card's
   /// `maxLines: 2` and a six-figure Lebanese-pound amount, which is the home
-  /// market's normal case rather than an edge case.
   static List<DeliveryRequest> longestContentFeed() => <DeliveryRequest>[
         _row(
           id: 'preview-feed-longest',
@@ -286,10 +227,7 @@ abstract final class RequestFeedScreenPreviewFixtures {
       );
 
   /// A refresh that failed while rows were already on screen.
-  ///
   /// This is what `RequestFeedCubit._refresh`'s catch produces on a non-initial
-  /// read: the status stays `ready` because the feed is non-empty, and the
-  /// failure is recorded ONLY in `errorMessageKey`.
   static RequestFeedCubit refreshFailedOverRows(
     List<DeliveryRequest> requests,
   ) =>
@@ -304,10 +242,6 @@ abstract final class RequestFeedScreenPreviewFixtures {
 
   /// Every row above, built from one shape so the feeds differ only where the
   /// difference is the point.
-  ///
-  /// `expiresAt` is null by default: see the file header — a live deadline makes
-  /// the countdown badge, and therefore every rendering of the card, depend on
-  /// the wall clock.
   static DeliveryRequest _row({
     required String id,
     required String pickup,

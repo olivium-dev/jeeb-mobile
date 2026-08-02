@@ -1,15 +1,3 @@
-// Render tests for the DmOnboardingStepLayout previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// Pinning a DISTINCT string per state matters more than usual here: this widget
-// is pure chrome, every preview renders the same page gutter and the same
-// bottom-pinned "Continue", and two of the five feed it the same service-area
-// body. A suite that only asserted "something rendered" would still pass if
-// every fixture collapsed onto one state — so each expectation below names a
-// line that only its own body produces.
-
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -22,8 +10,6 @@ import 'package:jeeb_mobile/features/jeeber_onboarding/presentation/widgets/dm_o
 
 import '../preview_test_harness.dart';
 
-/// The four previews that settle. The in-flight one holds a spinner and gets
-/// its own group below.
 const Map<String, Widget Function()> _settling = <String, Widget Function()>{
   'Photo step · Continue gated': dmOnboardingStepLayoutPhotoGated,
   'Address step · Continue live': dmOnboardingStepLayoutAddressForm,
@@ -46,7 +32,6 @@ void main() {
     expectedText: const <String, String>{
       'Photo step · Continue gated': 'Upload a clear photo for you',
       // A field HINT, not a label: 'Address' also labels the step's other
-      // rows, while this placeholder belongs to one field in one body.
       'Address step · Continue live': 'Jasmine Tower, Apartment 12B',
       'Service area · gated, short viewport':
           'Tap Location to set your home base',
@@ -56,10 +41,6 @@ void main() {
   );
 
   // The in-flight preview holds an indeterminate `CircularProgressIndicator`
-  // (`OmdsButtonLoading`). `pumpAndSettle` — which `pumpPreview` calls — never
-  // returns while one is on screen, so it gets the same three assertions the
-  // shared suite makes (builds in EN, builds in AR, renders its OWN state)
-  // driven by fixed pumps instead.
   group('DmOnboardingStepLayout previews · in-flight', () {
     Future<void> pumpInFlight(
       WidgetTester tester, {
@@ -88,8 +69,6 @@ void main() {
       await pumpInFlight(tester);
 
       // The submit REPLACES the label rather than dimming it. No other preview
-      // in this file is missing its CTA text, and none of the others has a
-      // spinner — together that is a state only this preview can be in.
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text('Continue'), findsNothing);
       expect(find.text('Beirut'), findsOneWidget);
@@ -139,7 +118,6 @@ void main() {
     });
 
     // Same numbers under RTL. The gutter is an `EdgeInsetsDirectional`, so this
-    // passing is what says the chrome mirrors instead of merely surviving.
     testWidgets('the CTA keeps its box and its localized label in Arabic', (
       WidgetTester tester,
     ) async {
@@ -164,10 +142,6 @@ void main() {
     });
 
     // `enabled` is the layout's one behavioural input. Assert what it DOES —
-    // the gated CTA offers no tap action and cannot advance the wizard — rather
-    // than how it is announced: the node carries no disabled state today (see
-    // the preview doc), and pinning that gap here would fail the day it is
-    // fixed.
     testWidgets('a gated CTA offers no tap action and cannot advance', (
       WidgetTester tester,
     ) async {
@@ -213,7 +187,6 @@ void main() {
     });
 
     // The gated/live pair differ by one alpha step and nothing else. If that
-    // ever silently becomes "no difference", this is the assertion that fails.
     testWidgets('gated and live differ only by the disabled fill', (
       WidgetTester tester,
     ) async {
@@ -232,8 +205,6 @@ void main() {
     });
 
     // Bodies taller than the viewport must scroll rather than overflow — the
-    // photo body is 540 px at 1.0x and the drop area alone is 427 px at phone
-    // width.
     testWidgets('a taller-than-viewport body scrolls', (
       WidgetTester tester,
     ) async {

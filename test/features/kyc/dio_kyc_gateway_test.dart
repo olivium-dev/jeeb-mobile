@@ -1,16 +1,5 @@
 /// KYC submit HTTP contract (JEBV4-113) — pins [DioKycGateway.submit] to the
 /// LIVE gateway shape (`KycSubmissionBffController.SubmitJson`): the CDN
-/// broker is used to turn captured photos into `*_url` refs, and the submit
-/// body carries `id_document_front_url` / `id_document_back_url` /
-/// `selfie_with_liveness_url` (always), `vehicle_registration_url`
-/// (send-if-present only — JEBV4-113 §4 owner decision left open) and
-/// `tos_accepted_version` (threaded from `signContract()` when present).
-///
-/// The previous body shape (`document_type` / `has_id_front` / `has_id_back`
-/// / `has_selfie`) matched no live endpoint and is gone; these tests assert
-/// the new shape end to end via the real [DioCdnAssetGateway] against a
-/// recording [Dio], the same "no mock framework" house style used by the
-/// chat gateway contract test.
 library;
 
 import 'dart:typed_data';
@@ -26,13 +15,6 @@ import 'package:jeeb_mobile/features/photo_attachment/domain/photo_attachment.da
 /// Records every outbound request and resolves a response computed per
 /// request, so the CDN broker POSTs, the signed PUTs, and the final
 /// `/v1/kyc/submit` POST can each be answered distinctly. A resolver may
-/// throw a [DioException] to simulate an HTTP error response (e.g. the BFF's
-/// RFC-7807 400).
-///
-/// JEBV4-259: since the CDN signed-PUT now uses a DEDICATED, interceptor-free
-/// Dio, this recorder is passed as BOTH the broker Dio and (via
-/// `uploadDio: rec.dio`) the upload Dio, so the PUT stays observable here. The
-/// dedicated-Dio isolation itself is proven in dio_cdn_asset_gateway_test.dart.
 class _RecordingDio {
   _RecordingDio(this._resolve) {
     dio = Dio(BaseOptions(baseUrl: 'http://gateway.test'));
@@ -146,7 +128,6 @@ void main() {
 
   group('DioKycGateway.submit — response status parse (JEBV4-271)', () {
     // Answers the CDN broker + signed PUT as usual, and the /v1/kyc/submit POST
-    // with the given `state` wire value, so the parse can be asserted.
     Response<dynamic> Function(RequestOptions) submitReturning(String state) {
       return (options) {
         if (options.path == '/api/cdn/assets') {
@@ -220,9 +201,6 @@ void main() {
         'continuation is not killed by a body-shape mismatch (JEBV4-271 round 6, '
         'submissionId 3b17dbfb...)', () async {
       // Verbatim body from the round-5 device diag (build 9469778c, account
-      // 71888006): POST /v1/kyc/submit → 201. The nulls (vehicle_registration_url,
-      // tos_signed_at, tos_accepted_version) are the exact shape the app receives
-      // in production — none of them may make _parseSubmission throw.
       Response<dynamic> resolver(RequestOptions options) {
         if (options.path == '/api/cdn/assets') {
           final slot = (options.data as Map)['slot'] as String;
@@ -470,7 +448,6 @@ void main() {
       '(JEBV4-113 review finding 1)', () {
     /// Answers the CDN legs happily but rejects the submit POST with the
     /// BFF's real problem shape: `{"type": ..., "field": "id_number",
-    /// "detail": ...}` on HTTP 400.
     Response<dynamic> rejectSubmit(RequestOptions options) {
       if (options.path == '/v1/kyc/submit') {
         throw DioException(
@@ -546,8 +523,6 @@ void main() {
   });
 
   // E19 / Q-040 tri-state: GET /v1/kyc/status parses the third `ResubmitRequested`
-  // path — its mandatory reason AND the per-document-slot `resubmit_steps` list —
-  // distinctly from the final `Rejected` state.
   group('DioKycGateway.fetchStatus — ResubmitRequested tri-state (JEBV4-214)',
       () {
     Future<KycSubmission> statusReturning(Map<String, dynamic> body) async {

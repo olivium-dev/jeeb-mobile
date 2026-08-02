@@ -69,8 +69,6 @@ void main() {
     });
 
     // The bug (JEBV4-245): a failed/absent logout used to leave the local
-    // session intact → user stuck signed-in. Every failure mode must now still
-    // clear the keystore AND report success.
     final failures = <String, Object>{
       '404': _dioStatus(404),
       '5xx': _dioStatus(500),

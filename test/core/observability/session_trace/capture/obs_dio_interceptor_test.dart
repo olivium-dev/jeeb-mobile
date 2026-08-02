@@ -9,10 +9,6 @@ import 'package:jeeb_mobile/core/observability/session_trace/observability_confi
 
 /// Requires `flutter test --dart-define=JEEB_DEVTOOL_ENABLED=true …` to
 /// exercise the `skip:`-guarded groups below — [kObsCompiledIn] is a frozen
-/// compile-time const (mirrors `kDevToolEnabled`), so a plain `flutter test`
-/// run cannot flip it. The unconditional group still gives full, meaningful
-/// coverage of the "not recording ⇒ zero-cost no-op, chain untouched"
-/// guarantee in a plain run.
 String get _needsDevtoolDefine =>
     'requires --dart-define=JEEB_DEVTOOL_ENABLED=true';
 
@@ -25,9 +21,6 @@ final RegExp _secretPattern = RegExp(r'Bearer |eyJ[A-Za-z0-9_-]{10,}\.');
 /// Test-only: [ErrorInterceptorHandler.next] completes its internal
 /// completer with an ERROR. `future` is `@protected` (subclass-only) — this
 /// subclass immediately [Future.ignore]s it so a direct-unit-call test
-/// (which never awaits the real Dio completion chain; only
-/// [ObsDioInterceptor] itself ever calls `.next`) doesn't trip Dart's
-/// "unhandled error in a Future" zone reporting.
 class _SilentErrorHandler extends ErrorInterceptorHandler {
   _SilentErrorHandler() {
     future.ignore();
@@ -64,7 +57,6 @@ RequestOptions _options({
 
 /// Drives a full request→response round-trip through [interceptor] and
 /// returns the single [ObsApiEvent] the fake sink captured (or null if the
-/// tool did not record it).
 ObsApiEvent? _roundTrip(
   ObsDioInterceptor interceptor,
   _FakeSink sink,
@@ -74,8 +66,6 @@ ObsApiEvent? _roundTrip(
   Headers? responseHeaders,
 }) {
   // A test that drives several round-trips through the same sink (e.g. to
-  // compare a body-bearing vs. a bodyless request) only ever wants THIS
-  // round-trip's event — discard whatever a prior call already captured.
   sink.events.clear();
   interceptor.onRequest(options, RequestInterceptorHandler());
   final response = Response<dynamic>(

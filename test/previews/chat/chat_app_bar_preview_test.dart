@@ -1,10 +1,4 @@
 // Render tests for the ChatAppBar previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. The shared suite (see
-// `test/previews/preview_test_harness.dart`) proves each state builds in BOTH
-// locales AND renders its OWN content; the group below adds the header-specific
-// pins the shared suite cannot express.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,7 +27,6 @@ void main() {
       'Order chat (dispute action)': 'Kamal Hajj',
       'Longest name + action': 'Abdulrahman Al-Muhandis Al-Trabulsi',
       // The empty title paints nothing, so the state's own fingerprint is the
-      // house initial the avatar falls back to.
       'Unresolved counterpart (empty title)': 'J',
     },
   );
@@ -45,8 +38,6 @@ void main() {
       await pumpPreview(tester, chatAppBarBroadcasting);
 
       // OMDSAppBar's own back affordance (Icons.arrow_back), NOT the chat
-      // header cluster's chevron (Icons.arrow_back_ios) — the two are how you
-      // tell the pre-match header from the post-approval one.
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
       expect(find.byIcon(Icons.arrow_back_ios), findsNothing);
       expect(find.byType(ClipOval), findsNothing);
@@ -95,7 +86,6 @@ void main() {
       await pumpPreview(tester, chatAppBarLongName);
 
       // The title takes the squeeze; the trailing affordance must still be
-      // there and still be hittable.
       expect(find.byIcon(Icons.report_gmailerrorred_outlined), findsOneWidget);
       expect(
         tester.getSize(find.byIcon(Icons.report_gmailerrorred_outlined)).width,
@@ -107,8 +97,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The shared suite pumps the 800 dp test surface, which is roomy enough
-      // to hide a header squeeze. Reproduce the preview box (390 dp) instead —
-      // that is the width the canvas renders and the phone actually has.
       tester.view.physicalSize = const Size(390, 140);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -119,8 +107,6 @@ void main() {
         expect(tester.takeException(), isNull, reason: '$locale overflowed');
 
         // The title yields; the affordances do not. Both the avatar cluster and
-        // the report button must stay fully inside the 390 dp bar, whichever
-        // edge the reading direction puts them on.
         final Rect avatar = tester.getRect(find.text('A'));
         final Rect action = tester.getRect(
           find.byIcon(Icons.report_gmailerrorred_outlined),
@@ -131,7 +117,6 @@ void main() {
         }
 
         // ...and they sit on OPPOSITE edges, mirrored by direction: the
-        // counterpart cluster leads, the dispute action trails.
         expect(
           locale.languageCode == 'ar'
               ? action.right < avatar.left

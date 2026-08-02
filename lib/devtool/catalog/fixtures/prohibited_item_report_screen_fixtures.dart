@@ -1,49 +1,9 @@
 // Shared dev-only fixtures for `ProhibitedItemReportScreen`.
-//
-// EXTRACTED from the Screen Catalog entry in
-// `lib/devtool/catalog/entries/batch_09_entries.dart`, which now imports this
-// file instead of spelling its two designed states inline. The preview section
-// at the bottom of
-// `lib/features/prohibited_item_report/presentation/prohibited_item_report_screen.dart`
-// imports the same file, so the designer's on-device browser and the engineer's
-// canvas cannot drift into showing two different "designed states".
-//
-// ## Why these fixtures are STRINGS and WINDOWS, not a fake repository
-//
-// Most fixture sets in this directory are canned repositories, because most
-// screens have a data axis to seed. This one has none. `ProhibitedItemReport-
-// Screen` builds no cubit, resolves nothing out of GetIt, holds one
-// `TextEditingController`, and its only action is a synchronous
-// `Navigator.of(context).pop(true)`. There is no request in flight, so there is
-// no loading state; nothing can fail, so there is no error state. Both surfaces
-// are therefore network-free by construction rather than by the guard
-// `jeebPreviewHost` / the catalog host installs: there is no seam here through
-// which a Dio-backed repository could be reached even by mistake.
-//
-// What DOES vary, and what the states below are:
-//
-//  1. **The description text.** It is the screen's only input and its only
-//     gate — `Report Item` is enabled iff `_descriptionController.text
-//     .isNotEmpty`. Empty / typed / very long / Arabic / whitespace-only are
-//     five genuinely different renderings.
-//  2. **The window.** The body is a non-scrolling `Column` with a `Spacer()`
-//     between the "Attach Photo" and "Report Item" buttons, so the viewport is
-//     what decides whether the form fits at all. Height, system-chrome insets,
-//     the software keyboard, and the user's text scale are all real, reviewable
-//     states — see `ProhibitedItemReportScreenWindows`.
-//
-// This file lives under `lib/devtool/`, which `tool/preview_inventory.dart`
-// excludes from preview coverage and which no shipping code path reaches.
 
 import 'package:flutter/material.dart';
 
 /// One simulated device window to render `ProhibitedItemReportScreen` in.
-///
 /// The frame has to be pinned by the fixture rather than left to the canvas
-/// `size:`, because the render tests in `test/previews/` pump onto a fixed
-/// 800 x 600 surface: a state that merely ASKED for a 320 x 568 canvas would be
-/// measured at 800 x 600 under test and every state would silently collapse
-/// into the same widget.
 @immutable
 class ProhibitedItemReportScreenWindow {
   const ProhibitedItemReportScreenWindow({
@@ -61,27 +21,15 @@ class ProhibitedItemReportScreenWindow {
   final Size size;
 
   /// System-chrome insets (`MediaQuery.padding`) — status bar, home indicator.
-  ///
   /// Load-bearing for this screen: `Scaffold` drops the TOP padding for a body
-  /// that sits under an `appBar`, but it does not drop the bottom one, and the
-  /// body here is a bare `Padding` with no `SafeArea`. Whatever the home
-  /// indicator claims, the destructive `Report Item` CTA is drawn into.
   final EdgeInsets insets;
 
   /// Height of the software keyboard (`MediaQuery.viewInsets.bottom`).
-  ///
   /// The description field is the screen's whole purpose, so the keyboard is up
-  /// for most of the time this screen is on display. `Scaffold` defaults to
-  /// `resizeToAvoidBottomInset: true`, so this subtracts directly from the
-  /// height the non-scrolling `Column` has to lay out in.
   final double keyboard;
 
   /// `MediaQuery.textScaler` multiplier, or `null` to INHERIT the ambient one.
-  ///
   /// Null is load-bearing, not laziness: `JeebPreview(matrix: true)` renders a
-  /// third card at `textScaleFactor: 2.0`, and a window that pinned 1.0 would
-  /// silently overwrite it and show a 100% rendering under a "200% text" label.
-  /// Only the windows that exist FOR a text scale set one.
   final double? textScale;
 }
 
@@ -99,7 +47,6 @@ final class ProhibitedItemReportScreenWindows {
 
   /// The smallest display the app still has to look right on (iPhone SE 1st
   /// gen class), which is also the width at which the warning copy first starts
-  /// costing lines.
   static const ProhibitedItemReportScreenWindow compact =
       ProhibitedItemReportScreenWindow(
     name: 'Compact 320 × 568',
@@ -116,7 +63,6 @@ final class ProhibitedItemReportScreenWindows {
 
   /// The compact phone with its software keyboard up — i.e. the screen as it
   /// looks while the jeeber is actually typing the report. 216 pt is the iOS
-  /// portrait keyboard on a 320 pt-wide display.
   static const ProhibitedItemReportScreenWindow compactKeyboard =
       ProhibitedItemReportScreenWindow(
     name: 'Compact 320 × 568 · keyboard 216',
@@ -137,11 +83,6 @@ class ProhibitedItemReportScreenCase {
 
   /// Caption painted above the frame, and the string each preview is pinned by
   /// in the render test.
-  ///
-  /// The screen renders five hardcoded English strings and nothing else, so
-  /// four of the six states below share every pixel of chrome. Without a
-  /// caption there is no string that identifies WHICH state a card is showing,
-  /// and a render test could only assert that something drew.
   final String caption;
 
   /// The window this state is reviewed in.
@@ -249,17 +190,7 @@ final class ProhibitedItemReportScreenPreviewFixtures {
 
 /// Hosts `ProhibitedItemReportScreen` in one
 /// [ProhibitedItemReportScreenCase]'s window, captioned and outlined.
-///
 /// The screen is passed IN rather than constructed here, for two reasons. It
-/// keeps this file free of an import back into the feature library, and — the
-/// load-bearing one — `tool/preview_coverage.dart` only credits a preview
-/// section that literally CONSTRUCTS the widget it is named after, so the
-/// `ProhibitedItemReportScreen(...)` has to appear below the banner in the
-/// screen's own file rather than in here.
-///
-/// Pass `state: null` to render at the ambient window with no caption and no
-/// outline — that is the form the Screen Catalog entry uses, where the device
-/// IS the frame.
 class ProhibitedItemReportScreenPreviewHost extends StatelessWidget {
   const ProhibitedItemReportScreenPreviewHost({
     required this.screen,
@@ -291,7 +222,6 @@ class ProhibitedItemReportScreenPreviewHost extends StatelessWidget {
           child: Text(
             '${state.caption} · ${window.name}',
             // Forced LTR: a diagnostic caption, not shipped copy, and it must
-            // read the same way in the Arabic renderings of the matrix.
             textDirection: TextDirection.ltr,
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -304,8 +234,6 @@ class ProhibitedItemReportScreenPreviewHost extends StatelessWidget {
           ),
           child: MediaQuery(
             // `jeebPreviewHost` wraps every preview in a `SafeArea`, which
-            // ZEROES `padding` for everything below it. Restoring it here is
-            // what makes the notched window mean anything at all.
             data: MediaQuery.of(context).copyWith(
               size: window.size,
               padding: window.insets,
@@ -323,10 +251,6 @@ class ProhibitedItemReportScreenPreviewHost extends StatelessWidget {
     );
 
     // Unbind both axes. The render tests pump onto 800 x 600 and the phone
-    // frames here are taller than that; an `Align` + `SizedBox` would pass the
-    // host's constraints down and an 844 pt frame would be silently clamped to
-    // 600 pt — the exact measurement the "does the form still fit" states
-    // depend on not being faked.
     return SingleChildScrollView(
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,

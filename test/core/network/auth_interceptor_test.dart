@@ -64,9 +64,6 @@ void main() {
 
   /// Builds the three-Dio harness the interceptor is designed around:
   ///   - [mainDio] carries the [TokenRefreshInterceptor] and serves the
-  ///     original request (scripted by [mainResponder]),
-  ///   - [retryClient] re-issues the original request after refresh,
-  ///   - [refreshClient] performs the bare `/v1/auth/refresh` round-trip.
   ({
     Dio mainDio,
     _ScriptedAdapter mainAdapter,
@@ -195,7 +192,6 @@ void main() {
     );
 
     // Refresh was attempted once and failed; the original request was NEVER
-    // retried — so no second 401 and no recursion.
     expect(h.refreshAdapter.callCount, 1);
     expect(h.retryAdapter.callCount, 0);
 
@@ -243,7 +239,6 @@ void main() {
   test('already-retried 401 is passed through without a second refresh',
       () async {
     // Guard 3: a request already tagged with the retried flag must not refresh
-    // again even if it still 401s.
     final h = buildHarness(
       mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
       retryResponder: (_) => _json({'should': 'never-run'}, 200),

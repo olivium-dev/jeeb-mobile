@@ -1,9 +1,3 @@
-// P1 (b01-20260725) defence-in-depth: [PushNotificationHandler]'s
-// `localRoles` audience guard. See testcases/P1.md PART B (M-U8..M-U10).
-//
-// A suppressed message must touch NO downstream state (dedup, badge,
-// local-inbox, banner) — see push_notification_handler.dart `_onForeground`.
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/notifications/application/badge_count_cubit.dart';

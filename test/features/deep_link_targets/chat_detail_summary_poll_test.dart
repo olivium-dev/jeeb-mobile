@@ -1,21 +1,4 @@
 // JEBV4-282 regression lock, re-pointed for b02 wave B.2.
-//
-// The customer chat's pinned status chip must still be LIVE — not a one-shot
-// snapshot frozen at `initState`. What CHANGED is what makes it live: it used to
-// be a 60s `LifecyclePoller`, and it is now the `delivery` push.
-//
-// So this suite now locks BOTH halves, because either one alone is a false pass:
-//   * ABSENCE — a mounted, client-accepted chat with NO push and NO user action
-//     issues exactly ONE delivery read, and still exactly one after five minutes
-//     of virtual time. This is the owner's rule: "if the user does nothing and no
-//     push arrives, does a network call happen a second time?"
-//   * PRESENCE — one refresh event re-reads the delivery and the chip advances
-//     (Ordered → InTransit). Without this half, "zero calls" would also be
-//     satisfied by a screen that simply stopped working.
-//
-// The old test asserted only that a SECOND read eventually happened. That
-// assertion passes for a poll and for a push alike, which is exactly why the
-// mandate survived a whole batch unmet — so it is replaced, not extended.
 
 import 'dart:async';
 
@@ -58,7 +41,6 @@ class _AdvancingDeliveryDio {
               'id': requestId,
               'requestId': requestId,
               // First read is Ordered; every read after the first is InTransit —
-              // proving the chip is re-sourced, not frozen at the mount value.
               'status': deliveryReads <= 1 ? 'Ordered' : 'InTransit',
               'amount': <String, dynamic>{'value': 9, 'currency': 'USD'},
             };
@@ -137,8 +119,6 @@ void main() {
       expect(rec.deliveryReads, 1, reason: 'one read at mount');
 
       // Walk well past every cadence this screen has ever had (1s, 5s, 10s, 60s)
-      // and then far beyond it. A single extra read at ANY of these steps is a
-      // surviving poll.
       for (final step in const <Duration>[
         Duration(seconds: 1),
         Duration(seconds: 5),
@@ -197,9 +177,6 @@ void main() {
       expect(rec.deliveryReads, 1, reason: 'one read at mount');
 
       // A refresh event must change nothing: the strip is customer-only (the
-      // Jeeber's fields never change post-accept and the delivered-status side
-      // effect must fire on the client leg only), so the subscription is never
-      // armed on this leg.
       refresh.add(null);
       await tester.pumpAndSettle();
       await tester.pump(const Duration(minutes: 5));

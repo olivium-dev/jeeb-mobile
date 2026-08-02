@@ -1,15 +1,4 @@
 // Render tests for the TrackingNoShowSheet previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// This sheet has NO data — every state renders the same five strings — so the
-// usual "each preview pins a distinct string" check cannot separate them on
-// copy alone. Each state therefore pins the one string it is really about, and
-// the difference that actually distinguishes it (pinned width, reserved bottom
-// inset, real modal frame, simulated phone) is asserted as geometry in the
-// specifics group below. Without that second half, five previews of the same
-// sheet would all pass while showing the same thing.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,7 +38,6 @@ void main() {
       // The bottom-most CTA: the row the home indicator would otherwise eat.
       'Gesture-bar inset': 'Keep waiting',
       // The body copy — the tallest block, and the one furthest from the
-      // bottom edge of the modal frame.
       'Modal presentation': 'You can pick another offer for this request, or '
           'send it out again to nearby Jeebers.',
       // The primary recovery path, still reachable on the smallest phone.
@@ -62,8 +50,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The render harness pumps an 800 px viewport and ignores
-      // JeebPreview.size, so without the pin CI would review a bottom sheet at
-      // a width no phone has.
       await pumpPreview(tester, trackingNoShowSheetDefault);
       expect(tester.getSize(find.byType(TrackingNoShowSheet)).width, 390);
 
@@ -77,10 +63,6 @@ void main() {
       await pumpPreview(tester, trackingNoShowSheetNarrowPhone);
 
       // OmdsPrimaryButton fixes its height at 48 pt and centres the label
-      // inside it. At 320 pt the label already wraps in this font, and at 200%
-      // text it wraps on any face — the pill stays 48 either way, so the label
-      // is clamped rather than the button growing. That is the state the
-      // `EN 200% text` rendering of this preview is for.
       for (final String label in const <String>[
         'Choose another offer',
         'Send request again',
@@ -120,8 +102,6 @@ void main() {
       }
 
       // jeebPreviewHost wraps every preview in its own SafeArea, which zeroes
-      // the ambient padding — so the sheet's own SafeArea is invisible in every
-      // other state, and only this one proves it is still doing its job.
       final double bare = await paddingBelowLastCta(trackingNoShowSheetDefault);
       final double withBar =
           await paddingBelowLastCta(trackingNoShowSheetGestureBar);
@@ -165,8 +145,6 @@ void main() {
       final Rect phone = tester.getRect(find.byType(Navigator).last);
       expect(sheet.bottom, phone.bottom);
       // The height ceiling this state exists to show: at DEFAULT text the sheet
-      // already takes more than half the smallest supported phone, and the
-      // Column it is built from has no scroll fallback for the rest.
       expect(sheet.height, greaterThan(phone.height / 2));
     });
 
@@ -197,8 +175,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // If the sheet survived the tap it would stack under the route the
-      // callback pushes, and the customer would come back to a stale sheet
-      // offering to reassign an offer they have already reassigned.
       expect(find.byType(BottomSheet), findsNothing);
     });
   });

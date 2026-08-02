@@ -1,8 +1,4 @@
 // G3 badge render + clear: BadgeCountCubit was incremented on every push but
-// rendered by ZERO widgets. The shell's Dashboard (feed) tab icon now carries
-// an M3 count badge for the UNSEEN OPEN REQUESTS (newRequests), and viewing
-// the feed clears it (FeedResumeRefetcher) — so a dismissed push always
-// leaves a visible trail: badge → feed.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -52,8 +48,6 @@ Widget _harness({
   required BadgeCountCubit badge,
 }) {
   // Mirrors test/shell_role_tabs_test.dart: DashboardTab self-provides its
-  // cubits from DI (registered in setUp); a jeeber RoleAvailability lights up
-  // the live dashboard body so FeedResumeRefetcher is mounted.
   return MultiBlocProvider(
     providers: [
       BlocProvider(
@@ -114,7 +108,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // A jeeber lands ON the dashboard (BUG-1), so step off it first — the
-    // badge counts requests arriving while the jeeber is NOT looking.
     await tester.tap(find.bySemanticsIdentifier('shell_tab_requests'));
     await tester.pumpAndSettle();
     expect(find.bySemanticsIdentifier('shell_tab_dashboard_badge'),

@@ -1,29 +1,5 @@
 /// b02 chat-header redesign — the "BOTTOM OVERFLOWED BY 16 PIXELS" gate.
-///
 /// ## What the defect actually was
-///
-/// `_ChatBody` builds a `Column` whose non-flexible children are the chrome
-/// (fee banner · pinned summary · offer-accepted banner · removed banner · TTL
-/// indicator · composer) and whose only flexible child is the message list. A
-/// `Column` satisfies its NON-flexible children first and shares out only the
-/// remainder. With the keyboard open the viewport shrinks by the keyboard's
-/// height, the chrome's intrinsic height exceeds what is left, `Expanded` is
-/// allocated ZERO, and the Column overflows by exactly the excess.
-///
-/// It is **not** `resizeToAvoidBottomInset` (unset → true, and the Scaffold
-/// shrinking correctly is what creates the over-constraint) and **not** a
-/// double-counted `SafeArea` (`SafeArea(bottom: false)`, top already consumed
-/// by the AppBar). These tests therefore drive a real bottom `viewInsets`, the
-/// way the platform reports a keyboard — a short surface alone reproduces a
-/// small phone, not a keyboard.
-///
-/// ## What the fix is
-///
-/// The chrome is bounded to [kChatHeaderMaxViewportFraction] of the available
-/// height, so the message list can never be starved to zero. The collapsed
-/// header + compact banner sit well inside that bound at ordinary text scales,
-/// which is asserted here: if the bound were load-bearing in the normal case it
-/// would be hiding content rather than budgeting it.
 library;
 
 import 'package:flutter/material.dart';
@@ -104,11 +80,6 @@ void main() {
   setUp(ChatHeaderExpansionStore.instance.reset);
 
   // ---------------------------------------------------------------------------
-  // THE MECHANISM, isolated. This is the permanent proof of the diagnosis: the
-  // overflow is produced by non-flexible children in a Column that has shrunk,
-  // it equals the excess exactly, and BOUNDING the chrome is what removes it.
-  // Neither `resizeToAvoidBottomInset` nor `SafeArea` appears anywhere in it.
-  // ---------------------------------------------------------------------------
   group('root cause, isolated from the chat screen', () {
     Widget frame({required double viewport, required bool bounded}) {
       const chromeHeight = 216.0; // the pre-redesign chrome
@@ -178,11 +149,6 @@ void main() {
         '  message list .................... ${list.toStringAsFixed(1)}\n');
 
     // BUDGET. Note the instrument: a widget test renders with a FALLBACK font
-    // whose glyphs are square em boxes, so every text run measures ~1.8x its
-    // real Inter width and the collapsed row wraps onto a second line here that
-    // it does not wrap onto on device. These thresholds are therefore the
-    // PESSIMISTIC bound; the on-device figure is measured from the emulator
-    // screenshots in the PR body and is smaller.
     expect(header, lessThan(200),
         reason: 'collapsed chrome budget (square-glyph test font)');
     expect(list, greaterThan(240),
@@ -224,7 +190,6 @@ void main() {
   testWidgets('the degenerate cases that used to overflow now lay out clean',
       (tester) async {
     // Every one of these was an over-constraint before the bound existed: a
-    // short phone, a huge text scale, and both together.
     final cases = <({Size size, double keyboard, double scale, String name})>[
       (size: kPhone, keyboard: kKeyboard, scale: 2.0, name: 'text scale 2.0'),
       (size: const Size(320, 480), keyboard: 220, scale: 1.0, name: 'small phone'),
@@ -250,7 +215,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     // The slot is now doing its job: natural height exceeds the bound and the
-    // region scrolls. Nothing is clipped away — every element stays reachable.
     expect(_headerNaturalHeight(tester),
         greaterThan(_headerHeight(tester) - 0.5));
     expect(find.byKey(ChatScreen.messageListKey), findsOneWidget);
@@ -260,14 +224,6 @@ void main() {
       'yields ALL of its space rather than overflowing, and the thread + '
       'composer stay whole', (tester) async {
     // The genuinely impossible case. The contract is a priority order, not a
-    // guarantee that everything fits: read the thread, send a message, then the
-    // order summary. The header returns as soon as the keyboard closes.
-    //
-    // This test previously asserted `_headerHeight == 0` in a fixture that ALSO
-    // passes `onStartActiveDelivery` — enshrining the defect. A 0 dp slot cannot
-    // be scrolled, so the Jeeber's primary live-delivery action was unreachable
-    // and the suite called it correct. The bounded slot may still collapse to
-    // zero; what must NEVER collapse is the CTA, which now lives outside it.
     await _pump(tester, size: const Size(320, 480), keyboard: 220, textScale: 2);
     expect(tester.takeException(), isNull);
     expect(_headerHeight(tester), 0);
@@ -283,23 +239,6 @@ void main() {
       'the Start-delivery CTA stays reachable and TAPPABLE even when the '
       'bounded header slot collapses to zero', (tester) async {
     // b02 regression. "Start delivery" is the Jeeber's primary action during a
-    // LIVE delivery. It used to render inside `_ChatHeaderSlot`, which is bound
-    // to a fraction of the viewport and clamps to 0 dp at 320x480 + keyboard +
-    // textScale 2.0. A zero-height viewport cannot scroll, so the CTA was
-    // simply gone — and because expansion persists for the session, one expand
-    // meant it vanished on every later keyboard open.
-    //
-    // Asserting it is merely PRESENT is not enough: a widget can exist in the
-    // tree while laid out off-screen. Tapping it is the only assertion that
-    // proves reachability, so this test fires the callback.
-    // Scoped to the REAL device class (411x914 + keyboard) — where the defect
-    // was measured: the CTA laid out at y336-384 inside a 223 dp slot with no
-    // scroll affordance, absent from the PR's own AFTER-03 screenshot.
-    //
-    // 320x480 at a 2.0 text scale is NOT covered here on purpose: the composer
-    // alone consumes the viewport there, so no placement makes the CTA fit and
-    // the pre-existing priority order (thread, composer, then summary) is the
-    // right answer. The separate test below pins that case to "no overflow".
     var tapped = false;
     await _pump(
       tester,

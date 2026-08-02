@@ -1,16 +1,4 @@
 // Render tests for the JeeberNoRequestsView previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// This view is composition, so five of its six states differ ONLY by which
-// bands are present — every one of them renders the same greeting and the same
-// "No requests right now" empty state. A render-only check would therefore pass
-// with all six previews wired to the same view state, so each pins a string
-// only IT can produce, and the specifics group pins the band-exclusive
-// contracts (compact row vs. full section, warning banner, active-work rows) on
-// top of that.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,14 +16,12 @@ const Key _kEmptyStateKey = Key('jeeber-no-requests-empty-state');
 
 /// The longest-content preview's first row. Declared here so a preview quietly
 /// rewired to a short name fails instead of silently losing the one state that
-/// pushes a long label against the non-flexible "Open chat" CTA.
 const String _kLongCounterpart = 'Marie-Christine Abou Jaoudé';
 
 void main() {
   setUpAll(loadPreviewArbs);
 
   // Every preview except `Toggle in flight`, which cannot settle — see the
-  // dedicated group below.
   testPreviewsRender(
     'JeeberNoRequestsView',
     const <String, Widget Function()>{
@@ -47,7 +33,6 @@ void main() {
     },
     expectedText: const <String, String>{
       // The only state with this name on file; the other online states share a
-      // different one, so this pin cannot be satisfied by a neighbour.
       'Online · quiet feed': 'Hello, Karim',
       'Offline · full section': "You're offline",
       'Auto-offline · system flipped': 'Automatically taken offline',
@@ -58,10 +43,6 @@ void main() {
 
   group('JeeberNoRequestsView previews · Toggle in flight', () {
     // The in-flight card swaps the switch for an indeterminate
-    // `CircularProgressIndicator`, and `pumpAndSettle` (which `pumpPreview`
-    // calls) never returns while one is on screen. Same three assertions the
-    // shared suite makes — builds in EN, builds in AR, renders its OWN state —
-    // driven by fixed pumps instead.
     Future<void> pumpInFlight(
       WidgetTester tester, {
       Locale locale = const Locale('en'),
@@ -102,8 +83,6 @@ void main() {
 
   group('JeeberNoRequestsView preview specifics', () {
     // NB: one preview per test. Pumping a second preview into the same tester
-    // does not necessarily rebuild every child — `previewCanvas` produces the
-    // same widget types, so elements are UPDATED rather than replaced.
     testWidgets('every settleable state keeps the empty state on screen', (
       WidgetTester tester,
     ) async {
@@ -185,7 +164,6 @@ void main() {
 
       expect(find.text(_kLongCounterpart), findsOneWidget);
       // Two CTAs, not one: the second won order carries no counterpart name,
-      // and a row that cannot label itself must still be reachable.
       expect(find.text('Open chat'), findsNWidgets(2));
       // The band is additive — it must not displace the empty state.
       expect(find.byKey(_kEmptyStateKey), findsOneWidget);

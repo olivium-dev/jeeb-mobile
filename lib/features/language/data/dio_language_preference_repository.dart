@@ -3,7 +3,6 @@ import 'package:dio/dio.dart';
 import '../../../core/locale/language_preference_repository.dart';
 
 /// Dio-backed [LanguagePreferenceRepository] (JEBV4-205, E10).
-///
 class DioLanguagePreferenceRepository implements LanguagePreferenceRepository {
   const DioLanguagePreferenceRepository(this._dio);
 

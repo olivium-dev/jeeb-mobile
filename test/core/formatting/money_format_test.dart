@@ -1,11 +1,4 @@
 // Lane item 3 — the single money formatter for receipt, offers, tiers and
-// chat surfaces. One rule: two decimals, thousands grouping, `$` for USD
-// (blank currency defaults to USD), `<CODE> <value>` otherwise.
-//
-// JEBV4-98 / F10: every result is wrapped in a Unicode LTR isolate
-// (U+2066 … U+2069) so the money token keeps its symbol placement inside an
-// Arabic (RTL) paragraph. [ltr] mirrors that wrapping so the assertions read
-// as the visible token while covering the invariant characters.
 
 import 'package:flutter_test/flutter_test.dart';
 

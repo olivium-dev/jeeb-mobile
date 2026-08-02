@@ -1,39 +1,4 @@
 // Designed states for `ClientOffersScreen` (JM-028 offer-review-list) — ONE
-// source of truth, two consumers.
-//
-//   lib/devtool/catalog/entries/batch_02_entries.dart   the designer-facing,
-//                                                       on-device Screen Catalog
-//   lib/features/client_offers/presentation/
-//     client_offers_screen.dart                         the JEEB PREVIEWS
-//                                                       section at its bottom
-//
-// The catalog's five states were hand-built inside the entry file (a private
-// `_FailingOffersRepository`, a private cubit factory, and `FakeOffersRepository`
-// with its `Random(7)` + `DateTime.now()` seed). They moved here whole when the
-// screen got a preview section, because two copies of the same "designed state"
-// drift and the catalog is the one a designer signs off against.
-//
-// Two things changed in the move, both to make the states REVIEWABLE rather
-// than merely renderable:
-//
-//  * **The clock is frozen** ([clock]). Every window deadline is expressed as an
-//    offset from it and [inertCubit] pins the cubit's `now` to the same instant,
-//    so `Window: 4:30 left` is exactly 4:30 in the canvas, in a render test and
-//    on a designer's device — instead of 4:29-and-a-bit, which no test can pin.
-//  * **The bids are named, not generated.** `FakeOffersRepository._defaultSeed`
-//    built three offers from a seeded `Random` and `DateTime.now()`; each state
-//    below now carries its OWN cast, so a preview accidentally rewired to a
-//    neighbouring fixture is visible instead of looking identical.
-//
-// NOTHING here touches the network. Every repository answers from a const list,
-// throws, or never completes, and [inertCubit] hands the cubit two EMPTY streams
-// in place of its push-refresh bus and its 1 s countdown ticker — so no fixture
-// can arm a timer or a subscription either. The `CatalogNetworkGuard` both hosts
-// install is a net, not the plan.
-//
-// Avatar urls stay NULL throughout: a non-null url makes `OmdsProfileAvatar`
-// build a `NetworkImage`, which is a real HTTP GET that the guard would happily
-// allow (it only rejects mutating verbs).
 
 import 'dart:async';
 
@@ -45,12 +10,8 @@ import '../../../features/client_offers/domain/offer.dart';
 import '../../../features/client_offers/domain/offers_repository.dart';
 
 /// Answers ONE canned [OffersSnapshot], with no latency and no drip-feed.
-///
 /// The shipped [FakeOffersRepository] cannot express two of the states below —
 /// it has no way to set `requestIsExpired`, and its default seed is generated
-/// rather than named — so the fixtures own this one instead. [acceptOffer]
-/// mirrors the fake's behaviour so a designer who taps Accept → Confirm in the
-/// Screen Catalog still lands on the order-chat route.
 class SeededOffersRepository implements OffersRepository {
   SeededOffersRepository({
     required this.offers,
@@ -65,7 +26,6 @@ class SeededOffersRepository implements OffersRepository {
 
   /// Mutable: accepting an offer closes the request, exactly as the gateway
   /// does, so a second accept in the same session fails the way the real one
-  /// would.
   bool requestIsOpen;
 
   @override
@@ -96,11 +56,8 @@ class SeededOffersRepository implements OffersRepository {
 }
 
 /// Every read throws [OffersFailure.network] — the COLD-load failure.
-///
 /// The cold read is the only one that reaches the full-screen error body:
 /// `ClientOffersCubit.refresh` is non-destructive and keeps the rendered list,
-/// so a repository that failed on the second read would still show the cards.
-/// That distinction is what [ColdOkThenFailingOffersRepository] is for.
 class FailingOffersRepository implements OffersRepository {
   const FailingOffersRepository();
 
@@ -119,10 +76,8 @@ class FailingOffersRepository implements OffersRepository {
 }
 
 /// The COLD read succeeds; every read after it throws [failure].
-///
 /// This is the only way to reach the INLINE error banner over a live list —
 /// `_LoadedBody` renders it from `state.error` while `status` is still `loaded`,
-/// which no cold-load fixture can produce.
 class ColdOkThenFailingOffersRepository implements OffersRepository {
   ColdOkThenFailingOffersRepository({
     required this.cold,
@@ -151,9 +106,7 @@ class ColdOkThenFailingOffersRepository implements OffersRepository {
 
 /// A read that never resolves, freezing the screen on
 /// [OffersScreenStatus.loading] for as long as the host is open.
-///
 /// A [Completer] that is never completed holds no timer and no subscription; it
-/// simply never settles.
 class StalledOffersRepository implements OffersRepository {
   StalledOffersRepository();
 
@@ -171,11 +124,7 @@ class StalledOffersRepository implements OffersRepository {
 
 /// The designed states of `ClientOffersScreen`, as repositories plus the cubit
 /// factory that keeps them inert.
-///
 /// The screen takes a REPOSITORY, not a state — it builds its own
-/// [ClientOffersCubit] and calls `load()` at mount — so a state is described
-/// here by what the repository answers, and the real cold-load path runs in the
-/// catalog and in the canvas exactly as it does in production.
 class ClientOffersScreenPreviewFixtures {
   const ClientOffersScreenPreviewFixtures._();
 
@@ -189,12 +138,6 @@ class ClientOffersScreenPreviewFixtures {
 
   /// The cubit the screen would build for itself, with its two live streams
   /// replaced by empty ones.
-  ///
-  /// Both matter. `refreshSignals` is the b02 wave-C push→refetch bus, which in
-  /// a preview would resolve out of the DI graph; `clockTicks` defaults to a
-  /// `Stream.periodic(1s)` whose subscription is a PENDING TIMER — enough on its
-  /// own to fail every widget test that mounts this screen. `now` is pinned to
-  /// [clock] so `windowRemaining` is deterministic.
   static ClientOffersCubit inertCubit(
     OffersRepository repository,
     String requestId,
@@ -209,12 +152,7 @@ class ClientOffersScreenPreviewFixtures {
   }
 
   /// [inertCubit] plus ONE pull-to-refresh after the cold load resolves.
-  ///
   /// Pair it with [refreshFails]. The screen's own `create` calls `load()` too;
-  /// the second call is a no-op (`load` returns unless the status is
-  /// `initial`/`failed`), so the sequence is exactly one cold read followed by
-  /// one refresh — the same two calls a customer produces by pulling the list
-  /// down while the network is flaky.
   static ClientOffersCubit refreshFailureCubit(
     OffersRepository repository,
     String requestId,
@@ -226,15 +164,11 @@ class ClientOffersScreenPreviewFixtures {
 
   /// The JM-030 cancel sheet's repository. The sheet resolves its own from DI
   /// when this is null, which in a preview means reaching into an unbuilt
-  /// graph — so both hosts hand it a local fake even though only a TAP can
-  /// open the sheet.
   static CancelRequestRepository cancelRepository() =>
       FakeCancelRequestRepository();
 
   /// One bid, with the fields the card actually renders.
-  ///
   /// `submittedAt` is derived from [clock] so the newest-first tie-break between
-  /// two equal fees is stable across runs.
   static Offer bid({
     required String id,
     required String jeeberName,
@@ -266,10 +200,6 @@ class ClientOffersScreenPreviewFixtures {
 
   /// Three bids that between them cover the card's three identity readings: a
   /// well-rated Jeeber, one with a note attached, and a brand-new account with
-  /// zero ratings (SW-08 renders "No ratings yet", never a fabricated "0.0 (0)").
-  ///
-  /// Fees ascend in the default sort order, so the list reads Karim → Hadi →
-  /// Rana and the price sort is verifiable by eye.
   static List<Offer> get threeBids => <Offer>[
         bid(
           id: 'bid-karim',
@@ -342,7 +272,6 @@ class ClientOffersScreenPreviewFixtures {
 
   /// The single bid the refresh-failure state keeps on screen UNDER the banner.
   /// Its presence is the contract: a failed refresh must not clear a list the
-  /// customer can still act on.
   static List<Offer> get refreshFailureBids => <Offer>[
         bid(
           id: 'bid-layal',
@@ -357,13 +286,6 @@ class ClientOffersScreenPreviewFixtures {
 
   /// The layout ceiling: the longest plausible name, a non-USD fee wide enough
   /// to clip the `maxLines: 1` pill, a nine-figure rating count and a note past
-  /// its three-line limit — above a bid whose `jeeberName` is a raw UUID, which
-  /// the un-enriched gateway row really does deliver (SW-08) and which the card
-  /// must suppress.
-  ///
-  /// The fees are ordered so the CEILING card sorts first (price ascending is
-  /// the default): a preview whose one interesting card is below the fold is a
-  /// preview of a scrollbar.
   static List<Offer> get longestContentBids => <Offer>[
         bid(
           id: 'bid-long',
@@ -407,11 +329,6 @@ class ClientOffersScreenPreviewFixtures {
 
   /// Catalog "Offer window expired": the DISPLAY deadline has passed locally
   /// while the gateway still reports the request open.
-  ///
-  /// Note what this is not: `requestIsExpired` stays false, because only a
-  /// terminal server snapshot sets it (`client_offers_state.dart`: "Local
-  /// countdown progress never sets this lifecycle flag"). See [serverExpired]
-  /// for the other half of the pair.
   static OffersRepository elapsedWindow() => SeededOffersRepository(
         offers: elapsedWindowBids,
         windowExpiresAt: clock.subtract(const Duration(minutes: 1)),
@@ -450,7 +367,6 @@ class ClientOffersScreenPreviewFixtures {
 
   /// The layout ceiling, on the 24 h window the gateway falls back to when a
   /// request's tier does not resolve (`TierExpiryWindowResolver.SafeExpiryWindow`
-  /// — the input that once printed `1433:18 left` on real hardware).
   static OffersRepository longestContent() => SeededOffersRepository(
         offers: longestContentBids,
         windowExpiresAt: clock.add(

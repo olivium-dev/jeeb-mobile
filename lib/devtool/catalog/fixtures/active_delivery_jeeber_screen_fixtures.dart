@@ -1,43 +1,4 @@
 // Shared dev-only fixtures for `ActiveDeliveryJeeberScreen` (the jeeber-side
-// active-delivery / mark-delivered surface at `/jeeber/deliveries/:id/active`).
-//
-// ONE source of truth for the two dev surfaces that mock this screen:
-//
-//   * the designer-facing Screen Catalog entry
-//     (`lib/devtool/catalog/entries/batch_01_entries.dart`), and
-//   * the engineer-facing preview section at the bottom of
-//     `lib/features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart`.
-//
-// The four states the catalog already named — `inTransit`, `atDoorOtpRequired`,
-// `completed`, `loadFailed` — were LIFTED VERBATIM from that entry (its private
-// `_InertActiveDeliveryRepository`, `_SeededActiveDeliveryCubit` and
-// `_demoDelivery`), so the catalog renders exactly what it rendered before;
-// only the declaration site moved. Everything after them is new ground the
-// catalog never covered, and is listed under "preview-only states" below.
-//
-// ## Why a seeded cubit rather than a fake repository
-//
-// The screen takes BOTH seams (`repository:` and `cubit:`), and they are not
-// equivalent here. Handing it a repository makes it build a real
-// [ActiveDeliveryCubit] and call `loadDelivery()`, which walks the load →
-// arm-push → sync-GPS path and can only ever produce the two states that path
-// produces. Half the states below (`transitioning`, `otpRequired`,
-// `gpsPhase: permissionDenied`, a `delivered` one-shot) are simply not
-// reachable from a canned `fetchDelivery`. So every state here is EMITTED into
-// the cubit directly, through [ActiveDeliveryJeeberScreenSeededCubit], and the
-// repository underneath it is inert by construction: with the `cubit:` seam
-// supplied the screen never calls `loadDelivery()`, so
-// [ActiveDeliveryJeeberScreenInertRepository] is never reached at all. It
-// throws on every method rather than answering canned data, so that if a future
-// edit DOES reach it the dev surface stops loudly instead of quietly inventing
-// a delivery.
-//
-// No Dio, no GetIt, no `resolvePushRefreshStream` (that call sits in the branch
-// the `cubit:` seam skips). Network-free by construction, not merely by the
-// `CatalogNetworkGuard` both hosts install.
-//
-// This file lives under `lib/devtool/`, which `tool/preview_inventory.dart`
-// excludes from preview coverage and which no shipping code path reaches.
 
 import 'dart:typed_data';
 
@@ -86,11 +47,6 @@ class ActiveDeliveryJeeberScreenInertRepository
 /// Seeds [ActiveDeliveryCubit] directly into a designed state — the screen's
 /// `cubit` constructor seam means `loadDelivery()` is never invoked, so the
 /// (unreachable) [ActiveDeliveryJeeberScreenInertRepository] never fires.
-///
-/// No `gpsUploader` and no `refreshSignals`: the GPS phase every state needs is
-/// already MIRRORED into [ActiveDeliveryState] (`gpsPhase` /
-/// `gpsNeedsSystemSettings`), and with no push stream the cubit has nothing to
-/// subscribe to — the seeded state is the only state it will ever hold.
 class ActiveDeliveryJeeberScreenSeededCubit extends ActiveDeliveryCubit {
   ActiveDeliveryJeeberScreenSeededCubit(ActiveDeliveryState seed)
       : super(
@@ -116,7 +72,6 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
 
   /// The load-failure copy. `ActiveDeliveryCubit._mapLoadError` produces this
   /// exact string for a `server` failure, so the error surface below is the one
-  /// a 500 really renders — not an invented sentence.
   static const String loadErrorMessage = 'Unable to load delivery';
 
   /// Drop-off for the optimistic-completion state, which is otherwise pixel-
@@ -125,7 +80,6 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
 
   /// The longest plausible drop-off a jeeber can be handed: a mall unit with a
   /// landmark clause. Long enough to wrap three times inside `_AddressCard`'s
-  /// `Expanded` column at 320 pt.
   static const String longDropOffLabel =
       'Beirut Souks, Block C, Rue Allenby — entrance beside the north '
       'escalator, opposite the fountain';
@@ -145,9 +99,7 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
   static const String longAmountText = '1,250,000.00 LBP';
 
   /// One delivery, at whichever stage the caller wants it.
-  ///
   /// Everything except [status] defaults to the catalog's demo row, so a state
-  /// that varies nothing reads as "the same delivery, later".
   static JeeberDelivery delivery({
     required JeeberDeliveryStatus status,
     String label = dropOffLabel,
@@ -183,7 +135,6 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
 
   /// At the door, holding for the recipient's code. `AtDoor → Done` is not a
   /// client-patchable edge (P6/B1), so the panel swaps its CTA for the 4-cell
-  /// door-OTP entry.
   static final ActiveDeliveryState atDoorOtpRequired = ActiveDeliveryState(
     mode: ActiveDeliveryMode.ready,
     delivery: delivery(status: JeeberDeliveryStatus.atDoor),
@@ -229,7 +180,6 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
 
   /// The same park, permanently denied or awaiting the Android 11+ "Allow all
   /// the time" upgrade — only the OS settings page can lift it, so the CTA
-  /// changes rather than firing a request the platform would drop.
   static final ActiveDeliveryState gpsBlockedSettingsOnly = ActiveDeliveryState(
     mode: ActiveDeliveryMode.ready,
     delivery: delivery(status: JeeberDeliveryStatus.inTransit),
@@ -239,8 +189,6 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
 
   /// JEBV4-276: `Done` while a write is still in flight. The row already reads
   /// Done optimistically, but nothing is confirmed — the OTP path reverts to
-  /// AtDoor from exactly here — so the "Delivered successfully" banner must NOT
-  /// be painted yet.
   static final ActiveDeliveryState completingOptimistically =
       ActiveDeliveryState(
     mode: ActiveDeliveryMode.transitioning,
@@ -271,7 +219,6 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
 
   /// The layout ceiling: longest address, longest concierge detail, longest
   /// recipient name and the widest amount, all on the state that already
-  /// carries the most content (en route, panel mounted).
   static final ActiveDeliveryState longestContent = ActiveDeliveryState(
     mode: ActiveDeliveryMode.ready,
     delivery: delivery(

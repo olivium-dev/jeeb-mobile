@@ -1,22 +1,4 @@
 // Render tests for the ProfileEditScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// Every state pins a DISTINCT string, which matters more for a screen than for
-// a widget: all seven previews are the same form behind the same app bar,
-// differing only in the fake repository and in WHEN the host mounts the screen
-// relative to `SettingsCubit.load()`. A suite that asserted "Edit profile
-// rendered" would pass with every preview wired to the same fake, so the
-// fixtures deliberately give every state its own name and its own phone number
-// and the pins are those.
-//
-// The last three groups are not preview hygiene. They are what these previews
-// exposed: the name field is seeded once in `initState` and never re-synced, so
-// it is empty for every user the live route mounts; the screen reads neither
-// `isLoading` nor any failure, so a read that never lands presents a live,
-// savable, empty form; and a name-only Save passes `photoUrl: null` into a
-// `copyWith` that treats null as "clear", which deletes the avatar.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -57,18 +39,13 @@ void main() {
     },
     expectedText: const <String, String>{
       // The name in the field — this state is the only one that both has a
-      // name AND was mounted after the read landed.
       'Saved profile · name and phone': 'Maya Haddad',
       // No name to pin, so the phone is the state. Every fixture carries a
-      // different one.
       'No name yet': '+96176554433',
       'Photo on file · remove offered': 'Karim Aoun',
       // The phone lands (it is read from `state` in `build`); the name does
-      // not (it was seeded once in `initState`). Pinning the phone is what
-      // proves the read actually resolved — see the group below.
       'Loads after mount · the name field stays blank': '+96181234567',
       // `phoneE164` is still `''`, so `_PhoneRow` prints its em-dash
-      // placeholder. No other state renders one.
       'Never loads · the screen has no loading state': '—',
       // The CTA label under `isSavingProfile`.
       'Saving · write in flight': 'Saving…',
@@ -78,9 +55,6 @@ void main() {
 
   group('ProfileEditScreen previews · the states are distinct', () {
     // Each preview builds its own host → its own `SettingsCubit`, so these are
-    // separate tests rather than one walk through the map: pumping a second
-    // preview into the same tester would reuse the first preview's element and
-    // with it the first preview's cubit.
 
     testWidgets('the saved profile fills the field and offers one CTA', (
       WidgetTester tester,
@@ -111,7 +85,6 @@ void main() {
       expect(find.text('?'), findsOneWidget);
       expect(find.text('+96176554433'), findsOneWidget);
       // An empty field paints both `labelText` and `hintText`, stacked — the
-      // label above the box and the question inside it.
       expect(find.text('Name'), findsOneWidget);
       expect(find.text('How should we address you?'), findsOneWidget);
     });
@@ -129,11 +102,6 @@ void main() {
       // It is the only state that mounts an `Image` at all...
       expect(find.byType(Image), findsOneWidget);
       // ...and, until the failed file read lands, the only one with NO glyph
-      // in the avatar. `ProfileAvatar` gives its `Image.file` branch an
-      // `errorBuilder` but no `frameBuilder`, where the network branch two
-      // lines below IS given a `placeholder`, so a stored photo is a bare 96 dp
-      // hole for the whole read. The canvas resolves it within a frame or two
-      // and settles on 'K'; here the empty frame is the whole state.
       expect(find.text('K'), findsNothing);
       // The Remove CTA is the only thing on screen that knows a photo is set.
       expect(find.text('?'), findsNothing);
@@ -154,7 +122,6 @@ void main() {
       // ...but the field the save is reading from stays fully editable.
       expect(_nameField(tester).enabled, isTrue);
       // And there is no progress indicator anywhere: a paler pill is the
-      // entire in-flight affordance.
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
@@ -169,9 +136,6 @@ void main() {
       expect(_nameField(tester).controller!.text, _longName);
       expect(find.text('+9613000077221'), findsOneWidget);
       // `maxLines: 1` is the OMDS default and this screen does not override
-      // it, so the field scrolls rather than wraps: the 36-character name lays
-      // out at ~576 dp against ~318 dp of editable width, with no ellipsis or
-      // any other mark saying it continues. Measured, not eyeballed.
       expect(_nameField(tester).maxLines, 1);
       final double editable = tester.getSize(find.byType(EditableText)).width;
       final TextPainter painter = TextPainter(
@@ -186,15 +150,6 @@ void main() {
   });
 
   // FINDING 1. The name field is seeded ONCE, in `initState`, from whatever
-  // `state.profile.name` is at that instant — and `app_router.dart` mounts this
-  // screen in the same frame it builds `SettingsCubit(...)..load()`. So for
-  // every real user the field starts empty and stays empty: a
-  // `TextEditingController` is not part of the rebuilt tree, so the read that
-  // lands a frame later updates the avatar and the phone row and nothing else.
-  //
-  // When these tests start FAILING, the controller was given a
-  // `BlocListener`/`didUpdateWidget` sync and they have done their job —
-  // delete them.
   group('ProfileEditScreen previews · the name field never syncs', () {
     testWidgets('the read lands, the avatar and phone update, the field does '
         'not', (WidgetTester tester) async {
@@ -222,11 +177,6 @@ void main() {
   });
 
   // FINDING 2. `SettingsState.isLoading` is never read by this screen, and
-  // `SettingsCubit.load()` has no failure branch at all — it awaits the
-  // repository without a try/catch, so a throw would leave the screen on this
-  // same frame forever with the exception escaping as an unhandled async
-  // error. What the user gets meanwhile is not a spinner but a complete,
-  // interactive, savable form over a profile that does not exist yet.
   group('ProfileEditScreen previews · there is no loading state', () {
     testWidgets('a read that never lands renders a live, empty form', (
       WidgetTester tester,
@@ -246,15 +196,6 @@ void main() {
   });
 
   // FINDING 3, and the one that costs a user something. `_onSave` calls
-  // `saveProfile(name: value)` and omits `photoUrl`, so the cubit passes an
-  // explicit `null` into `UserProfile.copyWith` — which distinguishes
-  // "omitted" (a sentinel) from `null` (clear the field). A name-only edit
-  // therefore deletes the avatar, silently, on the success path.
-  // `_onChangePhoto` and `removePhoto()` both thread the other field through
-  // explicitly; this path is the one that does not.
-  //
-  // When this test starts FAILING, `saveProfile`/`_onSave` learned to preserve
-  // `photoUrl` and it has done its job — delete it.
   group('ProfileEditScreen previews · Save deletes the avatar', () {
     testWidgets('a name-only save clears photoUrl and the Remove CTA with it', (
       WidgetTester tester,
@@ -284,10 +225,6 @@ void main() {
   });
 
   // FINDING 4. The field carries `isRequired: true`, which switches on
-  // `OmdsTextField`'s own auto-validation — a hardcoded English string inside
-  // the design system, next to the screen's localized `profileNameRequired`.
-  // Clearing the field produces one; tapping Save produces the other; neither
-  // knows about the other, and only one of them translates.
   group('ProfileEditScreen previews · two required-field errors, one '
       'localized', () {
     testWidgets('clearing the field raises the OMDS message, Save raises the '
@@ -304,7 +241,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The screen's own error takes over (`errorText` wins over the internal
-      // one), so the user is told the same thing twice in two voices.
       expect(find.text(_required), findsOneWidget);
     });
 

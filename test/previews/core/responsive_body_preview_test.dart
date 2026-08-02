@@ -1,15 +1,4 @@
 // Render tests for the ResponsiveBody previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// ResponsiveBody paints nothing, so "did it render" is a weak question here —
-// all six previews would pass a render-only check while showing the same
-// layout. The suite therefore measures the content column: the expected strings
-// pin WHICH viewport each preview simulates, and the group below pins where
-// ResponsiveBody actually put the content at that width. Those measurements are
-// the widget's whole contract.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,8 +21,6 @@ void main() {
       'Intrinsic child · shrink-wraps on wide': responsiveBodyIntrinsicChild,
     },
     // Every state names its own viewport, so a preview wired to the wrong
-    // width — or six previews accidentally sharing one — fails here rather
-    // than looking fine in the canvas.
     expectedText: const <String, String>{
       'Phone 390 · untouched': 'Phone · 390 pt viewport',
       'Tablet 700 · padded': 'Tablet portrait · 700 pt viewport',
@@ -122,13 +109,9 @@ void main() {
       final Rect onDesktop = await contentRect(tester, responsiveBodyDesktop);
 
       // Compact returns the child untouched, so the body starts at the top of
-      // the Scaffold body: 390 x 108 at (0, 0).
       expect(onPhone.top, 0.0, reason: 'compact starts under the app bar');
 
       // `Center` has no width or height factor, so it takes the full 600 pt of
-      // body height and centres the child inside it: 600 x 84 at (340, 258).
-      // The same screen body is top-aligned on a phone and floating in the
-      // middle of the window on a tablet.
       expect(
         onDesktop.top,
         greaterThan(200.0),
@@ -152,7 +135,6 @@ void main() {
         );
 
         // Same widget, same viewport, same offered 600 pt — the only
-        // difference is whether the child asked for `double.infinity`.
         expect(find.text('offered 600 pt'), findsOneWidget);
         expect(stretched.width, ResponsiveBody.maxContentWidth);
         expect(
@@ -174,10 +156,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `JeebPreview` renders every state a third time at textScaleFactor 2.0,
-      // and nothing else in this suite exercises that. ResponsiveBody does not
-      // scroll or clip, so a body that outgrows the viewport at 200% simply
-      // overflows — this is the check that the declared canvas heights are not
-      // lying about what fits.
       final Rect atOneX = await contentRect(tester, responsiveBodyPhone);
 
       await tester.pumpWidget(

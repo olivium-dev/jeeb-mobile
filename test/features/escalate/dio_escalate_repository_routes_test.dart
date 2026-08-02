@@ -1,12 +1,4 @@
 // BUG-8 (sprint-008 run-7) regression guard — escalate timeline delivery read
-// route (belt-and-suspenders; same latent singular-read class).
-//
-// The dispute auto-attach timeline read used the SINGULAR `GET /v1/delivery/{id}`,
-// which the live origin gateway (`:10090`) 404s — the delivery aggregate lives
-// at the PLURAL `GET /v1/deliveries/{id}` (Contract 8c). This pins the timeline
-// READ to the plural route on the origin base and preserves the legacy `:4010`
-// mock singular alias. The dispute POST + chat-snapshot reads are genuinely
-// different endpoints and are untouched.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -96,7 +88,6 @@ class _RecordingAdapter implements HttpClientAdapter {
       getQueries.add(Map<String, dynamic>.from(options.queryParameters));
     }
     // by-request conversation resolve → no id, so the snapshot read is skipped;
-    // the timeline delivery read (the assertion target) still fires.
     return _json({'id': _deliveryId, 'status': 'Done'});
   }
 }

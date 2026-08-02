@@ -1,17 +1,4 @@
 // Render tests for the CancelRequestSheet previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// Every state here pins a DISTINCT string, which matters more on this widget
-// than on most: six previews of one sheet differ ONLY in the single error line
-// between the D69 free note and the CTAs, so a suite that merely asserted
-// "something rendered" would stay green with all six showing the idle sheet.
-// The two states whose difference is not copy get their own assertions instead:
-// `Confirming · in flight` cannot be pumped with `pumpAndSettle` (the
-// indeterminate `CircularProgressIndicator` inside `OmdsLoadingButton` never
-// settles) and `Narrow phone · 320 pt` renders the same strings as
-// `Failed · network` at a different width.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,11 +21,6 @@ const String _freeNote =
 
 /// [pumpPreview] twice in ONE test is a trap on this widget: every preview
 /// builds the same element shape (`Align > SizedBox > CancelRequestSheet >
-/// BlocProvider`), so Flutter updates in place, `BlocProvider.create` never
-/// runs again, and the second pump renders the FIRST preview's cubit state
-/// while quietly picking up the second one's width. Tearing the tree down in
-/// between is what makes a loop over several previews actually pump several
-/// states.
 Future<void> pumpPreviewFresh(
   WidgetTester tester,
   Widget Function() preview,
@@ -62,27 +44,20 @@ void main() {
     },
     expectedText: const <String, String>{
       // Idle is the only state whose error slot is empty, so it is pinned on
-      // the D69 copy — and the group below proves the slot is empty.
       'Idle · free before accept': _freeNote,
       // The one dedicated failure string in the set.
       'Failed · no longer cancellable (409)':
           'This request can no longer be cancelled.',
       // Shared `loginNetworkError`: retryable, and the longest copy the sheet
-      // lays out.
       'Failed · network (retryable)':
           "Couldn't reach the server. Check your connection and try again.",
       // The catch-all 404 / 403 / 5xx / malformed-body copy.
       'Failed · generic (5xx)': "Couldn't cancel your request. Please try again.",
       // `Narrow phone` deliberately has no entry: it renders the same strings
-      // as `Failed · network` and is distinguished by geometry, asserted below.
     },
   );
 
   // `inFlight` swaps the confirm label for `OmdsButtonLoading`, i.e. an
-  // indeterminate `CircularProgressIndicator`. `pumpAndSettle` (which
-  // `pumpPreview` calls) never returns while one is on screen, so this preview
-  // gets the same three assertions the shared suite makes — builds in EN,
-  // builds in AR, renders its OWN state — driven by fixed pumps instead.
   group('CancelRequestSheet previews · Confirming', () {
     Future<void> pumpConfirming(
       WidgetTester tester, {
@@ -111,7 +86,6 @@ void main() {
       // Still the cancel sheet, still promising the cancel is free…
       expect(find.text(_freeNote), findsOneWidget);
       // …but the confirm label has been replaced by a spinner, and the Keep
-      // label has not. That pair is true of no other preview in this file.
       expect(find.text('Cancel'), findsNothing);
       expect(find.text('Keep delivery'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -126,8 +100,6 @@ void main() {
       await pumpConfirming(tester);
 
       // A live tap target here is how a user double-fires the cancel, or tears
-      // the sheet down mid-call — the re-entrancy guard the cubit and the sheet
-      // both implement.
       for (final String id in <String>[_confirmId, _keepId]) {
         expect(
           tester.getSemantics(find.bySemanticsIdentifier(id)),
@@ -154,7 +126,6 @@ void main() {
         expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
       }
       // NEGATIVE control: the idle sheet is the one state with an empty error
-      // slot, and it is what every `failed` preview must be different from.
       expect(find.bySemanticsIdentifier(_errorId), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
@@ -174,9 +145,6 @@ void main() {
         await pumpPreviewFresh(tester, entry.key);
 
         // sprint-009 cycle-4: a cancel the server did not confirm must SURFACE,
-        // with the copy its OWN failure type maps to. If the error line ever
-        // stops rendering, the P0 "cancellations never reach the server, but
-        // the sheet says they did" bug is back.
         expect(
           find.bySemanticsIdentifier(_errorId),
           findsOneWidget,
@@ -184,7 +152,6 @@ void main() {
         );
         expect(find.text(entry.value), findsOneWidget);
         // …and the sheet stays open with both CTAs live, so the user can retry
-        // or keep the request.
         expect(find.bySemanticsIdentifier(_sheetId), findsOneWidget);
         expect(find.text('Cancel'), findsOneWidget);
         expect(find.text('Keep delivery'), findsOneWidget);
@@ -195,8 +162,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The error line is inserted BETWEEN the note and the CTAs, so a
-      // regression that replaced the note with the error would still satisfy
-      // the per-state pins above.
       for (final Widget Function() preview in <Widget Function()>[
         cancelRequestSheetFailedConflict,
         cancelRequestSheetFailedNetwork,
@@ -208,9 +173,6 @@ void main() {
     });
 
     // The guard against every preview in this file rendering at one width: the
-    // 320 pt state is distinguishable from `Failed · network` ONLY by geometry,
-    // and the render tests pump an 800 px viewport that would hide a dropped
-    // width pin.
     testWidgets('Narrow phone pins 320 pt, the other states pin 390', (
       WidgetTester tester,
     ) async {

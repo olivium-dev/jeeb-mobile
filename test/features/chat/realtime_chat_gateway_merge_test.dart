@@ -1,26 +1,4 @@
 // REGRESSION GATE for `RealtimeChatGateway.subscribe`.
-//
-// The bug this pins, verbatim as it shipped in #198:
-//
-//     Stream<ChatEvent> subscribe(String conversationId) =>
-//         _realtime.subscribe(conversationId);
-//
-// The decorator's job is to swap the message TRANSPORT. But `subscribe` is the
-// gateway's whole inbound [ChatEvent] channel, and `DioChatGateway` puts an
-// event on it that Firestore structurally cannot carry: `acceptOffer` synthesises
-// `PhaseChanged(ConversationPhase.accepted, deliveryId: …)` from the accept
-// RESPONSE (`dio_chat_gateway.dart:470-474`), because that response is the only
-// wire moment the client learns the server-created delivery id. Replacing the
-// stream instead of merging it silently ate that event whenever the wrap was
-// live: the customer taps Accept, and the composer never appears.
-//
-// WHY THIS FILE CAN BE TRUSTED WHERE THE WIDGET SUITE CANNOT. The screen-level
-// wiring is invisible to `flutter test` — `Firebase.apps` is empty in every
-// widget test, so `_wrapRealtime` never constructs a `RealtimeChatGateway` and a
-// green suite says nothing about it. This file does not depend on any of that:
-// it constructs the decorator DIRECTLY over two fake legs, with no Firebase app
-// anywhere. Every assertion below fails if the merge is reverted — that is
-// checked by the negative controls noted per test.
 library;
 
 import 'dart:async';
@@ -179,8 +157,6 @@ void main() {
     test('the inner gateway\'s synthetic PhaseChanged(accepted) is delivered',
         () async {
       // NEGATIVE CONTROL: with `subscribe => _realtime.subscribe(id)` the inner
-      // leg is never listened to and `seen` stays empty — this expectation is
-      // the direct inverse of the shipped defect.
       final h = _harness();
       final seen = <ChatEvent>[];
       final sub = h.gateway.subscribe(_conversationId).listen(seen.add);
@@ -223,7 +199,6 @@ void main() {
       final stream = h.gateway.subscribe(_conversationId);
 
       // Nothing is open yet. A channel nobody reads must not exist — on the
-      // realtime leg that would be an unread Firestore `.snapshots()` listener.
       expect(h.source.subscribeCalls, 0);
       expect(h.http.subscribeCalls, 0);
 
@@ -242,7 +217,6 @@ void main() {
     test('cancelling the merged subscription cancels realtime AND inner',
         () async {
       // The leak this guards is worse than the bug it accompanies: a merge that
-      // forgets one leg leaves a live listener behind on every chat close.
       final h = _harness();
       final sub = h.gateway.subscribe(_conversationId).listen((_) {});
       await pumpEventQueue();
@@ -284,9 +258,6 @@ void main() {
   group('one dead leg does not silence the other', () {
     test('the phase channel survives the realtime channel closing', () async {
       // `RealtimeTransportChanged(live:false)` exists precisely to describe a
-      // dead channel while the gateway keeps working. If the merged stream
-      // closed with its first finished leg, the accept saga would go mute at the
-      // exact moment the HTTP fallback is meant to take over.
       final h = _harness();
       final seen = <ChatEvent>[];
       var closed = false;

@@ -135,95 +135,6 @@ class _PendingOffersView extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/jeeber_pending_offers/jeeber_pending_offers_screen_preview_test.dart
-// ===========================================================================
-//
-// [JeeberPendingOffersScreen] takes a REPOSITORY, not a state — it builds its
-// own [SubmittedOffersCubit] and calls `load()` at mount — so every preview
-// below hands it a local fake through the same constructor test seam the widget
-// tests use, and the real cold-load path runs exactly as it does in production.
-//
-// The fakes and the casts are NOT declared here. They live in
-// `lib/devtool/catalog/fixtures/jeeber_pending_offers_screen_fixtures.dart`,
-// shared with the on-device Screen Catalog entry for this screen
-// (`devtool/catalog/entries/batch_05_entries.dart`), so the designer's in-app
-// browser and this canvas cannot drift into showing two different "designed
-// states". None of those repositories can reach the network — they answer from
-// a `const` list, throw, or never complete.
-//
-// Two things about this harness are worth knowing before editing it:
-//
-//  * **The screen owns a Scaffold and [jeebPreviewHost] supplies another.**
-//    They nest: the host's `Scaffold + SafeArea` frames the card and the
-//    screen's own `Scaffold + OMDSAppBar` paints inside it. That is the same
-//    nesting the Screen Catalog produces.
-//  * **The frame is pinned in the TREE, not just in `size:`.**
-//    [_jeeberPendingOffersScreenFramed] pins the same width in the widget tree
-//    so the render tests measure a phone, not the 800 pt test surface where
-//    every truncation under review disappears. Height is pinned too, but the
-//    render surface is 800x600, so a `SizedBox` asking for 844 is enforced down
-//    to what the host has; the COMPACT box (320x568) fits and is exact.
-//
-// Two hazards this screen has that the previews expose rather than hide:
-//
-//  * **Back is not previewable.** `pending_offers_back` calls
-//    `context.canPop()`, which resolves a [GoRouter] that exists above neither
-//    a preview card nor a catalog state. Tapping it throws. Nothing else on the
-//    screen navigates, so no other affordance is affected — Withdraw and
-//    pull-to-refresh both stay inside the injected fake.
-//  * **The busy row cannot be previewed statically.** `isWithdrawing` is cubit
-//    state reached only by tapping Withdraw, so there is no fixture for it
-//    here; [PendingOfferRow]'s own section previews that row directly
-//    (`Withdraw in flight`).
-//
-// The states are the four the Screen Catalog names plus three it does not, and
-// all three of the extras are states that break:
-//
-//   * **Loading.** The cold read in flight — a bare [OmdsLoadingState] spinner
-//     with no copy and nothing to tap. Every jeeber sees it, and the catalog
-//     has no state for it.
-//   * **Longest content at 320 pt.** The layout ceiling on the narrowest phone
-//     the app supports, in a zero-decimal currency.
-//   * **A list long enough to scroll.** The only way to see that this screen
-//     has no count, no header and no bottom affordance at all.
-//
-// Three things the canvas shows that no test asserted before this section
-// landed, all in the screen and none of them fixed here. Every number is
-// measured off the render tree through the REAL Inter and Noto Arabic faces —
-// under Flutter's 1-em test face Latin measures ~2x too wide and Arabic ~2.4x,
-// so widths taken there report breakages that exist on no device.
-//
-// * **Every non-list body is pinned to the top-left corner.**
-//   `OmdsEmptyState`, `OmdsErrorState` and `OmdsLoadingState` are each a
-//   `mainAxisSize: MainAxisSize.min` [Column], and `Scaffold` lays its body out
-//   under LOOSE constraints and positions it at the content origin. So a body
-//   that shrink-wraps is not centred in the space it was given: on a 390x600
-//   frame the empty state occupies y 56..304 where centring would put it at
-//   204..452, and the spinner is an 88x88 box in the TOP-LEFT corner rather
-//   than the middle of the screen. `OmdsEmptyStatePage` / `OmdsErrorStatePage`
-//   exist and do centre; this screen uses the un-paged variants.
-// * **At 200% text on a 320 pt frame the price is the only thing that yields,
-//   and the app-bar title goes with it.** `_PriceEtaRow` gives the price an
-//   [Expanded] and the ETA a bare [Text], so the ETA takes its full intrinsic
-//   width first: [jeeberPendingOffersScreenLongestContent] at 200% wants
-//   199.9 dp of price and is given 166.8 in EN, wants 208.3 and is given 159.3
-//   in AR. Both ellipsize. So does "Pending offers" in the app bar — 230.3 dp
-//   wanted, 216.0 given. At 1x none of this is visible: the same price wants
-//   100.8 dp of the 219.4 it is handed.
-// * **The failure copy is about the wrong verb.** A failed LIST renders
-//   `offerSubmissionErrorGeneric` — "Something went wrong sending your offer.
-//   Please try again." Nothing was being sent; the jeeber is told their bid
-//   failed to submit when the screen merely could not read the list back.
-//
-// What the canvas does NOT show, having been checked: nothing overflows. At
-// 200% text, in both locales, on both the 390 and the 320 frame, no
-// [RenderFlex] overflows and the terminal badge does not clip — "Request
-// declined" measures 208.7 dp inside a pill that allows 272.
 
 /// The phone this screen is designed against.
 const Size _jeeberPendingOffersScreenPhoneBox = Size(390, 844);
@@ -245,12 +156,6 @@ Widget _jeeberPendingOffersScreenFramed(
 
 /// Builds the screen the way its route builds it — no DI, one injected
 /// repository — pinned to a device frame.
-///
-/// [muteTicker] freezes indefinite animations. `OmdsLoadingState` renders a
-/// [CircularProgressIndicator], which never stops scheduling frames, and the
-/// render tests' `pumpAndSettle` would hang on it. Muting the ticker still
-/// paints the arc — it just stops it spinning, which is what a static canvas
-/// wanted anyway.
 Widget _jeeberPendingOffersScreenHosted(
   SubmittedOffersRepository repository, {
   Size box = _jeeberPendingOffersScreenPhoneBox,
@@ -268,22 +173,6 @@ Widget _jeeberPendingOffersScreenHosted(
 
 /// The reference reading, and the state JM-047 AC1/AC2 assert: two offers still
 /// awaiting the customer's decision.
-///
-/// Everything the QA flow keys off is on screen at once —
-/// `pending_offer_0_price`, `_eta`, the shared `pending_offer_awaiting_label`
-/// and `_withdraw_cta` — under the standalone chrome this screen owns.
-///
-/// This is the one the matrix is for. Each row is a [Row] of an [Expanded]
-/// price beside an inflexible ETA, over a trailing-aligned Withdraw pill, and
-/// the AR rendering is the mirroring check: everything is built from
-/// [EdgeInsetsDirectional] and [AlignmentDirectional], so the price must move to
-/// the right edge, the ETA to its left, and Withdraw to the LEFT edge. Measured
-/// in AR at 390 pt it does — the price paragraph starts at x=72.5 and runs to
-/// the trailing edge, while the ETA and the Withdraw pill both sit at x=16,
-/// hard against the row's leading padding.
-///
-/// The second offer carries no ETA, so the two readings of the top line — with
-/// and without the trailing slot — are visible in the same card.
 @JeebPreview(
   group: 'jeeber_pending_offers',
   name: 'Awaiting decision',
@@ -299,18 +188,6 @@ Widget jeeberPendingOffersScreenAwaitingDecision() =>
 
 /// sprint-009 offer-lifecycle: the two TERMINAL outcomes beside a still-open
 /// offer.
-///
-/// The regression this state guards is structural — a terminal row shows an
-/// outcome badge and NO Withdraw control — and it is also where the list's
-/// vertical rhythm goes: measured at 390 pt a terminal row is 89 dp and an open
-/// one 141 (129 against 181 at 200% text), so a mixed list has two row heights
-/// 52 dp apart and no visual grouping to explain why.
-///
-/// Both badge strings are borrowed placeholders, which this state makes
-/// visible: "Accepted" is `requestStatusAccepted`, and the lost row renders
-/// `requestFeedActionDeclinedSnack` → "Request declined", a snackbar string
-/// about a jeeber declining a *request*, shown to a jeeber whose *offer* the
-/// customer did not pick.
 @JeebPreview(
   group: 'jeeber_pending_offers',
   name: 'Mixed outcomes · accepted / not selected',
@@ -324,18 +201,7 @@ Widget jeeberPendingOffersScreenMixedOutcomes() =>
     );
 
 /// A read that SUCCEEDED and came back with zero rows.
-///
 /// Read this next to [jeeberPendingOffersScreenLoadFailed]: a failed read
-/// leaves `offers` empty too, and the view tests `status` before it tests
-/// emptiness, so the ORDER of those two branches is the only thing stopping
-/// this copy — a claim about server data — from being shown over a read that
-/// never happened.
-///
-/// Note where the content sits. `OmdsEmptyState` is a `mainAxisSize.min`
-/// [Column] handed straight to `Scaffold.body`, which lays its child out loose
-/// and pins it to the content origin — so the illustration and copy sit hard
-/// under the app bar (y 56..304 on a 390x600 frame) instead of centred in the
-/// space below it (204..452). The centred variant is `OmdsEmptyStatePage`.
 @JeebPreview(
   group: 'jeeber_pending_offers',
   name: 'Empty · nothing submitted',
@@ -349,17 +215,6 @@ Widget jeeberPendingOffersScreenEmpty() => _jeeberPendingOffersScreenHosted(
 
 /// The cold read failed: an [OmdsErrorState] with a Retry that re-enters
 /// `load()`.
-///
-/// The copy is `offerSubmissionErrorGeneric` — "Something went wrong sending
-/// your offer. Please try again." — which is the wrong sentence for this
-/// screen: nothing was being *sent*. A jeeber who fails to LIST their pending
-/// offers is told their offer submission failed, which reads as "the bid I
-/// placed a minute ago did not go through".
-///
-/// The body replaces the list entirely, which is correct here and is what makes
-/// the branch order in the view load-bearing: `SubmittedOffersCubit.load`
-/// downgrades a failure to `ready` whenever the list is non-empty, so this
-/// surface is reachable only from an empty one.
 @JeebPreview(
   group: 'jeeber_pending_offers',
   name: 'Load failed · retry',
@@ -371,17 +226,7 @@ Widget jeeberPendingOffersScreenLoadFailed() =>
     );
 
 /// The cold read in flight: an [OmdsLoadingState] spinner and nothing else.
-///
 /// Every jeeber sees this — `load()` is fired from `BlocProvider.create` and
-/// the first frame is painted before it can return — and no state in the Screen
-/// Catalog shows it. Note what is NOT on screen: no copy, no skeleton rows, and
-/// nothing to tap except a back arrow that cannot be previewed. Note also WHERE
-/// it is: an 88x88 box in the TOP-LEFT corner of the body, because a
-/// shrink-wrapping `Scaffold.body` is positioned at the content origin rather
-/// than centred.
-///
-/// The ticker is muted so a static canvas (and `pumpAndSettle`) has something
-/// to settle on; see [_jeeberPendingOffersScreenHosted].
 @JeebPreview(
   group: 'jeeber_pending_offers',
   name: 'Loading · cold read',
@@ -393,12 +238,7 @@ Widget jeeberPendingOffersScreenLoading() => _jeeberPendingOffersScreenHosted(
     );
 
 /// A pending list long enough to scroll.
-///
 /// The body is a bare `ListView.builder` under an app bar — no count, no
-/// section header, no summary of what is reserved against these bids (D1), and
-/// no bottom affordance. Six rows in, the only way to know how many offers are
-/// outstanding is to scroll to the end, and a mixed list's ragged row heights
-/// are what the scroll is made of.
 @JeebPreview(
   group: 'jeeber_pending_offers',
   name: 'Long list · scrolls',
@@ -411,23 +251,7 @@ Widget jeeberPendingOffersScreenLongList() => _jeeberPendingOffersScreenHosted(
     );
 
 /// The layout ceiling on the narrowest phone the app supports.
-///
 /// Lebanese pricing is the real case: LBP is zero-decimal and everyday amounts
-/// run to seven digits, so `NumberFormat.simpleCurrency` produces
-/// "L£2,750,000" — 100.8 dp against roughly 50 for "$12.50". Beside it is a
-/// multi-day ETA. The row gives the price an [Expanded] and the ETA a bare
-/// `Text` with no [Flexible], so the ETA takes its intrinsic width FIRST and
-/// the price ellipsizes into whatever is left.
-///
-/// The EN 1x reading fits with room to spare — 100.8 dp wanted, 219.4 given —
-/// and hides the problem completely. The 200% rendering of the matrix is what
-/// shows it: 199.9 wanted against 166.8 given in EN, 208.3 against 159.3 in AR,
-/// ellipsized in both, plus an app-bar title clipped from 230.3 to 216.0. That
-/// asymmetry is the point of the state; the ETA never yields a pixel.
-///
-/// The third row carries no ETA, so its price is handed the full 288 dp — the
-/// control that shows the truncation above it is the [Expanded]/bare-[Text]
-/// split and not the frame width.
 @JeebPreview(
   group: 'jeeber_pending_offers',
   name: 'Longest content · compact 320',

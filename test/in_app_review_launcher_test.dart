@@ -1,8 +1,4 @@
 // JEBV4-13 (wave-1 P2-1): the customer-profile rate-app row was a confirmed
-// no-op — InAppReviewLauncher shipped with a guarded empty body. This suite
-// proves the executed INTEGRATOR-SWAP: the adapter now drives the real
-// in_app_review plugin surface (behind a seam) and honours the JM-064
-// never-throws contract.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:in_app_review/in_app_review.dart';
 

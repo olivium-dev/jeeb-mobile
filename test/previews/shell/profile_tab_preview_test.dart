@@ -1,12 +1,4 @@
 // Render tests for the ProfileTab previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// ProfileTab has no constructor arguments — its whole state space is the two
-// ambient cubits (RoleCubit, LocaleCubit) — so the specifics group below pins
-// the two things those cubits actually change: whether the Become-a-Jeeber card
-// exists, and which row carries the check.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,11 +63,6 @@ void main() {
     });
 
     // One pump per test, deliberately. Two previews pumped into the SAME
-    // tester differ only in their cubits' seeds, and the widget trees are
-    // structurally identical — so Flutter reuses the BlocProvider element and
-    // never re-runs `create`, leaving the first preview's cubits in place.
-    // Splitting the assertions is what makes them describe the state named in
-    // the test.
     testWidgets('English selection puts the check on the English row', (
       WidgetTester tester,
     ) async {

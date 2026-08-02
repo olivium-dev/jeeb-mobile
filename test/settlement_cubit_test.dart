@@ -1,10 +1,4 @@
 // Tests for SettlementCubit (T-MOB-032).
-//
-// Verifies:
-//   - AC1: loadStatements emits loading → ready with 4 rows.
-//   - AC3: downloadPdf transitions exporting → done with file path.
-//   - AC5: acknowledgeExport resets export mode.
-//   - Network error on load emits error mode.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';

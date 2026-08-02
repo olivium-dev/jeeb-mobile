@@ -1,16 +1,4 @@
 // Render tests for the KycIdentityStep previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-// All six previews are the SAME widget over the same cubit, told apart only by
-// the seeded state — so every one of them pins a DISTINCT string. A suite that
-// only asked "did something render?" would pass on six copies of the cold-entry
-// form, which is the exact failure this project has already shipped once.
-//
-// The middle groups are not preview hygiene: they pin the JEBV4-295 submit gate
-// (selfie AND id number, and nothing else), the per-id-type field contract, and
-// the two inline rejection surfaces this widget owns. The last group is what the
-// previews exposed — the `kyc_scroll_hint` pill has no way to shorten its own
-// label, so the only thing it can do when it runs out of room is clip.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,8 +33,6 @@ const String _passportNumber = 'AB1234567890123456789012';
 
 /// Pumps a preview into the real phone body box the previews declare
 /// (390 x 670) at [textScale], instead of into the 800 x 600 default test
-/// surface. The width is the whole point: at 800 dp this step has 440 dp of room
-/// it never has on a phone.
 Future<void> _pumpInPreviewBox(
   WidgetTester tester,
   Widget Function() preview, {
@@ -68,8 +54,6 @@ Future<void> _pumpInPreviewBox(
 
 /// How many pixels a captured layout error overflowed by, or 0 when [error] is
 /// not an overflow at all. Read from the message rather than pinned as an exact
-/// constant: the fact under test is "this does not fit", and an exact pixel
-/// count would break on a font metric change without meaning anything.
 int _overflowPixels(Object? error) {
   if (error == null) return 0;
   final RegExpMatch? match = RegExp(
@@ -81,7 +65,6 @@ int _overflowPixels(Object? error) {
 
 /// What the scroll-hint pill's row WANTS, against what it was given. A `Row`
 /// with `mainAxisSize: min` under loose constraints sizes to the smaller of the
-/// two, so the shortfall between these is exactly the overflow.
 ({double needed, double given}) _pillWidth(WidgetTester tester) {
   final RenderBox pill = tester.renderObject<RenderBox>(
     find.byKey(KycIdentityStep.scrollHintKey),
@@ -115,10 +98,8 @@ void main() {
     },
     expectedText: const <String, String>{
       // Cold entry is the only state with NO user content of its own, so it is
-      // pinned on the affordance that exists only before a selfie is captured.
       'Cold entry · nothing captured': _scrollHint,
       // The other five each carry a value or an error string no other preview
-      // in this file can produce.
       'Selfie still missing · CTA dead': _selfieMissingNumber,
       'Ready to submit': _readyNumber,
       'Server rejected the ID number': _idNumberRejected,
@@ -136,14 +117,10 @@ void main() {
       expect(_submitButton(tester).isEnabled, isFalse);
       expect(find.byKey(KycIdentityStep.scrollHintKey), findsOneWidget);
       // Nothing on screen says WHY the CTA is dead. Both inline id-number
-      // errors are submit-scoped, and the CTA gate means a submit can no
-      // longer be attempted to produce one.
       expect(_idNumberField(tester).errorText, isNull);
       expect(find.text(_idNumberRequired), findsNothing);
       expect(find.text(_idNumberInvalid), findsNothing);
       // …and the field carries no required marker either: `isRequired: true`
-      // is passed, but OmdsTextField only consults it in its built-in
-      // validator branch, which the supplied `validator` bypasses entirely.
       expect(_idNumberField(tester).isRequired, isTrue);
       expect(_idNumberField(tester).labelText, _nationalIdLabel);
     });
@@ -154,7 +131,6 @@ void main() {
       await pumpPreview(tester, kycIdentityStepSelfieMissing);
 
       // Everything else is done — both ID sides captured, ToS ticked, and a
-      // contract-valid 12-digit number on the field.
       expect(find.text(_selfieMissingNumber), findsOneWidget);
       expect(
         _submitButton(tester).isEnabled,
@@ -173,7 +149,6 @@ void main() {
       expect(_submitButton(tester).isEnabled, isTrue);
       expect(find.text(_submitCta), findsOneWidget);
       // The hint keys off `!hasSelfie`, not off scroll position, so a captured
-      // selfie removes it outright.
       expect(find.byKey(KycIdentityStep.scrollHintKey), findsNothing);
       expect(find.text(_scrollHint), findsNothing);
     });
@@ -201,7 +176,6 @@ void main() {
       expect(field.labelText, _passportLabel);
       expect(field.hintText, _documentHint);
       // No `^\d{12}$` shape applies to passport/residency, so no digits-only
-      // filter and a 24-char cap instead of 12.
       expect(field.maxLength, 24);
       expect(field.keyboardType, TextInputType.text);
       expect(find.text(_passportNumber), findsOneWidget);
@@ -223,8 +197,6 @@ void main() {
         KycIdType.residency,
       );
       // The deployed BFF still spells this variant `residency_permit`
-      // (JEBV4-197), so this inline line is all the jeeber is told — on a
-      // picker where all three options look equally selectable.
       expect(find.text(_idTypeInvalid), findsOneWidget);
       // A type rejection must NOT also light up the number field.
       expect(_idNumberField(tester).errorText, isNull);
@@ -267,17 +239,6 @@ void main() {
   });
 
   // What these previews exposed, held as assertions so it cannot regress
-  // unnoticed — and so that FIXING it fails this file loudly rather than
-  // leaving a stale claim behind.
-  //
-  // Read the three measured tests with their ruler in mind: `flutter_test`
-  // substitutes a fixed-width test font in which EVERY glyph is a square of the
-  // font size, so a 31-character Arabic label measures about twice what a real
-  // Arabic face draws. The numbers here are therefore a "widest plausible label"
-  // stress proxy, NOT a device measurement — what they establish is the SHAPE of
-  // the failure (clipped, silently, with no ellipsis) and not a claim that a
-  // particular phone clips today. The first test pins that shape with no ruler
-  // at all, and is the one that matters.
   group('KycIdentityStep scroll-hint pill (JEBV4-295)', () {
     testWidgets('the label can neither wrap nor ellipsize', (
       WidgetTester tester,
@@ -286,7 +247,6 @@ void main() {
 
       final Finder pill = find.byKey(KycIdentityStep.scrollHintKey);
       // Nothing in the pill can yield width: no Flexible/Expanded around the
-      // label, and a Row that sizes to its children rather than to its box.
       expect(
         find.descendant(of: pill, matching: find.byType(Flexible)),
         findsNothing,
@@ -298,7 +258,6 @@ void main() {
         MainAxisSize.min,
       );
       // And the label asks for no ellipsis and no second line, so the one thing
-      // it CAN do when it runs out of room is get cut off mid-word.
       final Text label = tester.widget<Text>(
         find.descendant(of: pill, matching: find.text(_scrollHint)),
       );
@@ -320,7 +279,6 @@ void main() {
       final ({double needed, double given}) pill = _pillWidth(tester);
       expect(pill.needed, greaterThan(pill.given));
       // Not merely tight: it asks for more than the whole 390 dp phone width,
-      // so no padding surgery inside the pill would save it.
       expect(pill.needed, greaterThan(390));
     });
 
@@ -335,7 +293,6 @@ void main() {
       );
 
       // 31 characters against the English 17 — Arabic is the locale with the
-      // least headroom, and the first place a longer translation would land.
       expect(_overflowPixels(tester.takeException()), greaterThan(0));
       final ({double needed, double given}) pill = _pillWidth(tester);
       expect(pill.needed, greaterThan(pill.given));

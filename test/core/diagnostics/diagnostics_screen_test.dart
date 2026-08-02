@@ -5,7 +5,6 @@ import 'package:jeeb_mobile/core/diagnostics/diagnostics_screen.dart';
 
 /// Widget tests for the dev-only Settings → Diagnostics export screen.
 /// Every side-effecting seam (file listing, share sheet, clipboard) is
-/// injected, so no platform channel is touched.
 void main() {
   final sessions = <DiagSessionFileInfo>[
     DiagSessionFileInfo(

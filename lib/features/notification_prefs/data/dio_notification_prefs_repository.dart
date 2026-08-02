@@ -4,9 +4,6 @@ import '../domain/notification_prefs_model.dart';
 import '../domain/notification_prefs_repository.dart';
 
 /// Dio-backed [NotificationPrefsRepository] (JM-058, D64). Gateway contract:
-/// GET /v1/notifications/preferences (full snapshot), PATCH (partial flat booleans).
-/// Four client categories: offers, orderStatus (statusChanges), wallet (settlements), marketing (promotions).
-/// Legacy mock shape also tolerated for USE_MOCK_GATEWAY builds.
 class DioNotificationPrefsRepository implements NotificationPrefsRepository {
   const DioNotificationPrefsRepository(this._dio);
 
@@ -28,7 +25,6 @@ class DioNotificationPrefsRepository implements NotificationPrefsRepository {
   Future<NotificationPrefs> save(NotificationCategoryPrefs categories) async {
     try {
       // PATCH four client-owned toggles as flat booleans (gateway's partial-update contract; PUT is 405).
-      // Never send transactional class; it cannot be disabled (D64), and gateway 400s attempts to disable always-on.
       final res = await _dio.patch<Map<String, dynamic>>(
         _path,
         data: <String, dynamic>{

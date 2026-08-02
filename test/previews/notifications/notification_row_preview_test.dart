@@ -1,9 +1,4 @@
 // Render tests for the NotificationRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. `testPreviewsRender` pumps each state in BOTH
-// locales and pins a string unique to that state — see
-// `test/previews/preview_test_harness.dart`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,7 +40,6 @@ void main() {
       await pumpPreview(tester, notificationRowUnreadOffer);
 
       // Category label (derived from `kind`) and payload headline are two
-      // different strings — never the same one rendered twice.
       expect(find.text('New offer'), findsOneWidget);
       expect(find.text('New offer on your request'), findsOneWidget);
       expect(find.text('Tap to review.'), findsOneWidget);
@@ -89,7 +83,6 @@ void main() {
       final Rect rowRect = tester.getRect(row);
       expect(Directionality.of(tester.element(row)), TextDirection.rtl);
       // Leading icon swaps to the trailing (right) half, unread dot to the
-      // leading (left) half.
       expect(
         tester.getRect(find.byIcon(Icons.local_offer_outlined)).center.dx,
         greaterThan(rowRect.center.dx),

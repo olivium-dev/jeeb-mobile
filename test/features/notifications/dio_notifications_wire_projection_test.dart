@@ -8,7 +8,6 @@ import 'package:jeeb_mobile/features/notifications/domain/notifications_reposito
 
 /// These gateway-projection wires are explicitly constructed literal fixtures:
 /// FM-1 cannot deploy its gateway branch to capture that boundary. The source
-/// notification-service response is separately committed as a captured fixture.
 String _fixture(String name) =>
     File('test/features/notifications/fixtures/fm1/$name').readAsStringSync();
 

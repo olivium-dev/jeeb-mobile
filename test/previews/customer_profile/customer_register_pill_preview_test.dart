@@ -1,17 +1,4 @@
 // Render tests for the CustomerRegisterPill previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. See `test/previews/preview_test_harness.dart`.
-//
-// CustomerRegisterPill renders ONE string and takes ONE argument, so
-// `expectedText` pins each preview's caption — the one thing that differs per
-// state. Without that, six identical stadiums would pass even if every preview
-// built the same composition.
-//
-// The specifics group pins what the canvas shows but cannot assert: the three
-// numbers the previews were written to expose (intrinsic width, bounded-parent
-// width, fixed height under text scale) and the a11y contract the widget's own
-// doc comment claims.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -53,8 +40,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The pill's label is its entire content. If it ever regressed to a
-      // literal, every Arabic rendering in the canvas would read English and
-      // nothing else in the file would notice.
       await pumpPreview(
         tester,
         customerRegisterPillInRow,
@@ -70,8 +55,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The pill and the row share one `onTap`. The widget excludes its own
-      // semantics so screen readers announce ONE control; a regression here is
-      // invisible in the canvas and only shows up under TalkBack.
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpPreview(tester, customerRegisterPillInRow);
 
@@ -84,11 +67,6 @@ void main() {
       expect(tester.getSemantics(find.text('Register')).id, row.id);
 
       // …and contributes no announced segment of its own. Asserted per segment
-      // rather than on the whole label because `CustomerProfileRow` already
-      // emits its label twice ("Register as a delivery" from its `Semantics`
-      // wrapper AND from the visible `Text` it does not exclude) — that
-      // duplication is the ROW's defect, not this widget's, and pinning the
-      // exact string here would bake it in.
       expect(
         row.label.split('\n'),
         everyElement('Register as a delivery'),
@@ -102,9 +80,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The "compact pill" shape belongs to the Row, not to the widget:
-      // `OmdsPrimaryButton` passes `width: null`, so its inner `Center`
-      // shrink-wraps only while the main-axis constraint is unbounded. Any
-      // caller that hands it a bounded width gets a full-width CTA instead.
       await pumpPreview(tester, customerRegisterPillAlone);
       final Size hugged = tester.getSize(_pill);
 
@@ -120,7 +95,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `Sizes.threeXLarge`, hard-coded into the button's `height:`. The label
-      // scales; the box it sits in does not.
       await pumpPreview(tester, customerRegisterPillInRow);
       expect(tester.getSize(_pill).height, 40.0);
       expect(tester.getSize(find.text('Register')).height, 20.0);
@@ -135,8 +109,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // iOS Dynamic Type goes past 250%. There the label needs 50 dp and gets
-      // 40: `RenderParagraph` crops it with no overflow stripes and no
-      // exception, which is why this is a test and not a preview.
       await pumpPreview(
         tester,
         () => MediaQuery.withClampedTextScaling(
@@ -166,7 +138,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The pill is 40 dp inside a 56 dp (`Sizes.fiveXLarge`) row minimum, so
-      // the register row must sit flush with its neighbours in the list.
       await pumpPreview(tester, customerRegisterPillBesideChevronRows);
 
       final Finder rows = find.byType(CustomerProfileRow);

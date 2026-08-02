@@ -1,12 +1,4 @@
 // Render tests for the ChatComposerIconButton previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// The widget renders no text, so `expectedText` pins each specimen's caption.
-// That is not a formality here: six icon-only circles are the easiest possible
-// case for a preview file to render the same state six times and still pass.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,9 +73,6 @@ void main() {
     });
 
     // The semantics label is the only user-facing string this widget has, and
-    // it is passed in by the caller — so a preview that hardcoded English
-    // would render an identical-looking canvas while hiding a missing
-    // translation. Pin the real ARB values in both locales.
     testWidgets('semantics labels come from the ambient locale', (
       WidgetTester tester,
     ) async {
@@ -106,10 +95,6 @@ void main() {
     });
 
     // The tap-target specimen only means something if the ring it draws is
-    // actually Material's minimum and the button fits inside it. Both hold
-    // today (44dp in 48dp) and would still hold if the widget were fixed to
-    // fill the 48dp, so this pins the preview's premise without pinning the
-    // defect.
     testWidgets('the tap-target specimen measures the button against 48dp', (
       WidgetTester tester,
     ) async {

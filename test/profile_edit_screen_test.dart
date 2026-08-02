@@ -89,7 +89,6 @@ void main() {
 
       expect(find.text('+96170100200'), findsOneWidget);
       // The phone row uses a lock-outline trailing icon to communicate
-      // read-only state.
       expect(find.byIcon(Icons.lock_outline), findsOneWidget);
     });
   });

@@ -1,18 +1,4 @@
 // Render tests for the SuperLoginEntryPoints previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose — the same one
-// `jeeb_verified_badge_preview_test.dart` makes. The widget under review draws
-// the SAME two strings in every state (its content is a function of the locale,
-// not of any input), so the `expectedText` map below binds to each preview's
-// caption, which is preview scaffolding rather than widget output. On its own
-// that would be exactly the weak assertion the harness warns about. The real
-// per-state contract is asserted underneath, against the three things this
-// widget actually decides: the box each link offers a finger, the gap between
-// the two, and where they land in each reading direction.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -100,7 +86,6 @@ void main() {
       await pumpPreview(tester, superLoginEntryPointsTapTargets);
 
       // The reference square drawn beside the links, so the comparison the
-      // canvas makes visually is the one asserted here.
       expect(
         tester.getSize(
           find.byKey(const Key('superLoginEntryPoints.minTargetSquare')),
@@ -111,8 +96,6 @@ void main() {
       for (final Key key in const <Key>[_superLogin, _superLoginPlus]) {
         final Size box = tester.getSize(find.byKey(key));
         // Each link is a bare GestureDetector around a `bodySmall` Text: no
-        // padding, no InkWell, no MaterialTapTargetSize floor, and
-        // `deferToChild` hit testing. The tappable region is the glyph box.
         expect(
           box.height,
           lessThan(48),
@@ -134,8 +117,6 @@ void main() {
       await pumpPreview(tester, superLoginEntryPointsBare);
 
       // `tester.tap` hits the CENTRE of the finder's box, so this proves the
-      // GestureDetector really is wired through the Semantics wrapper and the
-      // preview's no-op callbacks — not that a finger would find it.
       await tester.tap(find.byKey(_superLogin));
       await tester.tap(find.byKey(_superLoginPlus));
       await tester.pump();
@@ -161,7 +142,6 @@ void main() {
         reason: 'the 200% fixture is not scaling — MediaQuery override lost?',
       );
       // `Spacing.medium` is a fixed SizedBox, so the separation between two
-      // targets that each doubled has not moved at all.
       expect(gapAt100, closeTo(16.0, 0.01));
       expect(
         gapAt200,
@@ -192,10 +172,6 @@ void main() {
       );
 
       // Every child is a Center, the separator is a symmetric SizedBox and
-      // there is no EdgeInsets.only anywhere in the widget, so the RTL
-      // rendering is the LTR one with different glyphs. Asserted rather than
-      // assumed: it is what makes the AR card of the matrix a copy-length
-      // review instead of a mirroring review.
       expect(tester.getCenter(find.byKey(_superLogin)).dx, closeTo(enCentre, 0.01));
       expect(
         tester.getCenter(find.byKey(_superLoginPlus)).dx,
@@ -235,9 +211,6 @@ void main() {
       final double arHeight = tester.getSize(find.byKey(_superLoginPlus)).height;
 
       // 160pt holds "Super user login plus" on one line; it does not hold
-      // "تسجيل دخول المستخدم الخارق بلس". Neither ellipsizes — Text with no
-      // maxLines wraps — so the AR link is a taller block, and the state that
-      // looks settled in EN light is the one to look at in AR.
       expect(
         arHeight,
         greaterThan(enHeight),

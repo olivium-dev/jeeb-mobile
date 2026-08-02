@@ -1,22 +1,4 @@
 // Render tests for the DeliveryManProfileScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// This screen is one value rendered three ways — identity header, section
-// header, review list — and several of its states differ only in the NUMBERS
-// on those lines. A render-only check would therefore pass on a preview wired
-// to the wrong fixture, so every state pins the jeeber's name (unique per
-// fixture) and the specifics group below pins what the state is FOR: the
-// duplicated count line under D59, the empty list under a non-zero count, the
-// truncation of the availability word, and both navigation edges.
-//
-// One preview per test, always. `previewCanvas` produces the same widget types
-// for every preview, so pumping a second one into the same tester UPDATES the
-// host element rather than replacing it — the `late final` GoRouter survives
-// and the second preview would silently show the first one's stack under the
-// second one's name.
 
 import 'dart:math' as math;
 
@@ -60,9 +42,6 @@ void main() {
           deliveryManProfileScreenCompactArabicName,
     },
     // The jeeber's name, which is unique per fixture and rendered exactly once
-    // (`_NameText`). Every other line on this screen — "N Reviews", "No reviews
-    // yet", "View all" — is shared by several states, and two of them render it
-    // twice.
     expectedText: const <String, String>{
       'Populated · shipped fixture': 'Kamal Hajj',
       'Cold start · score hidden (D59)': 'Rana Ahmad',
@@ -79,8 +58,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The harness pumps an 800 pt surface: a preview that left its width to
-      // the host would measure 800 here, and none of the layout under review
-      // applies at that width.
       await pumpPreview(tester, deliveryManProfileScreenPopulated);
 
       expect(tester.getSize(find.byType(DeliveryManProfileScreen)).width, 390);
@@ -98,8 +75,6 @@ void main() {
     });
 
     // The state a real tap produces. `ClientOffersScreen._openJeeberProfile`
-    // hardcodes `reviews: const []`, so the header's count and the list never
-    // agree.
     testWidgets('the offer-card state claims 113 reviews over an empty list, '
         'with nothing to reconcile them', (WidgetTester tester) async {
       await pumpPreview(tester, deliveryManProfileScreenFromOfferCard);
@@ -111,7 +86,6 @@ void main() {
       expect(find.text('No reviews yet'), findsOneWidget);
       expect(find.text('Reviews from clients will appear here.'), findsOneWidget);
       // No loading state, no error state, nothing to retry with: the screen is
-      // a pure value and has no vocabulary for "the reviews did not load".
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.text('Try again'), findsNothing);
     });
@@ -131,7 +105,6 @@ void main() {
 
       expect(find.text('No reviews yet'), findsOneWidget);
       // …and "View all" is still live, pushing a paginated list that has
-      // nothing in it either.
       expect(_viewAll, findsOneWidget);
     });
 
@@ -145,7 +118,6 @@ void main() {
       expect(find.bySemanticsIdentifier('profile_score'), findsNothing);
       expect(find.text('5.0 . 2 Reviews'), findsNothing);
       // The identity header substitutes the count for the hidden score, and
-      // the section header below it renders the same string again.
       expect(find.text('2 Reviews'), findsNWidgets(2));
       handle.dispose();
     });
@@ -156,7 +128,6 @@ void main() {
       await pumpPreview(tester, deliveryManProfileScreenFirstReview);
 
       // `{count} Reviews` is a literal substitution, not an ICU plural, and
-      // D59 cold start renders the same key in the score's place.
       expect(find.text('1 Reviews'), findsNWidgets(2));
       expect(find.text('1 Review'), findsNothing);
     });
@@ -183,8 +154,6 @@ void main() {
     });
 
     // D57 (immutable reviews) and D58 (first-name attribution) are the two
-    // rules this screen was re-specified around; both are card-level and both
-    // are only visible with real review data on the page.
     testWidgets('D57/D58: no Helpful or Reply, first names only', (
       WidgetTester tester,
     ) async {
@@ -204,16 +173,11 @@ void main() {
       await pumpPreview(tester, deliveryManProfileScreenLongest);
 
       // Privacy guard: a blank reviewer name must attribute to the localized
-      // label with a neutral initial, never to a bare "?" and never beside the
-      // client's own photo.
       expect(find.text('?'), findsNothing);
       expect(find.text('J'), findsOneWidget);
     });
 
     // Measured, not eyeballed: `_MetaText` sets `overflow: ellipsis` with
-    // `maxLines: null`, which the paragraph builder resolves to single-line
-    // truncation — and `Text` cuts the END, which is where the availability
-    // state lives.
     testWidgets('the longest location truncates AT 1x, and what is cut is the '
         'availability state', (WidgetTester tester) async {
       await pumpPreview(tester, deliveryManProfileScreenLongest);
@@ -239,7 +203,6 @@ void main() {
         find.text('Beirut, Mount Lebanon Governorate . Unavailable'),
       );
       // Availability is carried by ONE word, joined onto the end of the
-      // location in a single string, and `Text` truncates the end.
       expect(location.didExceedMaxLines, isTrue);
     });
 
@@ -292,7 +255,6 @@ void main() {
     test('the close X clears the UI-component floor in light and fails it in '
         'dark', () {
       // The X sits on the app bar, whose background is `colorScheme.surface`
-      // (`OMDSAppBar` + `AppTheme.appBarTheme`).
       final ColorScheme light = AppTheme.light().colorScheme;
       expect(
         _contrast(light.secondaryContainer, light.surface),
@@ -317,7 +279,6 @@ void main() {
     });
 
     // The accessibility ceiling the matrix renders, run in the locale that
-    // lengthens the copy, at the width that has least of it to spare.
     testWidgets('the compact Arabic state survives AR at 200% text', (
       WidgetTester tester,
     ) async {

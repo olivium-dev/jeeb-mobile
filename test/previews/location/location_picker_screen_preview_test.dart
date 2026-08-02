@@ -1,31 +1,6 @@
 // Render tests for the LocationPickerScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-// The shared harness pumps every preview in EN and AR and asserts each one shows
-// ITS OWN state — which matters more here than usual: eleven of these previews
-// are the same screen with one field of `LocationPickerState` different, and a
-// preview wired to the wrong fixture would look entirely plausible.
-//
-// The `expectedText` strings are all rendered by real `Text` widgets. The
-// committed-leg rows (`_PairRow`) are raw `RichText`, which `find.text` does not
-// match, so nothing below pins on them.
 
 // ## Two screens, one file
-//
-// This file covers BOTH classes named `LocationPickerScreen`. The first suite is
-// the 461-line cubit-driven implementation in
-// `features/location/presentation/location_picker_screen.dart`, which nothing
-// but the Screen Catalog imports. The second, at the bottom, is the 36-line
-// "coming soon" placeholder in
-// `features/location/presentation/screens/location_picker_screen.dart` — the
-// class `app_router.dart` imports and serves at `/location`, and therefore the
-// only one a user can reach. See
-// `docs/previews/FINDING_location_picker_placeholder.md`.
-//
-// They share a name, so the placeholder is imported under a prefix. Keeping
-// both suites here is deliberate: the two files are one grep away from being
-// mistaken for each other, and a reader who opens this file should be told that
-// immediately rather than discover it later.
 
 import 'dart:io';
 
@@ -50,12 +25,7 @@ import '../../support/sync_app_localizations.dart';
 import '../preview_test_harness.dart';
 
 /// `previewCanvas`, but with the deterministic Arabic face wired into the theme.
-///
 /// The shared harness cannot do this — it builds `AppTheme.light()` directly and
-/// the theme carries no `fontFamilyFallback` — so under it every Arabic glyph is
-/// laid out in Flutter's 1-em test face, which is ~2.4x too wide. Latin is
-/// already real once `loadInterTestFont()` has run, because `AppTheme` sets
-/// `fontFamily: 'Inter'`. Used wherever a geometry claim is being made.
 Widget _placeholderCanvasWithFonts(
   Widget Function() preview,
   Locale locale,
@@ -76,11 +46,7 @@ Widget _placeholderCanvasWithFonts(
 }
 
 /// Points the test surface at [box] at 1:1 density, undone after the test.
-///
 /// `testPreviewsRender` pumps at whatever the surface happens to be, while the
-/// canvas honours the `size:` on each annotation — so without this every
-/// box-specific preview would silently be measured in the same 800x600 box and
-/// the three boxes would assert nothing.
 void _useBox(WidgetTester tester, Size box) {
   tester.view.physicalSize = box;
   tester.view.devicePixelRatio = 1.0;
@@ -96,10 +62,7 @@ void _useLargeText(WidgetTester tester) {
 }
 
 /// Height the empty-state content wants, as laid out right now.
-///
 /// `OmdsEmptyState` is the `Padding` + `Column` that `OmdsEmptyStatePage`
-/// centres; its height is the floor the viewport has to clear, and it grows
-/// with the text scale because every child but the icon is text.
 double _emptyStateHeight(WidgetTester tester) =>
     tester.getSize(find.byType(OmdsEmptyState)).height;
 
@@ -162,7 +125,6 @@ void main() {
 
       expect(find.text('Detecting your location…'), findsOneWidget);
       // The whole loading affordance is one line of body copy — if a spinner
-      // ever lands here this assertion is the thing to delete, deliberately.
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
@@ -186,8 +148,6 @@ void main() {
         expect(find.text('Downtown, Beirut'), findsOneWidget);
         expect(find.text('Gemmayze, Beirut'), findsOneWidget);
         // …but nothing ever seeded the controller from `state.searchQuery`:
-        // `_LocationPickerViewState` syncs it only from the BlocConsumer
-        // listener, which never fired because the query predates the mount.
         expect(find.text('beirut'), findsNothing);
       },
     );
@@ -199,7 +159,6 @@ void main() {
 
         expect(find.text('Hamra Street, Beirut'), findsOneWidget);
         // Same (query, results, isSearching) triple as a query that matched
-        // nothing, so the bar says so directly under the address just chosen.
         expect(find.text('No matching addresses'), findsOneWidget);
       },
     );
@@ -214,7 +173,6 @@ void main() {
         findsOneWidget,
       );
       // Nothing in `builder` renders `state.error`: the step, the pair and the
-      // CTA are all exactly what they were before the save was attempted.
       expect(find.text('Step 2 of 2 — choose dropoff'), findsOneWidget);
       expect(find.text('Confirm & save'), findsOneWidget);
     });
@@ -241,7 +199,6 @@ void main() {
 
       expect(find.text('Step 2 of 2 — choose dropoff'), findsOneWidget);
       // The draft card already holds the PICKUP address, so a user who taps
-      // straight through saves both legs at the same place.
       expect(find.text('Hamra Street, Beirut'), findsOneWidget);
       expect(find.text('Confirm & save'), findsOneWidget);
     });
@@ -254,7 +211,6 @@ void main() {
       expect(find.text('Saving…'), findsOneWidget);
       expect(find.text('Confirm & save'), findsNothing);
       // The search bar has no `isSaving` input, so it stays fully live while
-      // the request is out and can still move `draftSelection` under it.
       expect(find.byType(LocationSearchBar), findsOneWidget);
     });
 
@@ -266,8 +222,6 @@ void main() {
       expect(find.text('Use current GPS'), findsOneWidget);
       expect(find.text('Pin on map'), findsOneWidget);
       // Clean here only because `flutter test` renders on an 800 pt-wide
-      // surface; at 390 pt this Row overflows by 100 pt and 29 pt. The canvas
-      // (390x844) is where that is visible — see the preview's own doc comment.
       expect(tester.takeException(), isNull);
     });
 
@@ -278,41 +232,11 @@ void main() {
 
       expect(find.text('Both locations saved'), findsOneWidget);
       // App-bar title AND button label — `_confirmCta` has no copy of its own
-      // for `done`, and the button stays enabled while doing nothing.
       expect(find.text('Locations confirmed'), findsNWidgets(2));
     });
   });
 
   // ===================================================================
-  // The OTHER LocationPickerScreen — the one the router actually serves.
-  // ===================================================================
-  //
-  // Everything above this line tests a screen no user can reach. Everything
-  // below tests the 36-line placeholder mounted at `/location`.
-  //
-  // ## Deviations from the shared template, and why
-  //
-  //  1. **Fonts are loaded here and only here.** The shared harness does not
-  //     load them, and Flutter's default test face makes every glyph a 1-em
-  //     square — Latin measures ~2x too wide, Arabic ~2.4x. Every claim below
-  //     is about geometry (does the headline wrap, does the column fit the
-  //     viewport), so measuring under the fake face would invent overflows that
-  //     do not exist on a device. `loadInterTestFont()` is scoped to this group
-  //     rather than the file so the twelve suites above keep the metrics their
-  //     assertions were written against.
-  //
-  //  2. **`expectedText` pins the dev-chrome CAPTION, not screen copy.** This
-  //     screen renders exactly two sentences and renders them in every state;
-  //     the four previews differ only in the box and the route. Pinning screen
-  //     copy would pass with all four previews wired to one fixture, which is
-  //     the failure `expectedText` exists to catch. The tests in the group
-  //     after it assert the real state behind every caption, so the caption is
-  //     never the whole proof.
-  //
-  //  3. **The surface is resized per test.** `testPreviewsRender` pumps at
-  //     whatever the surface happens to be while the canvas honours each
-  //     annotation's `size:`, so a single global surface would render all four
-  //     previews in the same box.
   group('LocationPickerScreen · /location placeholder', () {
     setUpAll(loadInterTestFont);
 
@@ -352,10 +276,6 @@ void main() {
 
     group('specifics', () {
       // What the single state actually is, pinned so "the previews render" can
-      // never be mistaken for "the screen does something". If this screen ever
-      // grows a map, a search field, an app bar or a CTA, this fails first and
-      // the fixtures + previews get revisited rather than quietly describing a
-      // screen that no longer exists.
       testWidgets('the one state is a dead end with no affordances', (
         WidgetTester tester,
       ) async {
@@ -383,22 +303,10 @@ void main() {
       });
 
       // The screen wraps itself in `Semantics(container: true, label: …)` over
-      // a subtree that already publishes both sentences, and nothing excludes
-      // it — so the merged node reads the copy TWICE: the wrapper's sentence,
-      // then the headline, then the body. One node, no children, no action, and
-      // nothing to move focus to afterwards, which is the accessibility shape of
-      // a dead end.
-      //
-      // Pinned as the concatenation rather than as `semanticsLabel` alone
-      // precisely because the obvious assertion (`find.bySemanticsLabel` on the
-      // literal) finds NOTHING, which reads as "no label" when the truth is
-      // "three labels glued together".
       testWidgets('the screen announces its copy twice, in one node', (
         WidgetTester tester,
       ) async {
         // Semantics data is only built while a handle is alive. Disposed
-        // inline, not in a tearDown — `WidgetTester` verifies that no handle
-        // outlives the test body, and a tearDown runs after that check.
         final SemanticsHandle handle = tester.ensureSemantics();
         await pumpPreview(
           tester,
@@ -429,13 +337,6 @@ void main() {
       });
 
       // The copy is three string literals, not `l10n` lookups, even though the
-      // ARBs ship 30+ `location*` keys and the 461-line sibling uses them
-      // throughout. An Arabic build therefore mirrors the layout and keeps the
-      // English words.
-      //
-      // Pinned rather than reported-and-left: without this, the AR half of
-      // `testPreviewsRender` passes for the wrong reason — it proves the screen
-      // BUILDS under `ar`, which an unlocalized screen always does.
       testWidgets('an Arabic build still renders the English copy', (
         WidgetTester tester,
       ) async {
@@ -468,9 +369,6 @@ void main() {
       });
 
       // The finding that separates this placeholder from the identical one on
-      // `SavedAddressesScreen`: that one is unrouted, this one is live at
-      // `/location`. Pushed onto a route it can pop back to, the screen still
-      // draws nothing that offers the way back.
       testWidgets('a poppable route still draws no way back', (
         WidgetTester tester,
       ) async {
@@ -500,14 +398,6 @@ void main() {
       });
 
       // The one width-driven difference between the boxes. 272 pt of usable
-      // width after `EdgeInsets.all(24)` against a headline that wants 331 and
-      // is passed no `maxLines` and no `overflow` — so it WRAPS rather than
-      // truncating. Pinned as a wrap (more than one line, nothing clipped) and
-      // paired with the phone box, where the same string stays on one line.
-      //
-      // Measured with the real Inter face. Under the 1-em test face this
-      // headline is ~2x wider and "wraps" on every device including the phone,
-      // which would make the contrast below vanish.
       testWidgets('the headline fits the phone and wraps on the compact device',
           (WidgetTester tester) async {
         _useBox(tester, LocationPickerPlaceholderScreenFixtures.phoneBox);
@@ -560,20 +450,6 @@ void main() {
       });
 
       // The height ceiling — and NOT where it looks like it should be.
-      //
-      // The centred `Column` has no `SingleChildScrollView` above it, so a
-      // viewport shorter than the content clips it with nothing to scroll to.
-      // The intuitive candidate is the 844x390 landscape box, and under the
-      // shared harness's 1-em test face that is exactly what you would measure.
-      // With Inter loaded the extra width keeps the headline on one line there,
-      // and the box that is actually tight is the NARROW one: at 200% the
-      // headline wraps to four lines and the column reaches 532 pt of a 568 pt
-      // viewport.
-      //
-      // Asserted as an ordering plus a margin rather than as pixel constants, so
-      // a font-metric change does not fail this for the wrong reason — but the
-      // ordering itself (compact worse than landscape at the same scale) is the
-      // finding, and it is the opposite of what the fake face reports.
       testWidgets('the narrow device, not the short one, is the tight box', (
         WidgetTester tester,
       ) async {
@@ -625,8 +501,6 @@ void main() {
       });
 
       // The control that makes the margin above attributable to the DEVICE and
-      // not to the text scale: the same content, at the same 200%, on the
-      // reference phone, with room to spare.
       testWidgets('the reference phone has room for the same content at 200%', (
         WidgetTester tester,
       ) async {
@@ -650,8 +524,6 @@ void main() {
       });
 
       // The catalog and the canvas must be showing the same state. If someone
-      // re-points either surface at its own copy of the placeholder, the shared
-      // fixture stops being shared and the two surfaces start to drift.
       testWidgets('the previews and the fixtures build one screen', (
         WidgetTester tester,
       ) async {

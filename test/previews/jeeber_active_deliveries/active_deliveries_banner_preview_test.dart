@@ -1,11 +1,4 @@
 // Render tests for the ActiveDeliveriesBanner previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently.
-// `testPreviewsRender` does the shared half — every preview builds in EN and in
-// AR, and each pins a string only IT can render. The extras below cover what a
-// string cannot: that the at-rest preview really is collapsed, that the
-// self-hidden one draws nothing at all, and that the two width branches of the
-// card actions are the layouts their names claim.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,7 +26,6 @@ void main() {
       'Expanded · longest content': activeDeliveriesBannerLongContent,
       'Narrow 360 · actions stack': activeDeliveriesBannerNarrow,
       // No `expectedText` entry: this state renders SizedBox.shrink by design,
-      // so its assertion is the absence test below.
       'Nothing active · self-hidden': activeDeliveriesBannerHidden,
     },
     expectedText: const <String, String>{
@@ -56,7 +48,6 @@ void main() {
       expect(find.byIcon(Icons.expand_more), findsOneWidget);
       expect(_cards, findsNothing);
       // The card's own content must not be reachable while collapsed — that is
-      // the whole reason the disclosure exists.
       expect(find.text('Flash delivery request'), findsNothing);
       expect(find.text('Open chat'), findsNothing);
     });
@@ -81,7 +72,6 @@ void main() {
       await pumpPreview(tester, activeDeliveriesBannerExpandedMany);
 
       // `d2` carries neither title nor dropoff: the fallback title renders and
-      // its address row is omitted entirely.
       expect(find.text('Delivery'), findsOneWidget);
       expect(find.text('Dropoff 0'), findsOneWidget);
       expect(find.text('Dropoff 2'), findsNothing);

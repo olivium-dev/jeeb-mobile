@@ -308,7 +308,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // Card + Track CTA carry stable Semantics identifiers so Maestro can
-      // target them by id (recon KNOWN DEBT #1 — no localized-text taps).
       expect(
         tester.getSemantics(find.byKey(const Key('active-request-card-r-1'))),
         containsSemantics(identifier: 'orders_active_card_r-1'),
@@ -328,8 +327,6 @@ void main() {
     });
 
     // Recent deliveries section ("Order again" / "Re-order") was removed in
-    // the tabbed redesign. The home screen now shows In Progress / Pending
-    // Requests / Replies tabs instead.
   });
 
   group('ClientHomeScreen i18n', () {
@@ -357,7 +354,6 @@ void main() {
   });
 
   // The three client "My Orders" filter variants render off one screen
-  // (Figma 56535:1525 / 1783 / 2251). initialTab selects which list shows.
   group('ClientHomeScreen My Orders filter variants', () {
     testWidgets(
       'In Progress (screen 15) shows the jeeber name, items summary, tier '
@@ -394,7 +390,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // Key updated: home screen now delegates to PendingRequestsTab which uses
-        // key 'pending-requests-tab-list' (aligned with T-MOB-007 dedicated widget).
         expect(
           find.byKey(const Key('pending-requests-tab-list')),
           findsOneWidget,
@@ -422,9 +417,6 @@ void main() {
         expect(find.byKey(const Key('replies-accept-rep-1')), findsOneWidget);
 
         // JM-027 AC1/AC2: both CTAs carry the contract Semantics identifiers.
-        // (No tap here — the Replies tab now navigates via GoRouter internally,
-        // wired in the host shell; the nav legs are covered by the jm-027 Maestro
-        // flow, not this MaterialApp-only widget harness.)
         final handle = tester.ensureSemantics();
         expect(
           find.bySemanticsIdentifier('replies_check_offers_cta'),
@@ -452,7 +444,6 @@ void main() {
 
         final handle = tester.ensureSemantics();
         // E24/Q-086: the Requests tab is on-hold only. The accepted-onward
-        // In-Progress live-tracking chip is no longer part of this tab bar.
         expect(
           find.bySemanticsIdentifier('orders_filter_inProgress'),
           findsNothing,
@@ -471,15 +462,11 @@ void main() {
   });
 
   // JEBV4-298 (E24/Q-086): the Requests bottom-nav tab is the ON-HOLD surface
-  // only. The accepted-onward In-Progress live-tracking surface was relocated
-  // to the Delivery tab (its Active order detail exposes map/ETA/Track via
-  // `/orders/:id/tracking`). These lock the residual literal-DoD fix.
   group('ClientHomeScreen Requests = on-hold only (JEBV4-298)', () {
     testWidgets('widget default landing tab is Pending Requests', (
       tester,
     ) async {
       // The production host (HomeTab) leaves initialTab at the widget default;
-      // it must be Pending Requests, never the relocated In-Progress surface.
       expect(
         const ClientHomeScreen().initialTab,
         ClientHomeTab.pendingRequests,
@@ -490,7 +477,6 @@ void main() {
       'Requests tab bar omits the In-Progress chip and renders Pending first',
       (tester) async {
         // Pump with the widget default (Pending) landing tab and a snapshot that
-        // populates all three underlying lists.
         await tester.pumpWidget(
           _harness(
             repo: _threeTabRepo(),
@@ -527,8 +513,6 @@ void main() {
       '(never to the relocated In-Progress surface)',
       (tester) async {
         // Only In-Progress + Replies populated; Pending empty. The one-shot
-        // "land where the content is" affordance must pick Replies, not the
-        // relocated In-Progress surface.
         final repo = InMemoryClientHomeRepository.fromSnapshot(
           const ClientHomeSnapshot(
             inProgress: [
@@ -569,11 +553,8 @@ void main() {
   });
 
   // UX-parity regressions for client-home screens 13/14/15 (Figma 56535:1783 /
-  // 56535:2251). Each test locks one independently-reviewed defect.
   group('ClientHomeScreen UX parity (screens 13/14/15)', () {
     // DEFECT 2 — AR tier-label l10n leak. Under `ar` the pending-request tier
-    // badge must render the Arabic ARB value (إكسبرس), NOT the leaked English
-    // "Express". Tier labels are localizable copy, not dynamic data.
     testWidgets(
       'Pending tier badge renders the Arabic tier label under ar locale',
       (tester) async {
@@ -587,7 +568,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // Arabic value present, English value absent — proves the badge reads the
-        // localized getter and that the AR ARB is actually translated.
         expect(find.text('إكسبرس'), findsOneWidget);
         expect(find.text('Express'), findsNothing);
       },
@@ -607,9 +587,6 @@ void main() {
     );
 
     // DEFECT 3 — Check Offers CTA must be a content-hugging pill pinned to the
-    // END, not full-width. `OmdsPrimaryButton` (an AnimatedContainer) expands
-    // to fill bounded width, so the card wraps it in IntrinsicWidth + Align so
-    // it hugs the label and sits at the trailing gutter.
     testWidgets('Replies Check Offers CTA is content-hugging and end-aligned', (
       tester,
     ) async {
@@ -624,7 +601,6 @@ void main() {
       final cardSize = tester.getSize(card);
 
       // Hugs content: clearly narrower than the full card width (it was
-      // measured at 768/800 px — full-width — before the IntrinsicWidth fix).
       expect(
         btnSize.width < cardSize.width * 0.6,
         isTrue,
@@ -634,7 +610,6 @@ void main() {
       );
 
       // End-aligned: right edge sits at the trailing gutter, flush with the
-      // card's right edge minus the horizontal padding.
       final btnRight = tester.getTopRight(btn).dx;
       final cardRight = tester.getTopRight(card).dx;
       expect(
@@ -646,7 +621,6 @@ void main() {
       );
 
       // Still wrapped in an Align(centerEnd) — structural guard against a
-      // regression back to a Center/stretch layout.
       expect(
         find.ancestor(of: btn, matching: find.byType(IntrinsicWidth)),
         findsOneWidget,
@@ -678,12 +652,6 @@ void main() {
     });
 
     // DEFECT 1 — the create-request top plus must be the filled-navy CTA with a
-    // WHITE icon (Figma 56535:1783), NOT a low-emphasis gray circle. The button
-    // is correct-as-is: it derives fill from colorScheme.primary (navy #0B1351)
-    // and the icon from colorScheme.onPrimary (white) via
-    // OmdsButtonStyles.iconButtonFilled. This locks that role choice so a future
-    // edit to secondaryContainer/onSecondaryContainer (which would render a
-    // muted-purple icon) is caught.
     testWidgets('top create-request plus uses primary fill + onPrimary icon', (
       tester,
     ) async {

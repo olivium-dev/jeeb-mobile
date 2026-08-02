@@ -1,12 +1,5 @@
 /// Run-22 chat-cluster regression — the chat empty state must never RenderFlex
 /// overflow ("BOTTOM OVERFLOWED BY 6.6 PIXELS" in the run-22 screenshots).
-///
-/// The empty-state column (80dp icon + title + subtitle + paddings) has a
-/// fixed natural height, but the slot the chat body hands it shrinks below
-/// that once banners / the pinned summary / the keyboard stack up. The fix
-/// constrains it to the viewport and scrolls when the slot is shorter than
-/// the content. These tests pump the screen at aggressively small surface
-/// heights and assert that layout completes without a single exception.
 library;
 
 import 'dart:async';
@@ -22,8 +15,6 @@ import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 
-// ---------------------------------------------------------------------------
-// Localization host (sync ARB load), mirroring order_chat_jm025_test.dart.
 // ---------------------------------------------------------------------------
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncLocDelegate(this._arbByTag);
@@ -108,9 +99,6 @@ Future<void> _pumpAtHeight(
 
 void main() {
   // b02: the pinned header's expand choice is SESSION state and widget
-  // tests share one process — reset it so a test that expands cannot make
-  // the next test's collapsed-by-default assertion pass (or fail) for the
-  // wrong reason.
   setUp(ChatHeaderExpansionStore.instance.reset);
   setUpAll(_loadArb);
 
@@ -129,8 +117,6 @@ void main() {
       'empty thread survives an aggressively constrained height — the '
       'run-22 "BOTTOM OVERFLOWED BY 6.6 PIXELS" class', (tester) async {
     // 240dp total: after the app bar + composer there is far less vertical
-    // room than the empty-state column's natural height. Pre-fix this
-    // reproduced the RenderFlex overflow; post-fix it scrolls.
     await _pumpAtHeight(
       tester,
       const Size(320, 240),
@@ -168,8 +154,6 @@ void main() {
     );
     expect(find.byKey(ChatScreen.emptyStateKey), findsOneWidget);
     // b02: the strip is collapsed by default, so the initial-requirement row is
-    // behind the disclosure control. Opening it is the harder case for this
-    // guard, not the easier one.
     await tester.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
     await tester.pump();
     expect(

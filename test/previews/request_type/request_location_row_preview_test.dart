@@ -1,12 +1,4 @@
 // Render tests for the RequestLocationRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// The specifics group below pins the two invariants the previews exist to
-// watch: the row mirrors under RTL (it is an Arabic-first product), and a long
-// label truncates instead of wrapping the row taller.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

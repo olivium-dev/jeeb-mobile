@@ -1,25 +1,4 @@
 // Render tests for the DeliveryReceiptScreen previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand.
-//
-// Two of the nine previews cannot go through the shared suite, because
-// `pumpPreview` calls `pumpAndSettle` and neither of them ever settles:
-//
-//   * `Loading · fetch in flight` is an indeterminate `CircularProgressIndicator`
-//     held open by a read that never lands, and
-//   * `Loaded · proof photo + $9.00 cash` renders `OmdsCachedImage`, whose
-//     shimmer placeholder animates until the CDN answers — which under
-//     `flutter test` is never, because nothing resolves `cdn.jeeb.app`.
-//
-// Both get the same three assertions the shared suite makes (builds in EN,
-// builds in AR, renders its OWN state) driven by fixed pumps instead, in their
-// own groups at the bottom.
-//
-// The confirm sub-states are not constructible as a first frame at all — the
-// screen builds its own `DeliveryReceiptCubit` and exposes no seed seam — so
-// `Confirm rejected · 422 transition` is asserted by TAPPING the CTA, which is
-// also the only way a user reaches it.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,12 +32,6 @@ const String _confirmRejectedCopy =
     "We couldn't confirm receipt right now. Please try again.";
 
 // The cash-on-delivery lines, copied exactly as they render.
-//
-// `MoneyFormat` wraps every amount in a Unicode LTR isolate (U+2066 … U+2069)
-// so a `$`/ISO-code token cannot be reordered by the bidi algorithm inside an
-// Arabic sentence. Those two invisible characters are part of the rendered
-// string and are spelled out here on purpose: pinning the literal is what
-// proves the isolate is still applied.
 const String _cashKamal = 'Pay \u2066\$9.00\u2069 cash to Kamal Hajj';
 const String _cashFallbackNoun = 'Pay \u2066\$9.00\u2069 cash to the Jeeber';
 const String _cashRami = 'Pay \u2066\$42.00\u2069 cash to Rami Saab';
@@ -70,13 +43,7 @@ const String _cashNoAmountKamal = 'Pay the order amount in cash to Kamal Hajj';
 const String _cashNoAmountNour = 'Pay the order amount in cash to Nour Chami';
 
 /// Scrolls `receipt_not_yet_cta` into the tree.
-///
 /// The body is a `ListView`, so the dispute fork is not merely off-screen when
-/// it is below the fold — it is not BUILT, and `find.byKey` reports nothing.
-/// `previewCanvas` pumps onto the harness's 800 x 600 surface, which is shorter
-/// than the 844 pt device these previews declare, so every assertion about the
-/// second CTA has to reach for it. The `measured at 390 x 844` group below
-/// covers what a real phone shows without scrolling.
 Future<void> _revealNotYetCta(WidgetTester tester) async {
   await tester.scrollUntilVisible(
     _notYetCta,
@@ -90,7 +57,6 @@ void main() {
   setUpAll(loadPreviewArbs);
 
   // Every preview except the two that cannot settle — see the groups at the
-  // bottom of this file.
   testPreviewsRender(
     'DeliveryReceiptScreen',
     const <String, Widget Function()>{
@@ -149,7 +115,6 @@ void main() {
       );
 
       // The AR template reorders the sentence around the token, but the token
-      // itself must survive verbatim, isolate marks included.
       expect(
         find.text('ادفع \u2066LBP 1,250,000.00\u2069 نقداً إلى '
             'Abdulrahman Al-Muhandis Al-Trabulsi Al-Shami'),
@@ -174,10 +139,6 @@ void main() {
       await pumpPreview(tester, deliveryReceiptScreenNoJeeberName);
 
       // The `Semantics(identifier: 'receipt_proof_photo', image: true, label:)`
-      // node wraps the WHOLE `ClipRRect`, so the "no photo" placeholder
-      // inherits the flag and the label. A screen-reader user is told proof of
-      // delivery exists on every receipt, including the ones with none.
-      // Pinned as CURRENT, DEFECTIVE behaviour: fixing it should fail here.
       expect(_proofPhoto, findsOneWidget);
       expect(
         tester.getSemantics(_proofPhoto),
@@ -197,7 +158,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // `context.goNamed('mutual-rating')` REPLACES the stack, so the prompt
-      // is gone — the mandatory rating cannot be backed out of (D56).
       expect(tester.takeException(), isNull);
       expect(find.text('mutual-rating · JM-034'), findsOneWidget);
       expect(find.text(_promptHeading), findsNothing);
@@ -229,11 +189,9 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text(_confirmRejectedCopy), findsOneWidget);
       // The confirm sub-status is deliberately separate from the screen
-      // status, so the loaded body — cash line and both CTAs — is still there.
       expect(find.text(_cashRami), findsOneWidget);
       expect(_confirmCta, findsOneWidget);
       // And nothing navigated: a rejected confirm must not reach the rating
-      // terminal.
       expect(find.text('mutual-rating · JM-034'), findsNothing);
       await _revealNotYetCta(tester);
       expect(_notYetCta, findsOneWidget);
@@ -261,9 +219,6 @@ void main() {
 
       expect(_loadError, findsOneWidget);
       // `receipt_not_yet_cta` is the only non-confirm way off this screen, and
-      // `DeliveryReceiptStatus.failed` takes it away with the rest of the body.
-      // With `OMDSAppBar(showBackButton: false)` and a 404 that `Retry` cannot
-      // fix, what is left is a dead end. Pinned as CURRENT behaviour.
       expect(_notYetCta, findsNothing);
       expect(_confirmCta, findsNothing);
       expect(find.text(_promptHeading), findsNothing);
@@ -293,14 +248,12 @@ void main() {
         findsOneWidget,
       );
       // Same shape as the 404: same icon, same single button. Only one of the
-      // two can actually be fixed by pressing it.
       expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
       expect(_notYetCta, findsNothing);
     });
   });
 
   // `Loading · fetch in flight` — an indeterminate spinner held open by a read
-  // that never lands. `pumpAndSettle` never returns while one is on screen.
   group('DeliveryReceiptScreen previews · Loading · fetch in flight', () {
     Future<void> pumpLoading(
       WidgetTester tester, {
@@ -328,8 +281,6 @@ void main() {
       await pumpLoading(tester);
 
       // The caption is the only text on screen: `OmdsLoadingState` is given no
-      // `message`, so the first frame of every receipt says nothing about what
-      // is being fetched — which is why the captions exist at all.
       expect(
         find.text(DeliveryReceiptScreenCaptions.loading),
         findsOneWidget,
@@ -341,9 +292,6 @@ void main() {
   });
 
   // `Loaded · proof photo + $9.00 cash` — the only state that renders
-  // `OmdsCachedImage`. Its shimmer placeholder animates until the fetch
-  // resolves, and under `flutter test` nothing resolves `cdn.jeeb.app`, so this
-  // preview never settles either.
   group('DeliveryReceiptScreen previews · Loaded · proof photo', () {
     Future<void> pumpLoaded(
       WidgetTester tester, {
@@ -374,20 +322,13 @@ void main() {
       expect(find.text(_cashKamal), findsOneWidget);
       expect(find.text(_promptHeading), findsOneWidget);
       // The photo branch, not the placeholder — this is the one card where the
-      // two differ.
       expect(find.byIcon(Icons.image_not_supported_outlined), findsNothing);
       expect(_confirmCta, findsOneWidget);
       // `receipt_not_yet_cta` is below the fold on the harness surface and this
-      // state cannot be settled, so scrolling it into the tree is not available
-      // here — the phone-sized group asserts it instead.
     });
   });
 
   // `previewCanvas` pumps onto the 800 x 600 test surface, not the `size:` a
-  // preview declares, so the shared suite above cannot see what the canvas
-  // shows on a phone. These re-pump at the declared device (390 x 844) so the
-  // matrixed states' layout claims are CI facts rather than something a
-  // reviewer has to notice.
   group('DeliveryReceiptScreen previews · measured at 390 x 844', () {
     Future<void> pumpPhone(
       WidgetTester tester,
@@ -415,8 +356,6 @@ void main() {
         );
 
         // `Icon + Expanded(Text)` inside the primary-container pill: the text
-        // wraps instead of overflowing, at the accessibility ceiling, in both
-        // directions. The ONE layout claim the matrix on this preview makes.
         expect(tester.takeException(), isNull);
       });
     }
@@ -432,8 +371,6 @@ void main() {
       );
 
       // Both branches hardcode `height: 200`, so at 200% text everything else
-      // grows around a fixed-size picture and the CTAs move below the fold.
-      // Pinned as CURRENT behaviour, not endorsed.
       expect(tester.getSize(_proofPhoto).height, 200);
     });
 
@@ -447,7 +384,6 @@ void main() {
       );
 
       // The confirm/dispute fork is the whole screen. On the device these
-      // previews declare, both halves are on the first screenful.
       expect(_confirmCta, findsOneWidget);
       expect(_notYetCta, findsOneWidget);
       expect(tester.getBottomLeft(_notYetCta).dy, lessThanOrEqualTo(844));
@@ -464,10 +400,6 @@ void main() {
       );
 
       // Neither CTA is even BUILT. The 200 pt photo slot is a hardcoded height
-      // that does not shrink to make room, so at the accessibility ceiling the
-      // ENTIRE confirm/dispute fork — the only thing this screen exists to
-      // present — is off the first screenful, under a heading that asks a
-      // yes/no question with no visible answer. Pinned as CURRENT behaviour.
       expect(find.text(_promptHeading), findsOneWidget);
       expect(_confirmCta, findsNothing);
       expect(_notYetCta, findsNothing);

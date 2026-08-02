@@ -1,22 +1,3 @@
-// JEBV4-309: the customer delivery-details hub is STATE-AWARE. Before this fix
-// `_actions()` returned all five rows and `_buildChildren()` always appended the
-// Cancel button (class doc admitted "no delivery-status cubit yet, so all CTAs
-// render unconditionally"). The hub now reads the wire `statusId`
-// (`GET /v1/deliveries/{id}` via [DioOrderChatSummaryRepository]) and gates the
-// rows per lifecycle bucket.
-//
-// This locks the three buckets:
-//   * DELIVERED (Done)      → Delivered banner + Contact + Rate + Receipt +
-//                             Report; HIDES Cancel / Verify-OTP / Live-tracking.
-//   * ACTIVE pre-pickup     → Live-tracking + Contact + Verify-OTP + Report +
-//                             Cancel; NO Rate row, NO banner.
-//   * ACTIVE post-pickup    → same as pre-pickup but Cancel is HIDDEN (parcel in
-//                             hand — free-cancel window closed, JEBV4-289).
-//   * CANCELLED             → Cancelled banner + Report only.
-//   * status unavailable    → FAILS OPEN to the full legacy list (Cancel shown),
-//                             but the delivered bucket omits Cancel structurally
-//                             so it can never appear on a known-Delivered order.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -64,9 +45,6 @@ Future<Widget> _host(_FakeSummaryRepository repo) async {
           deliveryId: state.pathParameters['id']!,
           summaryRepository: repo,
           // No seam needed to keep the test timer-free any more: the periodic
-          // re-read is GONE. The screen reads once on mount and then only when a
-          // `delivery` push arrives, and with no DI the refresh stream resolves
-          // null, so nothing is pending.
         ),
       ),
     ],

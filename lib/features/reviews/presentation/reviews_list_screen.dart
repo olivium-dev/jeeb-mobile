@@ -474,129 +474,9 @@ class _Footer extends StatelessWidget {
 }
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
-// `flutter widget-preview start` — open THIS file in the IDE to see its
-// previews. Preview functions are never called by the app, so the AOT compiler
-// tree-shakes them out of release builds. Nothing ABOVE this banner may
-// reference anything BELOW it. Every fixture below is private to this library
-// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
-// Render tests: test/previews/reviews/reviews_list_screen_preview_test.dart
-// ===========================================================================
-//
-// [ReviewsListScreen] renders no data of its own: it builds a [ReviewsCubit]
-// over whatever [ReviewsRepository] it is handed and calls `load()` in the
-// provider's `create`. Both `jeeberId` and `repository` are existing
-// constructor seams, so every state below is one local repository away — no DI,
-// no Dio, and the real cold-load path runs the way it does on a device.
-//
-// The fakes and the casts are NOT declared here. They live in
-// `lib/devtool/catalog/fixtures/reviews_list_screen_fixtures.dart`, shared with
-// the on-device Screen Catalog entry for this screen
-// (`devtool/catalog/entries/batch_10_entries.dart`), so the designer's in-app
-// browser and this canvas cannot drift into showing two different "designed
-// states". None of those repositories can reach the network — they answer from
-// a const page, throw, or never complete.
-//
-// Three things about this harness are worth knowing before editing it:
-//
-//  * **This screen OWNS a Scaffold, and [jeebPreviewHost] wraps it in another.**
-//    The host's `Scaffold + SafeArea` is what every preview gets; `_ReviewsView`
-//    then builds its own for the [OMDSAppBar]. The nesting is harmless (the
-//    inner one paints the surface and the app bar, the outer one contributes a
-//    background and the safe-area inset) but it is real, and it is why nothing
-//    below adds a third.
-//  * **The frame is pinned in the TREE, not just in `size:`.**
-//    [_reviewsListScreenFramed] pins the box in the widget tree so the render
-//    tests measure a phone rather than the 800x600 test surface, where every
-//    squeeze under review disappears. Height is pinned too, but the render
-//    surface is 800x600, so a `SizedBox` asking for 844 is enforced down to
-//    what the host has; the COMPACT box (320x568) fits and is exact.
-//  * **Two states mute the ticker.** The skeletons and the load-more footer are
-//    `OmdsListItemShimmer`, i.e. `Shimmer.fromColors`, and the session-resolving
-//    state is a [CircularProgressIndicator]; all three schedule frames forever
-//    and `pumpAndSettle` would hang on them. Muting still paints the placeholder
-//    — it just stops it moving, which is what a static canvas wanted anyway.
-//
-// Two hazards the previews expose rather than hide:
-//
-//  * **The report flow is not previewable.** `_confirmReport` opens an
-//    [OmdsConfirmationDialog] and the outcome is a SnackBar driven by
-//    `reportStatus`; both are transitions, not still frames. The Report button
-//    on every row is real and tappable in the canvas, and tapping it does open
-//    the dialog — but neither the in-flight nor the succeeded/failed surface has
-//    a card of its own.
-//  * **The back button is not tappable.** Its `onPressed` is
-//    `context.canPop() ? context.pop() : context.go('/')`, which resolves a
-//    [GoRouter] that exists above neither a preview card nor a catalog state.
-//    Tapping throws. It is built lazily, so merely rendering is fine.
-//
-// The states are the five the Screen Catalog names plus three it does not, and
-// all three extras are states that break:
-//
-//   * **Score withheld.** An established jeeber the header calls "New".
-//   * **Longest content at 320 pt.** The layout ceiling on the narrowest phone.
-//   * **Resolving session id.** The pre-cubit surface on a cold deep-link.
-//
-// What the canvas shows that no test asserted before this section landed. Every
-// number is measured off the render tree through the REAL Inter and Noto Arabic
-// faces — under Flutter's 1-em test face Latin measures ~2x too wide and Arabic
-// ~2.4x, so widths taken there report breakages that exist on no device.
-//
-// * **A null `averageScore` is rendered as "New Jeeber", whatever the review
-//   count.** `_AggregateHeader` branches on
-//   `state.coldStart || state.averageScore == null`, so the D59 cold-start
-//   header — the "New" chip plus "overall score appears after a few completed
-//   deliveries" — is what a jeeber with 42 ratings sees the moment the gateway
-//   omits the score. The two fields are independent on the wire
-//   (`ReviewsPage.coldStart` and `ReviewsPage.averageScore` are separate, and
-//   `ReviewsCubit.load` copies both through verbatim), and only one of them
-//   means "new". See [reviewsListScreenScoreWithheld], where the badge sits
-//   directly over 42 reviews' worth of list.
-// * **Resolving the session id has NO app bar.** Opened without a `jeeberId`
-//   the screen renders `Scaffold(body: Center(OmdsLoadingState()))` while
-//   `AuthTokenStore.userId` is in flight — a bare spinner with no title and, more
-//   to the point, no back button. `ReviewsStatus.loading` one frame later is a
-//   different surface entirely (app bar + six skeleton rows). A secure-storage
-//   read after a device reboot is a keychain unlock, so this is not a
-//   single-frame flash; while it lasts, the only way off the screen is the
-//   system gesture. See [reviewsListScreenResolvingSession].
-// * **An unresolved session id becomes an EMPTY id, not an error.** The same
-//   branch ends in `_buildFor((snapshot.data ?? '').trim())`, so a signed-out or
-//   token-less user builds a [ReviewsCubit] on `jeeberId: ''` and issues a real
-//   read for nobody. What that renders is whatever the gateway answers for an
-//   empty path segment, i.e. the generic "Could not load reviews." — the screen
-//   never distinguishes "you are not signed in" from "the server is down". Not
-//   previewable as a still frame (it depends on the live response), which is
-//   exactly why it is written down here.
-// * **Retry gives no feedback.** `_ErrorBody`'s button calls
-//   `ReviewsCubit.refresh()`, which — unlike `load()` — never emits a loading
-//   state. The error surface stays on screen, unchanged, for as long as the
-//   request takes, and a user who taps twice has fired two reads with nothing on
-//   screen to say so.
-// * **Nothing in the aggregate header flexes.** The score line is a bare [Text]
-//   in a [Row] after a fixed-size star, with no `Flexible` and no `maxLines`.
-//   Measured on the 320 pt compact frame at 200% text with the real faces:
-//   "3.9 · 128 reviews" wants 228.1 dp of the 264.0 the padded Row can give it,
-//   and the Arabic "3.9 · 128 تقييمات" wants 214.1 — so it clears, but the
-//   margin is a property of the copy rather than of the layout, and a five-digit
-//   count or a longer localization would spend it. The AR RTL and 200% cards of
-//   [reviewsListScreenLongestContent] are where to watch it.
-// * **Nothing on a review row clamps, and the list is what pays.** On the 320 pt
-//   frame the ceiling review measures 341 dp — of 464 dp of list area — so the
-//   NEXT review starts at 446 and is cut by the fold at 568: its comment, its
-//   stars and its Report button are all below it. The row does not ellipsize
-//   because neither the attribution nor the body sets `maxLines`; the list
-//   scrolls, so nothing errors, and one angry review is simply the whole first
-//   screen. See [reviewsListScreenLongestContent].
-// * **The skeletons ignore the page they stand in for.** `_LoadingSkeletons`
-//   always draws SIX rows, whatever `pageSize` the cubit asked for (20), and it
-//   takes a [ReviewsL10n] it never reads — the `copy` parameter is dead. The
-//   placeholder is also nothing like the thing it replaces: a shimmer row is a
-//   one-line list item, a real review row is 194 dp of name, card and CTA, so
-//   the list visibly jumps on first paint.
 
 /// The phone this screen is designed against. Taller than the 800x600 render
 /// surface on purpose: the canvas honours it, the render tests get what the
-/// host allows, and both are a phone rather than a desktop-width slab.
 const Size _reviewsListScreenPhoneBox = Size(390, 844);
 
 /// The narrowest phone the app still supports — and roughly what an Android
@@ -621,10 +501,6 @@ Widget _reviewsListScreenFramed(
 
 /// Builds the screen the way the router builds it — one explicit `jeeberId`,
 /// one injected repository, no DI — pinned to a device frame.
-///
-/// Passing `jeeberId` is what keeps every state below off the [AuthTokenStore]
-/// path; the one preview that wants that path
-/// ([reviewsListScreenResolvingSession]) omits it deliberately.
 Widget _reviewsListScreenHosted(
   ReviewsRepository repository, {
   Size box = _reviewsListScreenPhoneBox,
@@ -642,22 +518,6 @@ Widget _reviewsListScreenHosted(
 
 /// The reference reading: a rated jeeber, seven reviews deep, under the "4.6 ·
 /// 10 reviews" aggregate.
-///
-/// Served by the shipping [StubReviewsRepository] rather than a fixture, so this
-/// card, the Screen Catalog's "Populated" state and the surface you get from
-/// `jeeb.seam.journey` are one designed state with one owner.
-///
-/// This is the one the matrix is for, and there are three things to look at in
-/// it. The header Row mirrors in AR — star, score, count — which only works
-/// because its padding is [EdgeInsetsDirectional]. The 200% rendering is where
-/// the fixed-size star stops lining up with the score beside it. And the rows
-/// themselves are [ReviewRow], which prints each reviewer's first name TWICE
-/// (its own D58 attribution node, then again as `OmdsReviewCard.userName`) — a
-/// duplication that is invisible to the semantics tests and impossible to miss
-/// here.
-///
-/// `totalPages` is 2 in this cast, so the load-more footer is real; it sits
-/// below seven full rows, well past the fold, and is not what this card is for.
 @JeebPreview(
   group: 'reviews',
   name: 'Loaded · rated jeeber',
@@ -670,16 +530,7 @@ Widget reviewsListScreenRated() => _reviewsListScreenHosted(
     );
 
 /// The first page is still in flight: six shimmer rows under a live app bar.
-///
 /// Every jeeber who opens their own reviews sees this — `load()` is called in
-/// the provider's `create` and the first frame is painted before it can return.
-/// Note what it does NOT adapt to: the count is hardcoded at six regardless of
-/// the twenty-item page the cubit asked for, so a full page arrives and the list
-/// jumps. Note also what stays up: unlike the session-resolving state below,
-/// this one has the app bar and its back button.
-///
-/// The ticker is muted so a static canvas (and `pumpAndSettle`) has something to
-/// settle on; see [_reviewsListScreenFramed].
 @JeebPreview(
   group: 'reviews',
   name: 'Loading · first page',
@@ -691,17 +542,7 @@ Widget reviewsListScreenLoadingFirstPage() => _reviewsListScreenHosted(
     );
 
 /// A read that SUCCEEDED and came back with zero rows.
-///
 /// The branch is `state.hasReviews`, not the status, so this is also what a
-/// jeeber whose reviews were all removed sees, and what a wrongly-scoped id
-/// resolves to. The copy is reassuring either way.
-///
-/// Worth reading for one structural detail: `_EmptyBody` offsets the empty state
-/// by `MediaQuery.of(context).size.height * 0.18` — a fraction of the WINDOW,
-/// not of the body it sits in. It looks centred on a phone and drifts on
-/// anything else. It keeps the pull gesture (`RefreshIndicator` wraps both
-/// loaded branches), which is the one recovery affordance the error state's
-/// button is a substitute for.
 @JeebPreview(
   group: 'reviews',
   name: 'Empty · no reviews yet',
@@ -712,16 +553,6 @@ Widget reviewsListScreenEmpty() =>
 
 /// The cold read failed with [ReviewsFailure.network]: the offline copy, an
 /// error glyph and a Retry.
-///
-/// Only a COLD load reaches this surface — a failed refresh keeps whatever is on
-/// screen and only swaps `state.error`, which has no still frame of its own.
-///
-/// The Retry is the state's only affordance and it is silent: it calls
-/// `refresh()`, which emits nothing until the request resolves, so a slow retry
-/// is indistinguishable from a dead button. `notFound` and `unauthorized`
-/// collapse into the same generic "Could not load reviews." as `unknown`, so
-/// this network card and that generic one are the only two renderings the
-/// four-value failure enum produces.
 @JeebPreview(
   group: 'reviews',
   name: 'Error · offline',
@@ -733,10 +564,6 @@ Widget reviewsListScreenErrorNetwork() => _reviewsListScreenHosted(
 
 /// D59 cold start: a jeeber with one rating, whose aggregate score is withheld
 /// behind the "New" chip while the review itself renders in full.
-///
-/// This is the posture working as designed — one delivery is not a score — and
-/// it is the card to compare [reviewsListScreenScoreWithheld] against, because
-/// the two render the SAME header from opposite facts.
 @JeebPreview(
   group: 'reviews',
   name: 'Cold start · New Jeeber',
@@ -748,15 +575,6 @@ Widget reviewsListScreenColdStart() => _reviewsListScreenHosted(
 
 /// The regression this preview exists for: an ESTABLISHED jeeber — 42 completed
 /// ratings — whose `averageScore` came back null.
-///
-/// `_AggregateHeader`'s `state.coldStart || state.averageScore == null` cannot
-/// tell "we are not scoring you yet" from "the score is missing from this
-/// response", so the surface tells a jeeber with 42 ratings that he is new and
-/// that his score will appear "after a few completed deliveries". `coldStart` is
-/// FALSE in this cast; the header is reached entirely through the null score.
-///
-/// Read it beside [reviewsListScreenColdStart]: identical chip, identical
-/// sentence, and the only thing distinguishing them is the list underneath.
 @JeebPreview(
   group: 'reviews',
   name: 'Score withheld · 42 ratings',
@@ -769,20 +587,7 @@ Widget reviewsListScreenScoreWithheld() => _reviewsListScreenHosted(
     );
 
 /// The layout ceiling on the narrowest phone the app supports.
-///
 /// A compound reviewer name and the longest comment a reviewer plausibly types,
-/// on a 320 pt frame. Nothing on the row clamps — no `maxLines` on the
-/// attribution, none on the body — so the row does not ellipsize, it GROWS: 341
-/// dp of the 464 dp of list area, which leaves the second review starting at 446
-/// and cut by the fold at 568. That is the list working (it scrolls); what it
-/// costs is that a single angry review is the entire first screen of a jeeber's
-/// reviews.
-///
-/// **Matrixed because the aggregate header is where 320 pt bites.** "3.9 · 128
-/// reviews" is a bare [Text] in a [Row] with no `Flexible` and no `maxLines`,
-/// sitting after a fixed-size star. At 200% text it wants 228.1 dp of the 264.0
-/// the padded Row can give it (Arabic: 214.1), so it clears — but by copy, not
-/// by construction, and a five-digit count or a longer localization would not.
 @JeebPreview(
   group: 'reviews',
   name: 'Longest content · compact 320',
@@ -798,21 +603,6 @@ Widget reviewsListScreenLongestContent() => _reviewsListScreenHosted(
 
 /// The surface a cold deep-link shows BEFORE the cubit exists: a bare
 /// `Scaffold` with a centred spinner, no app bar and no back button.
-///
-/// Opened without a `jeeberId` (`/reviews` with no query), the screen must first
-/// resolve the authenticated user's own id out of [AuthTokenStore] — the
-/// S0-OAD-03 fix pinned by
-/// `test/features/reviews/reviews_list_session_id_test.dart`. Until that read
-/// returns there is no `ReviewsCubit` and nothing to show, and the placeholder
-/// the [FutureBuilder] returns has no chrome at all.
-///
-/// It is not a single-frame flash: the read is `FlutterSecureStorage`, which on
-/// a cold start after a reboot is a keychain unlock. While it lasts, the system
-/// back gesture is the only way off this screen — and if the read resolves to
-/// nothing, the empty string it yields is handed to the cubit as a jeeber id
-/// rather than being treated as "not signed in".
-///
-/// The token store here never resolves, which is what holds the state still.
 @JeebPreview(
   group: 'reviews',
   name: 'Resolving session id',

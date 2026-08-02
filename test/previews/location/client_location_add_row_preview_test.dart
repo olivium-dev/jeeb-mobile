@@ -1,14 +1,4 @@
 // Render tests for the ClientLocationAddRow previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the shared template — see
-// `test/previews/preview_test_harness.dart`.
-//
-// Every state of this row is a string, and four of the five look alike at a
-// glance (label on the start edge, navy "+" on the end edge). `expectedText`
-// therefore pins a DIFFERENT string per state — a suite that only asked "did
-// something render" would pass even if the file rendered the default row five
-// times.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -47,8 +37,6 @@ void main() {
         );
 
     // The default preview must be wired the way `ClientLocationScreen` wires
-    // it, not with the widget's legacy default id — the JM-024 contract id is
-    // what 63_W1_TEST_PLAN §2.3 and the delivery-create tests look for.
     testWidgets('the default row carries the JM-024 contract id', (
       WidgetTester tester,
     ) async {
@@ -59,9 +47,6 @@ void main() {
     });
 
     // Both strings come from the ARB, and the a11y label is the ONLY string a
-    // screen-reader user hears (the visible label sits under ExcludeSemantics).
-    // A preview that hardcoded English would render an identical canvas while
-    // hiding a missing translation, so pin both locales.
     testWidgets('label and a11y label follow the ambient locale', (
       WidgetTester tester,
     ) async {
@@ -79,10 +64,6 @@ void main() {
     });
 
     // The AR RTL rendering of every preview is only worth looking at if the row
-    // actually mirrors: label on the start edge, "+" on the end edge. The row
-    // uses `EdgeInsetsDirectional` and a plain `Row`, so this holds today —
-    // pinned because a future `EdgeInsets.only(left:)` would not fail anything
-    // else in the suite.
     testWidgets('the row mirrors: label starts, "+" ends', (
       WidgetTester tester,
     ) async {
@@ -104,7 +85,6 @@ void main() {
     });
 
     // The row itself is the tap target (the 40dp circle is decoration inside a
-    // 48dp box), so the row — not the circle — has to clear Material's minimum.
     testWidgets('the whole row clears the minimum tap target', (
       WidgetTester tester,
     ) async {
@@ -115,10 +95,6 @@ void main() {
     });
 
     // What the long-label previews exist to show, and it is NOT "the row grows":
-    // `TextOverflow.ellipsis` with no `maxLines` caps the paragraph at one line,
-    // so an over-wide label is truncated rather than reflowed. Measured against
-    // the default label's own single line rather than a hardcoded pixel height,
-    // so this keeps meaning the same thing if the text theme changes.
     testWidgets('the long label truncates onto one line, never wraps', (
       WidgetTester tester,
     ) async {
@@ -171,10 +147,6 @@ void main() {
     });
 
     // The accessibility edge the EN-200% rendering of the narrow preview shows:
-    // the 48dp button and its 16dp gutter do not scale with text, and the label
-    // cannot reflow, so on a 320dp phone at 2x the row's only affordance text is
-    // what gets cut. Nothing here asserts a fix — it pins the fact so a future
-    // `maxLines`/wrap change registers as a deliberate behaviour change.
     testWidgets('at 200% text the narrow row truncates its label', (
       WidgetTester tester,
     ) async {
@@ -195,8 +167,6 @@ void main() {
     });
 
     // The narrow state only means something if it is actually narrow: a widget
-    // test pumps an 800dp surface, so without the explicit SizedBox this would
-    // silently become another wide preview.
     testWidgets('the narrow state pins a 320dp-class row width', (
       WidgetTester tester,
     ) async {
@@ -206,8 +176,6 @@ void main() {
     });
 
     // B-02b: while an order create is in flight the screen's `_SubmitLock`
-    // dims the row AND swallows its taps. The preview reproduces both, with the
-    // same token, or it is showing a state that cannot happen.
     testWidgets('the locked state is dimmed and non-interactive', (
       WidgetTester tester,
     ) async {

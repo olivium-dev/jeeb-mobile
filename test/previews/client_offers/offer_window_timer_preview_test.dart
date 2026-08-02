@@ -1,13 +1,4 @@
 // Render tests for the OfferWindowTimer previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose: Inter is loaded. Half of what
-// this widget can get wrong is geometry — whether the band spans the list width
-// and whether the longest countdown still fits on one line at the 200% ceiling
-// — and widths measured under the square test font are fiction.
 
 import 'dart:math' as math;
 
@@ -69,7 +60,6 @@ void main() {
   setUpAll(() async {
     loadPreviewArbs();
     // Geometry, not glyphs, is what several of these states are for — widths
-    // are meaningless under the square test font.
     await loadInterTestFont();
   });
 
@@ -78,7 +68,6 @@ void main() {
     _previews,
     expectedText: const <String, String>{
       // Pinned on the band's OWN output. The countdown IS the widget, so
-      // binding to anything else would pass on a band showing the wrong time.
       'Fresh window · 2:05': 'Window: 2:05 left',
       'Threshold · 0:31': 'Window: 0:31 left',
       'Urgent · 0:30': 'Window: 0:30 left',
@@ -101,8 +90,6 @@ void main() {
       expect(_labelColor(tester), lightRoles.onWarningContainer);
 
       // One second earlier in the window the band is still neutral. If this
-      // ever flips, `inSeconds <= 30` was widened and every client gets shouted
-      // at before the window is really closing.
       await pumpPreview(tester, offerWindowTimerJustAboveUrgent);
       expect(_bandColor(tester), light.surfaceContainerHighest);
       expect(_labelColor(tester), light.onSurface);
@@ -115,8 +102,6 @@ void main() {
       final ColorScheme light = AppTheme.light().colorScheme;
 
       // The regression named in `offer_window_timer.dart`: "Urgent previously
-      // misused the error pair". Urgent means "hurry", not "failed" — the
-      // window is open and every Accept below is live.
       await pumpPreview(tester, offerWindowTimerUrgent);
       expect(_bandColor(tester), isNot(light.errorContainer));
       expect(_bandColor(tester), roles.warningContainer);
@@ -134,15 +119,11 @@ void main() {
       await pumpPreview(tester, offerWindowTimerExpired);
 
       // `requestIsExpired` (gateway) and `windowRemaining` (local clock) come
-      // from different authorities and can disagree. The lifecycle flag is the
-      // authority: a dead request must never render a countdown that invites
-      // the client to keep waiting.
       expect(find.text('Offer window expired'), findsOneWidget);
       expect(find.textContaining('1:12'), findsNothing);
       expect(find.textContaining('left'), findsNothing);
 
       // The glyph flips too — a running timer icon on a dead window reads as
-      // "still counting".
       expect(
         tester.widget<Icon>(find.byType(Icon)).icon,
         Icons.timer_off_outlined,
@@ -166,8 +147,6 @@ void main() {
       await pumpPreview(tester, offerWindowTimerSafeWindowFallback);
 
       // The live-COD regression `CountdownFormat` exists for: the gateway's
-      // `TierExpiryWindowResolver` falls back to a 24 h SafeExpiryWindow, and
-      // `Duration.inMinutes` is the WHOLE duration in minutes.
       expect(find.text('Window: 23:53:18 left'), findsOneWidget);
       expect(find.textContaining('1433'), findsNothing);
     });
@@ -182,8 +161,6 @@ void main() {
       );
       expect(find.textContaining('Window:'), findsNothing);
       // The digits survive the Arabic sentence unchanged — `CountdownFormat`
-      // emits digits and colons only, which Unicode bidi resolves LTR inside an
-      // RTL paragraph without an explicit isolate.
       expect(find.text('المهلة: تبقى 2:05'), findsOneWidget);
 
       await pumpPreview(
@@ -201,8 +178,6 @@ void main() {
       await pumpPreview(tester, offerWindowTimerFreshWindow);
       final Rect ltrBand = _band(tester);
       // The root Container carries no width, so under the tight width the
-      // offer list gives it (390 - 16 - 16) it is a full-bleed BAND, not the
-      // compact pill a loose canvas would suggest.
       expect(ltrBand.width, closeTo(358, 0.5));
       final Rect ltrIcon = tester.getRect(find.byType(Icon));
       final Rect ltrLabel = tester.getRect(find.byType(Text).first);
@@ -218,12 +193,9 @@ void main() {
       final Rect rtlIcon = tester.getRect(find.byType(Icon));
       final Rect rtlLabel = tester.getRect(find.byType(Text).first);
       // Arabic: the row mirrors unaided — the padding is `EdgeInsets.symmetric`
-      // and the inner gap is a `SizedBox`, so there is no directional inset to
-      // get wrong. This asserts that stays true.
       expect(rtlBand.width, closeTo(ltrBand.width, 0.5));
       expect(rtlIcon.right, closeTo(rtlBand.right - 12, 0.5));
       // ...and the label really did swap sides, rather than the band merely
-      // sliding across the surface.
       expect(rtlLabel.right, lessThanOrEqualTo(rtlIcon.left));
       expect(ltrLabel.left, greaterThanOrEqualTo(ltrIcon.right));
     });
@@ -243,10 +215,6 @@ void main() {
       expect(_band(tester).height, greaterThan(heightAt100 * 1.3));
 
       // ...but `Icon(size: Sizes.medium)` does not, because `applyTextScaling`
-      // defaults to false and nothing in `AppTheme` registers an `iconTheme`.
-      // Asserted as the gap it currently is: if the glyph ever starts scaling,
-      // this fails and the note on the previews needs deleting, which is the
-      // point.
       expect(tester.getSize(find.byType(Icon)), iconAt100);
       expect(iconAt100, const Size(16, 16));
     });
@@ -260,9 +228,6 @@ void main() {
       await pumpPreview(tester, offerWindowTimerSafeWindowFallback);
 
       // The `Text` sets neither `maxLines` nor `overflow`, so the failure mode
-      // here is a wrap (or a RenderFlex overflow), not an ellipsis. At the
-      // ceiling the longest label the widget can emit still lays out on one
-      // line inside the 358pt band.
       expect(_lineCount(tester, 'Window: 23:53:18 left'), 1);
       expect(tester.takeException(), isNull);
 
@@ -284,7 +249,6 @@ void main() {
         final JeebColorRoles roles = theme.extension<JeebColorRoles>()!;
 
         // Urgent and expired are gated by `color_role_contrast_test.dart`;
-        // repeated here because this widget is what puts 11pt text on them.
         expect(
           _contrast(roles.onWarningContainer, roles.warningContainer),
           greaterThan(4.5),
@@ -294,8 +258,6 @@ void main() {
           greaterThan(4.5),
         );
         // The neutral branch is the one NOT covered by that gate: it pairs the
-        // raw M3 `onSurface` with `surfaceContainerHighest`, and this widget is
-        // one of the few places those two meet at label size.
         expect(
           _contrast(scheme.onSurface, scheme.surfaceContainerHighest),
           greaterThan(4.5),
@@ -309,16 +271,6 @@ void main() {
           AppTheme.light().extension<JeebColorRoles>()!;
 
       // Nothing but the fill changes at T-30s: same copy template, same
-      // `timer_outlined` glyph, same geometry. So the fill is the entire
-      // signal — and in the light scheme it is a 1.16:1 step, from a pale grey
-      // (#E5E1E5, luminance .762) to a pale amber (#FEF3C7, .893). The urgent
-      // band is in fact CLOSER to the white page than the neutral one it
-      // replaced: 1.11:1 against the surface where neutral manages 1.29:1.
-      //
-      // Asserted as the gap it currently is. If a future change gives urgency a
-      // second channel — a stronger fill, an icon swap, distinct copy — these
-      // expectations fail and the notes on `offerWindowTimerUrgent` should be
-      // deleted, which is the point.
       final double neutralToUrgent = _contrast(
         light.surfaceContainerHighest,
         lightRoles.warningContainer,
@@ -341,14 +293,6 @@ void main() {
       final ColorScheme dark = AppTheme.dark().colorScheme;
 
       // `AppTheme.light()` does not carry an M3 tonal `errorContainer`: it is
-      // the legacy #B00020 with WHITE `onErrorContainer`, so the expired band
-      // is a solid dark-red slab in a row of pale tints — 7.33:1 against the
-      // page, where the neutral and urgent bands sit at 1.29:1 and 1.11:1.
-      // `AppTheme.dark()` is restrained by comparison at 1.98:1.
-      //
-      // The two schemes therefore disagree about what "expired" looks like:
-      // an alarm in light, a quiet tint in dark. Only the side-by-side EN
-      // light / AR RTL dark renderings of the matrix show it.
       expect(_contrast(light.errorContainer, light.surface), greaterThan(6));
       expect(_contrast(dark.errorContainer, dark.surface), lessThan(3));
       expect(light.onErrorContainer, const Color(0xFFFFFFFF));

@@ -1,20 +1,4 @@
 // Render tests for the TrackingMapSurface previews.
-//
-// Nothing in CI opens the preview canvas, so an untested preview rots silently
-// until someone runs it by hand. This follows the template in
-// `test/previews/preview_test_harness.dart`.
-//
-// One deviation from that template, on purpose, the same one
-// `capture_map_viewport_preview_test.dart` makes. The widget under review
-// renders no text of its own (an icon plus a Semantics label), and three of its
-// six states render no notice copy either — "renders nothing" is a contract
-// here, not an omission. `expectedText` bound to the widget's own output would
-// therefore be EMPTY for half the set and identical for the rest, which is the
-// weak assertion the harness warns about. The map below binds to each preview's
-// caption, which is preview scaffolding, and the real per-state contract is
-// asserted underneath: which states mount a notice, which mount one and keep it
-// collapsed, and what each visible one says.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -33,13 +17,8 @@ const Map<String, Widget Function()> _previews = <String, Widget Function()>{
   'Signal lost, longest copy': trackingMapSurfaceLostLongAge,
 };
 
-/// The phone the surface actually ships on. The previews declare 390 pt of
-/// width; the shared harness pumps onto the default 800 × 600 test surface, so
-/// anything width-sensitive has to be measured here explicitly — which is the
-/// whole reason the overflow below went unnoticed.
 const Size _kPhone = Size(390, 844);
 
-/// Pumps [preview] at [_kPhone] rather than the default test surface.
 Future<void> _pumpOnPhone(
   WidgetTester tester,
   Widget Function() preview, {
@@ -50,8 +29,6 @@ Future<void> _pumpOnPhone(
   await pumpPreview(tester, preview, locale: locale);
 }
 
-/// Pumps [preview] at [_kPhone] — the width the surface actually ships at —
-/// and returns the exception the frame reported, if any.
 Future<Object?> _overflowAtPhoneWidth(
   WidgetTester tester,
   Widget Function() preview, {
@@ -88,8 +65,6 @@ void main() {
     'TrackingMapSurface',
     _previews,
     // Captions, not widget output — see the header. Every state names itself,
-    // so a preview wired to the wrong fixture (or six previews sharing one)
-    // fails here rather than looking plausible in the canvas.
     expectedText: const <String, String>{
       'No snapshot yet': 'No snapshot yet: placeholder only, no overlay',
       'Live fix, no notice': 'Live fix: notice mounted and silent',
@@ -104,8 +79,6 @@ void main() {
 
   group('TrackingMapSurface preview invariants', () {
     // sprint-009 P0: with no `com.google.android.geo.API_KEY` a live GoogleMap
-    // is a native FATAL, and there is no platform view on the desktop canvas at
-    // all. No preview may mount one, in any state.
     _previews.forEach((String state, Widget Function() preview) {
       testWidgets('$state renders the placeholder, never a live map', (
         WidgetTester tester,
@@ -133,7 +106,6 @@ void main() {
 
   group('TrackingMapSurface preview specifics', () {
     // The assertion the caption-based `expectedText` above cannot make: six
-    // previews are only six states if what the surface OVERLAYS differs.
     testWidgets('no snapshot mounts no overlay at all', (
       WidgetTester tester,
     ) async {
@@ -211,13 +183,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // `_MapBody._stacked` anchors the notice with `PositionedDirectional`
-      // and equal start/end insets, then centres it, so the chip sits in the
-      // same place in both locales. Pinned so a later `EdgeInsets.only(left:)`
-      // cannot creep in unnoticed.
-      //
-      // Measured on the SHORTEST notice state, which is the only one that fits
-      // 390 pt in both locales — see the ceilings group below for why that is
-      // not a detail of this test but the headline finding.
       await _pumpOnPhone(tester, trackingMapSurfaceLostNoAge);
       final Rect ltr = tester.getRect(find.byType(CourierPositionNotice));
       expect(tester.takeException(), isNull);
@@ -231,48 +196,19 @@ void main() {
       expect(tester.takeException(), isNull);
 
       // Same band, same baseline: bottom-anchored `Spacing.medium` above the
-      // surface's bottom edge in both directions.
       expect(ltr.bottom, rtl.bottom);
       // And centred, so the two locales agree on the horizontal axis by
-      // construction rather than by luck.
       expect(ltr.center.dx, closeTo(_kPhone.width / 2, 1));
       expect(rtl.center.dx, closeTo(_kPhone.width / 2, 1));
     });
   });
 
   // FINDING, and the reason these previews were worth writing.
-  //
-  // `OmdsChip` lays its label out in a `Row` with `mainAxisSize:
-  // MainAxisSize.min` and no `Flexible`, `maxLines` or `overflow`
-  // (`omds_library/lib/src/layout/omds_chip.dart:123-149`), so a `RenderFlex`
-  // measures the label with an UNBOUNDED main axis and the chip grows past the
-  // 390 − 2×`Spacing.medium` = 358 pt band `_MapBody._stacked` gives it. The
-  // label never wraps, never ellipsizes and is never clipped.
-  //
-  // The existing suite (`tracking_position_status_test.dart`) pumps onto the
-  // default 800 × 600 test surface, where the same chip fits with 400 pt to
-  // spare — which is why nothing had ever seen this. The previews declare the
-  // 390 pt width the screen actually ships at, and the canvas paints the
-  // overflow stripe.
-  //
-  // Two caveats, so nobody over-reads the numbers below. (1) They are
-  // test-font metrics — `flutter_test` renders every glyph as a square of the
-  // font size, so a real device's proportional font travels perhaps half as
-  // far, and the 1× English readings here are the pessimistic end. The
-  // STRUCTURE is what generalises: an unbounded, unwrapped, unclipped label in
-  // a fixed band overflows on a real phone as soon as the text scale or the
-  // copy grows, which is what the 200% cases pin. (2) `RenderFlex` reports an
-  // overflow at most once per render object, and pumping a second preview
-  // REUSES the render objects, so a second overflow in the same `testWidgets`
-  // is silently swallowed. Every case below therefore gets its own test and its
-  // own fresh tree; folding them into one loop makes all but the first pass for
-  // no reason at all.
   group('TrackingMapSurface layout ceilings', () {
     testWidgets('the ORDINARY stale notice overflows at phone width', (
       WidgetTester tester,
     ) async {
       // Not a long-tail state: the plain 3-minute stale notice, at 1× text, on
-      // the phone the screen ships on.
       final Object? overflow = await _overflowAtPhoneWidth(
         tester,
         trackingMapSurfaceStale,
@@ -299,8 +235,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Shorter copy, same failure: 175 pt. Worth its own case because "it
-      // only breaks in one locale" would be a different bug with a different
-      // fix — here neither locale is safe.
       expect(
         '${await _overflowAtPhoneWidth(tester, trackingMapSurfaceLost, locale: const Locale('ar'))}',
         contains('overflowed by 175 pixels'),
@@ -320,8 +254,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The control. Without it, "the chip overflows" could be read as "the
-      // band is too narrow for any chip"; it is not — 'No signal from the
-      // Jeeber' fits, and every longer sentence does not.
       expect(
         await _overflowAtPhoneWidth(tester, trackingMapSurfaceLostNoAge),
         isNull,
@@ -340,10 +272,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // Same chip, same absent constraint, reached from the other direction:
-      // the accessibility ceiling rather than a narrow phone. This one is
-      // measured on the 800 pt surface, where the lost notice fits at 1× (the
-      // render tests above prove it) — so the text scale is the only variable,
-      // and it is enough on its own.
       expect(
         await _pumpAtDoubleText(tester, trackingMapSurfaceLost),
         isFlutterError,
@@ -354,9 +282,6 @@ void main() {
       WidgetTester tester,
     ) async {
       // The placeholder chrome itself is sound: a container, a centred icon and
-      // (in the live state) a collapsed overlay have nothing to overflow. This
-      // is the control that keeps the two failures above attributable to the
-      // chip rather than to the surface.
       expect(
         await _pumpAtDoubleText(tester, trackingMapSurfaceAwaitingSnapshot),
         isNull,

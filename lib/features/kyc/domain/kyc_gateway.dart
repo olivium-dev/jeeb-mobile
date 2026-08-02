@@ -3,7 +3,6 @@ import 'kyc_form_schema.dart';
 import 'kyc_submission.dart';
 
 /// A field-scoped rejection of the KYC submit by the live BFF.
-///
 class KycSubmitFieldException implements Exception {
   const KycSubmitFieldException({required this.field, this.detail});
 

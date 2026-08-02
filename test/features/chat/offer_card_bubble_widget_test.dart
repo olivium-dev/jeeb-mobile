@@ -1,11 +1,5 @@
 /// Widget tests for OfferCardBubble (T-MOB-015).
-///
 /// Tests cover:
-///   - AC2: Offer card renders Jeeber name, Accept + Decline buttons
-///   - AC1: isAccepting shows accepting label
-///   - AC3: acceptDisabled prevents tap
-///   - AC4: Decline callback fires
-///   - AC5: Semantic identifiers present on Accept and Decline buttons
 library;
 
 import 'dart:io';
@@ -21,8 +15,6 @@ import 'package:jeeb_mobile/features/chat/presentation/widgets/offer_card_bubble
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-// ---------------------------------------------------------------------------
-// Localization helper
 // ---------------------------------------------------------------------------
 
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -49,8 +41,6 @@ void _loadArb() {
   _delegate = _SyncLocDelegate({'en': en, 'ar': ar});
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
 // ---------------------------------------------------------------------------
 
 class _FakeGateway extends ChatGateway {
@@ -128,8 +118,6 @@ Widget _buildApp({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Tests
 // ---------------------------------------------------------------------------
 
 void main() {

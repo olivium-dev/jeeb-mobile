@@ -1,11 +1,4 @@
 // G4 (sprint-009 P0) — handover-code local persistence.
-//
-// The accept response is the only wire moment the customer receives the
-// handover code; `SharedPrefsHandoverCodeStore` is what makes it survive
-// navigation and app restarts. These tests pin the store contract:
-// round-trip, overwrite, per-delivery keying, clear, blank-input guards, and
-// the restart simulation (a NEW store instance over the same backing prefs —
-// the unit-test analogue of a cold start).
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

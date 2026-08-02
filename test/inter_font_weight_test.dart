@@ -6,15 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// TL-4 regression guard. Inter is bundled as four discrete STATIC instances
 /// (Regular/Medium/SemiBold/Bold) mapped to Material 3's 400/500/600/700.
-///
-/// A single variable TTF registered under discrete `weight:` keys renders all
-/// four weights identically (the original defect this test was written to
-/// catch). This test loads the four static files exactly as `pubspec.yaml`
-/// declares them and asserts the rendered widths are distinct across weights —
-/// if any two collapse, the wrong font files are bundled.
-// Not `const`: FontWeight overrides `==`/`hashCode`, so it can't key a const
-// map (analyzer error const_map_key_not_primitive_equality). The map is
-// effectively immutable here regardless.
 final _weightFiles = <FontWeight, String>{
   FontWeight.w400: 'assets/fonts/Inter-Regular.ttf',
   FontWeight.w500: 'assets/fonts/Inter-Medium.ttf',
