@@ -1,31 +1,31 @@
 export const meta = {
   name: 'preview-inline-migration',
   description: 'Move every @JeebPreview from lib/previews/ into the widget its own source file, so the IDE preview panel shows it when that file is open',
-  whenToUse: 'One-shot migration. args = {repoRoot, widgets:[{widget,source,preview,area}]}. Plan first, then fan out by area, then repair the tooling and verify.',
+  whenToUse: 'One-shot migration. args = {repoRoot, areas: ["chat", ["app","auth"], ...]} — each entry is one agent, a string or a list of areas. Plan, fan out, then repair the tooling and verify.',
   phases: [
     { title: 'Plan', detail: 'one agent writes the migration spec everyone follows' },
-    { title: 'Migrate', detail: 'one agent per area, owns every widget in it' },
+    { title: 'Migrate', detail: 'one agent per area group, owns every widget in it' },
     { title: 'Integrate', detail: 'rewrite coverage tool + guardrails, full verification' },
   ],
 }
 
 const input = typeof args === 'string' ? JSON.parse(args) : args || {}
 const repoRoot = input.repoRoot
-const widgets = input.widgets || []
+// Areas are disjoint across source files (verified: the only two multi-widget
+// source files are both in home_client), so no two agents can ever open the same
+// file. Each agent discovers its own widgets by listing lib/previews/<area>/ —
+// passing 128 derivable rows through args would be pure bulk.
+// Each entry is a LIST of areas one agent owns, so small areas can share an agent
+// without ever sharing a file.
+const groups = (input.areas || []).map((g) => (Array.isArray(g) ? g : [g]))
 
-if (!repoRoot || widgets.length === 0) {
-  log('Nothing to migrate — args.widgets was empty.')
+if (!repoRoot || groups.length === 0) {
+  log('Nothing to migrate — args.areas was empty.')
   return { migrated: [], skipped: 'empty input' }
 }
 
-// Group by area. Areas are disjoint across source files (verified: the only two
-// multi-widget source files are both in home_client), so no two agents can ever
-// open the same file.
-const byArea = {}
-for (const w of widgets) (byArea[w.area] ||= []).push(w)
-const areas = Object.keys(byArea).sort((a, b) => byArea[b].length - byArea[a].length)
-
-log(`${widgets.length} widgets across ${areas.length} areas`)
+const areas = groups.flat()
+log(`migrating ${areas.length} areas across ${groups.length} agents`)
 
 phase('Plan')
 
@@ -113,19 +113,23 @@ const RESULT = {
 phase('Migrate')
 
 const results = await parallel(
-  areas.map((area) => () =>
+  groups.map((group) => () =>
     agent(
-      `Migrate every widget preview in the **${area}** area into its widget's own source
-file. Working directory: ${repoRoot}. You own this area exclusively — no other agent
-will touch these files.
+      `Migrate every widget preview in these areas into each widget's own source file:
+**${group.join(', ')}**. Working directory: ${repoRoot}. You own these areas
+exclusively — no other agent will touch these files.
 
 ## Follow this spec exactly
 
 ${spec}
 
-## Your widgets (${byArea[area].length})
+## Your widgets — discover them yourself
 
-${byArea[area].map((w) => `- ${w.widget}\n    source:  ${w.source}\n    preview: ${w.preview}`).join('\n')}
+Every file in ${group.map((a) => `\`lib/previews/${a}/\``).join(' and ')} is yours. For each \`<snake>_preview.dart\`:
+the widget class is \`<snake>\` in PascalCase, and its source file is the one where
+\`grep -rn "^class <Pascal> extends" lib/\` matches. Confirm each mapping before you
+edit — do not guess from the import list, which often points at a domain or cubit
+file rather than the widget.
 
 NOTE: two source files hold more than one previewed widget —
 \`pending_requests_tab.dart\` (3) and \`active_request_card.dart\` (2). If either is in
@@ -138,7 +142,7 @@ process them independently.
    preview file and into the widget's source file, per the spec's layout.
 2. Add whatever imports the moved code needs; remove none that the widget still uses.
 3. Delete the now-empty preview file.
-4. Update the corresponding test under \`test/previews/${area}/\` so it imports the
+4. Update the corresponding test under \`test/previews/<area>/\` so it imports the
    preview functions from the widget's source file instead of the deleted preview file.
    Change NOTHING else about the test — its assertions are the safety net for this
    migration and must keep passing unchanged.
@@ -146,8 +150,8 @@ process them independently.
 
 ## Verify before reporting — this is the whole point
 
-    flutter analyze --no-pub <each source file you edited> test/previews/${area}/
-    flutter test test/previews/${area}/
+    flutter analyze --no-pub <each source file you edited> ${group.map((a) => `test/previews/${a}/`).join(' ')}
+    flutter test ${group.map((a) => `test/previews/${a}/`).join(' ')}
 
 Both must be clean. Report a widget under \`failed\` (with the real error text) rather
 than reporting a green result you did not observe — the integration agent re-runs
@@ -157,7 +161,7 @@ Do NOT change any widget's behaviour. This is a code MOVE. If a preview only com
 after you alter the widget, that is a finding to report, not a change to make.
 
 Leave no scratch files.`,
-      { label: `migrate:${area}`, phase: 'Migrate', schema: RESULT }
+      { label: `migrate:${group.join('+')}`, phase: 'Migrate', schema: RESULT }
     )
   )
 )
