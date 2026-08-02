@@ -100,6 +100,29 @@ void main() {
       }
     }
 
+    // Each preview must render ITS OWN state. Asserting only that "a header
+    // appeared" would pass even if every preview rendered the same widget —
+    // which is exactly the failure mode the preview canvas's search filter
+    // exhibits (it renders by unfiltered index while showing filtered labels,
+    // Flutter 3.44.2). These assertions are what distinguish a real binding
+    // bug from a canvas display bug.
+    const Map<String, String> expectedGreeting = <String, String>{
+      'Named + avatar': 'Hello, Sami',
+      'Generic fallback': 'Welcome back',
+      'Name, no avatar': 'Hello, Layla',
+      'Synthetic handle suppressed': 'Welcome back',
+      'Long name overflow': 'Hello, Abdulrahman',
+    };
+
+    for (final entry in _previews.entries) {
+      testWidgets('${entry.key} renders its own state', (tester) async {
+        await tester.pumpWidget(_canvas(entry.value, const Locale('en')));
+        await tester.pumpAndSettle();
+
+        expect(find.text(expectedGreeting[entry.key]!), findsOneWidget);
+      });
+    }
+
     testWidgets('named preview greets the FIRST name only', (tester) async {
       await tester.pumpWidget(
         _canvas(clientHomeGreetingNamed, const Locale('en')),

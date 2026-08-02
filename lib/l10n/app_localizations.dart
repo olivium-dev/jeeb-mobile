@@ -1357,7 +1357,7 @@ class _AppLocalizationsDelegate
   @override
   Future<AppLocalizations> load(Locale locale) async {
     final tag = locale.languageCode;
-    final raw = await rootBundle.loadString('lib/l10n/app_$tag.arb');
+    final raw = await _loadArb(tag);
     final json = jsonDecode(raw) as Map<String, dynamic>;
     final strings = <String, String>{
       for (final entry in json.entries)
@@ -1369,6 +1369,27 @@ class _AppLocalizationsDelegate
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
+
+  /// Reads `app_<tag>.arb` from whichever bundle this code is running in.
+  ///
+  /// In the app the ARB is a first-party asset, keyed by its bare path. Under
+  /// `flutter widget-preview start` the code runs inside a SEPARATE generated
+  /// scaffold project that depends on `jeeb_mobile` as a package, so the same
+  /// asset is keyed `packages/jeeb_mobile/...` and the bare key 404s.
+  ///
+  /// The bare key is tried first, so the app's behaviour is byte-for-byte
+  /// unchanged; the fallback only ever runs where the first lookup already
+  /// failed. Without it every localized widget preview throws
+  /// "Unable to load asset" and renders blank.
+  static Future<String> _loadArb(String tag) async {
+    try {
+      return await rootBundle.loadString('lib/l10n/app_$tag.arb');
+    } on Object {
+      return rootBundle.loadString(
+        'packages/jeeb_mobile/lib/l10n/app_$tag.arb',
+      );
+    }
+  }
 }
 
 /// Synchronous variant used by tests and bootstrap so we don't need a
