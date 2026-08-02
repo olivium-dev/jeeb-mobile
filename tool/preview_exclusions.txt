@@ -21,3 +21,5 @@ GestureLogListener      # diagnostics-only pointer listener; no visual output
 RootAwareBackScope      # back-navigation policy wrapper; renders child verbatim
 CaptureLocationRoute    # /capture-location route host; renders CaptureLocationScreen verbatim (Screens are Screen-Catalog scope), sole behaviour is a GoRouter pop
 GoogleMapCaptureView    # GoogleMap platform view + one FAB; renders ZERO Text in any state and shows a plugin error string on desktop. The repo already routes around it — see the "does not paint headless" note in test/capture_location_map_injection_test.dart:13. Needs a placeholder seam like TrackingMapSurface(useLiveMap:false) to become previewable.
+FeedResumeRefetcher     # G3 resume/refocus refetch + badge clear; build does side effects then `return widget.child` — no wrapper, no visual output. Behaviour covered by test/feed_resume_refetcher_test.dart (4 tests) + shell_tab_badge_test.dart.
+OrdersResumeRefetcher   # same category, `build => widget.child` verbatim (orders_resume_refetcher.dart:150). Excluded in the same pass so it does not burn another agent.
