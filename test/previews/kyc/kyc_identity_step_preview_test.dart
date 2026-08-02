@@ -18,7 +18,6 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_identity_step.dart';
-import 'package:jeeb_mobile/previews/kyc/kyc_identity_step_preview.dart';
 
 import '../preview_test_harness.dart';
 

@@ -19,7 +19,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_liveness_prompt_card.dart';
-import 'package:jeeb_mobile/previews/kyc/kyc_liveness_prompt_card_preview.dart';
 
 import '../preview_test_harness.dart';
 

@@ -26,7 +26,6 @@ import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_cubit.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_state.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_submitting_view.dart';
-import 'package:jeeb_mobile/previews/kyc/kyc_submitting_view_preview.dart';
 
 import '../preview_test_harness.dart';
 

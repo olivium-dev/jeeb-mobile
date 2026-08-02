@@ -22,7 +22,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_id_alignment_guide.dart';
-import 'package:jeeb_mobile/previews/kyc/kyc_id_alignment_guide_preview.dart';
 
 import '../preview_test_harness.dart';
 

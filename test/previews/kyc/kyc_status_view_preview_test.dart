@@ -20,7 +20,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/kyc/presentation/kyc_status_view.dart';
-import 'package:jeeb_mobile/previews/kyc/kyc_status_view_preview.dart';
 
 import '../preview_test_harness.dart';
 

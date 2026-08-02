@@ -26,7 +26,6 @@ import 'package:omds/omds.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_capture_tile.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_attachment.dart';
-import 'package:jeeb_mobile/previews/kyc/kyc_capture_tile_preview.dart';
 
 import '../preview_test_harness.dart';
 
