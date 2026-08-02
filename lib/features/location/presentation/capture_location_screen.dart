@@ -9,17 +9,6 @@ import 'widgets/capture_map_viewport.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/capture_location_screen_fixtures.dart';
 
-/// "Capture Location" screen (Figma 56546:2303) — a full-screen map picker.
-///
-/// The map pans under a fixed centre pin; the user positions the desired
-/// point under the pin tip and confirms with the bottom "Pin Location" CTA,
-/// which returns the coordinates to the delivery-create flow.
-///
-/// Live map tiles are provided by the `ofl_geo_capture` wrap (reuse-table
-/// "Delivery create → wrap" verdict). That package is not yet resolvable in
-/// this worktree, so [mapBuilder] is injected: production passes the
-/// geo-capture map widget; the dev seam / tests pass a neutral placeholder.
-/// The Figma map raster is a mock and is never bundled.
 class CaptureLocationScreen extends StatelessWidget {
   const CaptureLocationScreen({
     super.key,
@@ -28,14 +17,10 @@ class CaptureLocationScreen extends StatelessWidget {
     this.isConfirming = false,
   });
 
-  /// Invoked when the user confirms the pinned point. Defaults to a back-pop.
   final VoidCallback? onPinned;
 
-  /// Builds the map viewport. When null a neutral [CaptureMapViewport]
-  /// placeholder is rendered (dev seam / offline).
   final WidgetBuilder? mapBuilder;
 
-  /// When true the CTA shows a busy state (reverse-geocode / save in flight).
   final bool isConfirming;
 
   @override
@@ -81,8 +66,6 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// Bottom "Pin Location" confirm CTA. `OmdsPrimaryButton` owns the ≥48dp tap
-/// height; the Semantics id lets Maestro target it.
 class _PinCta extends StatelessWidget {
   const _PinCta({required this.onPinned, required this.isConfirming});
 
@@ -121,8 +104,6 @@ class _PinCta extends StatelessWidget {
   }
 }
 
-/// The map viewport with the fixed centre pin layered on top. The pin never
-/// moves — the map pans underneath — so it sits in an [IgnorePointer] overlay.
 class _MapStack extends StatelessWidget {
   const _MapStack({required this.mapBuilder});
 
@@ -144,7 +125,6 @@ class _MapStack extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

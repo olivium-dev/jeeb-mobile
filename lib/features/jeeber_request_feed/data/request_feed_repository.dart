@@ -3,9 +3,9 @@ import 'dart:math' as math;
 
 import 'request_feed_models.dart';
 
-/// Outcome of an accept/decline call back to jeeb-gateway. Kept narrow on
-/// purpose — the cubit only needs to know whether the seat was taken,
-/// whether the request had already closed, or whether the network blew up.
+
+
+
 enum RequestActionOutcome {
   accepted,
   declined,
@@ -14,74 +14,74 @@ enum RequestActionOutcome {
   networkError,
 }
 
-/// Transport the repository negotiated with jeeb-gateway. Drives the badge
-/// the screen shows in the app bar so the Jeeber knows when they're on the
-/// degraded polling path versus the real-time WebSocket feed.
+
+
+
 enum FeedTransport {
   webSocket,
 
-  /// jeeb-gateway is reachable but the WS upgrade failed (or fell over).
-  /// The repository fires polling ticks instead.
+  
+  
   polling,
 }
 
-/// One-shot connectivity update emitted by [RequestFeedRepository.transport].
-/// The cubit forwards the latest value into its state so the screen layer
-/// can render a "reconnecting…" banner when polling kicks in.
+
+
+
 class FeedTransportUpdate {
   const FeedTransportUpdate(this.transport);
   final FeedTransport transport;
 }
 
-/// The repository the cubit talks to. Owns:
-///
-///   1. The realtime feed stream — emits new [DeliveryRequest]s. Requests
-///      leave the feed via the snapshot-authoritative [refresh] reconcile
-///      (a request the gateway no longer lists is dropped) or the cubit's
-///      per-request `expiresAt` sweep — there is no separate cancellations
-///      stream (no backend ever produced one).
-///   2. The transport status stream — flips between [FeedTransport.webSocket]
-///      and [FeedTransport.polling] so the UI can surface the degraded state.
-///   3. Accept/decline RPCs.
-///
-/// jeeb-gateway is the only backend the implementation talks to (per
-/// JEEB-BOUNDARIES.md §4); the WebSocket fanout is brokered by jeeb-gateway
-/// via realtime-comunication-service per REUSE-MAP.md.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 abstract class RequestFeedRepository {
-  /// Stream of new [DeliveryRequest] payloads. The cubit dedupes by id so
-  /// re-pushes of the same request (which can happen across a WS reconnect)
-  /// don't multiply on screen.
+  
+  
+  
   Stream<DeliveryRequest> get requests;
 
-  /// Transport changes. Implementations may emit an initial value on
-  /// subscribe, but consumers must not rely on replay and must subscribe
-  /// before triggering any operation that emits an update.
+  
+  
+  
   Stream<FeedTransportUpdate> get transport;
 
-  /// Pull a fresh snapshot of pending requests. Triggered by pull-to-refresh
-  /// and on screen open. Returning a snapshot here doesn't preclude further
-  /// pushes via [requests]; the cubit merges both streams.
+  
+  
+  
   Future<List<DeliveryRequest>> refresh();
 
-  /// Accept the request with [id]. The repository's responsibility is to
-  /// surface the outcome; it's the cubit's job to take the card off the feed
-  /// and route the Jeeber into the active-delivery flow on `accepted`.
+  
+  
+  
   Future<RequestActionOutcome> accept(String id);
 
-  /// Decline (mark "not interested") the request with [id]. The card
-  /// disappears either way; the outcome only matters for telemetry.
+  
+  
   Future<RequestActionOutcome> decline(String id);
 
-  /// Tear down any open sockets / timers. A cubit calls this on close only
-  /// when it owns the repository; borrowed repositories outlive the cubit.
+  
+  
   Future<void> dispose();
 }
 
-/// Dev/double implementation used until the real jeeb-gateway client lands.
-/// Generates a tiny synthetic feed so the screen layer renders during
-/// development without needing the backend up. The class is deliberately
-/// self-contained — no platform calls — so widget tests can substitute it
-/// without extra mocking.
+
+
+
+
+
 class FakeRequestFeedRepository implements RequestFeedRepository {
   FakeRequestFeedRepository({
     Duration emitInterval = const Duration(seconds: 12),
@@ -171,11 +171,11 @@ class FakeRequestFeedRepository implements RequestFeedRepository {
   }
 }
 
-/// Static-snapshot repository that returns a fixed list of [DeliveryRequest]s
-/// and never emits live pushes. Used by the `jeeb.feed` dev seam so the
-/// deliveryman feed renders deterministic fixtures (screens 24-26) for capture
-/// without a backend or random churn. Accept/decline are no-ops so the cards
-/// stay on screen for screenshots.
+
+
+
+
+
 class SeededRequestFeedRepository implements RequestFeedRepository {
   SeededRequestFeedRepository(this._snapshot);
 

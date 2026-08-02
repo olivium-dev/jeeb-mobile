@@ -10,22 +10,8 @@ import '../../../chat/domain/accepted_conversation.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'dart:async';
-
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// S007-P1B — Jeeber in-app re-entry to ACCEPTED (won) order chats.
-///
-/// The jeeber's request feed only lists OPEN requests; once an offer is
-/// accepted the order drops off the feed and was reachable only by tapping a
-/// push. This banner surfaces the jeeber's accepted orders at the top of the
-/// Dashboard's no-requests state and routes each into the order chat
-/// (`/chat/:id`, role-aware → "Start delivery").
-///
-/// Self-contained + DI-safe: it resolves an [AcceptedConversationsRepository]
-/// from the injected seam or `sl<Dio>()`; when neither is available (bare
-/// widget tests) it fetches nothing and renders [SizedBox.shrink]. It also
-/// renders nothing while loading, on error, or when there are no accepted
-/// orders — so it is purely additive and never disturbs the existing layout.
 class JeeberActiveDeliveriesBanner extends StatefulWidget {
   const JeeberActiveDeliveriesBanner({
     super.key,
@@ -33,10 +19,8 @@ class JeeberActiveDeliveriesBanner extends StatefulWidget {
     this.onOpenChat,
   });
 
-  /// Test seam — when null, resolved from `sl<Dio>()` (or no-op without DI).
   final AcceptedConversationsRepository? repository;
 
-  /// Tap handler for a row; defaults to a `chat-detail` GoRouter push.
   final void Function(String routeId)? onOpenChat;
 
   @override
@@ -72,8 +56,6 @@ class _JeeberActiveDeliveriesBannerState
   AcceptedConversationsRepository? _resolveRepository() {
     if (widget.repository != null) return widget.repository;
     if (sl.isRegistered<Dio>()) {
-      // Jeeber-scoped: GET /requests?role=jeeber returns the jeeber's won
-      // (accepted) orders, each with the conversationId for chat re-entry.
       return DioAcceptedConversationsRepository(sl<Dio>(), role: 'jeeber');
     }
     return null;
@@ -261,7 +243,6 @@ class _OpenChatButton extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

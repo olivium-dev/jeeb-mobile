@@ -4,12 +4,6 @@ import '../../../../core/network/auth_token_store.dart';
 import '../../data/super_login_service.dart';
 import 'super_login_state.dart';
 
-/// Drives the super-login credential sheet (FR-P0-4).
-///
-/// Replaces the old gate-less client mint: it POSTs the submitted credential
-/// to the gateway via [SuperLoginService], and on success persists the
-/// **real** returned tokens via [AuthTokenStore]. It NEVER mints a
-/// `mock-jwt-*` token and NEVER logs or compares the passcode client-side.
 class SuperLoginCubit extends Cubit<SuperLoginState> {
   SuperLoginCubit({
     required SuperLoginService service,
@@ -21,16 +15,12 @@ class SuperLoginCubit extends Cubit<SuperLoginState> {
   final SuperLoginService _service;
   final AuthTokenStore _tokenStore;
 
-  /// Validates [userId]/[passcode] against the gateway. On success the real
-  /// tokens are persisted and the state moves to [SuperLoginStatus.success];
-  /// the host sheet listens for that to dismiss + navigate home.
   Future<void> submit({
     required String userId,
     required String passcode,
   }) async {
     if (state.isSubmitting) return;
     if (userId.trim().isEmpty || passcode.isEmpty) {
-      // Defensive: the sheet already disables submit until both are non-empty.
       emit(state.copyWith(
         status: SuperLoginStatus.error,
         error: SuperLoginError.invalidCredentials,
@@ -61,10 +51,6 @@ class SuperLoginCubit extends Cubit<SuperLoginState> {
     }
   }
 
-  /// Clears a surfaced credential error so the inline message under the
-  /// passcode field disappears the moment the user starts correcting it
-  /// (DEF-2). Returns the sheet to [SuperLoginStatus.idle]; a no-op while
-  /// submitting or already idle/successful.
   void clearError() {
     if (state.status != SuperLoginStatus.error) return;
     emit(state.copyWith(status: SuperLoginStatus.idle, error: null));

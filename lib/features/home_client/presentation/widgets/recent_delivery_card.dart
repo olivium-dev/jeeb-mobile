@@ -7,12 +7,6 @@ import '../../domain/recent_delivery_summary.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// One-tap "order again" card for the most recent completed delivery.
-///
-/// Composed entirely from OMDS primitives — [OmdsPrimaryButton] for the
-/// reorder CTA, and tokenized layout containers (`Spacing`, `Sizes`,
-/// `OmdsBorderRadius`, `colorScheme.*`) elsewhere. No raw `TextButton`,
-/// no hardcoded colors, no magic dimensions.
 class RecentDeliveryCard extends StatelessWidget {
   const RecentDeliveryCard({
     super.key,
@@ -141,7 +135,6 @@ class _RecentDeliverySubtitle extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

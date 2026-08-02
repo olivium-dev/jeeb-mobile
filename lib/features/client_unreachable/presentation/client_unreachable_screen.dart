@@ -5,7 +5,6 @@ import 'package:omds/omds.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/client_unreachable_screen_fixtures.dart';
 
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live flow is live_tracking + tracking_noshow_sheet — see docs/project-understanding/reconciliation/orphans.md
 class ClientUnreachableScreen extends StatelessWidget {
   const ClientUnreachableScreen({super.key, required this.deliveryId});
   final String deliveryId;
@@ -102,7 +101,6 @@ class _UnreachableNoticeCard extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

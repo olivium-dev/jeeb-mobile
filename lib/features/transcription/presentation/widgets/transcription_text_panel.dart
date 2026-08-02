@@ -10,9 +10,6 @@ import '../transcription_screen.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../domain/transcript_audio_player.dart';
 
-/// The transcription text, in either display (read + Edit affordance) or edit
-/// (text field + Done) mode. RTL is inherited from the ambient [Directionality]
-/// so an Arabic transcription renders right-aligned automatically.
 class TranscriptionTextPanel extends StatelessWidget {
   const TranscriptionTextPanel({super.key, required this.state});
 
@@ -184,7 +181,6 @@ class _SaveEditButton extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

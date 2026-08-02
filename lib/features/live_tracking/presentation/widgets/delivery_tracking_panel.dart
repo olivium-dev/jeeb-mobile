@@ -9,12 +9,6 @@ import '../../domain/delivery_tracking_info.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Bottom status panel for the order-tracking screen (Figma 56560:1772).
-///
-/// A centred block (~75% of screen width) carrying the 3-stage progress
-/// stepper (Ordered / Picked / In transit) above the courier distance and
-/// the estimated arrival time. Distance + ETA fall back to placeholders
-/// while no GPS fix has arrived, rather than showing a stale "0 km".
 class DeliveryTrackingPanel extends StatelessWidget {
   const DeliveryTrackingPanel({super.key, required this.info});
 
@@ -39,8 +33,6 @@ class DeliveryTrackingPanel extends StatelessWidget {
             _TrackingDistanceLine(distanceLabel: info.distanceLabel),
             const SizedBox(height: Spacing.xSmall),
             _TrackingEtaLine(etaMinutes: info.etaMinutes),
-            // Q-061 / D18: the LOCKED absolute deadline. Only mounts when the
-            // delivery row carries one, so pre-fix rows render unchanged.
             if (info.deadline != null) ...[
               const SizedBox(height: Spacing.xSmall),
               _TrackingDeadlineLine(deadline: info.deadline!),
@@ -52,7 +44,6 @@ class DeliveryTrackingPanel extends StatelessWidget {
   }
 }
 
-/// Comp measures the block at ~330/440 of the frame width.
 const double _panelWidthFactor = 0.78;
 
 class _TrackingStepper extends StatelessWidget {
@@ -65,17 +56,11 @@ class _TrackingStepper extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'tracking_progress_stepper',
-      // `container: true` makes this a Semantics boundary so the identifier
-      // surfaces as its own queryable node. Without it the multi-child
-      // OMDSLabeledStepperProgress step labels are folded into the ancestor
-      // `tracking_status_panel` node and `tracking_progress_stepper` is
-      // swallowed (matches the sibling panel-root pattern at line 24).
       container: true,
       value: _stepLabels(l10n)[stepIndex],
       child: OMDSLabeledStepperProgress(
         totalSteps: 3,
         completedSteps: stepIndex + 1,
-        // Accent PAINT (progress), not a container fill — same #D73B00.
         progressColor: Theme.of(context).colorScheme.tertiary,
         stepLabels: _stepLabels(l10n),
       ),
@@ -127,11 +112,6 @@ class _TrackingEtaLine extends StatelessWidget {
   }
 }
 
-/// Q-061 / D18: the LOCKED absolute arrival deadline. Distinct from the live
-/// [_TrackingEtaLine] countdown — this is the fixed wall-clock instant the
-/// order must arrive by, frozen at order creation. The time is formatted
-/// locale-aware (`jm` — e.g. `3:45 PM` / `٣:٤٥ م`) and normalized to the
-/// device wall clock via `toLocal()`.
 class _TrackingDeadlineLine extends StatelessWidget {
   const _TrackingDeadlineLine({required this.deadline});
 
@@ -171,7 +151,6 @@ class _TrackingPanelText extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

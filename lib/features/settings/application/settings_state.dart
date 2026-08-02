@@ -3,9 +3,6 @@ import 'package:equatable/equatable.dart';
 import '../domain/notification_preferences.dart';
 import '../domain/user_profile.dart';
 
-/// Banner the screen surfaces after a destructive action completes. The
-/// cubit clears it on the next user interaction so it doesn't linger across
-/// route transitions.
 enum SettingsBanner {
   none,
   profileSaved,
@@ -14,12 +11,6 @@ enum SettingsBanner {
   networkError,
 }
 
-/// Whole-screen state for the settings list + profile-edit screen
-/// (T-mobile-031).
-///
-/// `phoneE164` is intentionally derived from `profile` rather than a
-/// separate field — the read-only phone row mirrors the profile model so
-/// there is one source of truth.
 class SettingsState extends Equatable {
   const SettingsState({
     this.profile = const UserProfile.empty(),
@@ -39,11 +30,8 @@ class SettingsState extends Equatable {
   final bool isDeletingAccount;
   final bool isSigningOut;
 
-  /// Latches once a delete-account request has been submitted so the row
-  /// flips to a "pending" affordance and can't be re-tapped.
   final bool deletionPending;
 
-  /// Transient banner the UI renders for action feedback.
   final SettingsBanner banner;
 
   SettingsState copyWith({

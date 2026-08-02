@@ -5,13 +5,6 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Visual framing guide rendered above the ID capture tiles in the KYC
-/// identity step (`KycIdentityStep`).
-///
-/// The frame is proportioned to the ISO/IEC 7810 ID-1 aspect ratio
-/// (85.6 × 54 mm ≈ 1.586). It tells the user how to align their national ID
-/// inside the camera viewport *before* the system camera launches, which
-/// reduces "id unreadable" rejections coming back from the reviewer pool.
 class KycIdAlignmentGuide extends StatelessWidget {
   const KycIdAlignmentGuide({
     super.key,
@@ -22,12 +15,8 @@ class KycIdAlignmentGuide extends StatelessWidget {
   static const Key rootKey = Key('kyc-id-alignment-guide');
   static const Key frameKey = Key('kyc-id-alignment-guide-frame');
 
-  /// ISO/IEC 7810 ID-1 aspect ratio (the dimension of a national ID card).
   static const double idCardAspectRatio = 85.6 / 54.0;
 
-  /// Max width of the framing rectangle. Keeps the guide a visual hint rather
-  /// than the dominant element of the step, so the capture tiles below stay
-  /// in the first viewport.
   static const double maxFrameWidth = 240;
 
   final String title;
@@ -189,7 +178,6 @@ class _GuideCaption extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

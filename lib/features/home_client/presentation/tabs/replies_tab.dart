@@ -14,41 +14,14 @@ import '../widgets/replies_card.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'dart:async';
-
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../domain/client_home_repository.dart';
 
-/// JM-027 — Replies sub-tab (`my-orders`).
-///
-/// Renders requests where ≥1 Jeeber has replied with an offer. Each row shows
-/// the stacked offerer avatars (max 3 + overflow count), an offer badge, and a
-/// CTA row with two actions:
-///   * `replies_check_offers_cta` → `offer-review` list (`/requests/:id/offers`,
-///     JM-028). This REPLACES the old divergent `→ /chat/:id` edge the gap map
-///     flagged for `my-orders` (20_GAP_MAP customer row + 21_NAV_PLAN §"185").
-///   * `replies_accept_cta` → `offer-accept-confirm` sheet (`offer_accept_sheet`,
-///     JM-029) [D11/D71].
-///
-/// Avatar images are rendered by [OmdsProfileAvatar] with network URLs to
-/// benefit from the OS image cache.
-///
-/// WS push integration: real-time offer increments are handled by the cubit;
-/// this tab rebuilds when the cubit emits a new replies list.
-///
-/// Mock endpoint: `GET /delivery-service/v1/requests?status=offers-received`
-/// (reached via the `/v1/requests` gateway-contract path the home repository
-/// already speaks; `MockGatewayClient` rewrites the prefix to :4010).
 class RepliesTab extends StatefulWidget {
   const RepliesTab({super.key, this.onCheckOffers, this.onAccept});
 
-  /// Called when `replies_check_offers_cta` is tapped. When null the tab routes
-  /// to the registered `offer-review` route itself (JM-028); tests inject a
-  /// callback to observe the tapped request.
   final void Function(ClientHomeRequest request)? onCheckOffers;
 
-  /// Called when `replies_accept_cta` is tapped. When null the tab opens the
-  /// `offer-accept-confirm` sheet (JM-029) via [_openAcceptConfirm]; tests
-  /// inject a callback to observe the tapped request.
   final void Function(ClientHomeRequest request)? onAccept;
 
   @override
@@ -56,11 +29,6 @@ class RepliesTab extends StatefulWidget {
 }
 
 class _RepliesTabState extends State<RepliesTab> {
-  // B-01 (second call site): guards against a double-tap on the reply Accept
-  // CTA stacking two `offer-accept-confirm` sheets (each would open its own
-  // accept flow → the double-accept surface the auditor flagged widening from
-  // this home-replies entry point). True from the first tap until the sheet the
-  // tap opened has closed.
   bool _openingAcceptSheet = false;
 
   @override
@@ -79,9 +47,6 @@ class _RepliesTabState extends State<RepliesTab> {
   static bool _rebuildWhen(ClientHomeState prev, ClientHomeState next) =>
       prev.status != next.status || prev.replies != next.replies;
 
-  /// JM-027 AC1: Check Offers → offer-review-list (JM-028), NOT chat.
-  /// Routes to the registered `offer-review` route (`/requests/:id/offers`),
-  /// keyed by the request id (the seam seeds it as `req-client-001-offers`).
   static void _openOfferReview(
     BuildContext context,
     ClientHomeRequest request,
@@ -92,25 +57,11 @@ class _RepliesTabState extends State<RepliesTab> {
     ).pushNamed('offer-review', pathParameters: {'id': request.id});
   }
 
-  /// JM-027 AC2: Accept → offer-accept-confirm sheet (`offer_accept_sheet`,
-  /// JM-029) [D11/D71].
-  ///
-  /// JM-029's `OfferAcceptSheet` (a `showModalBottomSheet`, no route —
-  /// 21_NAV_PLAN §"117") has now landed, so the reply card's Accept opens it
-  /// directly. The reply card only carries the [ClientHomeRequest], so we
-  /// resolve the request's open offers via [OffersRepository] (the same
-  /// gateway-backed read the offer-review list uses) and front the
-  /// top-of-list offer on the sheet (D11/D71 comprehension gate). On any
-  /// failure / no offers / no GoRouter we degrade HONESTLY to the registered
-  /// `offer-review` route — where JM-028's `offer_card_<id>_accept_cta` opens
-  /// the same sheet — so the nav is never a dead end.
   Future<void> _openAcceptConfirm(
     BuildContext context,
     ClientHomeRequest request,
   ) async {
     if (request.id.isEmpty) return;
-    // B-01: swallow a second tap while the first is still resolving offers /
-    // showing the sheet, so two accept sheets never stack.
     if (_openingAcceptSheet) return;
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<OffersRepository>()) {
@@ -132,8 +83,6 @@ class _RepliesTabState extends State<RepliesTab> {
         requestId: request.id,
       );
     } catch (_) {
-      // Soft-fail to the honest registered destination rather than trapping
-      // the user (40_GUARDRAILS_ARCH §6.7 navigation honesty).
       if (!context.mounted) return;
       _openOfferReview(context, request);
     } finally {
@@ -251,7 +200,6 @@ class _RepliesList extends StatelessWidget {
     return l10n.repliesTabA11yLabel(r.offerCount);
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

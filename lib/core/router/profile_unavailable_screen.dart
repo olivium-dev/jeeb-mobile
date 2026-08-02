@@ -7,9 +7,9 @@ import '../../l10n/app_localizations.dart';
 import '../../devtool/catalog/fixtures/profile_unavailable_screen_fixtures.dart';
 import '../previews/jeeb_preview.dart';
 
-/// Release-safe fallback rendered when a `/profile/*` route is reached without
-/// the typed view-data it needs. Replaces the debug-only fixture so no
-/// hardcoded PII can render in a release build (see [AppRouter] profile routes).
+
+
+
 class ProfileUnavailableScreen extends StatelessWidget {
   const ProfileUnavailableScreen({super.key});
 
@@ -32,7 +32,6 @@ class ProfileUnavailableScreen extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

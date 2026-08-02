@@ -8,13 +8,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Square tile used by the ID and selfie steps to preview a captured photo
-/// or prompt the user to take one.
-///
-/// When [photo] is null we render a dashed-border placeholder with the camera
-/// icon and a "take photo" affordance; otherwise we render the captured
-/// thumbnail with a small retake overlay. Both states forward [onTap] so the
-/// host can route to the camera or trigger a retake.
 class KycCaptureTile extends StatelessWidget {
   const KycCaptureTile({
     super.key,
@@ -33,11 +26,8 @@ class KycCaptureTile extends StatelessWidget {
   final VoidCallback onTap;
   final bool isProcessing;
 
-  /// Optional key for widget tests so they can target an individual tile
-  /// (front, back, selfie) without depending on text content.
   final Key? tileKey;
 
-  /// Screen-reader label for the capture/retake button surface.
   final String? captureCtaSemantic;
 
   @override
@@ -123,9 +113,6 @@ class _PreviewBody extends StatelessWidget {
               photo.bytes,
               fit: BoxFit.cover,
               gaplessPlayback: true,
-              // Stub / test payloads aren't real JPEGs; show a neutral
-              // placeholder instead of crashing the build. In production the
-              // bytes are valid JPEG from the platform camera.
               errorBuilder: (_, _, _) => Container(
                 color: colorScheme.surfaceContainerHighest,
                 alignment: Alignment.center,
@@ -159,7 +146,6 @@ class _PreviewBody extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

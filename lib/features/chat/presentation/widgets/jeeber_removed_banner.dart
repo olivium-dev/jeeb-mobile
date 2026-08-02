@@ -10,14 +10,7 @@ import 'chat_fee_banner.dart';
 import 'chat_message_bubble.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Read-only notice displayed when the local Jeeber's offer was not accepted.
-///
-/// Shown in the `closed` phase when the conversation phase is resolved as
-/// the Jeeber being the loser. The composer is hidden by [ChatState.isComposerVisible]
-/// returning false when phase == closed. This banner provides additional
-/// clarity by naming the reason: another Jeeber was picked.
-///
-/// Rendered above the (frozen) message list as a full-width warning strip.
+/// Read-only notice: another Jeeber was picked (closed phase). Composer hidden by isComposerVisible=false.
 class JeeberRemovedBanner extends StatelessWidget {
   const JeeberRemovedBanner({super.key});
 
@@ -55,7 +48,6 @@ class JeeberRemovedBanner extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

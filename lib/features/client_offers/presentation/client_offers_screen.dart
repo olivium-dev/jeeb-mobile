@@ -25,36 +25,9 @@ import 'widgets/offer_window_timer.dart';
 import '../../../devtool/catalog/fixtures/client_offers_screen_fixtures.dart';
 import '../../../core/previews/jeeb_preview.dart';
 
-/// Signature for the optional cubit factory the screen exposes for tests.
-/// Production wiring leaves it `null` so the default ticker-driven cubit is
-/// used; tests pass a factory that injects an empty `refreshSignals` /
-/// `clockTicks` so the test binding doesn't complain about pending timers.
 typedef ClientOffersCubitFactory =
     ClientOffersCubit Function(OffersRepository repository, String requestId);
 
-/// `offer-review-list` (JM-028) — the client's view of the per-Jeeber offer
-/// cards for one request, reached at `/requests/:id/offers`.
-///
-/// Renders the offer-window countdown, the price/rating sort bar, and the
-/// sorted offer list. Each card shows the Jeeber identity, price, ETA, rating
-/// and the "Pay $X cash on delivery" line (D11). The consequential edges are:
-///   - tap a Jeeber name  → `jeeber-profile-reviews` (JM-067)
-///   - tap Accept on a card → the JM-029 `offer-accept-confirm` sheet
-///     (NOT an inline accept — the D11/D71 comprehension gate)
-///   - tap Cancel request → the JM-030 `cancel-request-confirm` sheet (free
-///     pre-accept, D69)
-///
-/// Owns the [ClientOffersCubit] lifecycle (load + poll); the host route just
-/// passes the request id. [repository] is optional — when omitted the screen
-/// resolves [OffersRepository] from GetIt (DioOffersRepository in release).
-/// Pass an explicit repository only in widget tests.
-///
-/// Semantics identifiers exposed (EXACT, 63_W1_TEST_PLAN §2.8):
-///   - `offer_review_list_root`     — screen root (signature id)
-///   - `offer_review_sort_price` / `offer_review_sort_rating` — sort controls
-///   - `offer_card_<n>` (+ per-Jeeber alias) with `_price` / `_eta` /
-///     `_cash_on_delivery_label` / `_name` / `_accept_cta` (see [OfferCard])
-///   - `offer_review_cancel_cta`    — cancel request → cancel-request-confirm
 class ClientOffersScreen extends StatelessWidget {
   const ClientOffersScreen({
     super.key,
@@ -66,17 +39,10 @@ class ClientOffersScreen extends StatelessWidget {
 
   final String requestId;
 
-  /// Optional repository override. Production builds leave this null and
-  /// resolve DioOffersRepository from DI. Widget tests inject a scripted
-  /// instance via this parameter.
   final OffersRepository? repository;
 
-  /// Optional override forwarded to the JM-030 cancel sheet so a widget test
-  /// can avoid the live cancel repository. Null in production (the sheet
-  /// resolves its own repo from DI).
   final CancelRequestRepository? cancelRepositoryOverride;
 
-  /// Test seam — see [ClientOffersCubitFactory].
   final ClientOffersCubitFactory? cubitFactory;
 
   OffersRepository _resolveRepository() {
@@ -96,15 +62,6 @@ class ClientOffersScreen extends StatelessWidget {
             ClientOffersCubit(
               repository: repo,
               requestId: requestId,
-              // b02 wave C / N8: the 5s `Stream.periodic` that used to drive
-              // this list is gone. A `type=offer` push now re-reads it, through
-              // the ONE existing resolver — no second bus.
-              //
-              // b02 wave D — `{order, offers}`. `offers` is the bid set this
-              // screen renders; `order` keeps the accept/cancel transition
-              // (`type=delivery`) landing, since accepting closes this list.
-              // `fetchOffers` fans out into TWO gateway reads, so keeping a
-              // `chat` message out of here removes two wire calls per message.
               refreshSignals: resolvePushRefreshStream(
                 topics: const {RefreshTopic.order, RefreshTopic.offers},
               ),
@@ -112,13 +69,6 @@ class ClientOffersScreen extends StatelessWidget {
         cubit.load();
         return cubit;
       },
-      // N8 RESUME BACKSTOP — the twin of N9's, same widget, same reason.
-      // `cubit.load()` above is the MOUNT one-shot; a push delivered while the
-      // app is backgrounded never reaches the refresh bus, so without this the
-      // bid list stayed stale after resume. Milder than N9 only because
-      // pull-to-refresh (`_LoadedBody`'s `OmdsPullToRefresh`) lets the customer
-      // self-rescue — which is not a fix, it is a workaround the user has to
-      // know to perform.
       child: RouteResumeRefetch(
         onResume: (context) =>
             context.read<ClientOffersCubit>().refreshOnResume(),
@@ -150,12 +100,8 @@ class _ClientOffersView extends StatelessWidget {
       appBar: OMDSAppBar(
         title: l10n.offersScreenTitle,
         showBackButton: true,
-        // P2: this screen is now a push-tap stack ROOT (`go`, not `push`), so
-        // the default `maybePop()` is a dead arrow on an empty stack. Pop when
-        // we can (in-app Replies CTA entry), else return to the shell.
         onBackPressed: () => context.canPop() ? context.pop() : context.go('/'),
       ),
-      // offer_review_list_root — signature id for the offer-review-list route.
       body: Semantics(
         identifier: 'offer_review_list_root',
         explicitChildNodes: true,
@@ -221,11 +167,7 @@ class _LoadedBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Request status is the action authority. A locally elapsed display
-    // deadline cannot disable a server-live offer.
     final acceptDisabled = !state.requestIsOpen;
-    // B-01: the id whose accept-confirm sheet is currently open/in flight (null
-    // when none). Drives the accept-exactly-ONE list guard below.
     final acceptingOfferId = state.acceptingOfferId;
     return OmdsPullToRefresh(
       onRefresh: onRefresh,
@@ -289,28 +231,14 @@ class _LoadedBody extends StatelessWidget {
               (entry) => OfferCard(
                 offer: entry.value,
                 index: entry.key,
-                // B-01: while ANY accept-confirm sheet is open (its POST may be
-                // in flight), EVERY card's Accept CTA disables so a second offer
-                // can't be accepted concurrently (double-accept). The sheet owns
-                // the in-flight spinner; the cards behind it just go inert until
-                // the sheet closes (endAccept).
                 isAccepting: false,
                 acceptDisabled: acceptDisabled || acceptingOfferId != null,
-                // Accept → JM-029 offer-accept-confirm sheet (not inline).
                 onAccept: () => _openAcceptSheet(context, entry.value),
-                // Name → jeeber-profile-reviews (JM-067).
                 onTapName: () => _openJeeberProfile(context, entry.value),
               ),
             ),
           if (state.hasOffers && state.requestIsOpen) ...[
             const SizedBox(height: Spacing.large),
-            // offer_review_cancel_cta → cancel-request-confirm sheet (JM-030).
-            // `container: true` makes this an explicit, id-addressable child of
-            // the `offer_review_list_root` node (which sets
-            // `explicitChildNodes: true`) — without it the CTA's Semantics is
-            // merged into the surrounding ListView subtree and Maestro can't
-            // resolve the identifier (W2 QA RD-3). Mirrors the offer-card CTAs
-            // (each `container: true`) and the cancel-sheet confirm CTA.
             Semantics(
               identifier: 'offer_review_cancel_cta',
               container: true,
@@ -332,21 +260,8 @@ class _LoadedBody extends StatelessWidget {
     );
   }
 
-  /// EDGE (63_W1_TEST_PLAN §3 jm-028, JM-029, D11/D71):
-  /// `offer_card_<id>_accept_cta` → offer-accept-confirm sheet. The sheet owns
-  /// the accept call + the post-accept navigation to order-chat; the list never
-  /// accepts inline.
   void _openAcceptSheet(BuildContext context, Offer offer) {
-    // B-01: mark this offer as accepting on the LIST cubit before opening the
-    // sheet (disables every sibling Accept CTA) and clear it when the sheet
-    // closes — wiring the dead `acceptingOfferId` guard into the real accept
-    // path. `whenComplete` fires on cancel / failure-dismiss; on success the
-    // sheet has navigated to order-chat and `endAccept`'s isClosed guard no-ops.
     final cubit = context.read<ClientOffersCubit>();
-    // B-01: a same-frame double-tap (or a double semantics activation) can fire
-    // onAccept twice before the `acceptingOfferId` rebuild disables the sibling
-    // CTAs. beginAccept no-ops the second time, but show() would still stack a
-    // second accept sheet — so bail here when an accept is already in flight.
     if (cubit.state.acceptStatus == AcceptStatus.inFlight) return;
     cubit.beginAccept(offer.id);
     OfferAcceptSheet.show(
@@ -357,17 +272,7 @@ class _LoadedBody extends StatelessWidget {
     ).whenComplete(cubit.endAccept);
   }
 
-  /// EDGE (63_W1_TEST_PLAN §3 jm-028, JM-067): `offer_card_<id>_name` →
-  /// jeeber-profile-reviews. We hand the registered `delivery-man-profile`
-  /// route a [DeliveryManProfileViewData] built from the offer's identity +
-  /// rating; the reviews list is loaded by the target screen (R1m). Cold-start
-  /// rating-hiding (under 5 reviews, D59) and first-name attribution (D58) are the
-  /// profile screen's concern (JM-067).
   void _openJeeberProfile(BuildContext context, Offer offer) {
-    // W6/SW-08: hand the profile a resolved display name so a synthetic handle
-    // / UUID from the un-enriched offer row never reaches the profile header
-    // (its own leak-suppression is SW-13's lane, but the offer surface must not
-    // be the one that feeds it an identifier-as-name).
     final l10n = AppLocalizations.of(context);
     context.pushNamed(
       'delivery-man-profile',
@@ -385,9 +290,6 @@ class _LoadedBody extends StatelessWidget {
     );
   }
 
-  /// EDGE (63_W1_TEST_PLAN §3 jm-028, JM-030, D69): offer_review_cancel_cta →
-  /// cancel-request-confirm sheet (free pre-accept). The sheet routes home on
-  /// confirm; it dismisses (returns false) on keep.
   void _openCancelSheet(BuildContext context) {
     CancelRequestSheet.show(
       context,
@@ -397,15 +299,8 @@ class _LoadedBody extends StatelessWidget {
   }
 }
 
-/// Which phase of the offer-review flow raised the failure — the classified
-/// branches share copy, only the unclassified/`unknown` fallback is
-/// phase-specific (F9): a load failure must never say "accepting".
 enum OffersErrorPhase { load, accept }
 
-/// Single shared source of truth for offer-review failure copy (F9). Both the
-/// full-screen load error ([OmdsErrorState]) and the inline accept banner route
-/// through here so the five [OffersFailure] strings stay consistent; only the
-/// generic fallback diverges by [phase].
 String offersFailureCopy(
   AppLocalizations l10n,
   OffersFailure? failure, {
@@ -420,9 +315,6 @@ String offersFailureCopy(
       return l10n.offersErrorOfferNotPending;
     case OffersFailure.jeeberAtCapacity:
       return l10n.offersErrorJeeberAtCapacity;
-    // rateLimited is a TRANSIENT state the cubit handles by staying in loading
-    // and auto-retrying — it must never reach a rendered error surface. Fold it
-    // into the generic fallback for switch-exhaustiveness (defensive only).
     case OffersFailure.rateLimited:
     case OffersFailure.unknown:
     case null:
@@ -514,7 +406,6 @@ class _ErrorBanner extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -12,30 +12,11 @@ import 'dm_onboarding_step_layout.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'dart:convert';
 import 'dart:typed_data';
-
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../photo_attachment/domain/photo_attachment.dart';
 import '../../../photo_attachment/domain/photo_picker_service.dart';
 import '../../domain/dm_onboarding_gateway.dart';
 
-/// Photo-upload step of delivery-man onboarding (Figma 56591:5323).
-///
-/// Heading + subtitle, then a large tappable drop-area card that opens a
-/// camera/gallery sheet and previews the chosen photo. Continue stays disabled
-/// until a photo is selected (the heading states it is required).
-///
-/// JM-039 — nav fixes:
-///   * The Continue CTA carries the canonical wizard id `dm_onboarding_continue`
-///     (one id shared by every step; only one step is mounted at a time, so it
-///     is unambiguous for QA). Tapping it calls `DmOnboardingCubit.next()`,
-///     which advances photo → address (it chains through the wizard — it is NOT
-///     a fake submit+pop). The address step exposes `dm_onboarding_address_root`
-///     (JM-037) so the flow can assert the wizard advanced.
-///   * Back from this first step routes to the `delivery-register-prompt` it was
-///     pushed from — handled by the wizard's shared back button
-///     (`dm_onboarding_back` in `dm_onboarding_screen.dart`), which `pop()`s the
-///     pushed onboarding route rather than firing a non-deterministic
-///     `maybePop()`.
 class DmOnboardingPhotoStep extends StatelessWidget {
   const DmOnboardingPhotoStep({super.key});
 
@@ -76,7 +57,6 @@ class _PhotoStepContent extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

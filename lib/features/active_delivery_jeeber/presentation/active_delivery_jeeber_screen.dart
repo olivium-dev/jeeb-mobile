@@ -19,23 +19,8 @@ import 'widgets/mark_delivered_panel.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/active_delivery_jeeber_screen_fixtures.dart';
 
-/// Minimum width needed to keep the two quick actions on one row without
-/// truncating their localized labels at the default text scale.
 const double _kInlineQuickActionsMinWidth = 448;
 
-/// Jeeber active-delivery / mark-delivered screen (T-MOB-031, JM-051).
-///
-/// Route: `/jeeber/deliveries/:id/active` (seam-pinned for the
-/// `jeeber_active_delivery` journey → `mark_delivered_root` on first frame).
-///
-/// Shows the drop-off address, the status stepper (Ordered→…→AtDoor), and — at
-/// `AtDoor` — the mark-delivered panel: a proof-of-delivery photo capture (D3),
-/// an optional note, the "customer confirms receipt + pays cash" copy (D11),
-/// and the "Complete Delivery" CTA. P6/B1: that CTA walks the ladder only as
-/// far as `AtDoor` and then raises the door-OTP entry — `AtDoor → Done` is not
-/// a client-patchable edge. Once the verified handover lands the row on `Done`
-/// the screen routes to `feedback-rate-delivery` (the mandatory mutual rating,
-/// JM-034 / D56).
 class ActiveDeliveryJeeberScreen extends StatelessWidget {
   const ActiveDeliveryJeeberScreen({
     super.key,
@@ -54,40 +39,20 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
   final String deliveryId;
   final VoidCallback onOpenChat;
 
-  /// Sprint 2 Stream G: opens the goods-cost declaration for this delivery
-  /// (the amount the Client reimburses on receipt, D11). Optional — when null
-  /// the action button is hidden, so existing callers/tests are unaffected.
   final VoidCallback? onEnterGoodsCost;
 
-  /// JM-051 AC2: fired once the delivery reaches `Done` — routes to
-  /// `feedback-rate-delivery` (mutual rating, `mode=jeeber`). When null (route
-  /// not yet rewired — see 50_ROUTE_REQUESTS.md JM-051) the done transition
-  /// still completes; the rating chain lights up once the integrator wires it.
   final VoidCallback? onMarkedDelivered;
 
-  /// DEPRECATED for JM-051: the legacy OTP-handover edge. The mark-delivered
-  /// flow no longer routes to OTP (D56). Retained only so the existing route
-  /// builder compiles until the integrator swaps it for [onMarkedDelivered].
   final VoidCallback? onOpenOtp;
 
-  /// Injectable repo — production uses DI; tests supply a fake.
   final ActiveDeliveryRepository? repository;
 
-  /// Injectable proof-photo camera picker (JEBV4-200) — production passes the
-  /// real `image_picker` binding from DI; when null the cubit falls back to its
-  /// canned-bytes stub (devtool/tests).
   final PhotoPickerService? photoPicker;
 
-  /// Pre-built cubit — optional test seam.
   final ActiveDeliveryCubit? cubit;
 
-  /// Override for url_launcher in tests.
   final Future<void> Function(String url)? mapsUrlBuilder;
 
-  /// JEBV4-269: the jeeber's live-GPS uploader, handed in by the route builder
-  /// (production). Ownership transfers to the [ActiveDeliveryCubit] built below,
-  /// which starts it while the delivery is `InTransit` and closes it on dispose.
-  /// Null in tests/devtool that seed their own [cubit] or don't exercise GPS.
   final BackgroundGpsCubit? gpsUploader;
 
   @override
@@ -114,18 +79,9 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
         repository: repo,
         deliveryId: deliveryId,
         photoPicker: photoPicker,
-        // b02 wave C / N6: the 5s LifecyclePoller is gone. A `type=delivery`
-        // push re-reads the row, through the ONE existing resolver. The
-        // `_ResumeRefresh` observer below stays as the dropped-push backstop.
-        //
-        // b02 wave D — `{order}`. This screen paints ONE delivery's lifecycle.
-        // The jeeber is chatting with the customer while on it, so before the
-        // topic filter every message the customer sent fired an extra
-        // `GET /v1/deliveries/{id}` here.
         refreshSignals: resolvePushRefreshStream(
           topics: const {RefreshTopic.order},
         ),
-        // JEBV4-269: stream the jeeber's GPS to the gateway while InTransit.
         gpsUploader: gpsUploader,
       )..loadDelivery(),
       child: _Body(
@@ -147,8 +103,6 @@ class _Unavailable extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: OMDSAppBar(title: l10n.activeDeliveryTitle),
-      // mark_delivered_root is exposed even on the unavailable shell so a cold
-      // deep-link / seam pin can still assert the screen rendered.
       body: Semantics(
         identifier: 'mark_delivered_root',
         child: Center(child: Text(l10n.activeDeliveryUnavailable)),
@@ -174,9 +128,6 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // JEBV4-282: force an immediate re-fetch when the app returns to the
-    // foreground (the cubit's periodic poll timer is suspended while
-    // backgrounded), so a stepper advanced server-side lands on resume.
     return _ResumeRefresh(
       child: BlocConsumer<ActiveDeliveryCubit, ActiveDeliveryState>(
         listener: _onStateChange,
@@ -188,10 +139,6 @@ class _Body extends StatelessWidget {
   void _onStateChange(BuildContext context, ActiveDeliveryState state) {
     final raw = state.transitionError;
     if (raw != null) {
-      // EXEMPT: OMDS exports no standalone toast/snackbar widget; ScaffoldMessenger
-      // + showOmdsSnackbar is the approved fleet pattern for transient feedback.
-      // P6/B4: prefer the kind-specific LOCALIZED copy; the cubit's English
-      // literal is only the fallback for an unclassified failure.
       final l10n = AppLocalizations.of(context);
       showOmdsSnackbar(
         context,
@@ -200,15 +147,12 @@ class _Body extends StatelessWidget {
       );
       context.read<ActiveDeliveryCubit>().acknowledgeTransitionError();
     }
-    // JM-051 AC2: done → mandatory rating (NOT OTP). One-shot signal.
     if (state.delivered) {
       context.read<ActiveDeliveryCubit>().acknowledgeDelivered();
       onMarkedDelivered?.call();
     }
   }
 
-  /// P6/B4: maps the typed failure onto its own localized string. Returns null
-  /// for kinds that never surface here (they render the cubit fallback).
   String? _localizedTransitionError(
     AppLocalizations l10n,
     ActiveDeliveryFailure? kind,
@@ -228,8 +172,6 @@ class _Body extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: OMDSAppBar(title: l10n.activeDeliveryTitle, showBackButton: true),
-      // mark_delivered_root (JM-051) — root of the active-delivery /
-      // mark-delivered screen, asserted on first frame by the seam route pin.
       body: Semantics(
         identifier: 'mark_delivered_root',
         explicitChildNodes: true,
@@ -264,14 +206,10 @@ class _Body extends StatelessWidget {
           onNoteChanged: (v) => context.read<ActiveDeliveryCubit>().setNote(v),
           onMarkDelivered: () =>
               context.read<ActiveDeliveryCubit>().markDelivered(),
-          // iter6 close-tail: submit the recipient door OTP to complete the
-          // phone-bearing delivery `AtDoor → Done` (then the rating chain fires).
           onSubmitOtp: (code) =>
               context.read<ActiveDeliveryCubit>().submitDoorOtp(code),
           onOpenChat: onOpenChat,
           onOpenMaps: () => _launchMaps(delivery),
-          // P0 (live tracking): the two recovery affordances behind the
-          // background-location banner.
           onOpenGpsSettings: () =>
               context.read<ActiveDeliveryCubit>().openGpsSettings(),
           onRetryGpsPermission: () =>
@@ -290,7 +228,6 @@ class _Body extends StatelessWidget {
     if (launch != null) {
       await launch(url);
     }
-    // Production: url_launcher.launchUrl called from the router/page.
   }
 }
 
@@ -321,10 +258,8 @@ class _ReadyContent extends StatelessWidget {
   final VoidCallback onOpenChat;
   final VoidCallback onOpenMaps;
 
-  /// [GpsPermissionBanner] CTA — opens the app's OS settings page.
   final VoidCallback onOpenGpsSettings;
 
-  /// [GpsPermissionBanner] CTA — re-runs the in-app permission escalation.
   final VoidCallback onRetryGpsPermission;
 
   final VoidCallback? onEnterGoodsCost;
@@ -335,32 +270,14 @@ class _ReadyContent extends StatelessWidget {
     if (delivery.status.isUnsuccessfulTerminal) {
       return _UnsuccessfulTerminalContent(status: delivery.status, l10n: l10n);
     }
-    // JM-051: the mark-delivered panel is surfaced during the delivering phase
-    // (InTransit or AtDoor) — the seam seeds `jeeber_active_delivery` at
-    // InTransit, and the flow asserts the panel on first frame. P6/B1:
-    // `markDelivered` walks the SM-1 forward steps only up to AtDoor (stamping
-    // the proof evidenceUrl on that last patched step) and then hands over to
-    // the door OTP, which is what completes the row to Done.
     final showMarkDelivered =
         delivery.status == JeeberDeliveryStatus.inTransit ||
         delivery.status == JeeberDeliveryStatus.atDoor;
-    // Core Flow step 7 (jeeber terminal): once the handover OTP completes the
-    // delivery to V3 `Done`, render an explicit delivered/completed final state
-    // so a re-entry / poll-update lands on a clear terminal UI (not a stale
-    // "advance" affordance). Gated on !isTransitioning so an OPTIMISTIC
-    // AtDoor→Done still awaiting server/OTP confirmation does not flash the
-    // "Delivered" panel prematurely (JEBV4-276) — the OTP path reverts to
-    // AtDoor and surfaces the OTP entry instead.
     final isCompleted =
         delivery.status == JeeberDeliveryStatus.done && !state.isTransitioning;
     return ListView(
       padding: const EdgeInsets.all(Spacing.medium),
       children: [
-        // P0 (live tracking): FIRST item, above everything, whenever the GPS
-        // uploader is parked on a missing background-location grant. While this
-        // is visible the customer's tracking map is empty and only the jeeber
-        // can fix it — the previous behaviour was to show nothing at all and
-        // let the delivery run blind. Not dismissible, by design.
         if (state.isGpsBlocked) ...[
           GpsPermissionBanner(
             needsSystemSettings: state.gpsNeedsSystemSettings,
@@ -385,8 +302,6 @@ class _ReadyContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Spacing.large),
-        // JM-051 AC1/AC2: surface the mark-delivered panel — proof photo (D3)
-        // + optional note + cash-receipt copy (D11) + the CTA.
         if (showMarkDelivered) ...[
           MarkDeliveredPanel(
             delivery: delivery,
@@ -396,8 +311,6 @@ class _ReadyContent extends StatelessWidget {
             onCaptureProof: onCaptureProof,
             onNoteChanged: onNoteChanged,
             onMarkDelivered: onMarkDelivered,
-            // iter6 close-tail: surface the door-OTP entry when the gateway
-            // demands the recipient code to complete `AtDoor → Done`.
             otpRequired: state.otpRequired,
             isVerifyingOtp: state.isVerifyingOtp,
             otpError: state.otpError,
@@ -417,11 +330,6 @@ class _ReadyContent extends StatelessWidget {
   }
 }
 
-/// Neutral terminal treatment for deliveries that did not complete
-/// successfully. Mirrors the existing live-tracking cancelled-state precedent:
-/// an [OmdsEmptyState], with no success banner, progress stepper, or delivery
-/// actions. Cancellation, expiry, and dispute remain visually and semantically
-/// distinguishable.
 class _UnsuccessfulTerminalContent extends StatelessWidget {
   const _UnsuccessfulTerminalContent({
     required this.status,
@@ -479,9 +387,6 @@ class _UnsuccessfulTerminalContent extends StatelessWidget {
   };
 }
 
-/// `delivery_completed_state` — the jeeber-side delivered/completed terminal
-/// panel (Core Flow step 7). Shown once the delivery reaches V3 `Done`. Carries
-/// a stable Semantics identifier so a UI driver can assert the terminal state.
 class _CompletedPanel extends StatelessWidget {
   const _CompletedPanel({required this.l10n});
 
@@ -695,9 +600,6 @@ class _ActionButtons extends StatelessWidget {
           onOpenChat: onOpenChat,
           l10n: l10n,
         ),
-        // Sprint 2 Stream G: goods-cost entry point (D11). Only shown when the
-        // caller wired the navigation closure — keeps existing tests/callers
-        // (which omit it) rendering exactly the prior two buttons.
         if (enterGoodsCost != null) ...[
           const SizedBox(height: Spacing.small),
           _GoodsCostAction(onTap: enterGoodsCost, l10n: l10n),
@@ -707,13 +609,6 @@ class _ActionButtons extends StatelessWidget {
   }
 }
 
-/// JEBV4-282: re-fetches the active delivery when the app returns to the
-/// foreground. Mounted between the [ActiveDeliveryCubit] provider and the body,
-/// so its [State] resolves the cubit via `context.read`. The cubit's periodic
-/// poll keeps the stepper fresh while the screen is on-screen; this covers the
-/// gap where the OS suspends Dart timers in the background (a delivery advanced
-/// server-side while backgrounded surfaces immediately on resume). Outside a
-/// lifecycle event it is a transparent pass-through.
 class _ResumeRefresh extends StatefulWidget {
   const _ResumeRefresh({required this.child});
 
@@ -725,38 +620,16 @@ class _ResumeRefresh extends StatefulWidget {
 
 class _ResumeRefreshState extends State<_ResumeRefresh>
     with ResumeRefetchMixin {
-  /// b02 P0 — this used to own a binding observer and fire on EVERY `resumed`
-  /// notification. It was one of the three surfaces in the measured 60-read
-  /// storm (`/v1/deliveries/{id}`, seq 59..116, the last one a 429), and
-  /// `ActiveDeliveryCubit.refresh`'s in-flight latch did not collapse a single
-  /// one of them: the reads were ~20 ms apart in duration but ~105 ms apart in
-  /// time, so they never overlapped. The rate floor lives in
-  /// [AppResumeSignals]; the latch stays as the concurrency guard it always was.
-  ///
-  /// Called directly, NOT via `addPostFrameCallback`. The old hook deferred to
-  /// the next frame for teardown safety, which [ResumeRefetchMixin]'s
-  /// `mounted` guard already provides — and the deferral was load-bearing in
-  /// the wrong direction: a post-frame callback registered while the scheduler
-  /// is idle does not itself schedule a frame, so the refetch waits for
-  /// whatever schedules the next one. On a quiescent screen (this one, once the
-  /// poll was deleted) that is nothing at all.
   @override
   void onAppResumed() {
     final cubit = context.read<ActiveDeliveryCubit>();
     cubit.refresh();
-    // P0 (live tracking): re-read the location permission on resume. The ONLY
-    // way to reach "Allow all the time" on Android 11+ is the OS settings page,
-    // which necessarily backgrounds the app — so without this the jeeber grants
-    // the permission, returns, and the banner is still there and the uploader
-    // is still parked, because nothing re-asked. Guarded on the parked phase so
-    // an ordinary resume never re-prompts a healthy delivery.
     if (cubit.state.isGpsBlocked) cubit.retryGpsPermission();
   }
 
   @override
   Widget build(BuildContext context) => widget.child;
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -4,9 +4,6 @@ import 'package:omds/omds.dart';
 import '../../model/obs_event.dart';
 import '../obs_overlay_event_formatter.dart';
 
-/// One row of the live event list. Tapping it expands/collapses an inline
-/// pretty-printed view of the (redacted) raw payload — handy for actually
-/// debugging a signal without leaving the running app.
 class ObsOverlayEventTile extends StatefulWidget {
   const ObsOverlayEventTile({super.key, required this.event});
 

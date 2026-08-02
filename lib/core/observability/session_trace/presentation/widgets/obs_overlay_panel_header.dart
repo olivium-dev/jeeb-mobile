@@ -6,8 +6,6 @@ import '../obs_overlay_controller.dart';
 import 'package:omds/omds.dart';
 import '../../../../previews/jeeb_preview.dart';
 
-/// Title row for the expanded panel: name on the left, a close button (back
-/// to the collapsed bubble) on the right.
 class ObsOverlayPanelHeader extends StatelessWidget {
   const ObsOverlayPanelHeader({super.key, required this.controller});
 
@@ -37,7 +35,6 @@ class ObsOverlayPanelHeader extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

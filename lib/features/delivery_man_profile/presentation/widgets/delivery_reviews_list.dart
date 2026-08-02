@@ -8,13 +8,13 @@ import 'delivery_review_card.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// The list of review cards (or an [OmdsEmptyState] when there are none).
-/// Lazily built ([ListView.separated]) because a Jeeber can have hundreds of
-/// reviews (design §5). Non-scrollable + shrink-wrapped: it lives inside the
-/// page's single scroll view so the whole column scrolls as one.
-///
-/// JM-067/D57: read-only — no Helpful/Reply callbacks (jeeber reviews are
-/// immutable). D58: cards render the reviewer's first name only.
+
+
+
+
+
+
+
 class DeliveryReviewsList extends StatelessWidget {
   const DeliveryReviewsList({super.key, required this.reviews});
 
@@ -58,7 +58,6 @@ class _EmptyReviews extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

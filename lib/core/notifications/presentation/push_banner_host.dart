@@ -10,16 +10,6 @@ import '../application/badge_count_cubit.dart';
 import '../data/push_transport.dart';
 import '../../previews/jeeb_preview.dart';
 
-/// Stacks an in-app banner above [child] whenever the handler emits a
-/// foreground message.
-///
-/// Implemented as an overlay rather than via `ScaffoldMessenger` so the
-/// banner is visible regardless of which screen the user is on (the
-/// shell + onboarding screens don't all share the same Scaffold key).
-///
-/// The banner auto-dismisses after [autoDismiss] elapses unless the
-/// user taps it; tapping invokes [onBannerTap] with the underlying
-/// message so the host can deep-link via the dispatcher.
 class PushBannerHost extends StatefulWidget {
   const PushBannerHost({
     super.key,
@@ -47,9 +37,6 @@ class _PushBannerHostState extends State<PushBannerHost> {
     if (widget.autoDismiss == Duration.zero) return;
     _dismissTimer = Timer(widget.autoDismiss, () {
       if (!mounted) return;
-      // Only dismiss if the same banner is still on screen — a newer
-      // notification arriving mid-timer should reset the clock, not get
-      // wiped by the previous one's expiry.
       if (widget.handler.state.banner?.id == message.id) {
         widget.handler.dismissBanner();
       }
@@ -64,11 +51,6 @@ class _PushBannerHostState extends State<PushBannerHost> {
 
   @override
   Widget build(BuildContext context) {
-    // StreamBuilder rather than BlocConsumer here: the host is constructed
-    // in app.dart with the handler as a plain field (not a BlocProvider),
-    // and StreamBuilder's behaviour around initialData + subscription
-    // setup is the cleanest way to keep the host self-contained — it
-    // doesn't matter whether a BlocProvider lives above us.
     return StreamBuilder<PushNotificationState>(
       stream: widget.handler.stream,
       initialData: widget.handler.state,
@@ -77,8 +59,6 @@ class _PushBannerHostState extends State<PushBannerHost> {
         final banner = state.banner;
         if (banner != null && banner.id != _lastBannerId) {
           _lastBannerId = banner.id;
-          // Schedule outside the build phase so the timer doesn't get
-          // attributed to this frame.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _scheduleDismiss(banner);
           });
@@ -192,20 +172,14 @@ class _BannerCard extends StatelessWidget {
       case NotificationCategory.newOffer:
       case NotificationCategory.offerAccepted:
       case NotificationCategory.offerLost:
-        // sprint-009 offer-lifecycle: accept/lost banners carry the offer icon;
-        // the tap routes to the pending-offers surface (see NotificationDeepLink).
-        // P2: a customer's inbound new bid (`newOffer`) shares the offer icon.
         return Icons.local_offer_outlined;
       case NotificationCategory.requestExpired:
-        // P2/F3: no-coverage / expiry nudge — the tap lands on the waiting
-        // screen (see NotificationDeepLink).
         return Icons.timer_off_outlined;
       case NotificationCategory.other:
         return Icons.notifications_outlined;
     }
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

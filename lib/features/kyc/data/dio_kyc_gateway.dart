@@ -6,20 +6,6 @@ import '../domain/kyc_form_schema.dart';
 import '../domain/kyc_gateway.dart';
 import '../domain/kyc_submission.dart';
 
-/// Dio-backed [KycGateway].
-///
-/// Endpoints (useMockPrefixes=false, Mockoon :3055):
-///   GET  /v1/kyc/jeeb/form-schema?variant=  → [KycFormSchema]
-///   GET  /v1/kyc/contract-template?type=tos → [KycContractTemplate]
-///   POST /v1/kyc/contract-template/sign     → [KycSignStamp]
-///   POST /v1/kyc/submit                     → [KycSubmission]  (201 first / 200 replay)
-///   GET  /v1/kyc/status                     → [KycSubmission]
-///
-/// `submit` uploads the captured photos to the CDN signed-PUT broker
-/// (`POST /api/cdn/assets`, `docs/adr/0004-s03-kyc-service-and-gateway-bff.md`)
-/// via [_cdn] BEFORE posting the submit body, because the live gateway
-/// contract (`KycSubmissionBffController.SubmitJson`) requires `*_url` refs,
-/// not raw bytes or the booleans this gateway sent previously (JEBV4-113).
 class DioKycGateway implements KycGateway {
   const DioKycGateway(this._dio, this._cdn);
 
@@ -77,10 +63,6 @@ class DioKycGateway implements KycGateway {
       );
       return _parseSubmission(response.data ?? {});
     } on DioException catch (e) {
-      // The BFF answers invalid submissions with a field-scoped RFC-7807
-      // ProblemDetails ({"field": "id_number", "detail": ...}). Translate it
-      // into the domain exception so the wizard can surface the failure on
-      // the offending field instead of a generic snackbar (JEBV4-113).
       final field = _fieldFrom(e);
       if (field != null) {
         throw KycSubmitFieldException(
@@ -92,8 +74,6 @@ class DioKycGateway implements KycGateway {
     }
   }
 
-  /// Extracts the RFC-7807 `field` extension from a 400 response, or null
-  /// when the failure is not field-scoped.
   static String? _fieldFrom(DioException e) {
     if (e.response?.statusCode != 400) return null;
     final data = e.response?.data;
@@ -125,14 +105,11 @@ class DioKycGateway implements KycGateway {
   KycSubmission _parseSubmission(Map<String, dynamic> json) {
     final stateRaw = json['state'] as String?;
     final status = _parseStatus(stateRaw);
-    // A reason is mandatory on both `Rejected` (final) and `ResubmitRequested`
-    // (fix-and-resend) — kyc-service enforces it on reject/request_resubmit.
     final reasonRaw = json['rejection_reason'] as String?;
     final reason = (status == KycStatus.rejected ||
             status == KycStatus.resubmitRequested)
         ? _parseReason(reasonRaw)
         : null;
-    // Per-document-slot resubmit list, only present on `ResubmitRequested`.
     final resubmitSteps = status == KycStatus.resubmitRequested
         ? _parseResubmitSteps(json['resubmit_steps'])
         : const <KycResubmitStep>[];
@@ -148,10 +125,6 @@ class DioKycGateway implements KycGateway {
     );
   }
 
-  /// Reads `resubmit_steps` — an array of snake_case slot names — into the
-  /// domain step list, de-duplicated and order-preserving. Non-list / non-string
-  /// entries are ignored so a malformed payload degrades to an empty list (the
-  /// resubmit CTA still shows; only the "what to fix" hints are omitted).
   static List<KycResubmitStep> _parseResubmitSteps(Object? raw) {
     if (raw is! List) return const [];
     final steps = <KycResubmitStep>[];
@@ -169,19 +142,11 @@ class DioKycGateway implements KycGateway {
       case 'Submitted':
         return KycStatus.pending;
       case 'Approved':
-      // The live kyc-service emits `Verified` (not `Approved`) on both the
-      // (auto-)approve submit RESPONSE and GET /v1/kyc/status — there is no
-      // Verified→Approved normalization in the gateway (JeebGateway
-      // KycServiceClient). Without this case `Verified` fell to `default`
-      // (notSubmitted): the approved status view never rendered (so the jeeber
-      // role never activated) AND "Start now" looped back to the KYC form
       // (loadStatus read the terminal state as notSubmitted). JEBV4-271.
       case 'Verified':
         return KycStatus.approved;
       case 'Rejected':
         return KycStatus.rejected;
-      // E19 / Q-040 tri-state: kyc-service `request_resubmit` bounces the
-      // submission back for a fix-and-resend (distinct from final `Rejected`).
       case 'ResubmitRequested':
         return KycStatus.resubmitRequested;
       default:
@@ -199,18 +164,10 @@ class DioKycGateway implements KycGateway {
       case 'expired':
         return KycRejectionReason.expired;
       default:
-        // Covers legacy `vehicle_document_missing` (D20-removed) + anything
-        // the back-office adds that the app does not model yet.
         return KycRejectionReason.other;
     }
   }
 
-  /// Uploads the captured photos to the CDN broker and returns the resulting
-  /// object refs to embed in the submit body. `idFront`/`idBack`/`selfie` are
-  /// uploaded unconditionally — the live gateway (`SubmitJson`) requires all
-  /// three. `vehicleRegistration` is uploaded only when [draft] already has
-  /// one (send-if-present); whether a vehicle ref is ever required is an open
-  /// owner decision (JEBV4-113 §4) this gateway does not presume.
   Future<_UploadedAssetRefs> _uploadAssets(KycSubmission draft) async {
     final idFrontBytes = draft.idFront?.bytes;
     final idBackBytes = draft.idBack?.bytes;
@@ -250,18 +207,6 @@ class DioKycGateway implements KycGateway {
     );
   }
 
-  // Live gateway contract (`KycSubmissionBffController.SubmitJson`): requires
-  // `id_document_front_url` / `id_document_back_url` /
-  // `selfie_with_liveness_url`. `id_type` is REQUIRED on the live contract
-  // (E3/JEBV4-197) and always sent — one of the ratified {national_id,
-  // passport, residency} wire values; `id_number` is sent when captured —
-  // for `national_id` the BFF enforces `^\d{12}$`.
-  // `vehicle_registration_url` is sent only if a vehicle-registration asset
-  // exists in [draft] (send-if-present); E3 relaxes the BFF's vehicle
-  // requirement, but that BFF change is a separate gateway lane — until it
-  // lands the live BFF still 400s a vehicle-less submit (JEBV4-113).
-  // `tos_accepted_version` is threaded through from `signContract()` when
-  // present on [draft]; the BFF accepts and cross-validates it optionally.
   Map<String, dynamic> _toSubmitBody(
     KycSubmission draft,
     _UploadedAssetRefs refs,
@@ -282,7 +227,6 @@ class DioKycGateway implements KycGateway {
   }
 }
 
-/// Object refs resolved from the CDN broker for a single submit call.
 class _UploadedAssetRefs {
   const _UploadedAssetRefs({
     this.idFrontUrl,

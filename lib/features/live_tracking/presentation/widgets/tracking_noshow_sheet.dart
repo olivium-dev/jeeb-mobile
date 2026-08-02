@@ -6,15 +6,6 @@ import '../live_tracking_l10n.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// JM-032 AC4 (D88): the no-show action sheet — shown when the customer reports
-/// the Jeeber never arrived. Offers two recovery paths:
-///   * `tracking_noshow_reassign_cta`    → offer-review-list (pick another offer)
-///   * `tracking_noshow_rebroadcast_cta` → waiting-no-coverage (send out again)
-///
-/// EXEMPT: OmdsBottomSheet lacks a `show` static factory with a scroll-safe body
-/// (mirrors `cancellation_success_sheet.dart`); uses Flutter's
-/// `showModalBottomSheet` with an OMDS-token-only child. The sheet pops itself
-/// before invoking the navigation callback so the chosen route replaces it.
 class TrackingNoShowSheet extends StatelessWidget {
   const TrackingNoShowSheet({
     super.key,
@@ -115,7 +106,6 @@ class TrackingNoShowSheet extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

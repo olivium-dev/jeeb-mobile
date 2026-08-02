@@ -3,10 +3,6 @@ import 'package:flutter/material.dart';
 import 'catalog_network_guard.dart';
 import 'screen_catalog.dart';
 
-/// DT-04 / F2 — Screen Catalog menu. Lists every cataloged screen; tapping one
-/// drills into its mocked UI states, and tapping a state previews the real
-/// screen (locally mocked, no network) so designers can review without
-/// navigating the live app.
 class CatalogMenuScreen extends StatelessWidget {
   const CatalogMenuScreen({super.key});
 
@@ -58,7 +54,6 @@ class CatalogMenuScreen extends StatelessWidget {
   }
 }
 
-/// The list of mocked states for one cataloged screen.
 class CatalogStatesScreen extends StatelessWidget {
   const CatalogStatesScreen({required this.entry, super.key});
 
@@ -92,8 +87,6 @@ class CatalogStatesScreen extends StatelessWidget {
   }
 }
 
-/// Hosts a previewed screen with a thin overlay bar so the reviewer can always
-/// get back (the previewed screen owns its own Scaffold/AppBar).
 class _CatalogPreview extends StatelessWidget {
   const _CatalogPreview({required this.title, required this.childBuilder});
 

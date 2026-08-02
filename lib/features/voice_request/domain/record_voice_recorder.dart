@@ -7,14 +7,14 @@ import 'package:record/record.dart';
 import 'voice_clip.dart';
 import 'voice_recorder.dart';
 
-/// Resolves the directory the recorder writes the temp clip into. Injected so
-/// unit tests can hand back a [Directory.systemTemp] subfolder instead of the
-/// platform's documents dir.
+
+
+
 typedef TempDirResolver = Future<Directory> Function();
 
-/// Reads a recorded file back into memory so the upload repository (which works
-/// on [VoiceClip.bytes]) can post a multipart body. Injected so tests can stub
-/// the read without touching the real filesystem.
+
+
+
 typedef ClipBytesReader = Future<Uint8List> Function(String path);
 
 Future<Directory> _defaultTempDirResolver() =>
@@ -23,20 +23,20 @@ Future<Directory> _defaultTempDirResolver() =>
 Future<Uint8List> _defaultClipBytesReader(String path) =>
     File(path).readAsBytes();
 
-/// Real microphone-backed [VoiceRecorder] built on the `record` package
-/// (T-MOB-011). It is the production drop-in behind the same port the
-/// [FakeVoiceRecorder] implements, so the cubit and screen never learn about
-/// the platform plugin.
-///
-/// Lifecycle:
-///   start()  -> hasPermission() (prompts on Android first run) -> record to
-///               a temp m4a file (AAC-LC).
-///   stop()   -> stop the recorder, read the file back into a [VoiceClip] whose
-///               [VoiceClip.sourcePath] points at the file for cheap playback.
-///   cancel() -> abort + delete the temp file.
-///
-/// Permission denial, an empty/missing buffer, and any plugin error are mapped
-/// onto the [VoiceRecorderFailure] cases the cubit already renders.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class RecordVoiceRecorder implements VoiceRecorder {
   RecordVoiceRecorder({
     AudioRecorder? recorder,
@@ -58,8 +58,8 @@ class RecordVoiceRecorder implements VoiceRecorder {
   final ClipBytesReader _bytesReader;
   final RecordConfig _config;
 
-  /// Path of the in-flight recording. Held so [stop] can read it back and
-  /// [cancel] can delete it.
+  
+  
   String? _activePath;
 
   @override
@@ -107,7 +107,7 @@ class RecordVoiceRecorder implements VoiceRecorder {
     try {
       await _recorder.cancel();
     } catch (_) {
-      // Best-effort — we're tearing down regardless.
+      
     }
     if (path != null) {
       await _deleteQuietly(path);
@@ -152,15 +152,15 @@ class RecordVoiceRecorder implements VoiceRecorder {
         await file.delete();
       }
     } catch (_) {
-      // Temp file cleanup is best-effort.
+      
     }
   }
 
   VoiceRecorderException _wrap(Object error, StackTrace stackTrace) {
     if (error is VoiceRecorderException) return error;
-    // record throws RecordingException for hardware/codec issues. We can't
-    // import its concrete type without coupling tests to the plugin, so we
-    // pattern-match on the message and otherwise fall back to unknown.
+    
+    
+    
     final String message = error.toString().toLowerCase();
     if (message.contains('permission')) {
       return const VoiceRecorderException(

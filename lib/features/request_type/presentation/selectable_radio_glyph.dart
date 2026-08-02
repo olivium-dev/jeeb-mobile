@@ -6,22 +6,16 @@ import '../../../core/previews/jeeb_preview.dart';
 import '../../../l10n/app_localizations.dart';
 import 'request_tier_card.dart';
 
-/// A decorative single-choice radio glyph used by the delivery-create cards
-/// (Request type tier cards + Client Location option cards). There is no OMDS
-/// radio primitive in the catalog, so this draws the ring + filled dot purely
-/// from `colorScheme` roles. Pointer events are owned by the host card's
-/// `InkWell`, so this is a pure visual (no gesture handling here).
-///
-/// On a navy selected card the ring is white (`onPrimary`); on a white
-/// unselected card it is the brand navy (`primary`). The recon-flagged peach
-/// (#FFB5A0) is a dark-scheme misuse and is deliberately not reproduced.
+/// Decorative single-choice radio glyph used by delivery-create cards.
+/// No OMDS radio primitive in catalog; draws ring + filled dot from colorScheme roles.
+/// Pointer events owned by host card's InkWell (pure visual, no gesture handling).
+/// On navy selected card, ring is white (onPrimary); on white unselected card, brand navy (primary).
 class SelectableRadioGlyph extends StatelessWidget {
   const SelectableRadioGlyph({super.key, required this.selected, this.ring});
 
   final bool selected;
 
-  /// Optional explicit ring colour. Defaults to `onPrimary` when [selected],
-  /// else `primary`.
+  /// Optional explicit ring colour. Defaults to onPrimary when selected, else primary.
   final Color? ring;
 
   @override
@@ -71,7 +65,6 @@ class _Dot extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

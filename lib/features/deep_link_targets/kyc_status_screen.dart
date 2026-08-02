@@ -5,9 +5,6 @@ import 'package:omds/omds.dart';
 import '../../devtool/catalog/fixtures/kyc_status_screen_fixtures.dart';
 import '../../core/previews/jeeb_preview.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-// ORPHAN (JEBV4-227, verified 2026-07-12): superseded by KycWizardScreen — see docs/project-understanding/reconciliation/orphans.md
 class KycStatusScreen extends StatefulWidget {
   const KycStatusScreen({super.key});
 
@@ -38,7 +35,6 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

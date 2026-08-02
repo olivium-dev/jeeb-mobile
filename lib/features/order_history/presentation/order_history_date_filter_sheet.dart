@@ -6,10 +6,6 @@ import '../../../core/layout/bottom_inset.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
 
-/// Bottom sheet that lets the user pick inclusive calendar days. Returns
-/// `null` if dismissed, otherwise a half-open [OrderDateRange] whose exclusive
-/// upper bound is midnight after the picked end day. An "all dates" state is
-/// represented by an empty range (both ends null).
 Future<OrderDateRange?> showOrderHistoryDateFilterSheet({
   required BuildContext context,
   required OrderDateRange initial,
@@ -57,8 +53,6 @@ class _OrderHistoryDateFilterSheetState
         start: Spacing.medium,
         end: Spacing.medium,
         top: Spacing.xSmall,
-        // Keyboard + system nav-bar inset (was keyboard-only) so the
-        // Apply/Clear buttons clear the soft-button nav bar under edge-to-edge.
         bottom: context.sheetBottomInset + Spacing.xLarge,
       ),
       child: SingleChildScrollView(
@@ -164,8 +158,6 @@ class _DateField extends StatelessWidget {
     required this.onClear,
   });
 
-  /// Semantics id prefix for this row's date-picker button (`${fieldId}_cta`)
-  /// and its clear affordance (`${fieldId}_clear_cta`).
   final String fieldId;
   final String label;
   final DateTime? value;

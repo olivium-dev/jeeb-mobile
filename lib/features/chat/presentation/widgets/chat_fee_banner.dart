@@ -10,31 +10,14 @@ import '../chat_screen.dart' show kChatHeaderMaxViewportFraction;
 import 'chat_message_bubble.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Trailing affordance rendered at the end of a [ChatFeeBanner].
 enum ChatFeeBannerTrailing {
-  /// No trailing control (the plain notice strip, Figma node 56539:906).
   none,
 
-  /// A close (×) icon that dismisses the banner (nodes 56618:2751 / 56618:2852).
   dismiss,
 
-  /// An inline "Order picked" action pill (node 56560:1605).
   orderPicked,
 }
 
-/// Jeeber-only balance-deduction notice strip shown above the chat thread.
-///
-/// A full-bleed navy band (`colorScheme.secondaryContainer`) with white body
-/// copy (`onPrimary`) and an optional trailing control — an M3-guaranteed
-/// ≥4.5:1 pair. (The prior `onSecondaryContainer` periwinkle `#777FC0` fill
-/// under the same white copy failed the contrast bar — JEBV4-92.) The fee
-/// amount is supplied pre-formatted by the gateway fee config; the banner
-/// never computes currency itself.
-///
-/// OMDS has no flat notice-strip primitive (`OMDSProgressBanner` is a
-/// progress-ring card, not this band), so the band is composed from OMDS
-/// tokens per the design spec's sanctioned fallback — it is NOT an edit to
-/// the shared OMDS library.
 class ChatFeeBanner extends StatelessWidget {
   const ChatFeeBanner({
     super.key,
@@ -44,16 +27,12 @@ class ChatFeeBanner extends StatelessWidget {
     this.onOrderPicked,
   });
 
-  /// Pre-formatted fee amount (e.g. `"$0.5"`) from the gateway.
   final String amount;
 
-  /// Which trailing control to render.
   final ChatFeeBannerTrailing trailing;
 
-  /// Dismiss handler for [ChatFeeBannerTrailing.dismiss].
   final VoidCallback? onDismiss;
 
-  /// Action handler for [ChatFeeBannerTrailing.orderPicked].
   final VoidCallback? onOrderPicked;
 
   static const Key bannerKey = Key('chat-fee-banner');
@@ -61,13 +40,6 @@ class ChatFeeBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // NB: NOT a merging container. A `Semantics(container: true, label: …)`
-    // here would absorb the descendant "Order picked" pill / dismiss button,
-    // hiding their ids from the accessibility tree (the Maestro selector gap
-    // the prior round flagged). The host id stays addressable for the flow,
-    // while the notice text carries the a11y label and each trailing control
-    // keeps its own independently-targetable button node (mirrors the QA-B1
-    // confirm-sheet fix).
     return Semantics(
       identifier: 'chat_dm_fee_banner',
       explicitChildNodes: true,
@@ -94,8 +66,6 @@ class ChatFeeBanner extends StatelessWidget {
   }
 }
 
-/// Trailing slot of the fee banner — nothing, a dismiss (×), or the
-/// "Order picked" action pill, depending on [trailing].
 class _TrailingControl extends StatelessWidget {
   const _TrailingControl({
     required this.trailing,
@@ -120,7 +90,6 @@ class _TrailingControl extends StatelessWidget {
   }
 }
 
-/// White, body-medium notice copy that wraps and scales without clipping.
 class _BannerText extends StatelessWidget {
   const _BannerText({required this.amount});
 
@@ -130,8 +99,6 @@ class _BannerText extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    // The notice copy carries the banner's a11y label (the wrapper no longer
-    // merges, so the descriptive text lives on this non-merging leaf node).
     return Semantics(
       label: l10n.chatBalanceDeductionA11y(amount),
       child: Text(
@@ -146,7 +113,6 @@ class _BannerText extends StatelessWidget {
   }
 }
 
-/// Trailing close (×) icon button with a ≥48dp hit target.
 class _BannerDismiss extends StatelessWidget {
   const _BannerDismiss({required this.onDismiss});
 
@@ -177,7 +143,6 @@ class _BannerDismiss extends StatelessWidget {
   }
 }
 
-/// Inline navy "Order picked" action pill (Figma node 56560:1605).
 class _BannerOrderPicked extends StatelessWidget {
   const _BannerOrderPicked({required this.onOrderPicked});
 
@@ -187,10 +152,6 @@ class _BannerOrderPicked extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    // Independently-targetable button node: `button: true` + explicit `label`
-    // + `container: true` give the pill its OWN semantics node carrying the
-    // stable id and a tap action, so Maestro/TalkBack can find and drive it
-    // (the banner wrapper no longer merges it away — QA-B1-class fix).
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: Spacing.small),
       child: Semantics(
@@ -210,7 +171,6 @@ class _BannerOrderPicked extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

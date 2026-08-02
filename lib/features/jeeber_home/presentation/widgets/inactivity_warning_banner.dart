@@ -12,10 +12,6 @@ import '../../domain/entities/availability_status.dart';
 import 'jeeber_active_deliveries_banner.dart';
 import 'jeeber_no_requests_view.dart';
 
-/// Banner shown 30 minutes before the 8h auto-offline kicks in.
-///
-/// Tapping the CTA fires [onExtend] which resets the idle timer in the
-/// cubit; dismissing it does NOT extend (the warning re-appears next tick).
 class InactivityWarningBanner extends StatelessWidget {
   const InactivityWarningBanner({super.key, required this.onExtend});
 
@@ -26,8 +22,6 @@ class InactivityWarningBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Pre-auto-offline countdown is a warning state -> semantic warning role
-    // (was the brand tertiary orange doing state duty).
     final roles = context.jeebRoles;
     return Container(
       key: rootKey,
@@ -128,7 +122,6 @@ class _BannerCta extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

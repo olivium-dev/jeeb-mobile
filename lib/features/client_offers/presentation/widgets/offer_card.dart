@@ -10,25 +10,6 @@ import '../../domain/offer.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// One offer card in the client offer-review list (JM-028).
-///
-/// Renders the Jeeber's identity, the price + ETA + vehicle facts, the rating,
-/// the "Pay $X cash on delivery" line (D11), and the Accept CTA. The card is
-/// intentionally dumb — it takes the offer payload + two flags from the cubit
-/// and emits two callbacks ([onAccept], [onTapName]); no cubit / `sl` /
-/// navigation here so it stays golden-testable with fixture data
-/// (40_GUARDRAILS_ARCH §1).
-///
-/// Semantics identifiers exposed (EXACT, 63_W1_TEST_PLAN §2.8). [index] keys the
-/// position-based ids the Maestro flow asserts (`offer_card_0…`) while the
-/// per-Jeeber pattern (`offer_card_<jeeberId>…`) is also exposed on every card
-/// so the full `offer_card_<id>` AC pattern resolves:
-///   - `offer_card_<index>`                        / `offer_card_<jeeberId>`
-///   - `offer_card_<index>_price`                  / `…_<jeeberId>_price`
-///   - `offer_card_<index>_eta`                    / `…_<jeeberId>_eta`
-///   - `offer_card_<index>_cash_on_delivery_label` / `…_<jeeberId>_cash_on_delivery_label`
-///   - `offer_card_<index>_name`                   / `…_<jeeberId>_name`  (→ jeeber-profile-reviews)
-///   - `offer_card_<index>_accept_cta`             / `…_<jeeberId>_accept_cta` (→ offer-accept-confirm)
 class OfferCard extends StatelessWidget {
   const OfferCard({
     super.key,
@@ -42,24 +23,14 @@ class OfferCard extends StatelessWidget {
 
   final Offer offer;
 
-  /// Zero-based position in the sorted list. Drives the `offer_card_<index>…`
-  /// identifiers the Maestro flow keys on (it asserts the index-0 card).
   final int index;
 
-  /// Fired when the Accept CTA is tapped — the host opens the JM-029
-  /// `offer-accept-confirm` sheet (NOT an inline accept, D11/D71).
   final VoidCallback onAccept;
 
-  /// Fired when the Jeeber name is tapped — the host routes to
-  /// `jeeber-profile-reviews` (JM-067).
   final VoidCallback onTapName;
 
-  /// True while the cubit's accept call is in-flight on this offer.
   final bool isAccepting;
 
-  /// True when another offer is mid-accept, or the window has expired, or the
-  /// request is closed — the CTA stays visible but inert so the layout
-  /// doesn't jump.
   final bool acceptDisabled;
 
   @override
@@ -67,32 +38,17 @@ class OfferCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    // Lane item 3 (currency unification): one formatter across receipt,
-    // offers, tiers — "$12.00" for USD, "LBP 15,000.00" otherwise. No more
-    // mixed "17.50 / USD" pill vs "$12.00" receipt.
     final feeFormatted = MoneyFormat.format(
       offer.fee,
       currency: offer.currency,
     );
     final vehicleLabel = _vehicleLabel(l10n, offer.vehicle);
 
-    // Optional Jeeber note (offer.note). Trim so a whitespace-only note from the
-    // gateway renders nothing.
     final note = offer.note?.trim();
     final hasNote = note != null && note.isNotEmpty;
 
-    // W6 "People, not UUIDs" (sprint-009 SW-08): the offer-list row is NOT
-    // enriched with a display name by the gateway (O-list-enrich gap in
-    // DioOffersRepository), so `jeeberName` is frequently the raw jeeberId UUID
-    // or a synthetic `jeeb-<hash>` handle. Suppress those via [displayNameOrNull]
-    // and fall back to an honest generic ("New Jeeber") — the card must never
-    // headline an identifier as a person's name at the accept-ONE decision
-    // moment. Real names populate once accounts set them (profile-name
-    // onboarding); until then every unnamed Jeeber reads as "New Jeeber".
     final displayName =
         displayNameOrNull(offer.jeeberName) ?? l10n.offersCardJeeberFallback;
-    // Ratings are shown honestly: real stars + count only when the Jeeber has
-    // been rated; otherwise "No ratings yet" — never a fabricated "4.5 (0)".
     final hasRatings = offer.ratingCount > 0;
 
     final baseSemanticLabel = hasRatings
@@ -111,16 +67,10 @@ class OfferCard extends StatelessWidget {
             currency: offer.currency,
             minutes: offer.etaMinutes,
           );
-    // Append the note to the screen-reader label so it is announced with the
-    // rest of the card facts (the visible node is also independently addressable
-    // by `offer_card_<index>_note`).
     final semanticLabel = hasNote
         ? '$baseSemanticLabel. $note'
         : baseSemanticLabel;
 
-    // The card is addressable both by index (the asserted Maestro id) and by
-    // Jeeber id (the full `offer_card_<id>` AC pattern). The merged root node
-    // carries the index id; the per-id alias is layered on the inner content.
     return _DualId(
       indexId: 'offer_card_$index',
       patternId: 'offer_card_${offer.jeeberId}',
@@ -157,7 +107,6 @@ class OfferCard extends StatelessWidget {
                 spacing: Spacing.xSmall,
                 runSpacing: Spacing.xSmall,
                 children: [
-                  // ETA chip.
                   _IdWrap(
                     indexId: 'offer_card_${index}_eta',
                     patternId: 'offer_card_${offer.jeeberId}_eta',
@@ -172,8 +121,6 @@ class OfferCard extends StatelessWidget {
                   ),
                 ],
               ),
-              // Optional Jeeber note — rendered below the ETA/vehicle chips
-              // when present, hidden entirely otherwise.
               if (hasNote) ...[
                 const SizedBox(height: Spacing.small),
                 _IdWrap(
@@ -183,8 +130,6 @@ class OfferCard extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: Spacing.small),
-              // "Pay $X cash on delivery" (D11) — the load-bearing comprehension
-              // line: payment is cash to the Jeeber on delivery, not in-app.
               _IdWrap(
                 indexId: 'offer_card_${index}_cash_on_delivery_label',
                 patternId:
@@ -212,7 +157,6 @@ class OfferCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: Spacing.medium),
-              // Accept CTA → opens the JM-029 offer-accept-confirm sheet.
               _AcceptCta(
                 indexId: 'offer_card_${index}_accept_cta',
                 patternId: 'offer_card_${offer.jeeberId}_accept_cta',
@@ -272,12 +216,6 @@ class OfferCard extends StatelessWidget {
   }
 }
 
-/// Responsive identity/rating/price header.
-///
-/// The avatar and name have their own row so the identity never competes with
-/// localized money or rating text. The rating and fee then wrap independently:
-/// they stay together at normal scale and split across runs when either needs
-/// more room at large text sizes.
 class _OfferCardHeader extends StatelessWidget {
   const _OfferCardHeader({
     required this.displayName,
@@ -392,12 +330,8 @@ class _RatingSummary extends StatelessWidget {
   }
 }
 
-/// Max visible lines for the optional Jeeber note before it ellipsizes.
 const int _kOfferNoteMaxLines = 3;
 
-/// Optional free-text note the Jeeber attached to the bid (`offer.note`).
-/// Rendered as an icon + up-to-3-line ellipsized secondary line below the
-/// ETA/vehicle chips. Only mounted when the offer carries a non-blank note.
 class _OfferNoteLine extends StatelessWidget {
   const _OfferNoteLine({required this.note});
 
@@ -431,11 +365,6 @@ class _OfferNoteLine extends StatelessWidget {
   }
 }
 
-/// Honest zero-rating line (SW-08): shown in place of [OmdsStarRatingDisplay]
-/// when the Jeeber has no ratings yet (`ratingCount == 0`). Replaces the
-/// fabricated "4.5 (0)" the star display would otherwise render for a brand-new
-/// Jeeber. A muted outline-star glyph + "No ratings yet" reads as an honest
-/// cold-start signal, not a real score.
 class _NoRatingsYet extends StatelessWidget {
   const _NoRatingsYet({required this.label});
 
@@ -473,8 +402,6 @@ class _NoRatingsYet extends StatelessWidget {
   }
 }
 
-/// Wraps [child] so both an index-based id and a per-Jeeber-id id resolve to
-/// the same subtree. Maestro matches either; the index id is the asserted one.
 class _IdWrap extends StatelessWidget {
   const _IdWrap({
     required this.indexId,
@@ -495,9 +422,6 @@ class _IdWrap extends StatelessWidget {
   }
 }
 
-/// The card root — exposes the index id and the per-Jeeber id as a container,
-/// plus the rich screen-reader [label]. Children stay independently
-/// addressable so Maestro can tap the name / accept CTA.
 class _DualId extends StatelessWidget {
   const _DualId({
     required this.indexId,
@@ -527,7 +451,6 @@ class _DualId extends StatelessWidget {
   }
 }
 
-/// Tappable Jeeber name → jeeber-profile-reviews (JM-067).
 class _NameTapTarget extends StatelessWidget {
   const _NameTapTarget({
     required this.indexId,
@@ -555,9 +478,6 @@ class _NameTapTarget extends StatelessWidget {
           child: InkWell(
             key: Key('offer-card-name-$name'),
             onTap: onTap,
-            // 48dp-tall hit target (WCAG) that still hugs the name's width so
-            // the tap zone isn't a full-row grab: Align(widthFactor: 1.0)
-            // shrink-wraps horizontally and vertically centres the label.
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: Sizes.fourXLarge),
               child: Align(
@@ -582,7 +502,6 @@ class _NameTapTarget extends StatelessWidget {
   }
 }
 
-/// Full-width Accept CTA → offer-accept-confirm sheet.
 class _AcceptCta extends StatelessWidget {
   const _AcceptCta({
     required this.indexId,
@@ -632,9 +551,6 @@ class _AcceptCta extends StatelessWidget {
 class _FeePill extends StatelessWidget {
   const _FeePill({required this.amount});
 
-  /// The fully-formatted money string (currency included — lane item 3:
-  /// `MoneyFormat` output like `$12.00`), so the pill never renders a second
-  /// bare currency-code line.
   final String amount;
 
   @override
@@ -702,7 +618,6 @@ class _MetaChip extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

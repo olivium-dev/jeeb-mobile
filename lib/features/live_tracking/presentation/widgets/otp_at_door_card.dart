@@ -8,21 +8,12 @@ import '../../../otp_handover/presentation/widgets/handover_code_display.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// T-MOB-017 AC4: Slides in when status transitions to at_door.
-///
-/// G4 (sprint-009 P0): when the app holds the delivery hand-over code
-/// (accept-time persisted, restart-safe) the card renders it INLINE and
 /// prominently — the hand-off moment must not hide the code behind a tap.
-/// "Show OTP" remains as a secondary route to the full-screen display. When
-/// the code is unknown (e.g. reinstall) the CTA leads to the OTP screen's
-/// honest SMS-fallback. Card uses OMDS tokens exclusively — no magic values.
 class OtpAtDoorCard extends StatelessWidget {
   const OtpAtDoorCard({super.key, required this.deliveryId, this.handoverCode});
 
   final String deliveryId;
 
-  /// The locally-persisted hand-over code, or null when this device never
-  /// received it. Rendered on screen only — NEVER logged (DiagRedaction).
   final String? handoverCode;
 
   @override
@@ -82,7 +73,6 @@ class _CardContent extends StatelessWidget {
           ),
           if (code != null) ...[
             const SizedBox(height: Spacing.large),
-            // G4: the code itself, inline at the hand-off moment.
             HandoverCodeDisplay(
               code: code,
               compact: true,
@@ -92,9 +82,6 @@ class _CardContent extends StatelessWidget {
           ],
           const SizedBox(height: Spacing.large),
           Semantics(
-            // QA: uiautomator-addressable handle for the at-door → OTP CTA.
-            // `container: true` keeps the identifier its own queryable node;
-            // OmdsLoadingButton already exposes the button role.
             identifier: 'tracking_otp_cta',
             container: true,
             child: OmdsLoadingButton(
@@ -114,7 +101,6 @@ class _CardContent extends StatelessWidget {
     context.push('/orders/$deliveryId/otp');
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

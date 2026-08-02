@@ -1,41 +1,41 @@
 import 'package:equatable/equatable.dart';
 
-/// Tier the sender selected when filing the request. Drives base fare and
-/// vehicle eligibility on the Jeeb-gateway side; here it's a display label
-/// that decides which chip color the card uses.
+
+
+
 enum JeeberRequestTier {
-  /// Smallest envelope — bicycles and scooters can accept.
+  
   light,
 
-  /// Standard parcel — scooters and small cars.
+  
   standard,
 
-  /// Bulk delivery — cars and small vans.
+  
   bulk,
 
-  /// Fastest tier (Figma "Flash"). Surfaces in the deliveryman feed cards
-  /// (screens 23-26) with the orange tier accent.
+  
+  
   flash,
 }
 
-/// Where a request sits in the deliveryman feed lifecycle, as drawn in the
-/// Figma `deliveryman-requests` flow (screens 24-26).
-///
-/// * [incoming] — a fresh request the Jeeber can Ignore / Offer on (screen 24).
-/// * [pendingResponse] — the Jeeber has offered and is awaiting the client's
-///   reply; the card shows an italic "Pending" status (screen 25).
-/// * [accepted] — the client accepted; the card shows a delivery state-machine
-///   action button (screen 26).
+
+
+
+
+
+
+
+
 enum JeeberFeedItemStatus { incoming, pendingResponse, accepted }
 
-/// Delivery state-machine step a Jeeber advances through after a request is
-/// accepted. The feed action card (screen 26) renders the button for the NEXT
-/// transition; the same labels back chat screens 05/06.
+
+
+
 enum JeeberDeliveryAction { orderPicked, headingToDropOff }
 
-/// Single point on the request (pickup or dropoff). The card only needs the
-/// human-readable label; coordinates ride along for the eventual route preview
-/// on the detail screen.
+
+
+
 class RequestLocation extends Equatable {
   const RequestLocation({
     required this.label,
@@ -51,12 +51,12 @@ class RequestLocation extends Equatable {
   List<Object?> get props => [label, latitude, longitude];
 }
 
-/// One incoming delivery request as the Jeeber sees it on the feed.
-///
-/// The feed receives this payload from jeeb-gateway either via WebSocket push
-/// (the happy path) or via the polling fallback. Each request is uniquely
-/// identified by [id]; equality is by id so the cubit can dedupe pushes that
-/// repeat a request the Jeeber already has on screen.
+
+
+
+
+
+
 class DeliveryRequest extends Equatable {
   const DeliveryRequest({
     required this.id,
@@ -82,72 +82,72 @@ class DeliveryRequest extends Equatable {
   final RequestLocation pickup;
   final RequestLocation dropoff;
 
-  /// Client-known tier metadata. `null` means the gateway omitted the tier or
-  /// supplied an identifier this app cannot truthfully label.
+  
+  
   final JeeberRequestTier? tier;
 
-  /// Distance the Jeeber will cover end-to-end, in kilometres. The card
-  /// formats this with one decimal place — the cubit emits the raw value.
+  
+  
   final double estimatedDistanceKm;
 
-  /// What the Jeeber stands to pocket if they accept and complete this
-  /// request. Computed gateway-side from the tier's per-km rate and the
-  /// distance; the mobile app just renders it.
+  
+  
+  
   final double potentialEarnings;
 
-  /// ISO 4217 currency code (e.g. `USD`, `LBP`). Display formatting concern.
+  
   final String currency;
 
-  /// DERIVED device-clock deadline — the ONLY lifetime authority for the card
-  /// (G3). It is anchored at PARSE TIME from the feed item's server-relative
-  /// `offerDeadlineInSeconds` (`receiveInstant + remaining`, P7), never parsed
-  /// from a server absolute, so handset clock skew cannot shift it. The field
-  /// keeps its wire-agnostic Dart name. When present and passed, the cubit
-  /// flips the card to a visible "Expired" state and collapses it shortly
-  /// after. `null` means the gateway said no countdown applies to this row, so
-  /// the card remains live until a later snapshot no longer lists it.
+  
+  
+  
+  
+  
+  
+  
+  
   final DateTime? expiresAt;
 
-  /// Optional sender display name. Surfaces in screen readers and on the
-  /// card subtitle when present; the gateway may omit it for privacy.
+  
+  
   final String? senderName;
 
-  /// Sender avatar URL (cdn-service) shown on the deliveryman feed card
-  /// (Figma screens 24-26). `null` falls back to an initial avatar.
+  
+  
   final String? senderAvatarUrl;
 
-  /// Sender's average star rating, 0..5. `null` hides the rating cluster.
+  
   final double? senderRating;
 
-  /// Human-readable items summary the client filed (e.g. "1 kilo potato,
-  /// water gallon, coffee blend"). User-generated content — rendered
-  /// direction-safe, never l10n-keyed.
+  
+  
+  
   final String? itemsSummary;
 
-  /// Straight-line distance from the Jeeber to the pickup, in kilometres.
-  /// Drives the "{distance} away from you" line on the feed card. `null`
-  /// hides the distance line.
+  
+  
+  
   final double? distanceFromYouKm;
 
-  /// When the request landed in the feed. Rendered as a locale-formatted
-  /// time stamp on the card (Figma "09:41"). `null` hides the timestamp.
+  
+  
   final DateTime? receivedAt;
 
-  /// Lifecycle bucket driving which action affordance the card shows
-  /// (Ignore/Offer · Pending · delivery-action button).
+  
+  
   final JeeberFeedItemStatus feedStatus;
 
-  /// Whether the server-owned request lifecycle still permits an action.
-  ///
-  /// The discovery endpoint is expected to return only live requests, but its
-  /// item also carries a required request `status`. Keeping that authority on
-  /// the model prevents a stale/terminal row from becoming actionable merely
-  /// because it was still present in a feed snapshot.
+  
+  
+  
+  
+  
+  
   final bool requestIsOpen;
 
-  /// The next delivery transition the Jeeber can trigger once a request is
-  /// [JeeberFeedItemStatus.accepted] (Figma screen 26). `null` for the
-  /// incoming/pending buckets.
+  
+  
+  
   final JeeberDeliveryAction? nextDeliveryAction;
 
   @override

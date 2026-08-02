@@ -8,10 +8,6 @@ typedef KycPollIntervalResolver =
 
 enum _ProbeSource { scheduled, resume, manual }
 
-/// Owns the bounded, single-flight runtime for KYC status polling.
-///
-/// The cubit is intentionally not guarded: it also serves user-driven callers,
-/// which a blanket cubit-level in-flight guard could silently drop.
 class KycStatusPollController {
   KycStatusPollController({
     required KycPollIntervalResolver intervalAt,

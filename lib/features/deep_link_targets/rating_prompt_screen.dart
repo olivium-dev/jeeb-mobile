@@ -5,17 +5,6 @@ import 'package:omds/omds.dart';
 import '../../devtool/catalog/fixtures/rating_prompt_screen_fixtures.dart';
 import '../../core/previews/jeeb_preview.dart';
 
-/// Placeholder governed by `qa/t-mob-fix-001/placeholder-discipline.sh`
-/// (Type-A list, JEB-137). The full Jeeber-profile-with-reviews UI for this
-/// route is the deliverable of `T-MOB-RATING-001` and ships only after the
-/// CI gate is lifted (this file removed from `TYPE_A_FILES`). Until then,
-/// every rule asserted by that script holds on every PR; do NOT add
-/// behavior, action buttons, loading indicators, dialogs, snackbars, or
-/// l10n hooks here, and keep the AC5 logger inside `initState`.
-///
-/// The router call-site passes a `deliveryId` (deep-link route param); the
-/// field is retained but unused so the import-graph stays green.
-// ORPHAN (JEBV4-227, verified 2026-07-12): route always redirects to mutual-rate in production; builder dead except in dev-catalog capture — see docs/project-understanding/reconciliation/orphans.md
 class RatingPromptScreen extends StatefulWidget {
   const RatingPromptScreen({super.key, required this.deliveryId});
 
@@ -48,7 +37,6 @@ class _RatingPromptScreenState extends State<RatingPromptScreen> {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -7,9 +7,7 @@ import '../../domain/delivery_chat_message.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Center-aligned system notice — the "Kamal Hajj's offer was accepted"
-/// chip that lands in the chat between the offer cards and the 1:1 timeline
-/// when the accept saga resolves.
+/// Center-aligned system notice: "offer was accepted" chip in chat.
 class SystemMessageBubble extends StatelessWidget {
   const SystemMessageBubble({super.key, required this.message});
 
@@ -65,7 +63,6 @@ class SystemMessageBubble extends StatelessWidget {
     }
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

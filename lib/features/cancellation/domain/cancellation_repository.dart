@@ -1,16 +1,9 @@
 import 'cancellation_result.dart';
 
-/// Abstract repository for the cancellation flow (T-MOB-024).
-///
-/// Backed by POST `/v1/deliveries/{id}/cancel`.
+/// Abstract repository for cancellation (posts to /v1/deliveries/{id}/cancel).
 abstract class CancellationRepository {
-  /// Submits a cancellation request for [deliveryId].
-  ///
-  /// [reason] is required for Jeeber callers; optional for clients.
-  /// [otherDetails] carries free-text when reason == 'other'.
-  ///
-  /// Throws [CancellationTooLateException] on HTTP 409.
-  /// Throws [CancellationException] on other failures.
+  /// Submits cancellation; [reason] required (Jeeber), [otherDetails] for reason=='other'.
+  /// Throws [CancellationTooLateException] (HTTP 409) or [CancellationException] (other).
   Future<CancellationResult> cancel({
     required String deliveryId,
     required String reason,
@@ -18,7 +11,7 @@ abstract class CancellationRepository {
   });
 }
 
-/// Thrown when the delivery is already in a terminal / post-pickup state.
+/// Thrown when delivery is in a terminal / post-pickup state.
 class CancellationTooLateException implements Exception {
   const CancellationTooLateException();
 }

@@ -14,7 +14,6 @@ import 'diag_file_sink.dart';
 import '../../devtool/catalog/fixtures/diagnostics_screen_fixtures.dart';
 import '../previews/jeeb_preview.dart';
 
-/// One row of the sessions list — a persisted diag JSONL session file.
 class DiagSessionFileInfo {
   const DiagSessionFileInfo({
     required this.path,
@@ -29,23 +28,9 @@ class DiagSessionFileInfo {
   final int sizeBytes;
   final DateTime modified;
 
-  /// True for the session file the LIVE sink is currently appending to.
   final bool isCurrent;
 }
 
-/// Dev-only "Diagnostics" screen (Settings → Diagnostics, debug/dev builds
-/// only — the Settings row and this body are gated on [Diag.enabled]).
-///
-/// A deliberately minimal DEV TOOL, not a product surface: lists the persisted
-/// `[jeeb-diag]` JSONL session files (see `DiagFileSink`) and lets a tester
-/// export one through the platform share sheet or copy its on-device path /
-/// `adb` pull one-liner as the no-share-target fallback. Strings are literal
-/// English by design — this surface never ships to release users, so it stays
-/// out of the ARB catalogs.
-///
-/// All side-effecting seams (file listing, share sheet, clipboard) are
-/// constructor-injectable so widget tests run without platform channels.
-// ORPHAN (JEBV4-227, verified 2026-07-12): dead chain via orphaned /settings; dev-gated — see docs/project-understanding/reconciliation/orphans.md
 class DiagnosticsScreen extends StatefulWidget {
   const DiagnosticsScreen({
     super.key,
@@ -60,9 +45,6 @@ class DiagnosticsScreen extends StatefulWidget {
   final Future<void> Function(DiagSessionFileInfo file)? _shareLauncher;
   final Future<void> Function(String text)? _clipboardWriter;
 
-  /// Production loader: lists `*.jsonl` under the diag directory (the live
-  /// sink's dir when installed, else the default app-support location),
-  /// newest first. Total: IO failures degrade to an empty list.
   static Future<List<DiagSessionFileInfo>> defaultSessionsLoader() async {
     try {
       final active = DiagFileSink.active;
@@ -83,7 +65,6 @@ class DiagnosticsScreen extends StatefulWidget {
           isCurrent: entity.path == active?.sessionFilePath,
         ));
       }
-      // ISO-stamped names sort chronologically; show newest first.
       files.sort((a, b) => b.name.compareTo(a.name));
       return files;
     } catch (_) {
@@ -91,8 +72,6 @@ class DiagnosticsScreen extends StatefulWidget {
     }
   }
 
-  /// Production share: flush the live sink first so the exported file carries
-  /// the whole session so far, then hand it to the platform share sheet.
   static Future<void> defaultShareLauncher(DiagSessionFileInfo file) async {
     await Diag.flushPersistent();
     await Share.shareXFiles(
@@ -109,15 +88,12 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   late Future<List<DiagSessionFileInfo>> _sessions = _load();
 
   Future<List<DiagSessionFileInfo>> _load() async {
-    // Flush before listing so the current session's size/content is fresh.
     await Diag.flushPersistent();
     return (widget._sessionsLoader ??
         DiagnosticsScreen.defaultSessionsLoader)();
   }
 
   void _refresh() {
-    // Kick the load OUTSIDE setState — the callback must stay synchronous
-    // (and must not RETURN the future, which an arrow closure would).
     final next = _load();
     setState(() {
       _sessions = next;
@@ -199,8 +175,6 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   }
 }
 
-/// Body for release-like builds (belt and braces: the Settings row that routes
-/// here is itself hidden when [Diag.enabled] is false).
 class _DisabledBody extends StatelessWidget {
   const _DisabledBody();
 
@@ -355,7 +329,6 @@ class _SessionRow extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

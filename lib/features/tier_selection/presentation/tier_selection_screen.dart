@@ -12,14 +12,6 @@ import '../data/tier_repository.dart';
 import '../domain/tier.dart';
 import 'tier_card.dart';
 
-/// Hosts the tier selection screen at `/tier-selection`.
-///
-/// One [TierSelectionCubit] per visit, kicked off with [TierSelectionCubit.load]
-/// so the catalog hydrates on first frame. The screen is rendered as a list of
-/// [TierCard]s with a sticky confirm CTA — once confirmed, the host (router /
-/// caller-provided [onConfirmed]) is notified via [TierSelectionState.
-/// confirmedTierId].
-// ORPHAN (JEBV4-227, verified 2026-07-12): legacy route removed; cubit/repo remain live via RequestTypeScreen — see docs/project-understanding/reconciliation/orphans.md
 class TierSelectionScreen extends StatelessWidget {
   const TierSelectionScreen({
     super.key,
@@ -31,19 +23,10 @@ class TierSelectionScreen extends StatelessWidget {
           'Provide either a cubit or a repository, not both.',
         );
 
-  /// Optional cubit override — production builds a fresh one, widget tests
-  /// inject one with a scripted repository.
   final TierSelectionCubit? cubit;
 
-  /// Optional repository override. Defaults to the GetIt-registered
-  /// [TierRepository], falling back to [FakeTierRepository] so the screen
-  /// still renders during cold boot before DI runs.
   final TierRepository? repository;
 
-  /// Optional confirm callback. The screen always emits
-  /// [TierSelectionState.confirmedTierId] when the user taps confirm; this
-  /// callback is the simplest way for the host to react without subscribing
-  /// to the cubit directly.
   final ValueChanged<Tier>? onConfirmed;
 
   static const Key rootKey = Key('tier-selection-root');
@@ -69,9 +52,6 @@ class TierSelectionScreen extends StatelessWidget {
     );
   }
 
-  /// Resolves from DI if registered (production path: DioTierRepository).
-  /// Falls back to FakeTierRepository only in test environments where DI
-  /// hasn't been initialised — never reachable in release builds.
   TierRepository _resolveRepository() {
     if (sl.isRegistered<TierRepository>()) {
       return sl<TierRepository>();
@@ -204,8 +184,6 @@ class _LoadedView extends StatelessWidget {
   }
 }
 
-/// Soft warning banner shown when the tier catalog fell back to bundled
-/// defaults because the network was unreachable (AC3).
 class _CachedBanner extends StatelessWidget {
   const _CachedBanner({required this.message});
 
@@ -225,7 +203,6 @@ class _CachedBanner extends StatelessWidget {
         vertical: Spacing.xSmall,
       ),
       decoration: BoxDecoration(
-        // Cached-catalog notice is informational -> semantic info role.
         color: context.jeebRoles.infoContainer,
         borderRadius: OmdsBorderRadius.small,
       ),
@@ -326,8 +303,6 @@ class _TierListEntry extends StatelessWidget {
 
   String _slaCopy(AppLocalizations l10n, int? minutes) {
     if (minutes == null) return l10n.tierSelectionSlaNone;
-    // Whole-hour SLAs render as "≤ N hr" so the copy stays readable for the
-    // 2–4hr Standard tier; sub-hour SLAs fall back to minutes.
     if (minutes >= 60 && minutes % 60 == 0) {
       return l10n.tierSelectionSlaHours(minutes ~/ 60);
     }
@@ -361,9 +336,5 @@ class _TierListEntry extends StatelessWidget {
   }
 
   String _formatPrice(int amount, String currency) =>
-      // Lane item 3 (currency unification): the single MoneyFormat used by the
-      // receipt and offer surfaces — "$12.00" for USD, "LBP 15,000.00"
-      // otherwise. Replaces the local "15,000 USD"-style formatter so tiers no
-      // longer disagree with the rest of the app.
       MoneyFormat.format(amount.toDouble(), currency: currency);
 }

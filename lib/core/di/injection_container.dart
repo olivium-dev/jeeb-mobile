@@ -1,9 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
-// P5: the Android platform implementation, imported ONLY to flip
-// `useAndroidPhotoPicker` (ACTION_PICK_IMAGES). Guarded by an `is` check, so
-// nothing Android-specific runs on other platforms or in tests.
+// P5: Android platform must flip useAndroidPhotoPicker; guarded by `is` check.
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,12 +29,6 @@ import '../config/app_config.dart';
 import '../notifications/application/offer_lifecycle_signals.dart';
 import '../notifications/application/push_refresh_signals.dart';
 
-/// b02 wave D: [RefreshTopic] travels with [resolvePushRefreshStream], because
-/// naming a topic is only ever done at a subscription site and every one of
-/// those already imports this file for the resolver. Re-exporting keeps the
-/// pair inseparable — you cannot reach the resolver without reaching the topic
-/// vocabulary, so "subscribed but forgot to declare topics" stays a deliberate
-/// choice rather than a missing import.
 export '../notifications/application/push_refresh_signals.dart'
     show RefreshTopic;
 import '../session/profile_refresh_signals.dart';
@@ -139,60 +131,17 @@ import '../observability/crash_reporter.dart';
 
 final sl = GetIt.instance;
 
-/// Resolves the ONE configured gateway [Dio] for call sites that build a
-/// repository directly (the auth / registration / settings / voice screens
-/// self-provide their repo for testability) instead of pulling it from DI.
-///
-/// Returns the DI-registered gateway [Dio] once [configureDependencies] has
-/// run (the production + integration path, so every direct-build repo shares
-/// the SAME bearer-attaching client as the DI graph). Falls back to a fresh
-/// [MockGatewayClient] Dio — the exact client DI itself registers — when DI is
-/// not yet initialised (a bare widget test that pumps one of these screens),
-/// so those call sites never throw a "Dio not registered" at construction.
 Dio resolveGatewayDio() {
   if (sl.isRegistered<Dio>()) return sl<Dio>();
   return MockGatewayClient.createDio();
 }
 
-/// The ONE resolver for the push-driven refetch bus, in the same spirit as
-/// [resolveGatewayDio]: hand a call site the DI-registered singleton, or `null`
-/// when DI has not run (a bare widget test), so the subscriber degrades to its
-/// safety-net poll instead of throwing "PushRefreshSignals not registered".
-///
-/// Subscribers re-pull their own snapshot on each event; the stream is
-/// payload-less. Publishers today: `offer_accepted`, `new_request` (JEBV4-342),
-/// `chat`, `delivery`, `offer` and the expiry events. See [PushRefreshSignals].
-///
-/// It lives here, and NOT as a private helper beside each call site, because it
-/// is now read from twelve subscription sites across ten files. Copies of a
-/// GetIt `isRegistered` check are how one call site silently keeps polling
-/// while its twin goes push-driven, which is invisible in review: both render
-/// the data.
-///
-/// b02 wave D — [topics]. Declare what the subscribing surface RENDERS and it
-/// is woken only by pushes that can change that. Omitting [topics] keeps the
-/// pre-wave-D behaviour (woken by everything), which is the safe direction: an
-/// over-woken surface costs a redundant read that a capture can see, an
-/// under-woken one shows stale data with no error at all.
 Stream<void>? resolvePushRefreshStream({Set<RefreshTopic>? topics}) {
   if (!sl.isRegistered<PushRefreshSignals>()) return null;
   final bus = sl<PushRefreshSignals>();
   return topics == null ? bus.stream : bus.streamFor(topics);
 }
 
-/// THE flag gate for continuous courier position — one place, for the same
-/// reason [resolvePushRefreshStream] is one place.
-///
-/// Returns `null` when the feature is off (the default), when DI is not
-/// configured (every bare widget test), or when the channel was never
-/// registered. `null` means the tracking screen keeps exactly the four
-/// position triggers it has today: mount, `type=delivery` push, app resume,
-/// manual retry.
-///
-/// The `const` guard is checked FIRST on purpose: in a build without
-/// `--dart-define=JEEB_REALTIME_TRACKING=true` it is a compile-time `false`, so
-/// the resolution below is dead-code-eliminated and the realtime path cannot be
-/// reached even by accident.
 CourierPositionChannel? resolveCourierPositionChannel() {
   if (!AppConfig.realtimeCourierPositionEnabled) return null;
   if (!sl.isRegistered<CourierPositionChannel>()) return null;
@@ -203,30 +152,16 @@ void configureDependencies({
   required SharedPreferences sharedPreferences,
   required CrashReporter crashReporter,
 }) {
-  // FM-3: install the process-wide app-lifecycle gate before anything that
-  // owns a poll is resolvable. Ambient and idempotent; with no install the
-  // gate is inert always-foreground, so every bare test is unaffected.
   AppLifecycleGate.install(WidgetsBindingAppLifecycleGate());
 
   sl.registerSingleton<SharedPreferences>(sharedPreferences);
   sl.registerSingleton<CrashReporter>(crashReporter);
 
-  // Honour the Dev Tool's persisted Server-URL override (F4): when set (via the
-  // Dev Tool → Server URL screen) the whole app's Dio points at that gateway on
-  // the next app start; when unset, DevBaseUrl.read returns null and createDio
-  // falls back to the build-time JEEB_MOCK_BASE_URL default. SharedPreferences
-  // is registered above, so it is resolvable when this lazy singleton is built.
   sl.registerLazySingleton<Dio>(
     () => MockGatewayClient.createDio(
       baseUrl: DevBaseUrl.read(sl<SharedPreferences>()),
-      // b02 P0 — the 429 trailing edge. With the polls deleted, a read the
-      // back-off window swallowed is never re-issued by anything, so the
-      // screen holds the pre-429 snapshot until an unrelated push happens
-      // along (measured: 5 m 49 s of total silence after the storm's two
-      // 429s). When the window closes, publish ONE unclassified refresh
-      // signal: we do not know which reads were lost, so every live surface
-      // re-pulls exactly once. Resolved lazily inside the closure — the bus is
-      // registered a few lines below this one.
+      // b02 P0: rate limit window trailing edge — screen holds pre-429 snapshot
+      // until unrelated push wakes it; on window close, publish unclassified refresh.
       onRateLimitWindowClosed: () {
         if (!sl.isRegistered<PushRefreshSignals>()) return;
         sl<PushRefreshSignals>().signalStatusChange();
@@ -234,48 +169,25 @@ void configureDependencies({
     ),
   );
 
-  // FIX-A (fix/neworder-429-dedupe): ONE shared single-flight coalescer over the
-  // app-wide Dio, injected into every repo that reads `GET /v1/offers?requestId`
-  // (offers-review, waiting, customer-home). A single instance is load-bearing:
-  // it is what collapses the three uncoordinated pollers' duplicate concurrent
-  // probes for the same request onto ONE wire call, instead of a 429-tripping
-  // fan-out on the "Choose a Jeeber" path.
   sl.registerLazySingleton<SingleFlightGet>(() => SingleFlightGet(sl<Dio>()));
 
   sl.registerLazySingleton<AuthTokenStore>(() => AuthTokenStore());
 
-  // Push→refetch bus (sprint-009 live refresh): the push handler publishes a
-  // status-change signal; the customer home / tracking cubits subscribe and
-  // re-pull. Single shared instance so both sides see the same stream.
   sl.registerLazySingleton<PushRefreshSignals>(() => PushRefreshSignals());
 
-  // Profile-changed bus (profile-name lane): the display-name save paths
-  // (post-OTP onboarding step, settings profile edit) publish after a
-  // successful PUT /api/User/profile; the greeting cubits subscribe and
-  // re-pull getMe so headers pick the real name up immediately.
   sl.registerLazySingleton<ProfileRefreshSignals>(
     () => ProfileRefreshSignals(),
   );
 
-  // Offer-lifecycle bus (sprint-009): the push handler publishes an
-  // offer_accepted/offer_lost event; the jeeber's pending-offers list
-  // subscribes, flips the row badge, and re-pulls. Shared single instance.
   sl.registerLazySingleton<OfferLifecycleSignals>(
     () => OfferLifecycleSignals(),
   );
 
-  // JM-064 / JEBV4-13: native store-review sheet (in_app_review). The
-  // customer-profile rate-app row resolves this registration and stops
-  // falling back to the NoopAppReviewLauncher (wave-1 P2-1 dead CTA).
   sl.registerLazySingleton<AppReviewLauncher>(
     () => const InAppReviewLauncher(),
   );
 
-  // BUG-7 (physical-run6): inject the local profile store so a successful
-  // phone-OTP verify PERSISTS the signed-in E.164 phone to `settings.profile.v1`
-  // — the exact key SharedPrefsRecipientPhoneResolver reads. This guarantees the
-  // create body carries a non-null `recipientPhone` (the live GET /v1/users/me
-  // exposes no phone), unblocking the at-door handover OTP.
+  // BUG-7: persist phone-OTP number to settings.profile.v1.
   sl.registerLazySingleton<OtpService>(
     () => DioOtpService(
       sl<Dio>(),
@@ -286,39 +198,11 @@ void configureDependencies({
     ),
   );
 
-  // W0-INT (JM-007/020/021/022, CTO-D1 email-first auth funnel). Real Dio-backed
-  // auth repo: login + recovery-request/verify + set-password. Posts the
-  // VERIFIED /v1/auth/* gateway paths (42_GUARDRAILS_MOCK "W-1 FLOOR CLOSED" —
-  // B1/B3 are GREEN, so these routes are NOT absent: no INTEGRATOR-STUB marker).
-  // Persists the JWT pair (incl. user.userId for splash routing, JM-006) via
-  // AuthTokenStore. The W0 screens resolve this from DI, with a constructor
-  // override for tests.
   sl.registerLazySingleton<AuthRepository>(
     () => DioAuthRepository(sl<Dio>(), sl<AuthTokenStore>()),
   );
 
-  // W0-INT (JM-005): BiometricLockCubit + its deps, registered as a FACTORY so
-  // each `/lock` entry owns a fresh cubit (it queries the platform biometric /
-  // local PIN, a per-entry resource). app.dart still constructs its own
-  // instance for the router's refreshListenable; this registration lets the
-  // JM-005 screen + JM-006 splash resolve a real cubit from DI. The cubit's
-  // real evaluate()/authenticate() behaviour is the JM-005 engineer's to fill
-  // in (the type + wiring is real now).
-  // DEBUG (JM-005 demo / CI seam): [DevBiometricGateway] resolves authenticate()
-  // to `true` so on the emulator (no enrolled biometric) tapping
-  // `biometric_unlock_authenticate_cta` succeeds and [BiometricLockCubit]
-  // transitions `locked → unlocked` → router releases to `shell_tab_requests`.
-  // isAvailable() stays false, so the lock is still HELD on entry via the
-  // seam-seeded PIN (`hasPin → canChallenge`). This keeps every Maestro/dev-seam
-  // flow deterministic.
-  //
-  // RELEASE (JEBV4-213 / E18): [LocalAuthBiometricGateway] drives the REAL OS
-  // biometric dialog via `local_auth`. isAvailable() reflects actual biometric
-  // enrolment; authenticate() runs with `biometricOnly: false` so a device with
-  // no enrolled biometric falls back to the device credential (PIN/password) and
-  // still unlocks (the ticket DoD). kDebugMode is a const false in release, so
-  // the DevBiometricGateway branch is tree-shaken out and the plugin is only on
-  // the release path.
+  // DEBUG: hardcodes authenticate()=true; RELEASE: OS biometric with fallback; tree-shaken in release.
   sl.registerLazySingleton<BiometricGateway>(
     () => kDebugMode
         ? const DevBiometricGateway()
@@ -338,16 +222,10 @@ void configureDependencies({
     ),
   );
 
-  // FR-P0-4: super-login service POSTs the dev passcode to the gateway and
-  // returns a real, server-minted session (no client-side mock-jwt mint).
   sl.registerLazySingleton<SuperLoginService>(
     () => DefaultSuperLoginService(dio: sl<Dio>()),
   );
 
-  // "Super user login plus": lists the demo roster via the anonymous,
-  // OpenMode-gated GET /api/User/demo-users (debug-only). Same Dio client as
-  // every other gateway data source. The roster GET carries no passcode; the
-  // tap→login re-uses AppConfig.superAdminPassCode on /api/User/user-id-login.
   sl.registerLazySingleton<SuperLoginDemoUserService>(
     () => DefaultSuperLoginDemoUserService(dio: sl<Dio>()),
   );
@@ -368,10 +246,6 @@ void configureDependencies({
     () => DioOtpHandoverRepository(sl<Dio>()),
   );
 
-  // G4 (sprint-009 P0): on-device persistence of the delivery handover code.
-  // Written at offer-accept time (DioOffersRepository / DioChatGateway — the
-  // accept response is the only wire moment the customer receives the code);
-  // read by the customer tracking + OTP display surfaces, surviving restarts.
   sl.registerLazySingleton<HandoverCodeStore>(
     () => SharedPrefsHandoverCodeStore(prefs: sl<SharedPreferences>()),
   );
@@ -380,12 +254,6 @@ void configureDependencies({
     () => DioLiveTrackingRepository(sl<Dio>()),
   );
 
-  // Continuous courier position — the SUBSCRIPTION half (jeeb-gateway #339).
-  // Registered unconditionally and lazily: constructing it opens nothing (the
-  // socket is built inside `open()`), and `resolveCourierPositionChannel()` is
-  // the single place the feature flag is consulted. Registering it behind the
-  // flag instead would put the same decision in two places, which is how one
-  // call site keeps the old behaviour while its twin moves on.
   sl.registerLazySingleton<CourierPositionChannel>(
     () => RealtimeCourierPositionChannel(sl<Dio>()),
   );
@@ -394,101 +262,36 @@ void configureDependencies({
     () => NotificationPrefsStore(sl<SharedPreferences>()),
   );
 
-  // JEBV4-205 (E10): server-persisted app language via the remote-user-
-  // preferences BFF (GR-2 store — never user-management, never gateway-local).
-  // LocaleCubit resolves this optionally so the language survives a reinstall.
   sl.registerLazySingleton<LanguagePreferenceRepository>(
     () => DioLanguagePreferenceRepository(sl<Dio>()),
   );
 
-  // T-MOB-010: DioTierRepository replaces FakeTierRepository as the DI default.
-  // The screen still accepts a constructor-injected repo for widget tests.
   sl.registerLazySingleton<TierRepository>(() => DioTierRepository(sl<Dio>()));
 
-  // T-MOB-015 / W1-INT (JM-028 offer-review): DioOffersRepository provides the
-  // real gateway path (GET /v1/offers?requestId=, POST /v1/offers/:id/accept →
-  // rewritten to /offer-service/v1/... on :4010, 42_GUARDRAILS_MOCK §1.2). The
-  // orphaned `/requests/:id/offers` route (W1-INT) resolves ClientOffersScreen,
-  // which self-provides ClientOffersCubit over THIS registration.
-  // FakeOffersRepository is only acceptable as a test seam via constructor.
   sl.registerLazySingleton<OffersRepository>(
     () => DioOffersRepository(
       sl<Dio>(),
-      // G4: persist the accept response's handoverCode so the customer can
-      // show it at the door (and after an app restart).
       handoverCodeStore: sl<HandoverCodeStore>(),
-      // FIX-A: share the app-wide coalescer so this poller's offers reads
-      // dedupe against the waiting/home pollers.
       coalescer: sl<SingleFlightGet>(),
     ),
   );
 
-  // ── WAVE 1 (S2) integrator note — core customer journey (50_EXECUTION_PLAN
-  //    §"WAVE 1 (1) S2"). The delivery-service / offer-service / chat-service
-  //    surfaces the W1 screens read already route through `sl<Dio>()` =
-  //    MockGatewayClient.createDio() (B0/B1 GREEN, base URL :4010), so they are
-  //    bound to REAL Dio today — no stub needed:
-  //      • offer-review  → OffersRepository (above)            [JM-028]
-  //      • tracking      → LiveTrackingRepository (below)       [JM-032]
-  //      • chat          → ChatGateway / DioChatGateway (below) [JM-025]
-  //      • delivery/req  → ClientHomeRepository, OrderRepository,
-  //                        CancellationRepository, ActiveDeliveryRepository
-  //      • tiers (T1)    → TierRepository (above; the 5-tier DATA fix is a
-  //                        backender mock change, not an app DI change)
-  //    The waiting/matching (JM-026), delivered-receipt (JM-033), order-summary
-  //    (JM-031) and customer-profile/getMe (JM-035) repositories do NOT exist
-  //    as types yet — each per-screen engineer defines its `domain/<X>Repository`
-  //    + `data/Dio<X>Repository` (clean-arch: the domain contract is theirs to
-  //    author) and registers it HERE in its JM diff (e.g.
-  //    `sl.registerLazySingleton<WaitingRepository>(() =>
-  //    DioWaitingRepository(sl<Dio>()));`). The integrator does not pre-invent
-  //    those types (40_GUARDRAILS_ARCH §6 / DO-NOT: never invent a contract).
-
-  // T-MOB-001: Register all previously missing repos in DI.
-  // No screen may self-construct these outside DI in release builds.
-
-  // Chat gateway — conversation-scoped; DI provides the factory default.
-  // The factory is registered as a type alias so screens can resolve it;
-  // note that DioChatGateway requires a currentUserId which is async — screens
-  // that need a per-conversation instance should call DioChatGateway directly
-  // with their own resolved userId (see chat_detail_screen.dart).
   sl.registerFactory<ChatGateway>(
     () => DioChatGateway(
       dio: sl<Dio>(),
       currentUserId: 'faketoken',
-      // G4: chat is the second accept path — retain + persist handoverCode.
       handoverCodeStore: sl<HandoverCodeStore>(),
     ),
   );
 
-  // Jeeber request feed — PUSH-driven, plus one-shot fetches on screen open
-  // and on foreground/tab resume. It owns NO periodic timer any more (b02,
-  // POLLING-ELIMINATION-PLAN A.1); see the class doc for what replaced it.
   sl.registerLazySingleton<RequestFeedRepository>(
     () => DioRequestFeedRepository(dio: sl<Dio>()),
   );
 
-  // T-MOB-FIX-001: ProhibitedItemReportService — resolved by app_router when
-  // building the jeeber-request-detail route. Without this registration the
-  // route builder's `sl<ProhibitedItemReportService>()` throws a GetIt "not
-  // registered" Bad state and red-screens the Jeeber leg (active delivery →
-  // OTP → mutual rating all unreachable). It is a pure/local, stateless
-  // service today, so it is a const lazy singleton — same shape as the sibling
-  // OfferSubmissionService that the adjacent jeeber-offer-submission route
-  // resolves. When the real prohibited-item flagging RPC lands it swaps to a
-  // Dio-backed impl here (mirroring the Dio* repositories above) without
-  // touching the route or screen.
   sl.registerLazySingleton<ProhibitedItemReportService>(
     () => const ProhibitedItemReportService(),
   );
 
-  // KYC — submit + status from auth-service via gateway. `submit` composes
-  // the CDN signed-PUT broker (`POST /api/cdn/assets`) to turn captured
-  // photos into `*_url` refs before posting (JEBV4-113). JEBV4-259: `sl<Dio>()`
-  // is passed as the BROKER-only client (it needs the Bearer token); the raw
-  // photo PUT goes through a dedicated interceptor-free Dio the gateway
-  // self-provides, so the shared client's auth/logging/JSON interceptors can
-  // never corrupt the binary body (the 415 fix).
   sl.registerLazySingleton<CdnAssetGateway>(
     () => DioCdnAssetGateway(sl<Dio>()),
   );
@@ -496,44 +299,27 @@ void configureDependencies({
     () => DioKycGateway(sl<Dio>(), sl<CdnAssetGateway>()),
   );
 
-  // JEBV4-111: real camera/gallery picker. Without this registration every
-  // capture surface (DM-onboarding photo, KYC ID/selfie tiles, JM-051 proof
-  // photos) silently fell back to StubPhotoPickerService, whose synthetic
-  // bytes render as "Invalid image data" instead of opening the camera.
   sl.registerLazySingleton<PhotoPickerService>(
     () => ImagePickerPhotoPickerService(),
   );
 
-  // P5 (b01-20260725): route Android 13+ gallery picks at the SYSTEM Photo
-  // Picker (ACTION_PICK_IMAGES) instead of the legacy Documents UI, which
-  // raises ActivityNotFoundException → PhotoPickFailure.unavailable on
-  // GMS-less / OEM images. Still NO READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE
-  // in the manifest — ACTION_PICK_IMAGES needs none. Guarded on the platform
-  // implementation so iOS / tests / desktop are untouched.
   final imagePickerPlatform = ImagePickerPlatform.instance;
   if (imagePickerPlatform is ImagePickerAndroid) {
     imagePickerPlatform.useAndroidPhotoPicker = true;
   }
 
-  // Rating — post-delivery star rating via score-taking-service.
   sl.registerLazySingleton<RatingRepository>(
     () => DioRatingRepository(sl<Dio>()),
   );
 
-  // T-MOB-022: Escalate — dispute submission via delivery-service.
   sl.registerLazySingleton<EscalateRepository>(
     () => DioEscalateRepository(sl<Dio>()),
   );
 
-  // Availability toggle — Jeeber online/offline state via geolocation-service.
   sl.registerLazySingleton<AvailabilityGateway>(
     () => DioAvailabilityGateway(
       sl<Dio>(),
       tokenStore: sl<AuthTokenStore>(),
-      // E16 (JEBV4-211): stamp the jeeber's REAL device fix onto go-online
-      // instead of the old hardcoded Damascus coordinates. Ensure a
-      // whileInUse/always grant before a one-shot fix; DioAvailabilityGateway
-      // degrades to "no coordinates" (never a fake fix) if this throws.
       locationFix: () async {
         final gateway = GeolocatorGeocaptureGateway();
         var permission = await gateway.currentPermission();
@@ -549,45 +335,30 @@ void configureDependencies({
     ),
   );
 
-  // Remote notification prefs — syncs with gateway notification-service.
   sl.registerLazySingleton<NotificationPrefsRepository>(
     () => DioNotificationPrefsRepository(sl<Dio>()),
   );
 
-  // T-MOB-028: Role-switch repository — POST /v1/users/me/role/switch.
   sl.registerLazySingleton<RoleSwitchRepository>(
     () => DioRoleSwitchRepository(sl<Dio>(), sl<AuthTokenStore>()),
   );
 
-  // T-MOB-012: Saved locations — GET/POST /api/users/me/saved-locations (live).
   sl.registerLazySingleton<SavedLocationRepository>(
     () => DioSavedLocationRepository(sl<Dio>()),
   );
 
-  // JEBV4-176 (Q-060): device-GPS resolver for the "Current Location" pickup
-  // option. Replaces the silent Beirut fallback with a REAL one-shot fix +
-  // honest recovery. Registered so the location-select screen (and dev/test
-  // seams) resolve it from DI; the screen defaults to this same geolocator
-  // implementation when unregistered.
   sl.registerLazySingleton<CurrentLocationResolver>(
     GeolocatorCurrentLocationResolver.new,
   );
 
-  // T-MOB-024: Cancellation flow — POST /v1/deliveries/{id}/cancel.
   sl.registerLazySingleton<CancellationRepository>(
     () => DioCancellationRepository(sl<Dio>()),
   );
 
-  // JM-030 (cycle-4): PRE-ACCEPT cancel — DELETE /v1/requests/{id} (typed
-  // 403/404/409). Previously UNREGISTERED, so CancelRequestSheet silently
-  // fell back to the in-memory fake and customer cancellations never reached
-  // the server (P0). Must stay registered for the cancel to be real.
   sl.registerLazySingleton<CancelRequestRepository>(
     () => DioCancelRequestRepository(sl<Dio>()),
   );
 
-  // T-MOB-021: Prohibited items acknowledgment — GET /prohibited-items +
-  // POST /prohibited-items/acknowledge + SharedPreferences local flag.
   sl.registerLazySingleton<ProhibitedAcknowledgmentRepository>(
     () => DioProhibitedAcknowledgmentRepository(
       dio: sl<Dio>(),
@@ -595,27 +366,15 @@ void configureDependencies({
     ),
   );
 
-  // T-MOB-030: Offer submission — POST /v1/offers.
   sl.registerLazySingleton<OfferSubmissionRepository>(
     () => DioOfferSubmissionRepository(sl<Dio>()),
   );
 
-  // T-MOB-030: OfferSubmissionService — domain service wrapping the repo;
-  // resolved by app_router when building the jeeber-offer-submission route.
   sl.registerLazySingleton<OfferSubmissionService>(
     () => const OfferSubmissionService(),
   );
 
-  // BUG-7 handover-OTP fix: DEFAULT recipient-phone resolver for the create
-  // body. REUSES the existing (previously DEAD-code) resolver chain —
-  // ChainedRecipientPhoneResolver tries, in order, the locally-persisted
-  // registration profile phone (SharedPrefsRecipientPhoneResolver, priority-A,
-  // the phone-OTP number the live GET /v1/users/me does NOT surface) then the
-  // gateway GET /v1/users/me phone (DioRecipientPhoneResolver, best-effort
-  // fallback). Both default to the signed-in client's OWN phone (the requester
-  // is the default recipient). Without a non-null recipientPhone on the request
-  // row, the at-door handover OTP issue/verify short-circuits with 400
-  // `recipient-phone-missing` before the mocked `1234` is ever evaluated.
+  // BUG-7: ChainedRecipientPhoneResolver tries SharedPrefs phone then gateway.
   sl.registerLazySingleton<RecipientPhoneResolver>(
     () => ChainedRecipientPhoneResolver(<RecipientPhoneResolver>[
       SharedPrefsRecipientPhoneResolver(
@@ -627,71 +386,26 @@ void configureDependencies({
     ]),
   );
 
-  // T-MOB-REQSUBMIT: real request-create RPC — POST /requests → 201 {id}.
-  // Resolved by app_router when building the /request-summary route so the
-  // RequestSummaryCubit submits over Dio instead of the prior stub.
-  //
-  // BUG-7: the resolver is now injected so a create with no compose-form phone
-  // still carries the signed-in client's own phone as `recipientPhone`.
   sl.registerLazySingleton<RequestSubmissionService>(
     () => DioRequestSubmissionService(sl<Dio>(), sl<RecipientPhoneResolver>()),
   );
 
-  // BUG-6 create-payload fix: register the shared compose controller so the
-  // customer create flow (request-type tier picker → client-location confirm)
-  // actually carries the selected tier + confirmed pickup into POST /v1/requests.
-  //
-  // WHY THIS WAS BROKEN: the controller existed and correctly serialized the
-  // tier UUID (Tier.wireId) + real pickup {lat,lng,address}, but it was NEVER
-  // registered here. So `request_type_screen.setTier(...)` was a no-op
-  // (`sl.isRegistered<ComposeRequestController>()` == false) and
-  // `client_location_screen._onConfirm` took the fallback branch that hands off
-  // the literal `'new'` sentinel to order-chat, where OrderComposeCoordinator
-  // created a request with NEITHER tier NOR pickup. The gateway therefore stored
-  // `tierId:null` + `pickup:{}` and never materialized the delivery aggregate
-  // (GET /v1/deliveries/{id} → 404, dead-ending handover/DELIVERED). Registering
-  // the controller activates the designed tier+pickup-bearing create path.
+  // BUG-6: ComposeRequestController was not registered (dead code), so create fell through.
+  // Fallback handed literal 'new' sentinel, storing tierId:null + pickup:{}, never materializing.
   sl.registerLazySingleton<ComposeRequestController>(
     () => ComposeRequestController(sl<RequestSubmissionService>()),
   );
 
-  // T-MOB-031: Active delivery (Jeeber) — GET /v1/deliveries/{id} +
-  // POST /v1/deliveries/{id}/transition.
   sl.registerLazySingleton<ActiveDeliveryRepository>(
-    // JEBV4-200: proof-of-delivery photo BYTES stream through the shipped CDN
-    // signed-PUT broker+proxy (JEBV4-259 / PR #257), same as the KYC photos.
     () => DioActiveDeliveryRepository(
       sl<Dio>(),
       cdnAssetGateway: sl<CdnAssetGateway>(),
     ),
   );
 
-  // JEBV4-269: jeeber live-GPS uploader. Posts the jeeber's fix to the shipped
-  // `POST /location/update` ingest while the delivery is InTransit, which backs
-  // the customer's live-tracking map (`GET /deliveries/{id}/tracking`).
-  //
-  // ## P1, 2026-08-01 — was a `registerFactory`, and that made it SCREEN-scoped
-  //
-  // A factory handed a FRESH cubit to every build of the active-delivery route
-  // (`app_router.dart`, `jeeber-active-delivery`), and `ActiveDeliveryCubit`
-  // closed it on dispose. So the pipeline's lifetime was the WIDGET's: the
-  // moment the route popped — the jeeber opens chat, or just backs out to the
-  // feed — `bg_gps_phase` dropped to `{"phase":"idle","deliveryId":null}` and
-  // the courier stopped reporting position for the rest of the delivery. The
-  // customer's map simply froze; nothing logged an error, because from the
-  // pipeline's point of view a clean shutdown had been requested.
-  //
-  // This is NOT the earlier P0 (a missing `ACCESS_BACKGROUND_LOCATION`
-  // declaration, which made `always` unreachable). That fix is intact and the
-  // permission now resolves to `always` — this is a second defect that was
-  // hiding behind the same symptom.
-  //
-  // A lazy SINGLETON is the fix: the uploader must live as long as the
-  // DELIVERY, not as long as whichever widget happens to be on top of it. One
-  // instance per process, outliving every screen. `ActiveDeliveryCubit` still
-  // start/stops it by delivery status, but must no longer `close()` it — a
-  // closed cubit cannot emit, so closing the singleton would brick GPS upload
-  // for the remainder of the process (see its `close()` for the guard).
+  // JEBV4-269 P1: was registerFactory (screen-scoped). On route pop, cubit closed → GPS uploader
+  // stopped for rest of delivery. FIX: lazy SINGLETON outlives widget. ActiveDeliveryCubit still
+  // start/stops by status but must NOT close() — closed cubit cannot emit; closing singleton bricks GPS.
   sl.registerLazySingleton<BackgroundGpsCubit>(
     () => BackgroundGpsCubit(
       gateway: GeolocatorGeocaptureGateway(),
@@ -699,106 +413,43 @@ void configureDependencies({
     ),
   );
 
-  // JEBV4-285: order-summary (`view summary` → order-summary-pinned, JM-031)
-  // read the LIVE delivery aggregate. Without this binding the standalone
-  // OrderSummaryScreen fell back to FakeOrderSummaryRepository and rendered
-  // hardcoded demo data (Kamal Hajj / Spinneys / 9.00) on real deliveries.
-  // Same frozen origin plural route as ActiveDelivery (GET /v1/deliveries/{id}).
   sl.registerLazySingleton<OrderSummaryRepository>(
     () => DioOrderSummaryRepository(sl<Dio>()),
   );
 
-  // T-MOB-032: Settlement statements — GET /v1/wallet/jeeb/earnings/statements.
   sl.registerLazySingleton<SettlementRepository>(
     () => DioSettlementRepository(sl<Dio>()),
   );
 
-  // T-MOB-011: Real voice recorder + player behind the VoiceRecorder /
-  // VoicePlayer ports. Registered as FACTORIES (not singletons) because each
-  // recording session owns an open mic / audio-session resource — a fresh
-  // instance per VoiceRecordingScreen avoids leaking a half-open recorder
-  // across screen entries. FakeVoiceRecorder / FakeVoicePlayer remain the
-  // unit-test seam via the cubit constructor, so they are NOT registered here.
   sl.registerFactory<VoiceRecorder>(() => RecordVoiceRecorder());
   sl.registerFactory<VoicePlayer>(() => AudioPlayersVoicePlayer());
 
-  // T-MOB-011 / JEBV4-209: Voice upload repository — POST /transcribe (the
-  // gateway's real transcribe-only route; /v1/voice/transcribe was a dead
-  // alias). Registered so the screen resolves it from DI in release builds
-  // instead of self-constructing.
   sl.registerLazySingleton<VoiceRecordingRepository>(
     () => HttpVoiceRecordingRepository(dio: sl<Dio>()),
   );
 
-  // ── WAVE 2 / 2.5 (S2) integrator registrations ───────────────────────────
-
-  // LIVE(JM-053/046): the wallet balance/affordability/reserved-now/gift
-  // endpoint (`GET /v1/jeeb/wallet`) has landed (gateway PR #196), so this binds
-  // the REAL Dio repo. The wallet UI shell (WalletHubScreen, JM-053) + every
-  // "+ Top up" CTA that routes through it resolve this against `/v1/jeeb/wallet`.
-  // The in-memory StubWalletRepository remains as the integrator fallback and
-  // honors the same [WalletRepository] contract.
   sl.registerLazySingleton<WalletRepository>(
     () => DioWalletRepository(sl<Dio>()),
   );
 
-  // JM-036 / JEBV4-267: the DELIVERY-tab KYC gate source (register-prompt vs
-  // feed) + the offer gate (JM-044) + the wallet KYC banner all read
-  // `sl<JeeberKycStatusGate>()`. This binds the REAL, network-backed
-  // LiveJeeberKycStatusGate (JEBV4-267) so release builds query the live KYC
-  // decision (KycGateway.fetchStatus → GET /v1/kyc/status, U1) instead of the
-  // old SeamJeeberKycStatusGate no-op that hardcoded `approved` in release. The
-  // live gate delegates to the dev seam in DEBUG (so Maestro flows still drive
-  // `jeeb.seam.kyc_status` deterministically) and notifies its
-  // JeeberKycGateBuilder consumers when the release fetch resolves.
   sl.registerLazySingleton<JeeberKycStatusGate>(
     () => LiveJeeberKycStatusGate(sl<KycGateway>()),
   );
 
-  // ── WAVE 3 (S2) integrator registrations — wallet ledger + transaction ─────
-
-  // JM-055 wallet-activity-list: the typed paginated ledger. W2m
-  // (`GET /v1/jeeb/wallet/ledger`) is LIVE on :4010 (42_GUARDRAILS_MOCK "W2 mock
-  // closeout"), so this binds the REAL Dio repo (NOT a stub). Reached through
-  // the `/v1/jeeb/wallet` rewrite key (W3-INT, mock_gateway_client.dart). The
-  // JM-055 engineer's WalletActivityListScreen resolves this from DI.
   sl.registerLazySingleton<WalletLedgerRepository>(
     () => DioWalletLedgerRepository(sl<Dio>()),
   );
 
-  // LIVE(JM-056): the wallet transaction-by-id endpoint
-  // (`GET /v1/jeeb/wallet/ledger/:id`) has landed (gateway PR #196), so this
-  // binds the REAL Dio repo. The transaction-detail screen
-  // (TransactionDetailScreen, JM-056) + the inbound `wallet_activity_row_<id>`
-  // edge (JM-055) resolve this against `/v1/jeeb/wallet/ledger/:id`. The
-  // in-memory StubWalletTransactionRepository remains as the integrator fallback
-  // and honors the same [WalletTransactionRepository] contract.
   sl.registerLazySingleton<WalletTransactionRepository>(
     () => DioWalletTransactionRepository(sl<Dio>()),
   );
 
-  // ── WAVE 4 (S2) integrator registrations — notifications/support/dispute/
-  //    reviews (50_EXECUTION_PLAN §"WAVE 4 (1) S2"). ────────────────────────
-
-  // G3: the on-device durable push store — the bridge that lets a `new_request`
-  // push handled ONLY by the FCM background isolate (which can reach neither the
-  // BadgeCountCubit nor the inbox list) still surface a badge + inbox row on
-  // resume. Single instance so the merging inbox repo AND the app-level
-  // BadgeCountCubit read/write the SAME rows.
+  // G3: on-device durable push store lets background isolate surface new_request badge + row.
   sl.registerLazySingleton<LocalPushInbox>(
     () => SharedPrefsLocalPushInbox(prefs: sl<SharedPreferences>()),
   );
 
-  // JM-057 notifications-list: the notification-service inbox (list + mark-read)
-  // is LIVE on :4010 (42_GUARDRAILS_MOCK §4 mock-ready), so this binds the REAL
-  // Dio repo. The `?userId=` is resolved from AuthTokenStore, which the real
-  // login and super_login_plus seam both write. The header bell now routes here
-  // (`goNamed('notifications')`, shell guard removed).
-  //
-  // G3: wrapped in [LocalMergingNotificationsRepository] so a `new_request` push
-  // the server inbox never sources (dismissed while backgrounded) still shows a
-  // durable, tappable row — merged in from [LocalPushInbox]. Chat/offer/etc. are
-  // server-sourced and untouched.
+  // G3: LocalMergingNotificationsRepository so background push shows durable merged row.
   sl.registerLazySingleton<NotificationsRepository>(
     () => LocalMergingNotificationsRepository(
       remote: DioNotificationsRepository(
@@ -809,34 +460,14 @@ void configureDependencies({
     ),
   );
 
-  // LIVE(JM-063): the support-ticket service (S1) has landed — the gateway now
-  // exposes the support routes (`POST /v1/support/tickets`, `GET .../{id}`,
-  // `GET .../tickets`, `GET .../categories`) backed by jeeb-state-service
-  // (gateway PR #200), and the `/v1/support` rewrite key is now declared
-  // (mock_gateway_client.dart), so this binds the REAL Dio repo. The support
-  // form (SupportTicketScreen, JM-063) + every inbound edge (account-status /
-  // dispute-status / kyc-rejected → support, D76) resolve this against
-  // `/v1/support/tickets`. Gateway #200 reconciles the DTO drift (tolerates the
-  // mobile `orderRef` field + the `delivery`/`kycAppeal` category enum), so no
-  // screen/DTO change is needed. The in-memory StubSupportRepository remains as
-  // the integrator fallback and honors the same [SupportRepository] contract.
   sl.registerLazySingleton<SupportRepository>(
     () => DioSupportRepository(sl<Dio>()),
   );
 
-  // JM-065 dispute-status: the compliment-service dispute endpoints
-  // (`GET /v1/disputes/:disputeId`) are LIVE on :4010 (42_GUARDRAILS_MOCK §4
-  // mock-ready; the `/v1/disputes` rewrite key already exists), so this binds
-  // the REAL Dio repo. The JM-065 engineer's DisputeStatusScreen resolves this.
   sl.registerLazySingleton<DisputeStatusRepository>(
     () => DioDisputeStatusRepository(sl<Dio>()),
   );
 
-  // LIVE(JM-068): R1m (the per-jeeber reviews source) has landed, so this binds
-  // the REAL Dio repo. The reviews list (ReviewsListScreen, JM-068) + the inbound
-  // `profile_view_all_reviews` edge (JM-067) resolve this against `/v1/...`.
-  // The in-memory StubReviewsRepository remains as the integrator fallback and
-  // honors the same [ReviewsRepository] contract.
   sl.registerLazySingleton<ReviewsRepository>(
     () => DioReviewsRepository(sl<Dio>()),
   );

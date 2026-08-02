@@ -18,29 +18,9 @@ import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/notification_prefs_screen_fixtures.dart';
 import '../domain/notification_prefs_repository.dart';
 
-/// Notification Preferences (JM-058, blueprint `notification-prefs`).
-///
-/// Categories (D64): offers / order-status / wallet / marketing — each a
-/// debounced PUT toggle. The transactional class is locked (always-on, shown as
-/// a disabled row). A push-only note (R2) clarifies these are push-channel
-/// preferences. Back → `customer-profile`.
-///
-/// Exposed Semantics identifiers (JM-058 AC):
-///   notif_prefs_root            — screen host (nav-honesty re-assert)
-///   notif_prefs_offers_toggle
-///   notif_prefs_order_status_toggle
-///   notif_prefs_wallet_toggle
-///   notif_prefs_marketing_toggle
-///   notif_prefs_transactional_lock_icon — the locked always-on row indicator
-///   notif_prefs_push_only_note  — the push-only channel note (R2)
-///   notif_prefs_back            — app-bar back control → customer-profile
-///
-/// l10n NOTE (CTO-D R-F, requested in 50_ROUTE_REQUESTS.md JM-058): dedicated
-/// copy for the wallet/marketing categories, the transactional-locked row, and
-/// the push-only note does not exist in the ARB yet (ARB is integrator-owned).
-/// This screen ships reusing the closest EXISTING locale-safe getters; Maestro
-/// asserts on the identifiers above (never visible text), so this is copy-polish
-/// only and the AC stays green.
+/// Notification Preferences screen (JM-058).
+/// Categories: offers, order-status, wallet, marketing (debounced PUT toggles).
+/// Transactional class locked (always-on). Push-channel preferences only.
 class NotificationPrefsScreen extends StatefulWidget {
   const NotificationPrefsScreen({super.key});
 
@@ -56,9 +36,6 @@ class _NotificationPrefsScreenState extends State<NotificationPrefsScreen> {
     context.read<NotificationPrefsCubit>().load();
   }
 
-  /// Back → customer-profile. Real entry is `goNamed('settings-notifications')`
-  /// from the Profile tab (poppable → returns there); the named fallback only
-  /// fires on a cold deep-link (mirrors `wallet_charge_info_screen` pattern).
   void _onBack() {
     if (context.canPop()) {
       context.pop();
@@ -175,7 +152,7 @@ class _PrefsBody extends StatelessWidget {
   }
 }
 
-/// Push-only note (R2): every category here is a *push* preference.
+/// Push-only note (R2).
 class _PushOnlyNote extends StatelessWidget {
   const _PushOnlyNote();
 
@@ -198,9 +175,6 @@ class _PushOnlyNote extends StatelessWidget {
             ),
             const SizedBox(width: Spacing.small),
             Expanded(
-              // l10n reuse (CTO-D R-F): generic "manage what you get notified
-              // about" stands in for the push-only note until the dedicated key
-              // lands (50_ROUTE_REQUESTS JM-058).
               child: Text(
                 l10n.notificationPreferencesRowSubtitle,
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -246,8 +220,6 @@ class _CategoriesSection extends StatelessWidget {
         ),
         _CategoryRow(
           identifier: 'notif_prefs_wallet_toggle',
-          // Dedicated wallet-notification copy (F9): title + a wallet-specific
-          // subtitle, not the page-header "manage what you get notified about".
           title: l10n.notificationCategoryWallet,
           subtitle: l10n.notificationCategoryWalletSubtitle,
           value: c.wallet,
@@ -256,9 +228,6 @@ class _CategoriesSection extends StatelessWidget {
         ),
         _CategoryRow(
           identifier: 'notif_prefs_marketing_toggle',
-          // Surfaced as the rating-reminders category (D64 mapping): use the
-          // dedicated rating-reminders subtitle, not the duplicated offers copy
-          // ("Discounts and seasonal promotions") — F9.
           title: l10n.notificationCategoryRatingReminders,
           subtitle: l10n.notificationCategoryRatingRemindersSubtitle,
           value: c.marketing,
@@ -270,7 +239,7 @@ class _CategoriesSection extends StatelessWidget {
   }
 }
 
-/// The locked transactional class (D64) — always on, cannot be disabled.
+/// Locked transactional class (D64): always-on, cannot be disabled.
 class _TransactionalLockedSection extends StatelessWidget {
   const _TransactionalLockedSection();
 
@@ -281,18 +250,13 @@ class _TransactionalLockedSection extends StatelessWidget {
       title: l10n.notificationPreferencesSecuritySection,
       children: [
         Semantics(
-          // JM-058 AC2: the locked-transactional indicator. The flow asserts
-          // `notif_prefs_transactional_lock_icon` (67_W34_TEST_PLAN coined id).
           identifier: 'notif_prefs_transactional_lock_icon',
           container: true,
           child: OmdsSettingsSwitchRow(
-            // l10n reuse (CTO-D R-F): the OTP/security-codes row copy stands in
-            // for the transactional-locked label until the dedicated key lands.
             title: l10n.notificationCategoryOtp,
             subtitle: l10n.notificationCategoryOtpAlwaysOn,
             value: true,
             enabled: false,
-            // Disabled — the transactional class cannot be toggled off (D64).
             onChanged: null,
           ),
         ),
@@ -331,7 +295,6 @@ class _CategoryRow extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

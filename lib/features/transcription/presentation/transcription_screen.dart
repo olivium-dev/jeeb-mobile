@@ -11,9 +11,6 @@ import 'widgets/transcription_audio_card.dart';
 import 'widgets/transcription_status_banner.dart';
 import 'widgets/transcription_text_panel.dart';
 
-/// Stable Semantics identifiers for the transcription-review controls. Exposed
-/// so Codex QA / uiautomator / integration tests can target the interactive
-/// elements deterministically (DoD: every interactive widget addressable).
 class TranscriptionKeys {
   const TranscriptionKeys._();
 
@@ -28,20 +25,6 @@ class TranscriptionKeys {
 
 /// The voice TRANSCRIPTION-RESULT screen.
 ///
-/// Reached from the voice composer via `/voice-request/transcription` once the
-/// recording has been uploaded to `POST /transcribe` (JEBV4-209; the gateway
-/// echoes `{ audioId, status, transcription, language, reason }`). The screen lets the
-/// user review the machine transcription, edit it, replay the original audio,
-/// or re-record, then confirm — which forwards a [RequestDraft]-shaped payload
-/// to the next create-request step (`/request-summary`).
-///
-/// Navigation is injected via [onConfirm] / [onReRecord] so the widget stays
-/// router-agnostic and unit-testable; the router (`app_router.dart`) supplies
-/// the real `context.push` / `context.pop` closures.
-///
-/// Empty/failed transcriptions degrade gracefully: a `queued` upload (no text
-/// yet) drops the user straight into a typeable field, and a failed call shows
-/// a retry banner over the same manual-entry fallback.
 class TranscriptionScreen extends StatelessWidget {
   const TranscriptionScreen({
     super.key,
@@ -52,25 +35,14 @@ class TranscriptionScreen extends StatelessWidget {
     this.audioPlayer,
   });
 
-  /// Clip handed over from the voice composer. Carries the audio path/id and an
-  /// optional machine [VoiceClip.transcript].
   final VoiceClip clip;
 
-  /// Fired when the user confirms. Receives the final (possibly edited) text
-  /// plus the audio path so the caller can build the forward [RequestDraft].
   final void Function(String text, String audioPath)? onConfirm;
 
-  /// Fired when the user taps Re-record — returns to the voice composer.
   final VoidCallback? onReRecord;
 
-  /// Optional injected cubit (tests). Production builds one from the clip.
   final TranscriptionCubit? cubit;
 
-  /// Optional audio player override (tests). Production defaults to the
-  /// `audioplayers`-backed [AudioPlayersTranscriptAudioPlayer] (JEBV4-13 —
-  /// this used to default to the inert no-op player, leaving the visible
-  /// replay control dead). The real adapter is lazy: it only touches platform
-  /// channels on first play, so route tables / widget tests stay safe.
   final TranscriptAudioPlayer? audioPlayer;
 
   @override
@@ -243,10 +215,6 @@ class _ReRecordButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // OMDSOutlinedButton fills with colorScheme.secondaryContainer (deep navy
-    // in the Jeeb theme) and defaults its label to colorScheme.onSecondaryContainer
-    // (~#777FC0, muted lavender, ~3:1 contrast on navy — fails WCAG 2.2 AA).
-    // We override with colorScheme.onPrimary (white, ~17:1 on navy) to match
     // the same fix applied to the queued banner in transcription_status_banner.dart.
     final textColor = Theme.of(context).colorScheme.onPrimary;
     return Semantics(

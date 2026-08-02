@@ -8,24 +8,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/customer_wallet_stub_screen_fixtures.dart';
 
-/// customer-wallet stub (JEBV4-303 / F6 role-bleed).
-///
-/// The Jeeber wallet-hub ([WalletHubScreen], `/wallet`) is a BIDDING wallet: it
-/// calls `/v1/jeeb/wallet`, `/v1/jeeb/wallet/ledger` and `/v1/jeeb/earnings`,
-/// and its copy ("Top up to bid", "the customer pays YOU") only makes sense for
-/// a jeeber. A pure customer (no active jeeber role) tapping the top-bar wallet
-/// chip must NOT land there — it exposed jeeber-only money surfaces and an
-/// Earnings-403 dead-end (role-bleed on A33).
-///
-/// This customer-appropriate stub is what the wallet chip routes a client to
-/// instead. It performs NO network calls and explains the product truth: Jeeb is
-/// cash-on-delivery, so there is no in-app balance to top up — the customer pays
-/// their Jeeber directly in cash when the order arrives (D11, the same cash-only
-/// invariant the offer card / receipt already state).
-///
-/// Semantics ids:
-///   `customer_wallet_stub`      — screen root (QA target for the role-gate).
-///   `customer_wallet_stub_done` — the "Got it" CTA (back to the shell).
 class CustomerWalletStubScreen extends StatelessWidget {
   const CustomerWalletStubScreen({super.key});
 
@@ -41,9 +23,6 @@ class CustomerWalletStubScreen extends StatelessWidget {
         appBar: OMDSAppBar(
           title: l10n.customerWalletStubTitle,
           showBackButton: true,
-          // The chip reaches this via stack-REPLACING `goNamed('customer-wallet')`,
-          // so there is usually nothing to pop — fall back to the shell rather
-          // than leave an empty Navigator (mirrors the wallet-hub back guard).
           onBackPressed: () =>
               context.canPop() ? context.pop() : context.go('/'),
         ),
@@ -125,7 +104,6 @@ class CustomerWalletStubScreen extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

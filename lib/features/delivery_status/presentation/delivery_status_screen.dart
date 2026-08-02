@@ -18,18 +18,8 @@ import 'widgets/delivery_stage_indicator.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/delivery_status_screen_fixtures.dart';
 
-/// Public callback the screen invokes when the user taps the contact CTA.
-///
-/// Production wires this to a `tel:` launcher; widget tests pass a no-op
-/// recorder so they can assert the call was attempted with the right
-/// number without depending on `url_launcher`.
 typedef ContactJeeberHandler = void Function(String phoneE164);
 
-/// Renders the delivery status experience for [deliveryId].
-///
-/// Owns its own [DeliveryStatusCubit] — wiring is intentionally thin so
-/// widget tests can inject either a pre-built cubit or a scripted gateway.
-// ORPHAN (JEBV4-227, verified 2026-07-12): dead parallel re-implementation of tracking, zero external refs — see docs/project-understanding/reconciliation/orphans.md
 class DeliveryStatusScreen extends StatelessWidget {
   const DeliveryStatusScreen({
     super.key,
@@ -42,20 +32,12 @@ class DeliveryStatusScreen extends StatelessWidget {
           'Provide either a cubit or a gateway, not both.',
         );
 
-  /// The delivery to display. Echoed in the cubit and the app-bar subtitle.
   final String deliveryId;
 
-  /// Optional pre-built cubit — widget tests use this to keep state under
-  /// their control. When null, the screen builds one from [gateway] (or a
-  /// demo in-memory gateway as a last resort so the route can render
-  /// during the UI-only milestone).
   final DeliveryStatusCubit? cubit;
 
-  /// Gateway used to build the cubit when one isn't supplied.
   final DeliveryStatusGateway? gateway;
 
-  /// Handler invoked when the user confirms the Contact CTA. Tests inject
-  /// a recorder; production wires a `tel:` launcher.
   final ContactJeeberHandler? onContactJeeber;
 
   @override
@@ -196,9 +178,6 @@ class _ErrorView extends StatelessWidget {
       key: rootKey,
       padding: const EdgeInsets.all(Spacing.large),
       child: Center(
-        // OMDS's OmdsErrorState owns the visual layout — we only feed it
-        // localized copy. The retry button is OMDS-internal so we attach the
-        // test key to the surrounding container instead.
         child: OmdsErrorState(
           title: l10n.deliveryStatusErrorTitle,
           message: l10n.deliveryStatusErrorBody,
@@ -318,8 +297,6 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     if (!snapshot.isInFlight) {
-      // Terminal states (delivered / cancelled) hide both CTAs — the
-      // upstream rate-prompt screen owns the next user action.
       return const SizedBox.shrink();
     }
     return Column(
@@ -358,7 +335,6 @@ class _ActionBar extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

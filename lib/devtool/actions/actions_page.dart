@@ -2,14 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../gateway/dev_gateway_client.dart';
 
-/// DT-06 / F3 — pick a seeded user, then run a product action AS that user.
-///
-/// Loads the roster via [DevGatewayClient.listUsers], lets the reviewer pick
-/// the acting user, and drives one of the act-as actions the gateway
-/// exposes (initiate offer / accept offer / send message). Every call is
-/// funnelled through [DevGatewayClient], which never throws anything but a
-/// [DevGatewayException] — so a flag-off gateway surfaces as a readable
-/// error here instead of a crash.
 class ActionsPage extends StatefulWidget {
   const ActionsPage({super.key});
 
@@ -40,20 +32,14 @@ class _ActionsPageState extends State<ActionsPage> {
   String? _resultMessage;
   bool _resultIsError = false;
 
-  // Initiate offer.
   final TextEditingController _requestIdController = TextEditingController();
   final TextEditingController _feeController =
       TextEditingController(text: '5.0');
   final TextEditingController _etaController = TextEditingController(text: '10');
   final TextEditingController _noteController = TextEditingController();
 
-  // Accept offer.
   final TextEditingController _offerIdController = TextEditingController();
 
-  // Send message. Keyed on the REQUEST id (the conversation's correlation
-  // key), not a channel id: the legacy channel-write route is retired (410),
-  // and channel ids do not map onto conversation ids. See
-  // [DevGatewayClient.sendMessage].
   final TextEditingController _chatRequestIdController =
       TextEditingController();
   final TextEditingController _textController = TextEditingController();
@@ -152,10 +138,6 @@ class _ActionsPageState extends State<ActionsPage> {
           if (requestId.isEmpty || text.isEmpty) {
             throw const FormatException('Request ID and text are required.');
           }
-          // Reports which conversation the line actually landed in — the
-          // resolution requestId → conversationId is the whole point of this
-          // action, so hiding it would make a wrong-thread send look identical
-          // to a right one.
           final conversationId = await _client.sendMessage(
             asUserId: user.id,
             asRole: user.role,

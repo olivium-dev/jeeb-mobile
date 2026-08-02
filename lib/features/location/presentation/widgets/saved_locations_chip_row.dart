@@ -12,13 +12,6 @@ import '../../domain/saved_location_repository.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 import 'dart:async';
 
-/// Chip row showing the user's saved locations above the map (T-MOB-012 AC3).
-///
-/// Fetches `GET /api/users/me/saved-locations` (live; via the repository) on
-/// first build and renders each
-/// as an [OmdsChip]. Tapping a chip commits the point to the draft and jumps
-/// the map. If no saved locations exist the row is hidden so the map is not
-/// pushed down.
 class SavedLocationsChipRow extends StatefulWidget {
   const SavedLocationsChipRow({
     super.key,
@@ -30,13 +23,10 @@ class SavedLocationsChipRow extends StatefulWidget {
 
   final SavedLocationRepository repository;
 
-  /// Callback fired after the user saves a new location via the bottom sheet.
   final VoidCallback? onLocationSaved;
 
-  /// When non-null, the "save this location" bottom sheet may be offered.
   final (double, double)? pendingLatLng;
 
-  /// Address for the pending pin (may be null if reverse-geocode is in flight).
   final String? pendingAddress;
 
   @override

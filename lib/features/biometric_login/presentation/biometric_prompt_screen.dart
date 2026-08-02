@@ -8,13 +8,9 @@ import '../application/biometric_cubit.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/biometric_prompt_screen_fixtures.dart';
 
-// ORPHAN (JEBV4-227, verified 2026-07-12): superseded by biometric_auth/biometric_lock_cubit — see docs/project-understanding/reconciliation/orphans.md
 class BiometricPromptScreen extends StatelessWidget {
   const BiometricPromptScreen({super.key, this.cubit});
 
-  /// Catalog/test seam: inject a pre-built cubit (e.g. seeded into a specific
-  /// state) instead of the self-constructed one. Defaults to null — production
-  /// behavior (construct + `checkAvailability()`) is unchanged.
   final BiometricCubit? cubit;
 
   @override
@@ -129,7 +125,6 @@ class _PromptAction extends StatelessWidget {
     return const SizedBox.shrink();
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

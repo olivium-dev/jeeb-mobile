@@ -5,9 +5,6 @@ import 'package:omds/omds.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../devtool/catalog/fixtures/saved_addresses_screen_fixtures.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-// ORPHAN (JEBV4-227, verified 2026-07-12): superseded by SavedLocationsScreen (T-MOB-025) — see docs/project-understanding/reconciliation/orphans.md
 class SavedAddressesScreen extends StatefulWidget {
   const SavedAddressesScreen({super.key});
 
@@ -38,7 +35,6 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

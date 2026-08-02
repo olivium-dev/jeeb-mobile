@@ -15,54 +15,9 @@ import '../domain/otp_service.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/otp_verification_screen_fixtures.dart';
 
-/// `phone-otp-verification` — the phone-OTP verify step (JM-009).
-///
-/// **Re-parented behind sign-up / social (CTO-D1, G8).** In the email-first
-/// funnel the user gives Name/Email/Password on `/sign-up` (JM-008) — or signs
-/// in socially with no phone on file (JM-018) — and is then sent to this verify
-/// step to confirm the phone with a 6-digit OTP before the account is active.
-/// It is NOT a new route: it stays inside `/register` (the host
-/// [RegistrationScreen] drives the phone-entry → send-code → this OTP entry
-/// inside one [RegistrationCubit] scope), per 50_EXECUTION_PLAN §"Re-parent
-/// (no new route)".
-///
-/// **Data wiring (42_GUARDRAILS_MOCK W-1 FLOOR):** the cubit talks to the
-/// verified auth endpoints through [OtpService] / [DioOtpService]:
-///   - `POST /v1/auth/otp/request` → `{ requestId, expiresInSeconds: 300 }`
-///   - `POST /v1/auth/otp/verify`  → `{ accessToken, refreshToken, user{…} }`
-/// The B1 rewrite carries these `/v1/auth/*` paths to `/auth-service/...` on
-/// `:4010`; the mock dev code is the 6-digit `123456` (B4). The JWT pair +
-/// `user.userId` are persisted by [DioOtpService] before verify returns.
-///
-/// **On verify success → Requests tab (JM-009 AC1).** The default [onVerified]
-/// is `context.go('/')`, which resolves to the role-aware [ShellScreen]; for a
-/// freshly-signed-up customer that is the Requests tab (the host
-/// [RegistrationScreen]'s `_navigateHome` additionally marks onboarding
-/// complete + refreshes the session so the router promotes `/` to the shell).
-///
-/// **D23 returning-user bypass (JM-009 AC3):** this screen is reached ONLY on a
-/// fresh sign-up / first social link. A returning logged-in user with biometric
-/// enrolled is routed by the splash gate (JM-006) to `/lock`
-/// ([BiometricLockScreen], JM-005) and NEVER lands here — there is no per-login
-/// OTP. The bypass therefore lives in the router redirect, not in this widget;
-/// the OTP screen stays a pure sign-up-verify surface.
-///
-/// Semantics ids exposed (60_W0_TEST_PLAN §2.5):
-///   `phone_otp_input` · `phone_otp_verify_cta` · `phone_otp_resend_cta`
-///   (plus `phone_otp_root` for nav-honesty re-asserts, 41_GUARDRAILS §1.1).
-/// Legacy `Key('registration.*')`s are kept alongside for the pre-build-out
-/// widget tests (grandfathered, 41_GUARDRAILS §1.1).
-///
-/// Lives in the same [RegistrationCubit] scope as the phone screen; the
-/// phone screen pushes this route with `BlocProvider.value` so the
-/// countdown and attempt budget survive the navigation.
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({super.key, this.onVerified});
 
-  /// Called when the cubit reports a verified phone. Defaults to
-  /// `context.go('/')` (the role-aware shell → Requests tab for a customer) in
-  /// production; tests inject their own callback so the screen doesn't need a
-  /// full GoRouter in scope.
   final VoidCallback? onVerified;
 
   @override
@@ -78,27 +33,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     _maybeAutoSubmitSeamCode();
   }
 
-  /// DEBUG-ONLY OTP test-seam (62_SEAM_HARNESS.md `jeeb.seam.otp_code`).
-  ///
-  /// When an automated / on-device driver sets the `jeeb.seam.otp_code` seam
-  /// (e.g. the run-branch's known code `1234`), this auto-submits it through
-  /// the same [RegistrationCubit.verifyCode] path the user's keypad would
-  /// drive — so a Maestro / integration test can advance past the phone-OTP
-  /// verify step deterministically without typing into the per-cell input.
-  ///
-  /// Release-inert by construction: gated on [kDebugMode] AND a non-empty seam
-  /// value, and [DevSeam.current] is always [DevSeamConfig.empty] in release
-  /// (its `resolve` short-circuits when `!kDebugMode`). It therefore introduces
-  /// NO production behaviour change — in a release build both guards are false
-  /// and this is a no-op. It also stays inert in debug unless the seam is set,
-  /// so the normal manual-entry flow (and the widget tests that drive
-  /// `verifyCode` themselves) are untouched.
   void _maybeAutoSubmitSeamCode() {
     if (!kDebugMode) return;
     final seamCode = DevSeam.current.otpCode;
     if (seamCode.isEmpty) return;
-    // Defer to the first frame: the cubit/state must be mounted before we
-    // submit, and we only fire while the flow is genuinely on the OTP step.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final cubit = context.read<RegistrationCubit>();
@@ -116,8 +54,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       listener: (context, state) {
         switch (state.step) {
           case RegistrationStep.phone:
-            // Cubit bounced us back to phone entry (lockout expired or the
-            // user tapped "change phone"). Pop our route.
             if (Navigator.of(context).canPop()) Navigator.of(context).pop();
           case RegistrationStep.verified:
             final onVerified = widget.onVerified;
@@ -203,9 +139,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           .maxAttempts,
                     ),
                     const SizedBox(height: Spacing.large),
-                    // `phone_otp_verify_cta` (60_W0_TEST_PLAN §2.5): manual
-                    // verify fallback (the OTP input also auto-submits on the
-                    // 6th digit via `onCompleted`).
                     Semantics(
                       identifier: 'phone_otp_verify_cta',
                       button: true,
@@ -258,10 +191,6 @@ class _OtpEntry extends StatelessWidget {
     required this.onCompleted,
   });
 
-  // Jeeb customer sign-in uses a 4-digit OTP code, matching the live gateway
-  // contract (`/v1/auth/otp/verify` issues a 4-digit code, e.g. seed `1234`).
-  // The length is sourced from [kCustomerOtpLength] (domain/otp_service.dart)
-  // so the input width and the "code complete" gate stay in lockstep.
   static const int _kOtpLength = kCustomerOtpLength;
 
   final bool hasError;
@@ -270,15 +199,7 @@ class _OtpEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // `phone_otp_input` (60_W0_TEST_PLAN §2.5): the 6-digit OTP widget. The
-    // container node carries the id Maestro taps/asserts; each inner per-digit
-    // cell also gets an addressable id `phone_otp_input_0..5` (RC-7) because a
-    // single `inputText` on the container does NOT distribute the 6 digits
-    // across the N separate TextFields — the driver must type one digit per
-    // cell. On completion it auto-submits via `onCompleted` (B4 contract:
-    // code = `123456`).
     return Semantics(
-      // Container id kept for back-compat (assertions/visibility).
       identifier: 'phone_otp_input',
       container: true,
       child: Center(
@@ -286,7 +207,6 @@ class _OtpEntry extends StatelessWidget {
           key: const Key('registration.otpField'),
           length: _kOtpLength,
           hasError: hasError,
-          // RC-7: per-cell ids phone_otp_input_0..5 for digit-by-digit entry.
           identifier: 'phone_otp_input',
           onChanged: onChanged,
           onCompleted: onCompleted,
@@ -333,10 +253,6 @@ class _ResendRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (canResend)
-          // `phone_otp_resend_cta` (60_W0_TEST_PLAN §2.5): active only after the
-          // countdown expires (JM-009 AC2). Tapping re-requests a code via
-          // `RegistrationCubit.resendCode` → `POST /v1/auth/otp/request`; the
-          // screen stays put (the OTP input remains visible).
           Semantics(
             identifier: 'phone_otp_resend_cta',
             button: true,
@@ -411,7 +327,6 @@ String _otpErrorCopy(RegistrationOtpError error, AppLocalizations l10n) {
       return l10n.registrationOtpInvalid;
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

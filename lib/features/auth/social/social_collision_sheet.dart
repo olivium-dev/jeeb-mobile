@@ -6,22 +6,7 @@ import '../../../l10n/app_localizations.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../core/previews/jeeb_preview.dart';
 
-/// `social-collision-prompt` (D22, JM-019) — the block-second-method sheet.
-///
-/// The gateway returns `409 email_collision` when the email behind a social
-/// identity is already registered another way (phone-OTP, email/password, or a
-/// different provider). Per D22 (Q-045 STANDS) a *second* sign-in method on an
-/// existing identity is **blocked**, NOT silently merged — identity linking is
-/// owned by the untouchable user-management service (GR-2) and is out of scope
-/// for the client. This sheet is the user-facing outcome of that block: it
-/// explains that the account already exists and asks the user to sign in the
-/// way they did before.
-///
-/// It is a **sheet, not a route** (40_GUARDRAILS_ARCH §5 — transient prompts
-/// use `showModalBottomSheet`, not `GoRoute`s; mirrors `OfferAcceptSheet`). The
-/// caller (`SocialSignInSection`) awaits it and then calls
-/// [SocialAuthCubit.acknowledgeCollision] so the buttons are tappable again and
-/// the listener does not re-fire on the next rebuild.
+/// 409 email_collision: second method BLOCKED. Sheet explains account exists.
 Future<void> showSocialCollisionSheet(BuildContext context) {
   final scrim = Theme.of(context).colorScheme.onSecondaryContainer.withValues(
         alpha: UIConstants.opacityHigh,
@@ -38,9 +23,6 @@ Future<void> showSocialCollisionSheet(BuildContext context) {
   );
 }
 
-/// The block-second-method (D22) prompt body. Provider-agnostic copy — the
-/// block is identical whichever social provider triggered the 409, so no ICU
-/// placeholder is needed.
 class SocialCollisionSheet extends StatelessWidget {
   const SocialCollisionSheet({super.key});
 
@@ -94,7 +76,6 @@ class SocialCollisionSheet extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

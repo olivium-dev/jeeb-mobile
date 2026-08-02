@@ -1,10 +1,5 @@
 import '../domain/customer_profile_view_data.dart';
 
-/// Deterministic fixture for the Customer Profile dev-seam capture path
-/// (`jeeb.route=/profile/customer`). Mirrors the Figma comp (Sami Fawaz, a
-/// verified, not-yet-Jeeber customer) so a single dev APK renders screen 18
-/// without a rebuild. The router only instantiates this under `kDebugMode`;
-/// release builds render `ProfileUnavailableScreen` instead of this PII.
 abstract final class DevCustomerProfileFixtures {
   static const CustomerProfileViewData sample = CustomerProfileViewData(
     name: 'Sami Fawaz',
@@ -12,8 +7,6 @@ abstract final class DevCustomerProfileFixtures {
     avatarUrl: 'https://i.pravatar.cc/150?img=12',
     isVerified: true,
     isJeeber: false,
-    // Per-role rating (D6) so the dev capture path renders the rated header
-    // chip; the live getMe refresh (JM-035) replaces it with the real value.
     rating: 4.8,
     ratingCount: 27,
   );

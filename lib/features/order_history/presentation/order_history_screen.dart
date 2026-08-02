@@ -18,16 +18,8 @@ import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/order_history_screen_fixtures.dart';
 import '../domain/order_repository.dart';
 
-/// Text scale above which the compact filter chip switches to a scrollable,
-/// icon-free layout to preserve its accessible label without clipping.
 const double _kLargeFilterTextScaleThreshold = 1.5;
 
-/// The screen the user lands on from the "Orders" bottom tab. Owns the
-/// TabBar (Active / Completed / Cancelled), the date filter affordance,
-/// and the per-tab list with pull-to-refresh + infinite scroll.
-///
-/// Navigation off this screen is via go_router — `/orders/:id` already
-/// exists and renders [DeliveryDetailScreen].
 class OrderHistoryScreen extends StatefulWidget {
   const OrderHistoryScreen({super.key});
 
@@ -47,8 +39,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
-    // Defer the cubit kick-off until after the first frame so listeners
-    // mounted by [BlocProvider] downstream see the initial state.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<OrderHistoryCubit>().initialLoad();
@@ -77,8 +67,6 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
           curr.currentTab.errorKind != null &&
           curr.currentTab.status == OrderTabStatus.ready,
       listener: (context, state) {
-        // Transient errors (failed pagination or refresh) — the list stays
-        // visible, we just nudge the user with a snackbar.
         final messenger = ScaffoldMessenger.maybeOf(context);
         messenger?.showSnackBar(
           SnackBar(
@@ -205,8 +193,6 @@ class _FilterBar extends StatelessWidget {
   }
 }
 
-/// Renders a single tab's list. Watches the cubit and short-circuits to
-/// the matching loading/empty/error widget depending on tab state.
 class _OrderTabView extends StatefulWidget {
   const _OrderTabView({required this.tab, super.key});
 
@@ -236,8 +222,6 @@ class _OrderTabViewState extends State<_OrderTabView>
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
-    // Pre-fetch when the user is within one viewport of the bottom —
-    // gives the network call time to land before the spinner shows.
     if (pos.pixels >= pos.maxScrollExtent - pos.viewportDimension) {
       context.read<OrderHistoryCubit>().loadMore();
     }
@@ -254,16 +238,7 @@ class _OrderTabViewState extends State<_OrderTabView>
       builder: (context, state) {
         final tabState = state.tabs[widget.tab]!;
         final l10n = AppLocalizations.of(context);
-        // BUG-A (courier progression): the Delivery tab is SHARED by clients and
         // jeebers (F6/JEBV4-303 scopes the LIST by active role). A tapped row must
-        // route to the surface that matches the ACTIVE role: a client opens the
-        // read-only customer delivery detail (`/orders/:id`); an ACTIVE jeeber opens
-        // the jeeber active-delivery screen (`/jeeber/deliveries/:id/active`) — the
-        // Ordered→Picked→InTransit→AtDoor→Done stepper with the Mark-as controls.
-        // Before this, every row went to `/orders/:id`, so a matched jeeber landed
-        // on the customer's Live-tracking/Verify-OTP detail with NO way to advance
-        // the delivery (it stayed at Ordered). Nullable read keeps bare widget tests
-        // (no RoleCubit ancestor) on the unchanged customer path.
         final actingAsJeeber =
             context.watch<RoleCubit?>()?.state == UserRole.jeeber;
 
@@ -352,7 +327,6 @@ class _OrderTabViewState extends State<_OrderTabView>
     }
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

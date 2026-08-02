@@ -7,9 +7,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/request_summary_unavailable_screen_fixtures.dart';
 
-/// Graceful fallback rendered when `/request-summary` is reached without a
-/// `RequestDraft` (e.g. a cold deep-link). Replaces a raw scaffold that carried
-/// hardcoded English copy, so the AR build no longer leaks English here.
 class RequestSummaryUnavailableScreen extends StatelessWidget {
   const RequestSummaryUnavailableScreen({super.key});
 
@@ -31,7 +28,6 @@ class RequestSummaryUnavailableScreen extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

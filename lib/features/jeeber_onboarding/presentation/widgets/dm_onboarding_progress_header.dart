@@ -11,17 +11,11 @@ import '../../../../core/previews/jeeb_preview.dart';
 import '../../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../domain/dm_onboarding_gateway.dart';
 
-/// Thin, fully-rounded wizard progress bar pinned under the app bar across all
-/// onboarding steps (Figma 56591:5325 / 56591:5445). The fill is proportional
-/// to the current step; a localized "Step n of N" value is exposed to screen
-/// readers without rendering visible text (matching Figma).
 class DmOnboardingProgressHeader extends StatelessWidget {
   const DmOnboardingProgressHeader({super.key});
 
   static const Key rootKey = Key('dm-onboarding-progress');
 
-  /// Thin wizard bar; `Spacing.small` (12dp) is the nearest token to the Figma
-  /// 12px bar — no raw literal (RAIL 1).
   static const double barHeight = Spacing.small;
 
   @override
@@ -79,7 +73,6 @@ class _ProgressBarTrack extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -7,13 +7,6 @@ import '../obs_overlay_controller.dart';
 import '../../observability_config.dart';
 import '../../../../previews/jeeb_preview.dart';
 
-/// Collapsed state of the devtool overlay: a small floating circular toggle
-/// docked to the bottom-right corner. Tapping it expands `ObsOverlayPanel`.
-///
-/// There is no dedicated OMDS "floating toggle bubble" component to reuse
-/// (the closest primitives are `Material` + `InkWell`, which OMDS itself
-/// builds its own chips/buttons from) — this widget is the small, novel
-/// affordance a live devtool overlay needs on top of those primitives.
 class ObsOverlayBubble extends StatelessWidget {
   const ObsOverlayBubble({super.key, required this.controller});
 
@@ -100,7 +93,6 @@ class _RecordingDot extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

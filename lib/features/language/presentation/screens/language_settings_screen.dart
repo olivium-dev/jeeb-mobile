@@ -12,18 +12,6 @@ import '../../../../core/previews/jeeb_preview.dart';
 
 /// Settings → Language picker (T-mobile-044 / JEEB-135; registered as
 /// `language-settings` at `/settings/language` in W4-INT, JM-059).
-///
-/// The actual locale persistence and resolution lives in [LocaleCubit] — this
-/// screen is a thin presentational view that drives the cubit. Selection is
-/// instant (no app restart): the root [MaterialApp] watches the cubit and
-/// rebuilds with the new [Locale], including the RTL flip when Arabic is
-/// picked.
-///
-/// W4-INT (JM-059): canonical Semantics ids added while registering the route
-/// (40_GUARDRAILS_ARCH §8 — touch a widget for a JM, add its `identifier:`):
-/// `language_settings_root`, `language_english_option`, `language_arabic_option`
-/// (the JM-059 AC names `language_arabic_option` for the instant RTL flip), and
-/// `language_back` on the app-bar back control.
 class LanguageSettingsScreen extends StatelessWidget {
   const LanguageSettingsScreen({super.key});
 

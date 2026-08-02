@@ -12,13 +12,6 @@ import '../domain/settlement_statement.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/settlement_screen_fixtures.dart';
 
-/// Settlement statement list screen (T-MOB-032).
-///
-/// Route: /jeeber/settlement
-/// Lists weekly statements with status chips (paid / pending).
-/// Tap a row → [SettlementDetailScreen].
-/// Download CTA → GET /v1/wallet/jeeb/earnings/statements/{id}/pdf.
-// ORPHAN (JEBV4-227, verified 2026-07-12): registered route, zero inbound nav (T-MOB-032 designed but never linked) — see docs/project-understanding/reconciliation/orphans.md
 class SettlementScreen extends StatelessWidget {
   const SettlementScreen({
     super.key,
@@ -31,10 +24,8 @@ class SettlementScreen extends StatelessWidget {
   final SettlementRepository? repository;
   final SettlementCubit? cubit;
 
-  /// Called after a successful PDF download with the local file path.
   final void Function(String path)? onOpenPdf;
 
-  /// Called when the user taps a statement row (navigate to detail).
   final void Function(SettlementStatement statement)? onTapStatement;
 
   @override
@@ -99,8 +90,6 @@ class _Body extends StatelessWidget {
     }
     if (state.exportMode == SettlementExportMode.error &&
         state.exportError != null) {
-      // EXEMPT: OMDS exports no standalone toast/snackbar widget; showOmdsSnackbar
-      // is the approved fleet pattern for transient error feedback.
       showOmdsSnackbar(context, message: state.exportError!);
       context.read<SettlementCubit>().acknowledgeExport();
     }
@@ -198,9 +187,6 @@ class _StatementRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Semantic roles: paid = success, pending = warning. The old
-    // secondary/tertiary container pairs were brand hues doing state duty
-    // (onSecondaryContainer on navy fails AA).
     final roles = context.jeebRoles;
     final chipColor = statement.status == SettlementStatus.paid
         ? roles.successContainer
@@ -293,7 +279,6 @@ class _StatementRow extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -10,12 +10,6 @@ import 'order_status_chip.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../core/previews/jeeb_preview.dart';
 
-/// Single row in the order history list. Tap surface, two-line address
-/// summary, status pill, formatted amount, and a tier icon.
-///
-/// The card is intentionally self-contained — it takes the locale and an
-/// [onTap] callback and renders. No BLoC subscription, so it's trivial to
-/// embed in goldens or storybook.
 class OrderHistoryCard extends StatelessWidget {
   const OrderHistoryCard({
     super.key,
@@ -35,9 +29,6 @@ class OrderHistoryCard extends StatelessWidget {
     final dateLabel = DateFormat.yMMMd(locale).add_jm().format(
           order.createdAt.toLocal(),
         );
-    // T11 / SW-02: show the real amount through the one MoneyFormat rule when
-    // it is known; a missing price degrades to an em-dash (with an explicit
-    // "amount unavailable" a11y label), NEVER a fabricated `$0.00`.
     final amountKnown = order.hasKnownAmount;
     final amountLabel = amountKnown
         ? MoneyFormat.format(order.amountMinor! / 100, currency: order.currency)
@@ -187,7 +178,6 @@ class _Footer extends StatelessWidget {
           semanticsLabel: amountSemantics,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w600,
-            // A missing price is muted, not shouted like a real amount.
             color: amountKnown ? null : theme.colorScheme.onSurfaceVariant,
           ),
         ),
@@ -249,7 +239,6 @@ class _TierBadge extends StatelessWidget {
     }
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

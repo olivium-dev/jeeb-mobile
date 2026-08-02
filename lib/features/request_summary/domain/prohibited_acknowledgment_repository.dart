@@ -1,5 +1,3 @@
-/// Stub created by sanity-build pass (2026-05-17). Real impl persists the
-/// "user acknowledged the prohibited-items warning" flag per request.
 class ProhibitedAcknowledgmentRepository {
   const ProhibitedAcknowledgmentRepository();
 

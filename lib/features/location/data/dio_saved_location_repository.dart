@@ -5,36 +5,10 @@ import '../../../core/network/mock_gateway_client.dart';
 import '../domain/saved_location.dart';
 import '../domain/saved_location_repository.dart';
 
-/// Dio-backed implementation of [SavedLocationRepository] (T-MOB-012 / JM-049).
-///
-/// **Path source of truth.** The base path comes from
-/// [MockGatewayClient.savedLocationsPath]. The LIVE gateway serves the
-/// collection me-keyed under `/api` (`GET|POST /api/users/me/saved-locations`,
-/// `PUT|DELETE …/:id`) — VERIFIED 200/201/204 on `:10090` (2026-06-30). The
-/// `:4010` Express mock instead keys it by `:userId` and is reached via the
-/// `/users` → `/user-management/users` rewrite; the helper emits that shape only
-/// in mock mode. The earlier `/users/:userId/...` (and the older `/v1/users/me/…`)
-/// shapes 404'd on the live gateway — that was the saved-locations-404 bug.
-///
-/// The `:userId` (used only for the mock-mode path + the observability log) is
-/// resolved from the persisted [AuthTokenStore]. When absent — bare tests / a
-/// not-yet-logged-in boot — it falls back to the mock's `authStub` convention
-/// (`user-client-001`). On the live gateway the path is `me` regardless of this
-/// id. Never hardcodes a `:4010` host or service prefix (40_GUARDRAILS_ARCH §4/§11).
-///
-/// Parsing is defensive (40_GUARDRAILS_ARCH §4): tolerates a bare list or
-/// `{ items: [...] }`, the seeded nested `geo:{lat,lng}` shape AND a top-level
-/// `latitude/longitude`, both `isDefault` and `is_default`, and degrades a
-/// malformed row to its best-effort fields rather than crashing on a cast.
-///
-/// Observability: logs `saved_location.<op>` per AC5 (T-MOB-025).
 class DioSavedLocationRepository implements SavedLocationRepository {
   DioSavedLocationRepository(this._dio, {AuthTokenStore? tokenStore})
       : _tokenStore = tokenStore ?? AuthTokenStore();
 
-  /// Mock `authStub` convention: any bearer resolves to `user-client-001`, and
-  /// the W1 journey seeds target that id (42_GUARDRAILS_MOCK §4). Used only when
-  /// the persisted userId is absent (bare test / pre-login).
   static const String _fallbackUserId = 'user-client-001';
 
   final Dio _dio;
@@ -138,8 +112,6 @@ class DioSavedLocationRepository implements SavedLocationRepository {
   }
 
   SavedLocation _parseItem(Map<String, dynamic> json) {
-    // The seam seeds the coordinate as a nested `geo:{lat,lng}`; the legacy
-    // T-MOB-012 contract used top-level `latitude/longitude`. Accept both.
     final geo = json['geo'];
     final geoMap = geo is Map<String, dynamic> ? geo : const {};
     final lat = (json['latitude'] as num?)?.toDouble() ??
@@ -158,8 +130,6 @@ class DioSavedLocationRepository implements SavedLocationRepository {
       category: _parseCategory(json['category'] as String?, json['label']),
       address: json['address'] as String?,
       isDefault: isDefault,
-      // JM-050 address-detail-form fields (seam: journey-seed.ts). snake_case +
-      // camelCase tolerated so the form round-trips the seeded values.
       building: json['building'] as String?,
       floorApt: (json['floorApt'] ?? json['floor_apt']) as String?,
       deliveryNotes:
@@ -168,8 +138,6 @@ class DioSavedLocationRepository implements SavedLocationRepository {
     );
   }
 
-  /// Best-effort category. The seam rows carry no `category`, so fall back to
-  /// the label hint (Home/Office) — purely cosmetic (drives the leading glyph).
   SavedLocationCategory _parseCategory(String? raw, Object? label) {
     switch (raw) {
       case 'home':
@@ -188,8 +156,6 @@ class DioSavedLocationRepository implements SavedLocationRepository {
   }
 
   Never _handleError(DioException e) {
-    // The mock returns 422 `limit_reached` at the 10-location cap; the legacy
-    // gateway used 409. Treat both as the cap-reached signal.
     final code = e.response?.statusCode;
     if (code == 409 || code == 422) {
       throw const SavedLocationCapReachedException();

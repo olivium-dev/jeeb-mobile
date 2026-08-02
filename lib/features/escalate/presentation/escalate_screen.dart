@@ -16,20 +16,6 @@ import '../domain/escalate_repository.dart';
 import '../../../devtool/catalog/fixtures/escalate_screen_fixtures.dart';
 import '../../../core/previews/jeeb_preview.dart';
 
-/// Dispute open + evidence (JM-060, blueprint `dispute-open-evidence`).
-///
-/// Extends the original T-MOB-022 escalate surface into the blueprint dispute
-/// flow (20_GAP_MAP reconciliation note 8 — the dead `dispute_screen.dart` is
-/// retired). Exposes the blueprint identifiers: `dispute_reason`,
-/// `dispute_photos` (real picker, ≤5), `dispute_voice` (D53), the auto-attached
-/// chat + GPS/status timeline (D53), `dispute_submit_cta` (→ `dispute-status`,
-/// JM-065), `dispute_support_link` (→ `support-ticket`, D76), `dispute_back`
-/// (→ `order-chat`). POSTs `POST /v1/disputes` (D19/D2/D53/D54/D76).
-///
-/// The cubit is provided by the route (`/orders/:id/escalate`); the platform
-/// photo/voice collaborators are owned by THIS (presentation) layer and
-/// injectable for tests — they default to the codebase's stub/fake seams
-/// (image_picker real binding is the cross-codebase D1m/T-mobile-040 follow-up).
 class EscalateScreen extends StatefulWidget {
   const EscalateScreen({
     super.key,
@@ -37,12 +23,8 @@ class EscalateScreen extends StatefulWidget {
     this.voiceRecorder,
   });
 
-  /// Photo capture seam (defaults to [StubPhotoPickerService]). The real
-  /// `image_picker` binding lands with the camera-plugin task (not yet a
-  /// pubspec dependency — see 50_ROUTE_REQUESTS GAP).
   final PhotoPickerService? photoPicker;
 
-  /// Voice capture seam (defaults to [FakeVoiceRecorder]).
   final VoiceRecorder? voiceRecorder;
 
   @override
@@ -62,7 +44,6 @@ class _EscalateScreenState extends State<EscalateScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-attach evidence (D53) on cold entry. Never blocks the screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<EscalateCubit>().loadEvidence();
     });
@@ -71,13 +52,9 @@ class _EscalateScreenState extends State<EscalateScreen> {
   Future<void> _pickPhoto() async {
     final cubit = context.read<EscalateCubit>();
     if (!cubit.state.canAddPhoto) return;
-    // Capture locale-derived copy BEFORE the await (no BuildContext across gaps).
     final permissionCopy =
         AppLocalizations.of(context).voiceRecordingErrorPermission;
     try {
-      // Real picker contract: a RawPhoto with bytes. We persist a stable
-      // per-pick path token the dispute body carries (the real binding writes
-      // the captured file; the stub round-trips a synthetic name).
       await _photoPicker.pickFromGallery();
       _photoSeq += 1;
       cubit.addPhoto('dispute_photo_$_photoSeq.jpg');
@@ -95,15 +72,12 @@ class _EscalateScreenState extends State<EscalateScreen> {
   Future<void> _toggleVoice() async {
     final cubit = context.read<EscalateCubit>();
     if (cubit.state.hasVoice) {
-      // Tapping a captured clip clears it (re-record).
       cubit.clearVoice();
       return;
     }
-    // Capture locale-derived copy BEFORE the await (no BuildContext across gaps).
     final permissionCopy =
         AppLocalizations.of(context).voiceRecordingErrorPermission;
     if (_recording) {
-      // Stop and capture.
       try {
         final VoiceClip clip =
             await _voiceRecorder.stop(recordedDuration: Duration.zero);
@@ -115,7 +89,6 @@ class _EscalateScreenState extends State<EscalateScreen> {
       }
       return;
     }
-    // Start recording.
     try {
       await _voiceRecorder.start();
       if (mounted) setState(() => _recording = true);
@@ -133,9 +106,6 @@ class _EscalateScreenState extends State<EscalateScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // JM-060: the dispute-open-evidence screen root. The flow asserts
-    // `dispute_root` after the `/orders/:id/escalate` route lands
-    // (67_W34_TEST_PLAN coined id).
     return Semantics(
       identifier: 'dispute_root',
       container: true,
@@ -145,8 +115,6 @@ class _EscalateScreenState extends State<EscalateScreen> {
         listenWhen: (p, n) =>
             p.phase != n.phase && n.phase == EscalatePhase.success,
         listener: (context, state) {
-          // EDGE (JM-060 AC): on a successful open, route to dispute-status
-          // (JM-065). 21_NAV_PLAN §C. Replace so back doesn't re-open the form.
           final id = state.caseId ?? '';
           if (id.isEmpty) return;
           context.goNamed(
@@ -209,10 +177,6 @@ class _InputForm extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: Spacing.medium),
-                  // JM-060 AC1: auto-attach note (D53) — the chat snapshot +
-                  // GPS/timeline are attached automatically. Coined id
-                  // `dispute_auto_attach_note` (67_W34_TEST_PLAN). Placed near
-                  // the top so it is visible without scrolling.
                   Semantics(
                     identifier: 'dispute_auto_attach_note',
                     container: true,
@@ -445,7 +409,7 @@ class _VoiceSection extends StatelessWidget {
     final String label;
     final IconData icon;
     if (hasVoice) {
-      label = l10n.voiceRecordingDiscard; // captured → tap to re-record
+      label = l10n.voiceRecordingDiscard;
       icon = Icons.delete_outline;
     } else if (recording) {
       label = l10n.voiceRecordingReleaseToStop;
@@ -495,9 +459,6 @@ class _CommentField extends StatelessWidget {
   }
 }
 
-/// Auto-attached evidence (D53): the immutable chat snapshot + the GPS/status
-/// timeline. Read-only — the customer cannot edit it; it travels with the
-/// dispute so the back office sees the same context.
 class _EvidenceSection extends StatelessWidget {
   const _EvidenceSection({required this.evidence, required this.loaded});
   final EscalateEvidence evidence;
@@ -619,13 +580,6 @@ class _SupportLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // EDGE: dispute_support_link → support-ticket (D76). 21_NAV_PLAN §C.
-    // The tap action lives on the Semantics node itself (with the child's own
-    // semantics excluded) so Maestro — which taps the NODE CENTRE — reliably
-    // fires it. The prior `Align(centerStart)` left the TextButton on the left
-    // half only, so the node-centre tap missed the button and the nav never
-    // fired on-device (68_W34 closeout; same class as the W2 RD-3 fix). `goNamed`
-    // matches the working JM-065 dispute→support edge.
     return Semantics(
       identifier: 'dispute_support_link',
       button: true,
@@ -633,9 +587,6 @@ class _SupportLink extends StatelessWidget {
       container: true,
       onTap: () => context.goNamed('support-ticket'),
       child: ExcludeSemantics(
-        // FULL-WIDTH tap target (no centre-start Align): Maestro taps the node
-        // CENTRE, and a left-aligned button left the centre over empty space so
-        // the tap missed and the nav never fired (68_W34 closeout).
         child: TextButton.icon(
           style: TextButton.styleFrom(
             minimumSize: const Size.fromHeight(Sizes.fiveXLarge),
@@ -666,9 +617,6 @@ class _BottomBar extends StatelessWidget {
             button: true,
             child: OMDSOutlinedButton(
               text: l10n.disputeStatusBackCta,
-              // EDGE: dispute_back → order-chat. Pop when possible (the chat /
-              // tracking / receipt is the typical entry); else fall back to the
-              // home shell (a cold deep-link has nothing to pop). 21_NAV_PLAN §C.
               onTap: () => context.canPop()
                   ? context.pop()
                   : context.goNamed('shell'),
@@ -741,7 +689,6 @@ class _ErrorView extends StatelessWidget {
     }
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

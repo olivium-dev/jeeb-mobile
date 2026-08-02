@@ -7,11 +7,7 @@ import '../../domain/cancellation_result.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Bottom sheet shown after a successful cancellation.
-///
-/// EXEMPT: OmdsBottomSheet lacks a `show` static factory with the required
-/// scroll-safe body layout. Using Flutter's `showModalBottomSheet` directly
-/// with a custom child that uses OMDS design tokens exclusively.
+/// Bottom sheet after success. OmdsBottomSheet lacks scroll-safe body layout.
 class CancellationSuccessSheet extends StatelessWidget {
   const CancellationSuccessSheet({
     super.key,
@@ -97,7 +93,6 @@ class _SuccessTitle extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

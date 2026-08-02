@@ -13,25 +13,6 @@ import 'dart:convert';
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../domain/jeeber_delivery_status.dart';
 
-/// The mark-delivered panel shown at `AtDoor` (JM-051 AC1/AC2).
-///
-/// Surfaces:
-///   - `mark_delivered_proof_photo` — proof-of-delivery photo capture (D3).
-///   - optional Jeeber note.
-///   - `mark_delivered_cash_note` — "customer confirms receipt + pays cash" (D11).
-///   - `mark_delivered_cta` — "Complete Delivery"; P6/B1: it walks the forward
-///     ladder only as far as `AtDoor` and then raises the door OTP. It does
-///     NOT drive `AtDoor → Done` — the frozen SM opens that edge for
-///     `otp_verified` alone.
-///
-/// When [otpRequired] the panel swaps its "Complete Delivery" CTA for a
-/// door-OTP entry (`mark_delivered_otp_input`) + `mark_delivered_otp_submit` —
-/// the recipient gives the jeeber the code, the jeeber enters it, and the
-/// delivery completes to Done via the verify path, which then chains to
-/// `feedback-rate-delivery` (D56).
-///
-/// Dumb widget: data in via constructor, events out via callbacks
-/// (40_GUARDRAILS_ARCH §1 — no `sl`/`context.go` here).
 class MarkDeliveredPanel extends StatelessWidget {
   const MarkDeliveredPanel({
     super.key,
@@ -52,9 +33,6 @@ class MarkDeliveredPanel extends StatelessWidget {
   final JeeberDelivery delivery;
   final ProofPhotoStatus proofPhotoStatus;
 
-  /// JEBV4-200: the just-captured proof-photo bytes, rendered from memory so the
-  /// jeeber sees the actual image (the stamped `evidenceUrl` is an opaque CDN
-  /// `object_ref` the gateway resolves later on the customer receipt).
   final Uint8List? proofPhotoBytes;
   final bool isMarking;
   final VoidCallback onCaptureProof;
@@ -62,16 +40,12 @@ class MarkDeliveredPanel extends StatelessWidget {
   final VoidCallback onMarkDelivered;
   final AppLocalizations l10n;
 
-  /// iter6 close-tail: the recipient OTP is required to complete `AtDoor → Done`.
   final bool otpRequired;
 
-  /// True while a submitted door OTP is verifying.
   final bool isVerifyingOtp;
 
-  /// Inline error under the door-OTP field (wrong code / locked / network).
   final String? otpError;
 
-  /// Submits the typed recipient OTP. Non-null whenever [otpRequired] is wired.
   final ValueChanged<String>? onSubmitOtp;
 
   @override
@@ -97,8 +71,6 @@ class MarkDeliveredPanel extends StatelessWidget {
         const SizedBox(height: Spacing.medium),
         _CashNote(delivery: delivery, l10n: l10n),
         const SizedBox(height: Spacing.large),
-        // iter6 close-tail: when the gateway demands the recipient OTP, swap the
-        // "Complete Delivery" CTA for the door-OTP entry that finishes the job.
         if (otpRequired)
           _DoorOtpEntry(
             isVerifying: isVerifyingOtp,
@@ -117,11 +89,6 @@ class MarkDeliveredPanel extends StatelessWidget {
   }
 }
 
-/// iter6 close-tail: the door-OTP entry surfaced when `AtDoor → Done` returns
-/// `otp_required`. The recipient gives the jeeber the 4-digit code; the jeeber
-/// types it and submits to complete the delivery to Done. Mirrors the proven
-/// `otp_handover_input` shape (per-cell editable ids) so a UI driver can fill
-/// each cell.
 class _DoorOtpEntry extends StatefulWidget {
   const _DoorOtpEntry({
     required this.isVerifying,
@@ -205,8 +172,6 @@ class _DoorOtpEntryState extends State<_DoorOtpEntry> {
   }
 }
 
-/// `mark_delivered_proof_photo` — tap-to-capture proof photo (D3). Renders the
-/// uploaded thumbnail once captured; otherwise a tappable dashed placeholder.
 class _ProofPhoto extends StatelessWidget {
   const _ProofPhoto({
     required this.delivery,
@@ -219,8 +184,6 @@ class _ProofPhoto extends StatelessWidget {
   final JeeberDelivery delivery;
   final ProofPhotoStatus status;
 
-  /// The just-captured bytes (JEBV4-200) — preferred over the stamped
-  /// `evidenceUrl` for the local thumbnail so the jeeber sees the real photo.
   final Uint8List? bytes;
   final VoidCallback onCapture;
   final AppLocalizations l10n;
@@ -231,8 +194,6 @@ class _ProofPhoto extends StatelessWidget {
     final uploading = status == ProofPhotoStatus.uploading;
     final captured =
         status == ProofPhotoStatus.captured && delivery.hasProofPhoto;
-    // JEBV4-200: the camera capture is wired to the cubit's real-bytes CDN
-    // upload via [onCapture]; the captured frame renders from memory below.
     return Semantics(
       identifier: 'mark_delivered_proof_photo',
       button: true,
@@ -293,7 +254,6 @@ class _ProofPhoto extends StatelessWidget {
   }
 }
 
-/// Optional Jeeber note (JM-051 AC1).
 class _NoteField extends StatelessWidget {
   const _NoteField({required this.onChanged, required this.l10n});
 
@@ -302,8 +262,6 @@ class _NoteField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Identifier on a wrapping node so Maestro can locate the optional note;
-    // the field owns its own editable semantics underneath.
     return Semantics(
       identifier: 'mark_delivered_note_field',
       child: OmdsTextField(
@@ -317,7 +275,6 @@ class _NoteField extends StatelessWidget {
   }
 }
 
-/// `mark_delivered_cash_note` — "customer confirms receipt + pays cash" (D11).
 class _CashNote extends StatelessWidget {
   const _CashNote({required this.delivery, required this.l10n});
 
@@ -327,10 +284,6 @@ class _CashNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // D11 cash-on-delivery reminder. Localized via the shared
-    // `receiptCashToJeeber` ("Pay {amount} cash to {jeeber}") getter — the
-    // jeeber confirms the customer pays this cash on delivery. A dedicated
-    // jeeber-framed key is requested in 50_ROUTE_REQUESTS.md (JM-051).
     final amount = delivery.amountText ?? '';
     final party = delivery.clientName ?? l10n.activeDeliveryDropOffLabel;
     return Semantics(
@@ -363,9 +316,6 @@ class _CashNote extends StatelessWidget {
   }
 }
 
-/// `mark_delivered_cta` — the primary "Mark as delivered" CTA. The Semantics
-/// node owns the tap + spinner state (same proven shape as the chat confirm
-/// sheet's `confirm_delivery_confirm_button`).
 class _MarkDeliveredCta extends StatelessWidget {
   const _MarkDeliveredCta({
     required this.isMarking,
@@ -398,7 +348,6 @@ class _MarkDeliveredCta extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

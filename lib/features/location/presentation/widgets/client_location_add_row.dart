@@ -5,11 +5,6 @@ import 'package:omds/omds.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// "New Location" row on the Client Location screen (Figma 56539:1444): a
-/// start-aligned label and a trailing circular navy add button. The whole row
-/// is the tap target (mirrors the card behaviour); the circular button is a
-/// navy filled circle with a peach-tinted "+" in Figma — here the glyph is
-/// `onPrimary` on the navy circle (token-driven, see comparison.md).
 class ClientLocationAddRow extends StatelessWidget {
   const ClientLocationAddRow({
     super.key,
@@ -23,10 +18,6 @@ class ClientLocationAddRow extends StatelessWidget {
   final String addSemanticLabel;
   final VoidCallback onTap;
 
-  /// Semantics identifier for the row. Defaults to the legacy
-  /// `client_location_add_new` (kept for the existing delivery-create tests);
-  /// the JM-024 location-select screen passes `location_select_new_location_cta`
-  /// (63_W1_TEST_PLAN §2.3).
   final String identifier;
 
   @override
@@ -102,7 +93,6 @@ class _AddButton extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

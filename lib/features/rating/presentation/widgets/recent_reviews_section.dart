@@ -4,13 +4,6 @@ import 'package:omds/omds.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Lightweight presentation-only model for a single recent review.
-///
-/// Mirrors the subset of fields [OmdsReviewCard] needs. The real data layer
-/// (a `RatingsRepository` exposing `Stream<List<Review>>`) does not yet exist
-/// in `jeeb-mobile`; tracked under `T-MOB-RATING-001`. When the data feature
-/// lands, map the domain entity to this model at the screen boundary — keep
-/// this widget free of domain types so it stays Storybook-friendly.
 class RecentReviewPreview {
   const RecentReviewPreview({
     required this.userName,
@@ -29,11 +22,6 @@ class RecentReviewPreview {
   final bool isVerifiedPurchase;
 }
 
-/// Reviews preview block for the rating screens.
-///
-/// Renders an [OmdsSectionHeader] ("Reviews (N)" + optional "View all" CTA)
-/// followed by up to [maxItems] [OmdsReviewCard] entries. Returns a zero-size
-/// widget when [reviews] is empty so the parent can use it unconditionally.
 class RecentReviewsSection extends StatelessWidget {
   const RecentReviewsSection({
     super.key,
@@ -112,7 +100,6 @@ class _ReviewCardItem extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

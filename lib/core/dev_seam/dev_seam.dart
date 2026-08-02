@@ -3,47 +3,20 @@ import 'package:flutter/foundation.dart';
 import 'dev_seam_config.dart';
 import 'dev_seam_source.dart';
 
-/// Global, debug-only holder of the resolved [DevSeamConfig].
-///
-/// One dev APK can render any screen / state / locale because every consumer
-/// (router, locale cubit, splash host) reads [current] at RUNTIME instead of a
-/// compile-time `const`. The value is resolved once during bootstrap from a
-/// priority-ordered source list (intent extras → device file → dart-define),
-/// then exposed through the typed getters below.
-///
-/// Release-inert by construction: [resolve] short-circuits to
-/// [DevSeamConfig.empty] when `!kDebugMode`, and [current] returns [empty]
-/// until/unless a debug resolve runs, so every getter is `false`/empty in
-/// production.
 class DevSeam {
   DevSeam._();
 
   static DevSeamConfig _current = DevSeamConfig.empty;
 
-  /// The resolved config. [DevSeamConfig.empty] in release and before
-  /// [resolve] completes.
   static DevSeamConfig get current => _current;
 
-  /// Default source order: runtime sources first (so adb can drive a built
-  /// APK), dart-define last (so existing build flows still work).
   static const List<DevSeamSource> _defaultSources = <DevSeamSource>[
     IntentExtrasSource(),
     DeviceFileSource(),
     DartDefineSource(),
   ];
 
-  /// Resolves the seam from [sources] (defaults to [_defaultSources]) and
-  /// stores the result in [current]. No-op in release builds. Each source is
-  /// merged field-by-field: an earlier source overrides only the fields it
-  /// actually provides, so e.g. an intent that sets only `jeeb.locale` still
-  /// inherits a route from the device file or dart-define.
   static Future<void> resolve({List<DevSeamSource>? sources}) async {
-    // Release-inert (kDebugMode) PLUS a production kill-switch: a production
-    // build passes `--dart-define=JEEB_DISABLE_DEV_SEAM=true` so the seam is
-    // fully disabled even in a (non-release) debug PRODUCTION build — no source
-    // (incl. the persistent /data/local/tmp/jeeb-dev-seam.json device file) can
-    // populate `current`, so SessionSeamBootstrap.seed never clobbers the real
-    // login. Absent (dev/staging + all tests) → unchanged behaviour. JEBV4-272.
     if (!kDebugMode || const bool.fromEnvironment('JEEB_DISABLE_DEV_SEAM')) {
       _current = DevSeamConfig.empty;
       return;
@@ -52,14 +25,6 @@ class DevSeam {
     for (final source in sources ?? _defaultSources) {
       merged = _mergePreferring(merged, await source.read());
     }
-    // Wave 1 journey seam (63_W1_TEST_PLAN §4): a `jeeb.seam.journey` value that
-    // implies a deep landing folds its route pin into [DevSeamConfig.route] so
-    // the EXISTING router route-pin (app_router `_devRoute`) lands the flow on
-    // the right screen — without the flow having to also pass `jeeb.route` and
-    // without editing the router. An explicit `jeeb.route` always wins (so a
-    // flow can still override the journey's default landing). Journeys whose
-    // routePin is empty (offers_received / has_saved_addresses) leave the route
-    // untouched, so the app lands on the shell and the flow navigates there.
     merged = _applyJourneyRoutePin(merged);
     _current = merged;
     if (!merged.isEmpty) {
@@ -67,10 +32,6 @@ class DevSeam {
     }
   }
 
-  /// Folds [JourneySeed.routePin] into [DevSeamConfig.route] when a journey seed
-  /// implies a deep landing and no explicit route was already set. Returns
-  /// [config] unchanged when there is no journey, the journey has no route pin,
-  /// or an explicit `jeeb.route` is present.
   static DevSeamConfig _applyJourneyRoutePin(DevSeamConfig config) {
     if (!config.hasJourneySeed) return config;
     if (config.route.isNotEmpty) return config; // explicit route wins
@@ -102,8 +63,6 @@ class DevSeam {
     );
   }
 
-  /// Field-wise merge where [primary] (a higher-priority source) wins on any
-  /// field it sets; [fallback] fills the gaps.
   static DevSeamConfig _mergePreferring(
     DevSeamConfig primary,
     DevSeamConfig fallback,
@@ -120,18 +79,12 @@ class DevSeam {
       feed: primary.feed.isNotEmpty ? primary.feed : fallback.feed,
       holdSplash: primary.holdSplash || fallback.holdSplash,
       skipOnboarding: primary.skipOnboarding || fallback.skipOnboarding,
-      // Wave 0 dev-seam session/journey harness fields (62_SEAM_HARNESS.md):
-      // primary (higher-priority source) wins on any field it sets.
       sessionSeed: primary.sessionSeed != SessionSeed.none
           ? primary.sessionSeed
           : fallback.sessionSeed,
-      // Wave 1 journey seam (63_W1_TEST_PLAN §4): primary wins on any journey it
-      // sets; the route pin is folded in by [_applyJourneyRoutePin] after merge.
       journeySeed: primary.journeySeed != JourneySeed.none
           ? primary.journeySeed
           : fallback.journeySeed,
-      // Wave 2 jeeber seam (65_W2_TEST_PLAN §3): primary wins on any kyc/wallet
-      // seed it sets.
       kycStatusSeed: primary.kycStatusSeed != KycStatusSeed.none
           ? primary.kycStatusSeed
           : fallback.kycStatusSeed,
@@ -153,8 +106,6 @@ class DevSeam {
       setPasswordMode: primary.setPasswordMode.isNotEmpty
           ? primary.setPasswordMode
           : fallback.setPasswordMode,
-      // super-login+ seam: higher-priority source wins on any token/userId it
-      // supplies; falls back to the lower-priority source when absent.
       superLoginToken: primary.superLoginToken.isNotEmpty
           ? primary.superLoginToken
           : fallback.superLoginToken,
@@ -170,15 +121,12 @@ class DevSeam {
     );
   }
 
-  /// Test-only override; lets widget/unit tests inject a config without a
-  /// platform channel. Asserts it is never used outside debug.
   @visibleForTesting
   static void debugOverride(DevSeamConfig config) {
     assert(kDebugMode, 'DevSeam.debugOverride must not run in release');
     _current = config;
   }
 
-  /// Test-only reset to the inert default.
   @visibleForTesting
   static void debugReset() => _current = DevSeamConfig.empty;
 }

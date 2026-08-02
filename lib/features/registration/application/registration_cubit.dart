@@ -7,14 +7,7 @@ import '../domain/otp_service.dart';
 import '../domain/registration_attempt_policy.dart';
 import 'registration_state.dart';
 
-/// Owns the phone+OTP registration flow.
-///
-/// Three external collaborators:
-///   - [OtpService] — talks to auth-service to send/verify codes.
-///   - [RegistrationAttemptPolicy] — supplies the lockout/resend numbers.
-///   - [Stream<DateTime>] tick (injected via [tickerFactory]) — drives the
-///     resend countdown and the lockout countdown without [Future.delayed]
-///     loops, so tests can swap in `fake_async`-style streams.
+/// Phone+OTP registration flow.
 class RegistrationCubit extends Cubit<RegistrationState> {
   RegistrationCubit({
     required OtpService otpService,
@@ -35,30 +28,14 @@ class RegistrationCubit extends Cubit<RegistrationState> {
   static Stream<DateTime> _defaultTickerFactory() =>
       Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now());
 
-  /// Expose the policy for the screen layer (e.g. the lockout banner needs
-  /// to format `lockoutDuration` on first render before the first tick).
   RegistrationAttemptPolicy get policy => _policy;
 
-  /// Called on every keystroke in the phone field. Normalises and stores;
-  /// clears any prior phone error so the user isn't yelled at while typing.
   void phoneChanged(String raw) {
     final normalised = LebanonPhone.normalise(raw);
     emit(state.copyWith(phoneInput: normalised, phoneError: null));
   }
 
-  /// Tap on the "Send code" CTA. Validates, sends, transitions to
-  /// [RegistrationStep.otp], starts the resend countdown.
-  ///
-  /// [renderedPhone] is the live text of the phone [TextEditingController] as
-  /// the user actually sees it. The screen MUST pass it: the field — not the
-  /// cubit — is the source of truth while typing (PR #45 stopped mirroring the
-  /// normalised value back per-keystroke), so `state.phoneInput` can lag or
-  /// diverge from the rendered text on any path that doesn't route through
-  /// `phoneChanged` (programmatic seed, autofill, paste). Reading the rendered
-  /// text here — and re-syncing it into `phoneInput` — means Send always
-  /// validates and sends the number the user is looking at, instead of a stale
-  /// cubit value that flipped the field red and emitted zero OTP requests
-  /// (BUG-1, customer-spine blocker). Cubit-only callers (tests) may omit it.
+  /// TRAP: must re-sync rendered phone (field can lag via autofill/paste).
   Future<void> sendCode({String? renderedPhone}) async {
     final source = renderedPhone ?? state.phoneInput;
     final normalised = LebanonPhone.normalise(source);
@@ -96,11 +73,10 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     }
   }
 
-  /// Tap on the "Resend code" link. No-op while the cooldown is running.
   Future<void> resendCode() async {
     if (state.resendSecondsRemaining > 0) return;
     final phone = LebanonPhone.tryParse(state.phoneInput);
-    if (phone == null) return; // safety; UI can't reach here otherwise
+    if (phone == null) return;
     final outcome = await _otpService.sendCode(phone.e164);
     switch (outcome) {
       case OtpSendOutcome.sent:
@@ -115,8 +91,7 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     }
   }
 
-  /// Tap on the "Verify" CTA. Counts wrong codes against the attempt
-  /// budget; the [_policy.maxAttempts]-th wrong code locks out.
+  /// Count against attempt budget (max attempt locks out).
   Future<void> verifyCode(String code) async {
     if (state.isVerifying) return;
     final phone = LebanonPhone.tryParse(state.phoneInput);
@@ -155,8 +130,7 @@ class RegistrationCubit extends Cubit<RegistrationState> {
           ));
         }
       case OtpVerifyOutcome.rateLimited:
-        // Gateway rate-limited the verify (429). Treat as a cooldown: enter the
-        // lockout step with its countdown instead of burning an attempt.
+        /// Gateway 429; enter lockout (don't burn attempt).
         _stopResendCountdown();
         emit(state.copyWith(
           isVerifying: false,
@@ -178,9 +152,6 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     }
   }
 
-  /// Tap on the "Change phone number" link on the OTP screen. Returns to
-  /// phone entry without resetting the typed digits, in case the user
-  /// just wants to edit a typo.
   void changePhone() {
     _stopResendCountdown();
     _stopLockoutCountdown();
@@ -215,8 +186,7 @@ class RegistrationCubit extends Cubit<RegistrationState> {
     _lockoutTicker = _tickerFactory().listen((_) {
       if (state.lockoutSecondsRemaining <= 1) {
         _stopLockoutCountdown();
-        // Lockout expired → reset attempt budget and bounce the user back
-        // to phone entry so they can request a fresh code.
+        /// Lockout expired: reset attempt budget, bounce to phone entry.
         emit(state.copyWith(
           step: RegistrationStep.phone,
           failedAttempts: 0,

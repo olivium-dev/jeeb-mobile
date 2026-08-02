@@ -13,59 +13,9 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/onboarding_screen_fixtures.dart';
 
-/// Three-page introductory onboarding carousel shown to first-launch users
-/// (JM-010 `walkthrough`).
-///
-/// Structure mirrors the Olivium fleet reference walkthroughs (Salehly /
-/// rahmah / creamati / saawt): a full-bleed [PageView] of branded
-/// illustrations behind a bottom gradient scrim, with the animated step copy
-/// ([OmdsWalkthroughSwitcher]), the page dots ([OmdsDotIndicator]), the
-/// primary CTA ([OmdsPrimaryButton]) and the Skip affordance
-/// ([OmdsSkipButton]) anchored along the bottom edge. The illustration is the
-/// swipeable back layer; the text + controls float over the scrim
-/// (`IgnorePointer` on the copy so swipes still reach the carousel).
-///
-/// JM-010 destination (DEFECT-3, phone-OTP entry): "Get Started" on the last
-/// slide AND "Skip" from any slide route to the **phone-OTP** flow
-/// (`/register`, `registration_root`), NOT the email-first `/sign-up`. The LIVE
-/// gateway has no `/v1/auth/login` or `/v1/auth/signup` route, so the email
-/// funnel dead-ends (both 401); the phone-OTP flow
-/// (`/v1/auth/otp/request` → `/v1/auth/otp/verify`) is the only auth that
-/// authenticates against it. The email `/login` + `/sign-up` screens are kept
-/// (a later gateway fix may add those routes) and stay reachable FROM
-/// `/register`, but they are no longer the forced entry. (Previously routed to
-/// `/sign-up` under the CTO-D1 email-first funnel.)
-///
-/// Semantics contract (`docs/build-out/60_W0_TEST_PLAN.md` §2.2; coined §4):
-///   - `walkthrough_slide_1` / `_slide_2` / `_slide_3` — the per-slide root
-///     containers (each becomes visible as the carousel advances).
-///   - `walkthrough_next_cta` — the advance button on slides 1–2.
-///   - `walkthrough_get_started_cta` — the primary CTA on the last slide only.
-///   - `walkthrough_skip_cta` — the Skip affordance, present from slide 1.
-/// The foundation-era `onboarding_next_button` (primary CTA) and
-/// `onboarding_headline` (animated step copy) identifiers are preserved so the
-/// pre-existing Phase-2 PoC flow keeps asserting on them.
-///
-/// Slide artwork (FR-WALKTHROUGH / FR-P1-1; slide 2 completed in FR-D1D2): all
-/// three slides render real exported brand vectors via [SvgPicture.asset] —
-/// `assets/illustrations/onboarding_voice_first.svg` (voice-first),
-/// `onboarding_trusted_jeebers.svg` (trusted Jeebers) and
-/// `onboarding_live_tracking.svg` (live tracking). [_WalkthroughIllustration]
-/// isolates the per-slide treatment: a slide with an `asset` renders the SVG; a
-/// slide without one degrades to the tinted [_OnboardingPage.icon] glyph on the
-/// brand field — preserving the resilient fallback for any future slide.
-///
-/// FR-P1-2: an EN/AR language toggle ([_LanguageToggle], built on
-/// [OmdsFilterChips]) is anchored top-trailing; selecting a locale drives
-/// [LocaleCubit.setLocale], which rebuilds `MaterialApp.locale` and flips the
-/// entire tree to RTL live (no restart).
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, this.onComplete});
 
-  /// Optional override for navigation. Tests inject this so the screen
-  /// does not need a GoRouter in scope. Production leaves it null and
-  /// `context.goNamed('register')` (the phone-OTP entry) handles navigation
-  /// (DEFECT-3).
   final VoidCallback? onComplete;
 
   @override
@@ -94,7 +44,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _completeAndNavigate() async {
-    // Persist seen_onboarding so cold restarts skip the carousel.
     if (!mounted) return;
     await context.read<OnboardingCubit>().complete();
     if (!mounted) return;
@@ -103,11 +52,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       onComplete();
     } else {
       // DEFECT-3: Get Started + Skip land on the phone-OTP entry (`/register`,
-      // `registration_root`), NOT the email-first `/sign-up`. The LIVE gateway
-      // has no `/v1/auth/login` or `/v1/auth/signup` route, so the email funnel
-      // dead-ends; the phone-OTP flow (`/v1/auth/otp/request` →
-      // `/v1/auth/otp/verify`) is the only auth that works. The email screens
-      // remain reachable from `/register` for a later gateway fix.
       // ignore: use_build_context_synchronously
       context.goNamed('register');
     }
@@ -117,11 +61,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final pages = _onboardingPages(AppLocalizations.of(context));
-    // The hero illustration band is brand-navy (`secondaryContainer`), so the
-    // status bar must paint LIGHT (white) icons to stay legible — the global
-    // `Brightness.dark` set in `main()` is for the light auth/client screens.
-    // The bottom band is the light `surface` scrim, so the system nav-bar icons
-    // resolve from the active theme brightness (dark icons in light mode).
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
@@ -161,17 +100,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-/// Asset paths for the wired walkthrough slide illustrations (FR-P1-1; the
-/// trusted-Jeebers slide-2 asset landed in FR-D1D2).
 const String _kVoiceFirstAsset = 'assets/illustrations/onboarding_voice_first.svg';
 const String _kTrustedJeebersAsset =
     'assets/illustrations/onboarding_trusted_jeebers.svg';
 const String _kLiveTrackingAsset =
     'assets/illustrations/onboarding_live_tracking.svg';
 
-/// Static slide content. All three slides carry real exported SVGs; the [icon]
-/// remains as a resilient fallback only (rendered if a future slide ever ships
-/// without an `asset` — see [_WalkthroughIllustration]).
 List<_OnboardingPage> _onboardingPages(AppLocalizations l10n) => [
       _OnboardingPage(
         icon: Icons.mic_none_rounded,
@@ -181,8 +115,6 @@ List<_OnboardingPage> _onboardingPages(AppLocalizations l10n) => [
         semanticsLabel: l10n.onboardingSlide1Semantics,
       ),
       _OnboardingPage(
-        // FR-D1D2: the real "Trusted Jeebers" brand vector. The verified-user
-        // glyph is retained only as the resilient decode fallback.
         icon: Icons.verified_user_outlined,
         asset: _kTrustedJeebersAsset,
         title: l10n.onboardingSlide2Title,
@@ -207,28 +139,16 @@ class _OnboardingPage {
     required this.semanticsLabel,
   });
 
-  /// Interim glyph, used only when [asset] is null.
   final IconData icon;
 
-  /// Bundled SVG illustration path, or null to fall back to the [icon] glyph.
   final String? asset;
 
   final String title;
   final String body;
 
-  /// Localized screen-reader alt text for the illustration.
   final String semanticsLabel;
 }
 
-/// Full-bleed, swipeable illustration carousel — the back layer of the stack.
-///
-/// Each page's artwork is wrapped in the per-slide
-/// `walkthrough_slide_<n>` Semantics container (JM-010 / 60_W0_TEST_PLAN
-/// §2.2). Because a [PageView] keeps only the centered page on-screen and
-/// translates the neighbours out of bounds, exactly one `walkthrough_slide_<n>`
-/// node is reported visible at a time — which is what the Maestro
-/// `extendedWaitUntil { visible: walkthrough_slide_N }` steps assert as the
-/// carousel advances.
 class _IllustrationCarousel extends StatelessWidget {
   const _IllustrationCarousel({
     required this.controller,
@@ -248,7 +168,6 @@ class _IllustrationCarousel extends StatelessWidget {
       itemCount: pages.length,
       onPageChanged: onPageChanged,
       itemBuilder: (_, i) => Semantics(
-        // walkthrough_slide_1 / _slide_2 / _slide_3 — per-slide root container.
         identifier: 'walkthrough_slide_${i + 1}',
         container: true,
         child: _WalkthroughIllustration(page: pages[i]),
@@ -257,12 +176,6 @@ class _IllustrationCarousel extends StatelessWidget {
   }
 }
 
-/// The branded full-bleed slide artwork.
-///
-/// Renders the page's exported SVG ([SvgPicture.asset]) when [_OnboardingPage.asset]
-/// is set; otherwise degrades to a tinted Material glyph on the brand-navy
-/// field. Either way the artwork floats above the bottom copy/control band and
-/// carries a localized semantic label so screen readers announce the slide.
 class _WalkthroughIllustration extends StatelessWidget {
   const _WalkthroughIllustration({required this.page});
 
@@ -273,7 +186,6 @@ class _WalkthroughIllustration extends StatelessWidget {
     return ColoredBox(
       color: Theme.of(context).colorScheme.secondaryContainer,
       child: Align(
-        // Float the artwork above the bottom copy/control band.
         alignment: const Alignment(0.0, -0.35),
         child: Semantics(
           key: const Key('onboarding.illustration'),
@@ -286,8 +198,6 @@ class _WalkthroughIllustration extends StatelessWidget {
   }
 }
 
-/// The artwork itself: the real SVG, or the interim brand glyph when no asset
-/// exists for this slide.
 class _IllustrationArtwork extends StatelessWidget {
   const _IllustrationArtwork({required this.page});
 
@@ -309,7 +219,6 @@ class _IllustrationArtwork extends StatelessWidget {
       width: Sizes.twoHundredLarge,
       height: Sizes.twoHundredLarge,
       fit: BoxFit.contain,
-      // A failed/slow decode degrades to the brand field, never a broken glyph.
       placeholderBuilder: (_) => const SizedBox.square(
         dimension: Sizes.twoHundredLarge,
       ),
@@ -317,9 +226,6 @@ class _IllustrationArtwork extends StatelessWidget {
   }
 }
 
-/// Bottom gradient that fades the illustration into a readable surface band
-/// for the copy + controls. Ignores pointers so swipes still reach the
-/// carousel behind it.
 class _BottomScrim extends StatelessWidget {
   const _BottomScrim();
 
@@ -348,8 +254,6 @@ class _BottomScrim extends StatelessWidget {
   }
 }
 
-/// Bottom-anchored content: animated step copy, page dots, the primary CTA
-/// (Next on slides 1–2 / Get Started on the last slide), and Skip.
 class _BottomPanel extends StatelessWidget {
   const _BottomPanel({
     required this.pages,
@@ -380,7 +284,6 @@ class _BottomPanel extends StatelessWidget {
               IgnorePointer(
                 // PoC Maestro identifier: the animated step copy is the screen's
                 // headline. Exposing a stable `identifier` lets Maestro assert on
-                // the headline by id (i18n-safe), independent of visible text.
                 child: Semantics(
                   identifier: 'onboarding_headline',
                   child: OmdsWalkthroughSwitcher(
@@ -422,17 +325,6 @@ class _BottomPanel extends StatelessWidget {
   }
 }
 
-/// The primary CTA at the foot of the carousel.
-///
-/// Carries TWO Semantics contracts at once:
-///   - the foundation-era `onboarding_next_button` (kept so the Phase-2 PoC
-///     flow keeps asserting the primary CTA by id across both labels/locales);
-///   - the JM-010 contract id, which switches with the slide:
-///     `walkthrough_next_cta` on slides 1–2, `walkthrough_get_started_cta` on
-///     the last slide (60_W0_TEST_PLAN §2.2 — "Next … becomes Get Started on
-///     slide 3" / "Get Started … visible on last slide only").
-/// On the last slide the tap routes to the phone-OTP entry (`/register`,
-/// DEFECT-3); on earlier slides it advances the carousel.
 class _OnboardingCtaButton extends StatelessWidget {
   const _OnboardingCtaButton({
     required this.isLast,
@@ -450,8 +342,6 @@ class _OnboardingCtaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // JM-010 id flips with the slide; the legacy `onboarding_next_button` id
-    // wraps it so both contracts resolve to the same button.
     return Semantics(
       identifier: 'onboarding_next_button',
       child: Semantics(
@@ -469,12 +359,6 @@ class _OnboardingCtaButton extends StatelessWidget {
   }
 }
 
-/// The Skip affordance, present from slide 1.
-///
-/// Carries the JM-010 coined id `walkthrough_skip_cta` (60_W0_TEST_PLAN §2.2/§4)
-/// and routes to the phone-OTP entry (`/register`, DEFECT-3). The legacy
-/// `Key('onboarding.skip')` is kept for the existing widget tests that find it
-/// by key.
 class _OnboardingSkipButton extends StatelessWidget {
   const _OnboardingSkipButton({required this.label, required this.onTap});
 
@@ -496,17 +380,9 @@ class _OnboardingSkipButton extends StatelessWidget {
   }
 }
 
-/// Supported onboarding locale language codes (FR-P1-2).
 const String _kLangEn = 'en';
 const String _kLangAr = 'ar';
 
-/// Top-trailing EN/AR language toggle (FR-P1-2).
-///
-/// Built on [OmdsFilterChips] (there is no `OmdsButtonGroup` in OMDS — see
-/// design spec §2b). Selecting a chip drives [LocaleCubit.setLocale], which
-/// persists the choice and rebuilds `MaterialApp.locale`, flipping the whole
-/// tree to RTL for Arabic live (no restart). Anchored top-trailing so it
-/// mirrors to top-leading in RTL automatically.
 class _LanguageToggle extends StatelessWidget {
   const _LanguageToggle();
 
@@ -549,7 +425,6 @@ class _LanguageToggle extends StatelessWidget {
     context.read<LocaleCubit>().setLocale(Locale(code));
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

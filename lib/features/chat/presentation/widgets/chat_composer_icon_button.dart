@@ -5,14 +5,9 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Tappable composer affordance — attach, voice, or send.
-///
-/// OMDS has no icon-only / circular-pill button primitive (flagged as an OMDS
-/// gap), so this composes the circular send / borderless attach affordances
-/// from structural primitives (`Material` + `InkWell`) wired entirely to
-/// `colorScheme` roles and spacing tokens — no raw `IconButton`, no hex
-/// colours, no magic dimensions. Every instance carries a Semantics
-/// identifier + label for Maestro and screen readers.
+/// Tappable composer affordance — attach, voice, or send. Composed from Material+InkWell
+/// wired to colorScheme roles (OMDS lacks icon-only circular-pill primitive). Every instance
+/// carries Semantics identifier + label for Maestro and screen readers.
 class ChatComposerIconButton extends StatelessWidget {
   const ChatComposerIconButton({
     super.key,
@@ -23,20 +18,16 @@ class ChatComposerIconButton extends StatelessWidget {
     this.filled = false,
   });
 
-  /// Glyph to render.
   final IconData icon;
 
-  /// Stable Maestro/a11y identifier.
+  // Stable Maestro/a11y identifier.
   final String semanticsId;
 
-  /// Localized accessibility label.
   final String semanticsLabel;
 
-  /// Tap handler; a null handler renders the disabled (reduced-emphasis) state.
+  // Null handler renders disabled (reduced-emphasis) state.
   final VoidCallback? onPressed;
 
-  /// When true, renders the navy circular send pill; otherwise a borderless
-  /// tap target tinted with the muted on-surface variant.
   final bool filled;
 
   @override
@@ -71,7 +62,6 @@ class ChatComposerIconButton extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

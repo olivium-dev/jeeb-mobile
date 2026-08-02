@@ -16,19 +16,6 @@ import 'widgets/order_summary_pinned.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/order_summary_screen_fixtures.dart';
 
-/// `order-summary` (JM-031, CTO-D3). The standalone accepted-order summary
-/// screen at `/orders/:id/summary`.
-///
-/// CTO-D3: the PRIMARY rendering of `order-summary-pinned` is the reusable
-/// [OrderSummaryPinned] header widget injected into `order-chat` (JM-025) +
-/// `order-tracking` (JM-032). THIS route is the navigable deep-link TARGET for
-/// `transaction-detail → order-summary-pinned` (JM-056, W3) so every blueprint
-/// edge stays honest (21_NAV_PLAN §A/§C). It wires BOTH CTAs (the embedded
-/// chat/tracking hosts pass only the OTHER screen's CTA).
-///
-/// Data: `GET /v1/delivery/:deliveryId` (+ best-effort request/offer/user) via
-/// [OrderSummaryRepository] resolved from DI. A constructor [repository] /
-/// [cubitFactory] override is the widget-test seam.
 class OrderSummaryScreen extends StatelessWidget {
   const OrderSummaryScreen({
     super.key,
@@ -37,15 +24,10 @@ class OrderSummaryScreen extends StatelessWidget {
     this.cubitFactory,
   });
 
-  /// The accepted delivery/order id from the `/orders/:id/summary` path.
   final String deliveryId;
 
-  /// Optional repository override. Production leaves this null and resolves
-  /// [OrderSummaryRepository] from GetIt (the Dio impl). Widget tests inject a
-  /// scripted instance.
   final OrderSummaryRepository? repository;
 
-  /// Test seam — builds the cubit (e.g. without auto-load) for widget tests.
   final OrderSummaryCubit Function(
     OrderSummaryRepository repository,
     String deliveryId,
@@ -130,9 +112,6 @@ class _Loaded extends StatelessWidget {
       children: [
         OrderSummaryPinned(
           summary: summary,
-          // EDGE: order_summary_open_chat → chat-detail (`/chat/:id`).
-          // 21_NAV_PLAN §C, JM-031→JM-025. Falls back to the request/delivery
-          // id when no conversation id surfaced (the route resolves either).
           onOpenChat: () => context.pushNamed(
             'chat-detail',
             pathParameters: {
@@ -143,8 +122,6 @@ class _Loaded extends StatelessWidget {
                       : summary.deliveryId),
             },
           ),
-          // EDGE: order_summary_track → live-tracking (`/orders/:id/tracking`).
-          // 21_NAV_PLAN §C, JM-031→JM-032.
           onTrack: () => context.pushNamed(
             'live-tracking',
             pathParameters: {'id': summary.deliveryId},
@@ -154,7 +131,6 @@ class _Loaded extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -10,7 +10,6 @@ import '../../../core/previews/jeeb_preview.dart';
 
 /// Status pill rendered inside [OrderHistoryCard]. Colour and label are
 /// derived from the request's terminal-vs-in-flight category so a future
-/// state added on the backend still renders sensibly.
 class OrderStatusChip extends StatelessWidget {
   const OrderStatusChip({super.key, required this.status});
 
@@ -44,7 +43,6 @@ class OrderStatusChip extends StatelessWidget {
   ) {
     switch (status.tab) {
       case OrderHistoryTab.completed:
-        // Completed = success role (was brand tertiary doing state duty).
         return _ChipPalette(
           background: roles.successContainer,
           foreground: roles.onSuccessContainer,

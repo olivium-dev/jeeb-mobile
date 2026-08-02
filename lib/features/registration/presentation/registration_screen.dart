@@ -28,13 +28,6 @@ import 'otp_verification_screen.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/registration_screen_fixtures.dart';
 
-/// Entry point for the phone+OTP registration flow (T-mobile-002).
-///
-/// Routed via `/register` (see `lib/core/router/app_router.dart`). Hosts the
-/// [RegistrationCubit] and renders the phone-entry view. The OTP view is
-/// pushed onto the navigation stack with the same cubit instance scoped via
-/// [BlocProvider.value] so countdown and attempt state survives the
-/// transition.
 class RegistrationScreen extends StatelessWidget {
   const RegistrationScreen({
     super.key,
@@ -44,24 +37,12 @@ class RegistrationScreen extends StatelessWidget {
     this.onSocialAuthenticated,
   });
 
-  /// Optional injected cubit. Tests pass a pre-wired one; production
-  /// instantiates a default with the dev [FakeOtpService] (until the real
-  /// auth-service client lands).
   final RegistrationCubit? cubit;
 
-  /// Optional injected social auth cubit. Tests inject one with a fake
-  /// [SocialAuthService]; production wires the real Dio-backed
-  /// [DefaultSocialAuthService] + secure token store.
   final SocialAuthCubit? socialAuthCubit;
 
-  /// Called when the cubit reports a verified phone. Defaults to
-  /// `context.go('/')` (home) in production; tests inject their own
-  /// callback so the screen doesn't need a full GoRouter in scope.
   final VoidCallback? onVerified;
 
-  /// Called when a social sign-in completes successfully. Defaults to the
-  /// same handler as [onVerified] — first-time users will land in the
-  /// link-phone follow-up once that ticket lands (JEEB-58).
   final VoidCallback? onSocialAuthenticated;
 
   @override
@@ -78,11 +59,6 @@ class RegistrationScreen extends StatelessWidget {
       return BlocProvider<RegistrationCubit>(
         create: (_) => RegistrationCubit(
           otpService: sl<OtpService>(),
-          // DEBUG-ONLY (62_SEAM_HARNESS.md): `jeeb.seam.otp_countdown_expired`
-          // zeroes the app-driven resend cooldown so `phone_otp_resend_cta` is
-          // immediately tappable (JM-009 AC2) without the flow waiting out the
-          // real 60 s timer. kDebugMode-gated + DevSeam is empty in release, so
-          // production always uses the default 60 s policy.
           policy: _otpResendPolicy(),
         ),
         child: child,
@@ -100,8 +76,6 @@ class RegistrationScreen extends StatelessWidget {
         create: (_) => SocialAuthCubit(
           service: DefaultSocialAuthService(
             dio: resolveGatewayDio(),
-            // DEBUG-ONLY (62_SEAM_HARNESS.md): `jeeb.seam.social_login` drives a
-            // deterministic social result (no live OAuth). No-op in release.
             seamResolver: SocialAuthSeam.resolver,
           ),
           tokenStore: SecureSocialAuthTokenStore(),
@@ -114,15 +88,6 @@ class RegistrationScreen extends StatelessWidget {
   }
 }
 
-/// DEBUG-ONLY resend policy for the phone-OTP flow (62_SEAM_HARNESS.md, JM-009).
-///
-/// Returns a zero-cooldown [RegistrationAttemptPolicy] when the
-/// `jeeb.seam.otp_countdown_expired` seam is set, so `phone_otp_resend_cta` is
-/// tappable on the first frame (the resend countdown is app-driven by
-/// [RegistrationCubit] off `policy.resendCooldown`). Everything else (max
-/// attempts, lockout duration) keeps the production default. In release —
-/// where [DevSeam.current] is always empty and `kDebugMode` is false — this
-/// always returns the default `const RegistrationAttemptPolicy()`.
 RegistrationAttemptPolicy _otpResendPolicy() {
   if (kDebugMode && DevSeam.current.otpCountdownExpired) {
     return const RegistrationAttemptPolicy(resendCooldown: Duration.zero);
@@ -159,20 +124,7 @@ class _RegistrationViewState extends State<_RegistrationView> {
     super.dispose();
   }
 
-  /// Re-seeds the phone field from cubit state. ONLY called on a step
-  /// transition (e.g. returning from the OTP step via "change number"), never
-  /// on a per-keystroke `phoneInput` change.
-  ///
-  /// DEFECT (Maestro real-backend P0): the previous build mirrored the cubit's
-  /// *normalised* `phoneInput` back into the controller on every keystroke. The
-  /// field is the source of truth while the user types, so that mirror-back
-  /// fought live editing: typing a 9th digit made `normalise` front-truncate to
-  /// the first 8 and overwrite the field, so erasing the (now wrong) trailing
-  /// digit dropped a valid one — the field stuck below 8 digits, `tryParse`
-  /// returned null, and `sendCode()` bailed at its guard, so no OTP was ever
-  /// requested (on-device login impossible). We now only re-seed on a genuine,
-  /// non-typing state change, and only when the text actually differs — the
-  /// equality guard preserves the user's live cursor/selection otherwise.
+  /// DEFECT FIX (Maestro P0): field is source of truth during typing; only re-seed on step change.
   void _syncControllerText(String value) {
     if (_phoneController.text == value) return;
     _phoneController.value = TextEditingValue(
@@ -190,11 +142,6 @@ class _RegistrationViewState extends State<_RegistrationView> {
       OmdsSlideRoute<void>(
         page: BlocProvider<RegistrationCubit>.value(
           value: cubit,
-          // Production (null [onVerified]): pass a NO-OP so this HOST owns the
-          // whole post-verify continuation (display-name step → _navigateHome)
-          // instead of the OTP screen's default `context.go('/')` racing it and
-          // tearing the stack down before the name step can show. Tests that
-          // inject their own callback keep the previous contract untouched.
           child: OtpVerificationScreen(onVerified: onVerified ?? () {}),
         ),
       ),
@@ -202,13 +149,6 @@ class _RegistrationViewState extends State<_RegistrationView> {
     _pushedOtp = false;
   }
 
-  /// Post-OTP display-name step (profile-name onboarding): asks for a friendly
-  /// display name and PUTs it to `/api/User/profile` (`username`) so the
-  /// gateway projection carries a real name instead of a synthetic handle.
-  /// Optional-but-encouraged: the step always offers a skip exit and a failed
-  /// save never blocks registration (fail-soft inside the screen). Production
-  /// path ONLY — test seams that inject [_RegistrationView.onVerified] keep
-  /// the verified → callback contract unchanged.
   Future<void> _openDisplayNameStep() async {
     if (_pushedNameStep || !mounted) return;
     _pushedNameStep = true;
@@ -224,18 +164,12 @@ class _RegistrationViewState extends State<_RegistrationView> {
   Future<void> _navigateHome() async {
     final onVerified = widget.onVerified;
     if (onVerified != null) {
-      // Test seam: caller controls navigation; no OnboardingCubit required.
       onVerified();
       return;
     }
-    // Production path: persist completion flag so the router lets the user
-    // through to the shell. The super-login dev seam manages this separately.
     if (!mounted) return;
     await context.read<OnboardingCubit>().complete();
     if (!mounted) return;
-    // FR-P0-3 (defect DEF-1): re-evaluate the session BEFORE navigating so the
-    // router's first-run gate sees the freshly-persisted token and lets `/`
-    // resolve to Home instead of bouncing back to `/register`.
     // ignore: use_build_context_synchronously
     await _refreshSession(context);
     if (!mounted) return;
@@ -243,10 +177,7 @@ class _RegistrationViewState extends State<_RegistrationView> {
     context.go('/');
   }
 
-  /// Re-reads the session keystore via the production [SessionCubit] (when one
-  /// is in scope) so the router redirect promotes the user to Home. Reads it as
-  /// a nullable type: under widget tests that mount the screen without the app
-  /// shell there is no [SessionCubit] provider, so this is a no-op there.
+  /// Reads SessionCubit if available (null in tests without app shell).
   static Future<void> _refreshSession(BuildContext context) async {
     final session = context.read<SessionCubit?>();
     if (session != null) await session.refresh();
@@ -256,12 +187,6 @@ class _RegistrationViewState extends State<_RegistrationView> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return BlocConsumer<RegistrationCubit, RegistrationState>(
-      // Listen on `step` ONLY. We deliberately do NOT listen on `phoneInput`:
-      // the text field owns its own text while the user types, and re-seeding it
-      // from the cubit's normalised value on every keystroke corrupted live
-      // editing (Maestro real-backend P0 — see `_syncControllerText`). We still
-      // re-seed the controller on a step transition so the field shows the right
-      // digits when the user returns from the OTP step ("change number").
       listenWhen: (prev, curr) => prev.step != curr.step,
       listener: (context, state) async {
         _syncControllerText(state.phoneInput);
@@ -269,10 +194,6 @@ class _RegistrationViewState extends State<_RegistrationView> {
           _openOtpRoute();
         }
         if (state.step == RegistrationStep.verified) {
-          // Verified — production path first offers the OPTIONAL display-name
-          // step (skip-allowed; a failed save never blocks), then persists
-          // onboarding completion and lands on home. Test seams (injected
-          // onVerified) bypass the name step to preserve the prior contract.
           if (widget.onVerified == null) await _openDisplayNameStep();
           await _navigateHome();
         }
@@ -312,13 +233,6 @@ class _RegistrationViewState extends State<_RegistrationView> {
   }
 }
 
-/// The phone-entry composition: branded hero → welcome → social → "or"
-/// divider → phone field → send-code CTA. Mirrors the Rahma/Salehly layout
-/// grouping while keeping Jeeb's phone+OTP + OMDS.
-///
-/// NOTE: the debug-only super-login entry points were RELOCATED to the login
-/// screen (`lib/features/auth/presentation/login_screen.dart`) — P1 owner
-/// request. They no longer live here.
 class _PhoneEntryBody extends StatelessWidget {
   const _PhoneEntryBody({
     required this.state,
@@ -361,8 +275,6 @@ class _PhoneEntryBody extends StatelessWidget {
   }
 }
 
-/// Phone send-code CTA — upgraded to [OmdsLoadingButton] for an in-button
-/// spinner (Rahma/Salehly parity) over the old label-swap.
 class _SendCodeButton extends StatelessWidget {
   const _SendCodeButton({required this.state, required this.phoneController});
 
@@ -372,12 +284,6 @@ class _SendCodeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // BUG-1 (customer-spine blocker): the phone field — not the cubit — owns the
-    // text while the user types (PR #45). Read the live controller text here and
-    // hand it to `sendCode` so Send validates/sends the number actually rendered,
-    // never a stale `state.phoneInput` that diverged and flipped the field red
-    // while emitting zero OTP requests. Enablement also reads the live text so
-    // the CTA can't be wrongly disabled when the controller leads the cubit.
     final renderedReady =
         LebanonPhone.tryParse(phoneController.text) != null || state.isPhoneReady;
     return Semantics(
@@ -388,15 +294,7 @@ class _SendCodeButton extends StatelessWidget {
       key: const Key('registration.sendCode'),
       text: l10n.registrationSendCode,
       isLoading: state.isSendingCode,
-      // Enablement reads the live controller text (or the cubit's ready flag)
-      // so the CTA can't be wrongly disabled when the field leads the cubit
-      // (PR #45 made the field the source of truth while typing).
       isEnabled: renderedReady && !state.isSendingCode,
-      // BUG-1 fix: pass the field's live text to `sendCode`, which re-syncs it
-      // into `state.phoneInput` and validates/sends the exact number the user
-      // sees — never a stale cubit value that flipped the field red and emitted
-      // zero OTP requests (also covers the run-2 on-device submit-path P0, since
-      // the cubit re-commits the rendered text at submit before validating).
       onTap: () => context
           .read<RegistrationCubit>()
           .sendCode(renderedPhone: phoneController.text),
@@ -405,9 +303,6 @@ class _SendCodeButton extends StatelessWidget {
   }
 }
 
-/// Branded wordmark hero band (DESIGN-FIRST-RUN §2c / §3.2 #3). Reuses the
-/// splash wordmark on the brand-navy field — token-clean, swappable for the
-/// Figma hero asset once the node id is captured (FR-P1-3 [FIGMA-BLOCKER]).
 class _RegisterHero extends StatelessWidget {
   const _RegisterHero();
 
@@ -432,8 +327,6 @@ class _RegisterHero extends StatelessWidget {
           identifier: '_register_hero_logo',
           label: l10n.splashLogoSemantic,
           image: true,
-          // Height-constrained so the wordmark scales to the band; width
-          // derives from the SVG's intrinsic 182:73 ratio (no distortion).
           child: SvgPicture.asset(
             _logoAsset,
             height: Sizes.fiveXLarge,
@@ -445,8 +338,6 @@ class _RegisterHero extends StatelessWidget {
   }
 }
 
-/// "Welcome to Jeeb" heading + the existing phone-step subtitle, promoted
-/// above the form to match the Salehly/Rahma welcome stack.
 class _WelcomeHeading extends StatelessWidget {
   const _WelcomeHeading();
 
@@ -474,8 +365,6 @@ class _WelcomeHeading extends StatelessWidget {
   }
 }
 
-/// "social — or — phone" divider (DESIGN-FIRST-RUN §2c). Themed [Divider]s
-/// (a structural primitive; OMDS ships no divider widget) around the label.
 class _OrDivider extends StatelessWidget {
   const _OrDivider({required this.label});
 
@@ -504,20 +393,8 @@ class _OrDivider extends StatelessWidget {
   }
 }
 
-/// Phone-number text field with the Lebanese +961 prefix permanently
-/// pinned to the left. The TextField only ever receives the 8 national
-/// digits; the prefix is decorative.
-///
-/// EXEMPT(flutter-omds-design-system-usage): raw [TextField] retained.
-/// - [OmdsPhoneInput] ships a country-picker UX; the product spec calls
-///   for a fixed +961 with no picker (JEEB-55).
-/// - [OmdsTextField] does not expose `prefixIconConstraints`, so a tight
-///   inline "+961" glyph would inflate to the default 48dp prefix gutter
-///   and break the digit-alignment design.
-/// All styling still flows through the OMDS theme: `fillColor`,
-/// `border`, `contentPadding`, and typography pull from
-/// `colorScheme.surfaceContainerHighest`, [OmdsBorderRadius.medium], and
-/// [Spacing]. Promotion to OMDS tracked under JEEB-57.
+/// Fixed +961 prefix; TextField receives 8 national digits only.
+/// EXEMPT(flutter-omds-design-system-usage): raw TextField retained (JEEB-55 requires fixed +961, no picker).
 class _PhoneField extends StatelessWidget {
   const _PhoneField({
     required this.controller,
@@ -546,13 +423,6 @@ class _PhoneField extends StatelessWidget {
       controller: controller,
       enabled: enabled,
       keyboardType: TextInputType.phone,
-      // Keep digits, the `+` (for users who paste a `+961…` block), and
-      // common separators (space, dash, parens). The cubit's `normalise`
-      // strips everything except the trailing 8 national digits for
-      // validation/sending; the field itself keeps what the user typed (we no
-      // longer mirror the normalised form back per-keystroke — that corrupted
-      // live editing, Maestro P0). No max-length here so a pasted +961 block
-      // isn't truncated at the wrong end before `normalise` sees it.
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(r'[\d+\s\-()]')),
       ],
@@ -598,13 +468,9 @@ String _phoneErrorCopy(RegistrationPhoneError error, AppLocalizations l10n) {
       return l10n.registrationPhoneInvalid;
     case RegistrationPhoneError.networkError:
     case RegistrationPhoneError.rateLimited:
-      // The ARB file ships an invalid-only copy today; reuse it for these
-      // adjacent errors to avoid surfacing an English fallback to RTL
-      // users until product copies the strings (tracked under JEEB-56).
       return l10n.registrationPhoneInvalid;
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

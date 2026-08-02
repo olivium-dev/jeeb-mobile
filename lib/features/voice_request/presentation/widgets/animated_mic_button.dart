@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Large press-and-hold mic button used on the voice recording screen.
-///
-/// While idle the button renders as a solid primary-coloured circle with a
-/// microphone glyph. On press, a pulsing halo grows outward to signal that
-/// audio is being captured. The host owns the gesture wiring — this widget is
-/// a pure render of [isRecording].
+
+
+
+
+
+
 class AnimatedMicButton extends StatefulWidget {
   const AnimatedMicButton({
     super.key,

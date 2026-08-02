@@ -6,9 +6,6 @@ import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// 32dp navy circular disc with a centered white glyph — the leading element
-/// of every customer-profile row (design §5). Navy = secondaryContainer,
-/// glyph = onSecondary, both from the theme (no literals).
 class CustomerProfileIconDisc extends StatelessWidget {
   const CustomerProfileIconDisc({super.key, required this.icon});
 
@@ -33,7 +30,6 @@ class CustomerProfileIconDisc extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

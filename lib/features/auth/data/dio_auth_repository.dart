@@ -3,19 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../domain/auth_repository.dart';
 
-/// [AuthRepository] backed by the Express mock auth-service via the gateway
-/// rewrite (B1: `/v1/auth/*` → `/auth-service/auth/*`). Every path is the
-/// VERIFIED W-1 FLOOR contract (42_GUARDRAILS_MOCK §"W-1 FLOOR CLOSED"):
-///
-///   POST /v1/auth/login            { email, password }      → { accessToken, refreshToken, user }
-///   POST /v1/auth/recovery/request { email }                → { requestId, expiresInSeconds: 600 }
-///   POST /v1/auth/recovery/verify  { email, code }          → { resetToken, expiresInSeconds: 600 }
-///   POST /v1/auth/set-password     { email, password, resetToken? } → { accessToken, refreshToken, user }
-///
-/// `MockGatewayClient` rewrites the `/v1/auth/*` prefix to the `:4010` service
-/// prefix — the repo never hardcodes a host/prefix (40_GUARDRAILS §4). On a
-/// successful login/set-password the JWT pair is persisted to [AuthTokenStore]
-/// (reading `user.userId` for splash session-routing, JM-006).
+/// [AuthRepository] backed by the gateway BFF. Routes verified by W-1 FLOOR contract.
 class DioAuthRepository implements AuthRepository {
   const DioAuthRepository(this._dio, this._tokenStore);
 
@@ -123,8 +111,7 @@ class DioAuthRepository implements AuthRepository {
     }
   }
 
-  /// Persists the JWT pair and returns the [AuthSession]. `user.userId` is the
-  /// alias the mock places next to `id` on every bundle (W-1 FLOOR).
+  /// Persists JWT pair; `user.userId` is the alias the mock places next to `id`.
   Future<AuthSession> _persistAndBuildSession(Map<String, dynamic>? body) async {
     final data = body ?? const {};
     final access = data['accessToken'] as String?;
@@ -146,9 +133,8 @@ class DioAuthRepository implements AuthRepository {
     );
   }
 
-  /// Maps a [DioException] to a typed [AuthFailure]. Connection/timeout →
-  /// network; the documented 401 `code` values discriminate the auth legs;
-  /// 400 → badRequest; everything else → unknown (40_GUARDRAILS §4).
+  /// Maps DioException to AuthFailure: timeout/network → network, 401 codes → auth-specific,
+  /// 400 → badRequest, else unknown.
   AuthFailure _mapAuth(DioException e) {
     if (e.type == DioExceptionType.connectionError ||
         e.type == DioExceptionType.connectionTimeout ||
@@ -169,16 +155,13 @@ class DioAuthRepository implements AuthRepository {
           return AuthFailure.invalidCredentials;
       }
     }
-    // Signup find-or-create collision (D22). The mock tags the body `code:
-    // email_collision`; treat any 409 on the signup leg as a collision so the
-    // screen can route to the social-collision prompt (JM-019).
+    // Signup find-or-create collision (D22): mock tags code: email_collision; treat any 409 as collision.
     if (status == 409) return AuthFailure.emailCollision;
     if (status == 400) return AuthFailure.badRequest;
     return AuthFailure.unknown;
   }
 
-  /// Reads the RFC-7807 `code` field from a `ProblemError` body, tolerating the
-  /// `title`/`type` aliases the mock may use. Null when absent/non-map.
+  /// Reads RFC-7807 `code` field from ProblemError, tolerating `title`/`type` aliases.
   static String? _problemCode(Object? data) {
     if (data is Map) {
       final code = data['code'] ?? data['title'] ?? data['type'];

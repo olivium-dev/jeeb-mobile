@@ -5,34 +5,28 @@ import '../domain/location_permission.dart';
 
 /// High-level phase the screen layer renders off.
 enum BackgroundGpsPhase {
-  /// Cubit was constructed but `start` hasn't been called yet, or the
-  /// active delivery just ended and we tore everything down.
+  /// Constructed but `start` not called, or active delivery ended.
   idle,
 
-  /// Waiting for the OS prompt to come back.
+  /// Waiting for OS permission prompt to return.
   requestingPermission,
 
-  /// User refused (or revoked) Always-on access. UI shows the inline
-  /// "open system settings" hint.
+  /// User refused or revoked Always-on access; UI shows settings hint.
   permissionDenied,
 
   /// Stream is live and samples are being filtered + uploaded.
   tracking,
 
-  /// Upload loop tripped the consecutive-failure budget and stopped.
-  /// The auto-offline banner picks this up via the role-eligibility flow.
+  /// Upload loop hit consecutive-failure budget and stopped.
   error,
 }
 
-/// Why an upload was skipped — used by tests to assert filter behaviour
-/// without inspecting log lines. The state only ever holds the *most
-/// recent* skip reason; consumers don't need a history.
+/// Why a sample was skipped; state holds only the most recent skip reason.
 enum GpsSampleSkipReason {
-  /// Accuracy worse than [BackgroundGpsConfig.maxAccuracyMeters].
+  /// Accuracy worse than BackgroundGpsConfig.maxAccuracyMeters.
   accuracyTooLow,
 
-  /// Sample arrived before [BackgroundGpsConfig.activeInterval] or
-  /// [stationaryInterval] elapsed since the last upload.
+  /// Sample arrived before configured interval elapsed since last upload.
   throttled,
 }
 
@@ -52,58 +46,38 @@ class BackgroundGpsState extends Equatable {
 
   final BackgroundGpsPhase phase;
 
-  /// The LAST permission the OS reported, kept so
-  /// [BackgroundGpsPhase.permissionDenied] is not an opaque dead end. The UI
-  /// needs the distinction: [LocationPermission.whileInUse] means the jeeber
-  /// still has an in-app upgrade path ("Allow all the time"), while
-  /// [LocationPermission.deniedForever] means only the OS settings page can
-  /// help. Also stamped onto the `bg_gps_phase` `[jeeb-diag]` breadcrumb, so a
-  /// logcat grep says WHICH permission blocked the upload rather than just
-  /// "denied".
+  /// Last permission OS reported; distinguishes whileInUse (app upgrade path) from deniedForever (settings only).
   final LocationPermission permission;
 
-  /// Active delivery being tracked. `null` outside [BackgroundGpsPhase.tracking].
+  /// Active delivery being tracked; null outside tracking phase.
   final String? deliveryId;
 
-  /// Most recent sample that passed the filter and was POSTed. Drives
-  /// the "last known" marker the QA hooks read in dev builds.
+  /// Most recent sample that passed filter and was uploaded; drives "last known" marker for QA.
   final GpsSample? lastUploaded;
 
-  /// Wall-clock time of the last successful upload, used by the throttle
-  /// to decide whether to keep or drop the next sample.
+  /// Wall-clock time of last successful upload; used by throttle to drop next sample.
   final DateTime? lastUploadAt;
 
-  /// Reason the most recent sample was dropped, or `null` if the last
-  /// sample was uploaded.
+  /// Reason most recent sample was dropped, or null if last sample was uploaded.
   final GpsSampleSkipReason? lastSkipReason;
 
-  /// `true` once the rolling speed falls below
-  /// [BackgroundGpsConfig.stationaryThresholdMps]; flips the cadence to
-  /// the stationary interval. Surfaced to the UI as a subtle status pill.
+  /// True when rolling speed falls below stationaryThresholdMps; flips cadence to stationary interval.
   final bool stationary;
 
-  /// Streak of consecutive transient upload failures. Reset to 0 on the
-  /// first success.
+  /// Streak of consecutive transient upload failures; reset to 0 on first success.
   final int consecutiveFailures;
 
-  /// Lifetime counter of accepted uploads, for the QA overlay + tests.
+  /// Lifetime counter of accepted uploads for QA overlay + tests.
   final int uploadedCount;
 
-  /// Lifetime counter of samples discarded by accuracy/throttle. Same
-  /// audience as [uploadedCount].
+  /// Lifetime counter of samples discarded by accuracy/throttle.
   final int discardedCount;
 
-  /// True when the uploader is PARKED on a missing background-location grant —
-  /// the customer's live-tracking map is receiving nothing and only the jeeber
-  /// can fix it. This is the whole trigger for the Active Delivery banner: for
-  /// months this state existed with no UI and no log line, so a jeeber drove an
-  /// entire delivery while the map stayed empty and nothing anywhere said so.
+  /// True when uploader is parked on missing background-location grant (customer's live-tracking map receives nothing).
   bool get isBlockedOnPermission =>
       phase == BackgroundGpsPhase.permissionDenied;
 
-  /// True when re-prompting in-app is pointless and the jeeber must be sent to
-  /// the OS settings page — either a permanent denial, or the Android 11+
-  /// "Allow all the time" upgrade, which the platform only exposes there.
+  /// True when re-prompting in-app is pointless; jeeber must use OS settings (deniedForever or whileInUse upgrade).
   bool get needsSystemSettings =>
       permission == LocationPermission.deniedForever ||
       permission == LocationPermission.whileInUse;

@@ -1,9 +1,4 @@
-/// Result returned by a successful POST /v1/deliveries/{id}/cancel call.
-///
-/// Contract per D5 `CancelDeliveryResponse`:
-/// `weeklyCount`, `retryAfter`, `strikeCount`, `restriction`,
-/// `pendingApproval`, `jeeberRestricted` — some fields are invented for
-/// mock fidelity (T-BE-030 / d5-delivery-lifecycle.contract.md).
+/// Response from POST /v1/deliveries/{id}/cancel.
 class CancellationResult {
   const CancellationResult({
     required this.deliveryId,
@@ -16,19 +11,18 @@ class CancellationResult {
 
   final String deliveryId;
 
-  /// Cancellations this ISO-week (client only).
+  /// Client cancellations this ISO-week.
   final int weeklyCount;
 
-  /// When the rate-limit resets (present only on 429 path — kept here
-  /// for the rate-limited state so the UI can format the date).
+  /// When rate-limit resets (429 path only).
   final DateTime? retryAfter;
 
-  /// Jeeber-only: running strike count in the last 30 days.
+  /// Running strike count (last 30 days).
   final int? strikeCount;
 
-  /// Jeeber-only: restriction tier ('yellow', 'red') after this cancel.
+  /// Restriction tier ('yellow' or 'red').
   final String? restriction;
 
-  /// True when a post-pickup client cancel requires admin approval.
+  /// Post-pickup client cancel pending approval.
   final bool pendingApproval;
 }

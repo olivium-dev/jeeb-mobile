@@ -8,16 +8,6 @@ import '../l10n/app_localizations.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../core/previews/jeeb_preview.dart';
 
-/// Jeeb branded splash — Figma node `56572:1711` ("Splash", 440×956).
-///
-/// Full-bleed brand-navy background with the Jeeb wordmark optically centered
-/// and the localized tagline in the lower band. The wordmark is the bundled
-/// brand vector (`assets/brand/jeeb_logo.svg`, Figma "Group 68" 56572:1821),
-/// never re-drawn as `Text` glyphs.
-///
-/// Renders under the OMDS theme + [AppLocalizations] supplied by the splash
-/// host, so every color is a `colorScheme` role and every string is an ARB
-/// key — no literals. Direction-agnostic layout mirrors automatically in RTL.
 class BrandedSplash extends StatelessWidget {
   const BrandedSplash({super.key});
 
@@ -42,8 +32,6 @@ class BrandedSplash extends StatelessWidget {
   }
 }
 
-/// Vertical composition: wordmark optically centered (slightly above true
-/// centre via asymmetric [Spacer] weights), tagline anchored to the lower band.
 class _SplashBody extends StatelessWidget {
   const _SplashBody();
 
@@ -61,9 +49,6 @@ class _SplashBody extends StatelessWidget {
   }
 }
 
-/// Bundled Jeeb wordmark, clamped to a brand-sized max width and centred. The
-/// SVG keeps its intrinsic aspect ratio (viewBox 182:73), so it scales down on
-/// narrow devices without distortion. Marked as meaningful image artwork.
 class _SplashLogo extends StatelessWidget {
   const _SplashLogo();
 
@@ -76,9 +61,6 @@ class _SplashLogo extends StatelessWidget {
       image: true,
       container: true,
       child: Center(
-        // Token width; height derives from the SVG's intrinsic 182:73 ratio,
-        // so the wordmark scales without distortion. ~45% of a 440dp frame —
-        // the brand-sized analogue of Figma's 182px (≈41%) wordmark.
         child: SvgPicture.asset(
           BrandedSplash._logoAsset,
           width: Sizes.twoHundredLarge,
@@ -89,8 +71,6 @@ class _SplashLogo extends StatelessWidget {
   }
 }
 
-/// Localized "Delivery App" tagline. Uses the theme `titleMedium` role on the
-/// on-secondary (white) color so contrast holds against the navy fill.
 class _SplashTagline extends StatelessWidget {
   const _SplashTagline();
 
@@ -112,7 +92,6 @@ class _SplashTagline extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

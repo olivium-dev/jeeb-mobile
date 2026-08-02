@@ -3,25 +3,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/cancellation_repository.dart';
 import 'cancellation_state.dart';
 
-/// Drives the cancellation reason-picker + submission flow (T-MOB-024).
-///
-/// Lifecycle:
-///   [CancellationIdle] → user fills form → [submit] →
-///   [CancellationLoading] → 200 → [CancellationSuccess]
-///                         → 409 → [CancellationTooLate]
-///                         → 5xx → [CancellationError]
+/// Lifecycle: Idle → submit → Loading → Success/TooLate/Error.
 class CancellationCubit extends Cubit<CancellationState> {
-  // DT-04 screen-catalog / test seam: [initialState] presets a non-idle start
-  // (e.g. [CancellationLoading]) so a designed state can be previewed without
-  // driving the real async submit. Null (default) keeps production
-  // behaviour — the cubit starts idle exactly as before.
+  /// [initialState] presets a state for screen-catalog preview (DT-04).
   CancellationCubit(this._repository, {CancellationState? initialState})
       : super(initialState ?? const CancellationIdle());
 
   final CancellationRepository _repository;
 
-  /// Submits cancellation. [reason] must be non-empty; [otherDetails]
-  /// is only relevant when [reason] == 'other'.
   Future<void> submit({
     required String deliveryId,
     required String reason,
@@ -45,6 +34,5 @@ class CancellationCubit extends Cubit<CancellationState> {
     }
   }
 
-  /// Resets to idle so the user can retry after an error.
   void reset() => emit(const CancellationIdle());
 }

@@ -28,22 +28,11 @@ import '../tab_visibility.dart';
 import 'dart:async';
 import '../../../core/previews/jeeb_preview.dart';
 
-/// Client-role home tab. Hosts the [ClientHomeCubit] scoped to this tab —
-/// rebuilt on role switches (the shell tears down + reinflates), which is
-/// the right lifetime for a per-tab view-model.
-///
-/// The repository defaults to the in-memory fake until the jeeb-gateway
-/// `/api/clients/me/home-summary` endpoint exists. Callers can inject a
-/// real repository through the constructor (used by widget tests).
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key, this.repository, this.greetingNameProvider});
 
-  /// Injection hook so tests + the future DI wiring can swap in a Dio-
-  /// backed repository without modifying the tab.
   final ClientHomeRepository? repository;
 
-  /// Returns the first name to greet the user with, or `null` if unknown.
-  /// Wired to the profile cubit once that ships.
   final String? Function()? greetingNameProvider;
 
   @override
@@ -57,36 +46,16 @@ class HomeTab extends StatelessWidget {
           create: (_) => ClientHomeCubit(
             repository: repository ?? _resolveRepository(devSeed),
             greetingNameProvider: greetingNameProvider ?? _resolveGreetingName,
-            // Push-triggered refetch (sprint-009): re-pull on a status-change
-            // push. Absent under bare tests / dev seams where DI isn't set up.
-            //
-            // b02 wave D: through the ONE shared resolver now, with topics. The
-            // hand-rolled GetIt lookup here was the twelfth copy of that check
-            // and the only one the wave-D topic filter would have missed —
-            // which is exactly the "one call site silently keeps the old
-            // behaviour" failure `resolvePushRefreshStream` exists to prevent.
-            //
-            // `{order, offers}`: this cubit paints In-Progress (order state),
-            // Pending and Replies (the auction). It renders no chat row and no
-            // jeeber feed, so a `chat` or `new_request` push no longer wakes it.
             refreshSignals: resolvePushRefreshStream(
               topics: const {RefreshTopic.order, RefreshTopic.offers},
             ),
           ),
         ),
-        // P0-X06: the personalized greeting (name + avatar) is sourced from the
         // real `GET /users/me` (the same getMe the Profile tab reads), so the
-        // header shows "Hello, {name}" + the real avatar instead of the generic
-        // "Welcome back" + "?" placeholder. Under the dev seam it is seeded with
-        // the deterministic capture fixture; in release it refreshes from the
-        // live profile (or stays generic when getMe is unreachable / nameless).
         BlocProvider(
           create: (_) => GreetingProfileCubit(
             repository: _resolveGreetingRepository(devSeed),
             seed: _greetingSeed(devSeed),
-            // Profile-name lane: re-pull getMe when a display-name save
-            // broadcasts a profile change (the IndexedStack keeps this tab
-            // alive, so without the signal the greeting would stay stale).
             refreshSignals: _profileRefreshStream(),
           )..load(),
         ),
@@ -94,29 +63,12 @@ class HomeTab extends StatelessWidget {
       child: Builder(
         builder: (innerContext) => PollingVisibilityGate(
           // b02 READ ECONOMICS. `isVisible` must AND every condition that makes
-          // this surface watchable, and there are two:
-          //
-          //   * `TabVisibility` — this is the selected `IndexedStack` child;
-          //   * `RouteVisibilityScope` — nothing is pushed on top of the shell.
-          //
-          // The second is the new one, and it is the expensive one. With
-          // `/delivery/:id` on top of the shell this cubit was still answering
-          // every `order`/`offers` push with a SEVEN-read snapshot, and still
-          // ticking its 10 s poll, for a screen the user could not see. Both are
-          // now deferred; the debt is paid once, on the way back.
-          //
-          // Both sources default to visible when absent (bare test, fixture
-          // host), so this is inert outside the shell.
           isVisible:
               (TabVisibility.maybeOf(innerContext)?.isVisible ?? true) &&
               RouteVisibilityScope.isOnTop(innerContext),
           target: innerContext.read<ClientHomeCubit>(),
           child: ClientHomeScreen(
             key: const Key('home-tab-root'),
-            // JEBV4-298 (E24/Q-086): the Requests tab is on-hold only, so it
-            // opens on Pending Requests. The In-Progress live-tracking surface
-            // now lives on the Delivery tab. The dev seam may still pin any tab
-            // (including In-Progress) for a debug-only capture of that surface.
             initialTab: devTab ?? ClientHomeTab.pendingRequests,
             onCreateRequest: () => _openRequestType(context),
             onOpenRequest: (request) => _openChat(context, request),
@@ -127,20 +79,12 @@ class HomeTab extends StatelessWidget {
     );
   }
 
-  /// Profile-changed broadcast (display-name saves) off GetIt when registered;
-  /// `null` under bare tests / fixture hosts so the cubit simply never
-  /// re-pulls. Mirrors the [PushRefreshSignals] wiring above.
   Stream<void>? _profileRefreshStream() {
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<ProfileRefreshSignals>()) return null;
     return getIt<ProfileRefreshSignals>().stream;
   }
 
-  /// The live profile source for the greeting. In the dev-seam capture path we
-  /// skip the network (the seed already carries the Figma name/avatar); in
-  /// release we self-provide the Dio-backed getMe repo off GetIt — no DI edit,
-  /// mirroring how [CustomerProfileScreen] resolves its repo. A bare test (no
-  /// Dio registered) gets `null` → the greeting stays on its seed.
   CustomerProfileRepository? _resolveGreetingRepository(bool devSeed) {
     if (devSeed) return null;
     final getIt = GetIt.instance;
@@ -153,9 +97,6 @@ class HomeTab extends StatelessWidget {
     return null;
   }
 
-  /// Seeds the greeting with the deterministic Figma profile under the dev seam
-  /// so a single capture APK renders "Hello, Sami" + the avatar without a live
-  /// fetch; empty otherwise (the live getMe populates it in release).
   GreetingProfileState _greetingSeed(bool devSeed) {
     if (!devSeed) return const GreetingProfileState();
     return GreetingProfileState(
@@ -164,9 +105,6 @@ class HomeTab extends StatelessWidget {
     );
   }
 
-  /// Pulls the [DioClientHomeRepository] off GetIt when available so the
-  /// home tab talks to the mock backend; in the dev-seam capture path it uses
-  /// the deterministic fixtures so all three filter tabs render populated.
   ClientHomeRepository _resolveRepository(bool devSeed) {
     if (devSeed) {
       return InMemoryClientHomeRepository.fromSnapshot(
@@ -180,12 +118,8 @@ class HomeTab extends StatelessWidget {
     return InMemoryClientHomeRepository();
   }
 
-  /// Greets "Sami" (the Figma mock name) under the dev seam so captures match
-  /// the design; `null` otherwise until the profile cubit is wired.
   String? _resolveGreetingName() => _devSeamTab() != null ? 'Sami' : null;
 
-  /// The filter tab requested via the dev seam, or `null` when the seam isn't
-  /// driving the home tab. Debug-only — always `null` in release builds.
   ClientHomeTab? _devSeamTab() {
     if (!kDebugMode) return null;
     final raw = DevSeam.current.homeTab;
@@ -201,23 +135,10 @@ class HomeTab extends StatelessWidget {
     }
   }
 
-  /// Opens the delivery-create flow from the Requests header top plus
-  /// (`orders_create_request_button`). Wiring this non-null
-  /// callback is what makes the `IconButton.filled` render ENABLED (navy
-  /// `colorScheme.primary` fill) instead of the disabled-gray state a null
-  /// `onPressed` produces — see `client_home_greeting.dart` `_AddRequestButton`.
-  /// Routes to the `request-type` screen (Figma 56535:2392), matching the
-  /// production create-request intent. Identical in debug + release; the seam
-  /// flows (13/14/15) only assert this button's visibility, never tap it.
   void _openRequestType(BuildContext context) {
     GoRouter.of(context).pushNamed('request-type');
   }
 
-  /// Routes a card tap to `/chat/:id` (BUG-18 client side). Prefer the request
-  /// id (== correlationKey) over [ClientHomeRequest.conversationId]: chat-detail
-  /// resolves correlationKey-first, so a conversationId param guarantees one
-  /// wasted 404 probe. Fall back to the conversationId only when no request id
-  /// is available.
   void _openChat(BuildContext context, ClientHomeRequest request) {
     final target = request.id.isNotEmpty
         ? request.id
@@ -228,18 +149,8 @@ class HomeTab extends StatelessWidget {
     ).pushNamed('chat-detail', pathParameters: {'id': target});
   }
 
-  /// Routes an in-progress card's "Track my order" CTA to the live-tracking
-  /// screen (`/orders/:id/tracking`, route `live-tracking`). Distinct from
-  /// [_openChat]: in-progress cards track the delivery, replies/pending cards
-  /// open the conversation. The tracking screen defends its own empty/invalid
-  /// state, so an empty id is a no-op here.
   void _openTracking(BuildContext context, ClientHomeRequest request) {
     if (request.trackingId.isEmpty) return;
-    // S9 live-tracking fix: navigate with the SERVER delivery id
-    // (`delivery-<offerId>`) so `GET /v1/delivery/<id>` resolves instead of
-    // 404'ing on a request id. The router prefers `?deliveryId=` over `:id`;
-    // we still set the path id (delivery id when known, else request id as a
-    // best-effort fallback via [ClientHomeRequest.trackingId]).
     GoRouter.of(context).pushNamed(
       'live-tracking',
       pathParameters: {'id': request.trackingId},
@@ -250,7 +161,6 @@ class HomeTab extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

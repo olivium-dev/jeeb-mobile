@@ -7,16 +7,6 @@ import '../../../background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../data/location_repository.dart';
 import 'map_capture_controller.dart';
 
-/// Live `GoogleMap` viewport for the drop-off capture screen (T-MOB-012,
-/// Figma 56546:2303). The map pans under the screen's fixed centre pin; this
-/// widget reports the centre to [controller] on every camera-idle so the
-/// "Pin Location" CTA can return the chosen coordinate. A "centre on my
-/// location" affordance asks `geolocator` for a one-shot fix and animates the
-/// camera there.
-///
-/// This is the only place that touches `google_maps_flutter` types — the
-/// screen, launcher, cubit, and tests stay on the domain [LocationPoint], which
-/// keeps `MapPickerLauncher` plugin-free and the Fakes the unit-test seam.
 class GoogleMapCaptureView extends StatefulWidget {
   const GoogleMapCaptureView({
     super.key,
@@ -25,11 +15,8 @@ class GoogleMapCaptureView extends StatefulWidget {
     this.initialZoom = 16,
   });
 
-  /// Two-way seam for the centre coordinate. The launcher owns it.
   final MapCaptureController controller;
 
-  /// GPS source for the "centre on me" button. Injected so widget tests can
-  /// pass a stub; production resolves the geolocator-backed gateway from DI.
   final GeolocatorGeocaptureGateway? gateway;
 
   final double initialZoom;
@@ -90,9 +77,6 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
   }
 }
 
-/// "Centre on my current location" affordance. Carries a Semantics identifier
-/// so uiautomator/Maestro can target it; sits in the bottom-end corner clear of
-/// the centre pin.
 class _CentreOnMeButton extends StatelessWidget {
   const _CentreOnMeButton({required this.onPressed});
 

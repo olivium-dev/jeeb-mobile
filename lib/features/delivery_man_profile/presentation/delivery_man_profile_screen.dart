@@ -12,32 +12,32 @@ import 'widgets/delivery_reviews_list.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/delivery_man_profile_screen_fixtures.dart';
 
-/// Delivery Man public profile / jeeber-profile-reviews (Figma 56580:2697,
-/// screen 27; JM-067).
-///
-/// A read-only profile of a Jeeber as seen by a client, presented modally
-/// (close "X", no bottom nav). Identity header + a "Reviews" section.
-/// Reuse posture: identity composes OMDS primitives; review cards reuse
-/// [OmdsReviewCard] (reuse-table.md Ratings/Feedback → feedback-service).
-///
-/// JM-067 changes against the divergent baseline (20_GAP_MAP):
-///   - NO Helpful/Reply controls — reviews are immutable/read-only (D57).
-///   - `profile_view_all_reviews` → `reviews-list` (JM-068), passing the
-///     jeeber's id as `?jeeberId=` when known.
-///   - Cold-start: the aggregate score is hidden until the jeeber has >=5
-///     reviews (D59) — see [DeliveryManProfileHeader].
-///   - Reviewer attribution is first-name only (D58) — see [DeliveryReviewCard].
-///   - `profile_close` → offer-review-list (pop, since the profile is pushed
-///     onto it from the offer card).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class DeliveryManProfileScreen extends StatelessWidget {
   const DeliveryManProfileScreen({super.key, required this.data});
 
-  /// Canonical screen-root Semantics id (41_GUARDRAILS_TESTING §1.1; the seam
-  /// harness W4 + dev_seam `jeeber_has_reviews` assert this exact id).
+  
+  
   static const String rootId = 'delivery_man_profile_screen_root';
 
-  /// Retained legacy widget [Key] (the Arabic-RTL test reads Directionality
-  /// off it). The asserted contract is [rootId].
+  
+  
   static const Key rootKey = Key('delivery-man-profile-screen-root');
 
   final DeliveryManProfileViewData data;
@@ -77,17 +77,17 @@ class _DeliveryManProfileBody extends StatelessWidget {
           reviewCount: data.reviewCount,
           onViewAll: () => _openAllReviews(context),
         ),
-        // D57: Helpful/Reply removed — the list renders read-only cards.
+        
         DeliveryReviewsList(reviews: data.reviews),
       ],
     );
   }
 
-  /// EDGE (21_NAV_PLAN §C, JM-067): `profile_view_all_reviews` → `reviews-list`
-  /// (JM-068). PUSHED (not go) so reviews-list's `reviews_back` returns to THIS
-  /// profile (JM-068 AC). The reviews-list route reads the jeeber via
-  /// `?jeeberId=`; we pass it when the source supplied it, else the target
-  /// resolves the seeded jeeber.
+  
+  
+  
+  
+  
   void _openAllReviews(BuildContext context) {
     final jeeberId = data.jeeberId;
     context.pushNamed(
@@ -114,7 +114,7 @@ class _Header extends StatelessWidget {
       reviewCount: data.reviewCount,
       location: data.location,
       isAvailable: data.isAvailable,
-      isColdStart: data.isColdStart, // D59 — hide score until N>=5.
+      isColdStart: data.isColdStart, 
     );
   }
 }
@@ -126,7 +126,7 @@ class _CloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Canonical id per JM-067 AC + 41_GUARDRAILS_TESTING §1.1 (`profile_close`).
+    
     return Semantics(
       identifier: 'profile_close',
       button: true,
@@ -141,9 +141,9 @@ class _CloseButton extends StatelessWidget {
     );
   }
 
-  /// EDGE (21_NAV_PLAN §C, JM-067): `profile_close` → offer-review-list. The
-  /// profile is PUSHED onto offer-review-list from the offer card, so popping
-  /// returns there. Falls back to home only on a cold deep-link with no stack.
+  
+  
+  
   void _close(BuildContext context) {
     if (context.canPop()) {
       context.pop();
@@ -152,7 +152,6 @@ class _CloseButton extends StatelessWidget {
     }
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

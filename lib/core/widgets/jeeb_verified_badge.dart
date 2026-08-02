@@ -5,11 +5,7 @@ import 'package:omds/omds.dart';
 import '../../l10n/app_localizations.dart';
 import '../previews/jeeb_preview.dart';
 
-/// SealCheck "verified" badge used wherever an account is verified
-/// (customer profile header, delivery-man profile header). Shared so the two
-/// profile screens reuse one implementation (RAIL 4). Brand navy glyph via
-/// [ColorScheme.secondaryContainer]; the caller supplies the localized
-/// accessibility [semanticsLabel].
+/// SealCheck "verified" badge; shared across profile screens (RAIL 4).
 class JeebVerifiedBadge extends StatelessWidget {
   const JeebVerifiedBadge({
     super.key,
@@ -17,10 +13,10 @@ class JeebVerifiedBadge extends StatelessWidget {
     this.size = Sizes.large,
   });
 
-  /// Localized accessibility label (no visible text on the badge).
+  /// Localized accessibility label.
   final String semanticsLabel;
 
-  /// Glyph size; defaults to the 20dp class used in both profile headers.
+  /// Icon size.
   final double size;
 
   @override
@@ -37,7 +33,6 @@ class JeebVerifiedBadge extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

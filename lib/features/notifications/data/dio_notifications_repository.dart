@@ -4,18 +4,6 @@ import '../../../core/network/auth_token_store.dart';
 import '../domain/notification_kind_mapping.dart';
 import '../domain/notifications_repository.dart';
 
-/// Dio-backed [NotificationsRepository] (JM-057) — the notification-service
-/// inbox, LIVE on `:4010` (42_GUARDRAILS_MOCK §4).
-///
-///   list      GET   `/v1/notifications?userId=`   → rewritten to
-///             `/notification-service/v1/notifications` (existing map key)
-///   mark-read PATCH `/v1/notifications/:id/read`
-///
-/// This IS the DI default (the endpoints exist). The `?userId=` is supplied at
-/// construction (the seeded session user, mirroring DioSubmittedOffersRepository
-/// / 50_ROUTE_REQUESTS JM-047) until a real session-user-id provider lands; the
-/// JM-057 engineer swaps it for the live session user. DO NOT hardcode a service
-/// prefix here (40_GUARDRAILS_ARCH §4 / DO-NOT).
 class DioNotificationsRepository implements NotificationsRepository {
   const DioNotificationsRepository({
     required Dio dio,
@@ -69,10 +57,6 @@ class DioNotificationsRepository implements NotificationsRepository {
       timestamp:
           _str(json['ts'] ?? json['timestamp'] ?? json['createdAt']) ?? '',
       read: json['read'] == true,
-      // `requestId` joins the ref chain for `new_request` rows (G3); it sits
-      // after the explicit ref/target keys and before `deliveryId` — safe
-      // because in this system the delivery id == the request id (the same
-      // convention notification_deep_link.dart documents).
       ref: _str(
         json['ref'] ??
             json['targetId'] ??

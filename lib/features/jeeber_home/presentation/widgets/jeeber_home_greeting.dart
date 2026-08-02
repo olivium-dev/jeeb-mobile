@@ -9,29 +9,13 @@ import '../../../../l10n/app_localizations.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// The Jeeber dashboard's single page title.
-///
-/// The personalized "Hello, {name}" line replaces the former generic
-/// "Jeeber Home" app-bar title and the marketing subtitle. Keeping one compact
-/// title prevents three peer headings from competing above the request feed.
-///
-/// P0-X06: when an ambient [GreetingProfileCubit] is provided above this widget
-/// (the DashboardTab shell wires it from the live `GET /users/me`), its real
-/// name + avatar take precedence over the threaded [name]/[avatarUrl] so the
-/// header shows "Hello, {name}" + the real avatar instead of "Welcome back" +
-/// a "?" placeholder. With no ambient cubit (bare widget tests, the
-/// unregistered upsell path) the threaded values apply unchanged.
 class JeeberHomeGreeting extends StatelessWidget {
   const JeeberHomeGreeting({super.key, this.name, this.avatarUrl});
 
   static const Key rootKey = Key('jeeber-home-greeting-root');
 
-  /// Profile display name. `null` shows the generic "Welcome back" fallback.
   final String? name;
 
-  /// Optional profile avatar (cdn-service URL) shown leading the greeting
-  /// line, matching the Figma deliveryman home header (screens 23-26). When
-  /// `null` the greeting renders without an avatar (existing call sites).
   final String? avatarUrl;
 
   @override
@@ -40,8 +24,6 @@ class JeeberHomeGreeting extends StatelessWidget {
     final rawName = (profile?.name?.trim().isNotEmpty ?? false)
         ? profile!.name
         : name;
-    // Suppress synthetic account handles (`jeeb-89a486f968ed`) / internal
-    // emails so the dashboard header never greets a raw hash (audit §T5).
     final resolvedName = displayNameOrNull(rawName);
     final resolvedAvatar = (profile?.avatarUrl?.trim().isNotEmpty ?? false)
         ? profile!.avatarUrl
@@ -58,8 +40,6 @@ class JeeberHomeGreeting extends StatelessWidget {
     );
   }
 
-  /// Reads the ambient [GreetingProfileCubit] state, or `null` when no provider
-  /// is mounted above this widget (e.g. a bare widget test / the upsell path).
   static GreetingProfileState? _readGreetingProfile(BuildContext context) {
     try {
       return context.watch<GreetingProfileCubit>().state;
@@ -135,12 +115,10 @@ class _GreetingLine extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final trimmed = name?.trim();
     if (trimmed == null || trimmed.isEmpty) return l10n.homeGreetingFallback;
-    // Greet with the first name only ("Hello, Sami", not "Hello, Sami Fawaz").
     final firstName = trimmed.split(RegExp(r'\s+')).first;
     return l10n.homeGreetingNamed(firstName);
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

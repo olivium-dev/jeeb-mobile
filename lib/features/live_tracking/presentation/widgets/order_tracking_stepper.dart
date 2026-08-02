@@ -6,14 +6,6 @@ import '../live_tracking_l10n.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// JM-032 AC1: the canonical 4-step order-tracking stepper — Ordered → Picked →
-/// In Transit → Delivered (D70) — the PRIMARY visual of the tracking screen.
-///
-/// Carries the signature id `tracking_stepper` (root) and one assertable
-/// Semantics node per step (`tracking_step_ordered/_picked/_in_transit/
-/// _delivered`, all coined in 63_W1_TEST_PLAN §2.12). The OMDS stepper progress
-/// bar drives the visual fill; the per-step nodes carry the labels + a
-/// done/active/pending state for QA + a11y.
 class OrderTrackingStepper extends StatelessWidget {
   const OrderTrackingStepper({
     super.key,
@@ -21,16 +13,8 @@ class OrderTrackingStepper extends StatelessWidget {
     this.atDoor = false,
   });
 
-  /// 0-based index of the CURRENT step (0=Ordered … 3=Delivered).
   final int currentStep;
 
-  /// **Recorded product decision (P6/A5).** Keep the customer's 4-step
-  /// blueprint stepper (Ordered → Picked → In Transit → Delivered, D70).
-  /// At-Door does NOT get a fifth step. Instead, when the row is at the door
-  /// the third step's *label* reads "At Door" — so the state is legible —
-  /// while the semantics identifiers stay `tracking_step_in_transit` (no
-  /// Maestro/E2E churn). This is an explicit decision, not a side effect of
-  /// `trackingStepIndex4`'s collapse.
   final bool atDoor;
 
   static const _stepIds = <String>[
@@ -46,7 +30,6 @@ class OrderTrackingStepper extends StatelessWidget {
     final labels = <String>[
       l10n.stepOrdered,
       l10n.stepPicked,
-      // P6/A5: the third step reads "At Door" while the jeeber is at the door.
       atDoor ? l10n.stepAtDoor : l10n.stepInTransit,
       l10n.stepDelivered,
     ];
@@ -58,9 +41,6 @@ class OrderTrackingStepper extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // OMDS progress bar (visual fill). `showStepNumbers: false` — the
-          // labels are rendered as the assertable per-step nodes below so each
-          // step id surfaces as its own Semantics node.
           OMDSStepperProgress(
             totalSteps: _stepIds.length,
             completedSteps: currentStep + 1,
@@ -138,7 +118,6 @@ class _StepNode extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

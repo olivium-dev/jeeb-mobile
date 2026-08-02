@@ -17,19 +17,19 @@ import 'request_card.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/request_feed_screen_fixtures.dart';
 
-/// Jeeber-mode realtime delivery request feed (JEEB-66 / T-mobile-013).
-///
-/// Hosts the [RequestFeedCubit], drives a 1Hz UI ticker so each card with a
-/// server deadline can update its countdown badge without re-emitting cubit
-/// state, and surfaces accept/decline outcomes via OMDS snackbars. The cubit
-/// also retires requests with real deadlines on the same cadence.
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; live feed UI is jeeber_home/jeeber_feed_tab_view.dart (its repository stays live via DI) — see docs/project-understanding/reconciliation/orphans.md
+
+
+
+
+
+
+
 class RequestFeedScreen extends StatelessWidget {
   const RequestFeedScreen({super.key, this.cubit});
 
-  /// Optional pre-wired cubit. Production callers pass `null` and let the
-  /// screen wire up the [FakeRequestFeedRepository] until the real gateway
-  /// client lands; tests pass a configured one.
+  
+  
+  
   final RequestFeedCubit? cubit;
 
   @override
@@ -44,12 +44,12 @@ class RequestFeedScreen extends StatelessWidget {
     return BlocProvider<RequestFeedCubit>(
       create: (_) => RequestFeedCubit(
         repository: FakeRequestFeedRepository(),
-        // JEBV4-342 (b02): wired through the SAME shared resolver the live
-        // dashboard host uses, so if this screen is ever un-orphaned it is
-        // already push-driven rather than quietly poll-only. Returns `null`
-        // when DI has not run, which is this screen's normal (test) case.
-        // b02 wave D: same topics as the live dashboard host, so the orphaned
-        // construction cannot drift from the one that ships.
+        
+        
+        
+        
+        
+        
         refreshSignals: resolvePushRefreshStream(
           topics: const {RefreshTopic.feed, RefreshTopic.offers},
         ),
@@ -265,7 +265,7 @@ class _ReconnectingBanner extends StatelessWidget {
         horizontal: Spacing.medium,
         vertical: Spacing.xSmall,
       ),
-      // Reconnecting is a transient attention state -> semantic warning role.
+      
       color: context.jeebRoles.warningContainer,
       child: _ReconnectingRow(message: message),
     );
@@ -308,9 +308,9 @@ class _EmptyFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // OmdsPullToRefresh's child must be scrollable for the gesture to fire,
-    // so the empty state is wrapped in a single-child scroll view sized to
-    // the viewport.
+    
+    
+    
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -327,7 +327,6 @@ class _EmptyFeed extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

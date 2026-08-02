@@ -16,17 +16,6 @@ import '../domain/goods_cost_repository.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/goods_cost_screen_fixtures.dart';
 
-/// "Enter Goods Cost" — the Jeeber declares how much the purchased goods cost
-/// for a delivery (the amount the Client reimburses on receipt). Submitting
-/// records the cost on the gateway and pops with the gateway-confirmed
-/// [GoodsCost] (amount + currency verbatim).
-///
-/// [repository] is optional — production resolves [GoodsCostRepository] from
-/// GetIt when registered, else constructs the Dio impl over the shared
-/// `sl<Dio>()` so the running app reaches the real gateway; a DI-less
-/// widget/router test falls back to the in-memory fake. Mirrors
-/// `DeliveryReceiptScreen`'s self-resolving pattern.
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero external refs; its backend endpoint is also broken — see docs/project-understanding/reconciliation/orphans.md
 class GoodsCostScreen extends StatelessWidget {
   const GoodsCostScreen({
     super.key,
@@ -36,8 +25,6 @@ class GoodsCostScreen extends StatelessWidget {
 
   final String deliveryId;
 
-  /// Optional repository override. Production leaves this null; widget tests
-  /// inject a scripted instance.
   final GoodsCostRepository? repository;
 
   GoodsCostRepository _resolveRepository() {
@@ -133,11 +120,6 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
     context.read<GoodsCostCubit>().submit(amount);
   }
 
-  /// Entry-field label using the gateway-authoritative currency (no hardcoded
-  /// currency — 40_GUARDRAILS_ARCH §5). There is no user/config currency field,
-  /// so the delivery's currency from the gateway is the source of truth; until
-  /// it resolves (or if the best-effort read failed) the label degrades to a
-  /// neutral "Goods Cost".
   String _label(AppLocalizations l10n, String? currency) =>
       (currency != null && currency.isNotEmpty)
           ? l10n.goodsCostFieldLabel(currency)
@@ -151,8 +133,6 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
           prev.submitStatus != next.submitStatus &&
           next.submitStatus == GoodsCostSubmitStatus.succeeded,
       listener: (context, state) {
-        // Side effect ONLY in the listener (40_GUARDRAILS_ARCH §3): pop with the
-        // gateway-confirmed record (amount + currency verbatim).
         final GoodsCost? recorded = state.recorded;
         if (recorded != null) {
           Navigator.of(context).pop(recorded);
@@ -214,7 +194,6 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
     }
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

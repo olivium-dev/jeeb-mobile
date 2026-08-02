@@ -8,11 +8,7 @@ import '../../domain/delivery_chat_message.dart';
 import 'offer_card_bubble.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Centered helper note under the stacked offer cards in the broadcasting
-/// chat (Figma node 56535:6659): "Accept only one offer".
-///
-/// Renders in the brand-accent (tertiary/orange) role to match the Figma
-/// emphasis, with the copy resolved through [AppLocalizations].
+/// Centered helper note under stacked offer cards: "Accept only one offer". Tertiary role.
 class ChatOfferOnlyOneFooter extends StatelessWidget {
   const ChatOfferOnlyOneFooter({super.key});
 
@@ -39,7 +35,6 @@ class ChatOfferOnlyOneFooter extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

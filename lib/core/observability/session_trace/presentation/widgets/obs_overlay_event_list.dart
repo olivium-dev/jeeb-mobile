@@ -4,9 +4,6 @@ import 'package:omds/omds.dart';
 import '../obs_overlay_controller.dart';
 import 'obs_overlay_event_tile.dart';
 
-/// The scrollable, live-updating body of the panel: newest event first, one
-/// `ObsOverlayEventTile` per buffered (and filter-matching) event, or an
-/// `OmdsEmptyState` while nothing has been captured yet.
 class ObsOverlayEventList extends StatelessWidget {
   const ObsOverlayEventList({super.key, required this.controller});
 

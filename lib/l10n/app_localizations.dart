@@ -4,13 +4,6 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-/// Hand-authored localizations layer for Jeeb. ARB files at
-/// `lib/l10n/app_{en,ar}.arb` are the source of truth and are bundled as
-/// assets; this class parses them at load time and exposes typed getters.
-///
-/// When the team adopts `flutter gen-l10n`, this file can be deleted and the
-/// generated class swapped in without changing call sites — every getter name
-/// matches the ARB key.
 class AppLocalizations {
   AppLocalizations(this.locale, this._strings);
 
@@ -49,13 +42,9 @@ class AppLocalizations {
     return value ?? key;
   }
 
-  /// Test-only accessor over the loaded ARB map. Used by
-  /// `test/l10n/runtime_parity_test.dart` (JEB-2 LEAD §3) to assert that no
-  /// rendered value equals its key. Returns `null` for unknown keys.
   @visibleForTesting
   String? byKey(String key) => _strings[key];
 
-  /// Test-only snapshot of the loaded ARB map.
   @visibleForTesting
   Map<String, String> get allStrings => Map.unmodifiable(_strings);
 
@@ -276,7 +265,6 @@ class AppLocalizations {
   String get profileSaving => _get('profileSaving');
   String get profileSaved => _get('profileSaved');
 
-  // Post-OTP display-name onboarding step (profile-name lane).
   String get profileNameStepTitle => _get('profileNameStepTitle');
   String get profileNameStepSubtitle => _get('profileNameStepSubtitle');
   String get profileNameStepCta => _get('profileNameStepCta');
@@ -298,7 +286,6 @@ class AppLocalizations {
   String get notificationPreferencesDisableOffersConfirm =>
       _get('notificationPreferencesDisableOffersConfirm');
 
-  // T-MOB-026: server-wired notification prefs (GET/PATCH /users/me/notification-preferences).
   String get notificationPrefsSaveError => _get('notificationPrefsSaveError');
   String get notificationPrefsLoadError => _get('notificationPrefsLoadError');
   String get notificationPrefsRetry => _get('notificationPrefsRetry');
@@ -568,10 +555,8 @@ class AppLocalizations {
   ).replaceFirst('{minutes}', minutes).replaceFirst('{seconds}', seconds);
   String get registrationChangePhone => _get('registrationChangePhone');
 
-  // FR-LOGIN: branded register hero + welcome heading.
   String get registrationWelcome => _get('registrationWelcome');
 
-  // FR-P0-4: super-login credential bottom sheet.
   String get superLoginTitle => _get('superLoginTitle');
   String get superLoginSubtitle => _get('superLoginSubtitle');
   String get superLoginUserId => _get('superLoginUserId');
@@ -582,7 +567,6 @@ class AppLocalizations {
   String get superLoginError => _get('superLoginError');
   String get superLoginNetworkError => _get('superLoginNetworkError');
 
-  // "Super user login plus": demo-user picker that pre-fills the sheet.
   String get superLoginPlusTitle => _get('superLoginPlusTitle');
   String get superLoginPickerTitle => _get('superLoginPickerTitle');
   String get superLoginPickerSubtitle => _get('superLoginPickerSubtitle');
@@ -646,7 +630,6 @@ class AppLocalizations {
   String get tierSelectionOnTheWayMvpNote =>
       _get('tierSelectionOnTheWayMvpNote');
 
-  // Request type screen (Figma 56535:2392)
   String get requestTypeTitle => _get('requestTypeTitle');
   String get requestTypeChooseHeading => _get('requestTypeChooseHeading');
   String get requestTypeLocationHeading => _get('requestTypeLocationHeading');
@@ -678,15 +661,12 @@ class AppLocalizations {
       .replaceFirst('{value}', value);
   String get requestTypeTierSelectedHint => _get('requestTypeTierSelectedHint');
 
-  // Client Location screen (Figma 56539:1444)
   String get clientLocationTitle => _get('clientLocationTitle');
   String get clientLocationHeading => _get('clientLocationHeading');
   String get clientLocationCurrentOption => _get('clientLocationCurrentOption');
   String get clientLocationNewOption => _get('clientLocationNewOption');
   String get clientLocationAddSemantic => _get('clientLocationAddSemantic');
 
-  // JEBV4-176 (Q-060) — honest GPS-acquisition + recovery on the Current
-  // Location option (no silent Beirut fallback).
   String get clientLocationGpsResolving => _get('clientLocationGpsResolving');
   String get clientLocationGpsResolved => _get('clientLocationGpsResolved');
   String get clientLocationGpsPermissionDeniedTitle =>
@@ -707,14 +687,11 @@ class AppLocalizations {
   String get clientLocationGpsOpenLocationSettings =>
       _get('clientLocationGpsOpenLocationSettings');
 
-  // Recipient-phone capture on the location-confirm step (iter6 OTP-phone v2).
   String get recipientPhoneLabel => _get('recipientPhoneLabel');
   String get recipientPhoneHint => _get('recipientPhoneHint');
   String get recipientPhoneHelper => _get('recipientPhoneHelper');
   String get recipientPhoneInvalid => _get('recipientPhoneInvalid');
 
-  // G1 (sprint-009 P0): "What do you need?" compose block on the
-  // location-confirm step — the customer's request content.
   String get composeDescriptionHeading => _get('composeDescriptionHeading');
   String get composeDescriptionHint => _get('composeDescriptionHint');
   String get composeDescriptionHelper => _get('composeDescriptionHelper');
@@ -722,19 +699,15 @@ class AppLocalizations {
   String get composeDescriptionMicSemantic =>
       _get('composeDescriptionMicSemantic');
 
-  // G1: customer-side echo of the request content on the waiting screen.
   String get waitingRequestSummaryLabel => _get('waitingRequestSummaryLabel');
 
-  // Capture Location screen (Figma 56546:2303)
   String get captureLocationTitle => _get('captureLocationTitle');
   String get captureLocationPinCta => _get('captureLocationPinCta');
   String get captureLocationMapSemantic => _get('captureLocationMapSemantic');
   String get captureLocationPinSemantic => _get('captureLocationPinSemantic');
   String get captureLocationMapPreview => _get('captureLocationMapPreview');
-  // T-MOB-012: "centre map on current GPS" button (maps wiring).
   String get captureLocationMyLocation => _get('captureLocationMyLocation');
 
-  // T-MOB-012: GPS denied + outside service area (AC4/AC5)
   String get captureLocationGpsDeniedTitle =>
       _get('captureLocationGpsDeniedTitle');
   String get captureLocationGpsDeniedBody =>
@@ -744,7 +717,6 @@ class AppLocalizations {
   String get captureLocationOutsideServiceArea =>
       _get('captureLocationOutsideServiceArea');
 
-  // T-MOB-012: Saved locations chip row
   String get savedLocationsTitle => _get('savedLocationsTitle');
   String get savedLocationsChipHome => _get('savedLocationsChipHome');
   String get savedLocationsChipWork => _get('savedLocationsChipWork');
@@ -756,7 +728,6 @@ class AppLocalizations {
   String get savedLocationsSaveSheetSkip => _get('savedLocationsSaveSheetSkip');
   String get savedLocationsNameHint => _get('savedLocationsNameHint');
 
-  // KYC wizard
   String get kycWizardTitle => _get('kycWizardTitle');
   String kycWizardProgressLabel({required int current, required int total}) =>
       _get(
@@ -828,7 +799,6 @@ class AppLocalizations {
   String get kycRejectionReasonExpired => _get('kycRejectionReasonExpired');
   String get kycRejectionReasonOther => _get('kycRejectionReasonOther');
 
-  // T-MOB-013: schema-driven KYC — ToS step + new error strings.
   String get kycTosStepTitle => _get('kycTosStepTitle');
   String get kycTosStepSubtitle => _get('kycTosStepSubtitle');
   String kycTosVersionLabel({required String version}) =>
@@ -866,7 +836,6 @@ class AppLocalizations {
   String get profileKycStartCta => _get('profileKycStartCta');
   String get profileKycViewCta => _get('profileKycViewCta');
 
-  // Jeeber dashboard (T-mobile-039).
   String get dashboardTodayEarningsTitle => _get('dashboardTodayEarningsTitle');
   String get dashboardTodayEarningsEmpty => _get('dashboardTodayEarningsEmpty');
   String dashboardTodayEarningsTips(String amount) =>
@@ -935,7 +904,6 @@ class AppLocalizations {
   String get dashboardNearbyRequestsOfflineHint =>
       _get('dashboardNearbyRequestsOfflineHint');
 
-  // Jeeber request feed + incoming match prompt (T-mobile-013)
   String get jeeberFeedSectionTitle => _get('jeeberFeedSectionTitle');
   String get jeeberFeedEmpty => _get('jeeberFeedEmpty');
   String jeeberFeedDistance(String distance) =>
@@ -969,7 +937,6 @@ class AppLocalizations {
     'jeeberIncomingMatchCountdown',
   ).replaceFirst('{seconds}', '$seconds');
 
-  // Request summary (T-mobile-012)
   String get requestSummaryTitle => _get('requestSummaryTitle');
   String get requestSummarySectionDescription =>
       _get('requestSummarySectionDescription');
@@ -1032,7 +999,6 @@ class AppLocalizations {
 
   String get requestSummaryFindingHint => _get('requestSummaryFindingHint');
 
-  // No-offer timeout / expired-request banners (T-mobile-035)
   String get requestSummaryNoOffersTitle => _get('requestSummaryNoOffersTitle');
   String get requestSummaryNoOffersBody => _get('requestSummaryNoOffersBody');
   String requestSummaryExpandToTier(String tier) =>
@@ -1040,8 +1006,6 @@ class AppLocalizations {
   String get requestSummaryExpiredTitle => _get('requestSummaryExpiredTitle');
   String get requestSummaryExpiredBody => _get('requestSummaryExpiredBody');
   String get requestSummaryReRequest => _get('requestSummaryReRequest');
-  // Shown when /request-summary is reached without a draft (e.g. a cold
-  // deep-link), replacing a raw scaffold with hardcoded English.
   String get requestSummaryUnavailableTitle =>
       _get('requestSummaryUnavailableTitle');
   String get requestSummaryUnavailableBody =>
@@ -1122,12 +1086,8 @@ class AppLocalizations {
       .replaceFirst('{fee}', fee)
       .replaceFirst('{currency}', currency)
       .replaceFirst('{minutes}', '$minutes');
-  /// JM-029 accept-confirm sheet title. A QUESTION about an action not yet
-  /// taken — never the past-tense chat system message.
   String offerAcceptTitle(String name) =>
       _get('offerAcceptTitle').replaceFirst('{name}', name);
-  // W6/SW-08 offer identity: honest name + rating fallbacks (never a UUID name
-  // or a fabricated "4.5 (0)").
   String get offersCardJeeberFallback => _get('offersCardJeeberFallback');
   String get offersCardNoRatingsYet => _get('offersCardNoRatingsYet');
   String offersCardSemanticLabelUnrated({
@@ -1156,16 +1116,11 @@ class AppLocalizations {
   String get offersLoadErrorGeneric => _get('offersLoadErrorGeneric');
   String get offersAcceptedBannerTitle => _get('offersAcceptedBannerTitle');
   String get offersAcceptedBannerBody => _get('offersAcceptedBannerBody');
-  // JM-028 offer-review additions.
   String offerCardCashOnDelivery(String amount, String currency) => _get(
     'offerCardCashOnDelivery',
   ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
   String get offerReviewCancelCta => _get('offerReviewCancelCta');
-  // JM-030 cancel-request-confirm sheet body (D69). Getter added by JM-028 to
-  // unblock the shared cancel sheet it invokes; the JM-030 engineer owns it.
   String get cancelRequestFreeNote => _get('cancelRequestFreeNote');
-  // cycle-4 typed cancel errors (DELETE /v1/requests/{id}): 409 conflict copy
-  // + the generic 404/403/5xx fallback. Network reuses loginNetworkError.
   String get cancelRequestErrorConflict => _get('cancelRequestErrorConflict');
   String get cancelRequestErrorGeneric => _get('cancelRequestErrorGeneric');
 
@@ -1309,7 +1264,6 @@ class AppLocalizations {
   String get deliveryActionCancellingLabel =>
       _get('deliveryActionCancellingLabel');
 
-  // JEBV4-309 — state-aware customer delivery-details hub.
   String get deliveryActionReceipt => _get('deliveryActionReceipt');
   String get deliveryDetailDeliveredBanner =>
       _get('deliveryDetailDeliveredBanner');
@@ -1336,9 +1290,6 @@ class AppLocalizations {
   String get trackingCancelledBody => _get('trackingCancelledBody');
   String get trackingCancelledHomeCta => _get('trackingCancelledHomeCta');
 
-  // P6/A3 + P6/A1: `expired` and `FailedNeedsEscalation` no longer collapse
-  // into the cancelled body — cancel/expire carry different fee + strike
-  // semantics, and an escalated row is still LIVE (admin can resolve it).
   String get trackingExpiredTitle => _get('trackingExpiredTitle');
   String get trackingExpiredBody => _get('trackingExpiredBody');
   String get trackingUnderReviewTitle => _get('trackingUnderReviewTitle');
@@ -1392,9 +1343,6 @@ class _AppLocalizationsDelegate
   }
 }
 
-/// Synchronous variant used by tests and bootstrap so we don't need a
-/// rootBundle round-trip when the app boots. Returns the same shape produced
-/// by [_AppLocalizationsDelegate.load].
 @visibleForTesting
 AppLocalizations debugLoadAppLocalizationsSync(Locale locale, String arbJson) {
   final json = jsonDecode(arbJson) as Map<String, dynamic>;
@@ -1406,10 +1354,6 @@ AppLocalizations debugLoadAppLocalizationsSync(Locale locale, String arbJson) {
   return AppLocalizations(locale, strings);
 }
 
-/// Compat extension restoring 156 ARB getters dropped during the wave-2-4
-/// merge. Reuses the same `_get(...)` runtime loader as the main class so
-/// the parity script in `qa/t-mob-fix-002/l10n_parity_check.sh` sees all
-/// getters as single-line literals. JEB-2 LEAD comment 14782 §1+§6.
 extension AppLocalizationsRestored on AppLocalizations {
   String get appBarSignOut => _get('appBarSignOut');
   String availabilityActiveDeliveries(int count) {
@@ -1450,8 +1394,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatAttachmentCamera => _get('chatAttachmentCamera');
   String get chatAttachmentCancel => _get('chatAttachmentCancel');
   String get chatAttachmentGallery => _get('chatAttachmentGallery');
-  /// P5: sheet subtitle — OMDS's static `show()` helper drops it, so the
-  /// composer mounts `OmdsMediaPickerSheet` directly to pass it through.
   String get chatAttachmentSheetSubtitle =>
       _get('chatAttachmentSheetSubtitle');
   String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
@@ -1476,7 +1418,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('confirmDeliveryActionIllustrationA11y');
   String get chatEmptyThreadSubtitle => _get('chatEmptyThreadSubtitle');
   String get chatEmptyThreadTitle => _get('chatEmptyThreadTitle');
-  /// P4/P5: the in-chat image attachment failed to reach the CDN.
   String get chatErrorAttachmentUploadFailed =>
       _get('chatErrorAttachmentUploadFailed');
   String get chatErrorPermissionDenied => _get('chatErrorPermissionDenied');
@@ -1695,14 +1636,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get voiceRecordingUploadErrorTitle =>
       _get('voiceRecordingUploadErrorTitle');
 
-  // T-MOB-011: Broadcasting sub-line shown post-send (AC3)
   String get voiceRecordingBroadcastingHint =>
       _get('voiceRecordingBroadcastingHint');
 
   String get splashTagline => _get('splashTagline');
   String get splashLogoSemantic => _get('splashLogoSemantic');
 
-  // --- Customer Profile (Figma 56581:1910, screen 18) ---
   String get customerProfileTitle => _get('customerProfileTitle');
   String get customerProfileSectionAccount =>
       _get('customerProfileSectionAccount');
@@ -1721,12 +1660,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get customerProfileVerifiedBadgeLabel =>
       _get('customerProfileVerifiedBadgeLabel');
 
-  // Shown when a profile route is reached without typed view-data (release-safe
-  // fallback in place of the debug-only fixture).
   String get profileUnavailableTitle => _get('profileUnavailableTitle');
   String get profileUnavailableBody => _get('profileUnavailableBody');
 
-  // --- Delivery Man public Profile (Figma 56580:2697, screen 27) ---
   String get deliveryManProfileCloseLabel =>
       _get('deliveryManProfileCloseLabel');
   String get deliveryManProfileVerifiedBadgeLabel =>
@@ -1764,13 +1700,11 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get reviewReplyAction => _get('reviewReplyAction');
   String reviewRelativeDaysAgo(int count) =>
       _get('reviewRelativeDaysAgo').replaceFirst('{count}', '$count');
-  // Screen 19 — Delivery tab upsell for an unregistered jeeber (closes JEEB-66).
   String get jeeberRegisterTitle => _get('jeeberRegisterTitle');
   String get jeeberRegisterSubtitle => _get('jeeberRegisterSubtitle');
   String get jeeberRegisterCta => _get('jeeberRegisterCta');
   String get jeeberRegisterHeroSemantic => _get('jeeberRegisterHeroSemantic');
 
-  // Screens 20-22 — Delivery-man onboarding wizard.
   String get dmOnboardingPhotoStepTitle => _get('dmOnboardingPhotoStepTitle');
   String get dmOnboardingSubmitFailed => _get('dmOnboardingSubmitFailed');
   String get dmOnboardingPhotoPickFailed => _get('dmOnboardingPhotoPickFailed');
@@ -1823,13 +1757,11 @@ extension AppLocalizationsRestored on AppLocalizations {
     'dmOnboardingStepProgressLabel',
   ).replaceFirst('{current}', '$current').replaceFirst('{total}', '$total');
 
-  // T-MOB-027: Become a Jeeber card
   String get becomeJeeberCardTitle => _get('becomeJeeberCardTitle');
   String get becomeJeeberCardSubtitle => _get('becomeJeeberCardSubtitle');
   String get becomeJeeberCardCta => _get('becomeJeeberCardCta');
   String get becomeJeeberCardSemantic => _get('becomeJeeberCardSemantic');
 
-  // T-MOB-028: Role toggle setting
   String get roleSettingTitle => _get('roleSettingTitle');
   String get roleSettingClient => _get('roleSettingClient');
   String get roleSettingJeeber => _get('roleSettingJeeber');
@@ -1841,7 +1773,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get roleSettingKycGateCta => _get('roleSettingKycGateCta');
   String get roleSettingKycGateDismiss => _get('roleSettingKycGateDismiss');
 
-  // T-MOB-029: Jeeber feed tier filters + offline banner
   String get jeeberFeedTierAll => _get('jeeberFeedTierAll');
   String get jeeberFeedTierFlash => _get('jeeberFeedTierFlash');
   String get jeeberFeedTierExpress => _get('jeeberFeedTierExpress');
@@ -1859,7 +1790,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       .replaceFirst('{distance}', distance)
       .replaceFirst('{payout}', payout);
 
-  // T-MOB-006/007/008: Home tab isolated tab widgets
   String get pendingTabSearchingLabel => _get('pendingTabSearchingLabel');
   String pendingTabTtlLabel(String minutes, String seconds) => _get(
     'pendingTabTtlLabel',
@@ -1960,7 +1890,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('repliesTabA11yLabel').replaceFirst('{count}', count.toString());
   String get homeErrorRetry => _get('homeErrorRetry');
 
-  // T-MOB-021: Prohibited items acknowledgment dialog
   String get prohibitedItemsDialogTitle => _get('prohibitedItemsDialogTitle');
   String get prohibitedItemsDialogBody => _get('prohibitedItemsDialogBody');
   String get prohibitedItemsDialogAcknowledge =>
@@ -1970,22 +1899,18 @@ extension AppLocalizationsRestored on AppLocalizations {
   String prohibitedItemsSemanticItem(String name) =>
       _get('prohibitedItemsSemanticItem').replaceFirst('{name}', name);
 
-  // T-MOB-017: Live tracking at-door card + in-transit snack
   String get trackingAtDoorHeadline => _get('trackingAtDoorHeadline');
   String get trackingAtDoorBody => _get('trackingAtDoorBody');
   String get trackingAtDoorCta => _get('trackingAtDoorCta');
-  // G4: at-door inline code + pre-at-door compact code row
   String get trackingAtDoorShareCode => _get('trackingAtDoorShareCode');
   String get trackingCodeChipLabel => _get('trackingCodeChipLabel');
   String get trackingCodeChipHint => _get('trackingCodeChipHint');
   String get trackingJeeberOnTheWay => _get('trackingJeeberOnTheWay');
 
-  // T-MOB-018: OTP handover screen (client + Jeeber views)
   String get otpHandoverClientTitle => _get('otpHandoverClientTitle');
   String get otpHandoverJeeberTitle => _get('otpHandoverJeeberTitle');
   String get otpClientShareInstruction => _get('otpClientShareInstruction');
   String get otpClientDoNotShare => _get('otpClientDoNotShare');
-  // G4: honest customer fallback when the app holds no code (SMS trigger)
   String get otpClientSmsSentTitle => _get('otpClientSmsSentTitle');
   String get otpClientSmsSentBody => _get('otpClientSmsSentBody');
   String get otpClientResendSms => _get('otpClientResendSms');
@@ -2006,7 +1931,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get otpErrorServer => _get('otpErrorServer');
   String get otpErrorGeneric => _get('otpErrorGeneric');
 
-  // T-MOB-019: Earnings dashboard — period filter + PDF export
   String get earningsPeriodCustom => _get('earningsPeriodCustom');
   String get earningsGross => _get('earningsGross');
   String get earningsNet => _get('earningsNet');
@@ -2022,13 +1946,9 @@ extension AppLocalizationsRestored on AppLocalizations {
     'earningsDeliveryItemFare',
   ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
 
-  // T-MOB-020: Mutual blind rating
   String get mutualRatingTitle => _get('mutualRatingTitle');
   String get mutualRatingSubtitle => _get('mutualRatingSubtitle');
   String get mutualRatingTagsLabel => _get('mutualRatingTagsLabel');
-  // JEBV4-296/297: localized quick-tag chip labels — one per canonical
-  // gateway rating-tag key (wire values stay the English taxonomy keys,
-  // see `kMutualRatingTags` / `_tagLabel` in mutual_rating_screen.dart).
   String get mutualRatingTagPunctuality => _get('mutualRatingTagPunctuality');
   String get mutualRatingTagCommunication =>
       _get('mutualRatingTagCommunication');
@@ -2048,7 +1968,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get mutualRatingError => _get('mutualRatingError');
   String get mutualRatingDone => _get('mutualRatingDone');
 
-  // T-MOB-022: Escalate/dispute flow
   String get escalateTitle => _get('escalateTitle');
   String get escalateSubtitle => _get('escalateSubtitle');
   String get escalateReasonLabel => _get('escalateReasonLabel');
@@ -2077,11 +1996,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   ).replaceFirst('{caseNumber}', caseNumber);
   String get escalateConfirmationDone => _get('escalateConfirmationDone');
 
-  // Generic action labels
   String get actionDone => _get('actionDone');
   String get actionConfirm => _get('actionConfirm');
 
-  // T-MOB-024: Cancellation flow
   String get cancellationTitle => _get('cancellationTitle');
   String get cancellationReasonPrompt => _get('cancellationReasonPrompt');
   String get cancellationReasonChangedMind =>
@@ -2104,7 +2021,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get cancellationSuccess => _get('cancellationSuccess');
   String get cancellationTooLate => _get('cancellationTooLate');
 
-  // T-MOB-025: Saved locations CRUD
   String get savedLocationsManage => _get('savedLocationsManage');
   String get savedLocationsAddNew => _get('savedLocationsAddNew');
   String get savedLocationsEdit => _get('savedLocationsEdit');
@@ -2119,7 +2035,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get savedLocationsDeleteError => _get('savedLocationsDeleteError');
   String get savedLocationsSaveError => _get('savedLocationsSaveError');
 
-  // T-MOB-030: Offer submission form
   String get offerSubmitTitle => _get('offerSubmitTitle');
   String get offerSubmitPriceLabel => _get('offerSubmitPriceLabel');
   String get offerSubmitEtaLabel => _get('offerSubmitEtaLabel');
@@ -2129,7 +2044,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get offerSubmitWithdrawTooltip => _get('offerSubmitWithdrawTooltip');
   String get offerSubmitRequestGone => _get('offerSubmitRequestGone');
 
-  // T-MOB-031: Active delivery (Jeeber)
   String get activeDeliveryTitle => _get('activeDeliveryTitle');
   String get activeDeliveryProgressTitle => _get('activeDeliveryProgressTitle');
   String get activeDeliveryCancelledTitle =>
@@ -2180,8 +2094,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');
   String get activeDeliveryLoadError => _get('activeDeliveryLoadError');
 
-  // P0 (live tracking): the background-location permission banner. Shown while
-  // the GPS uploader is parked, i.e. while the customer's map is empty.
   String get activeDeliveryGpsBannerTitle =>
       _get('activeDeliveryGpsBannerTitle');
   String get activeDeliveryGpsBannerBody => _get('activeDeliveryGpsBannerBody');
@@ -2192,8 +2104,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveryGpsBannerRetry =>
       _get('activeDeliveryGpsBannerRetry');
 
-  // P6/B4: kind-specific transition-failure copy. One message for three
-  // different failures was ranked cause #3 of the 2026-07-25 incident.
   String get activeDeliveryErrorInvalidTransition =>
       _get('activeDeliveryErrorInvalidTransition');
   String get activeDeliveryErrorBadRequest =>
@@ -2209,7 +2119,6 @@ extension AppLocalizationsRestored on AppLocalizations {
     'activeDeliveryStepperCurrentDone',
   ).replaceFirst('{current}', current);
 
-  // T-MOB-032: Settlement statements
   String get settlementTitle => _get('settlementTitle');
   String get settlementEmptyMessage => _get('settlementEmptyMessage');
   String get settlementLoadError => _get('settlementLoadError');
@@ -2225,11 +2134,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String settlementCommissionLabel(String amount) =>
       _get('settlementCommissionLabel').replaceFirst('{amount}', amount);
 
-  // ── WAVE 0 auth funnel (CTO-D1; JM-005/007/008/020/021/022/066) ───────────
-  // Integrator-batched keys (40_GUARDRAILS §9 S4). W0 screen engineers
-  // reference these; never inline-add a string in a widget.
 
-  // JM-007 — Login
   String get loginTitle => _get('loginTitle');
   String get loginEmailLabel => _get('loginEmailLabel');
   String get loginEmailHint => _get('loginEmailHint');
@@ -2243,7 +2148,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get loginInvalidCredentials => _get('loginInvalidCredentials');
   String get loginNetworkError => _get('loginNetworkError');
 
-  // JM-008 — Sign up
   String get signupTitle => _get('signupTitle');
   String get signupNameLabel => _get('signupNameLabel');
   String get signupNameHint => _get('signupNameHint');
@@ -2260,7 +2164,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get signupLoginLink => _get('signupLoginLink');
   String get signupEmailCollision => _get('signupEmailCollision');
 
-  // JM-020 — Recover password
   String get recoverTitle => _get('recoverTitle');
   String get recoverSubtitle => _get('recoverSubtitle');
   String get recoverEmailLabel => _get('recoverEmailLabel');
@@ -2269,14 +2172,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get recoverSignupLink => _get('recoverSignupLink');
   String get recoverBackToSigninLink => _get('recoverBackToSigninLink');
 
-  // JM-021 — Verify recovery code
   String get verifyCodeTitle => _get('verifyCodeTitle');
   String get verifyCodeSubtitle => _get('verifyCodeSubtitle');
   String get verifyCodeSubmitCta => _get('verifyCodeSubmitCta');
   String get verifyCodeResendCta => _get('verifyCodeResendCta');
   String get verifyCodeError => _get('verifyCodeError');
 
-  // JM-022 — Set password
   String get setpwTitle => _get('setpwTitle');
   String get setpwNewLabel => _get('setpwNewLabel');
   String get setpwNewHint => _get('setpwNewHint');
@@ -2285,25 +2186,21 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get setpwSubmitCta => _get('setpwSubmitCta');
   String get setpwValidationError => _get('setpwValidationError');
 
-  // JM-066 — Account status
   String get accountStatusTitle => _get('accountStatusTitle');
   String get accountStatusBody => _get('accountStatusBody');
   String get accountStatusSupportCta => _get('accountStatusSupportCta');
   String get accountStatusSignoutCta => _get('accountStatusSignoutCta');
 
-  // JM-005 — Biometric unlock
   String get biometricUnlockTitle => _get('biometricUnlockTitle');
   String get biometricUnlockAuthenticateCta =>
       _get('biometricUnlockAuthenticateCta');
   String get biometricUnlockUsePasswordLink =>
       _get('biometricUnlockUsePasswordLink');
 
-  // W1-INT (S3) — shell persistent header actions (wallet chip + bell)
   String get shellWalletChipLabel => _get('shellWalletChipLabel');
   String get shellBellLabel => _get('shellBellLabel');
   String get shellComingSoon => _get('shellComingSoon');
 
-  // Sprint-5 Stream C — free-text search (compose + results screens).
   String get shellSearchLabel => _get('shellSearchLabel');
   String get searchTitle => _get('searchTitle');
   String get searchHint => _get('searchHint');
@@ -2318,14 +2215,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get searchLoadError => _get('searchLoadError');
   String get searchRetry => _get('searchRetry');
 
-  // JM-031 — Order summary (CTO-D3 deep-link target)
   String get orderSummaryTitle => _get('orderSummaryTitle');
   String get orderSummaryOpenChat => _get('orderSummaryOpenChat');
   String get orderSummaryTrack => _get('orderSummaryTrack');
   String get orderChatViewSummaryLink => _get('orderChatViewSummaryLink');
   String get orderChatPayCashOnDelivery => _get('orderChatPayCashOnDelivery');
   String get orderChatRequestLabel => _get('orderChatRequestLabel');
-  // b02 chat-header redesign — disclosure control + per-field accessible names
   String get orderChatSummaryExpand => _get('orderChatSummaryExpand');
   String get orderChatSummaryCollapse => _get('orderChatSummaryCollapse');
   String get orderChatRequestExpand => _get('orderChatRequestExpand');
@@ -2335,8 +2230,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderChatFieldEta => _get('orderChatFieldEta');
   String get orderChatFieldTier => _get('orderChatFieldTier');
 
-  /// Accessible name for a summary chip: `"<field>: <value>"`. Without the field
-  /// name an unresolved ETA and an unresolved tier both announce as "Pending".
   String orderChatFieldValueA11y(String field, String value) =>
       _get('orderChatFieldValueA11y')
           .replaceFirst('{field}', field)
@@ -2345,11 +2238,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatPartyJeeberFallback => _get('chatPartyJeeberFallback');
   String get chatPartyCustomerFallback => _get('chatPartyCustomerFallback');
 
-  // JM-050 — Address detail form
   String get addressFormTitle => _get('addressFormTitle');
   String get addressFormSaveCta => _get('addressFormSaveCta');
 
-  // JM-026 — Waiting / No-Coverage state (D48, D69)
   String get waitingTitle => _get('waitingTitle');
   String waitingCountdownLabel(String time) =>
       _get('waitingCountdownLabel').replaceFirst('{time}', time);
@@ -2363,7 +2254,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get waitingErrorBody => _get('waitingErrorBody');
   String get waitingErrorContractBody => _get('waitingErrorContractBody');
 
-  // JM-033 — Confirm Receipt (Customer), delivered-receipt-confirm (D11, D3)
   String get receiptTitle => _get('receiptTitle');
   String get receiptPromptHeading => _get('receiptPromptHeading');
   String receiptCashToJeeber(String amount, String jeeber) => _get(
@@ -2381,14 +2271,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get receiptErrorTransition => _get('receiptErrorTransition');
   String get receiptErrorGeneric => _get('receiptErrorGeneric');
 
-  // JM-053 — Wallet Hub (wallet-hub)
   String get walletHubTitle => _get('walletHubTitle');
   String get walletAvailableBalanceLabel => _get('walletAvailableBalanceLabel');
   String get walletTopUpCta => _get('walletTopUpCta');
   String get walletHubLoadError => _get('walletHubLoadError');
   String get walletHubRetry => _get('walletHubRetry');
 
-  // JM-054 — Wallet Charge Info (wallet-charge-info, static D92/D93)
   String get chargeInfoTitle => _get('chargeInfoTitle');
   String get chargeInfoStoreStep => _get('chargeInfoStoreStep');
   String get chargeInfoIdentityStep => _get('chargeInfoIdentityStep');
@@ -2397,14 +2285,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chargeInfoFeeNote => _get('chargeInfoFeeNote');
   String get chargeInfoBackCta => _get('chargeInfoBackCta');
 
-  // JM-041 — Onboarding Funding (onboarding-funding)
   String get fundingTitle => _get('fundingTitle');
   String get fundingStarterCreditBody => _get('fundingStarterCreditBody');
   String get fundingReserveBody => _get('fundingReserveBody');
   String get fundingTopupCta => _get('fundingTopupCta');
   String get fundingContinueCta => _get('fundingContinueCta');
 
-  // JM-044 — Offer KYC Gate (offer-kyc-gate, D38)
   String get offerKycGateTitle => _get('offerKycGateTitle');
   String get offerKycGateHeadline => _get('offerKycGateHeadline');
   String get offerKycGateBody => _get('offerKycGateBody');
@@ -2413,60 +2299,50 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get gateRegisterLink => _get('gateRegisterLink');
   String get gateBackCta => _get('gateBackCta');
 
-  // JM-043 — KYC Rejected (kyc-rejected, D52/D87 appeal-only)
   String get kycRejectedTitle => _get('kycRejectedTitle');
   String get kycRejectedHeadline => _get('kycRejectedHeadline');
   String get kycRejectedBody => _get('kycRejectedBody');
   String get kycRejectedAppealCta => _get('kycRejectedAppealCta');
   String get kycRejectedBackCta => _get('kycRejectedBackCta');
 
-  // JM-047 — Jeeber Pending Offers (jeeber-pending-offers, D15)
   String get pendingOffersTitle => _get('pendingOffersTitle');
   String get pendingOffersEmptyTitle => _get('pendingOffersEmptyTitle');
   String get pendingOffersEmptyBody => _get('pendingOffersEmptyBody');
 
-  // JM-055 — Wallet Activity List (wallet-activity-list, W2m typed ledger)
   String get walletActivityTitle => _get('walletActivityTitle');
   String get walletActivityEmptyTitle => _get('walletActivityEmptyTitle');
   String get walletActivityEmptyBody => _get('walletActivityEmptyBody');
   String get walletActivityBackCta => _get('walletActivityBackCta');
 
-  // JM-056 — Transaction Detail (transaction-detail, per-type W3m)
   String get txnDetailTitle => _get('txnDetailTitle');
   String get txnDetailBody => _get('txnDetailBody');
   String get txnDetailOrderLink => _get('txnDetailOrderLink');
   String get txnDetailDisputeLink => _get('txnDetailDisputeLink');
 
-  // JM-057 — Notifications List (notifications-list, header bell target, D84)
   String get notificationsTitle => _get('notificationsTitle');
   String get notificationsEmptyTitle => _get('notificationsEmptyTitle');
   String get notificationsEmptyBody => _get('notificationsEmptyBody');
 
-  // JM-063 — Support Ticket / Contact Us (support-ticket, D76)
   String get supportTitle => _get('supportTitle');
   String get supportBody => _get('supportBody');
   String get supportSubmitCta => _get('supportSubmitCta');
   String get supportDisputeLink => _get('supportDisputeLink');
 
-  // JM-065 — Dispute Status (dispute-status, D2/D53)
   String get disputeStatusTitle => _get('disputeStatusTitle');
   String get disputeStatusOpenLabel => _get('disputeStatusOpenLabel');
   String get disputeStatusBody => _get('disputeStatusBody');
   String get disputeStatusSupportCta => _get('disputeStatusSupportCta');
   String get disputeStatusBackCta => _get('disputeStatusBackCta');
 
-  // JM-068 — All Reviews list (reviews-list, D58/D59/D73)
   String get reviewsTitle => _get('reviewsTitle');
   String get reviewsEmptyTitle => _get('reviewsEmptyTitle');
   String get reviewsEmptyBody => _get('reviewsEmptyBody');
 
-  // JM-061 — Password & Security (password-security, D90)
   String get passwordSecurityTitle => _get('passwordSecurityTitle');
   String get passwordSecurityBody => _get('passwordSecurityBody');
   String get passwordSetEntryCta => _get('passwordSetEntryCta');
   String get passwordChangeUnavailable => _get('passwordChangeUnavailable');
 
-  // Goods cost (jeeber goods-cost entry, Sprint 5 RTL/l10n pass)
   String get goodsCostTitle => _get('goodsCostTitle');
   String get goodsCostHeadline => _get('goodsCostHeadline');
   String get goodsCostBody => _get('goodsCostBody');
@@ -2479,16 +2355,13 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get goodsCostErrorValidation => _get('goodsCostErrorValidation');
   String get goodsCostErrorGeneric => _get('goodsCostErrorGeneric');
 
-  // Router fallbacks (Sprint 5 RTL/l10n pass)
   String get statementNotFound => _get('statementNotFound');
   String routeNotFound(String uri) =>
       _get('routeNotFound').replaceFirst('{uri}', uri);
 
-  // Saved-location add/edit coordinate fields (Sprint 5 RTL/l10n pass)
   String get savedAddressLatitudeLabel => _get('savedAddressLatitudeLabel');
   String get savedAddressLongitudeLabel => _get('savedAddressLongitudeLabel');
 
-  // Cycle-6 Arabic/RTL error-path + a11y strings (arabic-rtl-audit F1–F6)
   String get chatCreateRequestFailed => _get('chatCreateRequestFailed');
   String get callButtonLabel => _get('callButtonLabel');
   String get callInitiateFailed => _get('callInitiateFailed');
@@ -2497,26 +2370,18 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get handoverCodeA11yLabel => _get('handoverCodeA11yLabel');
   String get cancellationGenericError => _get('cancellationGenericError');
 
-  // JEBV4-13 P1-5: dm-onboarding error surfaces (previously-silent DmOnboardingError)
-  // NOTE: dmOnboardingPhotoPickFailed getter is defined once above (merged from
-  // ui/cycle-6-fixes); the coverage-check surface is the ux-side addition.
   String get dmOnboardingCoverageCheckFailed =>
       _get('dmOnboardingCoverageCheckFailed');
 
-  // JEBV4-13: profile-edit Change-avatar flow (previously a dead onTap)
   String get profilePhotoSheetSubtitle => _get('profilePhotoSheetSubtitle');
   String get profilePhotoPermissionDenied =>
       _get('profilePhotoPermissionDenied');
   String get profilePhotoChangeFailed => _get('profilePhotoChangeFailed');
 
-  // JEBV4-13: offline banner (previously hardcoded EN + dead DISMISS)
   String get offlineBannerMessage => _get('offlineBannerMessage');
 
-  // JEBV4-108: honest 401-at-create handling (session expiry → re-auth)
   String get createSessionExpired => _get('createSessionExpired');
 
-  // F6 / JEBV4-303 customer-wallet stub (role-bleed): the customer-appropriate
-  // wallet surface the top-bar wallet chip routes a client to.
   String get customerWalletStubTitle => _get('customerWalletStubTitle');
   String get customerWalletStubHeadline => _get('customerWalletStubHeadline');
   String get customerWalletStubBody => _get('customerWalletStubBody');

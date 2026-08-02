@@ -7,13 +7,6 @@ import '../../../request_type/presentation/selectable_radio_glyph.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Selectable location option card on the Client Location screen
-/// (Figma 56539:1444).
-///
-/// Selected: navy fill (`colorScheme.primary`), white label, filled radio.
-/// Unselected: white surface, navy outline + navy label, empty radio. The
-/// whole card is one tap target with merged radio semantics. The radio glyph
-/// is the shared [SelectableRadioGlyph] (no OMDS radio primitive exists).
 class ClientLocationOptionCard extends StatelessWidget {
   const ClientLocationOptionCard({
     super.key,
@@ -91,7 +84,6 @@ class _Label extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

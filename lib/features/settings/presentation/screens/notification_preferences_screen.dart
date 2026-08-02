@@ -10,17 +10,9 @@ import '../../../notification_prefs/presentation/notification_prefs_screen.dart'
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../devtool/catalog/fixtures/notification_preferences_screen_fixtures.dart';
 
-/// Wrapper that creates the [NotificationPrefsCubit] with the DI-registered
-/// [NotificationPrefsRepository] and provides it to [NotificationPrefsScreen].
-///
-/// T-MOB-026: cubit is now server-first (GET on mount, debounced PATCH on
-/// toggle) rather than SharedPreferences-only.
 class NotificationPreferencesScreen extends StatelessWidget {
   const NotificationPreferencesScreen({super.key, this.repository});
 
-  /// DT-04 catalog / test seam: overrides the DI-registered repository.
-  /// Production callers leave this null and get the unchanged
-  /// `sl<NotificationPrefsRepository>()` resolution.
   final NotificationPrefsRepository? repository;
 
   @override
@@ -33,7 +25,6 @@ class NotificationPreferencesScreen extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

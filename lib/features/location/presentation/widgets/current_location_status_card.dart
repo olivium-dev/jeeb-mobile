@@ -9,22 +9,6 @@ import 'client_location_option_card.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 import 'delivery_create_layout.dart';
 
-/// The "Current Location" option plus its honest GPS-acquisition state
-/// (JEBV4-176 / Q-060).
-///
-/// This REPLACES the old silent Beirut fallback. Instead of always presenting
-/// "Current Location" as a confirmable safe default (which quietly created
-/// requests pinned to `33.8886, 35.4955` when GPS was off/denied), the card
-/// reflects the real acquisition lifecycle and, when the device cannot yield a
-/// fix, offers the correct recovery affordance:
-///
-///   * [CurrentGpsStatus.resolving] → a "finding your location" progress row;
-///   * [CurrentGpsStatus.resolved] → a confirmation the real fix is in use;
-///   * [CurrentGpsStatus.permissionDenied] → "open app settings" + retry;
-///   * [CurrentGpsStatus.serviceDisabled] → "turn on location" + retry;
-///   * [CurrentGpsStatus.failed] → retry.
-///
-/// All copy is localized (RTL-safe) and every measurement is a design token.
 class CurrentLocationStatusCard extends StatelessWidget {
   const CurrentLocationStatusCard({
     super.key,
@@ -182,8 +166,6 @@ class _Resolved extends StatelessWidget {
   }
 }
 
-/// A recovery panel: icon + title + message + a primary CTA and an optional
-/// "try again" text action. Used for the denied / services-off / failed states.
 class _Recovery extends StatelessWidget {
   const _Recovery({
     required this.identifier,
@@ -272,7 +254,6 @@ class _Recovery extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

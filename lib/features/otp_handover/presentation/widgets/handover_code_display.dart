@@ -6,12 +6,6 @@ import '../../../../l10n/app_localizations.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// G4: the customer-facing handover-code panel — large glyphs on a
-/// primary-container OMDS card, announced via a Semantics live region.
-///
-/// Shared by the full-screen OTP display (`OtpHandoverScreen`) and the
-/// at-door tracking card (`OtpAtDoorCard`) so the code renders identically
-/// wherever it appears. [compact] tunes the type scale down for in-card use.
 class HandoverCodeDisplay extends StatelessWidget {
   const HandoverCodeDisplay({
     super.key,
@@ -21,20 +15,12 @@ class HandoverCodeDisplay extends StatelessWidget {
     this.displayKey = const Key('otpHandover.codeDisplay'),
   });
 
-  /// The 4-digit handover code. Rendered verbatim on screen (it is the
-  /// customer's own credential) but NEVER logged — see `DiagRedaction`.
   final String code;
 
-  /// QA: uiautomator-addressable handle for this display instance.
   final String semanticsIdentifier;
 
-  /// True renders the in-card variant (headlineLarge); false the full-screen
-  /// hero variant (displayLarge).
   final bool compact;
 
-  /// Widget-test handle for the code container. Defaults to the OTP screen's
-  /// historical key; in-card instances pass their own so `find.byKey` stays
-  /// unambiguous when both surfaces exist in one tree.
   final Key displayKey;
 
   @override
@@ -59,7 +45,6 @@ class HandoverCodeDisplay extends StatelessWidget {
           borderRadius: OmdsBorderRadius.medium,
         ),
         // Bidi guard: an all-numeric code must never reorder when it sits
-        // inside an RTL (Arabic) ancestor — pin the digits to LTR.
         child: Directionality(
           textDirection: TextDirection.ltr,
           child: Text(
@@ -75,7 +60,6 @@ class HandoverCodeDisplay extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -10,22 +10,6 @@ import '../../location/presentation/widgets/delivery_create_layout.dart';
 import '../../tier_selection/domain/tier.dart';
 import 'request_type_radio_id.dart';
 
-/// Selectable tier card for the Request type screen (Figma 56535:2392).
-///
-/// Layout: a leading OMDS vector [icon] + [title] row, a two-line description
-/// ([speed] then [value]) on the leading side, and a radio glyph on the
-/// trailing side. The whole card is one tap target. There is no OMDS radio
-/// primitive, so the glyph is drawn from `colorScheme` roles
-/// ([SelectableRadioGlyph]).
-///
-/// The [icon] replaces the legacy emoji prefix that used to be baked into the
-/// localized [title] — the design-system iconography idiom (`IconData`) is
-/// used across the app and renders crisply in dark mode + RTL.
-///
-/// Selected state mirrors the Figma "Flash selected" frame: navy fill
-/// (`colorScheme.primary`) + white foreground; unselected cards are a white
-/// surface with a 1dp navy outline and periwinkle description text
-/// (`onSecondaryContainer`).
 class RequestTierCard extends StatelessWidget {
   const RequestTierCard({
     super.key,
@@ -132,7 +116,6 @@ class _TierCopy extends StatelessWidget {
   TextStyle? _valueStyle(TextTheme text, Color color) =>
       text.bodySmall?.copyWith(color: color, fontWeight: FontWeight.w700);
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -13,12 +13,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import '../../../core/previews/jeeb_preview.dart';
 
-/// Entry-point for the chat experience.
-///
-/// Lists active conversations backed by the mock backend. Each card
-/// corresponds to a delivery or request that has a linked conversation.
-/// Tapping navigates to `/chat/:id` (handled by [ChatDetailScreen]).
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; only conversations-inbox UX ever built — see docs/project-understanding/reconciliation/orphans.md
 class ChatTab extends StatefulWidget {
   const ChatTab({super.key});
 
@@ -155,20 +149,14 @@ class _ConversationSummary {
     required this.tier,
   });
 
-  /// Request id (== correlationKey). Empty when the gateway omits it.
   final String requestId;
   final String conversationId;
   final String title;
   final String status;
   final String tier;
 
-  /// BUG-18 client side: prefer the request id (== correlationKey) over the
-  /// conversation id. Chat-detail resolves correlationKey-first, so routing by
-  /// requestId avoids a guaranteed 404 probe; fall back to the conversationId
-  /// only when the gateway omitted the request id.
   String get chatRouteId => requestId.isNotEmpty ? requestId : conversationId;
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -11,44 +11,12 @@ import '../application/mutual_rating_state.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/mutual_rating_screen_fixtures.dart';
 
-/// Mandatory post-delivery rating screen (JM-034) — the canonical rating
-/// terminal (`/orders/:id/mutual-rate`, `mode=jeeber` flips audience).
-///
-/// AC1 (D56): the rating is MANDATORY — there is no skip/dismiss control and
-/// the system back gesture is suppressed (`PopScope(canPop: false)`).
-/// AC2/AC3: a successful submit navigates to the role-aware shell
-/// (`context.go('/')`) — customer → customer-orders-home (Requests tab,
-/// `orders_create_request_button`); jeeber → Dashboard tab (`shell_tab_dashboard`).
-/// AC4: `rating_root` is the signature id present on this canonical terminal
-/// (the legacy `/feedback` `RatingScreen` exposes the same id).
 class MutualRatingScreen extends StatelessWidget {
   const MutualRatingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // D56: suppress the system back gesture so the mandatory rating cannot be
-    // dismissed without submitting. There is intentionally no leading/close
-    // affordance.
-    //
-    // Run-22 replacement P1 (hardware BACK exited to the launcher here):
-    // `PopScope(canPop: false)` alone only fires when the `Navigator` has
-    // something to pop. This terminal is typically reached via
-    // `context.goNamed('mutual-rating')` (receipt confirm / OTP handover),
-    // which REPLACES the stack — the screen is then the lone root page,
-    // go_router's `popRoute` sees nothing to pop, and the BACK event
-    // propagated to the OS, backgrounding the app mid-mandatory-rating. The
-    // `BackButtonListener` intercepts the system BACK BEFORE go_router's
-    // delegate and consumes it unconditionally, suppressing BACK at BOTH
-    // stack positions (same mechanism as RootAwareBackScope, but suppress
-    // rather than reroute — routing home would defeat the mandatory rating).
-    // The inner PopScope stays for predictive-back visuals and as a guard for
-    // non-system pop paths.
-    //
-    // `BackButtonListener` requires a `Router` ancestor (production runs under
-    // `MaterialApp.router`). In a plain-`Navigator` host (widget tests,
-    // previews) `PopScope` alone already suppresses BACK correctly, so the
-    // listener is added only when a Router exists.
     final scope = PopScope(
       canPop: false,
       child: Scaffold(
@@ -56,8 +24,6 @@ class MutualRatingScreen extends StatelessWidget {
           title: l10n.mutualRatingTitle,
           automaticallyImplyLeading: false,
         ),
-        // `rating_root` is the screen signature id (JM-034 §2.14, AC4). A
-        // boundary container so the id surfaces as its own queryable node.
         body: Semantics(
           identifier: 'rating_root',
           container: true,
@@ -76,10 +42,6 @@ class MutualRatingScreen extends StatelessWidget {
     );
   }
 
-  /// Nav side-effects live in the listener, never the builder (a `context.go`
-  /// in `build` would fire every rebuild). On the mandatory terminal phase we
-  /// route to the role-aware shell, which selects the correct landing tab from
-  /// the session role (customer → Requests; jeeber → Dashboard).
   void _onPhaseChanged(BuildContext context, MutualRatingState state) {
     if (state.phase == MutualRatingPhase.submitted) {
       context.go('/');
@@ -95,9 +57,6 @@ class MutualRatingScreen extends StatelessWidget {
         return const Center(child: OmdsLoadingState());
       case MutualRatingPhase.error:
         return const _ErrorView();
-      // The blind-reveal phases are server-owned (T-BE-025 cron) and are not
-      // reached on the mandatory JM-034 path; fall back to the input view so a
-      // stale state never strands the user without a submit affordance.
       case MutualRatingPhase.awaitingOther:
       case MutualRatingPhase.polling:
       case MutualRatingPhase.revealed:
@@ -159,9 +118,6 @@ class _StarSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      // QA: addressable handle for the star-rating input. `container: true`
-      // surfaces the id as its own node even though OmdsStarRating renders
-      // multiple tappable stars (CAP-1).
       identifier: 'mutual_rating_stars',
       container: true,
       label: '$stars stars selected',
@@ -182,7 +138,6 @@ class _CommentField extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Semantics(
-      // QA: addressable handle for the optional comment field.
       identifier: 'mutual_rating_comment',
       textField: true,
       label: l10n.ratingCommentHint,
@@ -197,29 +152,12 @@ class _CommentField extends StatelessWidget {
   }
 }
 
-/// A selectable rating tag. [key] is the ON-THE-WIRE value sent to the gateway
-/// and MUST be drawn from the gateway's Jeeb rating tag taxonomy
-/// (`JeebRatingVocabulary.AllowedTags`: `punctuality`, `communication`,
-/// `package_condition`, `courtesy`, `navigation`). [label] is a stable
-/// English fallback — used by the JEBV4-297 wire-contract test below and as
-/// the `_tagLabel` default for any future tag added here without a matching
-/// ARB key. The actual ON-SCREEN label is localized via `_tagLabel`
-/// (JEBV4-296), never this field directly.
-///
-/// JEBV4-297: previously the chips sent their DISPLAY LABELS
-/// (`Punctual`/`Careful`/`Friendly`/`Fast`) as the wire value. The gateway
-/// lowercases each tag and rejects anything outside the taxonomy with a 400
-/// (`'<tag>' is not a recognised Jeeb rating tag.`), so selecting ANY tag made
-/// `POST /v1/ratings/jeeb/submit` fail. The wire value is now the canonical key.
 class MutualRatingTag {
   const MutualRatingTag({required this.key, required this.label});
   final String key;
   final String label;
 }
 
-/// Canonical Jeeb rating tags — [MutualRatingTag.key] values mirror the gateway
-/// `JeebRatingVocabulary.AllowedTags` taxonomy and are the ON-THE-WIRE values.
-/// Exposed for the JEBV4-297 wire-contract test.
 const kMutualRatingTags = <MutualRatingTag>[
   MutualRatingTag(key: 'punctuality', label: 'Punctual'),
   MutualRatingTag(key: 'communication', label: 'Communication'),
@@ -228,10 +166,6 @@ const kMutualRatingTags = <MutualRatingTag>[
   MutualRatingTag(key: 'navigation', label: 'Navigation'),
 ];
 
-/// JEBV4-296: maps a canonical wire key to its localized ARB label. Falls
-/// back to [MutualRatingTag.label] for any future tag added to
-/// `kMutualRatingTags` without a matching ARB key, so the screen never
-/// renders blank.
 String _tagLabel(AppLocalizations l10n, MutualRatingTag tag) {
   switch (tag.key) {
     case 'punctuality':
@@ -264,11 +198,6 @@ class _TagsSection extends StatelessWidget {
           style: Theme.of(context).textTheme.labelMedium,
         ),
         const SizedBox(height: Spacing.xSmall),
-        // JEBV4-296: `textDirection` is passed explicitly (rather than
-        // relying on Wrap's implicit ambient-Directionality fallback) so the
-        // chip order is provably RTL-safe under `ar` — logical order stays
-        // punctuality→communication→package_condition→courtesy→navigation,
-        // mirrored right-to-left on screen.
         Wrap(
           spacing: Spacing.xSmall,
           textDirection: Directionality.of(context),
@@ -299,8 +228,6 @@ class _TagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Dynamic per-tag id keyed on the canonical taxonomy key (stable across
-    // i18n/RTL) — 41_GUARDRAILS_TESTING §1.1 dynamic-item form.
     return Semantics(
       identifier: 'mutual_rating_tag_${tag.key}',
       container: true,
@@ -309,7 +236,6 @@ class _TagChip extends StatelessWidget {
       child: OmdsChip(
         label: label,
         isSelected: selected,
-        // Send the canonical taxonomy KEY, not the display label (JEBV4-297).
         onTap: () => context.read<MutualRatingCubit>().toggleTag(tag.key),
       ),
     );
@@ -325,9 +251,6 @@ class _SubmitButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(Spacing.large),
-      // `rating_submit_cta` is the W1 contract id (JM-034 §2.14). No
-      // `button: true` — OmdsPrimaryButton already exposes the button role;
-      // `container: true` keeps this identifier its own queryable node.
       child: Semantics(
         identifier: 'rating_submit_cta',
         container: true,
@@ -354,7 +277,6 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

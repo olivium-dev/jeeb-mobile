@@ -8,13 +8,6 @@ import '../../domain/entities/availability_status.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Supporting-text block of the availability card: the status line
-/// ("You're online — receiving requests" / "You're offline"), the
-/// active-deliveries count while online, and the auto-offline idle hint.
-///
-/// Start-aligned body copy (it sits beside the M3 switch inside
-/// `AvailabilityCard`), never a headline — the card's title row owns the
-/// heading.
 class AvailabilityStatusBlock extends StatelessWidget {
   const AvailabilityStatusBlock({super.key, required this.view});
 
@@ -92,9 +85,6 @@ class _ActiveDeliveriesLine extends StatelessWidget {
   }
 }
 
-/// "Auto-offline after 8 h idle" — surfaces the inactivity policy alongside
-/// the switch so the system flipping the Jeeber offline later is never a
-/// surprise (§G2 fix spec).
 class _IdleHintLine extends StatelessWidget {
   const _IdleHintLine();
 
@@ -110,7 +100,6 @@ class _IdleHintLine extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

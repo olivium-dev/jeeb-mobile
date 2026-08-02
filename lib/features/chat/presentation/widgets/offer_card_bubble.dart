@@ -8,12 +8,6 @@ import 'chat_bubble_timestamp.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Offer card landing in the broadcasting chat (Figma node 56535:6659).
-///
-/// Mirrors the Figma layout: a grey incoming-style card carrying the Jeeber's
-/// name + inline star rating on the header row, the offer note as the body,
-/// and a footer with the timestamp, a navy "Accept Offer" pill, and a Decline
-/// button. The screen hands [onAccept]/[onDecline] to the cubit.
 class OfferCardBubble extends StatelessWidget {
   const OfferCardBubble({
     super.key,
@@ -68,7 +62,6 @@ class OfferCardBubble extends StatelessWidget {
   }
 }
 
-/// Accept + Decline row in the offer card footer.
 class _OfferActions extends StatelessWidget {
   const _OfferActions({
     required this.payload,
@@ -104,7 +97,6 @@ class _OfferActions extends StatelessWidget {
   }
 }
 
-/// Navy "Accept Offer" pill in the offer card footer.
 class _AcceptButton extends StatelessWidget {
   const _AcceptButton({
     required this.payload,
@@ -140,7 +132,6 @@ class _AcceptButton extends StatelessWidget {
   }
 }
 
-/// Outlined "Decline" button in the offer card footer.
 class _DeclineButton extends StatelessWidget {
   const _DeclineButton({
     required this.payload,
@@ -168,7 +159,6 @@ class _DeclineButton extends StatelessWidget {
   }
 }
 
-/// Small circular counterpart avatar pinned outside the card, leading edge.
 class _OfferAvatar extends StatelessWidget {
   const _OfferAvatar({required this.payload});
 
@@ -187,7 +177,6 @@ class _OfferAvatar extends StatelessWidget {
   }
 }
 
-/// Grey card body: header (name + stars), note, then footer (time + CTA).
 class _OfferCardBody extends StatelessWidget {
   const _OfferCardBody({required this.message, required this.child});
 
@@ -228,7 +217,6 @@ class _OfferCardBody extends StatelessWidget {
   }
 }
 
-/// Header row: Jeeber name (start) + inline star rating (end).
 class _OfferHeader extends StatelessWidget {
   const _OfferHeader({required this.payload});
 
@@ -252,9 +240,6 @@ class _OfferHeader extends StatelessWidget {
           ),
         ),
         if (payload.rating > 0)
-          // a11y (JEBV4-98 / F13): the display suppresses the numeric value and
-          // review count, so — unlike offer_card.dart — the bare stars announce
-          // nothing to a screen reader. A Semantics label carries the rating.
           Semantics(
             label: l10n.chatOfferRatingA11y(payload.rating.toStringAsFixed(1)),
             child: ExcludeSemantics(
@@ -272,7 +257,6 @@ class _OfferHeader extends StatelessWidget {
   }
 }
 
-/// The free-text offer note (Figma copy carries the price inline).
 class _OfferNote extends StatelessWidget {
   const _OfferNote({required this.payload});
 
@@ -293,7 +277,6 @@ class _OfferNote extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

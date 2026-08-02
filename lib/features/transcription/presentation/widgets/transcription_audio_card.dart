@@ -9,9 +9,6 @@ import '../transcription_screen.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Playback control for the original recording shown above the transcription.
-/// A filled play/pause toggle plus a progress bar and `position / total`
-/// read-out, all driven by [TranscriptionCubit].
 class TranscriptionAudioCard extends StatelessWidget {
   const TranscriptionAudioCard({super.key, required this.state});
 
@@ -102,7 +99,6 @@ String _format(Duration duration) {
   final seconds = clamped.inSeconds.remainder(60).toString().padLeft(2, '0');
   return '$minutes:$seconds';
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

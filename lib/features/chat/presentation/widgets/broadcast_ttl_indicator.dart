@@ -8,20 +8,14 @@ import '../../../../l10n/app_localizations.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Countdown strip shown at the top of the broadcasting-phase chat.
-///
-/// Displays the seconds remaining in the offer window. When [expiresAt] is
-/// null or already past, the strip is hidden. The timer updates every second
-/// via an internal [Timer.periodic] so the widget is self-contained — the
-/// cubit doesn't need to manage ticking.
+/// Countdown shown during broadcasting phase. Self-contained: internal Timer.periodic ticks every second.
 class BroadcastTtlIndicator extends StatefulWidget {
   const BroadcastTtlIndicator({
     super.key,
     required this.expiresAt,
   });
 
-  /// UTC instant when the current offer window closes. Pass null to hide the
-  /// indicator (e.g. after the phase transitions to accepted).
+  /// UTC instant when offer window closes; null hides indicator.
   final DateTime? expiresAt;
 
   @override
@@ -101,7 +95,6 @@ class _BroadcastTtlIndicatorState extends State<BroadcastTtlIndicator> {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

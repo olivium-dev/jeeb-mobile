@@ -10,21 +10,7 @@ import '../application/display_name_cubit.dart';
 import '../data/dio_display_name_repository.dart';
 import '../domain/display_name_repository.dart';
 
-/// Post-OTP display-name onboarding step.
-///
-/// Asks the freshly-verified user for a display name (single friendly field,
-/// OPTIONAL-but-encouraged — the skip exit is always available and a failed
-/// save never blocks registration). Submitting PUTs the name to the gateway
-/// (`PUT /api/User/profile` `{username}`, see [DioDisplayNameRepository]);
-/// the gateway mirrors it into the users projection so the shell's first
-/// `GET /v1/users/me` (greeting/profile) already carries the real name.
-///
-/// Hosted by [RegistrationScreen]'s production verify path (pushed between
-/// OTP-verified and `_navigateHome`). Localized en+ar; layout uses
-/// directional paddings + start alignment so RTL mirrors correctly.
-///
-/// Semantics ids: `profile_name_root` · `profile_name_input` ·
-/// `profile_name_submit_cta` · `profile_name_skip_cta`.
+/// Post-OTP display-name onboarding: optional-but-encouraged, skip always available.
 class DisplayNameSetupScreen extends StatefulWidget {
   const DisplayNameSetupScreen({
     super.key,
@@ -34,25 +20,16 @@ class DisplayNameSetupScreen extends StatefulWidget {
     this.cubit,
   });
 
-  /// Called exactly once when the step resolves — after a successful save OR
-  /// when the user skips. The host continues to `_navigateHome`.
+  /// Called exactly once when step resolves (save or skip).
   final VoidCallback onDone;
 
-  /// Test seam: a scripted repository. When null the screen self-provides the
-  /// Dio-backed repo off GetIt (no DI edit, mirroring [CustomerProfileScreen]);
-  /// a bare widget test (no Dio registered) runs in fixture mode (submit
-  /// resolves without a network call).
+  /// Test seam: scripted repository; null uses DI or fixture mode.
   final DisplayNameRepository? repository;
 
-  /// Test seam for the profile-changed broadcast; production resolves the DI
-  /// singleton so greeting surfaces re-pull getMe after the save.
+  /// Test seam: profile-changed broadcast; production uses DI singleton.
   final ProfileRefreshSignals? refreshSignals;
 
-  /// Catalog/test seam: an already-constructed (optionally pre-driven) cubit.
-  /// When null (always in production) the screen builds its own via
-  /// [_resolveRepository] / [_resolveSignals], exactly as before this field
-  /// was added. Lets the DT-04 screen catalog preview the saving/failure
-  /// states without a network call.
+  /// Catalog/test seam: pre-constructed cubit; null builds one from seams.
   final DisplayNameCubit? cubit;
 
   @override
@@ -83,8 +60,7 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
     return null;
   }
 
-  /// Resolves the step exactly once (saved OR skipped) so a double-tap or a
-  /// save racing a skip can never fire the host continuation twice.
+  /// Resolves exactly once to prevent double-tap or race conditions.
   void _finish() {
     if (_done) return;
     _done = true;
@@ -150,8 +126,7 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
   }
 }
 
-/// Heading → subtitle → name field → Continue → Skip, start-aligned so the
-/// column mirrors under RTL.
+/// Heading + subtitle + name field + buttons, start-aligned for RTL.
 class _NameStepBody extends StatelessWidget {
   const _NameStepBody({
     required this.controller,
@@ -227,8 +202,7 @@ class _SubmitButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Rebuild enablement as the user types (the controller is the source of
-    // truth for the live text — same pattern as the registration send CTA).
+    // Rebuild enablement as user types; controller is source of truth.
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
       builder: (context, value, _) {

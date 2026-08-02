@@ -19,17 +19,6 @@ import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/client_home_screen_fixtures.dart';
 import '../domain/client_home_repository.dart';
 
-/// Client home screen matching the Figma design (node 56535:1525).
-///
-/// Layout top-to-bottom:
-/// 1. Greeting header with avatar, "Hello, {name}", and "+" button
-/// 2. Tab chips row: Pending Requests | Replies (`OmdsChip`)
-/// 3. Request list or its application-illustration empty state.
-///
-/// The debug-only In Progress surface still renders its order cards
-/// (`ActiveOrderCard`) with avatar, name + tier badge,
-///    destination, progress bar (Ordered → Picked → In Transit), and an
-///    `OmdsPrimaryButton` "Track my order" CTA when actionable.
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({
     super.key,
@@ -39,30 +28,11 @@ class ClientHomeScreen extends StatefulWidget {
     this.initialTab = ClientHomeTab.pendingRequests,
   });
 
-  /// Legacy "open the conversation for a request" hook. Retained for API
-  /// compatibility with the shell host (`shell/tabs/home_tab.dart`) and the
-  /// widget tests that still pass it. As of JM-027/JM-023 it no longer drives
-  /// the Pending and Replies sub-tabs: Pending rows route to
-  /// `waiting-no-coverage` (JM-026) and Replies CTAs route to `offer-review`
-  /// (JM-028) / `offer-accept-confirm` (JM-029) from inside their own tabs, so
-  /// `my-orders` no longer opens `/chat/:id` (the divergence 20_GAP_MAP flagged).
   final void Function(ClientHomeRequest request)? onOpenRequest;
   final VoidCallback? onCreateRequest;
 
-  /// Opens the live-tracking screen (`/orders/:id/tracking`) for an in-progress
-  /// delivery's "Track my order" CTA. Distinct from [onOpenRequest]. When null
-  /// the [InProgressTab] falls back to GoRouter navigation directly.
   final void Function(ClientHomeRequest request)? onTrack;
 
-  /// Which filter chip is selected on first render. Defaults to Pending
-  /// Requests — JEBV4-298 (E24/Q-086): the Requests bottom-nav tab is the
-  /// ON-HOLD surface only (Pending + Replies). The accepted-onward
-  /// In-Progress live-tracking surface was relocated to the Delivery tab
-  /// (`/orders/:id` → Track → `/orders/:id/tracking`), so the In-Progress
-  /// chip is no longer part of this tab bar. The dev seam may still pin an
-  /// explicit tab (including [ClientHomeTab.inProgress] for a debug-only
-  /// capture of the isolated surface) so a single APK can land on any list
-  /// without a rebuild.
   final ClientHomeTab initialTab;
 
   @override
@@ -73,24 +43,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     with WidgetsBindingObserver {
   late ClientHomeTab _selectedTab = widget.initialTab;
 
-  /// Whether the app is in the foreground. The 10s home poll must NOT keep
-  /// firing while the app is backgrounded (F3 — offers polling storm): a hidden
-  /// app hammering `/requests` + `/deliveries` + `/v1/offers` is pure waste and
-  /// a fast path to a 429. Starts true (a freshly-built screen is foreground).
   bool _appResumed = true;
 
-  /// True once a sub-tab has been chosen — either by the user tapping a chip or
-  /// by the one-shot "land on the first populated tab" affordance below. Guards
-  /// the affordance so it never fights a manual selection on later rebuilds.
   bool _tabResolved = false;
 
-  /// Last-observed shell-tab visibility, used to detect the off-screen →
-  /// on-screen transition. `null` until the first [didChangeDependencies] so we
-  /// never auto-refresh on the very first frame ([initState] owns that load).
   bool? _wasVisible;
 
-  /// Captured in [didChangeDependencies] so the resume refetch can reach the
-  /// cubit without an unsafe `context.read` from a lifecycle callback.
   ClientHomeCubit? _homeCubit;
 
   @override
@@ -106,25 +64,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     });
   }
 
-  /// N3's RESUME one-shot — the backstop that makes a DROPPED push cost
-  /// freshness until the user next looks, instead of a permanently wrong
-  /// screen. One silent [ClientHomeCubit.refresh] when the app comes back to
-  /// the foreground, iff this tab is on screen.
-  ///
-  /// b02 P0 — deliberately NOT moved to [AppResumeSignals], unlike the other
-  /// seven resume-refetch surfaces, and the reason SURVIVES the poll deletion:
-  /// the `if (resumed == _appResumed) return;` line below makes this an EDGE
-  /// trigger, and that is why this screen contributed ZERO reads to the
-  /// measured 60-read storm while the three level-triggered observers
-  /// contributed twenty each. It is also the control that proves the platform
-  /// re-delivered `resumed` with no intervening background state — had there
-  /// been one, this guard would have re-armed and `/requests` + `/deliveries`
-  /// would appear in the capture. They do not. Swapping a working edge trigger
-  /// for the shared bus would buy nothing and retire that control.
-  ///
-  /// (The second reason recorded here — "`_appResumed` gates the 10 s poll,
-  /// which must stop on the RAW `paused` notification" — is now moot: there is
-  /// no poll to gate.)
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -132,7 +71,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     if (resumed == _appResumed) return;
     _appResumed = resumed;
     if (!resumed) return;
-    // Back-to-foreground: one immediate refresh iff this tab is on-screen.
     final cubit = _homeCubit;
     final isVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
     if (cubit == null || !isVisible) return;
@@ -141,15 +79,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     });
   }
 
-  /// S13 auto-refresh: the Requests tab is an [IndexedStack] child, so
-  /// re-entering it from the bottom nav (or returning from a create/accept
-  /// flow that left the shell mounted) does NOT re-run [initState]. Watch the
-  /// shell-provided [TabVisibility] and, whenever this tab goes off-screen →
-  /// on-screen, silently re-pull so a freshly created/accepted order surfaces
-  /// without a manual pull-to-refresh. [ClientHomeCubit.refresh] keeps the
-  /// current data painted (no loading flash) and drops re-entrant calls.
-  /// Outside the shell (bare tests / deep links) [TabVisibility.maybeOf] is
-  /// null → treated as always-visible → this affordance is inert.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -170,18 +99,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     super.dispose();
   }
 
-  /// JM-023 AC2 (updated for JEBV4-298): when data first lands, surface the
-  /// requests that actually exist. The Requests tab is now on-hold only, so the
-  /// default landing chip is Pending Requests. If the caller left that default
-  /// selected (i.e. the dev seam / a deep-link did NOT pin a specific tab) and
-  /// Pending is empty while Replies has content, advance to Replies. This is a
-  /// one-shot "land where the content is" affordance; once the user taps a chip
-  /// [_tabResolved] is set and the selection is never overridden again.
   void _resolveInitialTab(ClientHomeState state) {
     if (_tabResolved) return;
     if (state.status != ClientHomeStatus.ready) return;
     _tabResolved = true;
-    // Respect an explicit (non-default) starting tab — capture flows pin one.
     if (widget.initialTab != ClientHomeTab.pendingRequests) return;
     if (state.pending.isNotEmpty) return;
     if (state.replies.isEmpty) return;
@@ -270,8 +191,6 @@ class _LoadingLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the system nav-bar inset so the last item clears the soft
-      // buttons / bottom nav bar in edge-to-edge mode. See [BottomInsetX].
       padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
       children: [
         ClientHomeGreeting(name: null, onAddPressed: onCreateRequest),
@@ -293,8 +212,6 @@ class _FailedLayout extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the system nav-bar inset so the retry CTA clears the soft
-      // buttons / bottom nav bar in edge-to-edge mode. See [BottomInsetX].
       padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
       children: [
         ClientHomeGreeting(name: name, onAddPressed: onCreateRequest),
@@ -330,9 +247,6 @@ class _ReadyLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Keep the design's twoXLarge breathing room AND reserve the system
-      // nav-bar inset so the last order card clears the soft buttons / bottom
-      // nav bar in edge-to-edge mode. See [BottomInsetX.scrollBodyBottomInset].
       padding: EdgeInsets.only(
         bottom: Spacing.twoXLarge + context.scrollBodyBottomInset,
       ),
@@ -380,28 +294,15 @@ class _ReadyContent extends StatelessWidget {
       case ClientHomeTab.inProgress:
         return InProgressTab(onTrack: onTrack);
       case ClientHomeTab.pendingRequests:
-        // JM-023 AC2: a pending request row routes to `waiting-no-coverage`
-        // (the live broadcast/wait state, JM-026) — NOT the chat thread. We
-        // pass an explicit waiting handler so the pending tap target diverges
-        // from the Replies/In-Progress chat/track callbacks; the rows carry
-        // the indexed `orders_home_request_row_<n>` identifier inside the tab.
         return PendingRequestsTab(
           onTap: (request) => _openWaiting(context, request),
           onCreateRequest: onCreateRequest,
         );
       case ClientHomeTab.replies:
-        // JM-027: the Replies sub-tab owns its own navigation — Check Offers →
-        // offer-review-list (JM-028) and Accept → offer-accept-confirm sheet
-        // (JM-029). It MUST NOT reuse `onOpenRequest` (which routes to
-        // `/chat/:id`, the divergent edge 20_GAP_MAP flagged for `my-orders`),
-        // so no callbacks are injected here — RepliesTab's defaults apply.
         return const RepliesTab();
     }
   }
 
-  /// JM-023 AC2: route a pending request row to its waiting / no-coverage
-  /// state (`waiting-no-coverage` → `/requests/:id/waiting`, JM-026), keyed by
-  /// the request id. Defends an empty id (the route requires the path param).
   void _openWaiting(BuildContext context, ClientHomeRequest request) {
     if (request.id.isEmpty) return;
     GoRouter.of(
@@ -422,11 +323,6 @@ class _ClientHomeTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // JEBV4-298 (E24/Q-086): the Requests tab is the ON-HOLD surface only —
-    // Pending Requests + Replies. The accepted-onward In-Progress live-tracking
-    // chip was relocated to the Delivery tab (its Active order detail exposes
-    // the map/ETA/Track surface via `/orders/:id/tracking`), so it is
-    // intentionally NOT listed here.
     final tabs = <_TabSpec>[
       _TabSpec(ClientHomeTab.pendingRequests, l10n.homeTabPendingRequests),
       _TabSpec(ClientHomeTab.replies, l10n.homeTabReplies),
@@ -442,9 +338,6 @@ class _ClientHomeTabBar extends StatelessWidget {
               isSelected: tabs[i].tab == selectedTab,
               onTap: () => onSelected(tabs[i].tab),
               keySuffix: tabs[i].tab.name,
-              // JM-023 / JM-027: the Replies sub-tab carries the coined
-              // `orders_home_replies_tab` identifier so QA can target it from
-              // the Requests home as the tap target onto the Replies surface.
               extraIdentifier: tabs[i].tab == ClientHomeTab.replies
                   ? 'orders_home_replies_tab'
                   : null,
@@ -477,9 +370,6 @@ class _ClientHomeTabChip extends StatelessWidget {
   final VoidCallback onTap;
   final String keySuffix;
 
-  /// An additional QA identifier wrapped around the chip (e.g. the coined
-  /// `orders_home_replies_tab`). Kept distinct from the existing
-  /// `orders_filter_<tab>` id so both id contracts stay targetable.
   final String? extraIdentifier;
 
   @override
@@ -517,7 +407,6 @@ class _ClientHomeTabChip extends StatelessWidget {
     return chip;
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -18,56 +18,11 @@ import 'widgets/notification_row.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/notifications_list_screen_fixtures.dart';
 
-/// notifications-list (JM-057). The shared inbox reached from the header bell
-/// (`orders_home_bell` / `delivery_tab_bell` / `customer_profile_bell`, wired by
-/// the integrator to `goNamed('notifications')`).
-///
-/// Renders the 4-state machine (40_GUARDRAILS_ARCH §3): loading / failed /
-/// loaded(+empty). Each typed `notif_row_<id>` shows the category, payload
-/// title/body and a relative timestamp; tapping a row (a) marks it read
-/// optimistically and (b) dispatches the D84 deep-link for its kind.
-///
-/// D84 per-row dispatch (30_BACKLOG JM-057 AC; 21_NAV_PLAN §C):
-///   offer (P2)                 → offer-review list  (`/requests/:id/offers`,
-///                                via the SAME resolver the push tap uses;
-///                                no `ref` → `shell`)
-///   offer_accepted             → order-chat when addressed, else `shell`
-///   status                     → order-chat         (`chat-detail`, ref=conv/req)
-///   low_balance / fee_won /
-///     refund_penalty / topup   → wallet-hub         (`wallet`)
-///   kyc_approved               → jeeber-requests-home (Dashboard tab → `shell`)
-///   kyc_rejected               → kyc-rejected
-///   request_expired            → waiting-no-coverage (`/requests/:id/waiting`)
-///   confirm_receipt            → delivered-receipt   (`/orders/:id/receipt`)
-///   marketing                  → customer-orders-home (Requests tab → `shell`)
-///   new_request (G3)           → the request screen, via the SAME resolver
-///                                the push tap uses (`deepLinkForMessage` →
-///                                `/jeeber/requests/:id`) so a dismissed push
-///                                keeps a persistent, tappable inbox trail
-///   unknown / other missing-ref → no nav (mark-read only; AP-9 honesty — never
-///                                 fabricate a target the row can't address)
-///
-/// Tabs are NOT routes (21_NAV_PLAN §A): the tab-landing kinds route to `shell`
-/// and rely on the shell's role/sub-tab default. Reads the LIVE
-/// notification-service via `sl<NotificationsRepository>()` (DioNotificationsRepository;
-/// list+read mock-ready on :4010 — 42_GUARDRAILS_MOCK §4). [repository] is a
-/// constructor test seam (§5.4) — production leaves it null.
-///
-/// Semantics identifiers exposed (EXACT — 30_BACKLOG JM-057, 41_GUARDRAILS_TESTING):
-///   `notifications_root`             — screen host container (bell nav target)
-///   `notif_row_<id>`                 — per-notification row (dynamic), tap → D84
-///   `notif_row_<id>_timestamp`       — per-row relative timestamp
-///   `notif_row_<id>_unread_badge`    — per-row unread dot (accessibility)
 class NotificationsListScreen extends StatelessWidget {
   const NotificationsListScreen({super.key, this.repository});
 
-  /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final NotificationsRepository? repository;
 
-  /// Resolves the repo: an explicit override (tests) → the registered LIVE
-  /// `DioNotificationsRepository` → an empty fallback when GetIt is not
-  /// configured (router-resolution widget tests). Mirrors
-  /// `ClientOffersScreen._resolveRepository()`.
   NotificationsRepository _resolveRepository() {
     final explicit = repository;
     if (explicit != null) return explicit;
@@ -100,10 +55,6 @@ class _NotificationsListView extends StatelessWidget {
         appBar: OMDSAppBar(
           title: copy.title,
           showBackButton: true,
-          // The bell reaches this screen via stack-REPLACING `goNamed(
-          // 'notifications')`, so there is usually nothing to pop. Pop when we
-          // can (pushed entry), else return to the shell — never pop the last
-          // page (which would leave an empty Navigator → black surface).
           onBackPressed: () =>
               context.canPop() ? context.pop() : context.go('/'),
         ),
@@ -147,8 +98,6 @@ class _NotificationsListView extends StatelessWidget {
   }
 }
 
-/// Empty = `loaded` + an empty list (NOT a fifth status, §3). Wrapped in a
-/// scrollable so the pull-to-refresh still works on an empty inbox.
 class _EmptyBody extends StatelessWidget {
   const _EmptyBody({required this.copy});
 
@@ -194,10 +143,6 @@ class _LoadedList extends StatelessWidget {
     );
   }
 
-  /// (a) mark read (optimistic; cubit owns the flag), then (b) dispatch the
-  /// D84 deep-link. Side-effect navigation lives here (the InkWell callback),
-  /// never in a `builder` (40_GUARDRAILS_ARCH §3 nav-in-listener rule — this is
-  /// an explicit user gesture, not a rebuild).
   void _onRowTap(BuildContext context, NotificationItem item) {
     context.read<NotificationsListCubit>().markRead(item.id);
     _dispatch(context, item);
@@ -206,7 +151,6 @@ class _LoadedList extends StatelessWidget {
   void _dispatch(BuildContext context, NotificationItem item) {
     final ref = item.ref;
     switch (item.kind) {
-      // Wallet money rows → wallet-hub (`wallet`).
       case NotificationKind.lowBalance:
       case NotificationKind.feeWon:
       case NotificationKind.refundPenalty:
@@ -214,7 +158,6 @@ class _LoadedList extends StatelessWidget {
         context.goNamed('wallet');
         break;
 
-      // Offer-accepted → the conversation when addressed, otherwise the shell.
       case NotificationKind.offerAccepted:
         if (ref != null) {
           context.goNamed('chat-detail', pathParameters: {'id': ref});
@@ -223,31 +166,12 @@ class _LoadedList extends StatelessWidget {
         }
         break;
 
-      // Order status → the addressed conversation thread.
       case NotificationKind.status:
         if (ref != null) {
           context.goNamed('chat-detail', pathParameters: {'id': ref});
         }
         break;
 
-      // A fresh offer → the offer-review list, via the SAME resolver the push
-      // tap uses (the file's own rule at the `newRequest` branch below). Before
-      // P2 this went to `shell` while the push went to `/orders/:id` — two
-      // different wrong answers for one event.
-      //
-      // Resolver-mediated rather than `goNamed('offer-review')`: both forms
-      // land on the IDENTICAL path (`app_router.dart:768`), so this is a
-      // mechanism choice, not a destination one. Three reasons for this side:
-      //   1. `push` (not `go`) so BACK returns to the inbox. `offer-review` is
-      //      in `AppRouter.backFallbacks` → `/`, and that fallback is consumed
-      //      only at the true stack root, so a `go` here would send BACK to
-      //      Home and lose the inbox.
-      //   2. One resolver for inbox-tap and push-tap makes the two
-      //      structurally unable to drift apart again — the P2 defect.
-      //   3. `NotificationCategory.newOffer` exists in the resolver; routing
-      //      around it would leave that branch with no caller from here.
-      // No `ref` → the shell, as before (handled before the resolver, so the
-      // resolver's own id-less `'/'` return is never reached from this screen).
       case NotificationKind.offer:
         if (ref == null) {
           context.goNamed('shell');
@@ -264,42 +188,31 @@ class _LoadedList extends StatelessWidget {
         if (offerTarget != null) context.push(offerTarget);
         break;
 
-      // KYC approved → jeeber-requests-home (Dashboard tab) — a shell tab.
       case NotificationKind.kycApproved:
         context.goNamed('shell');
         break;
 
-      // KYC rejected → the appeal-only rejected screen (D52/D87).
       case NotificationKind.kycRejected:
         context.goNamed('kyc-rejected');
         break;
 
-      // Request expired → waiting / no-coverage (`/requests/:id/waiting`).
       case NotificationKind.requestExpired:
         if (ref != null) {
           context.goNamed('waiting-no-coverage', pathParameters: {'id': ref});
         }
         break;
 
-      // Confirm-receipt → the delivered-receipt prompt (`/orders/:id/receipt`);
-      // `ref` is the deliveryId.
       case NotificationKind.confirmReceipt:
         if (ref != null) {
           context.goNamed('delivered-receipt', pathParameters: {'id': ref});
         }
         break;
 
-      // Marketing → customer-orders-home (Requests tab) — a shell tab.
       case NotificationKind.marketing:
         context.goNamed('shell');
         break;
 
-      // G3: new_request → the request screen. CONSUME the push-tap resolver
-      // (deepLinkForMessage, fix/push-tap-routing) rather than re-mapping the
-      // route here, so the inbox row and the push tap can never diverge —
       // `/jeeber/requests/:id` already handles cache recovery + graceful
-      // fallback for taken/expired requests. Pushed (not go) so back returns
-      // to the inbox.
       case NotificationKind.newRequest:
         if (ref == null) break;
         final target = deepLinkForMessage(
@@ -311,24 +224,16 @@ class _LoadedList extends StatelessWidget {
             receivedAt: DateTime.now(),
             data: {'requestId': ref},
           ),
-          // F5: a CLIENT tapping a `new_request` row must not be sent to
-          // `/jeeber/requests/:id` — its recovery path calls the jeeber-only
-          // `GET /v1/jeebers/me/feed` → 403 (FIX-REQUESTS.md:35). The resolver
-          // returns `/` for a client instead. Without this argument `role`
-          // defaults to null and the guard compiles but never fires.
           role: context.read<RoleCubit>().state,
         );
         if (target != null) context.push(target);
         break;
 
-      // Unknown / unmapped — mark-read only, stay on the inbox (AP-9: never
-      // fabricate a destination the row can't address).
       case NotificationKind.unknown:
         break;
     }
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

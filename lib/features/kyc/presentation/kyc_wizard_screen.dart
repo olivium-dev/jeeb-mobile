@@ -22,15 +22,6 @@ import '../domain/kyc_submission.dart';
 
 /// Hosts the KYC identity wizard at `/profile/kyc` (route name `kyc-status`).
 ///
-/// JM-040 (D20): the Vehicle step was removed. The flow is now
-/// `schema → identity → submitting → status`. The single identity screen
-/// collects gov-ID front/back + selfie + ToS acceptance, and `kyc_submit_cta`
-/// posts the submission.
-///
-/// On a FRESH successful submit the wizard chains to `onboarding-funding`
-/// (JM-041) rather than the standalone status view — the status view is kept
-/// only for RE-ENTRY (e.g. opening KYC again while already pending/approved/
-/// rejected from the profile or the funding screen's "Continue").
 class KycWizardScreen extends StatelessWidget {
   const KycWizardScreen({
     super.key,
@@ -47,9 +38,6 @@ class KycWizardScreen extends StatelessWidget {
   final PhotoPickerService? pickerService;
   final KycGateway? gateway;
 
-  /// Navigation hook fired once when a fresh submit succeeds. Defaults to
-  /// `context.goNamed('onboarding-funding')`. Overridable so widget tests can
-  /// assert the chain without a full router.
   final void Function(BuildContext context)? onSubmitted;
 
   static const Key rootKey = Key('kyc-wizard-root');
@@ -100,7 +88,6 @@ class _WizardScaffold extends StatelessWidget {
         centerTitle: false,
       ),
       // `kyc_wizard_root` (65_W2_TEST_PLAN §2 JM-040): the asserted root id of
-      // the KYC wizard. Wraps the whole body so it is visible on every step.
       body: Semantics(
         identifier: 'kyc_wizard_root',
         container: true,
@@ -117,15 +104,6 @@ class _WizardScaffold extends StatelessWidget {
                     prev.error != curr.error && curr.error != null,
                 listener: _surfaceError,
               ),
-              // JEBV4-271 (round 3): the authoritative role-arrived signal. When
-              // the getMe `available_roles` projection (published app-wide by
-              // RoleSync on login/resume) gains `jeeber` while the wizard is
-              // still on the submit spinner or a pending status view, advance
-              // straight onto the approved status view — the exact on-device
-              // rev2 gap where `/v1/users/me` returned `jeeber` yet nothing drove
-              // the transition. Only wired when the app-root RoleAvailabilityCubit
-              // is in scope (production shell); a bare wizard harness has none, so
-              // this listener is simply not added.
               if (context.read<RoleAvailabilityCubit?>() != null)
                 BlocListener<RoleAvailabilityCubit, RoleAvailability>(
                   listenWhen: (prev, curr) =>
@@ -145,7 +123,6 @@ class _WizardScaffold extends StatelessWidget {
   }
 
   void _onSubmitted(BuildContext context, KycWizardState state) {
-    // Consume the one-shot signal so it cannot re-fire, then chain to funding.
     context.read<KycWizardCubit>().acknowledgeNavigation();
     final hook = onSubmitted;
     if (hook != null) {
@@ -153,7 +130,6 @@ class _WizardScaffold extends StatelessWidget {
       return;
     }
     // EDGE → onboarding-funding (JM-041, D42/D1). `kyc_submit_cta` lands here,
-    // NOT the standalone status view.
     context.goNamed('onboarding-funding');
   }
 
@@ -169,7 +145,6 @@ class _WizardScaffold extends StatelessWidget {
     if (state.step == KycWizardStep.schema) {
       return _SchemaLoadingView(l10n: l10n, state: state);
     }
-    // identity
     return Column(
       children: [
         _ProgressHeader(state: state),
@@ -269,7 +244,6 @@ class _ProgressHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
-    // Display at least "Step 1 of 2" while the user is still capturing.
     final displayStep = state.completedCaptureSteps < 1
         ? 1
         : state.completedCaptureSteps;

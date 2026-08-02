@@ -1,9 +1,5 @@
-/// Result of broadcasting an order-chat request (JM-025 AC1).
-///
-/// Carries the [requestId] the waiting screen routes to. [notifiedCount] is the
-/// number of nearby Jeebers the broadcast reached (drives the waiting screen's
-/// count vs no-coverage variant, JM-026) — the screen does not depend on it for
-/// navigation, but it is surfaced so a future caller could branch on coverage.
+/// Result of broadcasting an order-chat request. [notifiedCount] drives waiting screen
+/// variant selection; screen routes via [requestId].
 class OrderBroadcastResult {
   const OrderBroadcastResult({
     required this.requestId,
@@ -14,8 +10,7 @@ class OrderBroadcastResult {
   final int notifiedCount;
 }
 
-/// Failure surface for the compose→broadcast step. The screen keeps the user in
-/// the composer on failure (the draft is preserved) and surfaces a soft error.
+/// Failure surface for compose→broadcast step. Screen keeps user in composer.
 enum OrderBroadcastFailure { network, badRequest, unknown }
 
 class OrderBroadcastException implements Exception {
@@ -24,16 +19,11 @@ class OrderBroadcastException implements Exception {
   final String? message;
 }
 
-/// Broadcasts an order-chat request to nearby Jeebers (D83, JM-025 AC1 / JM-026).
-///
-/// PURE domain contract — no Dio/Flutter/GetIt imports. The order-chat compose
-/// state fires this on the FIRST message; the request then transitions from
-/// compose to `pending`/broadcasting and the app routes to `waiting-no-coverage`.
+/// Broadcasts order-chat request to nearby Jeebers. PURE domain contract (no Dio/Flutter/GetIt).
 abstract class OrderBroadcastService {
-  /// Broadcast the request behind [conversationId] (a conversation id or, in
-  /// the fresh-compose case, a request id). [tier] + [origin] are forwarded to
-  /// matching; both may be empty when the upstream create-leg already pinned
-  /// them on the request row. Throws [OrderBroadcastException] on failure.
+  /// Broadcast request behind [conversationId] (conversation id or fresh-compose request id).
+  /// [tier] + [origin] forwarded to matching (may be empty if upstream create-leg pinned them).
+  /// Throws [OrderBroadcastException] on failure.
   Future<OrderBroadcastResult> broadcast({
     required String conversationId,
     required String requestId,

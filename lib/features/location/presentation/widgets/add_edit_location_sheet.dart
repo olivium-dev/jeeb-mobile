@@ -7,7 +7,6 @@ import '../../domain/saved_location.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Result returned by [AddEditLocationSheet.show].
 class LocationFormResult {
   const LocationFormResult({
     required this.label,
@@ -24,16 +23,6 @@ class LocationFormResult {
   final String? address;
 }
 
-/// Bottom sheet for adding or editing a saved location (T-MOB-025).
-///
-/// When [existing] is null, the sheet is in Add mode.
-/// When [existing] is non-null, the sheet pre-fills the form and is in
-/// Edit mode.
-///
-/// EXEMPT: OmdsBottomSheet does not expose the form-field layout pattern
-/// required here (label text field + category chips + coordinate fields).
-/// This sheet uses Flutter's `showModalBottomSheet` with OMDS design tokens
-/// throughout (T-MOB-025).
 class AddEditLocationSheet extends StatefulWidget {
   const AddEditLocationSheet({super.key, this.existing});
 
@@ -64,9 +53,6 @@ class _AddEditLocationSheetState extends State<AddEditLocationSheet> {
   late final TextEditingController _labelController;
   late final TextEditingController _addressController;
 
-  // Placeholder coordinates — in production a map picker (ofl_geo_capture)
-  // would provide these. For this milestone we use a text input as a
-  // lightweight stand-in, same pattern as T-MOB-012.
   late final TextEditingController _latController;
   late final TextEditingController _lngController;
 
@@ -354,7 +340,6 @@ class _FormActions extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

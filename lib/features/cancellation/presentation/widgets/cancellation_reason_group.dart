@@ -5,11 +5,7 @@ import 'package:omds/omds.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// A radio-group of cancellation reasons.
-///
-/// Each option is keyboard-navigable and announces its selection state to
-/// screen readers (AC4: reason group is keyboard-navigable; selected reason
-/// announced).
+/// Radio-group of cancellation reasons (keyboard-navigable, announced to screen readers).
 class CancellationReasonGroup extends StatelessWidget {
   const CancellationReasonGroup({
     super.key,
@@ -57,9 +53,7 @@ class _ReasonTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // Screen-scoped to the cancellation reason picker; `reason` is the stable
-    // backend reason code (e.g. `changed_mind`, `other`), so the id survives
-    // i18n/reorder (dynamic-list-item form, mirrors `dispute_reason_<name>`).
+    // Backend reason code for stable identifier across i18n/reorder.
     return Semantics(
       identifier: 'cancellation_reason_$reason',
       container: true,
@@ -80,7 +74,6 @@ class _ReasonTile extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

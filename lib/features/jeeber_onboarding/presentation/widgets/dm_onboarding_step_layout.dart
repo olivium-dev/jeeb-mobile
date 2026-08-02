@@ -14,13 +14,6 @@ import 'dm_onboarding_address_field.dart';
 import 'dm_onboarding_photo_upload_card.dart';
 import 'dm_onboarding_step_header.dart';
 
-/// Shared step chrome for the three onboarding steps: a scrollable content
-/// area with a [content] body and a bottom-pinned, full-width Continue button.
-///
-/// Keeps the page gutter, the flexible gap above the CTA, and the CTA itself
-/// identical across photo / address / service-area steps (RAIL 4 — no
-/// per-step duplication). The CTA is an [OmdsLoadingButton] so the final-step
-/// submit spinner is handled uniformly.
 class DmOnboardingStepLayout extends StatelessWidget {
   const DmOnboardingStepLayout({
     super.key,
@@ -29,13 +22,10 @@ class DmOnboardingStepLayout extends StatelessWidget {
     this.enabled = true,
   });
 
-  /// The step's body, laid out top-anchored under the progress bar.
   final Widget content;
 
-  /// Semantics identifier for the Continue button (per-step).
   final String continueIdentifier;
 
-  /// Whether the Continue button is tappable (steps gate their own readiness).
   final bool enabled;
 
   @override
@@ -97,7 +87,6 @@ class _ContinueButton extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

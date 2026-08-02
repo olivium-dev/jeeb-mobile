@@ -6,16 +6,6 @@ import '../domain/kyc_submission.dart';
 
 /// Which step the wizard is currently showing.
 ///
-/// Steps in order:
-///   schema → identity → submitting → status
-///
-/// [schema] is the loading state while fetching the form schema from the server.
-/// [identity] is the single capture screen (gov-ID front/back + selfie + ToS
-/// acceptance) per the `kyc-identity` blueprint. The Vehicle step was removed
-/// under D20 (JM-040): the platform is COD/cash-on-delivery and never collected
-/// a vehicle. [submitting] is the in-flight upload; [status] is the terminal
-/// pending/approved/rejected view shown when re-entering an already-submitted
-/// KYC (the fresh-submit happy path instead chains to onboarding-funding).
 enum KycWizardStep {
   schema,
   identity,
@@ -23,10 +13,8 @@ enum KycWizardStep {
   status,
 }
 
-/// Which capture slot the cubit is currently filling.
 enum KycCaptureSlot { idFront, idBack, selfie }
 
-/// Transient error surfaces produced by the wizard cubit.
 enum KycWizardError {
   pickCancelled,
   permissionDenied,
@@ -39,18 +27,9 @@ enum KycWizardError {
   fileTooLarge,
   fileTypeNotAllowed,
 
-  /// JEBV4-295: a field-scoped BFF 400 whose `field` extension names a field
-  /// the client has no inline surface for (unlike `id_number`/`id_type`).
-  /// This IS a validation rejection, not a connectivity failure — kept
-  /// distinct from [submitFailed] so the surfaced copy never mislabels a
-  /// "your submission is invalid" 400 as a "check your connection" toast.
   submitValidationFailed,
 }
 
-/// A submit failure scoped to a single identity field, surfaced INLINE on the
-/// field itself (never as the generic submit-failed snackbar). Produced either
-/// by the client-side pre-submit gate or by the BFF's field-scoped RFC-7807
-/// 400 (`field: "id_number"` / `"id_type"`) — JEBV4-113 review finding 1.
 enum KycSubmitFieldError { idNumber, idType }
 
 class KycWizardState extends Equatable {
@@ -75,35 +54,24 @@ class KycWizardState extends Equatable {
   final KycWizardStep step;
   final KycSubmission submission;
 
-  /// Loaded schema — null until the gateway returns it.
   final KycFormSchema? formSchema;
 
-  /// Loaded ToS contract template — null until the identity step loads it.
   final KycContractTemplate? contractTemplate;
 
-  /// ToS version accepted by the user (populated after signing).
   final String? tosAcceptedVersion;
 
-  /// Whether the user has ticked the ToS acceptance control on the identity
-  /// screen. Gates the submit CTA together with the captured photos.
   final bool tosAccepted;
 
-  /// Non-null while a camera capture is in flight.
   final KycCaptureSlot? capturing;
 
   final KycWizardError? error;
 
-  /// Field-scoped submit failure rendered inline on the offending identity
-  /// field (see [KycSubmitFieldError]). Cleared when the user edits the field.
   final KycSubmitFieldError? submitFieldError;
 
-  /// True while [KycWizardCubit.loadStatus] is in flight.
   final bool isLoadingStatus;
 
   /// One-shot flag set true when a FRESH submit succeeds, so the presentation
   /// layer can navigate to `onboarding-funding` (JM-040 → JM-041) exactly once
-  /// instead of rendering the standalone status view. Re-entries that load an
-  /// already-submitted status leave this false.
   final bool justSubmitted;
 
   bool get isCapturing => capturing != null;
@@ -125,9 +93,6 @@ class KycWizardState extends Equatable {
     }
   }
 
-  /// Whether the identity screen has everything it needs to submit: both ID
-  /// sides, a selfie, a contract-valid ID number (E3/JEBV4-197 — required for
-  /// every [KycIdType]), and the ToS acceptance — and no capture in flight.
   bool get canSubmitIdentity =>
       submission.hasIdFront &&
       submission.hasIdBack &&

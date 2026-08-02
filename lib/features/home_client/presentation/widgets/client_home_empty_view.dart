@@ -6,15 +6,9 @@ import '../../../../l10n/app_localizations.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Pending-list empty content for the client Requests screen.
-///
-/// The greeting, top create button, filter chips, and bottom navigation remain
-/// owned by the surrounding screen. This widget supplies only the branded Jeeb
-/// application illustration, localized empty copy, and first-request CTA.
 class ClientHomeEmptyView extends StatelessWidget {
   const ClientHomeEmptyView({super.key, this.onNewOrder});
 
-  /// Starts the new-order flow from the primary CTA.
   final VoidCallback? onNewOrder;
 
   @override
@@ -46,8 +40,6 @@ class ClientHomeEmptyView extends StatelessWidget {
   }
 }
 
-/// Decorative Jeeb application illustration. Screen readers use the localized
-/// title and subtitle instead of receiving an unhelpful image announcement.
 class _ApplicationIllustration extends StatelessWidget {
   const _ApplicationIllustration();
 
@@ -83,7 +75,6 @@ class _NewOrderButton extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

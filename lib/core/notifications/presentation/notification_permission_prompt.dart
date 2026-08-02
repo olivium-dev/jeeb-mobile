@@ -6,32 +6,6 @@ import '../data/push_transport.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../previews/jeeb_preview.dart';
 
-/// In-app priming card for the Android 13+ `POST_NOTIFICATIONS` (and iOS
-/// alert) permission.
-///
-/// Surfaced by [PushBannerHost] when the handler reports a non-granted
-/// [PushPermissionStatus] and the host is opted in via
-/// `PushBannerHost.showPermissionPrompt`. It is a *priming* affordance, not
-/// the OS dialog itself: tapping **Enable** invokes [onEnable] (the host wires
-/// this to `PushNotificationHandler.bootstrap()`, which surfaces the real
-/// system prompt / deep-links to settings after a prior denial); **Not now**
-/// invokes [onDismiss].
-///
-/// Why a priming step at all: Android only shows the system
-/// `POST_NOTIFICATIONS` dialog once, and never again after a denial — the
-/// platform guidance is to explain the value first so the grant rate stays
-/// high. This card is the branded, RTL-aware, capturable explanation.
-///
-/// Exposed Semantics identifiers (so the device-driven demo + Maestro can
-/// assert on the prompt without depending on visible copy):
-///   notification_permission_prompt — the card host (boundary)
-///   notif_perm_enable              — primary "Enable" action
-///   notif_perm_dismiss             — "Not now" action
-///
-/// Copy is passed in (with locale-safe English defaults) rather than reaching
-/// into the ARB, because the dedicated notification-permission strings are not
-/// in the integrator-owned ARB yet; the demo asserts on identifiers, never on
-/// text, so this stays copy-polish only.
 class NotificationPermissionPrompt extends StatelessWidget {
   const NotificationPermissionPrompt({
     super.key,
@@ -189,7 +163,6 @@ class _PromptActions extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

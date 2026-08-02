@@ -10,17 +10,8 @@ import '../../application/client_offers_state.dart';
 // material.dart; the preview slot needs `deferToChild` to size to the slot
 // instead of the unbounded height a Column hands down.
 import 'package:flutter/rendering.dart';
-
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Sort toggle: price (default) ↔ rating. Two OMDS chips so the active
-/// selection reads as "selected" to screen readers via the underlying
-/// FilterChip semantics.
-///
-/// Semantics identifiers (EXACT, 63_W1_TEST_PLAN §2.8 — the AC's
-/// `offer_review_sort_<key>` pattern, `price` coined as the primary key):
-///   - `offer_review_sort_price`
-///   - `offer_review_sort_rating`
 class OfferSortBar extends StatelessWidget {
   const OfferSortBar({
     super.key,
@@ -83,7 +74,6 @@ class OfferSortBar extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

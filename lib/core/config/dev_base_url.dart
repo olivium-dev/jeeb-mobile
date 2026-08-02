@@ -1,16 +1,12 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Persisted, Dev-Tool-settable override for the gateway base URL (F4).
-///
-/// The DI graph reads [read] when constructing the `Dio` client, so a value set
-/// here (via the Dev Tool → Server URL screen) points the whole app at a
-/// different backend on the next app start. When unset, the build-time
-/// `JEEB_MOCK_BASE_URL` default applies. Stored in [SharedPreferences] so it is
-/// wiped by the Dev Tool's "Clear Local Data" (F5).
+/// Persisted dev-tool override for gateway base URL. Read on DI Dio construction;
+/// when unset, build-time JEEB_MOCK_BASE_URL default applies. Wiped by Dev Tool
+/// "Clear Local Data".
 abstract final class DevBaseUrl {
   static const String prefsKey = 'dev.base_url_override';
 
-  /// The override, or `null` when unset/blank (→ use the build-time default).
+  /// Override, or null when unset/blank (use build-time default).
   static String? read(SharedPreferences prefs) {
     final value = prefs.getString(prefsKey)?.trim();
     return (value == null || value.isEmpty) ? null : value;

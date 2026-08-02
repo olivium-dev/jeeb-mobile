@@ -6,17 +6,9 @@ import '../../../../l10n/app_localizations.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Error state shown when location permission is denied (T-MOB-012 AC4).
-///
-/// Renders an icon + copy and an "Open Settings" CTA. Opening native app
-/// settings requires a platform-level plugin; the CTA is wired through
-/// the [onOpenSettings] callback so the host (screen or test) decides
-/// the exact platform call. The default is a no-op — production hosts
-/// pass `() => AppSettings.openAppSettings()` (once the dependency is added).
 class GpsDeniedState extends StatelessWidget {
   const GpsDeniedState({super.key, this.onOpenSettings});
 
-  /// Callback invoked when the user taps "Open Settings".
   final VoidCallback? onOpenSettings;
 
   @override
@@ -82,7 +74,6 @@ class GpsDeniedState extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

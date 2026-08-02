@@ -2,15 +2,6 @@ import 'package:dio/dio.dart';
 
 import '../domain/wallet_ledger_repository.dart';
 
-/// Dio-backed [WalletLedgerRepository] (JM-055) — W2m
-/// `GET /v1/jeeb/wallet/ledger?page=&pageSize=`.
-///
-/// This IS the DI default (unlike the W1m balance + W3m txn-by-id endpoints,
-/// W2m is LIVE on `:4010` — 42_GUARDRAILS_MOCK "W2 mock closeout"). The gateway
-/// path `/v1/jeeb/wallet/ledger` is rewritten to
-/// `/wallet-service/v1/jeeb/wallet/ledger` by the `/v1/jeeb/wallet` rewrite-map
-/// key (added in the W3-INT batch — a sibling of `/v1/jeeb/earnings`). DO NOT
-/// hardcode the service prefix here (40_GUARDRAILS_ARCH §4 / DO-NOT).
 class DioWalletLedgerRepository implements WalletLedgerRepository {
   const DioWalletLedgerRepository(this._dio);
 
@@ -31,8 +22,6 @@ class DioWalletLedgerRepository implements WalletLedgerRepository {
     }
   }
 
-  // Defensive parse (40_GUARDRAILS_ARCH §4): accept a bare List or an `{ items }`
-  // envelope, null-coalesce every field, tolerate snake_case + camelCase.
   WalletLedgerPage _parse(Map<String, dynamic> json, int requestedPage) {
     final rawItems = json['items'];
     final list = rawItems is List ? rawItems : const <dynamic>[];

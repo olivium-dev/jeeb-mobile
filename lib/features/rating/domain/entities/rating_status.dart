@@ -1,23 +1,12 @@
 import 'package:equatable/equatable.dart';
 
-/// Reflects the blind-reveal state of a mutual delivery rating.
-///
-/// Aligned with the Express mock score-taking-service on :4010
-/// `GET /v1/ratings/jeeb/{deliveryId}/status` response
-/// (`state`: pending_both|pending_self|pending_counter|revealed). The legacy
-/// Mockoon `status` shape (pending_mine|pending_theirs|both_rated|
-/// auto_revealed) is still tolerated for backward compat.
 enum RatingRevealState {
-  /// Current user has not yet submitted their rating.
   pendingMine,
 
-  /// Current user submitted; waiting for the counterpart.
   pendingTheirs,
 
-  /// Both sides submitted — ratings are now visible.
   bothRated,
 
-  /// 7-day auto-reveal: counterpart never rated.
   autoRevealed,
 }
 
@@ -25,7 +14,6 @@ class CounterpartRating extends Equatable {
   const CounterpartRating({required this.stars, this.comment});
 
   factory CounterpartRating.fromJson(Map<String, dynamic> json) {
-    // Real mock returns `score`; legacy shape used `stars`. Tolerate both.
     final raw = json['stars'] ?? json['score'];
     return CounterpartRating(
       stars: (raw as num?)?.toInt() ?? 0,
@@ -48,7 +36,6 @@ class RatingStatus extends Equatable {
   });
 
   factory RatingStatus.fromJson(String deliveryId, Map<String, dynamic> json) {
-    // Real mock uses `state`; legacy Mockoon used `status`. Tolerate both.
     final raw = (json['state'] ?? json['status']) as String? ?? 'pending_self';
     return RatingStatus(
       deliveryId: deliveryId,
@@ -63,7 +50,7 @@ class RatingStatus extends Equatable {
 
   static RatingRevealState _parseState(String raw) {
     switch (raw) {
-      // Express mock score-taking-service states.
+
       case 'pending_both':
       case 'pending_self':
       case 'pending_mine':
@@ -82,8 +69,6 @@ class RatingStatus extends Equatable {
   }
 
   static CounterpartRating? _parseCounterpart(Map<String, dynamic> json) {
-    // Real mock returns a `ratings: [...]` list once revealed; the legacy shape
-    // nested a single `counterpartRating` object. Tolerate both.
     final nested = json['counterpartRating'];
     if (nested is Map<String, dynamic>) {
       return CounterpartRating.fromJson(nested);

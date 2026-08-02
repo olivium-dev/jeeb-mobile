@@ -7,18 +7,6 @@ import 'customer_register_pill.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// The full set of customer-profile navigation rows (JM-035 AC2).
-///
-/// Renders the 8 rows the AC enumerates, each carrying the EXACT
-/// `Semantics(identifier:)` from `63_W1_TEST_PLAN.md §2.15`:
-///   register-delivery / password / notifications / language / contact /
-///   rate-app / logout / addresses.
-///
-/// Every row's action is injected so the screen owns navigation (this widget
-/// stays pure + testable; widgets under `widgets/` never touch `context.go`).
-/// The "Register as a delivery" row is hidden once the account is a Jeeber
-/// (design §8.2) — its target is the onboarding wizard, NOT `/register`
-/// (JM-035 AC2 / JM-039).
 class CustomerProfileRows extends StatelessWidget {
   const CustomerProfileRows({
     super.key,
@@ -49,7 +37,6 @@ class CustomerProfileRows extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Account ──────────────────────────────────────────────────────
         CustomerProfileSectionHeader(title: l10n.customerProfileSectionAccount),
         if (showRegister)
           CustomerProfileRow(
@@ -73,21 +60,16 @@ class CustomerProfileRows extends StatelessWidget {
         ),
         CustomerProfileRow(
           icon: Icons.language_outlined,
-          // Reuses `settingsLanguage` ("Language") — no new ARB key (l10n is
-          // integrator-owned). Dedicated `customerProfileLanguage` requested in
-          // 50_ROUTE_REQUESTS.md; Maestro keys on the id, not the text.
           label: l10n.settingsLanguage,
           semanticsId: 'customer_profile_language_row',
           onTap: onLanguage,
         ),
         CustomerProfileRow(
           icon: Icons.location_on_outlined,
-          // Reuses `savedAddressesTitle` ("Saved addresses").
           label: l10n.savedAddressesTitle,
           semanticsId: 'customer_profile_addresses_row',
           onTap: onAddresses,
         ),
-        // ── Support ──────────────────────────────────────────────────────
         CustomerProfileSectionHeader(title: l10n.customerProfileSectionSupport),
         CustomerProfileRow(
           icon: Icons.call_outlined,
@@ -103,7 +85,6 @@ class CustomerProfileRows extends StatelessWidget {
         ),
         CustomerProfileRow(
           icon: Icons.logout_outlined,
-          // Reuses `appBarSignOut` ("Sign out").
           label: l10n.appBarSignOut,
           semanticsId: 'customer_profile_logout_row',
           onTap: onLogout,

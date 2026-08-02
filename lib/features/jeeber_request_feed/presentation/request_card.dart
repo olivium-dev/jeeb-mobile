@@ -8,15 +8,15 @@ import '../data/request_feed_models.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../core/previews/jeeb_preview.dart';
 
-/// OMDS-styled card rendering one [DeliveryRequest] in the Jeeber feed.
-///
-/// The card is intentionally composed from OMDS primitives (Spacing, Sizes,
-/// OmdsBorderRadius, OmdsPrimaryButton) rather than the salehly-lineage
-/// `OmdsRequestCard`, because that card's fixed avatar/title/body shape
-/// doesn't match the pickup/dropoff/tier/distance/earnings layout Jeeb
-/// needs. Per JEEB-BOUNDARIES.md F8, raw Material widgets are still
-/// forbidden — Material.Card and ColorScheme/TextTheme accesses are
-/// theme-mediated and explicitly allowed by omds_theme.dart.
+
+
+
+
+
+
+
+
+
 class RequestCard extends StatelessWidget {
   const RequestCard({
     super.key,
@@ -30,8 +30,8 @@ class RequestCard extends StatelessWidget {
   final DeliveryRequest request;
   final RequestActionStatus actionStatus;
 
-  /// Seconds left on a server-supplied per-card deadline. `null` hides the
-  /// countdown and leaves actions enabled until the snapshot drops the row.
+  
+  
   final int? secondsRemaining;
 
   final VoidCallback onAccept;

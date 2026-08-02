@@ -9,11 +9,6 @@ import '../domain/settlement_statement.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/settlement_detail_screen_fixtures.dart';
 
-/// Settlement statement detail screen (T-MOB-032 AC2).
-///
-/// Shows per-delivery breakdown for a single weekly statement.
-/// Route: /jeeber/settlement/:id
-// ORPHAN (JEBV4-227, verified 2026-07-12): dead chain from orphaned SettlementScreen — see docs/project-understanding/reconciliation/orphans.md
 class SettlementDetailScreen extends StatelessWidget {
   const SettlementDetailScreen({
     super.key,
@@ -81,7 +76,6 @@ class _SummaryCard extends StatelessWidget {
                     vertical: Spacing.twoXSmall,
                   ),
                   decoration: BoxDecoration(
-                    // paid = success, pending = warning (semantic roles).
                     color: isPaid
                         ? context.jeebRoles.successContainer
                         : context.jeebRoles.warningContainer,
@@ -167,7 +161,6 @@ class _DeliveryLineRow extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its

@@ -5,7 +5,6 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Single coaching cue inside a [KycLivenessPromptCard].
 class KycLivenessPrompt {
   const KycLivenessPrompt({required this.icon, required this.text});
 
@@ -13,10 +12,6 @@ class KycLivenessPrompt {
   final String text;
 }
 
-/// Coaching card rendered above the selfie capture tile. Lists the liveness
-/// motions the reviewer expects (blink + smile). Pure presentation — the cubit
-/// doesn't react to any input here; the actual liveness verification is a
-/// server-side check on the captured frame.
 class KycLivenessPromptCard extends StatelessWidget {
   const KycLivenessPromptCard({
     super.key,
@@ -28,8 +23,6 @@ class KycLivenessPromptCard extends StatelessWidget {
   final String title;
   final List<KycLivenessPrompt> prompts;
 
-  /// Optional key forwarded to the outer container so widget tests can find
-  /// the card without relying on text content.
   final Key? cardKey;
 
   @override
@@ -96,7 +89,6 @@ class _PromptRow extends StatelessWidget {
     );
   }
 }
-
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 // `flutter widget-preview start` — open THIS file in the IDE to see its
