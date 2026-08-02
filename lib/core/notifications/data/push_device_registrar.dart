@@ -1,4 +1,5 @@
 import "dart:io" show Platform;
+import "dart:math" show Random;
 
 import "package:dio/dio.dart";
 import "package:flutter/foundation.dart";
@@ -178,14 +179,26 @@ class PushDeviceRegistrar {
   /// is per-install and only needs to be stable + collision-free across the
   /// fleet, which a 122-bit random hex satisfies.
   String _generateId() {
-    final now = DateTime.now().microsecondsSinceEpoch;
-    final rand = now ^ (now << 13) ^ identityHashCode(this);
+    // Was a hand-rolled 64-bit LCG seeded from `DateTime.now()` xor
+    // `identityHashCode`. That had two problems: the seed carried very little
+    // entropy for a value that must be "collision-free across the fleet", and
+    // the 64-bit literals/operators cannot be compiled to JavaScript at all —
+    // which broke `flutter widget-preview start`, whose scaffold only targets
+    // the web device.
+    //
+    // `Random.secure()` is a platform CSPRNG, so this is strictly stronger for
+    // the documented contract while producing the same 32-hex-digit shape.
+    // The fallback matters because `Random.secure()` throws on platforms with
+    // no secure source; a weak id still beats a crash on first launch.
+    Random random;
+    try {
+      random = Random.secure();
+    } on UnsupportedError {
+      random = Random();
+    }
     final hex = StringBuffer();
-    var seed = rand & 0x7fffffffffffffff;
     for (var i = 0; i < 32; i++) {
-      seed = (seed * 6364136223846793005 + 1442695040888963407) &
-          0x7fffffffffffffff;
-      hex.write(((seed >> 33) & 0xf).toRadixString(16));
+      hex.write(random.nextInt(16).toRadixString(16));
     }
     final s = hex.toString();
     return "${s.substring(0, 8)}-${s.substring(8, 12)}-4${s.substring(13, 16)}"
