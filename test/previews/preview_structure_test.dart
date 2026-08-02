@@ -105,7 +105,32 @@ import '../../tool/preview_inventory.dart';
 /// `TierSelectionScreen`, `TranscriptionScreen`, `VoiceRequestScreen` — and
 /// `LiveSettingsScreen` is still the one BLOCKED entry, which does not count
 /// here.
-const int _coverageFloor = 4;
+///
+/// 4 → 0: the screens wave that previewed `SupportTicketScreen`,
+/// `TierSelectionScreen` and `TranscriptionScreen` (229/230), plus the
+/// `VoiceRequestScreen` verdict. All three extracted their catalog fixtures
+/// into `lib/devtool/catalog/fixtures/` and repointed both surfaces; the Screen
+/// Catalog is unchanged at 89 screens / 288 states, entry-for-entry and
+/// label-for-label.
+///
+/// The fourth, `VoiceRequestScreen`, is now an EXCLUSION rather than a preview,
+/// which is why the denominator moves 231 → 230 instead of the numerator moving
+/// to 230. Its entire body is `VoiceRecordingScreen(onSent: onSent)` — a route
+/// host for `/voice-request` and `/compose-dictation` that owns no state and
+/// paints nothing of its own, in the same category as `CaptureLocationRoute`
+/// and thinner (the router, not the class, supplies the callback). Every
+/// designed state it could show belongs to `VoiceRecordingScreen`, which is
+/// already previewed AND is the Screen Catalog's entry for this feature, so a
+/// preview here would be a second, drifting copy of those states. Reason
+/// recorded in `tool/preview_exclusions.txt`, which lowers the denominator
+/// rather than hiding the widget inside this floor.
+///
+/// The floor is now ZERO: every in-scope widget in `lib/` has a preview.
+/// `LiveSettingsScreen` remains the one BLOCKED entry and still does not count
+/// here — it needs a production seam first, recorded in
+/// `tool/preview_blocked.txt`. A wave that adds an unpreviewed widget now fails
+/// this test outright, which is the point.
+const int _coverageFloor = 0;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(

@@ -10,15 +10,10 @@ import '../../../features/shell/tabs/home_tab.dart';
 import '../../../features/shell/tabs/orders_tab.dart';
 import '../../../features/shell/widgets/jeeber_tab_empty_state.dart';
 import '../../../features/shell/widgets/shell_header_actions.dart';
-import '../../../features/support/application/support_cubit.dart';
-import '../../../features/support/domain/support_repository.dart';
 import '../../../features/support/presentation/support_ticket_screen.dart';
 import '../../../features/tier_selection/data/tier_repository.dart';
-import '../../../features/tier_selection/domain/tier.dart';
 import '../../../features/tier_selection/presentation/tier_selection_screen.dart';
-import '../../../features/transcription/application/transcription_cubit.dart';
 import '../../../features/transcription/domain/transcript_audio_player.dart';
-import '../../../features/transcription/domain/voice_clip.dart';
 import '../../../features/transcription/presentation/transcription_screen.dart';
 import '../../../features/voice_request/domain/voice_recorder.dart';
 import '../../../features/voice_request/presentation/voice_recording_screen.dart';
@@ -31,12 +26,14 @@ import '../../../features/wallet/presentation/wallet_charge_info_screen.dart';
 import '../../../features/wallet/presentation/wallet_hub_screen.dart';
 import '../catalog_models.dart';
 import '../fixtures/shell_screen_fixtures.dart';
+import '../fixtures/support_ticket_screen_fixtures.dart';
+import '../fixtures/tier_selection_screen_fixtures.dart';
 import '../fixtures/transaction_detail_screen_fixtures.dart';
+import '../fixtures/transcription_screen_fixtures.dart';
 import '../fixtures/voice_recording_screen_fixtures.dart';
 import '../fixtures/wallet_activity_list_screen_fixtures.dart';
 import '../fixtures/wallet_charge_info_screen_fixtures.dart';
 import '../fixtures/wallet_hub_screen_fixtures.dart';
-import '../tier_catalog_fixture.dart';
 
 /// Batch 11 — DT-04 catalog entries for: shell, support, tier_selection,
 /// transcription, voice_request, wallet.
@@ -240,6 +237,14 @@ final CatalogEntry _shellScreenEntry = CatalogEntry(
 // resolves immediately (success) or throws immediately (error) — no
 // `Future.delayed` needed for the state transition to land before the first
 // preview frame settles.
+//
+// The four private repositories and the inline cubit wiring moved to
+// `../fixtures/support_ticket_screen_fixtures.dart` when the screen got a
+// JEEB PREVIEWS section, so the catalog and the preview canvas cannot drift.
+// The states below are unchanged in meaning and unchanged in label. The FIRST
+// one keeps its seam-less `const SupportTicketScreen()` deliberately: the
+// nav-honesty fallback (no DI registered → shipped `StubSupportRepository`) is
+// itself the designed state, and no fixture can stand in for it.
 
 final CatalogEntry _supportTicketEntry = CatalogEntry(
   feature: 'support',
@@ -252,70 +257,29 @@ final CatalogEntry _supportTicketEntry = CatalogEntry(
     CatalogState(
       'Form — ready to submit',
       (_) => SupportTicketScreen(
-        cubit: SupportCubit(const _StubSupportRepository())
-          ..setCategory(SupportCategory.delivery)
-          ..setBody('My delivery never arrived and the Jeeber is unreachable.'),
+        cubit: SupportTicketScreenPreviewFixtures.readyToSubmit,
       ),
     ),
-    CatalogState('Submitting', (_) {
-      final cubit = SupportCubit(const _PendingSupportRepository())
-        ..setCategory(SupportCategory.delivery)
-        ..setBody('My delivery never arrived.');
-      unawaited(cubit.submit());
-      return SupportTicketScreen(cubit: cubit);
-    }),
-    CatalogState('Success — confirmation', (_) {
-      final cubit = SupportCubit(const _ImmediateSupportRepository())
-        ..setCategory(SupportCategory.account)
-        ..setBody('Please update my phone number on file.');
-      unawaited(cubit.submit());
-      return SupportTicketScreen(cubit: cubit);
-    }),
-    CatalogState('Error — network failure', (_) {
-      final cubit =
-          SupportCubit(const _FailingSupportRepository(SupportFailure.network))
-            ..setCategory(SupportCategory.payment)
-            ..setBody('I was charged twice for the same delivery.');
-      unawaited(cubit.submit());
-      return SupportTicketScreen(cubit: cubit);
-    }),
+    CatalogState(
+      'Submitting',
+      (_) => SupportTicketScreen(
+        cubit: SupportTicketScreenPreviewFixtures.submitting,
+      ),
+    ),
+    CatalogState(
+      'Success — confirmation',
+      (_) => SupportTicketScreen(
+        cubit: SupportTicketScreenPreviewFixtures.success,
+      ),
+    ),
+    CatalogState(
+      'Error — network failure',
+      (_) => SupportTicketScreen(
+        cubit: SupportTicketScreenPreviewFixtures.networkError,
+      ),
+    ),
   ],
 );
-
-class _StubSupportRepository implements SupportRepository {
-  const _StubSupportRepository();
-
-  @override
-  Future<SupportTicket> submitTicket(SupportTicketDraft draft) async =>
-      const SupportTicket(id: 'ticket-preview-001', status: 'open');
-}
-
-class _ImmediateSupportRepository implements SupportRepository {
-  const _ImmediateSupportRepository();
-
-  @override
-  Future<SupportTicket> submitTicket(SupportTicketDraft draft) async =>
-      const SupportTicket(id: 'ticket-preview-902', status: 'open');
-}
-
-class _PendingSupportRepository implements SupportRepository {
-  const _PendingSupportRepository();
-
-  @override
-  Future<SupportTicket> submitTicket(SupportTicketDraft draft) =>
-      Completer<SupportTicket>().future;
-}
-
-class _FailingSupportRepository implements SupportRepository {
-  const _FailingSupportRepository(this.failure);
-
-  final SupportFailure failure;
-
-  @override
-  Future<SupportTicket> submitTicket(SupportTicketDraft draft) async {
-    throw SupportRepositoryException(failure);
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // tier_selection — TierSelectionScreen
@@ -324,6 +288,13 @@ class _FailingSupportRepository implements SupportRepository {
 // The screen already ships a `repository` constructor seam and calls
 // `..load()` itself, so every state below is just a different [TierRepository]
 // — no manual cubit driving needed.
+//
+// The fakes moved to `../fixtures/tier_selection_screen_fixtures.dart` so this
+// entry and the widget-preview section at the bottom of
+// `tier_selection_screen.dart` drive the screen from ONE set of fixtures. Same
+// three designed states, same labels, same behaviour — `stalled()` is the
+// former `_PendingTierRepository` and `servedCatalogue()` / `failing()` wrap the
+// same [DevtoolTierRepository] this entry already used.
 
 final CatalogEntry _tierSelectionEntry = CatalogEntry(
   feature: 'tier_selection',
@@ -331,27 +302,26 @@ final CatalogEntry _tierSelectionEntry = CatalogEntry(
   states: [
     CatalogState(
       'Loading',
-      (_) => const TierSelectionScreen(repository: _PendingTierRepository()),
+      (_) => TierSelectionScreen(
+        repository: TierSelectionScreenPreviewFixtures.stalled(),
+      ),
     ),
     CatalogState(
       'Loaded — delivery-service catalog, no selection',
-      (_) => const TierSelectionScreen(repository: DevtoolTierRepository()),
+      (_) => TierSelectionScreen(
+        repository: TierSelectionScreenPreviewFixtures.servedCatalogue(),
+      ),
     ),
     CatalogState(
       'Error — network unreachable',
-      (_) => const TierSelectionScreen(
-        repository: DevtoolTierRepository(failWith: TierLoadFailure.network),
+      (_) => TierSelectionScreen(
+        repository: TierSelectionScreenPreviewFixtures.failing(
+          TierLoadFailure.network,
+        ),
       ),
     ),
   ],
 );
-
-class _PendingTierRepository implements TierRepository {
-  const _PendingTierRepository();
-
-  @override
-  Future<List<Tier>> fetchTiers() => Completer<List<Tier>>().future;
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 // transcription — TranscriptionScreen
@@ -360,6 +330,12 @@ class _PendingTierRepository implements TierRepository {
 // `seedFromClip` / `markFailed` / `startEditing` are all synchronous cubit
 // methods (plain `emit`, no repository round-trip), so every state below is
 // seeded before the widget is returned — no `unawaited` needed.
+//
+// The clips and the two seeding scripts moved to
+// `../fixtures/transcription_screen_fixtures.dart` so this entry and the
+// widget-preview section at the bottom of `transcription_screen.dart` drive
+// the screen from ONE set of fixtures. Same four designed states, same clips —
+// the only change is where they are declared.
 
 final CatalogEntry _transcriptionEntry = CatalogEntry(
   feature: 'transcription',
@@ -368,42 +344,31 @@ final CatalogEntry _transcriptionEntry = CatalogEntry(
     CatalogState(
       'Ready — machine transcript to review',
       (_) => const TranscriptionScreen(
-        clip: VoiceClip(
-          audioPath: 'audio-ready-1',
-          durationMs: 42000,
-          transcript:
-              'Please deliver 2 bags of rice and a water gallon to Hamra, Beirut.',
-        ),
+        clip: transcriptionScreenReadyClip,
         audioPlayer: NoopTranscriptAudioPlayer(),
       ),
     ),
     CatalogState(
       'Queued — no transcript yet, type instead',
       (_) => const TranscriptionScreen(
-        clip: VoiceClip(audioPath: 'audio-queued-1', durationMs: 15000),
+        clip: transcriptionScreenQueuedClip,
         audioPlayer: NoopTranscriptAudioPlayer(),
       ),
     ),
-    CatalogState('Failed — transcription call errored', (_) {
-      const clip = VoiceClip(audioPath: 'audio-failed-1', durationMs: 20000);
-      final cubit =
-          TranscriptionCubit(player: const NoopTranscriptAudioPlayer())
-            ..seedFromClip(clip)
-            ..markFailed(TranscriptionFailure.network);
-      return TranscriptionScreen(clip: clip, cubit: cubit);
-    }),
-    CatalogState('Editing — text field open', (_) {
-      const clip = VoiceClip(
-        audioPath: 'audio-edit-1',
-        durationMs: 30000,
-        transcript: 'Two bags of rice',
-      );
-      final cubit =
-          TranscriptionCubit(player: const NoopTranscriptAudioPlayer())
-            ..seedFromClip(clip)
-            ..startEditing();
-      return TranscriptionScreen(clip: clip, cubit: cubit);
-    }),
+    CatalogState(
+      'Failed — transcription call errored',
+      (_) => TranscriptionScreen(
+        clip: transcriptionScreenFailedClip,
+        cubit: transcriptionScreenFailedCubit(),
+      ),
+    ),
+    CatalogState(
+      'Editing — text field open',
+      (_) => TranscriptionScreen(
+        clip: transcriptionScreenEditingClip,
+        cubit: transcriptionScreenEditingCubit(),
+      ),
+    ),
   ],
 );
 
