@@ -7,14 +7,6 @@ import '../../domain/delivery_man_profile_view_data.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-
-
-
-
-
-
-
-
 class DeliveryReviewCard extends StatelessWidget {
   const DeliveryReviewCard({
     super.key,
@@ -65,9 +57,7 @@ class _ReviewCardBody extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              
-              
-              
+
               OmdsProfileAvatar(
                 initial: isAnonymous ? 'J' : firstName,
                 profilePicUrl: isAnonymous ? null : review.reviewerAvatarUrl,

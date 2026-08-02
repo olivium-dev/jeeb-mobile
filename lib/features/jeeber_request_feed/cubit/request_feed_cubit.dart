@@ -10,47 +10,14 @@ import '../data/request_feed_models.dart';
 import '../data/request_feed_repository.dart';
 import 'request_feed_state.dart';
 
-
-
-
-
-
-
-
 typedef SoundNotifier = void Function();
 
 enum RequestFeedRepositoryOwnership {
-  
-  
+
   owned,
 
-  
   borrowed,
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 class RequestFeedCubit extends Cubit<RequestFeedState>
     implements PollingVisibility {
@@ -79,20 +46,11 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
   final RequestFeedRepositoryOwnership _repositoryOwnership;
   bool _pollingVisible = false;
 
-  
-  
-  
   final Duration _expiredLinger;
   final Duration _sweepInterval;
   final SoundNotifier? _onNewRequestSound;
   final DateTime Function() _clock;
 
-  
-  
-  
-  
-  
-  
   final Stream<void>? _refreshSignals;
 
   StreamSubscription<DeliveryRequest>? _requestsSub;
@@ -108,32 +66,14 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     debugLabel: 'RequestFeedCubit expiry sweep',
   );
 
-  
-  
-  
-  
   final Map<String, DateTime> _deadlines = {};
 
-  
-  
   final Map<String, DateTime> _removals = {};
 
-  
   Future<void> start() async {
     _requestsSub ??= _repository.requests.listen(_onIncoming);
     _transportSub ??= _repository.transport.listen(_onTransport);
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
     _refreshGate.bind(_refreshSignals);
     _sweepPoller.start();
     _applyPollInterest();
@@ -142,20 +82,15 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
 
   @override
   void setPollingVisible(bool visible) {
-    
-    
-    
+
     _sweepPoller.setPollingVisible(visible);
-    
-    
+
     _refreshGate.setPollingVisible(visible);
     if (_pollingVisible == visible) return;
     _pollingVisible = visible;
     _applyPollInterest();
   }
 
-  
-  
   void _applyPollInterest() {
     final source = _source;
     if (source == null || _transportSub == null) return;
@@ -166,20 +101,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     }
   }
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   Future<void> refresh() async {
     if (_refreshInFlight) return;
     _refreshInFlight = true;
@@ -202,23 +123,13 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     }
     try {
       final snapshot = await _repository.refresh();
-      
-      
-      
-      
-      
-      
-      
-      
-      
+
       final existingById = {for (final r in state.requests) r.id: r};
       final reconciled = <String, DeliveryRequest>{};
       final expiredIds = <String>{...state.expiredIds};
       final serverClosedIds = <String>{};
       for (final r in snapshot) {
-        
-        
-        
+
         if (!r.requestIsOpen) {
           serverClosedIds.add(r.id);
           expiredIds.remove(r.id);
@@ -226,11 +137,9 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
           _removals.remove(r.id);
           continue;
         }
-        
-        
+
         expiredIds.remove(r.id);
-        
-        
+
         _trackDeadline(r);
         reconciled[r.id] = r;
       }
@@ -262,13 +171,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     }
   }
 
-  
-  
-  
-  
-  
-  
-  
   Future<void> accept(String id) =>
       _act(id: id, busy: RequestActionStatus.accepting, call: _repository.accept);
 
@@ -287,8 +189,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     if (requestIndex == -1 || !state.requests[requestIndex].requestIsOpen) {
       return;
     }
-    
-    
+
     if (state.isExpired(id)) return;
     if (state.actionStatusFor(id) != RequestActionStatus.idle) return;
     emit(state.copyWith(
@@ -304,7 +205,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
       state.actionStatuses,
     )..remove(id);
     if (outcome == RequestActionOutcome.networkError) {
-      
+
       emit(state.copyWith(
         actionStatuses: pendingRemoved,
         lastEffect: RequestActionEffect(requestId: id, outcome: outcome),
@@ -320,8 +221,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     ));
   }
 
-  
-  
   void clearEffect() {
     if (state.lastEffect == null) return;
     emit(state.copyWith(lastEffect: null));
@@ -351,7 +250,7 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     byId[request.id] = request;
     _trackDeadline(request);
     if (!exists) _onNewRequestSound?.call();
-    
+
     final expiredIds = <String>{...state.expiredIds}..remove(request.id);
     emit(state.copyWith(
       status: RequestFeedStatus.ready,
@@ -365,12 +264,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     emit(state.copyWith(transport: update.transport));
   }
 
-  
-  
-  
-  
-  
-  
   void _sweepExpired() {
     final now = _clock();
     final newlyExpired = _deadlines.entries
@@ -405,9 +298,6 @@ class RequestFeedCubit extends Cubit<RequestFeedState>
     ));
   }
 
-  
-  
-  
   void _trackDeadline(DeliveryRequest request) {
     final expiresAt = request.expiresAt;
     if (expiresAt == null) {

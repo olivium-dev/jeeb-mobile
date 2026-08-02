@@ -169,7 +169,6 @@ class DiagFileSink implements DiagPersistentSink {
 
   Future<void> close() => flush();
 
-
   static String _fileNameFor(DateTime startedAtUtc, String role) {
     final t = startedAtUtc;
     String p2(int n) => n.toString().padLeft(2, '0');

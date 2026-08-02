@@ -5,10 +5,6 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/voice_clip.dart';
 
-
-
-
-
 class TranscriptionResult extends Equatable {
   const TranscriptionResult({required this.id, this.transcript});
 
@@ -19,7 +15,6 @@ class TranscriptionResult extends Equatable {
   List<Object?> get props => [id, transcript];
 }
 
-
 enum VoiceUploadFailure { network, server, unknown }
 
 class VoiceUploadException implements Exception {
@@ -29,9 +24,6 @@ class VoiceUploadException implements Exception {
   String toString() => 'VoiceUploadException($failure)';
 }
 
-
-
-
 abstract class VoiceRecordingRepository {
   Future<TranscriptionResult> upload(VoiceClip clip);
 }
@@ -39,12 +31,6 @@ abstract class VoiceRecordingRepository {
 class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
   HttpVoiceRecordingRepository({required Dio dio}) : _dio = dio;
 
-  
-  
-  
-  
-  
-  
   static const String endpoint = '/transcribe';
 
   final Dio _dio;
@@ -62,7 +48,7 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
         options: Options(contentType: 'application/json'),
       );
       final body = response.data ?? const <String, dynamic>{};
-      
+
       final id = body['audioId'] as String?;
       if (id == null || id.isEmpty) {
         throw const VoiceUploadException(VoiceUploadFailure.server);
@@ -98,18 +84,11 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
   }
 }
 
-
-
-
 class FakeVoiceRecordingRepository implements VoiceRecordingRepository {
   FakeVoiceRecordingRepository({this.failure, this.transcript});
 
-  
-  
   VoiceUploadFailure? failure;
 
-  
-  
   final String? transcript;
 
   int uploadCalls = 0;

@@ -1,12 +1,7 @@
 import 'request_feed_models.dart';
 
-
-
-
-
 abstract final class DevJeeberFeedFixtures {
-  
-  
+
   static const _name = 'Sami Fawaz';
   static const _summary = '1 kilo potato, water gallon, coffee blend';
 
@@ -22,26 +17,19 @@ abstract final class DevJeeberFeedFixtures {
         longitude: 35.5131,
       );
 
-  
   static DateTime get _receivedAt => DateTime(2026, 6, 11, 9, 41);
 
-  
-  
   static DateTime get _expiresAt =>
       DateTime.now().add(const Duration(days: 365));
 
-  
   static List<DeliveryRequest> incoming() => [
         _base('dev-feed-incoming', JeeberFeedItemStatus.incoming),
       ];
 
-  
   static List<DeliveryRequest> pending() => [
         _base('dev-feed-pending', JeeberFeedItemStatus.pendingResponse),
       ];
 
-  
-  
   static List<DeliveryRequest> replies() => [
         _base(
           'dev-feed-accepted-1',

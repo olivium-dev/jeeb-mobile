@@ -3,9 +3,6 @@ import 'dart:math' as math;
 
 import 'request_feed_models.dart';
 
-
-
-
 enum RequestActionOutcome {
   accepted,
   declined,
@@ -14,73 +11,31 @@ enum RequestActionOutcome {
   networkError,
 }
 
-
-
-
 enum FeedTransport {
   webSocket,
 
-  
-  
   polling,
 }
-
-
-
 
 class FeedTransportUpdate {
   const FeedTransportUpdate(this.transport);
   final FeedTransport transport;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 abstract class RequestFeedRepository {
-  
-  
-  
+
   Stream<DeliveryRequest> get requests;
 
-  
-  
-  
   Stream<FeedTransportUpdate> get transport;
 
-  
-  
-  
   Future<List<DeliveryRequest>> refresh();
 
-  
-  
-  
   Future<RequestActionOutcome> accept(String id);
 
-  
-  
   Future<RequestActionOutcome> decline(String id);
 
-  
-  
   Future<void> dispose();
 }
-
-
-
-
-
 
 class FakeRequestFeedRepository implements RequestFeedRepository {
   FakeRequestFeedRepository({
@@ -170,11 +125,6 @@ class FakeRequestFeedRepository implements RequestFeedRepository {
     );
   }
 }
-
-
-
-
-
 
 class SeededRequestFeedRepository implements RequestFeedRepository {
   SeededRequestFeedRepository(this._snapshot);

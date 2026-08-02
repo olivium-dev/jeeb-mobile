@@ -93,7 +93,6 @@ class NetworkReachabilitySignals {
     await _controller.close();
   }
 
-
   static NetworkReachabilitySignals? _instance;
 
   static NetworkReachabilitySignals get instance =>

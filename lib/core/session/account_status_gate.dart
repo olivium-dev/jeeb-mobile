@@ -1,32 +1,7 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 abstract class AccountStatusGate {
-  
-  
-  
-  
-  
+
   bool get isBlocked;
 }
-
-
-
 
 class AlwaysActiveAccountStatusGate implements AccountStatusGate {
   const AlwaysActiveAccountStatusGate();

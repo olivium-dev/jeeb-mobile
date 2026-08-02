@@ -125,7 +125,6 @@ class MockGatewayClient {
     return dio;
   }
 
-
   static const String realtimeBaseUrl = String.fromEnvironment(
     'JEEB_REALTIME_BASE_URL',
     defaultValue: '',

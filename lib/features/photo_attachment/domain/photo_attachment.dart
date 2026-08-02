@@ -2,14 +2,7 @@ import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 
-
-
 enum PhotoSource { camera, gallery }
-
-
-
-
-
 
 class PhotoAttachment extends Equatable {
   const PhotoAttachment({
@@ -19,17 +12,10 @@ class PhotoAttachment extends Equatable {
     required this.source,
   });
 
-  
-  
-  
   final String id;
 
-  
-  
   final Uint8List bytes;
 
-  
-  
   final int originalSizeBytes;
 
   final PhotoSource source;

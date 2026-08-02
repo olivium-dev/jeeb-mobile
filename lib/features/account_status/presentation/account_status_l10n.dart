@@ -19,7 +19,6 @@ class AccountStatusL10n {
   String get supportCta => _l10n.accountStatusSupportCta;
   String get signoutCta => _l10n.accountStatusSignoutCta;
 
-
   String banner(AccountStatusValue value) => _pick(
         value,
         suspendedEn: 'Your account is suspended',

@@ -2,9 +2,6 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/submitted_offer.dart';
 
-
-
-
 enum SubmittedOffersStatus { initial, loading, ready, error }
 
 class SubmittedOffersState extends Equatable {
@@ -14,14 +11,10 @@ class SubmittedOffersState extends Equatable {
     this.withdrawingIds = const {},
   });
 
-  
   final SubmittedOffersStatus status;
 
-  
   final List<SubmittedOffer> offers;
 
-  
-  
   final Set<String> withdrawingIds;
 
   bool isWithdrawing(String id) => withdrawingIds.contains(id);

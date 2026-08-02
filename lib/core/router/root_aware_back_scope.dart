@@ -1,31 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class RootAwareBackScope extends StatelessWidget {
   const RootAwareBackScope({
     super.key,
@@ -33,11 +8,6 @@ class RootAwareBackScope extends StatelessWidget {
     required this.child,
   });
 
-  
-  
-  
-  
-  
   final String fallbackLocation;
 
   final Widget child;
@@ -51,8 +21,7 @@ class RootAwareBackScope extends StatelessWidget {
         } else {
           context.go(fallbackLocation);
         }
-        
-        
+
         return true;
       },
       child: child,

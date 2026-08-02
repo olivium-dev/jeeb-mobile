@@ -1,40 +1,19 @@
 import 'package:equatable/equatable.dart';
 
-
-
-
 enum JeeberRequestTier {
-  
+
   light,
 
-  
   standard,
 
-  
   bulk,
 
-  
-  
   flash,
 }
 
-
-
-
-
-
-
-
-
 enum JeeberFeedItemStatus { incoming, pendingResponse, accepted }
 
-
-
-
 enum JeeberDeliveryAction { orderPicked, headingToDropOff }
-
-
-
 
 class RequestLocation extends Equatable {
   const RequestLocation({
@@ -50,12 +29,6 @@ class RequestLocation extends Equatable {
   @override
   List<Object?> get props => [label, latitude, longitude];
 }
-
-
-
-
-
-
 
 class DeliveryRequest extends Equatable {
   const DeliveryRequest({
@@ -82,72 +55,32 @@ class DeliveryRequest extends Equatable {
   final RequestLocation pickup;
   final RequestLocation dropoff;
 
-  
-  
   final JeeberRequestTier? tier;
 
-  
-  
   final double estimatedDistanceKm;
 
-  
-  
-  
   final double potentialEarnings;
 
-  
   final String currency;
 
-  
-  
-  
-  
-  
-  
-  
-  
   final DateTime? expiresAt;
 
-  
-  
   final String? senderName;
 
-  
-  
   final String? senderAvatarUrl;
 
-  
   final double? senderRating;
 
-  
-  
-  
   final String? itemsSummary;
 
-  
-  
-  
   final double? distanceFromYouKm;
 
-  
-  
   final DateTime? receivedAt;
 
-  
-  
   final JeeberFeedItemStatus feedStatus;
 
-  
-  
-  
-  
-  
-  
   final bool requestIsOpen;
 
-  
-  
-  
   final JeeberDeliveryAction? nextDeliveryAction;
 
   @override

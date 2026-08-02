@@ -1,4 +1,3 @@
-
 enum DisputeState { open, resolved, unknown }
 
 enum DisputeOutcome {

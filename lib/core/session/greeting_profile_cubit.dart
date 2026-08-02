@@ -6,22 +6,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../features/customer_profile/domain/customer_profile_repository.dart';
 import '../../features/customer_profile/domain/customer_profile_view_data.dart';
 
-
-
-
-
-
-
-
-
 class GreetingProfileState extends Equatable {
   const GreetingProfileState({this.name, this.avatarUrl});
 
-  
-  
   final String? name;
 
-  
   final String? avatarUrl;
 
   GreetingProfileState copyWith({String? name, String? avatarUrl}) {
@@ -35,17 +24,6 @@ class GreetingProfileState extends Equatable {
   List<Object?> get props => [name, avatarUrl];
 }
 
-
-
-
-
-
-
-
-
-
-
-
 class GreetingProfileCubit extends Cubit<GreetingProfileState> {
   GreetingProfileCubit({
     CustomerProfileRepository? repository,
@@ -53,20 +31,13 @@ class GreetingProfileCubit extends Cubit<GreetingProfileState> {
     Stream<void>? refreshSignals,
   })  : _repository = repository,
         super(seed) {
-    
-    
-    
-    
+
     _refreshSubscription = refreshSignals?.listen((_) => load());
   }
 
   final CustomerProfileRepository? _repository;
   StreamSubscription<void>? _refreshSubscription;
 
-  
-  
-  
-  
   Future<void> load() async {
     final repo = _repository;
     if (repo == null) return;
@@ -74,10 +45,9 @@ class GreetingProfileCubit extends Cubit<GreetingProfileState> {
       final profile = await repo.fetchProfile();
       _emitFrom(profile);
     } on CustomerProfileRepositoryException {
-      
-      
+
     } catch (_) {
-      
+
     }
   }
 

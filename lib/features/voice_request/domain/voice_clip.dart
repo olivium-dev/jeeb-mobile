@@ -2,17 +2,6 @@ import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 
-
-
-
-
-
-
-
-
-
-
-
 class VoiceClip extends Equatable {
   const VoiceClip({
     required this.bytes,
@@ -25,7 +14,6 @@ class VoiceClip extends Equatable {
   final Duration duration;
   final String mimeType;
 
-  
   final String? sourcePath;
 
   @override

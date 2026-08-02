@@ -10,67 +10,6 @@ import '../../../core/requests/server_request_status.dart';
 import 'request_feed_models.dart';
 import 'request_feed_repository.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
   DioRequestFeedRepository({required Dio dio, DateTime Function()? now})
     : _dio = dio,
@@ -78,14 +17,8 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
 
   final Dio _dio;
 
-  
-  
-  
   final DateTime Function() _now;
 
-  
-  
-  
   static const String _feedPath = '/v1/jeebers/me/feed?status=pending';
 
   final StreamController<DeliveryRequest> _requestsCtrl =
@@ -93,12 +26,6 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
   final StreamController<FeedTransportUpdate> _transportCtrl =
       StreamController<FeedTransportUpdate>.broadcast(onListen: () {});
 
-  
-  
-  
-  
-  
-  
   final Set<Object> _interest = HashSet<Object>.identity();
   bool _disposed = false;
 
@@ -142,9 +69,6 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     }
   }
 
-  
-  
-  
   @override
   void addPollInterest(Object owner) {
     if (_disposed || !_interest.add(owner)) return;
@@ -183,16 +107,10 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
   }
 
   DeliveryRequest? _parseRequest(Map<String, dynamic> json) {
-    
-    
+
     final id = (json['requestId'] as String?) ?? (json['id'] as String?);
     if (id == null) return null;
-    
-    
-    
-    
-    
-    
+
     final pickup =
         _parseFeedLocation(json['pickup']) ??
         _parseLiveLocation(json, 'pickup') ??
@@ -204,17 +122,13 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     final tier = _parseTier(
       json['tierId'] as String? ?? json['tier'] as String?,
     );
-    
-    
-    
+
     final myOffer = json['myOffer'];
     final hasOffer = myOffer is Map<String, dynamic>;
     final feedStatus = hasOffer
         ? JeeberFeedItemStatus.pendingResponse
         : JeeberFeedItemStatus.incoming;
-    
-    
-    
+
     final amount = json['amount'];
     final earnings =
         (json['potentialEarnings'] as num?)?.toDouble() ??
@@ -224,15 +138,9 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
             : 0.0);
     final currency =
         (json['currency'] as String?) ?? _amountCurrency(amount) ?? 'USD';
-    
-    
+
     final distanceMeters = (json['distanceMeters'] as num?)?.toDouble();
-    
-    
-    
-    
-    
-    
+
     final rawRemaining = json['offerDeadlineInSeconds'];
     final DateTime? expires;
     if (rawRemaining is num) {
@@ -254,13 +162,10 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
       potentialEarnings: earnings,
       currency: currency,
       expiresAt: expires,
-      
-      
-      
+
       senderName: json['senderName'] as String?,
       senderAvatarUrl: json['senderAvatarUrl'] as String?,
-      
-      
+
       itemsSummary:
           json['description'] as String? ??
           json['itemsSummary'] as String? ??
@@ -270,24 +175,14 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
           : (json['distanceFromYouKm'] as num?)?.toDouble(),
       receivedAt: createdRaw != null ? _parseServerTime(createdRaw) : null,
       feedStatus: feedStatus,
-      
-      
-      
+
       requestIsOpen: requestStatus.isEmpty ||
           ServerRequestStatus.isOpen(requestStatus),
     );
   }
 
-  
-  
-  
-  
-  
   static DateTime? _parseServerTime(String raw) => ServerTime.parse(raw);
 
-  
-  
-  
   RequestLocation? _parseFeedLocation(Object? raw) {
     if (raw is! Map<String, dynamic>) return null;
     final label =
@@ -304,7 +199,7 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
         return RequestLocation(label: label, latitude: lat, longitude: lng);
       }
     }
-    
+
     final lat =
         (raw['lat'] as num?)?.toDouble() ??
         (raw['latitude'] as num?)?.toDouble();
@@ -350,9 +245,7 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
     switch (raw) {
       case 'flash':
         return JeeberRequestTier.flash;
-      
-      
-      
+
       case 'standard':
       case 'express':
       case 'on_the_way':

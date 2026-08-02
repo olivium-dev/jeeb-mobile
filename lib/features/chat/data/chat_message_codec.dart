@@ -25,7 +25,6 @@ class ChatMessageCodec {
     final senderId = row['author_id'] ?? row['senderId'];
     if (senderId is! String || senderId.trim().isEmpty) return false;
 
-
     final kind = row['kind'];
     if (kind is! String || !kSupportedMessageKinds.contains(kind)) return false;
 

@@ -21,7 +21,6 @@ bool get _holdSplash => kDebugMode && DevSeam.current.holdSplash;
 
 String get _forcedLocale => kDebugMode ? DevSeam.current.forcedLocale : '';
 
-
 class JeebBootstrap extends StatefulWidget {
   const JeebBootstrap({
     super.key,

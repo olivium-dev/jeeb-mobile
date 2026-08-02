@@ -1,6 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-
 class DeliveryReviewData extends Equatable {
   const DeliveryReviewData({
     required this.id,
@@ -21,13 +20,8 @@ class DeliveryReviewData extends Equatable {
   final String? reviewerAvatarUrl;
   final bool isVerified;
 
-  
-  
-  
   final int helpfulCount;
 
-  
-  
   String get reviewerFirstName {
     final trimmed = reviewerName.trim();
     if (trimmed.isEmpty) return trimmed;
@@ -39,12 +33,6 @@ class DeliveryReviewData extends Equatable {
   List<Object?> get props =>
       [id, reviewerName, rating, body, daysAgo, reviewerAvatarUrl, isVerified, helpfulCount];
 }
-
-
-
-
-
-
 
 class DeliveryManProfileViewData extends Equatable {
   const DeliveryManProfileViewData({
@@ -68,14 +56,8 @@ class DeliveryManProfileViewData extends Equatable {
   final String? avatarUrl;
   final bool isVerified;
 
-  
-  
-  
-  
   final String? jeeberId;
 
-  
-  
   static const int coldStartThreshold = 5;
 
   bool get isColdStart => reviewCount < coldStartThreshold;

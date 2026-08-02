@@ -42,7 +42,6 @@ class LiveTrackingL10n {
       _pick('Send request again', 'إعادة إرسال الطلب');
   String get noShowKeepCta => _pick('Keep waiting', 'متابعة الانتظار');
 
-
   String positionStaleNotice(int minutes) => _pick(
         "Jeeber's location is $minutes min old",
         'موقع الجيبر قديم منذ $minutes دقيقة',

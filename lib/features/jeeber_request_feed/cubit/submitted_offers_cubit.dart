@@ -7,22 +7,13 @@ import '../domain/submitted_offer.dart';
 import '../domain/submitted_offers_repository.dart';
 import 'submitted_offers_state.dart';
 
-
-
-
-
-
-
-
 class SubmittedOffersCubit extends Cubit<SubmittedOffersState> {
   SubmittedOffersCubit({
     required SubmittedOffersRepository repository,
     Stream<OfferLifecycleEvent>? lifecycleSignals,
   })  : _repository = repository,
         super(const SubmittedOffersState()) {
-    
-    
-    
+
     if (lifecycleSignals != null) {
       _lifecycleSub = lifecycleSignals.listen(_onLifecycleEvent);
     }
@@ -31,8 +22,6 @@ class SubmittedOffersCubit extends Cubit<SubmittedOffersState> {
   final SubmittedOffersRepository _repository;
   StreamSubscription<OfferLifecycleEvent>? _lifecycleSub;
 
-  
-  
   Future<void> load() async {
     final isInitial = state.status == SubmittedOffersStatus.initial;
     if (isInitial) {
@@ -53,9 +42,6 @@ class SubmittedOffersCubit extends Cubit<SubmittedOffersState> {
     }
   }
 
-  
-  
-  
   Future<void> withdraw(String offerId) async {
     if (state.isWithdrawing(offerId)) return;
     if (!state.offers.any((o) => o.id == offerId)) return;
@@ -74,9 +60,6 @@ class SubmittedOffersCubit extends Cubit<SubmittedOffersState> {
     ));
   }
 
-  
-  
-  
   Future<void> applyOfferLifecycle(String offerId, OfferStatus status) async {
     final index = state.offers.indexWhere((o) => o.id == offerId);
     if (index != -1) {

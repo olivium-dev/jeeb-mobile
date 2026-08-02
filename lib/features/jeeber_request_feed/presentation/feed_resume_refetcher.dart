@@ -6,35 +6,6 @@ import '../../../core/notifications/application/badge_count_cubit.dart';
 import '../../shell/tab_visibility.dart';
 import '../cubit/request_feed_cubit.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class FeedResumeRefetcher extends StatefulWidget {
   const FeedResumeRefetcher({super.key, required this.child});
 
@@ -46,17 +17,9 @@ class FeedResumeRefetcher extends StatefulWidget {
 
 class _FeedResumeRefetcherState extends State<FeedResumeRefetcher>
     with ResumeRefetchMixin {
-  
-  
-  
-  
+
   bool? _wasVisible;
 
-  
-  
-  
-  
-  
   @override
   void onAppResumed() => _refetch();
 
@@ -70,12 +33,6 @@ class _FeedResumeRefetcherState extends State<FeedResumeRefetcher>
     _refetch();
   }
 
-  
-  
-  
-  
-  
-  
   void _refetch() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -88,11 +45,7 @@ class _FeedResumeRefetcherState extends State<FeedResumeRefetcher>
 
   @override
   Widget build(BuildContext context) {
-    
-    
-    
-    
-    
+
     final badgeCubit = context.watch<BadgeCountCubit?>();
     final isVisible = TabVisibility.maybeOf(context)?.isVisible ?? true;
     if (badgeCubit != null && isVisible && badgeCubit.state.newRequests > 0) {

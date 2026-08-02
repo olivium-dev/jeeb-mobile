@@ -344,4 +344,3 @@ Widget gpsPermissionBannerInDeliveryList() => Align(
         ),
       ),
     );
-

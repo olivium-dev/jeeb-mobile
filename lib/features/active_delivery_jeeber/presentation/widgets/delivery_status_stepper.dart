@@ -548,4 +548,3 @@ Widget deliveryStatusStepperDone() =>
 )
 Widget deliveryStatusStepperCancelled() =>
     _deliveryStatusStepperHosted(JeeberDeliveryStatus.cancelled);
-

@@ -1,4 +1,3 @@
-
 class EscalateEvidence {
   const EscalateEvidence({
     this.chatSnapshotUrl,

@@ -1,4 +1,3 @@
-
 import 'wallet_ledger_repository.dart' show WalletLedgerType;
 
 class WalletTransaction {

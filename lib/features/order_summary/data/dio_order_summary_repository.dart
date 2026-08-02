@@ -119,7 +119,6 @@ class DioOrderSummaryRepository implements OrderSummaryRepository {
     }
   }
 
-
   static String? _str(Object? raw) {
     if (raw is! String) return raw?.toString();
     final trimmed = raw.trim();

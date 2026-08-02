@@ -93,7 +93,6 @@ final class ObsDioInterceptor extends Interceptor {
     );
   }
 
-
   static Map<String, Object?> _requestHeaders(RequestOptions options) {
     final redacted = SecretRedactor.redactHeaders(
       _toObjectMap(options.headers),
@@ -142,7 +141,6 @@ final class ObsDioInterceptor extends Interceptor {
     return SecretRedactor.redactString(capped);
   }
 
-
   static int _seqFor(RequestOptions options) {
     final stashed = options.extra[_seqKey];
     if (stashed is int) return stashed;
@@ -183,7 +181,6 @@ final class ObsDioInterceptor extends Interceptor {
     }
     return null;
   }
-
 
   static Map<String, Object?> _toObjectMap(Map<String, dynamic> headers) =>
       headers.map((key, value) => MapEntry(key, value as Object?));

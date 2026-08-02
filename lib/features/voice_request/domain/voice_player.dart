@@ -1,17 +1,7 @@
 import 'voice_clip.dart';
 
-
-
-
-
-
-
-
-
 abstract class VoicePlayer {
-  
-  
-  
+
   Future<void> play(
     VoiceClip clip, {
     required void Function(Duration) onPosition,
@@ -23,9 +13,6 @@ abstract class VoicePlayer {
   Future<void> seek(Duration position);
   Future<void> stop();
 }
-
-
-
 
 class FakeVoicePlayer implements VoicePlayer {
   int playCalls = 0;
@@ -70,9 +57,7 @@ class FakeVoicePlayer implements VoicePlayer {
     _onCompleted = null;
   }
 
-  
   void emitPosition(Duration position) => _onPosition?.call(position);
 
-  
   void emitCompleted() => _onCompleted?.call();
 }

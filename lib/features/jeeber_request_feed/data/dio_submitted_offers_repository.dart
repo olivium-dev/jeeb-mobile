@@ -4,19 +4,6 @@ import '../../../core/network/auth_token_store.dart';
 import '../domain/submitted_offer.dart';
 import '../domain/submitted_offers_repository.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 class DioSubmittedOffersRepository implements SubmittedOffersRepository {
   const DioSubmittedOffersRepository({
     required Dio dio,
@@ -35,12 +22,7 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
   @override
   Future<List<SubmittedOffer>> listSubmitted() async {
     try {
-      
-      
-      
-      
-      
-      
+
       final jeeberId = _jeeberId ?? await _tokenStore?.userId;
       final response = await _dio.get<Map<String, dynamic>>(
         _path,
@@ -50,20 +32,14 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
       );
       return _parse(response.data ?? const {});
     } on DioException {
-      
-      
-      
+
       return const <SubmittedOffer>[];
     }
   }
 
   @override
   Future<bool> withdraw(String offerId) async {
-    
-    
-    
-    
-    
+
     try {
       await _dio.delete<void>('$_path/$offerId');
       return true;
@@ -75,12 +51,7 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
   }
 
   List<SubmittedOffer> _parse(Map<String, dynamic> data) {
-    
-    
-    
-    
-    
-    
+
     final items = data['items'] as List? ?? const <dynamic>[];
     return items
         .whereType<Map<String, dynamic>>()
@@ -90,15 +61,12 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
   }
 
   SubmittedOffer? _parseOffer(Map<String, dynamic> json) {
-    
-    
-    
+
     final id = (json['id'] as String?) ?? (json['offerId'] as String?);
     if (id == null) return null;
     final requestId =
         (json['requestId'] as String?) ?? (json['request_id'] as String?) ?? '';
-    
-    
+
     final price = _amount(json['price']) ??
         _amount(json['amount']) ??
         _amount(json['fee']);
@@ -114,8 +82,6 @@ class DioSubmittedOffersRepository implements SubmittedOffersRepository {
     );
   }
 
-  
-  
   double? _amount(Object? raw) {
     if (raw is num) return raw.toDouble();
     if (raw is Map && raw['value'] is num) {

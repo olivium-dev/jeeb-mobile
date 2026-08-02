@@ -25,7 +25,6 @@ class DisputeStatusL10n {
   String get supportCta => _l10n.disputeStatusSupportCta;
   String get backCta => _l10n.disputeStatusBackCta;
 
-
   String get resolvedLabel => _pick('Resolved', 'تم الحل');
 
   String get outcomeHeading => _pick('Outcome', 'النتيجة');

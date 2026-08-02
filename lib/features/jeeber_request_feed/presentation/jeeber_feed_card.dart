@@ -9,28 +9,6 @@ import '../data/request_feed_models.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../core/previews/jeeb_preview.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class JeeberFeedCard extends StatelessWidget {
   const JeeberFeedCard({
     super.key,
@@ -46,42 +24,24 @@ class JeeberFeedCard extends StatelessWidget {
 
   final DeliveryRequest request;
 
-  
   final VoidCallback? onTap;
 
-  
   final VoidCallback? onIgnore;
 
-  
   final VoidCallback? onOffer;
 
-  
   final VoidCallback? onAdvanceStatus;
 
-  
   final bool isActionBusy;
 
-  
-  
-  
   final bool isExpired;
 
-  
-  
-  
-  
-  
-  
-  
   final bool exposeMakeOfferId;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    
-    
-    
-    
+
     return Semantics(
       identifier: 'jeeber_feed_request_card_${request.id}',
       button: !isExpired && onTap != null,
@@ -106,7 +66,7 @@ class JeeberFeedCard extends StatelessWidget {
             child: GestureDetector(
               key: Key('jeeber-feed-card-${request.id}'),
               behavior: HitTestBehavior.opaque,
-              
+
               onTap: isExpired ? null : onTap,
               child: _CardColumn(
                 request: request,
@@ -336,16 +296,13 @@ class _RatingCluster extends StatelessWidget {
         spacing: Spacing.twoXSmall,
         showRatingValue: false,
         showReviewCount: false,
-        
+
         activeColor: colorScheme.tertiary,
         inactiveColor: colorScheme.outlineVariant,
       ),
     );
   }
 }
-
-
-
 
 class _TierChip extends StatelessWidget {
   const _TierChip({required this.tier});
@@ -387,11 +344,6 @@ class _TierChip extends StatelessWidget {
     JeeberRequestTier.bulk => tokens?.express ?? scheme.tertiary,
   };
 }
-
-
-
-
-
 
 class _SummaryLine extends StatelessWidget {
   const _SummaryLine({required this.text});
@@ -497,9 +449,6 @@ class _CardFooter extends StatelessWidget {
   }
 }
 
-
-
-
 class _ActionArea extends StatelessWidget {
   const _ActionArea({
     required this.request,
@@ -600,11 +549,6 @@ class _OfferButton extends StatelessWidget {
   final String requestId;
   final VoidCallback? onTap;
 
-  
-  
-  
-  
-  
   final bool exposeMakeOfferId;
 
   @override
@@ -629,10 +573,6 @@ class _OfferButton extends StatelessWidget {
     );
   }
 }
-
-
-
-
 
 class _ExpiredStatus extends StatelessWidget {
   const _ExpiredStatus({required this.requestId});
@@ -701,17 +641,7 @@ class _AcceptedAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
     return IntrinsicWidth(
       child: Semantics(
         identifier: 'jeeber_feed_request_action_$requestId',
@@ -745,10 +675,7 @@ class _Timestamp extends StatelessWidget {
     final theme = Theme.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
     return Text(
-      
-      
-      
-      
+
       DateFormat.Hm(locale).format(receivedAt!.toLocal()),
       key: const Key('jeeber-feed-card-timestamp'),
       style: theme.textTheme.labelSmall?.copyWith(

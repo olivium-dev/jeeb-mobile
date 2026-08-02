@@ -120,24 +120,6 @@ import '../diagnostics/diagnostics_screen.dart';
 import '../observability/session_trace/session_trace.dart';
 import '../onboarding/onboarding_cubit.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @visibleForTesting
 class CaptureLocationRoute extends StatelessWidget {
   const CaptureLocationRoute({super.key});
@@ -145,9 +127,7 @@ class CaptureLocationRoute extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CaptureLocationScreen(
-      
-      
-      
+
       onPinned: () {
         if (context.canPop()) context.pop();
       },
@@ -155,51 +135,12 @@ class CaptureLocationRoute extends StatelessWidget {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @visibleForTesting
 String? normalizeChatDeepLink(Uri uri) {
   if (uri.host != 'chat') return null;
   final id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
   return id.isEmpty ? null : '/chat/$id';
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 String resolveTrackingDeliveryId({
   required String? routeId,
@@ -211,21 +152,6 @@ String resolveTrackingDeliveryId({
   return routeId ?? '';
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @visibleForTesting
 String? normalizeJeebSchemeDeepLink(Uri uri) {
   if (uri.scheme != 'jeeb' || uri.host.isEmpty) return null;
@@ -233,45 +159,12 @@ String? normalizeJeebSchemeDeepLink(Uri uri) {
   return uri.hasQuery ? '$path?${uri.query}' : path;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 Widget buildChatDetailRouteChild(String id) =>
     ChatDetailScreen(key: ValueKey<String>(id), chatId: id);
 
 class AppRouter {
   AppRouter._();
 
-  
-  
-  
-  
-  
-  
-  
   static const Set<String> _preAuthRoutes = {
     '/onboarding',
     '/register',
@@ -279,93 +172,37 @@ class AppRouter {
   };
   static const String _lockRoute = '/lock';
 
-  
-  
   static const String _accountStatusRoute = '/account-status';
 
-  
   static bool _isPreAuth(String loc) => _preAuthRoutes.contains(loc);
 
-  
-  
-  
-  
-  
   static String get _devChat => kDebugMode ? DevSeam.current.chatSelector : '';
 
-  
-  
-  
-  
   static String get _devRoute => kDebugMode ? DevSeam.current.route : '';
 
-  
-  
-  
-  
   static bool get _devSkipOnboarding =>
       kDebugMode && DevSeam.current.skipOnboarding;
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   static ({bool hasOpinion, String? location}) _initialLandingPinRedirect(
     GoRouterState state,
     String pinLocation,
     bool Function() landed,
     void Function(bool) setLanded,
   ) {
-    
-    
+
     final pinPath = Uri.parse(pinLocation).path;
     if (state.matchedLocation == pinPath) {
-      
+
       setLanded(true);
       return (hasOpinion: true, location: null);
     }
-    
-    
-    
+
     if (!landed() && state.matchedLocation == '/') {
       return (hasOpinion: true, location: pinLocation);
     }
     return (hasOpinion: false, location: null);
   }
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   static String? _firstRunRedirect(
     GoRouterState state,
     OnboardingCubit onboarding,
@@ -377,23 +214,11 @@ class AppRouter {
     final atPreAuth = _isPreAuth(loc);
     if (!completed && !atPreAuth) return '/onboarding';
     if (completed && loc == '/onboarding') return '/';
-    
-    
-    
+
     if (completed && session.isUnauthenticated && !atPreAuth) {
       return '/register';
     }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
     if (completed &&
         !session.isUnauthenticated &&
         accountStatus.isBlocked &&
@@ -405,18 +230,6 @@ class AppRouter {
     return null;
   }
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   static LiveTrackingRepository _trackingRepository() {
     if (kDebugMode &&
         _devRoute.contains('/tracking') &&
@@ -426,43 +239,11 @@ class AppRouter {
     return sl<LiveTrackingRepository>();
   }
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   @visibleForTesting
   static const Map<String, String> backFallbacks = {
-    
-    
+
     'set-password': '/',
-    
+
     'offer-review': '/',
     'waiting-no-coverage': '/',
     'delivered-receipt': '/',
@@ -483,9 +264,7 @@ class AppRouter {
     'client-location': '/',
     'capture-location': '/',
     'transcription': '/',
-    
-    
-    
+
     'compose-dictation': '/',
     'compose-dictation-review': '/',
     'jeeber-request-detail': '/',
@@ -493,7 +272,7 @@ class AppRouter {
     'live-tracking': '/',
     'otp-handover': '/',
     'escalate': '/',
-    
+
     'jeeber-active-delivery': '/',
     'jeeber-settlement': '/',
     'jeeber-settlement-detail': '/jeeber/settlement',
@@ -506,10 +285,10 @@ class AppRouter {
     'customer-wallet': '/',
     'wallet-charge-info': '/wallet',
     'earnings': '/',
-    
+
     'wallet-activity': '/wallet',
     'transaction-detail': '/wallet/activity',
-    
+
     'notifications': '/',
     'support-ticket': '/',
     'dispute-status': '/',
@@ -519,11 +298,6 @@ class AppRouter {
     'password-security': '/settings',
   };
 
-  
-  
-  
-  
-  
   static List<RouteBase> _wrapRootAware(List<RouteBase> routes) {
     return <RouteBase>[
       for (final route in routes)
@@ -552,58 +326,25 @@ class AppRouter {
   static GoRouter create({
     required OnboardingCubit onboarding,
     required BiometricLockCubit biometricLock,
-    
-    
-    
-    
-    
+
     SessionGate session = const AlwaysAuthenticatedSessionGate(),
-    
-    
-    
-    
-    
-    
+
     AccountStatusGate accountStatus = const AlwaysActiveAccountStatusGate(),
   }) {
-    
-    
-    
-    
+
     var devSeamLanded = false;
-    
-    
-    
-    
+
     final Cubit<SessionState>? sessionCubit = session is Cubit<SessionState>
         ? session as Cubit<SessionState>
         : null;
-    
-    
-    
+
     final BlocBase<Object?>? accountStatusBloc =
         accountStatus is BlocBase<Object?>
         ? accountStatus as BlocBase<Object?>
         : null;
     return GoRouter(
       initialLocation: '/',
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
-      
+
       observers: [
         DiagNavObserver(),
         newAppRouteObserver(),
@@ -618,21 +359,13 @@ class AppRouter {
           _BlocRefreshListenable(accountStatusBloc),
       ]),
       redirect: (context, state) {
-        
-        
-        
-        
+
         final chatDeepLink = normalizeChatDeepLink(state.uri) ??
             normalizeJeebSchemeDeepLink(state.uri);
         if (chatDeepLink != null && state.matchedLocation != chatDeepLink) {
           return chatDeepLink;
         }
 
-        
-        
-        
-        
-        
         if (_devChat.isNotEmpty) {
           final pin = _initialLandingPinRedirect(
             state,
@@ -640,23 +373,10 @@ class AppRouter {
             () => devSeamLanded,
             (v) => devSeamLanded = v,
           );
-          
-          
+
           return pin.hasOpinion ? pin.location : null;
         }
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
         if (_devRoute.isNotEmpty && _devSkipOnboarding) {
           final pin = _initialLandingPinRedirect(
             state,
@@ -664,13 +384,10 @@ class AppRouter {
             () => devSeamLanded,
             (v) => devSeamLanded = v,
           );
-          
+
           return pin.hasOpinion ? pin.location : null;
         }
 
-        
-        
-        
         final firstRun = _firstRunRedirect(
           state,
           onboarding,
@@ -679,10 +396,6 @@ class AppRouter {
         );
         if (firstRun != null) return firstRun;
 
-        
-        
-        
-        
         if (_devRoute.isNotEmpty && !_devSkipOnboarding) {
           final pin = _initialLandingPinRedirect(
             state,
@@ -693,23 +406,6 @@ class AppRouter {
           if (pin.hasOpinion) return pin.location;
         }
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
         final completed = onboarding.state;
         final loc = state.matchedLocation;
         final lockPhase = biometricLock.state.phase;
@@ -724,11 +420,7 @@ class AppRouter {
         }
         return null;
       },
-      
-      
-      
-      
-      
+
       routes: _wrapRootAware([
         GoRoute(
           path: '/',
@@ -748,27 +440,14 @@ class AppRouter {
         GoRoute(
           path: _lockRoute,
           name: 'biometric-lock',
-          
-          
+
           builder: (context, state) => const BiometricLockScreen(),
         ),
-        
-        
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/set-password',
           name: 'set-password',
-          
-          
-          
-          
-          
-          
-          
+
           builder: (context, state) {
             final query = state.uri.queryParameters;
             final extra = state.extra;
@@ -783,50 +462,27 @@ class AppRouter {
             );
           },
         ),
-        
-        
-        
+
         GoRoute(
           path: _accountStatusRoute,
           name: 'account-status',
           builder: (context, state) => const AccountStatusScreen(),
         ),
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/requests/:id/offers',
           name: 'offer-review',
           builder: (context, state) =>
               ClientOffersScreen(requestId: state.pathParameters['id'] ?? ''),
         ),
-        
-        
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/requests/:id/waiting',
           name: 'waiting-no-coverage',
           builder: (context, state) =>
               NoOfferTimeoutScreen(requestId: state.pathParameters['id'] ?? ''),
         ),
-        
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/orders/:id/receipt',
           name: 'delivered-receipt',
@@ -834,11 +490,7 @@ class AppRouter {
             deliveryId: state.pathParameters['id'] ?? '',
           ),
         ),
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/orders/:id/summary',
           name: 'order-summary',
@@ -864,14 +516,7 @@ class AppRouter {
         GoRoute(
           path: '/orders/:id/rate',
           name: 'rating-prompt',
-          
-          
-          
-          
-          
-          
-          
-          
+
           redirect: (context, state) {
             final id = state.pathParameters['id'] ?? '';
             if (id.isEmpty) return null;
@@ -888,8 +533,7 @@ class AppRouter {
           builder: (context, state) =>
               buildChatDetailRouteChild(state.pathParameters['id'] ?? ''),
         ),
-        
-        
+
         GoRoute(
           path: '/dev-chat',
           name: 'dev-chat',
@@ -898,17 +542,10 @@ class AppRouter {
         GoRoute(
           path: '/profile/kyc',
           name: 'kyc-status',
-          
-          
-          
-          
-          
+
           builder: (context, state) => const KycWizardScreen(),
         ),
-        
-        
-        
-        
+
         GoRoute(
           path: '/jeeber/onboarding',
           name: 'jeeber-onboarding',
@@ -928,10 +565,7 @@ class AppRouter {
         GoRoute(
           path: '/profile/customer',
           name: 'customer-profile',
-          
-          
-          
-          
+
           builder: (context, state) {
             final extra = state.extra;
             if (extra is CustomerProfileViewData) {
@@ -948,9 +582,7 @@ class AppRouter {
         GoRoute(
           path: '/profile/delivery-man',
           name: 'delivery-man-profile',
-          
-          
-          
+
           builder: (context, state) {
             final extra = state.extra;
             if (extra is DeliveryManProfileViewData) {
@@ -977,31 +609,7 @@ class AppRouter {
             GoRoute(
               path: 'profile',
               name: 'settings-profile',
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
+
               builder: (context, state) => BlocProvider<SettingsCubit>(
                 create: (_) => SettingsCubit(
                   profileRepository: SharedPrefsProfileRepository(
@@ -1020,14 +628,10 @@ class AppRouter {
             GoRoute(
               path: 'addresses',
               name: 'settings-addresses',
-              
+
               builder: (context, state) => const SavedLocationsScreen(),
               routes: [
-                
-                
-                
-                
-                
+
                 GoRoute(
                   path: 'edit',
                   name: 'address-detail',
@@ -1043,11 +647,7 @@ class AppRouter {
               builder: (context, state) =>
                   const NotificationPreferencesScreen(),
             ),
-            
-            
-            
-            
-            
+
             GoRoute(
               path: 'diagnostics',
               name: 'settings-diagnostics',
@@ -1058,19 +658,9 @@ class AppRouter {
         GoRoute(
           path: '/voice-request',
           name: 'voice-request',
-          
-          
-          
-          
-          
-          
-          
-          
-          
+
           builder: (context, state) => VoiceRequestScreen(
-            
-            
-            
+
             onSent: (clipId, transcript,
                     {String? localAudioPath,
                     Duration duration = Duration.zero}) =>
@@ -1085,23 +675,13 @@ class AppRouter {
             ),
           ),
         ),
-        
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/request-type',
           name: 'request-type',
           builder: (context, state) => RequestTypeScreen(
             onChangeLocation: () => context.push('/client-location'),
-            
-            
-            
-            
-            
-            
+
             onTierSelected: (tier) => context.push(
               '/request-summary',
               extra: RequestDraft(
@@ -1110,12 +690,7 @@ class AppRouter {
                 tierName: tier.id.name,
               ),
             ),
-            
-            
-            
-            
-            
-            
+
             onContinue: (draft) =>
                 context.push('/request-summary', extra: draft),
           ),
@@ -1123,12 +698,7 @@ class AppRouter {
         GoRoute(
           path: '/client-location',
           name: 'client-location',
-          
-          
-          
-          
-          
-          
+
           builder: (context, state) => const ClientLocationScreen(),
         ),
         GoRoute(
@@ -1139,16 +709,7 @@ class AppRouter {
         GoRoute(
           path: '/voice-request/transcription',
           name: 'transcription',
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
+
           builder: (context, state) {
             final extra = state.extra;
             final clip = extra is VoiceClip
@@ -1170,14 +731,7 @@ class AppRouter {
             );
           },
         ),
-        
-        
-        
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/compose-dictation',
           name: 'compose-dictation',
@@ -1185,8 +739,7 @@ class AppRouter {
             onSent: (clipId, transcript,
                 {String? localAudioPath,
                 Duration duration = Duration.zero}) async {
-              
-              
+
               final clip = await context.push<VoiceClip>(
                 '/compose-dictation/review',
                 extra: VoiceClip(
@@ -1196,8 +749,7 @@ class AppRouter {
                   localAudioPath: localAudioPath,
                 ),
               );
-              
-              
+
               if (clip != null && context.mounted && context.canPop()) {
                 context.pop(clip);
               }
@@ -1230,14 +782,10 @@ class AppRouter {
         GoRoute(
           path: '/jeeber/requests/:id/offer',
           name: 'jeeber-offer-submission',
-          
-          
+
           builder: (context, state) {
             final requestId = state.pathParameters['id'] ?? '';
-            
-            
-            
-            
+
             return RootAwareBackScope(
               fallbackLocation: '/',
               child: OfferSubmissionScreen(
@@ -1268,18 +816,7 @@ class AppRouter {
         GoRoute(
           path: '/jeeber/requests/:id',
           name: 'jeeber-request-detail',
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
-          
+
           builder: (context, state) {
             final id = state.pathParameters['id'] ?? '';
             final extra = state.extra;
@@ -1300,10 +837,7 @@ class AppRouter {
               requestId: id,
               initial: cached,
               fetch: () => _recoverFeedRequestById(id),
-              
-              
-              
-              
+
               fetchAcceptedDeliveryId: () => _probeAcceptedDeliveryId(id),
               onAcceptedRedirect: (deliveryId) => context.pushReplacementNamed(
                 'jeeber-active-delivery',
@@ -1318,11 +852,7 @@ class AppRouter {
         GoRoute(
           path: '/request-summary',
           name: 'request-summary',
-          
-          
-          
-          
-          
+
           builder: (context, state) {
             final extra = state.extra;
             if (extra is! RequestDraft) {
@@ -1340,14 +870,7 @@ class AppRouter {
           path: '/orders/:id/tracking',
           name: 'live-tracking',
           builder: (context, state) {
-            
-            
-            
-            
-            
-            
-            
-            
+
             final deliveryId = resolveTrackingDeliveryId(
               routeId: state.pathParameters['id'],
               queryDeliveryId: state.uri.queryParameters['deliveryId'],
@@ -1356,43 +879,18 @@ class AppRouter {
               create: (_) => LiveTrackingCubit(
                 repository: _trackingRepository(),
                 deliveryId: deliveryId,
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
+
                 refreshSignals: resolvePushRefreshStream(
                   topics: const {RefreshTopic.order},
                 ),
-                
-                
-                
+
                 handoverCodeStore: sl.isRegistered<HandoverCodeStore>()
                     ? sl<HandoverCodeStore>()
                     : null,
-                
-                
-                
-                
-                
+
                 positionChannel: resolveCourierPositionChannel(),
               ),
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
+
               child: LiveTrackingScreen(
                 deliveryId: deliveryId,
                 useLiveMap: true,
@@ -1411,9 +909,7 @@ class AppRouter {
                 repository: sl<OtpHandoverRepository>(),
                 deliveryId: deliveryId,
                 isClient: isClient,
-                
-                
-                
+
                 codeStore: sl.isRegistered<HandoverCodeStore>()
                     ? sl<HandoverCodeStore>()
                     : null,
@@ -1425,10 +921,7 @@ class AppRouter {
             );
           },
         ),
-        
-        
-        
-        
+
         GoRoute(
           path: '/orders/:id/feedback',
           name: 'feedback',
@@ -1442,9 +935,7 @@ class AppRouter {
             );
           },
         ),
-        
-        
-        
+
         GoRoute(
           path: '/orders/:id/mutual-rate',
           name: 'mutual-rating',
@@ -1461,8 +952,7 @@ class AppRouter {
             );
           },
         ),
-        
-        
+
         GoRoute(
           path: '/orders/:id/escalate',
           name: 'escalate',
@@ -1477,8 +967,7 @@ class AppRouter {
             );
           },
         ),
-        
-        
+
         GoRoute(
           path: '/jeeber/deliveries/:id/active',
           name: 'jeeber-active-delivery',
@@ -1487,20 +976,11 @@ class AppRouter {
             return ActiveDeliveryJeeberScreen(
               deliveryId: deliveryId,
               repository: sl<ActiveDeliveryRepository>(),
-              
-              
+
               photoPicker: sl<PhotoPickerService>(),
-              
-              
-              
-              
+
               gpsUploader: sl<BackgroundGpsCubit>(),
-              
-              
-              
-              
-              
-              
+
               onOpenChat: () => context.pushNamed(
                 'chat-detail',
                 pathParameters: {'id': deliveryId},
@@ -1508,17 +988,11 @@ class AppRouter {
               onOpenOtp: () {
                 context.go('/orders/$deliveryId/otp?mode=jeeber');
               },
-              
-              
-              
-              
-              
-              
-              
+
               onMarkedDelivered: () {
                 context.go('/orders/$deliveryId/mutual-rate?mode=jeeber');
               },
-              
+
               mapsUrlBuilder: (url) => launchUrl(
                 Uri.parse(url),
                 mode: LaunchMode.externalApplication,
@@ -1527,7 +1001,6 @@ class AppRouter {
           },
         ),
 
-        
         GoRoute(
           path: '/jeeber/settlement',
           name: 'jeeber-settlement',
@@ -1539,12 +1012,11 @@ class AppRouter {
                 extra: statement,
               );
             },
-            
+
             onOpenPdf: (path) => OpenFile.open(path),
           ),
         ),
 
-        
         GoRoute(
           path: '/jeeber/settlement/:id',
           name: 'jeeber-settlement-detail',
@@ -1559,112 +1031,66 @@ class AppRouter {
           },
         ),
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-
-        
-        
         GoRoute(
           path: '/jeeber/onboarding/funding',
           name: 'onboarding-funding',
           builder: (context, state) => const OnboardingFundingScreen(),
         ),
-        
-        
+
         GoRoute(
           path: '/jeeber/offer-gate',
           name: 'offer-kyc-gate',
           builder: (context, state) => const OfferKycGateScreen(),
         ),
-        
-        
-        
-        
+
         GoRoute(
           path: '/jeeber/register-prompt',
           name: 'delivery-register-prompt',
           builder: (context, state) => const DeliveryRegisterPromptScreen(),
         ),
-        
+
         GoRoute(
           path: '/kyc/rejected',
           name: 'kyc-rejected',
           builder: (context, state) => const KycRejectedScreen(),
         ),
-        
-        
-        
-        
+
         GoRoute(
           path: '/jeeber/pending-offers',
           name: 'jeeber-pending-offers',
           builder: (context, state) => const JeeberPendingOffersScreen(),
         ),
-        
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/wallet',
           name: 'wallet',
           builder: (context, state) => const WalletHubScreen(),
         ),
-        
-        
-        
-        
+
         GoRoute(
           path: '/wallet/customer',
           name: 'customer-wallet',
           builder: (context, state) => const CustomerWalletStubScreen(),
         ),
-        
-        
+
         GoRoute(
           path: '/wallet/charge-info',
           name: 'wallet-charge-info',
           builder: (context, state) => const WalletChargeInfoScreen(),
         ),
-        
-        
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/earnings',
           name: 'earnings',
           builder: (context, state) => const EarningsTab(),
         ),
 
-        
-        
-        
-        
-        
-
-        
-        
-        
         GoRoute(
           path: '/wallet/activity',
           name: 'wallet-activity',
           builder: (context, state) => const WalletActivityListScreen(),
         ),
-        
-        
-        
-        
+
         GoRoute(
           path: '/wallet/transactions/:id',
           name: 'transaction-detail',
@@ -1673,43 +1099,25 @@ class AppRouter {
           ),
         ),
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-
-        
-        
-        
         GoRoute(
           path: '/notifications',
           name: 'notifications',
           builder: (context, state) => const NotificationsListScreen(),
         ),
-        
-        
-        
+
         GoRoute(
           path: '/support',
           name: 'support-ticket',
           builder: (context, state) => const SupportTicketScreen(),
         ),
-        
-        
+
         GoRoute(
           path: '/disputes/:id',
           name: 'dispute-status',
           builder: (context, state) =>
               DisputeStatusScreen(disputeId: state.pathParameters['id'] ?? ''),
         ),
-        
-        
-        
+
         GoRoute(
           path: '/profile/delivery-man/reviews',
           name: 'reviews-list',
@@ -1717,9 +1125,7 @@ class AppRouter {
             jeeberId: state.uri.queryParameters['jeeberId'],
           ),
         ),
-        
-        
-        
+
         GoRoute(
           path: '/profile/delivery-man/:jeeberId/reviews',
           name: 'reviews-list-by-id',
@@ -1729,18 +1135,13 @@ class AppRouter {
                 state.uri.queryParameters['jeeberId'],
           ),
         ),
-        
-        
-        
-        
-        
+
         GoRoute(
           path: '/settings/language',
           name: 'language-settings',
           builder: (context, state) => const LanguageSettingsScreen(),
         ),
-        
-        
+
         GoRoute(
           path: '/settings/password',
           name: 'password-security',
@@ -1752,8 +1153,6 @@ class AppRouter {
     );
   }
 }
-
-
 
 class _CubitRefreshListenable<T> extends ChangeNotifier {
   _CubitRefreshListenable(Cubit<T> cubit) {
@@ -1769,10 +1168,6 @@ class _CubitRefreshListenable<T> extends ChangeNotifier {
   }
 }
 
-
-
-
-
 class _BlocRefreshListenable extends ChangeNotifier {
   _BlocRefreshListenable(BlocBase<Object?> bloc) {
     _subscription = bloc.stream.listen((_) => notifyListeners());
@@ -1786,8 +1181,6 @@ class _BlocRefreshListenable extends ChangeNotifier {
     super.dispose();
   }
 }
-
-
 
 class _MergedRefreshListenable extends ChangeNotifier {
   _MergedRefreshListenable(this._children) {
@@ -1808,18 +1201,6 @@ class _MergedRefreshListenable extends ChangeNotifier {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 Future<FeedRequest?> _recoverFeedRequestById(String id) async {
   if (id.isEmpty || !sl.isRegistered<RequestFeedRepository>()) return null;
   final requests = await sl<RequestFeedRepository>().refresh();
@@ -1828,25 +1209,13 @@ Future<FeedRequest?> _recoverFeedRequestById(String id) async {
       return FeedRequest(
         id: request.id,
         shortLabel: request.pickup.label,
-        
-        
+
         description: request.itemsSummary,
       );
     }
   }
   return null;
 }
-
-
-
-
-
-
-
-
-
-
-
 
 Future<String?> _probeAcceptedDeliveryId(String id) async {
   if (id.isEmpty || !sl.isRegistered<ActiveDeliveryRepository>()) return null;

@@ -301,7 +301,6 @@ class _ImageBubble extends StatelessWidget {
     return Semantics(label: l10n.chatImageA11y(authorLabel), child: bubble);
   }
 
-
   Widget _imageContent(DeliveryChatMessage message, Color onBubble) {
     final bytes = message.photoBytes;
     if (bytes != null && bytes.isNotEmpty) {

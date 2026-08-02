@@ -11,7 +11,6 @@ class AppTheme {
 
   static const String _fontFamily = 'Inter';
 
-
   static const Color _jeebNavy = Color(0xFF0B1351);
   static const Color _jeebOrange = Color(0xFFD73B00);
   static const Color _jeebMutedPurple = Color(0xFF777FC0);

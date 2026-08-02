@@ -4,24 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import '../domain/photo_attachment.dart';
 import '../domain/photo_picker_service.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class ImagePickerPhotoPickerService implements PhotoPickerService {
   ImagePickerPhotoPickerService({ImagePicker? picker})
       : _picker = picker ?? ImagePicker();
@@ -53,7 +35,7 @@ class ImagePickerPhotoPickerService implements PhotoPickerService {
     } catch (_) {
       throw const PhotoPickException(PhotoPickFailure.unavailable);
     }
-    
+
     if (file == null) {
       throw const PhotoPickException(PhotoPickFailure.cancelled);
     }
@@ -65,9 +47,6 @@ class ImagePickerPhotoPickerService implements PhotoPickerService {
     }
   }
 
-  
-  
-  
   PhotoPickFailure _mapPlatformFailure(PlatformException e) {
     final code = e.code.toLowerCase();
     if (code.contains('access_denied') || code.contains('access_restricted')) {

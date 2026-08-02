@@ -1,26 +1,13 @@
 import 'package:equatable/equatable.dart';
 
-
-
-
-
-
-
 enum OfferStatus {
-  
+
   submitted,
 
-  
-  
   accepted,
 
-  
-  
   lost;
 
-  
-  
-  
   static OfferStatus fromWire(String? raw) {
     switch (raw?.toLowerCase().replaceAll('_', '')) {
       case 'accepted':
@@ -43,14 +30,6 @@ enum OfferStatus {
   bool get isTerminal => this != OfferStatus.submitted;
 }
 
-
-
-
-
-
-
-
-
 class SubmittedOffer extends Equatable {
   const SubmittedOffer({
     required this.id,
@@ -62,34 +41,20 @@ class SubmittedOffer extends Equatable {
     this.status = OfferStatus.submitted,
   });
 
-  
-  
   final String id;
 
-  
-  
   final String requestId;
 
-  
-  
   final double price;
 
-  
   final String currency;
 
-  
   final int? etaMinutes;
 
-  
   final String? note;
 
-  
-  
   final OfferStatus status;
 
-  
-  
-  
   SubmittedOffer copyWith({OfferStatus? status}) {
     return SubmittedOffer(
       id: id,

@@ -2134,7 +2134,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String settlementCommissionLabel(String amount) =>
       _get('settlementCommissionLabel').replaceFirst('{amount}', amount);
 
-
   String get loginTitle => _get('loginTitle');
   String get loginEmailLabel => _get('loginEmailLabel');
   String get loginEmailHint => _get('loginEmailHint');

@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'photo_attachment.dart';
 
-
 class RawPhoto {
   const RawPhoto({required this.bytes, required this.source});
 
@@ -10,23 +9,14 @@ class RawPhoto {
   final PhotoSource source;
 }
 
-
-
-
 enum PhotoPickFailure {
-  
+
   cancelled,
 
-  
-  
   permissionDenied,
 
-  
   unavailable,
 }
-
-
-
 
 class PhotoPickException implements Exception {
   const PhotoPickException(this.failure);
@@ -37,17 +27,9 @@ class PhotoPickException implements Exception {
   String toString() => 'PhotoPickException(${failure.name})';
 }
 
-
-
-
 abstract class PhotoPickerService {
-  
-  
-  
-  
+
   Future<RawPhoto> pickFromCamera();
 
-  
-  
   Future<RawPhoto> pickFromGallery();
 }

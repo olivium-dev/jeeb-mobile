@@ -7,9 +7,6 @@ import '../../l10n/app_localizations.dart';
 import '../../devtool/catalog/fixtures/profile_unavailable_screen_fixtures.dart';
 import '../previews/jeeb_preview.dart';
 
-
-
-
 class ProfileUnavailableScreen extends StatelessWidget {
   const ProfileUnavailableScreen({super.key});
 

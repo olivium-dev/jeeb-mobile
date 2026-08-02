@@ -5,9 +5,6 @@ import 'package:omds/omds.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../l10n/app_localizations.dart';
 
-
-
-
 class DeliveryManMetaRow extends StatelessWidget {
   const DeliveryManMetaRow({
     super.key,
@@ -23,12 +20,7 @@ class DeliveryManMetaRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
-    
-    
-    
-    
-    
+
     return Semantics(
       identifier: semanticsId,
       container: true,

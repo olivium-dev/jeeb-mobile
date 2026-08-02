@@ -1,4 +1,3 @@
-
 enum SupportCategory {
   account,
   payment,

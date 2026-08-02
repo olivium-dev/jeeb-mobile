@@ -3,20 +3,9 @@ import 'package:equatable/equatable.dart';
 import '../data/request_feed_models.dart';
 import '../data/request_feed_repository.dart';
 
-
-
-
-
 enum RequestFeedStatus { initial, loading, ready, error }
 
-
-
 enum RequestActionStatus { idle, accepting, declining }
-
-
-
-
-
 
 class RequestActionEffect extends Equatable {
   const RequestActionEffect({
@@ -42,40 +31,23 @@ class RequestFeedState extends Equatable {
     this.errorMessageKey,
   });
 
-  
   final RequestFeedStatus status;
 
-  
-  
   final FeedTransport transport;
 
-  
-  
-  
   final List<DeliveryRequest> requests;
 
-  
-  
-  
-  
   final Set<String> expiredIds;
 
-  
-  
   final Map<String, RequestActionStatus> actionStatuses;
 
-  
-  
   final RequestActionEffect? lastEffect;
 
-  
-  
   final String? errorMessageKey;
 
   RequestActionStatus actionStatusFor(String id) =>
       actionStatuses[id] ?? RequestActionStatus.idle;
 
-  
   bool isExpired(String id) => expiredIds.contains(id);
 
   RequestFeedState copyWith({

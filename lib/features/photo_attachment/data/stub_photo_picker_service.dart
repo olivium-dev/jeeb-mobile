@@ -3,13 +3,6 @@ import 'dart:typed_data';
 import '../domain/photo_attachment.dart';
 import '../domain/photo_picker_service.dart';
 
-
-
-
-
-
-
-
 class StubPhotoPickerService implements PhotoPickerService {
   StubPhotoPickerService({
     this.cameraPayload,
@@ -18,19 +11,12 @@ class StubPhotoPickerService implements PhotoPickerService {
     this.galleryFailure,
   });
 
-  
-  
-  
   final Uint8List? cameraPayload;
 
-  
-  
   final Uint8List? galleryPayload;
 
-  
   final PhotoPickFailure? cameraFailure;
 
-  
   final PhotoPickFailure? galleryFailure;
 
   @override

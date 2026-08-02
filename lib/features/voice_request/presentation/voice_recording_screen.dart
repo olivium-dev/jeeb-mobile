@@ -19,9 +19,6 @@ import 'dart:async';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/voice_recording_screen_fixtures.dart';
 
-
-
-
 class VoiceRecordingKeys {
   const VoiceRecordingKeys._();
 
@@ -40,11 +37,6 @@ class VoiceRecordingKeys {
   );
 }
 
-
-
-
-
-
 typedef VoiceSentCallback =
     void Function(
       String id,
@@ -53,28 +45,11 @@ typedef VoiceSentCallback =
       Duration duration,
     });
 
-
-
-
-
-
-
-
-
-
 class VoiceRecordingScreen extends StatelessWidget {
   const VoiceRecordingScreen({super.key, this.cubit, this.onSent});
 
-  
-  
   final VoiceRecordingCubit? cubit;
 
-  
-  
-  
-  
-  
-  
   final VoiceSentCallback? onSent;
 
   @override
@@ -92,11 +67,6 @@ class VoiceRecordingScreen extends StatelessWidget {
     );
   }
 
-  
-  
-  
-  
-  
   VoiceRecordingCubit _buildProductionCubit() {
     final GetIt di = sl;
     final VoiceRecorder recorder = di.isRegistered<VoiceRecorder>()
@@ -134,13 +104,7 @@ class _VoiceRecordingView extends StatelessWidget {
           listener: (context, state) {
             if (state.phase == VoiceRecordingPhase.sent &&
                 state.result != null) {
-              
-              
-              
-              
-              
-              
-              
+
               onSent?.call(
                 state.result!.id,
                 state.result!.transcript,
@@ -150,9 +114,7 @@ class _VoiceRecordingView extends StatelessWidget {
             }
             final error = state.error;
             if (error != null && _isTransientError(error)) {
-              
-              
-              
+
               ScaffoldMessenger.of(context).clearSnackBars();
               showOmdsErrorSnackbar(context, message: _errorCopy(l10n, error));
               context.read<VoiceRecordingCubit>().acknowledgeError();
@@ -259,8 +221,6 @@ class _PrimarySurface extends StatelessWidget {
   }
 }
 
-
-
 class _MicSurface extends StatelessWidget {
   const _MicSurface({required this.state});
 
@@ -273,10 +233,7 @@ class _MicSurface extends StatelessWidget {
     if (state.isRecording) {
       return _buildWaveformBar(context, cubit, l10n);
     }
-    
-    
-    
-    
+
     final error = state.error;
     if (error != null && _isBlockingError(error)) {
       return _BlockedSurface(error: error, onRetry: cubit.startRecording);
@@ -311,10 +268,7 @@ class _MicSurface extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        
-        
-        
-        
+
         Semantics(
           identifier: 'voice_request_mic_button',
           container: true,
@@ -336,11 +290,6 @@ class _MicSurface extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
 
 class _BlockedSurface extends StatelessWidget {
   const _BlockedSurface({required this.error, required this.onRetry});
@@ -448,8 +397,6 @@ class _UploadFailureSurface extends StatelessWidget {
   }
 }
 
-
-
 class _SentConfirmation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -490,8 +437,6 @@ class _SentConfirmation extends StatelessWidget {
     );
   }
 }
-
-
 
 class _BroadcastingBanner extends StatelessWidget {
   const _BroadcastingBanner({required this.l10n, required this.colorScheme});
@@ -646,10 +591,6 @@ class _UploadFailureActions extends StatelessWidget {
     );
   }
 }
-
-
-
-
 
 bool _isBlockingError(VoiceRecordingError error) =>
     error == VoiceRecordingError.permissionDenied ||

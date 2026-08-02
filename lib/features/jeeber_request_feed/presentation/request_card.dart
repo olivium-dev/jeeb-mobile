@@ -8,15 +8,6 @@ import '../data/request_feed_models.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../core/previews/jeeb_preview.dart';
 
-
-
-
-
-
-
-
-
-
 class RequestCard extends StatelessWidget {
   const RequestCard({
     super.key,
@@ -30,8 +21,6 @@ class RequestCard extends StatelessWidget {
   final DeliveryRequest request;
   final RequestActionStatus actionStatus;
 
-  
-  
   final int? secondsRemaining;
 
   final VoidCallback onAccept;

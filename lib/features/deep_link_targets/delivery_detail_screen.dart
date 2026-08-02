@@ -212,7 +212,6 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
     ];
   }
 
-
   _DeliveryAction _trackAction(AppLocalizations l10n) => _DeliveryAction(
         semanticsId: 'order-detail-track',
         title: l10n.trackingTitle,

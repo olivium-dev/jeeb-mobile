@@ -178,7 +178,6 @@ final class ObsFileWriter implements ObservabilitySink {
   @override
   Future<void> close() => flush();
 
-
   String _encodeEvent(ObsEvent event) {
     try {
       final json = event.toJson();

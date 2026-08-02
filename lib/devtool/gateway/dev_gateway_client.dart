@@ -21,7 +21,6 @@ class DevGatewayClient {
 
   static const String _conversationsPath = '/v1/conversations';
 
-
   Future<List<DevUser>> listUsers() async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(_usersPath);
@@ -67,7 +66,6 @@ class DevGatewayClient {
       throw DevGatewayException.fromDio(e, action: 'seed dev user');
     }
   }
-
 
   Future<String> mintTokenForUser(String userId, {List<String>? roles}) async {
     final headers = <String, dynamic>{
@@ -197,7 +195,6 @@ class DevGatewayClient {
       );
     }
   }
-
 
   Options _bearer(String token, {Map<String, dynamic>? extraHeaders}) {
     return Options(

@@ -7,22 +7,6 @@ import '../network/auth_token_store.dart';
 import 'session_gate.dart';
 import 'session_state.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class SessionCubit extends Cubit<SessionState> implements SessionGate {
   SessionCubit({
     required AuthTokenStore tokenStore,
@@ -37,18 +21,12 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
   @override
   bool get isUnauthenticated => state.isUnauthenticated;
 
-  
-  
-  
-  
-  
   Future<void> refresh() async {
     try {
       final token = await _tokenStore.accessToken;
       final status = _classify(token);
       emit(SessionState(status));
-      
-      
+
       Diag.event('session_auth', <String, Object?>{'status': status.name});
     } catch (_) {
       emit(const SessionState(SessionStatus.unauthenticated));
@@ -65,7 +43,7 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
     }
     final exp = _jwtExpiry(token);
     if (exp == null) {
-      
+
       return SessionStatus.authenticated;
     }
     final isExpired = !exp.isAfter(_clock().toUtc());
@@ -74,10 +52,6 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
         : SessionStatus.authenticated;
   }
 
-  
-  
-  
-  
   static DateTime? _jwtExpiry(String token) {
     final parts = token.split('.');
     if (parts.length != 3) return null;

@@ -8,26 +8,11 @@ import '../domain/voice_player.dart';
 import '../domain/voice_recorder.dart';
 import 'voice_recording_state.dart';
 
-
-
-
 typedef VoiceRecordingTickerFactory = Stream<Duration> Function(Duration step);
 
 Stream<Duration> _defaultTickerFactory(Duration step) {
   return Stream<Duration>.periodic(step, (i) => step * (i + 1));
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   VoiceRecordingCubit({
@@ -49,8 +34,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   final VoiceRecordingTickerFactory _tickerFactory;
   final Duration _tickInterval;
 
-  
-  
   StreamSubscription<Duration>? _recordTickSub; // ignore: cancel_subscriptions
 
   Future<void> startRecording() async {
@@ -95,11 +78,11 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     final elapsed = state.elapsed;
     await _stopRecordTicker();
     if (elapsed < VoiceRecordingState.minSendableDuration) {
-      
+
       try {
         await _recorder.cancel();
       } catch (_) {
-        
+
       }
       emit(
         state.copyWith(
@@ -114,16 +97,13 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     await _finalizeRecording(elapsed);
   }
 
-  
-  
-  
   Future<void> cancelRecording() async {
     if (state.phase != VoiceRecordingPhase.recording) return;
     await _stopRecordTicker();
     try {
       await _recorder.cancel();
     } catch (_) {
-      
+
     }
     emit(
       state.copyWith(
@@ -135,7 +115,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     );
   }
 
-  
   Future<void> discardClip() async {
     if (!state.hasClip && state.phase != VoiceRecordingPhase.playing) return;
     if (state.phase == VoiceRecordingPhase.playing) {
@@ -144,7 +123,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     emit(const VoiceRecordingState());
   }
 
-  
   Future<void> togglePlayback() async {
     if (state.phase == VoiceRecordingPhase.playing) {
       await _player.pause();
@@ -157,7 +135,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     emit(
       state.copyWith(
         phase: VoiceRecordingPhase.playing,
-        
+
         playbackPosition: state.playbackPosition >= clip.duration
             ? Duration.zero
             : state.playbackPosition,
@@ -171,9 +149,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     );
   }
 
-  
-  
-  
   Future<void> seekPlayback(Duration position) async {
     if (state.phase != VoiceRecordingPhase.recorded &&
         state.phase != VoiceRecordingPhase.playing) {
@@ -191,8 +166,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     }
   }
 
-  
-  
   Future<void> send() async {
     if (!state.canSend) return;
     if (state.phase == VoiceRecordingPhase.playing) {
@@ -225,8 +198,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     emit(state.copyWith(clearError: true));
   }
 
-  
-  
   Future<void> reset() async {
     await _stopRecordTicker();
     if (state.phase == VoiceRecordingPhase.playing) {
@@ -238,7 +209,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   @override
   Future<void> close() async {
     await _stopRecordTicker();
-    
+
     try {
       await _recorder.cancel();
     } catch (_) {}
@@ -291,7 +262,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   void _onRecordTick(Duration elapsed) {
     if (state.phase != VoiceRecordingPhase.recording) return;
     if (elapsed >= VoiceRecordingState.maxDuration) {
-      
+
       emit(state.copyWith(elapsed: VoiceRecordingState.maxDuration));
       unawaited(_autoStopAtCap());
       return;

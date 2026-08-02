@@ -1,9 +1,5 @@
 import '../domain/delivery_man_profile_view_data.dart';
 
-
-
-
-
 abstract final class DevDeliveryManProfileFixtures {
   static const String _lorem =
       'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed ut leo '

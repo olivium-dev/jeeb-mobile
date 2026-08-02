@@ -28,7 +28,6 @@ class EarningsDashboardL10n {
   String get exportButton => _l10n.earningsExportButton;
   String get empty => _l10n.earningsEmpty;
 
-
   String get totalCashLabel =>
       _pick('Total cash earned', 'إجمالي النقد المكتسب');
   String get totalCashHint => _pick(
@@ -67,7 +66,6 @@ class EarningsDashboardL10n {
   String deliveryRowTitle(String id) => _pick('Delivery $id', 'توصيلة $id');
 
   String deliveryRowFee(String money) => _pick('$money fee', 'رسوم $money');
-
 
   String get walletLink => _pick('Open wallet', 'فتح المحفظة');
   String get walletLinkSubtitle =>

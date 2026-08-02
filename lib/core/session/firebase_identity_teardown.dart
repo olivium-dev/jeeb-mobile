@@ -3,61 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import '../diagnostics/diag.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 typedef FirebaseIdentityTeardown = Future<void> Function();
-
-
-
-
-
-
-
-
-
 
 Future<void> signOutFirebaseIdentity() async {
   try {

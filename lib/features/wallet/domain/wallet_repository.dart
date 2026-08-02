@@ -1,4 +1,3 @@
-
 enum WalletAffordability { enough, low, empty, allReserved }
 
 class WalletBalance {

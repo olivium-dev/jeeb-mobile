@@ -8,13 +8,6 @@ import 'delivery_review_card.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-
-
-
-
-
-
-
 class DeliveryReviewsList extends StatelessWidget {
   const DeliveryReviewsList({super.key, required this.reviews});
 

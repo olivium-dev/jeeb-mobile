@@ -3,12 +3,7 @@ import 'package:equatable/equatable.dart';
 import '../data/voice_recording_repository.dart';
 import '../domain/voice_clip.dart';
 
-
-
 enum VoiceRecordingPhase { idle, recording, recorded, playing, sending, sent }
-
-
-
 
 enum VoiceRecordingError {
   permissionDenied,
@@ -31,14 +26,8 @@ class VoiceRecordingState extends Equatable {
     this.result,
   });
 
-  
-  
-  
   static const Duration maxDuration = Duration(seconds: 60);
 
-  
-  
-  
   static const Duration minSendableDuration = Duration(seconds: 1);
 
   final VoiceRecordingPhase phase;
@@ -61,7 +50,6 @@ class VoiceRecordingState extends Equatable {
           phase == VoiceRecordingPhase.playing ||
           phase == VoiceRecordingPhase.sending);
 
-  
   bool get canSend => hasClip && clip!.duration >= minSendableDuration;
 
   VoiceRecordingState copyWith({

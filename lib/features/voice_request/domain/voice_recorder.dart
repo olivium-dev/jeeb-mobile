@@ -2,11 +2,7 @@ import 'dart:typed_data';
 
 import 'voice_clip.dart';
 
-
-
 enum VoiceRecorderFailure { permissionDenied, unavailable, unknown }
-
-
 
 class VoiceRecorderException implements Exception {
   const VoiceRecorderException(this.failure);
@@ -15,24 +11,13 @@ class VoiceRecorderException implements Exception {
   String toString() => 'VoiceRecorderException($failure)';
 }
 
-
-
-
 abstract class VoiceRecorder {
   Future<void> start();
 
-  
-  
-  
   Future<VoiceClip> stop({required Duration recordedDuration});
 
-  
-  
   Future<void> cancel();
 }
-
-
-
 
 class FakeVoiceRecorder implements VoiceRecorder {
   FakeVoiceRecorder({
@@ -41,11 +26,8 @@ class FakeVoiceRecorder implements VoiceRecorder {
     this.stopFailure,
   }) : _payload = payload ?? Uint8List.fromList(List.filled(2048, 0x55));
 
-  
-  
   final VoiceRecorderFailure? startFailure;
 
-  
   final VoiceRecorderFailure? stopFailure;
 
   final Uint8List _payload;

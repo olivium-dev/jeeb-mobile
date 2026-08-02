@@ -7,13 +7,7 @@ import 'package:record/record.dart';
 import 'voice_clip.dart';
 import 'voice_recorder.dart';
 
-
-
-
 typedef TempDirResolver = Future<Directory> Function();
-
-
-
 
 typedef ClipBytesReader = Future<Uint8List> Function(String path);
 
@@ -22,20 +16,6 @@ Future<Directory> _defaultTempDirResolver() =>
 
 Future<Uint8List> _defaultClipBytesReader(String path) =>
     File(path).readAsBytes();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 class RecordVoiceRecorder implements VoiceRecorder {
   RecordVoiceRecorder({
@@ -58,8 +38,6 @@ class RecordVoiceRecorder implements VoiceRecorder {
   final ClipBytesReader _bytesReader;
   final RecordConfig _config;
 
-  
-  
   String? _activePath;
 
   @override
@@ -107,7 +85,7 @@ class RecordVoiceRecorder implements VoiceRecorder {
     try {
       await _recorder.cancel();
     } catch (_) {
-      
+
     }
     if (path != null) {
       await _deleteQuietly(path);
@@ -152,15 +130,13 @@ class RecordVoiceRecorder implements VoiceRecorder {
         await file.delete();
       }
     } catch (_) {
-      
+
     }
   }
 
   VoiceRecorderException _wrap(Object error, StackTrace stackTrace) {
     if (error is VoiceRecorderException) return error;
-    
-    
-    
+
     final String message = error.toString().toLowerCase();
     if (message.contains('permission')) {
       return const VoiceRecorderException(

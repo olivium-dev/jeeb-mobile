@@ -68,7 +68,6 @@ final class ObsInteractionObserver {
       Observability.instance.recording &&
       Observability.instance.config.signalEnabled(ObsEventType.interaction);
 
-
   void _onPointerEvent(PointerEvent event) {
     try {
       if (event is PointerDownEvent) {
@@ -139,7 +138,6 @@ final class ObsInteractionObserver {
         gap <= _doubleTapGap &&
         distance <= _doubleTapDistance;
   }
-
 
   void _onFocusChange() {
     if (!_shouldCapture()) return;
@@ -218,7 +216,6 @@ final class ObsInteractionObserver {
     final lower = text.toLowerCase();
     return _sensitiveFieldKeywords.any(lower.contains);
   }
-
 
   static Offset? _globalCenterOf(BuildContext? context) {
     if (context == null) return null;

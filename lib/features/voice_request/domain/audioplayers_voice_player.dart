@@ -5,14 +5,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'voice_clip.dart';
 import 'voice_player.dart';
 
-
-
-
-
-
-
-
-
 class AudioPlayersVoicePlayer implements VoicePlayer {
   AudioPlayersVoicePlayer({AudioPlayer? player})
     : _player = player ?? AudioPlayer();
@@ -54,9 +46,6 @@ class AudioPlayersVoicePlayer implements VoicePlayer {
     await _player.stop();
   }
 
-  
-  
-  
   Source _sourceFor(VoiceClip clip) {
     final String? path = clip.sourcePath;
     if (path != null && path.isNotEmpty) {

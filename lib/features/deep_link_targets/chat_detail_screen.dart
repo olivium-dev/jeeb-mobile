@@ -54,7 +54,6 @@ import 'dev_chat_detail_fixtures.dart';
 import '../../devtool/catalog/fixtures/chat_detail_screen_fixtures.dart';
 import '../../core/previews/jeeb_preview.dart';
 
-
 String _mutualRateRoute(String deliveryId, {required bool isClient}) =>
     '/orders/$deliveryId/mutual-rate${isClient ? '' : '?mode=jeeber'}';
 
@@ -188,7 +187,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (_summaryRefreshGate != null) unawaited(_refreshSummary());
     if (_resolutionUnavailable) _retryResolutionSilently();
   }
-
 
   bool _onScreen = false;
 
@@ -497,7 +495,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     Map<String, dynamic>? conversationData,
   ) async {
     if (conversationData == null) return '';
-
 
     final winnerId = conversationData['winnerJeeberId'] as String?;
     if (winnerId != null && winnerId.isNotEmpty) {

@@ -4,12 +4,6 @@ import 'package:flutter/material.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
-
-
-
-
-
-
 class AnimatedMicButton extends StatefulWidget {
   const AnimatedMicButton({
     super.key,
@@ -426,4 +420,3 @@ Widget animatedMicButtonHaloCeiling() => _animatedMicButtonSpecimen(
       isRecording: true,
       showHaloCeilingGuide: true,
     );
-

@@ -1,4 +1,3 @@
-
 enum WalletLedgerType {
   reserve,
   feeWon,

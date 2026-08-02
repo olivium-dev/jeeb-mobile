@@ -12,32 +12,11 @@ import 'widgets/delivery_reviews_list.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/delivery_man_profile_screen_fixtures.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class DeliveryManProfileScreen extends StatelessWidget {
   const DeliveryManProfileScreen({super.key, required this.data});
 
-  
-  
   static const String rootId = 'delivery_man_profile_screen_root';
 
-  
-  
   static const Key rootKey = Key('delivery-man-profile-screen-root');
 
   final DeliveryManProfileViewData data;
@@ -77,17 +56,12 @@ class _DeliveryManProfileBody extends StatelessWidget {
           reviewCount: data.reviewCount,
           onViewAll: () => _openAllReviews(context),
         ),
-        
+
         DeliveryReviewsList(reviews: data.reviews),
       ],
     );
   }
 
-  
-  
-  
-  
-  
   void _openAllReviews(BuildContext context) {
     final jeeberId = data.jeeberId;
     context.pushNamed(
@@ -126,7 +100,7 @@ class _CloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    
+
     return Semantics(
       identifier: 'profile_close',
       button: true,
@@ -141,9 +115,6 @@ class _CloseButton extends StatelessWidget {
     );
   }
 
-  
-  
-  
   void _close(BuildContext context) {
     if (context.canPop()) {
       context.pop();

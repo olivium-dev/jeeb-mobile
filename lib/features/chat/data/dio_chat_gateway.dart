@@ -362,7 +362,6 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     if (!_events.isClosed) await _events.close();
   }
 
-
   void _ensureSocket(String conversationId) {
     if (_socket != null) return;
     final socket =
@@ -400,7 +399,6 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     } catch (_) {
     }
   }
-
 
   Map<String, Object?> _bodyFor(DeliveryChatMessage message) {
     switch (message.kind) {

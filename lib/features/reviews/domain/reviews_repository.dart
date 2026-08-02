@@ -1,4 +1,3 @@
-
 class ReviewItem {
   const ReviewItem({
     required this.id,

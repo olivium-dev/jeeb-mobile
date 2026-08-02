@@ -16,106 +16,39 @@ import 'package:flutter/material.dart' show ColorScheme, Theme, ThemeData;
 import '../../l10n/app_localizations.dart';
 import '../previews/jeeb_preview.dart';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 enum JeeberKycStatus { none, pending, approved, rejected }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 enum JeeberDeliveryTabDestination {
   registerPrompt,
   feed,
   kycRejected;
 
-  
-  
-  
-  
-  
-  
   static JeeberDeliveryTabDestination forStatus(JeeberKycStatus status) =>
       switch (status) {
-        
+
         JeeberKycStatus.none => JeeberDeliveryTabDestination.registerPrompt,
-        
-        
+
         JeeberKycStatus.pending => JeeberDeliveryTabDestination.feed,
-        
+
         JeeberKycStatus.approved => JeeberDeliveryTabDestination.feed,
-        
+
         JeeberKycStatus.rejected => JeeberDeliveryTabDestination.kycRejected,
       };
 }
 
-
 abstract class JeeberKycStatusGate {
-  
+
   JeeberKycStatus get status;
 
-  
-  
-  
   bool get isApproved => status == JeeberKycStatus.approved;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 class SeamJeeberKycStatusGate implements JeeberKycStatusGate {
   const SeamJeeberKycStatusGate();
 
   @override
   JeeberKycStatus get status {
-    
-    
-    
-    
+
     if (!kDebugMode) return JeeberKycStatus.none;
     switch (DevSeam.current.kycStatusSeed) {
       case KycStatusSeed.approved:
@@ -127,14 +60,7 @@ class SeamJeeberKycStatusGate implements JeeberKycStatusGate {
       case KycStatusSeed.statusNone:
         return JeeberKycStatus.none;
       case KycStatusSeed.none:
-        
-        
-        
-        
-        
-        
-        
-        
+
         if (DevSeam.current.homeTab == 'unregistered') {
           return JeeberKycStatus.none;
         }
@@ -146,70 +72,31 @@ class SeamJeeberKycStatusGate implements JeeberKycStatusGate {
   bool get isApproved => status == JeeberKycStatus.approved;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class LiveJeeberKycStatusGate extends ChangeNotifier
     implements JeeberKycStatusGate {
-  
-  
-  
-  
-  
-  
-  
+
   LiveJeeberKycStatusGate(this._gateway, {bool? useLiveSource})
     : _useLiveSource = useLiveSource ?? !kDebugMode {
-    
-    
+
     if (_useLiveSource) unawaited(refresh());
   }
 
   final KycGateway _gateway;
   final bool _useLiveSource;
 
-  
   JeeberKycStatus? _cached;
 
   @override
   JeeberKycStatus get status {
-    
-    
+
     if (!_useLiveSource) return const SeamJeeberKycStatusGate().status;
-    
-    
-    
-    
+
     return _cached ?? JeeberKycStatus.none;
   }
 
   @override
   bool get isApproved => status == JeeberKycStatus.approved;
 
-  
-  
-  
-  
   Future<void> refresh() async {
     try {
       final submission = await _gateway.fetchStatus();
@@ -219,7 +106,7 @@ class LiveJeeberKycStatusGate extends ChangeNotifier
         notifyListeners();
       }
     } catch (_) {
-      
+
     }
   }
 
@@ -228,23 +115,10 @@ class LiveJeeberKycStatusGate extends ChangeNotifier
     KycStatus.pending => JeeberKycStatus.pending,
     KycStatus.approved => JeeberKycStatus.approved,
     KycStatus.rejected => JeeberKycStatus.rejected,
-    
-    
-    
-    
-    
-    
-    
-    
+
     KycStatus.resubmitRequested => JeeberKycStatus.pending,
   };
 }
-
-
-
-
-
-
 
 class JeeberKycGateBuilder extends StatelessWidget {
   const JeeberKycGateBuilder({

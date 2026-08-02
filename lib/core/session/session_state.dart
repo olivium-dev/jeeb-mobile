@@ -1,33 +1,19 @@
-
-
-
-
-
-
-
 enum SessionStatus {
-  
+
   unknown,
 
-  
   authenticated,
 
-  
   unauthenticated,
 }
-
 
 class SessionState {
   const SessionState(this.status);
 
-  
   const SessionState.unknown() : status = SessionStatus.unknown;
 
   final SessionStatus status;
 
-  
-  
-  
   bool get isUnauthenticated => status == SessionStatus.unauthenticated;
 
   bool get isAuthenticated => status == SessionStatus.authenticated;

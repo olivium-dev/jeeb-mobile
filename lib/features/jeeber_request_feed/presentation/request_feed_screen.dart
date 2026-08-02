@@ -17,19 +17,9 @@ import 'request_card.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/request_feed_screen_fixtures.dart';
 
-
-
-
-
-
-
-
 class RequestFeedScreen extends StatelessWidget {
   const RequestFeedScreen({super.key, this.cubit});
 
-  
-  
-  
   final RequestFeedCubit? cubit;
 
   @override
@@ -44,12 +34,7 @@ class RequestFeedScreen extends StatelessWidget {
     return BlocProvider<RequestFeedCubit>(
       create: (_) => RequestFeedCubit(
         repository: FakeRequestFeedRepository(),
-        
-        
-        
-        
-        
-        
+
         refreshSignals: resolvePushRefreshStream(
           topics: const {RefreshTopic.feed, RefreshTopic.offers},
         ),
@@ -265,7 +250,7 @@ class _ReconnectingBanner extends StatelessWidget {
         horizontal: Spacing.medium,
         vertical: Spacing.xSmall,
       ),
-      
+
       color: context.jeebRoles.warningContainer,
       child: _ReconnectingRow(message: message),
     );
@@ -308,9 +293,7 @@ class _EmptyFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    
-    
-    
+
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
