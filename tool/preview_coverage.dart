@@ -86,8 +86,19 @@ void main(List<String> args) {
   stdout.writeln('Preview coverage: ${covered.length}/${results.length} '
       '(${(covered.length / results.length * 100).toStringAsFixed(1)}%) '
       '· $previewCount preview functions');
+  final List<WidgetCoverage> blocked = results
+      .where((WidgetCoverage r) => r.verdict == CoverageVerdict.blocked)
+      .toList();
   stdout.writeln('Uncovered: ${uncovered.length}   Malformed: '
-      '${malformed.length}\n');
+      '${malformed.length}   Blocked: ${blocked.length}\n');
+
+  if (blocked.isNotEmpty) {
+    stdout.writeln('BLOCKED — in scope, needs a production seam first:');
+    for (final WidgetCoverage r in blocked) {
+      stdout.writeln('  ${r.widget.name.padRight(30)} ${r.reason}');
+    }
+    stdout.writeln('');
+  }
 
   if (malformed.isNotEmpty) {
     stdout.writeln('MALFORMED — one half of a preview section, not both:');

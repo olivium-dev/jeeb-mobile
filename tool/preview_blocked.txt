@@ -1,0 +1,12 @@
+# Screens/widgets that ARE in scope and genuinely worth previewing, but cannot
+# be until a production seam is added. This is NOT tool/preview_exclusions.txt:
+# an exclusion says "out of scope", an entry here says "real debt, named".
+#
+# Reported by `dart run tool/preview_coverage.dart` as BLOCKED — visible, not
+# hidden in the uncovered count where it would stop a rollout ever finishing.
+#
+# Format: <WidgetName>  # the exact seam that would unblock it
+#
+# Remove the line the moment the seam lands; the widget rejoins the queue.
+
+LiveSettingsScreen      # const ctor with no params; fetches via sl<Dio>().get('/v1/users/me') from a `late Future` FIELD INITIALIZER, then hard-wires DioAccountService + DioDisplayNameRepository off the same global. Needs (1) an optional snapshotLoader/Dio ctor param and (2) an injectable SettingsCubit on the loaded branch, as the seamed sibling SettingsScreen already has. Catalog skipped it for the same reason: batch_10_entries.dart:751.

@@ -266,6 +266,15 @@ enum CoverageVerdict {
 
   /// Exactly one of the two signals — almost always a half-finished migration.
   malformed,
+
+  /// In scope and genuinely previewable, but not until a production seam is
+  /// added — the widget offers no way to inject its data.
+  ///
+  /// Deliberately NOT an exclusion. An exclusion says "out of scope"; this says
+  /// "real debt, named". It is reported separately rather than left in the
+  /// uncovered count, where it would block a rollout from ever finishing while
+  /// telling nobody why. `tool/preview_blocked.txt` records the exact seam.
+  blocked,
 }
 
 class WidgetCoverage {
@@ -284,7 +293,7 @@ class WidgetCoverage {
 
 /// Everything the two callers need, computed once.
 class PreviewInventory {
-  PreviewInventory._(this.files, this.exclusions);
+  PreviewInventory._(this.files, this.exclusions, this.blocked);
 
   /// Every `.dart` file under `lib/`, including the excluded prefixes — the
   /// structural invariants need to see files that coverage ignores.
@@ -293,9 +302,13 @@ class PreviewInventory {
   /// Widget class names deliberately kept out of the coverage count.
   final Set<String> exclusions;
 
+  /// Widgets awaiting a production seam, mapped to the seam they need.
+  final Map<String, String> blocked;
+
   static PreviewInventory scan({
     String libRoot = 'lib',
     String exclusionsFile = 'tool/preview_exclusions.txt',
+    String blockedFile = 'tool/preview_blocked.txt',
   }) {
     final files = <SourceFile>[];
     for (final File f in _dartFilesUnder(libRoot)) {
@@ -303,7 +316,11 @@ class PreviewInventory {
       files.add(SourceFile.read(path, f));
     }
     files.sort((SourceFile a, SourceFile b) => a.path.compareTo(b.path));
-    return PreviewInventory._(files, _loadExclusions(exclusionsFile));
+    return PreviewInventory._(
+      files,
+      _loadExclusions(exclusionsFile),
+      _loadBlocked(blockedFile),
+    );
   }
 
   /// Files carrying a preview section.
@@ -331,6 +348,15 @@ class PreviewInventory {
         // A coverage number that excludes the gap is the failure the
         // MALFORMED check exists to prevent, so the exclusion is gone.
         if (exclusions.contains(name)) continue;
+        if (blocked.containsKey(name)) {
+          results.add(WidgetCoverage(
+            WidgetRef(name, file.path),
+            CoverageVerdict.blocked,
+            const <String>[],
+            blocked[name]!,
+          ));
+          continue;
+        }
 
         final owned = <String>[
           for (final PreviewFunction fn in file.previewFunctions)
@@ -392,6 +418,21 @@ Set<String> _loadExclusions(String path) {
       .map((String l) => l.split('#').first.trim())
       .where((String l) => l.isNotEmpty)
       .toSet();
+}
+
+/// `<WidgetName>  # the seam it needs` — same comment convention as the
+/// exclusions file, but here the comment is load-bearing: it IS the debt.
+Map<String, String> _loadBlocked(String path) {
+  final file = File(path);
+  if (!file.existsSync()) return <String, String>{};
+  final out = <String, String>{};
+  for (final String raw in file.readAsLinesSync()) {
+    final int hash = raw.indexOf('#');
+    final String name = (hash < 0 ? raw : raw.substring(0, hash)).trim();
+    if (name.isEmpty) continue;
+    out[name] = hash < 0 ? '' : raw.substring(hash + 1).trim();
+  }
+  return out;
 }
 
 List<File> _dartFilesUnder(String dir) {
