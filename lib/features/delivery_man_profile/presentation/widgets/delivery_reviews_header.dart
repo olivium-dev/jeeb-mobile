@@ -3,16 +3,11 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-// Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../domain/delivery_man_profile_view_data.dart';
 import 'delivery_reviews_list.dart';
 
-/// "Reviews" heading + (count · View all) row above the review list
-/// (design §2). "View all" uses an [OmdsPrimaryButton] text variant so it is
-/// not a raw Material button while still reading as a text affordance; brand
-/// primary color comes from the theme (design flag §9.3 — not the un-themed
-/// Figma template color).
+/// "Reviews" heading + (count · View all) row above the review list.
 class DeliveryReviewsHeader extends StatelessWidget {
   const DeliveryReviewsHeader({
     super.key,
@@ -94,7 +89,7 @@ class _ViewAllButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Canonical id per JM-067 AC + seam harness W4 (`profile_view_all_reviews`).
+    // Canonical id per JM-067 AC.
     return Semantics(
       identifier: 'profile_view_all_reviews',
       button: true,

@@ -23,13 +23,7 @@ import '../fixtures/client_offers_screen_fixtures.dart';
 import '../fixtures/client_unreachable_screen_fixtures.dart';
 import '../fixtures/customer_profile_screen_fixtures.dart';
 
-/// Batch 02 — cancel_request, cancellation, chat, client_offers,
-/// client_unreachable, customer_profile (DT-04 screen-catalog rework).
-///
-/// Every builder renders the REAL screen/sheet with an explicit LOCAL fake
-/// repository/gateway — never the DI-resolved production one, since the Dev
-/// Tool shares the app's real GetIt graph (`Bootstrap.minimal`, see
-/// `devtool_shell.dart`) and would otherwise hit the live gateway.
+// Batch 02: cancel_request, cancellation, chat, client_offers, etc — uses LOCAL fakes, never hit live gateway.
 List<CatalogEntry> get batch02Entries => <CatalogEntry>[
   _cancelRequestSheetEntry,
   _cancellationScreenEntry,
@@ -41,12 +35,7 @@ List<CatalogEntry> get batch02Entries => <CatalogEntry>[
   _customerProfileScreenEntry,
 ];
 
-/// Bottom-sheet previews (`CancelRequestSheet` / `OfferAcceptSheet` /
-/// `CancellationSuccessSheet`) are not routes — they render a bare column, not
-/// a `Scaffold`. Wrapping in a surface-colored `Scaffold` with the sheet
-/// pinned to the bottom mirrors how `showModalBottomSheet` actually presents
-/// them, without depending on a `Navigator`/`showModalBottomSheet` call (the
-/// catalog previews a plain widget, not a modal route).
+// Wrap sheets in Scaffold to match showModalBottomSheet presentation.
 Widget _sheetHost(Widget sheet) {
   return Builder(
     builder: (context) => Scaffold(
@@ -55,8 +44,6 @@ Widget _sheetHost(Widget sheet) {
     ),
   );
 }
-
-// ─────────────────────────── cancel_request ────────────────────────────
 
 final CatalogEntry _cancelRequestSheetEntry = CatalogEntry(
   feature: 'cancel_request',
@@ -99,20 +86,6 @@ final CatalogEntry _cancelRequestSheetEntry = CatalogEntry(
   ],
 );
 
-// ──────────────────────────── cancellation ─────────────────────────────
-
-/// One catalog card per shared designed state.
-///
-/// The three states below — their labels, their fakes and their seeded cubit
-/// state — are named once in [CancellationScreenDesignedState] constants and
-/// shared verbatim with the JEEB PREVIEWS section at the bottom of
-/// `features/cancellation/presentation/cancellation_screen.dart`, so the
-/// designer's in-app browser and the engineer's preview canvas cannot drift
-/// into showing two different "designed states" of the same screen. The
-/// private `_CatalogCancellationRepository` this entry used to own now lives
-/// there as [CancellationScreenFakeRepository] — same behaviour: never resolves
-/// onto the live gateway, and returns a plausible result if a reviewer actually
-/// taps Confirm, instead of throwing.
 CatalogState _cancellationScreenState(CancellationScreenDesignedState state) {
   return CatalogState(
     state.label,
@@ -154,18 +127,6 @@ final CatalogEntry _cancellationSuccessSheetEntry = CatalogEntry(
   ],
 );
 
-// ──────────────────────────────── chat ─────────────────────────────────
-
-/// Reuses the shipped `DevChatPreviewScreen` — the app's own debug-only host
-/// that renders the real `ChatScreen` against `DevChatFixtureGateway` (a
-/// deterministic in-memory gateway, no network) for exactly these designed
-/// states (see its doc comment for the Figma node each selector matches).
-///
-/// The selectors are no longer spelled out here: each state is named once in
-/// [ChatScreenPreviewFixtures] and shared verbatim with the JEEB PREVIEWS
-/// section at the bottom of `features/chat/presentation/chat_screen.dart`, so
-/// the designer's in-app browser and the preview canvas cannot drift into
-/// showing two different "designed states" of the same screen.
 final CatalogEntry _chatScreenEntry = CatalogEntry(
   feature: 'chat',
   screen: 'chat_screen',
@@ -201,16 +162,6 @@ final CatalogEntry _chatScreenEntry = CatalogEntry(
   ],
 );
 
-// ────────────────────────────── client_offers ──────────────────────────
-
-/// The five designed states below are named once in
-/// [ClientOffersScreenPreviewFixtures] and shared verbatim with the JEEB
-/// PREVIEWS section at the bottom of
-/// `features/client_offers/presentation/client_offers_screen.dart`, so the
-/// designer's in-app browser and the preview canvas cannot drift into showing
-/// two different "designed states" of the same screen. The fakes, the frozen
-/// clock and the inert cubit factory all live there; this entry only says which
-/// state goes under which label.
 Widget _clientOffersScreen(OffersRepository repository) => ClientOffersScreen(
   requestId: ClientOffersScreenPreviewFixtures.requestId,
   repository: repository,
@@ -310,19 +261,7 @@ final CatalogEntry _offerAcceptSheetEntry = CatalogEntry(
   ],
 );
 
-// ───────────────────────────── client_unreachable ──────────────────────
-
-/// Static screen — no `*_state.dart`, no repository/cubit, no network. Its
-/// three buttons are inert stubs (`onTap: () {}`) or a local `Navigator.pop`
-/// in the shipped source itself, so there is nothing to fake.
-///
-/// The id and the framing come from
-/// `../fixtures/client_unreachable_screen_fixtures.dart`, which the JEEB
-/// PREVIEWS section at the bottom of `client_unreachable_screen.dart` also
-/// reads — so this state and the canvas cannot drift onto different ids.
-/// `catalogDefault` carries `window: null` and `parentOnStack: null`, i.e. the
-/// host renders the screen bare on the real device under the catalog's own
-/// route, exactly as this entry did before the extraction.
+// Static screen — no network, buttons are inert.
 final CatalogEntry _clientUnreachableScreenEntry = CatalogEntry(
   feature: 'client_unreachable',
   screen: 'client_unreachable_screen',
@@ -339,14 +278,6 @@ final CatalogEntry _clientUnreachableScreenEntry = CatalogEntry(
   ],
 );
 
-// ───────────────────────────── customer_profile ────────────────────────
-
-/// The people, the scripted repository and the inert store-review launcher live
-/// in `../fixtures/customer_profile_screen_fixtures.dart`, shared verbatim with
-/// the preview section at the bottom of `customer_profile_screen.dart` so the
-/// designer's browser and the engineer's canvas cannot drift into showing two
-/// different "Kamal Hajj". Both states below are the same two this entry has
-/// always had.
 final CatalogEntry _customerProfileScreenEntry = CatalogEntry(
   feature: 'customer_profile',
   screen: 'customer_profile_screen',

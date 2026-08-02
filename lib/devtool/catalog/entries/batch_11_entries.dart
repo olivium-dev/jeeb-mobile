@@ -35,18 +35,7 @@ import '../fixtures/wallet_activity_list_screen_fixtures.dart';
 import '../fixtures/wallet_charge_info_screen_fixtures.dart';
 import '../fixtures/wallet_hub_screen_fixtures.dart';
 
-/// Batch 11 — DT-04 catalog entries for: shell, support, tier_selection,
-/// transcription, voice_request, wallet.
-///
-/// Every builder below renders the REAL screen with a LOCAL fake/stub injected
-/// through an existing (or minimally, additively widened) constructor test
-/// seam — no DI, no network.
-///
-/// SKIPPED (see the bottom of this file for the full reasoning):
-///   * `shell`'s `DashboardTab` / the jeeber-content branch of `ShellScreen` —
-///     unconditionally resolves multiple `sl<...>()` service locators with no
-///     override seam; the only network-free path is the internal dev-seam
-///     scaffold, which is out of scope for a minimal additive change.
+/// DashboardTab skipped — no override seam for sl<...>() service locators.
 List<CatalogEntry> get batch11Entries => <CatalogEntry>[
   _jeeberTabEmptyStateEntry,
   _shellHeaderActionsEntry,
@@ -64,14 +53,8 @@ List<CatalogEntry> get batch11Entries => <CatalogEntry>[
   _walletChargeInfoEntry,
 ];
 
-/// Wraps a bare tab body (no Scaffold of its own — it is normally hosted
-/// inside the shell's Scaffold) in a minimal Scaffold so it has a Material
-/// ancestor when previewed standalone in the catalog.
+/// Wraps bare tab body in Scaffold for Material ancestor.
 Widget _tabPreview(Widget child) => Scaffold(body: child);
-
-// ─────────────────────────────────────────────────────────────────────────
-// shell — JeeberTabEmptyState
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _jeeberTabEmptyStateEntry = CatalogEntry(
   feature: 'shell',
@@ -88,10 +71,6 @@ final CatalogEntry _jeeberTabEmptyStateEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — ShellHeaderActions
-// ─────────────────────────────────────────────────────────────────────────
-
 final CatalogEntry _shellHeaderActionsEntry = CatalogEntry(
   feature: 'shell',
   screen: 'ShellHeaderActions',
@@ -107,10 +86,6 @@ final CatalogEntry _shellHeaderActionsEntry = CatalogEntry(
     ),
   ],
 );
-
-// ─────────────────────────────────────────────────────────────────────────
-// shell — HomeTab (Requests tab body)
-// ─────────────────────────────────────────────────────────────────────────
 
 final CatalogEntry _homeTabEntry = CatalogEntry(
   feature: 'shell',
@@ -139,10 +114,6 @@ final CatalogEntry _homeTabEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — OrdersTab (Delivery tab body)
-// ─────────────────────────────────────────────────────────────────────────
-
 final CatalogEntry _ordersTabEntry = CatalogEntry(
   feature: 'shell',
   screen: 'OrdersTab',
@@ -168,41 +139,18 @@ final CatalogEntry _ordersTabEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — EarningsTab (jeeber Earnings tab body)
-// ─────────────────────────────────────────────────────────────────────────
-
 final CatalogEntry _earningsTabEntry = CatalogEntry(
   feature: 'shell',
   screen: 'EarningsTab',
   states: [
     CatalogState(
-      // No AuthTokenStore is registered in the catalog harness, so the tab's
-      // fail-closed "no session id" branch is the only reachable, network-free
-      // state (S0-OAD-03: never bind another user's earnings on a missing
-      // session).
+      // S0-OAD-03 rule: no AuthTokenStore → fail-closed.
       'Unavailable — no active session',
       (_) => _tabPreview(const EarningsTab()),
     ),
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// shell — ShellScreen (bottom-nav host)
-// ─────────────────────────────────────────────────────────────────────────
-//
-// Uses the additive `homeRepository` / `ordersRepository` seams added to
-// `ShellScreen` for this batch (see seamsAdded). No `RoleAvailabilityCubit` /
-// `BadgeCountCubit` ancestor is provided — both are nullable `context.watch`
-// reads that default to "no roles known yet" / "no badge", which is exactly
-// the regular (non-jeeber) landing every user sees before a jeeber-role
-// resolution. The jeeber-content branch (Dashboard/Earnings tabs' LIVE
-// bodies) is intentionally not exercised here — see the skip note.
-//
-// Both fakes come from
-// `lib/devtool/catalog/fixtures/shell_screen_fixtures.dart`, shared with the
-// JEEB PREVIEWS section at the bottom of `lib/features/shell/shell_screen.dart`
-// so the catalog and the preview canvas cannot show two different `req-9001`.
 final CatalogEntry _shellScreenEntry = CatalogEntry(
   feature: 'shell',
   screen: 'ShellScreen',
@@ -223,28 +171,6 @@ final CatalogEntry _shellScreenEntry = CatalogEntry(
     ),
   ],
 );
-
-// ─────────────────────────────────────────────────────────────────────────
-// support — SupportTicketScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// Uses the additive `cubit` seam added to `SupportTicketScreen` for this
-// batch (see seamsAdded) to preview the submitting/success/error phases by
-// driving a real [SupportCubit] through its public API against a local fake
-// [SupportRepository] — the same idiom as the KYC wizard catalog entries
-// (batch 05). `setCategory`/`setBody` are synchronous; only `submit()` is
-// async, so those two states use `unawaited` + a repository whose future
-// resolves immediately (success) or throws immediately (error) — no
-// `Future.delayed` needed for the state transition to land before the first
-// preview frame settles.
-//
-// The four private repositories and the inline cubit wiring moved to
-// `../fixtures/support_ticket_screen_fixtures.dart` when the screen got a
-// JEEB PREVIEWS section, so the catalog and the preview canvas cannot drift.
-// The states below are unchanged in meaning and unchanged in label. The FIRST
-// one keeps its seam-less `const SupportTicketScreen()` deliberately: the
-// nav-honesty fallback (no DI registered → shipped `StubSupportRepository`) is
-// itself the designed state, and no fixture can stand in for it.
 
 final CatalogEntry _supportTicketEntry = CatalogEntry(
   feature: 'support',
@@ -281,21 +207,6 @@ final CatalogEntry _supportTicketEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// tier_selection — TierSelectionScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// The screen already ships a `repository` constructor seam and calls
-// `..load()` itself, so every state below is just a different [TierRepository]
-// — no manual cubit driving needed.
-//
-// The fakes moved to `../fixtures/tier_selection_screen_fixtures.dart` so this
-// entry and the widget-preview section at the bottom of
-// `tier_selection_screen.dart` drive the screen from ONE set of fixtures. Same
-// three designed states, same labels, same behaviour — `stalled()` is the
-// former `_PendingTierRepository` and `servedCatalogue()` / `failing()` wrap the
-// same [DevtoolTierRepository] this entry already used.
-
 final CatalogEntry _tierSelectionEntry = CatalogEntry(
   feature: 'tier_selection',
   screen: 'TierSelectionScreen',
@@ -322,20 +233,6 @@ final CatalogEntry _tierSelectionEntry = CatalogEntry(
     ),
   ],
 );
-
-// ─────────────────────────────────────────────────────────────────────────
-// transcription — TranscriptionScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// `seedFromClip` / `markFailed` / `startEditing` are all synchronous cubit
-// methods (plain `emit`, no repository round-trip), so every state below is
-// seeded before the widget is returned — no `unawaited` needed.
-//
-// The clips and the two seeding scripts moved to
-// `../fixtures/transcription_screen_fixtures.dart` so this entry and the
-// widget-preview section at the bottom of `transcription_screen.dart` drive
-// the screen from ONE set of fixtures. Same four designed states, same clips —
-// the only change is where they are declared.
 
 final CatalogEntry _transcriptionEntry = CatalogEntry(
   feature: 'transcription',
@@ -372,27 +269,6 @@ final CatalogEntry _transcriptionEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// voice_request — VoiceRecordingScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// The fakes and the seeding scripts moved to
-// `../fixtures/voice_recording_screen_fixtures.dart` so this entry and the
-// widget-preview section at the bottom of `voice_recording_screen.dart` drive
-// the screen from ONE set of scripts. Same five designed states, same 3-second
-// clip — the only change is where the fixture is declared.
-//
-// Drives the real [VoiceRecordingCubit] through its public API against the
-// shipped `Fake*` recorder/player/repository (mirrors the KYC/onboarding
-// seeding idiom). `startRecording`/`stopRecording`/`send` are async, so the
-// "recorded"/"sent" states inject a controllable ticker stream and flush one
-// microtask turn (`Future<void>.delayed(Duration.zero)`) between the tick and
-// the stop so the elapsed duration clears the 1s `minSendableDuration` floor
-// before the clip is finalized — otherwise the cubit treats the (still
-// zero-elapsed) stop as a mis-tap and bounces back to idle. The idle,
-// recording and blocked states keep the cubit's LIVE ticker on purpose: a
-// designer looking at the recording bar wants the timer to run.
-
 final CatalogEntry _voiceRecordingEntry = CatalogEntry(
   feature: 'voice_request',
   screen: 'VoiceRecordingScreen',
@@ -425,16 +301,6 @@ final CatalogEntry _voiceRecordingEntry = CatalogEntry(
     }),
   ],
 );
-
-// ─────────────────────────────────────────────────────────────────────────
-// wallet — WalletHubScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// The three canned repositories, the scripted KYC gate and the four designed
-// wallets moved to `../fixtures/wallet_hub_screen_fixtures.dart` so this entry
-// and the widget-preview section at the bottom of `wallet_hub_screen.dart` mock
-// the screen from ONE set of fakes. Same six designed states, same amounts —
-// the only change is where the fixture is declared.
 
 final CatalogEntry _walletHubEntry = CatalogEntry(
   feature: 'wallet',
@@ -485,28 +351,6 @@ final CatalogEntry _walletHubEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// wallet — TransactionDetailScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// The fakes and the per-type rows live in
-// `../fixtures/transaction_detail_screen_fixtures.dart` so this entry and the
-// preview section at the bottom of `transaction_detail_screen.dart` mock the
-// screen from ONE set of rows instead of two copies free to drift.
-//
-// The two "loaded" states used to come from the SHIPPED
-// [StubWalletTransactionRepository] (its branch is keyed off the id containing
-// "refund"/"penalty" vs. anything else → fee_won). Same four designed states,
-// and they no longer disappear the day the DI swap to
-// `DioWalletTransactionRepository` deletes it (CTO-D2).
-//
-// The refund row is byte-for-byte what that stub returned. The fee-won row
-// differs in its three reference fields ONLY: the stub built them as
-// `'off-stub-$id'` / `'req-stub-$id'` and this entry passed it an id that
-// already began `off-stub-`, so the state used to render the doubled
-// `off-stub-off-stub-1001`. The fixture drops the doubling. See the header of
-// `../fixtures/transaction_detail_screen_fixtures.dart`.
-
 final CatalogEntry _transactionDetailEntry = CatalogEntry(
   feature: 'wallet',
   screen: 'TransactionDetailScreen',
@@ -548,15 +392,6 @@ final CatalogEntry _transactionDetailEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// wallet — WalletActivityListScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// The fakes and the mixed ledger live in
-// `../fixtures/wallet_activity_list_screen_fixtures.dart` so this entry and the
-// preview section at the bottom of `wallet_activity_list_screen.dart` mock the
-// screen with ONE ledger instead of two copies free to drift.
-
 final CatalogEntry _walletActivityListEntry = CatalogEntry(
   feature: 'wallet',
   screen: 'WalletActivityListScreen',
@@ -593,22 +428,7 @@ final CatalogEntry _walletActivityListEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// wallet — WalletChargeInfoScreen
-// ─────────────────────────────────────────────────────────────────────────
-//
-// Static, no-payment instructional screen (D92/D93) — no constructor params,
-// no network call by design (JM-054 AC).
-//
-// Hosted through the shared fixture
-// (`../fixtures/wallet_charge_info_screen_fixtures.dart`), which the widget
-// previews at the bottom of the screen file use as well, so the catalog and the
-// canvas cannot drift. The host is a local [GoRouter] over two stand-in
-// destinations: without it the screen's back CTA (`charge_info_back_cta`, which
-// falls through to `goNamed('wallet')` when nothing can pop) drives the REAL
-// app router and drops the reviewer out of the catalog into the live wallet
-// hub.
-
+/// Needs GoRouter wrapper: back CTA falls through to real app router without it.
 final CatalogEntry _walletChargeInfoEntry = CatalogEntry(
   feature: 'wallet',
   screen: 'WalletChargeInfoScreen',

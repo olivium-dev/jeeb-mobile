@@ -1,15 +1,5 @@
-// DT-04 / F2 — Screen Catalog entries, batch 06.
-//
-// Features covered: language, live_tracking, location, masked_call,
-// mixed_direction, no_offer_timeout.
-//
-// Every builder below renders the REAL feature screen/widget seeded with a
-// LOCAL fake/stub (or a shipped in-memory double) — no network, no GetIt
-// gateway resolution. Repositories that already ship an injectable seam
-// (constructor `repository:`/`cubit:` params) are used as-is; two features
-// (masked_call, and reusing the existing `repository`/`userId`/`cubitFactory`
-// seams elsewhere) needed no new code at all. `masked_call_button.dart` picked
-// up one minimal additive seam (see `seamsAdded` in the batch manifest).
+// DT-04 / F2 — Screen Catalog entries, batch 06 (language, live_tracking,
+// location, masked_call, mixed_direction, no_offer_timeout).
 
 import 'dart:async';
 
@@ -58,23 +48,7 @@ List<CatalogEntry> get batch06Entries => <CatalogEntry>[
       _noOfferTimeoutEntry,
     ];
 
-// ─────────────────────────────────────────────────────────────────────────
-// language — LanguageSettingsScreen
-// ─────────────────────────────────────────────────────────────────────────
-
-/// Seats the real screen on a `LocaleCubit` built over IN-MEMORY prefs seeded
-/// with a saved choice, so the two designed rows (English / Arabic selected)
-/// render deterministically.
-///
-/// This used to build the cubit over the app's real, already-bootstrapped
-/// `sl<SharedPreferences>()`, which did not deliver that: `_resolveInitial`
-/// reads the persisted `app.locale.languageCode` BEFORE it consults
-/// `deviceLocaleProvider`, so on a device where anyone had ever picked Arabic
-/// both states rendered Arabic — and because every row here is tappable and
-/// `setLocale` persists, browsing this entry could rewrite the real user's
-/// language for the next cold start. Both are gone with the prefs; see
-/// `../fixtures/language_settings_screen_fixtures.dart`, which the preview
-/// section at the bottom of the screen file shares with this entry.
+/// Uses IN-MEMORY prefs (not persisted device storage) to render designed states.
 Widget _languageSettingsPreview(LanguageSettingsScreenCubitFactory create) =>
     LanguageSettingsScreenPreviewHost(
       create: create,
@@ -100,27 +74,7 @@ final CatalogEntry _languageEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// live_tracking — LiveTrackingScreen
-// ─────────────────────────────────────────────────────────────────────────
-
-// The seeds moved to `../fixtures/live_tracking_screen_fixtures.dart`, shared
-// verbatim with the JEEB PREVIEWS section at the bottom of
-// `live_tracking_screen.dart`, so the catalog state a designer signs off and the
-// canvas state an engineer edits cannot drift apart. The private
-// `_StaticTrackingRepository` / `_FailingTrackingRepository` doubles and the two
-// inline `DeliveryTrackingInfo` literals that used to live here are the same
-// objects under new, public names.
-//
-// One thing changed with the move: `In transit` no longer runs on
-// `DemoLiveTrackingRepository`. That double stamps `DateTime.now()` offsets into
-// `stageTimestamps`, so the state was a function of the wall clock; the fixture
-// carries the SAME rendered fields (3 km, 20 min, Kamal Hajj, express,
-// "Groceries from Spinneys", $9.00 COD) with an empty timestamp map, which
-// nothing on this screen reads. Same four states, same labels, same rendering.
-
-/// Builds the screen with NO refresh source wired (b02 wave C / N7 removed the
-/// poll entirely), so a catalog preview reads once and leaks no timers.
+/// No refresh source wired (eliminates timer leaks in preview).
 Widget _liveTrackingPreview(LiveTrackingRepository repository) {
   return BlocProvider<LiveTrackingCubit>.value(
     value: LiveTrackingScreenFixtures.cubit(repository),
@@ -169,29 +123,7 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// location — LocationPickerScreen (pickup → dropoff → done)
-// ─────────────────────────────────────────────────────────────────────────
-
-// The seeds moved to `../fixtures/location_picker_screen_fixtures.dart`, shared
-// verbatim with the JEEB PREVIEWS section at the bottom of
-// `location_picker_screen.dart`, so the catalog state a designer signs off and
-// the canvas state an engineer edits cannot drift apart.
-//
-// One thing changed with the move: the seed no longer runs on
-// `InMemoryLocationRepository`. That repository answers every call after a
-// 60-150 ms delay, so each state used to be "whatever the cubit had reached by
-// the time you opened it"; the fixtures drive the cubit through the calls that
-// emit SYNCHRONOUSLY, so the screen is in its designed state on the first frame.
-// Same three states, same Beirut addresses, same rendering.
-//
-// `mapPickerLauncher:` stays null here, which is what hides the "Pin on map"
-// button and gives "Use current GPS" the full width. That is deliberate and
-// shared with the preview section: the two-button Row overflows a 390 pt phone
-// by 100 + 29 pt in English and 154 + 168 pt in Arabic, so exactly one surface
-// installs [LocationPickerScreenFixtures.mapPicker] — the preview that exists to
-// show that overflow (`locationPickerScreenMapPinRow`).
-
+/// mapPickerLauncher null intentionally (two-button Row overflows phone).
 Widget _locationPickerPreview(LocationPickerCubit cubit) {
   return LocationPickerScreen(
     cubit: cubit,
@@ -224,16 +156,6 @@ final CatalogEntry _locationPickerEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// location — SavedLocationsScreen (saved-address manager)
-// ─────────────────────────────────────────────────────────────────────────
-//
-// The canned repository and the seeded account moved to
-// `../fixtures/saved_locations_screen_fixtures.dart` so this entry and the
-// widget-preview section at the bottom of `saved_locations_screen.dart` mock
-// the screen from ONE set of fakes. Same three designed states, same data — the
-// only change is where the fixture is declared.
-
 final CatalogEntry _savedLocationsEntry = CatalogEntry(
   feature: 'location',
   screen: 'Saved Addresses',
@@ -261,19 +183,7 @@ final CatalogEntry _savedLocationsEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// location — ClientLocationScreen (location-select create step)
-// ─────────────────────────────────────────────────────────────────────────
-
-// The seeds live in `../fixtures/client_location_screen_fixtures.dart`, shared
-// verbatim with the JEEB PREVIEWS section at the bottom of
-// `client_location_screen.dart`, so the catalog state a designer reviews and
-// the preview an engineer edits cannot drift apart.
-//
-// `currentLocationResolver:` is now scripted here too. Left null the screen
-// builds a real geolocator-backed resolver, so opening this entry on a device
-// raised a live permission prompt and then rendered whichever GPS state that
-// device happened to be in — the opposite of a designed state.
+/// currentLocationResolver scripted to avoid live permission prompts.
 final CatalogEntry _clientLocationEntry = CatalogEntry(
   feature: 'location',
   screen: 'Location Select (create flow)',
@@ -297,15 +207,7 @@ final CatalogEntry _clientLocationEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// masked_call — MaskedCallButton
-// ─────────────────────────────────────────────────────────────────────────
-
-/// A [MaskedCallCubit] that emits [seed] one microtask after construction
-/// (after `BlocProvider`/`BlocConsumer` have mounted and started listening),
-/// so a "calling" designed state renders the same loading affordance the real
-/// [MaskedCallCubit.initiateCall] produces — without touching the (nonexistent
-/// for this cubit) network path at all.
+/// Emits [seed] on microtask (after mount) to avoid network calls.
 class _SeededMaskedCallCubit extends MaskedCallCubit {
   _SeededMaskedCallCubit(MaskedCallState seed) {
     scheduleMicrotask(() {
@@ -345,10 +247,6 @@ final CatalogEntry _maskedCallEntry = CatalogEntry(
     ),
   ],
 );
-
-// ─────────────────────────────────────────────────────────────────────────
-// mixed_direction — MixedDirectionText
-// ─────────────────────────────────────────────────────────────────────────
 
 Widget _mixedDirectionHost(String label, String text) => Scaffold(
       appBar: AppBar(title: const Text('Mixed Direction Text')),
@@ -396,19 +294,7 @@ final CatalogEntry _mixedDirectionEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// no_offer_timeout — NoOfferTimeoutScreen (waiting / no-coverage)
-// ─────────────────────────────────────────────────────────────────────────
-//
-// The seeded snapshots, the failures and the inert cubit now live in
-// `lib/devtool/catalog/fixtures/no_offer_timeout_screen_fixtures.dart`, shared
-// with the JEEB PREVIEWS section at the bottom of `no_offer_timeout_screen.dart`
-// so this browser and the preview canvas cannot drift into showing two
-// different "designed states". Same five states, same labels; the only change
-// is that every anchor pair is now measured against a FROZEN clock, so the
-// countdown reads exactly `4:30` instead of `4:30`-or-`4:29` depending on how
-// fast the fake's Future resolved.
-
+/// Frozen clock (countdown reads exactly 4:30, not variable).
 Widget _waitingPreview(WaitingRepository repository) => NoOfferTimeoutScreen(
       requestId: NoOfferTimeoutScreenPreviewFixtures.requestId,
       repository: repository,
@@ -443,9 +329,6 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
         NoOfferTimeoutScreenPreviewFixtures.failingLoad(),
       ),
     ),
-    // P7 — the clean-break failure mode: the gateway answered 200 but omitted
-    // `offerDeadlineInSeconds` on a live row. Seeded here so the distinct
-    // contract-break copy is visually inspectable without a backend.
     CatalogState(
       'Contract violation',
       (_) => _waitingPreview(

@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-// Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'customer_profile_row.dart';
 
-/// Section header ("Account" / "Support") on the customer profile: navy,
-/// title-medium-emphasized, indented to the screen gutter (design §1, §4).
+/// Section header ("Account" / "Support"): navy, title-medium, guttered.
 class CustomerProfileSectionHeader extends StatelessWidget {
   const CustomerProfileSectionHeader({super.key, required this.title});
 

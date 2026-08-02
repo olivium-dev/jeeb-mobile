@@ -4,26 +4,13 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'delivery_confirm_illustration.dart';
 
-// Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Which delivery confirmation the sheet drives.
 enum DeliveryConfirmKind {
-  /// Jeeber confirms physically picking the order up (Figma node 56618:2751).
   picking,
-
-  /// Jeeber confirms heading off to deliver (Figma node 56618:2852).
   headingOff,
 }
 
-/// Modal bottom sheet shown over the dimmed chat when the Jeeber confirms a
-/// delivery state transition (picking the order / heading off).
-///
-/// Composed entirely from OMDS primitives + tokens: an M3 drag handle, the
-/// shared [DeliveryConfirmIllustration], a navy title, a periwinkle subtitle,
-/// and a navy [OmdsLoadingButton] Confirm CTA that shows a spinner while the
-/// gateway call runs. The same shell renders both confirmations — only the
-/// copy differs.
 class ConfirmDeliveryActionSheet extends StatelessWidget {
   const ConfirmDeliveryActionSheet({
     super.key,
@@ -33,16 +20,9 @@ class ConfirmDeliveryActionSheet extends StatelessWidget {
   });
 
   final DeliveryConfirmKind kind;
-
-  /// Fired when the Confirm CTA is tapped.
   final VoidCallback onConfirm;
-
-  /// True while the heading-off / picking call is in flight.
   final bool isConfirming;
 
-  /// Opens the sheet over the current route with a navy-tinted scrim. Returns
-  /// the value popped by the sheet (`true` once confirmed), or null if
-  /// dismissed.
   static Future<bool?> show(
     BuildContext context, {
     required DeliveryConfirmKind kind,
@@ -109,8 +89,6 @@ class ConfirmDeliveryActionSheet extends StatelessWidget {
   }
 }
 
-/// Stateful host that flips the CTA into its loading state while the supplied
-/// async [onConfirm] runs, then pops `true` on success.
 class _ConfirmSheetHost extends StatefulWidget {
   const _ConfirmSheetHost({required this.kind, required this.onConfirm});
 
@@ -145,7 +123,6 @@ class _ConfirmSheetHostState extends State<_ConfirmSheetHost> {
   }
 }
 
-/// Vertical content stack: drag handle, illustration, text block, CTA.
 class _SheetContent extends StatelessWidget {
   const _SheetContent({
     required this.title,
@@ -186,7 +163,6 @@ class _SheetContent extends StatelessWidget {
   }
 }
 
-/// Centered M3 drag handle (32×4 pill) tinted with the brand primary.
 class _SheetDragHandle extends StatelessWidget {
   const _SheetDragHandle();
 
@@ -211,7 +187,6 @@ class _SheetDragHandle extends StatelessWidget {
   }
 }
 
-/// Centered navy title + periwinkle subtitle.
 class _SheetTextBlock extends StatelessWidget {
   const _SheetTextBlock({required this.title, required this.subtitle});
 
@@ -251,13 +226,7 @@ class _SheetTextBlock extends StatelessWidget {
   }
 }
 
-/// Full-width navy Confirm CTA that spins while the action runs.
-///
-/// The `Semantics` node owns the tap action and is an explicit `container`
-/// boundary — the same shape as the proven `ChatComposerIconButton`
-/// (`chat_detail_send_button`), which Maestro can tap in flow 04. This makes
-/// the CTA a standalone, id-addressable, tappable node rather than relying on
-/// the inner [OmdsLoadingButton]'s bare `GestureDetector` semantics (QA B1).
+/// Semantics node required for QA B1 (Maestro testing).
 class _SheetConfirmCta extends StatelessWidget {
   const _SheetConfirmCta({
     required this.label,

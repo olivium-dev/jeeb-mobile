@@ -24,16 +24,6 @@ import '../fixtures/jeeber_request_detail_screen_fixtures.dart';
 import '../fixtures/onboarding_funding_screen_fixtures.dart';
 import '../fixtures/request_feed_screen_fixtures.dart';
 
-/// Batch 05 — DT-04 catalog entries for: jeeber_onboarding_funding,
-/// jeeber_pending_offers, jeeber_request_detail, jeeber_request_feed, kyc,
-/// kyc_rejected.
-///
-/// Every builder below renders the REAL screen with a LOCAL fake/stub
-/// injected through that screen's existing constructor test seam — no DI, no
-/// network. Where a screen's data arrives by driving its real cubit through
-/// its own public API (KYC captures, wallet/offer fetches), the seeding calls
-/// are fire-and-forget against a synchronous, no-network fake so the cubit
-/// settles into the target state after a couple of microtasks.
 List<CatalogEntry> get batch05Entries => <CatalogEntry>[
       _onboardingFundingEntry,
       _pendingOffersEntry,
@@ -44,22 +34,6 @@ List<CatalogEntry> get batch05Entries => <CatalogEntry>[
       _kycWizardEntry,
       _kycRejectedEntry,
     ];
-
-// ─────────────────────────────────────────────────────────────────────────
-// jeeber_onboarding_funding
-// ─────────────────────────────────────────────────────────────────────────
-
-// Hosted through the shared fixture
-// (`../fixtures/onboarding_funding_screen_fixtures.dart`), which the widget
-// previews at the bottom of the screen file use as well, so the catalog and the
-// canvas cannot drift. The host is a local [GoRouter] over stand-in
-// destinations: without it every affordance on this screen
-// (`funding_topup_cta` → `goNamed('wallet-charge-info')`,
-// `funding_continue_cta` → `goNamed('kyc-status')`, and the app-bar arrow's
-// `context.go('/')` fallback) drives the REAL app router and drops the reviewer
-// out of the catalog into the live app.
-//
-// The two states and their labels are unchanged; only the fakes moved.
 
 final CatalogEntry _onboardingFundingEntry = CatalogEntry(
   feature: 'jeeber_onboarding_funding',
@@ -86,19 +60,6 @@ final CatalogEntry _onboardingFundingEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// jeeber_pending_offers
-// ─────────────────────────────────────────────────────────────────────────
-
-// The four states and their labels are unchanged; only the fakes moved. They
-// now come from `../fixtures/jeeber_pending_offers_screen_fixtures.dart`, which
-// the JEEB PREVIEWS section at the bottom of `jeeber_pending_offers_screen.dart`
-// reads as well — so the surface a designer signs off against and the one an
-// engineer edits cannot drift onto different offers.
-//
-// The old private `_StaticSubmittedOffersRepository(…, throwOnList: true)`
-// became two named fakes, because "static repository with a boolean" read as
-// the happy path when it was really the error branch.
 final CatalogEntry _pendingOffersEntry = CatalogEntry(
   feature: 'jeeber_pending_offers',
   screen: 'JeeberPendingOffersScreen',
@@ -140,21 +101,9 @@ final CatalogEntry _pendingOffersEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// jeeber_request_detail
-// ─────────────────────────────────────────────────────────────────────────
-
-/// The inert reporting stub every state in this section passes in. Now an alias
-/// for the shared fixture so the catalog and the preview section cannot end up
-/// injecting different seams.
 const ProhibitedItemReportService _reportService =
     jeeberRequestDetailScreenReportService;
 
-/// The two designed states are unchanged — their payloads simply moved to
-/// `../fixtures/jeeber_request_detail_screen_fixtures.dart`, shared verbatim
-/// with the preview section at the bottom of
-/// `jeeber_request_detail_screen.dart`, so the surface a designer signs off
-/// against and the one an engineer edits cannot drift.
 final CatalogEntry _requestDetailEntry = CatalogEntry(
   feature: 'jeeber_request_detail',
   screen: 'JeeberRequestDetailScreen',
@@ -178,13 +127,6 @@ final CatalogEntry _requestDetailEntry = CatalogEntry(
   ],
 );
 
-// The id and the framing come from
-// `../fixtures/jeeber_request_unavailable_screen_fixtures.dart`, which the
-// JEEB PREVIEWS section at the bottom of `jeeber_request_unavailable_screen.dart`
-// also reads — so this state and the canvas cannot drift onto different ids.
-// `catalogDefault` carries `window: null` and `parentOnStack: null`, i.e. the
-// host renders the screen bare on the real device under the catalog's own
-// route, exactly as this entry did before the extraction.
 final CatalogEntry _requestUnavailableEntry = CatalogEntry(
   feature: 'jeeber_request_detail',
   screen: 'JeeberRequestUnavailableScreen',
@@ -212,8 +154,7 @@ final CatalogEntry _requestDetailLoaderEntry = CatalogEntry(
       (_) => JeeberRequestDetailLoader(
         requestId: 'req-303',
         initial: null,
-        // Never resolves, so the loading scaffold stays on screen for the
-        // designed preview.
+        // Never resolves — designed preview
         fetch: () => Completer<FeedRequest?>().future,
         reportService: _reportService,
         onDeclined: (_) {},
@@ -249,19 +190,6 @@ final CatalogEntry _requestDetailLoaderEntry = CatalogEntry(
     ),
   ],
 );
-
-// ─────────────────────────────────────────────────────────────────────────
-// jeeber_request_feed
-// ─────────────────────────────────────────────────────────────────────────
-
-// The six states and their labels are unchanged; only the fakes moved. Every
-// repository and every feed below now comes from
-// `../fixtures/request_feed_screen_fixtures.dart`, shared with the JEEB PREVIEWS
-// section at the bottom of `request_feed_screen.dart`, so the designer's in-app
-// browser and the engineer's canvas cannot drift into showing two different
-// "designed states". The stateful host stays here: it is catalog chrome, and it
-// is what drives a REAL `RequestFeedCubit.start()` so a designer can pull the
-// list and tap the actions.
 
 final CatalogEntry _requestFeedEntry = CatalogEntry(
   feature: 'jeeber_request_feed',
@@ -314,11 +242,7 @@ final CatalogEntry _requestFeedEntry = CatalogEntry(
   ],
 );
 
-/// Owns the [RequestFeedCubit] for a catalog preview and closes it on
-/// dispose. [RequestFeedScreen] only accepts a pre-built `cubit` (wired
-/// internally via `BlocProvider.value`, which never closes it), and the
-/// cubit runs a real `Timer.periodic` sweep (JEEB-66 G3 expiry sweep) — so
-/// without this host, backing out of a preview would leak that timer.
+/// Closes the cubit's Timer on dispose (BlocProvider.value doesn't).
 class _RequestFeedPreview extends StatefulWidget {
   const _RequestFeedPreview({required this.repositoryBuilder});
 
@@ -341,17 +265,6 @@ class _RequestFeedPreviewState extends State<_RequestFeedPreview> {
   @override
   Widget build(BuildContext context) => RequestFeedScreen(cubit: _cubit);
 }
-
-// ─────────────────────────────────────────────────────────────────────────
-// kyc
-// ─────────────────────────────────────────────────────────────────────────
-
-// Hosted through the shared fixture
-// (`../fixtures/kyc_wizard_screen_fixtures.dart`), which the widget previews at
-// the bottom of the screen file use as well, so the catalog and the canvas
-// cannot drift. The five state labels are unchanged; only the fakes moved —
-// see that file's header for the two things the move fixed (decodable capture
-// bytes, and a "ready to submit" state whose submit CTA is actually live).
 
 final CatalogEntry _kycWizardEntry = CatalogEntry(
   feature: 'kyc',
@@ -406,16 +319,6 @@ final CatalogEntry _kycWizardEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// kyc_rejected
-// ─────────────────────────────────────────────────────────────────────────
-
-// Hosted through the shared fixture
-// (`../fixtures/kyc_rejected_screen_fixtures.dart`), which the widget previews
-// at the bottom of the screen file use as well, so the catalog and the canvas
-// cannot drift. The four states below are the four the catalog has always
-// carried — the inline `FakeKycGateway(initial: KycSubmission(...))` literals
-// moved into the fixture value for value, labels unchanged.
 final CatalogEntry _kycRejectedEntry = CatalogEntry(
   feature: 'kyc_rejected',
   screen: 'KycRejectedScreen',

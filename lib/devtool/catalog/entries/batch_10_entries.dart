@@ -33,31 +33,6 @@ import '../fixtures/settlement_detail_screen_fixtures.dart';
 import '../fixtures/settlement_screen_fixtures.dart';
 import '../fixtures/settings_screen_fixtures.dart';
 
-// Batch 10 — request_summary, request_type, reviews, search, settings,
-// settlement. `live_settings_screen.dart` is SKIPPED (see bottom of file): it
-// resolves `sl<Dio>()` inside a field initializer with no constructor seam, so
-// previewing it locally would either hit the live gateway or require reaching
-// into GetIt registration, out of scope for an additive catalog batch.
-
-// ─────────────────────────────────────────────────────────────────────────────
-// request_summary — the accepted-request review + submit card
-// (RequestSummaryScreen) and its cold-deep-link fallback
-// (RequestSummaryUnavailableScreen). The cubit has no DI default (the caller
-// always supplies a [RequestDraft] via `setDraft`), so every state seeds the
-// draft directly; a real submit success navigates away (`context.go('/')`),
-// which has no "designed" rendered state of its own — only Loaded / Submitting
-// / Error are previewed.
-//
-// The fake service, the sample draft and the seeding host used to live here.
-// They now live in `../fixtures/request_summary_screen_fixtures.dart`, which
-// the JEEB PREVIEWS section of `request_summary_screen.dart` reads too — so
-// these three designed states and the engineer-facing canvas cannot drift
-// apart. The states below are unchanged: same labels, same draft, same three
-// service behaviours. `standInRouter` is left at its default `false` because
-// the catalog runs inside the app, where a real router is already above the
-// screen.
-// ─────────────────────────────────────────────────────────────────────────────
-
 Widget _requestSummaryScreen(
   RequestSubmissionService service, {
   bool drive = false,
@@ -70,76 +45,8 @@ Widget _requestSummaryScreen(
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// request_type — tier selection (RequestTypeScreen). Both `repository` and
-// `cubit` are existing constructor test seams (§5.4) — no seam addition
-// needed. The loaded previews use the delivery-service's current three-tier
-// contract rather than the wider legacy fake catalog.
-//
-// The stalled repository and the pre-selected cubit used to live here. They now
-// live in `../fixtures/request_type_screen_fixtures.dart`, which the JEEB
-// PREVIEWS section of `request_type_screen.dart` reads too — so these three
-// designed states and the engineer-facing canvas cannot drift apart. The states
-// below are unchanged: same labels, same catalogue, same selected tier.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// reviews — the all-reviews list (ReviewsListScreen, JM-068). `jeeberId` +
-// `repository` are existing constructor test seams (§5.4).
-//
-// The three fakes these states used to declare here — never-resolves, throws a
-// typed failure, D59 cold start — now live in
-// `../fixtures/reviews_list_screen_fixtures.dart`, which the JEEB PREVIEWS
-// section at the bottom of `reviews_list_screen.dart` reads too, so the
-// designer's in-app browser and the engineer's canvas cannot drift into showing
-// two different "designed states". The states below are unchanged: same labels,
-// same jeeber id, same three behaviours, same cold-start row.
-//
-// `StubReviewsRepository` and `EmptyReviewsRepository` stayed where they are —
-// they are shipping app code, not fixtures, so there is nothing to extract and
-// nothing that can drift.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// settings — SettingsScreen. `cubit` is an existing constructor test seam, and
-// the screen's `_LanguageSection` reads `context.watch<LocaleCubit>()`
-// unconditionally, so every state ALSO needs a real [LocaleCubit] ancestor over
-// a `SharedPreferences`.
-//
-// Both halves — the seeded cubits and that seating — moved to
-// `../fixtures/settings_screen_fixtures.dart`, shared verbatim with the preview
-// section at the bottom of `settings_screen.dart`, so the designer's browser
-// and the engineer's canvas cannot show two different "designed states". The
-// prefs there are in-memory, so the async `SharedPreferences.getInstance()`
-// seam this entry used to carry — and the blank first frame it produced — is
-// gone; the deletion-pending state is seeded rather than driven through
-// `requestAccountDeletion()`, so it no longer pops a four-second SnackBar over
-// the surface. Same pixels, minus the transients.
-//
-// The Active-Role toggle only reads `RoleCubit` from a user GESTURE
-// (`_onChanged`), never from `build`, so no `RoleCubit` ancestor is needed to
-// render these statically.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// The profile-edit fakes and the sample profiles live in
-// `../fixtures/profile_edit_screen_fixtures.dart` so that entry and the preview
-// section at the bottom of `profile_edit_screen.dart` mock the screen from ONE
-// set of fixtures — including WHEN the host mounts the screen relative to
-// `load()`, which is the only thing that decides what the name field contains.
-
-/// Async-seam host for [ProfileEditScreen] (no `cubit` ctor param of its own —
-/// it reads `SettingsCubit` from context), shared verbatim with the preview
-/// section at the bottom of `profile_edit_screen.dart`:
-/// [ProfileEditScreenPreviewHost] with `awaitLoad: true`.
-///
-/// `awaitLoad: true` waits for the fake profile load to complete BEFORE first
-/// build, so the name field's `initState`-seeded [TextEditingController]
-/// starts from the loaded name rather than the empty default. Note that this
-/// is NOT what `app_router.dart` does — the live route builds
-/// `SettingsCubit(...)..load()` and mounts the screen in the same frame, so a
-/// real user's name field starts empty. The preview section carries that state
-/// (`Loads after mount · the name field stays blank`); this entry keeps
-/// showing the designed one.
+/// Unlike the live route (which mounts before load completes), `awaitLoad: true`
+/// waits for load to finish first, so the name field shows the loaded value.
 Widget _profileEditPreview([UserProfile? profile]) =>
     ProfileEditScreenPreviewHost(
       repository: ProfileEditScreenFakeProfileRepository(
@@ -147,15 +54,6 @@ Widget _profileEditPreview([UserProfile? profile]) =>
       ),
       child: const ProfileEditScreen(),
     );
-
-// The two notification-prefs fakes used to live here as private classes. They
-// now live in `../fixtures/notification_preferences_screen_fixtures.dart`
-// (`NotificationPreferencesScreenFakeRepository` /
-// `NotificationPreferencesScreenPendingRepository`) so that this entry and the
-// preview section at the bottom of
-// `lib/features/settings/presentation/screens/notification_preferences_screen.dart`
-// mock the screen from ONE set of designed states instead of two copies free
-// to drift.
 
 class _FakeAccountSessionTerminator implements AccountSessionTerminator {
   const _FakeAccountSessionTerminator();
@@ -167,11 +65,7 @@ class _FakeAccountSessionTerminator implements AccountSessionTerminator {
   Future<void> deleteAccount() async {}
 }
 
-/// Bottom-sheet preview host (mirrors `_sheetHost` in batch 02):
-/// [LogoutDeleteConfirmSheet] is a sheet, not a route — it renders a bare
-/// column, not a `Scaffold`. Pinning it to the bottom of a plain `Scaffold`
-/// mirrors how `showModalBottomSheet` actually presents it without depending
-/// on a live `Navigator`/modal route.
+/// Mirrors how [showModalBottomSheet] presents a sheet without a live [Navigator].
 Widget _logoutDeleteSheetHost(Widget sheet) {
   return Builder(
     builder: (context) => Scaffold(
@@ -180,32 +74,6 @@ Widget _logoutDeleteSheetHost(Widget sheet) {
     ),
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// settlement — the weekly statements list (SettlementScreen, `repository` is
-// an existing constructor test seam) and the per-statement breakdown
-// (SettlementDetailScreen, a plain `statement` value — no repository at all).
-// ─────────────────────────────────────────────────────────────────────────────
-
-// The two fakes this section declared privately
-// (`_FakeSettlementRepository`, `_PendingSettlementRepository`) moved to
-// `../fixtures/settlement_screen_fixtures.dart` as
-// `SettlementScreenFakeRepository` / `SettlementScreenPendingRepository`
-// (behaviour unchanged) so the catalog and the JEEB PREVIEWS section at the
-// bottom of `settlement_screen.dart` drive the four states below through the
-// SAME fake. That file adds three knobs the catalog does not use
-// (`fetchThrowsUnmapped`, `downloadFailure`, `downloadPending`), which is the
-// same arrangement as `transaction_detail_screen_fixtures.dart`.
-
-// The two designed statements moved to
-// `../fixtures/settlement_detail_screen_fixtures.dart` (values unchanged) so
-// the catalog and the `SettlementDetailScreen` preview section cannot drift.
-// `settlementDetailScreenSampleWeeks` is the list this batch used to build
-// inline as `_sampleStatements()`.
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Catalog entries
-// ─────────────────────────────────────────────────────────────────────────────
 
 List<CatalogEntry> get batch10Entries => <CatalogEntry>[
   CatalogEntry(
@@ -236,13 +104,6 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       ),
     ],
   ),
-  // The label and the framing come from
-  // `../fixtures/request_summary_unavailable_screen_fixtures.dart`, which the
-  // JEEB PREVIEWS section at the bottom of
-  // `request_summary_unavailable_screen.dart` also reads — so this state and the
-  // canvas cannot drift apart. `window: null` + `parentOnStack: null` is the
-  // host's pass-through form: the screen renders bare on the real device under
-  // the catalog's own route, exactly as this entry did before the extraction.
   CatalogEntry(
     feature: 'request_summary',
     screen: 'RequestSummaryUnavailableScreen',
@@ -386,11 +247,6 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
   CatalogEntry(
     feature: 'settings',
     screen: 'SavedAddressesScreen',
-    // One state, because the screen has one — see
-    // `../fixtures/saved_addresses_screen_fixtures.dart`, shared verbatim with
-    // the JEEB PREVIEWS section at the bottom of the screen's own file so the
-    // designer's on-device state and the engineer's canvas state stay the same
-    // state.
     states: [
       CatalogState(
         SavedAddressesScreenFixtures.placeholderLabel,
@@ -483,13 +339,5 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
     ],
   ),
 
-  // live_settings_screen.dart — SKIPPED. `LiveSettingsScreen` resolves
-  // `sl<Dio>().get('/v1/users/me')` inside a `late Future` FIELD
-  // INITIALIZER (before `build`, before any constructor seam could
-  // intervene) and has no constructor param of its own — the generic,
-  // seamed `SettingsScreen` it wraps is already cataloged above. Adding a
-  // seam here would mean threading a fake `Dio`/response through a
-  // field-initializer future, which is a bigger surgery than "minimal
-  // additive" for a live-gateway host with no unique designed state beyond
-  // what `SettingsScreen` already renders.
+  // TODO: live_settings_screen — resolves Dio in a field initializer (no seam point)
 ];
