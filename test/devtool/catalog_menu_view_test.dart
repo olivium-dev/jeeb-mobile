@@ -109,6 +109,30 @@ void main() {
     expect(find.byIcon(Icons.clear), findsOneWidget);
   });
 
+  testWidgets('a row matched only by a state label says which one', (
+    tester,
+  ) async {
+    await _pumpMenu(tester);
+
+    await tester.enterText(find.byType(TextField), 'empty');
+    await tester.pump();
+
+    expect(find.text('Saved Addresses'), findsOneWidget);
+    expect(find.text('matched state: empty'), findsOneWidget);
+  });
+
+  testWidgets('a row matched by its own name carries no explanation', (
+    tester,
+  ) async {
+    await _pumpMenu(tester);
+
+    await tester.enterText(find.byType(TextField), 'saved addresses');
+    await tester.pump();
+
+    expect(find.text('Saved Addresses'), findsOneWidget);
+    expect(find.textContaining('matched state:'), findsNothing);
+  });
+
   testWidgets('tapping a filtered row opens that entry', (tester) async {
     final opened = <CatalogEntry>[];
     await _pumpMenu(tester, opened: opened);

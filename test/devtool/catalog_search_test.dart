@@ -107,4 +107,41 @@ void main() {
       expect(filterCatalog(entries, 'delivery nonsense'), isEmpty);
     });
   });
+
+  group('catalogMatchExplanation', () {
+    final byName = _entry(
+      'active_delivery_jeeber',
+      'ActiveDeliveryJeeberScreen',
+    );
+    final byState =
+        _entry('jeeber_request_detail', 'JeeberRequestDetailLoader', [
+          'Loading — recovering a push-tap by id',
+          'Unavailable — feed miss, no active delivery either',
+        ]);
+
+    test('stays silent when the name already explains the hit', () {
+      expect(
+        catalogMatchExplanation(byName, catalogSearchTerms('delivery active')),
+        isEmpty,
+      );
+    });
+
+    test('names the state that carried the unmatched term', () {
+      expect(
+        catalogMatchExplanation(byState, catalogSearchTerms('delivery active')),
+        ['Unavailable — feed miss, no active delivery either'],
+      );
+    });
+
+    test('reports only the states carrying the missing term', () {
+      expect(
+        catalogMatchExplanation(byState, catalogSearchTerms('jeeber loading')),
+        ['Loading — recovering a push-tap by id'],
+      );
+    });
+
+    test('an empty query explains nothing', () {
+      expect(catalogMatchExplanation(byState, catalogSearchTerms('')), isEmpty);
+    });
+  });
 }
