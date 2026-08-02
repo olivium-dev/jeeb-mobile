@@ -2,18 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/locale/locale_cubit.dart';
-import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../../features/order_history/application/order_history_cubit.dart';
 import '../../../features/order_history/domain/order_repository.dart';
-import '../../../features/order_history/domain/order_summary.dart';
 import '../../../features/order_history/presentation/order_history_screen.dart';
-import '../../../features/order_summary/data/fake_order_summary_repository.dart';
-import '../../../features/order_summary/domain/order_summary.dart' as osum;
-import '../../../features/order_summary/domain/order_summary_repository.dart';
 import '../../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../../features/otp_handover/application/otp_handover_cubit.dart';
 import '../../../features/otp_handover/domain/handover_code_store.dart';
@@ -23,6 +16,9 @@ import '../../../features/otp_handover/presentation/otp_handover_screen.dart';
 import '../../../features/password_security/application/password_security_cubit.dart';
 import '../../../features/password_security/presentation/password_security_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/onboarding_screen_fixtures.dart';
+import '../fixtures/order_history_screen_fixtures.dart';
+import '../fixtures/order_summary_screen_fixtures.dart';
 
 // Batch 08 — onboarding, order_history, order_summary, otp_handover,
 // password_security. `photo_attachment` is SKIPPED (see bottom of file): it is
@@ -31,146 +27,48 @@ import '../catalog_models.dart';
 // `kyc` and `settings` (profile photo) features, both out of scope here.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// onboarding — the three-slide first-launch carousel. OnboardingCubit and
-// LocaleCubit both need a real SharedPreferences instance, so this preview
-// mirrors the legacy async-seam pattern: build the cubits once
-// `SharedPreferences.getInstance()`
-// resolves, then provide them. `onComplete` is a no-op so Get Started / Skip
-// never attempt a `goNamed('register')` outside a Router.
+// onboarding — the three-slide first-launch carousel.
+//
+// The cubits and the seating moved to
+// `../fixtures/onboarding_screen_fixtures.dart`, shared verbatim with the
+// preview section at the bottom of `onboarding_screen.dart`, so the designer's
+// browser and the engineer's canvas cannot show two different "Slides — AR".
+// Same two states, same labels; what changed is underneath:
+//
+//   * the prefs are in-memory, so tapping Skip no longer persists
+//     `app.onboarding.completed` into the real app (suppressing the real
+//     walkthrough forever) and tapping العربية no longer changes the app's
+//     language on the next cold start;
+//   * construction is synchronous, so the `SharedPreferences.getInstance()`
+//     seam this entry used to carry — and the blank `SizedBox.shrink()` first
+//     frame it produced — is gone;
+//   * the locale each state pins is now honoured. Over the device's real prefs
+//     `_resolveInitial` read the persisted key BEFORE `deviceLocaleProvider`,
+//     so on any device where a language had ever been chosen both states
+//     rendered the same chip.
+//
+// `onComplete` is still a no-op so Get Started / Skip never attempt a
+// `goNamed('register')` outside a Router.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _OnboardingPreview extends StatefulWidget {
-  const _OnboardingPreview({required this.locale});
-
-  final Locale locale;
-
-  @override
-  State<_OnboardingPreview> createState() => _OnboardingPreviewState();
-}
-
-class _OnboardingPreviewState extends State<_OnboardingPreview> {
-  OnboardingCubit? _onboarding;
-  LocaleCubit? _locale;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final onboarding = OnboardingCubit(prefs: prefs);
-    final locale = LocaleCubit(
-      prefs: prefs,
-      deviceLocaleProvider: () => widget.locale,
-    );
-    if (!mounted) {
-      await onboarding.close();
-      await locale.close();
-      return;
-    }
-    setState(() {
-      _onboarding = onboarding;
-      _locale = locale;
-    });
-  }
-
-  @override
-  void dispose() {
-    _onboarding?.close();
-    _locale?.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final onboarding = _onboarding;
-    final locale = _locale;
-    if (onboarding == null || locale == null) {
-      return const SizedBox.shrink();
-    }
-    return MultiBlocProvider(
-      providers: <BlocProvider<dynamic>>[
-        BlocProvider<OnboardingCubit>.value(value: onboarding),
-        BlocProvider<LocaleCubit>.value(value: locale),
-      ],
+Widget _onboardingPreview(OnboardingScreenCubitFactory create) =>
+    OnboardingScreenPreviewHost(
+      create: create,
       child: OnboardingScreen(onComplete: () {}),
     );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // order_history — the tabbed Active/Completed/Cancelled order list. Local
 // [OrderRepository] fakes drive the populated / empty / error / loading
 // designed states; the screen's own `initState` calls `initialLoad()`, so no
 // extra driving is needed beyond wiring the cubit.
+//
+// The three fakes and the populated cast that used to live here now live in
+// `../fixtures/order_history_screen_fixtures.dart`, shared with the JEEB
+// PREVIEWS section at the bottom of `order_history_screen.dart`. Same rows,
+// same four states, same labels — one copy, so the designer's catalog and the
+// engineer's canvas cannot drift apart.
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _FakeOrderRepository implements OrderRepository {
-  const _FakeOrderRepository({this.page, this.errorKind});
-
-  final OrderPage? page;
-  final OrderRepositoryErrorKind? errorKind;
-
-  @override
-  Future<OrderPage> fetchPage({
-    required OrderHistoryTab tab,
-    required int page,
-    required int pageSize,
-    OrderDateRange range = const OrderDateRange(),
-  }) async {
-    final kind = errorKind;
-    if (kind != null) {
-      throw OrderRepositoryException(kind);
-    }
-    return this.page ?? const OrderPage(items: [], page: 1, hasMore: false);
-  }
-}
-
-/// Never resolves — keeps the screen pinned on its first-page spinner so
-/// "Loading" is a stable, capturable catalog state.
-class _PendingOrderRepository implements OrderRepository {
-  const _PendingOrderRepository();
-
-  @override
-  Future<OrderPage> fetchPage({
-    required OrderHistoryTab tab,
-    required int page,
-    required int pageSize,
-    OrderDateRange range = const OrderDateRange(),
-  }) {
-    return Completer<OrderPage>().future;
-  }
-}
-
-OrderPage _populatedActiveOrders() => OrderPage(
-      items: [
-        OrderSummary(
-          id: 'REQ-1042',
-          createdAt: DateTime.utc(2026, 6, 20, 14, 30),
-          pickupAddress: 'Hamra, Beirut',
-          dropoffAddress: 'Achrafieh, Beirut',
-          status: OrderRequestStatus.enRoute,
-          tier: OrderTier.express,
-          amountMinor: 1250,
-          currency: 'USD',
-        ),
-        OrderSummary(
-          id: 'REQ-1038',
-          createdAt: DateTime.utc(2026, 6, 19, 9, 5),
-          pickupAddress: 'Verdun, Beirut',
-          dropoffAddress: 'Downtown, Beirut',
-          status: OrderRequestStatus.matched,
-          tier: OrderTier.flash,
-          // No usable amount surfaced yet — renders the em-dash, never $0.00.
-          amountMinor: null,
-          currency: 'USD',
-        ),
-      ],
-      page: 1,
-      hasMore: false,
-    );
 
 Widget _orderHistoryScreen(OrderRepository repository) {
   return BlocProvider<OrderHistoryCubit>(
@@ -184,37 +82,18 @@ Widget _orderHistoryScreen(OrderRepository repository) {
 // carries a `repository` constructor seam (production leaves it null and
 // resolves from GetIt), so the catalog just passes a local fake directly —
 // no additive seam needed.
+//
+// The fake repository and the sample summary that used to live here now live in
+// `../fixtures/order_summary_screen_fixtures.dart`, shared verbatim with the
+// JEEB PREVIEWS section at the bottom of `order_summary_screen.dart`. Same
+// values, same three states, same labels — one copy, so the designer's catalog
+// and the engineer's canvas cannot drift apart.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Never resolves — keeps the screen on its centered spinner for a stable
-/// "Loading" catalog state.
-class _PendingOrderSummaryRepository implements OrderSummaryRepository {
-  const _PendingOrderSummaryRepository();
-
-  @override
-  Future<osum.OrderSummary> fetchSummary(String deliveryId) {
-    return Completer<osum.OrderSummary>().future;
-  }
-}
-
-osum.OrderSummary _sampleOrderSummary() => const osum.OrderSummary(
-      deliveryId: 'DEL-2044',
-      requestId: 'REQ-2044',
-      conversationId: 'CONV-2044',
-      price: 14.5,
-      currency: 'USD',
-      jeeberName: 'Rami Chidiac',
-      tier: 'express',
-      jeeberRating: 4.8,
-      jeeberRatingCount: 214,
-      etaMinutes: 12,
-      itemSummary: 'Pharmacy pickup',
-    );
-
-Widget _orderSummaryScreen(OrderSummaryRepository repository) {
+Widget _orderSummaryScreen(OrderSummaryScreenDesignedState state) {
   return OrderSummaryScreen(
-    deliveryId: 'DEL-2044',
-    repository: repository,
+    deliveryId: state.deliveryId,
+    repository: state.repository,
   );
 }
 
@@ -339,11 +218,11 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
         states: [
           CatalogState(
             'Slides — EN',
-            (_) => const _OnboardingPreview(locale: Locale('en')),
+            (_) => _onboardingPreview(OnboardingScreenPreviewFixtures.english),
           ),
           CatalogState(
             'Slides — AR',
-            (_) => const _OnboardingPreview(locale: Locale('ar')),
+            (_) => _onboardingPreview(OnboardingScreenPreviewFixtures.arabic),
           ),
         ],
       ),
@@ -354,28 +233,30 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
           CatalogState(
             'Active — Populated',
             (_) => _orderHistoryScreen(
-              _FakeOrderRepository(page: _populatedActiveOrders()),
+              OrderHistoryScreenStaticOrders(
+                OrderHistoryScreenOrders.activePopulated,
+              ),
             ),
           ),
           CatalogState(
             'Active — Empty',
             (_) => _orderHistoryScreen(
-              const _FakeOrderRepository(
-                page: OrderPage(items: [], page: 1, hasMore: false),
+              const OrderHistoryScreenStaticOrders(
+                OrderHistoryScreenOrders.none,
               ),
             ),
           ),
           CatalogState(
             'Active — Error',
             (_) => _orderHistoryScreen(
-              const _FakeOrderRepository(
-                errorKind: OrderRepositoryErrorKind.server,
+              const OrderHistoryScreenFailingOrders(
+                OrderRepositoryErrorKind.server,
               ),
             ),
           ),
           CatalogState(
             'Active — Loading',
-            (_) => _orderHistoryScreen(const _PendingOrderRepository()),
+            (_) => _orderHistoryScreen(const OrderHistoryScreenStalledOrders()),
           ),
         ],
       ),
@@ -385,19 +266,15 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
         states: [
           CatalogState(
             'Loaded',
-            (_) => _orderSummaryScreen(
-              FakeOrderSummaryRepository(summary: _sampleOrderSummary()),
-            ),
+            (_) => _orderSummaryScreen(OrderSummaryScreenFixtures.loaded),
           ),
           CatalogState(
             'Failed — Not Found',
-            (_) => _orderSummaryScreen(
-              FakeOrderSummaryRepository(failure: OrderSummaryFailure.notFound),
-            ),
+            (_) => _orderSummaryScreen(OrderSummaryScreenFixtures.notFound),
           ),
           CatalogState(
             'Loading',
-            (_) => _orderSummaryScreen(const _PendingOrderSummaryRepository()),
+            (_) => _orderSummaryScreen(OrderSummaryScreenFixtures.coldRead),
           ),
         ],
       ),

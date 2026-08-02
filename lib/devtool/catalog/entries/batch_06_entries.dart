@@ -39,11 +39,10 @@ import 'package:jeeb_mobile/features/masked_call/presentation/masked_call_button
 
 import 'package:jeeb_mobile/features/mixed_direction/presentation/mixed_direction_text.dart';
 
-import 'package:jeeb_mobile/features/no_offer_timeout/application/waiting_cubit.dart';
-import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
-import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_request.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
+
+import '../fixtures/no_offer_timeout_screen_fixtures.dart';
 
 import '../catalog_models.dart';
 import '../fixtures/saved_locations_screen_fixtures.dart';
@@ -400,22 +399,20 @@ final CatalogEntry _mixedDirectionEntry = CatalogEntry(
 // ─────────────────────────────────────────────────────────────────────────
 // no_offer_timeout — NoOfferTimeoutScreen (waiting / no-coverage)
 // ─────────────────────────────────────────────────────────────────────────
-
-const String _waitingPreviewRequestId = 'REQ-WAIT-001';
-
-/// Disables the cubit's poll + clock tick streams (empty streams never emit)
-/// so no runaway timers leak from the catalog preview.
-WaitingCubit _staticWaitingCubit(WaitingRepository repository) => WaitingCubit(
-      repository: repository,
-      requestId: _waitingPreviewRequestId,
-      refreshSignals: const Stream<void>.empty(),
-      clockTicks: const Stream<void>.empty(),
-    );
+//
+// The seeded snapshots, the failures and the inert cubit now live in
+// `lib/devtool/catalog/fixtures/no_offer_timeout_screen_fixtures.dart`, shared
+// with the JEEB PREVIEWS section at the bottom of `no_offer_timeout_screen.dart`
+// so this browser and the preview canvas cannot drift into showing two
+// different "designed states". Same five states, same labels; the only change
+// is that every anchor pair is now measured against a FROZEN clock, so the
+// countdown reads exactly `4:30` instead of `4:30`-or-`4:29` depending on how
+// fast the fake's Future resolved.
 
 Widget _waitingPreview(WaitingRepository repository) => NoOfferTimeoutScreen(
-      requestId: _waitingPreviewRequestId,
+      requestId: NoOfferTimeoutScreenPreviewFixtures.requestId,
       repository: repository,
-      cubitFactory: (repo, id) => _staticWaitingCubit(repo),
+      cubitFactory: NoOfferTimeoutScreenPreviewFixtures.inertCubit,
     );
 
 final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
@@ -424,57 +421,26 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
   states: [
     CatalogState(
       'Broadcasting (counting down)',
-      (_) => _waitingPreview(FakeWaitingRepository(
-        seed: WaitingRequest(
-          requestId: _waitingPreviewRequestId,
-          phase: WaitingRequestPhase.broadcasting,
-          notifiedCount: 6,
-          offerCount: 0,
-          receivedAt: DateTime.now(),
-          remainingAtReceipt: const Duration(minutes: 4),
-          displayId: 'ORD-5001',
-          tier: 'express',
-          title: '2 grocery bags from Spinneys',
-        ),
-      )),
+      (_) => _waitingPreview(
+        NoOfferTimeoutScreenPreviewFixtures.broadcasting(),
+      ),
     ),
     CatalogState(
       'Offers arrived',
-      (_) => _waitingPreview(FakeWaitingRepository(
-        seed: WaitingRequest(
-          requestId: _waitingPreviewRequestId,
-          phase: WaitingRequestPhase.offersArrived,
-          notifiedCount: 6,
-          offerCount: 3,
-          receivedAt: DateTime.now(),
-          remainingAtReceipt: const Duration(minutes: 2),
-          displayId: 'ORD-5001',
-          tier: 'express',
-          title: '2 grocery bags from Spinneys',
-        ),
-      )),
+      (_) => _waitingPreview(
+        NoOfferTimeoutScreenPreviewFixtures.offersArrived(),
+      ),
     ),
     CatalogState(
       'No offers yet (window elapsed)',
-      (_) => _waitingPreview(FakeWaitingRepository(
-        seed: WaitingRequest(
-          requestId: _waitingPreviewRequestId,
-          phase: WaitingRequestPhase.broadcasting,
-          notifiedCount: 0,
-          offerCount: 0,
-          receivedAt: DateTime.now(),
-          remainingAtReceipt: Duration.zero,
-          displayId: 'ORD-5002',
-          tier: 'standard',
-        ),
-      )),
+      (_) => _waitingPreview(
+        NoOfferTimeoutScreenPreviewFixtures.noOffersYet(),
+      ),
     ),
     CatalogState(
       'Error',
       (_) => _waitingPreview(
-        FakeWaitingRepository(
-          failure: const WaitingException(WaitingFailure.network),
-        ),
+        NoOfferTimeoutScreenPreviewFixtures.failingLoad(),
       ),
     ),
     // P7 — the clean-break failure mode: the gateway answered 200 but omitted
@@ -483,12 +449,7 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
     CatalogState(
       'Contract violation',
       (_) => _waitingPreview(
-        FakeWaitingRepository(
-          failure: const WaitingException(
-            WaitingFailure.contractViolation,
-            'offerDeadlineInSeconds absent on a live broadcasting row',
-          ),
-        ),
+        NoOfferTimeoutScreenPreviewFixtures.contractViolation(),
       ),
     ),
   ],

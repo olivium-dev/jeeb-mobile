@@ -85,7 +85,16 @@ import '../../tool/preview_inventory.dart';
 /// 36-line placeholder at `presentation/screens/` — so both files count, and
 /// only now does opening the one the app actually mounts show the truth. See
 /// `docs/previews/FINDING_location_picker_placeholder.md`.
-const int _coverageFloor = 18;
+///
+/// 18 → 11: the screens wave that previewed `NoOfferTimeoutScreen`,
+/// `NotificationPrefsScreen`, `NotificationsListScreen`,
+/// `OfferSubmissionScreen`, `OnboardingScreen`, `OrderHistoryScreen` and
+/// `OrderSummaryScreen` (219/231). All seven extracted their catalog fixtures
+/// into `lib/devtool/catalog/fixtures/` and repointed both surfaces; the
+/// Screen Catalog is unchanged at 89 screens / 288 states, entry-for-entry and
+/// label-for-label. The remaining 11 are all screens; `LiveSettingsScreen` is
+/// still the one BLOCKED entry and does not count here.
+const int _coverageFloor = 11;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(
