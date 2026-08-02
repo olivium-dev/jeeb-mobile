@@ -15,6 +15,10 @@ import 'widgets/delivery_status_stepper.dart';
 import 'widgets/gps_permission_banner.dart';
 import 'widgets/mark_delivered_panel.dart';
 
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../core/previews/jeeb_preview.dart';
+import '../../../devtool/catalog/fixtures/active_delivery_jeeber_screen_fixtures.dart';
+
 /// Minimum width needed to keep the two quick actions on one row without
 /// truncating their localized labels at the default text scale.
 const double _kInlineQuickActionsMinWidth = 448;
@@ -752,3 +756,428 @@ class _ResumeRefreshState extends State<_ResumeRefresh>
   @override
   Widget build(BuildContext context) => widget.child;
 }
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+// `flutter widget-preview start` — open THIS file in the IDE to see its
+// previews. Preview functions are never called by the app, so the AOT compiler
+// tree-shakes them out of release builds. Nothing ABOVE this banner may
+// reference anything BELOW it. Every fixture below is private to this library
+// and prefixed with the widget name. Docs: lib/core/previews/README.md ·
+// Render tests:
+// test/previews/active_delivery_jeeber/active_delivery_jeeber_screen_preview_test.dart
+// ===========================================================================
+//
+// [ActiveDeliveryJeeberScreen] has exactly ONE axis: the [ActiveDeliveryState]
+// its cubit holds. Every preview below is that state and nothing else — the
+// screen reads no other source, and `_ReadyContent` is a pure function of the
+// state plus the localizations.
+//
+// The states are NOT declared here. They live in
+// `lib/devtool/catalog/fixtures/active_delivery_jeeber_screen_fixtures.dart`,
+// shared with the on-device Screen Catalog entry for this screen
+// (`devtool/catalog/entries/batch_01_entries.dart`), so the designer's browser
+// and this canvas name the same states with the same data. The first four —
+// in transit, at door, delivered, load failed — are the catalog's, moved
+// verbatim; the rest are new and previewed here first.
+//
+// Three things about this harness are worth knowing before editing it:
+//
+//  * **Every state is EMITTED, never fetched.** The screen takes both seams
+//    (`repository:` and `cubit:`) and they are not equivalent: a canned
+//    repository can only produce what `loadDelivery()` produces, which is two
+//    of the fourteen states below. [ActiveDeliveryJeeberScreenSeededCubit]
+//    emits the designed state directly and the repository under it throws on
+//    every method, so nothing can reach a gateway even in principle — network-
+//    free by construction, not by the [CatalogNetworkGuard] in
+//    [jeebPreviewHost]. No `gpsUploader` is wired either; the two fields the
+//    banner needs are mirrored into the state, which is what makes the parked-
+//    GPS states previewable at all.
+//  * **The screen owns a Scaffold and [jeebPreviewHost] supplies another.**
+//    They nest: the host's `Scaffold + SafeArea` frames the card and this
+//    screen's `Scaffold + OMDSAppBar` paints inside it — the same nesting the
+//    Screen Catalog produces. The frame is therefore pinned in the TREE as well
+//    as in `size:`, because an unpinned screen is 800 pt wide in the render
+//    tests and none of the layout under review applies there. (The render
+//    surface is 800x600, so the phone box's 844 is clamped to what the host
+//    has; the compact 320x568 box fits and is exact.)
+//  * **The ticker is muted.** [_activeDeliveryJeeberScreenFramed] wraps every
+//    state in `TickerMode(enabled: false)`. The loading state paints
+//    [OmdsLoadingState], an indeterminate `CircularProgressIndicator` that
+//    never stops scheduling frames, and the door-OTP entry autofocuses its
+//    first cell, which starts a blinking cursor and asks the enclosing
+//    `ListView` to reveal it — `pumpAndSettle` in the render tests would hang
+//    on either. A still preview wants a still spinner anyway.
+//
+// What these previews were written to make visible:
+//
+//  * **With neither seam wired the screen is a DEAD END.**
+//    [activeDeliveryJeeberScreenUnavailable] is what `build` returns when
+//    `cubit` and `repository` are both null: an app bar and the single sentence
+//    "Delivery details unavailable." No retry, no reload, no route out, and no
+//    hint that the jeeber is one route-builder bug away from being unable to
+//    complete a delivery they are physically standing at the door of. It keeps
+//    the `mark_delivered_root` identifier, so a flow that only asserts the seam
+//    pin passes on this surface.
+//  * **The loading state has NO TEXT AT ALL.** A bare centred spinner: no
+//    title, no "loading your delivery", nothing for a screen reader to
+//    announce and nothing to cancel. It is also the state a cold deep-link
+//    from a `type=delivery` push opens on.
+//  * **`Done` + in-flight must NOT flash the delivered banner** (JEBV4-276).
+//    [activeDeliveryJeeberScreenCompletingOptimistically] is the frame between
+//    the optimistic emit and the server's verdict, and the OTP path REVERTS
+//    from exactly there back to `AtDoor`. If that preview ever paints
+//    "Delivered successfully" next to a spinner, the `!state.isTransitioning`
+//    guard on `isCompleted` has been dropped and the jeeber is being told the
+//    handover succeeded before anything confirmed it.
+//  * **The GPS park was invisible for months.** The uploader parked on a
+//    missing `ACCESS_BACKGROUND_LOCATION` grant on every delivery and NOTHING
+//    on this screen said so, while the customer's tracking map stayed empty.
+//    The two banner states are previewed side by side because the CTA is the
+//    load-bearing half: Android 11+ grants "Allow all the time" only from the
+//    OS settings page, so "Allow location" on a permanently denied device
+//    would fire a request the platform silently drops.
+//  * **Three unsuccessful terminals, one code path.** Cancelled, expired and
+//    disputed all render `_UnsuccessfulTerminalContent`, and the ONLY
+//    difference is the icon and two strings — worth seeing next to each other,
+//    because it is also where every action disappears: a disputed delivery
+//    (support actively reviewing it) offers the jeeber no way to open the chat
+//    or reach the drop-off.
+//  * **The quick actions never sit on one row on a phone.** `_QuickActions`
+//    stacks below `_kInlineQuickActionsMinWidth` (448), and a 390 pt phone
+//    gives the list 358 pt — so the `Row` branch is unreachable on every
+//    supported handset and only a tablet/landscape canvas shows it.
+//  * **The layout ceiling** is the longest drop-off + concierge detail +
+//    recipient name the gateway will hand over, at the 320 pt floor, on the
+//    state that already carries the most content.
+
+/// The canvas box for a whole screen: a real phone, not the harness default.
+const Size _activeDeliveryJeeberScreenPhoneBox = Size(390, 844);
+
+/// The narrowest phone the app still supports, and roughly what an Android
+/// multi-window split leaves a foreground app. The stepper gives its five stage
+/// labels 1/5 of the content width each, so this is where they wrap first.
+const Size _activeDeliveryJeeberScreenCompactBox = Size(320, 568);
+
+/// Owns one preview card's seeded cubit for the life of the card.
+///
+/// Stateful, and the cubit is built once and closed with the host: a cubit
+/// rebuilt on every frame would leak one per rebuild in the canvas, and one
+/// closed too early would leave `BlocProvider.value` holding a dead bloc.
+class _ActiveDeliveryJeeberScreenHost extends StatefulWidget {
+  const _ActiveDeliveryJeeberScreenHost({
+    required this.seed,
+    this.showGoodsCost = false,
+  });
+
+  final ActiveDeliveryState seed;
+
+  /// Wires `onEnterGoodsCost`, which the screen hides when it is null (Sprint 2
+  /// Stream G). Off by default so the common previews show the two-button stack
+  /// every existing caller produces.
+  final bool showGoodsCost;
+
+  @override
+  State<_ActiveDeliveryJeeberScreenHost> createState() =>
+      _ActiveDeliveryJeeberScreenHostState();
+}
+
+class _ActiveDeliveryJeeberScreenHostState
+    extends State<_ActiveDeliveryJeeberScreenHost> {
+  late final ActiveDeliveryCubit _cubit =
+      ActiveDeliveryJeeberScreenSeededCubit(widget.seed);
+
+  @override
+  void dispose() {
+    _cubit.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        cubit: _cubit,
+        // Inert. In production these push the order chat and the goods-cost
+        // declaration; tapping in the canvas must do neither. `mapsUrlBuilder`
+        // is deliberately left null — `_launchMaps` then builds the URL and
+        // launches nothing, which is exactly what a preview should do with a
+        // deep link into Google Maps.
+        onOpenChat: () {},
+        onEnterGoodsCost: widget.showGoodsCost ? () {} : null,
+      );
+}
+
+/// Pins a screen to a device-sized frame inside whatever box the canvas gives
+/// it, with the ticker muted (see the section note).
+Widget _activeDeliveryJeeberScreenFramed(Widget screen, Size box) {
+  return TickerMode(
+    enabled: false,
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(width: box.width, height: box.height, child: screen),
+    ),
+  );
+}
+
+/// The standard host: one designed state, one phone-sized frame.
+Widget _activeDeliveryJeeberScreenHosted(
+  ActiveDeliveryState seed, {
+  Size box = _activeDeliveryJeeberScreenPhoneBox,
+  bool showGoodsCost = false,
+}) =>
+    _activeDeliveryJeeberScreenFramed(
+      _ActiveDeliveryJeeberScreenHost(seed: seed, showGoodsCost: showGoodsCost),
+      box,
+    );
+
+/// Cold open — the state the cubit is constructed in, before the first read
+/// resolves.
+///
+/// A centred spinner and nothing else: no title, no message, no cancel, and
+/// nothing a screen reader can announce. Every delivery opens on this frame,
+/// and a slow or stalled `GET /v1/deliveries/{id}` holds it for as long as it
+/// lasts, because the screen has no timeout of its own.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Loading · cold open',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenLoading() => _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.loading,
+    );
+
+/// Neither seam wired — the `_Unavailable` shell.
+///
+/// Not a synthetic state: `build` returns this whenever `cubit` AND
+/// `repository` are both null, which is what a route builder that failed to
+/// resolve DI hands the jeeber. One sentence, no retry, no reload and no way
+/// back to the delivery. It still carries `mark_delivered_root`, so a seam pin
+/// or a Maestro flow that only asserts "the screen rendered" cannot tell this
+/// apart from a working delivery.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Unavailable · no seam wired',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenUnavailable() =>
+    _activeDeliveryJeeberScreenFramed(
+      ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+      ),
+      _activeDeliveryJeeberScreenPhoneBox,
+    );
+
+/// The read failed — `OmdsErrorState` with the cubit's own mapped message and
+/// a retry that calls `loadDelivery()` again.
+///
+/// The message is NOT localized: `ActiveDeliveryCubit._mapLoadError` returns an
+/// English literal ("Unable to load delivery" / "No internet connection" /
+/// "Delivery not found") and the screen only falls back to the localized
+/// `activeDeliveryLoadError` when that literal is null — which it never is. So
+/// the AR rendering of this state is an Arabic app bar over an English error,
+/// which is the whole reason the render suite pumps both locales.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Load failed · retry',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenLoadFailed() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.loadFailed,
+    );
+
+/// Pre-pickup (`Ordered`) — the only stage group that still owns an inline
+/// advance CTA.
+///
+/// The button names the NEXT status ("Mark as Picked"), not the current one,
+/// and it is the only affordance on the screen at this stage: no mark-delivered
+/// panel, because JM-051 mounts that for `InTransit`/`AtDoor` only.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Ordered · advance CTA',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenOrdered() => _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.ordered,
+    );
+
+/// En route (`InTransit`) — the delivering phase, and the busiest surface the
+/// screen has: address, stepper (no advance button), proof-photo slot, note
+/// field, cash line, "Complete Delivery", then the action stack.
+///
+/// Matrixed because this is the state a jeeber spends the whole delivery on and
+/// the one with the most text: the AR rendering mirrors an address `Row`, a
+/// cash `Row` and five stage labels at once, and the 200% rendering is where
+/// the `ListView` earns its keep.
+///
+/// Note the heading on the mark-delivered panel: it is
+/// `l10n.activeDeliveryStatusDone` — the STAGE label — so the panel is titled
+/// "Done" while the delivery is in transit, directly under a stepper whose
+/// fifth stage is also labelled "Done".
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'In transit · mark delivered',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+  matrix: true,
+)
+Widget activeDeliveryJeeberScreenInTransit() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.inTransit,
+    );
+
+/// At the door, holding for the recipient's 4-digit code.
+///
+/// `AtDoor → Done` is not a client-patchable edge (P6/B1 — the frozen SM opens
+/// it for `otp_verified` alone), so the panel swaps its CTA for the door-OTP
+/// entry. Both buttons carry the SAME label: `activeDeliveryOtpSubmit` and
+/// `activeDeliveryMarkDone` are both "Complete Delivery", so the only visible
+/// difference between this state and the one above it is the four cells and the
+/// instruction line.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'At door · door OTP',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenAtDoorOtp() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.atDoorOtpRequired,
+    );
+
+/// The GPS uploader is PARKED and the customer's map is empty — recoverable
+/// in-app.
+///
+/// First item in the list, above everything, not dismissible. The CTA is
+/// "Allow location" because the state says the permission can still be
+/// escalated from inside the app.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'GPS blocked · in-app retry',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenGpsBlockedRetryable() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.gpsBlockedRetryable,
+    );
+
+/// The same park, permanently denied — only the OS settings page can lift it.
+///
+/// The CTA becomes "Open settings" and the body grows the longer explanation,
+/// which is what pushes the address card and the stepper down the fold. Read it
+/// next to the retryable state: one bool moves the banner's height, its copy
+/// and the button a jeeber has to find.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'GPS blocked · settings only',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+  matrix: true,
+)
+Widget activeDeliveryJeeberScreenGpsBlockedSettingsOnly() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.gpsBlockedSettingsOnly,
+    );
+
+/// Handed over and verified (`Done`) — the `delivery_completed_state` banner
+/// above the address, the stepper at step 5, and no advance affordance.
+///
+/// The mark-delivered panel is gone (it mounts for `InTransit`/`AtDoor` only),
+/// so the proof photo the jeeber captured is no longer visible anywhere on this
+/// screen even though the delivery still carries its `evidenceUrl`.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Delivered · completed',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenCompleted() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.completed,
+    );
+
+/// JEBV4-276 regression guard, made visible: `Done` with a write still in
+/// flight.
+///
+/// The row reads Done optimistically and nothing is confirmed — the OTP path
+/// reverts from exactly this frame back to `AtDoor` — so `isCompleted` is
+/// gated on `!state.isTransitioning` and the "Delivered successfully" banner
+/// must NOT appear here. If it ever does, the jeeber is being told the handover
+/// succeeded before the server said anything.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Completing · no premature banner',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenCompletingOptimistically() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.completingOptimistically,
+    );
+
+/// Cancelled terminal — a neutral `OmdsEmptyState`, and nothing else at all.
+///
+/// No stepper, no address, no chat, no maps: the shortest surface this screen
+/// can render. It is the right treatment for a delivery that ended, and it is
+/// worth looking at next to the disputed state below, which uses the same
+/// treatment for a case that is still open.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Cancelled · terminal',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenCancelled() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.cancelled,
+    );
+
+/// Expired terminal — a broadcast that timed out before it was completed.
+///
+/// Distinct icon, title and body from `cancelled` (the jeeber-side screen keeps
+/// the three outcomes apart, unlike the customer-side hub, which folds every
+/// non-delivered terminal into "cancelled").
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Expired · terminal',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenExpired() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.expired,
+    );
+
+/// `FailedNeedsEscalation` — "Delivery under review", support is looking at it.
+///
+/// The one "terminal" that can still move: SM edges 12/13 let an admin resolve
+/// it to Done or cancel it, which is why the cubit keeps watching the row
+/// (P6/A2). The SCREEN does not reflect that at all — it renders the same
+/// dead-end empty state as a cancellation, with no chat, no support entry point
+/// and no indication that anything is still in progress.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Disputed · under review',
+  size: _activeDeliveryJeeberScreenPhoneBox,
+)
+Widget activeDeliveryJeeberScreenDisputed() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.disputed,
+    );
+
+/// The layout ceiling at the 320 pt floor: longest drop-off label, longest
+/// concierge detail, longest recipient name, widest amount — and the goods-cost
+/// action wired, so all THREE quick actions are stacked.
+///
+/// Everything that can wrap does. `_AddressCard` gives its column
+/// `320 − 2×16 − 2×24 − 24 icon − 8` ≈ 208 pt, the cash line renders
+/// "Pay 1,250,000.00 LBP cash to Abdulrahman Al-Muhandis Al-Trabulsi
+/// Al-Shamali" inside an `Expanded`, and the five stage labels get ~41 pt each.
+/// Matrixed because AR re-lengthens every string and the 200% rendering is the
+/// accessibility ceiling the golden tests assert for this screen.
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Longest content · compact 320 pt',
+  size: _activeDeliveryJeeberScreenCompactBox,
+  matrix: true,
+)
+Widget activeDeliveryJeeberScreenLongestContent() =>
+    _activeDeliveryJeeberScreenHosted(
+      ActiveDeliveryJeeberScreenFixtures.longestContent,
+      box: _activeDeliveryJeeberScreenCompactBox,
+      showGoodsCost: true,
+    );

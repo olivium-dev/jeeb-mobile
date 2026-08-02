@@ -6,10 +6,8 @@ import '../../../features/cancel_request/application/cancel_request_state.dart';
 import '../../../features/cancel_request/data/fake_cancel_request_repository.dart';
 import '../../../features/cancel_request/domain/cancel_request_repository.dart';
 import '../../../features/cancel_request/presentation/cancel_request_sheet.dart';
-import '../../../features/cancellation/domain/cancellation_repository.dart';
 import '../../../features/cancellation/domain/cancellation_result.dart';
 import '../../../features/cancellation/presentation/cancellation_screen.dart';
-import '../../../features/cancellation/presentation/cubit/cancellation_state.dart';
 import '../../../features/cancellation/presentation/widgets/cancellation_success_sheet.dart';
 import '../../../features/client_offers/application/client_offers_cubit.dart';
 import '../../../features/client_offers/application/offer_accept_state.dart';
@@ -25,6 +23,7 @@ import '../../../features/customer_profile/domain/customer_profile_repository.da
 import '../../../features/customer_profile/domain/customer_profile_view_data.dart';
 import '../../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/cancellation_screen_fixtures.dart';
 import '../fixtures/chat_screen_fixtures.dart';
 
 /// Batch 02 — cancel_request, cancellation, chat, client_offers,
@@ -105,52 +104,37 @@ final CatalogEntry _cancelRequestSheetEntry = CatalogEntry(
 
 // ──────────────────────────── cancellation ─────────────────────────────
 
-/// Never resolves onto the live gateway (constructor test/catalog seam —
-/// same shape as `FakeCancelRequestRepository`). Returns a plausible result if
-/// a reviewer actually taps Confirm in the interactive preview, instead of
-/// throwing, so poking at the live screen doesn't crash the catalog.
-class _CatalogCancellationRepository implements CancellationRepository {
-  const _CatalogCancellationRepository();
-
-  @override
-  Future<CancellationResult> cancel({
-    required String deliveryId,
-    required String reason,
-    String? otherDetails,
-  }) async {
-    return CancellationResult(deliveryId: deliveryId, weeklyCount: 1);
-  }
+/// One catalog card per shared designed state.
+///
+/// The three states below — their labels, their fakes and their seeded cubit
+/// state — are named once in [CancellationScreenDesignedState] constants and
+/// shared verbatim with the JEEB PREVIEWS section at the bottom of
+/// `features/cancellation/presentation/cancellation_screen.dart`, so the
+/// designer's in-app browser and the engineer's preview canvas cannot drift
+/// into showing two different "designed states" of the same screen. The
+/// private `_CatalogCancellationRepository` this entry used to own now lives
+/// there as [CancellationScreenFakeRepository] — same behaviour: never resolves
+/// onto the live gateway, and returns a plausible result if a reviewer actually
+/// taps Confirm, instead of throwing.
+CatalogState _cancellationScreenState(CancellationScreenDesignedState state) {
+  return CatalogState(
+    state.label,
+    (_) => CancellationScreen(
+      deliveryId: state.deliveryId,
+      isJeeber: state.isJeeber,
+      repository: state.repository,
+      initialState: state.initialState,
+    ),
+  );
 }
 
 final CatalogEntry _cancellationScreenEntry = CatalogEntry(
   feature: 'cancellation',
   screen: 'cancellation_screen',
   states: [
-    CatalogState(
-      'Client — reason picker',
-      (_) => const CancellationScreen(
-        deliveryId: 'delivery-demo-1',
-        isJeeber: false,
-        repository: _CatalogCancellationRepository(),
-      ),
-    ),
-    CatalogState(
-      'Jeeber — reason picker',
-      (_) => const CancellationScreen(
-        deliveryId: 'delivery-demo-1',
-        isJeeber: true,
-        repository: _CatalogCancellationRepository(),
-      ),
-    ),
-    CatalogState(
-      'Submitting',
-      (_) => const CancellationScreen(
-        deliveryId: 'delivery-demo-1',
-        isJeeber: false,
-        repository: _CatalogCancellationRepository(),
-        initialState: CancellationLoading(),
-      ),
-    ),
+    _cancellationScreenState(cancellationScreenClientPickerState),
+    _cancellationScreenState(cancellationScreenJeeberPickerState),
+    _cancellationScreenState(cancellationScreenSubmittingState),
   ],
 );
 

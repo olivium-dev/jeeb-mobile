@@ -12,11 +12,20 @@
 // debug-only host, which wires the real [ChatScreen] to [DevChatFixtureGateway]
 // by selector string. Copying those seven strings into the preview section
 // would have been the drift this file exists to prevent, so they are named
-// here once and both consumers call the same builder. The fixture DATA still
+// once and both consumers call the same builder. The fixture DATA still
 // lives in `dev_chat_fixture_gateway.dart` (it is dev-seam code the router also
 // reaches, not catalog-private), and the chrome each state needs — counterpart
 // name, fee amount, composer hint, the auto-opened confirm sheets — still lives
 // in `dev_chat_preview_screen.dart`. Neither is duplicated here.
+//
+// The seven SELECTOR strings moved one level down, to
+// `dev_chat_preview_screen_fixtures.dart`, when `DevChatPreviewScreen` got a
+// preview section of its own: that section has to construct the screen itself
+// (`tool/preview_inventory.dart` will not credit a section that delegates the
+// construction), so a third consumer now needs the same vocabulary. Naming it
+// there keeps ONE spelling of `dm-order-picked` in the repo — which matters
+// more than it looks, because a mistyped selector silently renders a different
+// designed state instead of failing.
 //
 // **The six states no Figma frame covers** — empty, cold-load failure, the load
 // itself, the longest content, the stacked header, the losing Jeeber — are new,
@@ -39,6 +48,7 @@ import '../../../features/chat/domain/chat_gateway.dart';
 import '../../../features/chat/domain/delivery_chat_message.dart';
 import '../../../features/chat/domain/order_chat_summary.dart';
 import '../../../features/chat/presentation/dev_chat_preview_screen.dart';
+import 'dev_chat_preview_screen_fixtures.dart';
 
 /// Answers one canned thread + phase, with no latency and no inbound stream.
 ///
@@ -146,36 +156,44 @@ class ChatScreenPreviewFixtures {
 
   /// Client's just-sent initial request, before any offer lands
   /// (Figma 56535:6469) — one outgoing bubble, no offer cards.
-  static Widget clientSending() =>
-      const DevChatPreviewScreen(selector: 'sending');
+  static Widget clientSending() => const DevChatPreviewScreen(
+        selector: DevChatPreviewScreenPreviewFixtures.clientSending,
+      );
 
   /// Client's offers feed (Figma 56535:6659) — the same request plus the
   /// stacked offer cards that have started arriving.
-  static Widget clientBroadcasting() =>
-      const DevChatPreviewScreen(selector: 'broadcasting');
+  static Widget clientBroadcasting() => const DevChatPreviewScreen(
+        selector: DevChatPreviewScreenPreviewFixtures.clientBroadcasting,
+      );
 
   /// Client's accepted 1:1 thread (Figma 56546:2382).
-  static Widget clientAccepted() =>
-      const DevChatPreviewScreen(selector: 'accepted');
+  static Widget clientAccepted() => const DevChatPreviewScreen(
+        selector: DevChatPreviewScreenPreviewFixtures.clientAccepted,
+      );
 
   /// Jeeber's accepted thread (Figma 56539:906) — fee banner + price/time
   /// composer hint + the Start-delivery CTA.
-  static Widget jeeberAccepted() => const DevChatPreviewScreen(selector: 'dm');
+  static Widget jeeberAccepted() => const DevChatPreviewScreen(
+        selector: DevChatPreviewScreenPreviewFixtures.jeeberAccepted,
+      );
 
   /// Jeeber's thread with the "Order picked" pill on the fee banner
   /// (Figma 56560:1605).
-  static Widget jeeberOrderPicked() =>
-      const DevChatPreviewScreen(selector: 'dm-order-picked');
+  static Widget jeeberOrderPicked() => const DevChatPreviewScreen(
+        selector: DevChatPreviewScreenPreviewFixtures.jeeberOrderPicked,
+      );
 
   /// Jeeber's thread with the confirm-picking sheet auto-opened
   /// (Figma 56618:2751).
-  static Widget jeeberConfirmPicking() =>
-      const DevChatPreviewScreen(selector: 'dm-confirm-picking');
+  static Widget jeeberConfirmPicking() => const DevChatPreviewScreen(
+        selector: DevChatPreviewScreenPreviewFixtures.jeeberConfirmPicking,
+      );
 
   /// Jeeber's thread with the heading-off sheet auto-opened
   /// (Figma 56618:2852).
-  static Widget jeeberConfirmHeadingOff() =>
-      const DevChatPreviewScreen(selector: 'dm-confirm-heading-off');
+  static Widget jeeberConfirmHeadingOff() => const DevChatPreviewScreen(
+        selector: DevChatPreviewScreenPreviewFixtures.jeeberConfirmHeadingOff,
+      );
 
   // ──────────────────── canned data for the new states ─────────────────────
 

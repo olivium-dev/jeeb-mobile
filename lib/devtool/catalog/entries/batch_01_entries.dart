@@ -1,44 +1,28 @@
-import 'dart:typed_data';
-
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../../core/di/injection_container.dart';
 import '../catalog_models.dart';
 
 // ── account_status ──────────────────────────────────────────────────────────
-import '../../../features/account_status/domain/account_status.dart';
-import '../../../features/account_status/domain/account_status_repository.dart';
 import '../../../features/account_status/presentation/account_status_screen.dart';
+import '../fixtures/account_status_screen_fixtures.dart';
 
 // ── active_delivery_jeeber ──────────────────────────────────────────────────
-import '../../../features/active_delivery_jeeber/application/active_delivery_cubit.dart';
-import '../../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
-import '../../../features/active_delivery_jeeber/domain/jeeber_delivery.dart';
-import '../../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
+import '../fixtures/active_delivery_jeeber_screen_fixtures.dart';
 
 // ── auth ─────────────────────────────────────────────────────────────────────
 // The hidden email/password funnel entries (login / sign-up / recover /
 // verify-recovery / social-collision) were removed with that funnel in
-// JEBV4-199. Only the set-password screen survives (JM-061 password-security).
-import '../../../features/auth/application/set_password_cubit.dart';
-import '../../../features/auth/application/set_password_state.dart';
-import '../../../features/auth/domain/auth_repository.dart';
-import '../../../features/auth/domain/set_password_policy.dart';
+// JEBV4-199. Only the set-password screen survives (JM-061 password-security),
+// and its fixtures are shared with that screen's widget-preview section.
 import '../../../features/auth/presentation/set_password_screen.dart';
+import '../fixtures/set_password_screen_fixtures.dart';
 
 // ── biometric_auth ──────────────────────────────────────────────────────────
-import '../../../features/biometric_auth/application/biometric_lock_cubit.dart';
-import '../../../features/biometric_auth/application/biometric_lock_state.dart';
-import '../../../features/biometric_auth/data/shared_prefs_pin_repository.dart';
-import '../../../features/biometric_auth/domain/biometric_gateway.dart';
 import '../../../features/biometric_auth/presentation/biometric_lock_screen.dart';
-import '../../../features/settings/data/repositories/biometric_preference_repository_impl.dart';
+import '../fixtures/biometric_lock_screen_fixtures.dart';
 
 // ── biometric_login ──────────────────────────────────────────────────────────
-import '../../../features/biometric_login/application/biometric_cubit.dart';
 import '../../../features/biometric_login/presentation/biometric_prompt_screen.dart';
+import '../fixtures/biometric_prompt_screen_fixtures.dart';
 
 /// Batch 01 — DT-04 screen-catalog entries for: account_status,
 /// active_delivery_jeeber, auth, background_gps (SKIPPED — pure service, no
@@ -62,21 +46,11 @@ List<CatalogEntry> get batch01Entries => <CatalogEntry>[
 // account_status
 // ═══════════════════════════════════════════════════════════════════════════
 
-class _FixedAccountStatusRepository implements AccountStatusRepository {
-  const _FixedAccountStatusRepository(this._info);
-  final AccountStatusInfo _info;
-
-  @override
-  Future<AccountStatusInfo> fetchStatus() async => _info;
-}
-
-class _FailingAccountStatusRepository implements AccountStatusRepository {
-  const _FailingAccountStatusRepository();
-
-  @override
-  Future<AccountStatusInfo> fetchStatus() async =>
-      throw const AccountStatusRepositoryException(AccountStatusFailure.network);
-}
+// The two fakes and the two `AccountStatusInfo` literals these states were
+// built from now live in `../fixtures/account_status_screen_fixtures.dart`
+// (values unchanged), so this entry and the JEEB PREVIEWS section at the bottom
+// of `lib/features/account_status/presentation/account_status_screen.dart`
+// cannot drift apart.
 
 final CatalogEntry _accountStatusEntry = CatalogEntry(
   feature: 'account_status',
@@ -85,26 +59,23 @@ final CatalogEntry _accountStatusEntry = CatalogEntry(
     CatalogState(
       'Suspended',
       (context) => const AccountStatusScreen(
-        repository: _FixedAccountStatusRepository(
-          AccountStatusInfo(value: AccountStatusValue.suspended),
+        repository: AccountStatusScreenFakeRepository(
+          accountStatusScreenSuspended,
         ),
       ),
     ),
     CatalogState(
       'Locked — server reason',
       (context) => const AccountStatusScreen(
-        repository: _FixedAccountStatusRepository(
-          AccountStatusInfo(
-            value: AccountStatusValue.locked,
-            reason: 'Security hold pending identity re-verification.',
-          ),
+        repository: AccountStatusScreenFakeRepository(
+          accountStatusScreenLockedWithReason,
         ),
       ),
     ),
     CatalogState(
       'Load failed',
       (context) => const AccountStatusScreen(
-        repository: _FailingAccountStatusRepository(),
+        repository: AccountStatusScreenFailingRepository(),
       ),
     ),
   ],
@@ -114,71 +85,23 @@ final CatalogEntry _accountStatusEntry = CatalogEntry(
 // active_delivery_jeeber
 // ═══════════════════════════════════════════════════════════════════════════
 
-class _InertActiveDeliveryRepository implements ActiveDeliveryRepository {
-  const _InertActiveDeliveryRepository();
-
-  @override
-  Future<JeeberDelivery> fetchDelivery(String deliveryId) =>
-      throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
-
-  @override
-  Future<JeeberDeliveryStatus> transition({
-    required String deliveryId,
-    required JeeberDeliveryStatus from,
-    required JeeberDeliveryStatus to,
-    String? evidenceUrl,
-  }) =>
-      throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
-
-  @override
-  Future<JeeberDeliveryStatus> verifyDoorOtp({
-    required String deliveryId,
-    required String code,
-  }) =>
-      throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
-
-  @override
-  Future<String> uploadProofPhoto({
-    required String deliveryId,
-    required Uint8List bytes,
-    String contentType = 'image/jpeg',
-  }) =>
-      throw const ActiveDeliveryException(ActiveDeliveryFailure.network);
-}
-
-/// Seeds [ActiveDeliveryCubit] directly into a designed state — the screen's
-/// `cubit` constructor seam means `loadDelivery()` is never invoked, so the
-/// (unreachable) [_InertActiveDeliveryRepository] never fires.
-class _SeededActiveDeliveryCubit extends ActiveDeliveryCubit {
-  _SeededActiveDeliveryCubit(ActiveDeliveryState seed)
-      : super(
-          repository: const _InertActiveDeliveryRepository(),
-          deliveryId: 'demo-delivery-01',
-        ) {
-    emit(seed);
-  }
-}
-
-JeeberDelivery _demoDelivery({
-  required JeeberDeliveryStatus status,
-  String? proofPhotoUrl,
-}) =>
-    JeeberDelivery(
-      id: 'demo-delivery-01',
-      status: status,
-      dropOff: const DropOffAddress(
-        label: '221B Olaya Street',
-        lat: 24.6877,
-        lng: 46.6857,
-        detail: 'Gate 3, near the blue door',
-      ),
-      clientName: 'Sara Al-Otaibi',
-      conversationId: 'demo-conversation-01',
-      amountText: '\$42.00',
-      cashNote: 'Customer confirms receipt and pays cash on delivery.',
-      proofPhotoUrl: proofPhotoUrl,
-    );
-
+/// The four designed states below used to be seeded by a private
+/// `_InertActiveDeliveryRepository` + `_SeededActiveDeliveryCubit` +
+/// `_demoDelivery` declared in this file, over four inline
+/// `ActiveDeliveryState` literals. They now come from
+/// `lib/devtool/catalog/fixtures/active_delivery_jeeber_screen_fixtures.dart`,
+/// shared verbatim with the JEEB PREVIEWS section at the bottom of
+/// `lib/features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart`,
+/// so the catalog and the canvas cannot drift into two different notions of
+/// "the at-door state".
+///
+/// Nothing about these states changed — same inert repository (never actually
+/// invoked; the `cubit:` seam means `loadDelivery()` never runs), same seeding
+/// technique (a dev-only `ActiveDeliveryCubit` subclass that emits in its
+/// constructor, no production seam), same demo delivery, same four states.
+/// The fixtures file carries several MORE states (loading, the GPS-permission
+/// park, the three unsuccessful terminals, the optimistic-completion frame,
+/// the layout ceiling) which the previews exercise and this entry does not.
 final CatalogEntry _activeDeliveryJeeberEntry = CatalogEntry(
   feature: 'active_delivery_jeeber',
   screen: 'ActiveDeliveryJeeberScreen',
@@ -186,56 +109,40 @@ final CatalogEntry _activeDeliveryJeeberEntry = CatalogEntry(
     CatalogState(
       'In transit — mark delivered',
       (context) => ActiveDeliveryJeeberScreen(
-        deliveryId: 'demo-delivery-01',
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
         onOpenChat: () {},
-        cubit: _SeededActiveDeliveryCubit(
-          ActiveDeliveryState(
-            mode: ActiveDeliveryMode.ready,
-            delivery: _demoDelivery(status: JeeberDeliveryStatus.inTransit),
-          ),
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.inTransit,
         ),
       ),
     ),
     CatalogState(
       'At door — recipient OTP required',
       (context) => ActiveDeliveryJeeberScreen(
-        deliveryId: 'demo-delivery-01',
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
         onOpenChat: () {},
-        cubit: _SeededActiveDeliveryCubit(
-          ActiveDeliveryState(
-            mode: ActiveDeliveryMode.ready,
-            delivery: _demoDelivery(status: JeeberDeliveryStatus.atDoor),
-            otpRequired: true,
-          ),
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.atDoorOtpRequired,
         ),
       ),
     ),
     CatalogState(
       'Delivered — completed',
       (context) => ActiveDeliveryJeeberScreen(
-        deliveryId: 'demo-delivery-01',
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
         onOpenChat: () {},
-        cubit: _SeededActiveDeliveryCubit(
-          ActiveDeliveryState(
-            mode: ActiveDeliveryMode.ready,
-            delivery: _demoDelivery(
-              status: JeeberDeliveryStatus.done,
-              proofPhotoUrl: 'https://example.com/proof.jpg',
-            ),
-          ),
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.completed,
         ),
       ),
     ),
     CatalogState(
       'Load failed',
       (context) => ActiveDeliveryJeeberScreen(
-        deliveryId: 'demo-delivery-01',
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
         onOpenChat: () {},
-        cubit: _SeededActiveDeliveryCubit(
-          const ActiveDeliveryState(
-            mode: ActiveDeliveryMode.error,
-            errorMessage: 'Unable to load delivery',
-          ),
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.loadFailed,
         ),
       ),
     ),
@@ -243,89 +150,40 @@ final CatalogEntry _activeDeliveryJeeberEntry = CatalogEntry(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
-// auth — shared inert repository (never actually invoked; every entry below
-// seeds its cubit's state directly).
+// auth — set-password
 // ═══════════════════════════════════════════════════════════════════════════
 
-class _InertAuthRepository implements AuthRepository {
-  const _InertAuthRepository();
-
-  @override
-  Future<AuthSession> signup({
-    required String email,
-    required String password,
-    String? name,
-  }) =>
-      throw const AuthRepositoryException(AuthFailure.unknown);
-
-  @override
-  Future<AuthSession> login({
-    required String email,
-    required String password,
-  }) =>
-      throw const AuthRepositoryException(AuthFailure.unknown);
-
-  @override
-  Future<RecoveryRequestResult> requestRecovery({required String email}) =>
-      throw const AuthRepositoryException(AuthFailure.unknown);
-
-  @override
-  Future<RecoveryVerifyResult> verifyRecovery({
-    required String email,
-    required String code,
-  }) =>
-      throw const AuthRepositoryException(AuthFailure.unknown);
-
-  @override
-  Future<AuthSession> setPassword({
-    required String email,
-    required String password,
-    String? resetToken,
-  }) =>
-      throw const AuthRepositoryException(AuthFailure.unknown);
-}
-
-// ── set-password ─────────────────────────────────────────────────────────────
-
-class _SeededSetPasswordCubit extends SetPasswordCubit {
-  _SeededSetPasswordCubit(SetPasswordState seed)
-      : super(
-          repository: const _InertAuthRepository(),
-          email: 'jeeber@example.com',
-          resetToken: 'demo-reset-token',
-        ) {
-    emit(seed);
-  }
-}
-
+/// The three designed states below used to be seeded by a private
+/// `_SeededSetPasswordCubit` + a private `_InertAuthRepository` declared in this
+/// file, over three inline `SetPasswordState` literals. They now come from
+/// `lib/devtool/catalog/fixtures/set_password_screen_fixtures.dart`, shared
+/// verbatim with the preview section at the bottom of
+/// `lib/features/auth/presentation/set_password_screen.dart`, so the catalog and
+/// the canvas cannot drift into two different notions of "the mismatch state".
+///
+/// Nothing about these states changed — same inert repository (never actually
+/// invoked; every state is seeded directly), same seeding technique (a dev-only
+/// `SetPasswordCubit` subclass that emits in its constructor, no production
+/// seam), same three states.
 final CatalogEntry _setPasswordEntry = CatalogEntry(
   feature: 'auth',
   screen: 'SetPasswordScreen',
   states: [
     CatalogState(
       'Idle',
-      (context) => SetPasswordScreen(
-        cubitFactory: () => _SeededSetPasswordCubit(const SetPasswordState()),
-      ),
+      (context) =>
+          const SetPasswordScreen(cubitFactory: setPasswordScreenIdleCubit),
     ),
     CatalogState(
       'Submitting',
-      (context) => SetPasswordScreen(
-        cubitFactory: () => _SeededSetPasswordCubit(
-          const SetPasswordState(status: SetPasswordStatus.submitting),
-        ),
+      (context) => const SetPasswordScreen(
+        cubitFactory: setPasswordScreenSubmittingCubit,
       ),
     ),
     CatalogState(
       'Validation error — mismatch',
-      (context) => SetPasswordScreen(
-        cubitFactory: () => _SeededSetPasswordCubit(
-          const SetPasswordState(
-            status: SetPasswordStatus.failed,
-            validation: SetPasswordValidation.mismatch,
-          ),
-        ),
-      ),
+      (context) =>
+          const SetPasswordScreen(cubitFactory: setPasswordScreenMismatchCubit),
     ),
   ],
 );
@@ -334,22 +192,29 @@ final CatalogEntry _setPasswordEntry = CatalogEntry(
 // biometric_auth
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Seeds [BiometricLockCubit] directly. The gateway/pin-repository
-/// dependencies are never called (the seeded state is emitted immediately in
-/// the constructor); [SharedPreferences] is local device storage already
-/// registered in DI by the time the catalog runs inside the live app — not a
-/// network call.
-class _SeededBiometricLockCubit extends BiometricLockCubit {
-  _SeededBiometricLockCubit(BiometricLockState seed)
-      : super(
-          preference:
-              BiometricPreferenceRepositoryImpl(prefs: sl<SharedPreferences>()),
-          gateway: const UnavailableBiometricGateway(),
-          pinRepository: SharedPrefsPinRepository(prefs: sl<SharedPreferences>()),
-        ) {
-    emit(seed);
-  }
-}
+// The private `_SeededBiometricLockCubit` that used to live here moved to
+// `../fixtures/biometric_lock_screen_fixtures.dart` as
+// `BiometricLockScreenSeededCubit`, together with one named factory per state.
+// The three states below are unchanged — they now read from the same fixtures
+// the JEEB PREVIEWS section at the bottom of
+// `lib/features/biometric_auth/presentation/biometric_lock_screen.dart`
+// renders, so the catalog and the canvas cannot drift into two different
+// notions of "the failed state".
+//
+// Two things about the states changed, both of which the old comment here was
+// wrong to be comfortable with:
+//
+//  * The seed no longer reaches into GetIt for `sl<SharedPreferences>()`. Local
+//    device storage is not a network call, but it IS a DI graph and a platform
+//    channel, so the designed state could only ever be built from inside the
+//    running app. The fixture answers both repositories from an in-memory map.
+//  * The states are hosted through [BiometricLockScreenPreviewHost], which
+//    mounts a local `GoRouter` carrying the app's biometric-gate redirects. The
+//    bare `BlocProvider` used before left the screen's two exits wired to the
+//    REAL app router: `biometric_unlock_use_password_link` calls
+//    `context.goNamed('register')`, so a designer tapping it navigated the whole
+//    app out of Dev Tool. It also means the success path is now reviewable at
+//    all — the screen does not navigate on unlock, the gate does.
 
 final CatalogEntry _biometricLockEntry = CatalogEntry(
   feature: 'biometric_auth',
@@ -357,35 +222,23 @@ final CatalogEntry _biometricLockEntry = CatalogEntry(
   states: [
     CatalogState(
       'Awaiting authentication',
-      (context) => BlocProvider<BiometricLockCubit>.value(
-        value: _SeededBiometricLockCubit(
-          const BiometricLockState(phase: BiometricLockPhase.locked),
-        ),
-        child: const BiometricLockScreen(),
+      (context) => const BiometricLockScreenPreviewHost(
+        create: biometricLockScreenLockedCubit,
+        screen: BiometricLockScreen(),
       ),
     ),
     CatalogState(
       'Prompting',
-      (context) => BlocProvider<BiometricLockCubit>.value(
-        value: _SeededBiometricLockCubit(
-          const BiometricLockState(
-            phase: BiometricLockPhase.locked,
-            prompt: BiometricPromptStatus.prompting,
-          ),
-        ),
-        child: const BiometricLockScreen(),
+      (context) => const BiometricLockScreenPreviewHost(
+        create: biometricLockScreenPromptingCubit,
+        screen: BiometricLockScreen(),
       ),
     ),
     CatalogState(
       'Failed attempt — retry',
-      (context) => BlocProvider<BiometricLockCubit>.value(
-        value: _SeededBiometricLockCubit(
-          const BiometricLockState(
-            phase: BiometricLockPhase.locked,
-            prompt: BiometricPromptStatus.failed,
-          ),
-        ),
-        child: const BiometricLockScreen(),
+      (context) => const BiometricLockScreenPreviewHost(
+        create: biometricLockScreenFailedCubit,
+        screen: BiometricLockScreen(),
       ),
     ),
   ],
@@ -395,12 +248,13 @@ final CatalogEntry _biometricLockEntry = CatalogEntry(
 // biometric_login
 // ═══════════════════════════════════════════════════════════════════════════
 
-class _SeededBiometricCubit extends BiometricCubit {
-  _SeededBiometricCubit(BiometricState seed) {
-    emit(seed);
-  }
-}
-
+// The private `_SeededBiometricCubit` that used to live here moved to
+// `../fixtures/biometric_prompt_screen_fixtures.dart` as
+// `BiometricPromptScreenSeededCubit`, together with one named factory per
+// state. The four states below are unchanged — they now read from the same
+// file as the JEEB PREVIEWS section at the bottom of
+// `lib/features/biometric_login/presentation/biometric_prompt_screen.dart`, so
+// this designer-facing entry and the engineer-facing canvas cannot drift apart.
 final CatalogEntry _biometricPromptEntry = CatalogEntry(
   feature: 'biometric_login',
   screen: 'BiometricPromptScreen',
@@ -408,25 +262,25 @@ final CatalogEntry _biometricPromptEntry = CatalogEntry(
     CatalogState(
       'Checking',
       (context) => BiometricPromptScreen(
-        cubit: _SeededBiometricCubit(BiometricState.checking),
+        cubit: biometricPromptScreenCheckingCubit(),
       ),
     ),
     CatalogState(
       'Available',
       (context) => BiometricPromptScreen(
-        cubit: _SeededBiometricCubit(BiometricState.available),
+        cubit: biometricPromptScreenAvailableCubit(),
       ),
     ),
     CatalogState(
       'Unavailable',
       (context) => BiometricPromptScreen(
-        cubit: _SeededBiometricCubit(BiometricState.unavailable),
+        cubit: biometricPromptScreenUnavailableCubit(),
       ),
     ),
     CatalogState(
       'Failed',
       (context) => BiometricPromptScreen(
-        cubit: _SeededBiometricCubit(BiometricState.failed),
+        cubit: biometricPromptScreenFailedCubit(),
       ),
     ),
   ],
