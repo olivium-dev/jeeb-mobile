@@ -98,3 +98,50 @@ reproductions. Several agents flagged this themselves.
   predates it; the other four are unattributed against `main`.
 - The local Flutter SDK carries a one-line patch (`initiallyExpanded: false`) so the
   canvas opens collapsed. **Global to the machine, reverts on `flutter upgrade`.**
+
+---
+
+## 6. The overflow numbers are inflated — measured, not suspected
+
+Every wave doc carries a caveat that pixel figures come from `flutter_test`'s
+square font. Wave 07 turned that from a caveat into a measurement, and it is worse
+than "treat thresholds as upper bounds".
+
+`test/previews/preview_test_harness.dart` does not load real fonts, so text lays
+out in Flutter's default face where every glyph is a 1-em square:
+
+| string | test face | real face |
+|---|---|---|
+| `Flag as Unreachable` | 304.0 px | **154.7 px** |
+| `تعذر الوصول إلى العميل` | 352.0 px | **147.9 px** |
+
+Latin ~2x too wide, Arabic ~2.4x. Wiring `loadInterTestFont()` +
+`withGoldenTestFonts()` into the harness — both of which this repo already has,
+and which **seven preview tests reached for independently** after hitting phantom
+AR overflows — moves the suite from
+
+    5344 pass / 0 fail   ->   5217 pass / 127 fail
+
+Those 127 are assertions that PIN an overflow. Under real fonts the overflow does
+not happen, so the assertion fails. **127 of 5344 (2.4%) were pinning a defect
+that does not exist on any device.**
+
+### What this does and does not invalidate
+
+- **Structural claims stand.** "This `Text` has no `maxLines` inside an unbounded
+  `Row`" is true regardless of typeface, and that is the shape of most §1 and §2
+  findings.
+- **Any specific "overflows by N px at M% text" is suspect**, especially Arabic
+  ones and especially near a threshold. A finding that only ever manifested as a
+  number, with no structural cause named, should be re-verified before anyone
+  spends time on it.
+- **The §1 list is unaffected** — those are data loss, dead ends and wrong copy,
+  none of which are measured in pixels.
+
+### Why the harness was not simply fixed
+
+Turning it on retroactively red-lines 127 assertions mid-rollout and blocks the
+loop's integration gate. Fixed forward instead: the harness now documents the trap,
+and new preview tests are told to load the real fonts (the workflow prompt says so
+too). The 127 legacy assertions are the backlog — each needs re-checking under real
+fonts and either correcting to assert a clean layout or deleting.

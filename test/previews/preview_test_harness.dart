@@ -49,6 +49,34 @@ class _SyncArbDelegate extends LocalizationsDelegate<AppLocalizations> {
 late _SyncArbDelegate _delegate;
 
 /// Call from `setUpAll`.
+///
+/// ## Fonts: call `loadInterTestFont()` too, in NEW tests
+///
+/// This harness does NOT load real fonts, and that is a known, measured
+/// problem — kept only because changing it retroactively breaks 127 existing
+/// assertions that were written against the wrong metrics.
+///
+/// Flutter's default test face makes every glyph a 1-em square. Measured:
+///
+///     "Flag as Unreachable"      test face 304.0px   real 154.7px
+///     "تعذر الوصول إلى العميل"    test face 352.0px   real 147.9px
+///
+/// So Latin is ~2x too wide and Arabic ~2.4x. Any assertion about overflow,
+/// truncation or "fits in the slot" taken under the test face is inflated, and
+/// a defect it reports may not exist on any device. Wiring
+/// `loadInterTestFont()` + `withGoldenTestFonts()` into this file turns 5344
+/// passing assertions into 5217 pass / 127 fail — every one of those 127 a
+/// phantom overflow.
+///
+/// NEW preview tests should do what seven of them already worked out
+/// independently:
+///
+///     import '../support/load_test_fonts.dart';
+///     setUpAll(() async { await loadInterTestFont(); loadPreviewArbs(); });
+///     // and wrap the theme: withGoldenTestFonts(AppTheme.light())
+///
+/// The 127 legacy assertions are the backlog — see
+/// docs/previews/FINDINGS_TRIAGE.md §6.
 void loadPreviewArbs() {
   _delegate = _SyncArbDelegate(<String, String>{
     'en': File('lib/l10n/app_en.arb').readAsStringSync(),

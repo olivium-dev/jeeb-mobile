@@ -105,6 +105,13 @@ Report \`fixtureSource: 'catalog-absent-wrote-new'\`.
   state an existing test or code comment flags as a past bug. A single happy path
   will be rejected.
 - **The test must pin content** — \`expectedText\` with a DISTINCT string per state.
+- **Load the real fonts.** \`preview_test_harness.dart\` does NOT, so text lays out
+  in Flutter's 1-em square test face — Latin ~2x too wide, Arabic ~2.4x. Any
+  overflow you measure without them may not exist on a device. In your test:
+  \`import '../support/load_test_fonts.dart';\`,
+  \`setUpAll(() async { await loadInterTestFont(); loadPreviewArbs(); });\`
+  and wrap the theme with \`withGoldenTestFonts(...)\`. Never assert an overflow
+  you measured under the test face.
 - Leave no scratch files. Do NOT \`git commit\` or \`git push\`.
 
 ## Verify before reporting
