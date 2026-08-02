@@ -20,7 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Maximum number of uncovered widgets allowed. Lower this as waves land —
 /// never raise it.
-const int _coverageFloor = 167;
+const int _coverageFloor = 159;
 
 final RegExp _widgetClass = RegExp(
   r'^class ([A-Z][A-Za-z0-9_]*) extends (?:StatelessWidget|StatefulWidget)',
@@ -45,6 +45,15 @@ List<File> _dartFilesUnder(String dir) {
 
 String _rel(String path) =>
     path.replaceFirst('${Directory.current.path}${Platform.pathSeparator}', '');
+
+/// `ChatMessageBubble` -> `chat_message_bubble`. Must match the same helper in
+/// `tool/preview_coverage.dart`.
+String _snake(String pascal) => pascal
+    .replaceAllMapped(
+      RegExp(r'(?<=[a-z0-9])([A-Z])'),
+      (Match m) => '_${m.group(1)}',
+    )
+    .toLowerCase();
 
 void main() {
   test('no production code imports lib/previews/', () {
@@ -80,11 +89,15 @@ void main() {
       }
     }
 
-    final previewText = _dartFilesUnder('lib/previews')
-        .map((File f) => f.readAsStringSync())
-        .join('\n');
+    // Covered == owns `lib/previews/<area>/<snake>_preview.dart`. A mere mention
+    // inside a sibling's preview does NOT count — that once inflated coverage by
+    // five widgets that had no preview of their own.
+    final previewFiles = _dartFilesUnder('lib/previews')
+        .map((File f) => f.uri.pathSegments.last)
+        .where((String n) => n.endsWith('_preview.dart'))
+        .toSet();
     final uncovered = all
-        .where((String n) => !RegExp('\\b$n\\b').hasMatch(previewText))
+        .where((String n) => !previewFiles.contains('${_snake(n)}_preview.dart'))
         .toList();
 
     expect(

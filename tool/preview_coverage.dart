@@ -4,11 +4,15 @@
 //   dart run tool/preview_coverage.dart --json    # machine-readable work queue
 //   dart run tool/preview_coverage.dart --area chat
 //
-// A widget counts as COVERED when its class name appears anywhere under
-// `lib/previews/`. That is deliberately a text-level check rather than an
-// analyzer pass: it costs milliseconds, has no package dependency, and cannot
-// itself break the build. The rollout's real correctness gate is the per-area
-// render test, not this script — this only answers "what is left".
+// A widget counts as COVERED when it OWNS a preview file at the conventional
+// path — `lib/previews/<area>/<snake_name>_preview.dart`.
+//
+// An earlier version asked "does this class name appear anywhere under
+// lib/previews/", which silently counted five widgets as covered because a
+// sibling's preview happened to mention them in a doc comment. Owning a file is
+// unambiguous and cannot be earned by a passing reference. A widget that is only
+// ever rendered inside a parent still needs its own file — give it one preview
+// showing it in isolation, which is the point.
 //
 // Screens are out of scope: they are already covered by the on-device Screen
 // Catalog (`lib/devtool/catalog/`), which carries 270 mocked states.
@@ -92,16 +96,18 @@ void main(List<String> args) {
     }
   }
 
-  // 2. Everything named anywhere under lib/previews/.
-  final previewSource = StringBuffer();
-  for (final file in _dartFilesUnder('lib/previews')) {
-    previewSource.writeln(file.readAsStringSync());
-  }
-  final previewText = previewSource.toString();
+  // 2. Every preview file that exists, by basename.
+  final previewFiles = _dartFilesUnder('lib/previews')
+      .map((File f) => f.uri.pathSegments.last)
+      .where((String n) => n.endsWith('_preview.dart'))
+      .toSet();
+
   final covered = <WidgetRef>[];
   final uncovered = <WidgetRef>[];
   for (final w in all) {
-    (RegExp('\\b${w.name}\\b').hasMatch(previewText) ? covered : uncovered)
+    (previewFiles.contains('${_snake(w.name)}_preview.dart')
+            ? covered
+            : uncovered)
         .add(w);
   }
 
