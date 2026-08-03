@@ -299,6 +299,23 @@ flutter:
     - assets/animations/nearby-scan.json
     - assets/animations/success-check.json
     - assets/animations/voice-waveform.json
+
+    # MIDNIGHT M0-7 — board artwork imported from the Rich UI export
+    # (`export-rich-ui/assets/`), renamed to this repo's snake_case convention.
+    #   jeeb_wordmark.svg -> the Rich UI wordmark lockup (distinct from
+    #                        jeeb_logo.svg above, which is the Figma splash mark)
+    #   delivery_3d.png   -> 3D hand/phone/shopping-bag hero
+    # NOTE for M5's navy-hostility audit: delivery_3d.png is cyan/magenta, NOT
+    # the navy/orange brand pair — it is imported as specified, not vetted.
+    - assets/brand/jeeb_wordmark.svg
+    - assets/illustrations/delivery_3d.png
+
+    # MIDNIGHT M0-6 — the dark Google Maps style JSON. Google Maps renders its
+    # LIGHT default until a style is applied, which on a #070C33 screen reads as
+    # a white hole; this re-values the base map into the Midnight palette
+    # measured off the R3/R11 board tiles. Loaded via `JeebMapStyle`
+    # (lib/core/map/jeeb_map_style.dart) and passed to `GoogleMap.style`.
+    - assets/map_styles/midnight.json
   # Inter, bundled locally (OFL-1.1) as discrete STATIC instances. A single
   # variable TTF registered under discrete `weight:` keys does NOT engage the
   # weight axis — Flutter renders 400/500/600/700 identically (proven by
@@ -319,4 +336,31 @@ flutter:
         - asset: assets/fonts/Inter-SemiBold.ttf
           weight: 600
         - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        # MIDNIGHT M0-5: w800 previously degraded to w700, which erased the
+        # money emphasis the ramp's statHero/statDisplay/price/badge/codeInput
+        # styles depend on (token sheet §6). Static ExtraBold instance from the
+        # Google Fonts TTF endpoint (Inter v20) — verified static (no `fvar`),
+        # OS/2 usWeightClass 800, unitsPerEm 2048 and hhea/typo metrics
+        # identical to the four instances above, so it shares their baseline.
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800
+    # MIDNIGHT M0-5: the Arabic brand face. The board's design system declares
+    # `--font-arabic: "Baloo Bhaijaan 2", "Inter", "SF Arabic", sans-serif`
+    # (_ds/tokens/typography.css:10) — Inter carries no Arabic, so before this
+    # every Arabic string fell through to the platform face and the brand
+    # simply did not render in AR. The type ramp names this family in
+    # `fontFamilyFallback`, so the string below must stay EXACTLY
+    # "Baloo Bhaijaan 2" (spaces included) — a fallback family name is matched
+    # verbatim and fails SILENTLY, with no analyzer or test to catch a typo.
+    # OFL-1.1. Static instances (no `fvar`), usWeightClass 500/600/700 — same
+    # discipline as Inter above; 400/800 are deliberately absent because the
+    # ramp only ever asks Arabic for w500/w600/w700.
+    - family: Baloo Bhaijaan 2
+      fonts:
+        - asset: assets/fonts/BalooBhaijaan2-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/BalooBhaijaan2-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/BalooBhaijaan2-Bold.ttf
           weight: 700
