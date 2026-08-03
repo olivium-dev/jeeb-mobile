@@ -8,19 +8,22 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
 
 import 'jeeb_card_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #25.
+/// Gates for the MIDNIGHT list row (R19/R22/R23).
 ///
 /// FAIL-WITHOUT: 20 and 23 both re-home frozen identifiers onto this row. A
 /// hardcoded `Icons.chevron_right`, a swallowed identifier or a lost
 /// `showChevron` escape hatch each break a shipped Maestro flow silently —
 /// Maestro is not in CI.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
-  final Color muted = (AppTheme.light().extension<JeebSemanticColors>() ??
-          JeebSemanticColors.light())
-      .mutedText;
+  final ThemeData theme = AppTheme.midnight();
+  final ColorScheme scheme = theme.colorScheme;
+  final JeebSemanticColors semantics = theme.extension<JeebSemanticColors>()!;
 
-  // 23's Earnings row, verbatim (`tpl 1387-1394`).
+  // Token sheet §1/§3 values, typed out rather than read back.
+  const Color ink = Color(0xFFEDEFFC);
+  const Color muted = Color(0xFF8A93D8);
+
+  // 23's Earnings row, verbatim.
   Widget earningsRow({VoidCallback? onTap}) => JeebListRow(
         icon: Icons.show_chart,
         title: 'Earnings',
@@ -29,24 +32,28 @@ void main() {
       );
 
   group('JeebListRow anatomy', () {
-    testWidgets('navy glyph, navy w700 title, muted subtitle, muted chevron',
+    testWidgets('ink glyph, ink w700 title, muted subtitle, muted chevron',
         (tester) async {
       await tester.pumpWidget(wrapCard(earningsRow()));
 
       final Icon glyph = tester.widget<Icon>(find.byIcon(Icons.show_chart));
       expect(glyph.size, 19);
-      expect(glyph.color, scheme.primary);
+      expect(
+        glyph.color,
+        ink,
+        reason: 'R22 inks glyph and title alike — orange is off-budget here',
+      );
 
       final TextStyle title = tester.widget<Text>(find.text('Earnings')).style!;
-      expect(title.fontSize, 14);
+      expect(title.fontSize, 14.5, reason: 'the ramp body, not a local px');
       expect(title.fontWeight, FontWeight.w700);
-      expect(title.color, scheme.primary);
+      expect(title.color, ink);
 
       final TextStyle subtitle = tester
           .widget<Text>(find.text('Cash collected, fees paid'))
           .style!;
       expect(subtitle.fontSize, 11.5);
-      expect(subtitle.fontWeight, FontWeight.w500);
+      expect(subtitle.fontWeight, FontWeight.w600, reason: 'ramp caption');
       expect(subtitle.color, muted);
 
       final Icon chevron =
@@ -55,7 +62,7 @@ void main() {
       expect(chevron.color, muted);
     });
 
-    testWidgets('pads 14/16', (tester) async {
+    testWidgets('pads 11/14 — the Pattern E metric fix', (tester) async {
       await tester.pumpWidget(wrapCard(earningsRow()));
 
       final Padding padding = tester.widget<Padding>(
@@ -68,7 +75,7 @@ void main() {
       );
       expect(
         padding.padding.resolve(TextDirection.ltr),
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       );
     });
 
@@ -113,7 +120,7 @@ void main() {
 
       final TextStyle style = tester.widget<Text>(find.text('Sign out')).style!;
       expect(style.fontWeight, FontWeight.w600);
-      expect(style.color, scheme.primary);
+      expect(style.color, ink);
     });
 
     testWidgets('a trailing widget replaces the chevron', (tester) async {
@@ -258,17 +265,11 @@ void main() {
         ),
       );
 
-      expect(
-        tester.widget<Text>(find.text('Earnings')).style!.color,
-        scheme.onPrimary,
-      );
-      expect(
-        tester.widget<Icon>(find.byIcon(Icons.show_chart)).color,
-        scheme.onPrimary,
-      );
+      expect(tester.widget<Text>(find.text('Earnings')).style!.color, ink);
+      expect(tester.widget<Icon>(find.byIcon(Icons.show_chart)).color, ink);
       expect(
         tester.widget<Text>(find.text('Cash collected, fees paid')).style!.color,
-        scheme.onPrimary.withValues(alpha: 0.7),
+        semantics.inkSoft,
       );
     });
   });

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_shadows.dart';
 import '../../theme/jeeb_text_styles.dart';
@@ -81,7 +82,7 @@ class JeebStepper extends StatelessWidget {
   /// Ø8 white core inside an `active` node.
   static const double activeCoreSize = 8;
 
-  /// `2px surfaceContainerHighest` ring — the whole of a `pending` node.
+  /// `2px glassBorderStrong` ring — the whole of a `pending` node.
   /// The board is `box-sizing: border-box`, and a Flutter [Border] paints
   /// inside the box, so Ø26 stays Ø26 (no correction needed here, unlike
   /// `JeebOutlinedCard`'s padding fold).
@@ -95,7 +96,7 @@ class JeebStepper extends StatelessWidget {
   static const double connectorHeight = 3;
 
   /// Connector corner radius.
-  static const double connectorRadius = 9;
+  static const double connectorRadius = JeebRadii.sm;
 
   /// The connector's `margin-top`, which centres it on the Ø26 node while the
   /// row stays [CrossAxisAlignment.start] (so labels of different heights do
@@ -107,21 +108,17 @@ class JeebStepper extends StatelessWidget {
   /// Segment height.
   static const double barHeight = 5;
 
-  /// Segment corner radius.
-  static const double barRadius = 9;
+  /// Segment corner radius — board `border-radius: 9px`.
+  static const double barRadius = JeebRadii.sm;
 
-  /// Gap between segments.
+  /// Gap between segments — board `gap: 6px`.
   static const double barGap = 6;
 
-  /// `0 0 0 3` accent ring on the active segment. **Not**
-  /// `JeebShadows.stepGlow`, whose spread 5 is sized for 12's Ø26 node, and not
-  /// `focusRing`, which is the wrong colour. The ink is still taken from the
-  /// Wave 0 token so there is exactly one definition of "accent at 18%".
-  static final List<BoxShadow> barGlow = <BoxShadow>[
-    BoxShadow(color: _glowInk, spreadRadius: barGlowSpread),
-  ];
+  /// The active segment's live glow — board `0 0 14px rgba(215,59,0,.7)`,
+  /// which is [JeebShadows.glowDot] on the Midnight ladder.
+  static const List<BoxShadow> barGlow = JeebShadows.glowDot;
 
-  /// Spread of [barGlow].
+  /// Retained for API stability: the retired spread-ring form of [barGlow].
   static const double barGlowSpread = 3;
 
   // ── Pulse ────────────────────────────────────────────────────────────────
@@ -134,7 +131,7 @@ class JeebStepper extends StatelessWidget {
   static const int pulseCycles = 3;
 
   /// How far the glow's spread grows at the peak of a breath, on top of
-  /// `JeebShadows.stepGlow`'s resting spread.
+  /// `JeebShadows.glowRest`'s resting spread.
   static const double pulseAmplitude = 4;
 
   /// 0-based index of the active step.
@@ -153,7 +150,7 @@ class JeebStepper extends StatelessWidget {
   ///
   /// **Bounded, not endless.** The pulse plays [pulseCycles] breaths whenever a
   /// step becomes active (including on first build) and then rests at exactly
-  /// `JeebShadows.stepGlow`. An endless ticker in a shared kit widget would
+  /// `JeebShadows.glowRest`. An endless ticker in a shared kit widget would
   /// deadlock every `pumpAndSettle` in the app — eight live-tracking test files
   /// alone use it — so the motion is bounded and the widget settles.
   /// Reduce-motion (`MediaQuery.disableAnimationsOf`) skips it entirely.
@@ -176,11 +173,12 @@ class JeebStepper extends StatelessWidget {
   final int _barCount;
   final bool _isBars;
 
-  /// `rgba(215,59,0,.18)`, read off the Wave 0 token rather than restated.
-  static final Color _glowInk = JeebShadows.stepGlow.first.color;
+  /// `rgba(215,59,0,.18)`, read off the Midnight token rather than restated.
+  static final Color _glowInk = JeebShadows.glowRest.first.color;
 
-  /// Resting spread of `JeebShadows.stepGlow` (5).
-  static final double _glowSpread = JeebShadows.stepGlow.first.spreadRadius;
+  /// Resting blur / spread of `JeebShadows.glowRest` (30 / 0).
+  static final double _glowBlur = JeebShadows.glowRest.first.blurRadius;
+  static final double _glowSpread = JeebShadows.glowRest.first.spreadRadius;
 
   /// Number of steps in either form.
   int get stepCount => _isBars ? _barCount : labels.length;
@@ -243,18 +241,21 @@ class JeebStepper extends StatelessWidget {
   }
 
   Widget _buildBars(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
     final Color accent = context.jeebRoles.accent;
+    final JeebSemanticColors semantics =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     final List<Widget> children = <Widget>[];
     for (var index = 0; index < _barCount; index++) {
       if (index > 0) {
         children.add(const SizedBox(width: barGap));
       }
       final _JeebStepState state = _stateAt(index);
+      // Board: passed = periwinkle, active = orange + glow, pending = glass.
       final Color fill = switch (state) {
-        _JeebStepState.done => scheme.primary,
+        _JeebStepState.done => theme.colorScheme.secondary,
         _JeebStepState.active => accent,
-        _JeebStepState.pending => scheme.surfaceContainerHighest,
+        _JeebStepState.pending => semantics.glassFillPressed,
       };
       children.add(
         Expanded(
@@ -289,14 +290,18 @@ class _Connector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final JeebSemanticColors semantics =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     return Padding(
       padding: const EdgeInsetsDirectional.only(
         top: JeebStepper.connectorTopInset,
       ),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: passed ? scheme.primary : scheme.surfaceContainerHighest,
+          color: passed
+              ? theme.colorScheme.secondary
+              : semantics.glassFillPressed,
           borderRadius: BorderRadius.circular(JeebStepper.connectorRadius),
         ),
         child: const SizedBox(height: JeebStepper.connectorHeight),
@@ -384,7 +389,7 @@ class _StepNodeState extends State<_StepNode>
 
   /// `sin(phase·π).abs()` gives [JeebStepper.pulseCycles] symmetric breaths
   /// across the controller's 0→1 sweep and lands back at 0, so the resting
-  /// shadow is byte-identical to `JeebShadows.stepGlow`.
+  /// shadow is byte-identical to `JeebShadows.glowRest`.
   List<BoxShadow> _glow() {
     final double phase = _controller.value * JeebStepper.pulseCycles;
     final double swell =
@@ -392,11 +397,12 @@ class _StepNodeState extends State<_StepNode>
     // `sin(3π)` is 4.9e-16, not 0, so snap the trough back onto the token —
     // otherwise the resting shadow is a hair off the Wave 0 const forever.
     if (swell <= _restEpsilon) {
-      return JeebShadows.stepGlow;
+      return JeebShadows.glowRest;
     }
     return <BoxShadow>[
       BoxShadow(
         color: JeebStepper._glowInk,
+        blurRadius: JeebStepper._glowBlur,
         spreadRadius: JeebStepper._glowSpread + swell,
       ),
     ];
@@ -408,16 +414,16 @@ class _StepNodeState extends State<_StepNode>
     final ColorScheme scheme = theme.colorScheme;
     final JeebRoles roles = context.jeebRoles;
     final JeebSemanticColors semantics =
-        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.light();
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     final TextStyle base = context.jeebText.label;
 
     final TextStyle labelStyle = switch (widget.state) {
-      // 12 `tpl 733`: 10.5/w700 navy — `jeebText.label` untouched but for ink.
-      _JeebStepState.done => base.copyWith(color: scheme.primary),
-      // `tpl 744`: 10.5/w800 orange.
+      // Board 10.5 periwinkle — `jeebText.label` untouched but for ink.
+      _JeebStepState.done => base.copyWith(color: scheme.secondary),
+      // Board: the active label is the only orange one, 10.5/w800.
       _JeebStepState.active =>
         base.copyWith(color: roles.accent, fontWeight: FontWeight.w800),
-      // `tpl 748`: 10.5/w600 periwinkle.
+      // Board: 10.5/w600 periwinkle.
       _JeebStepState.pending => base.copyWith(
           color: semantics.mutedText,
           fontWeight: FontWeight.w600,
@@ -435,7 +441,7 @@ class _StepNodeState extends State<_StepNode>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          _node(scheme, roles),
+          _node(scheme, roles, semantics),
           const SizedBox(height: JeebStepper.nodeLabelGap),
           Text(
             widget.label,
@@ -449,12 +455,16 @@ class _StepNodeState extends State<_StepNode>
     );
   }
 
-  Widget _node(ColorScheme scheme, JeebRoles roles) {
+  Widget _node(
+    ColorScheme scheme,
+    JeebRoles roles,
+    JeebSemanticColors semantics,
+  ) {
     switch (widget.state) {
       case _JeebStepState.done:
         return DecoratedBox(
           decoration: BoxDecoration(
-            color: scheme.primary,
+            color: scheme.secondary,
             shape: BoxShape.circle,
           ),
           child: SizedBox.square(
@@ -462,7 +472,7 @@ class _StepNodeState extends State<_StepNode>
             child: Icon(
               Icons.check,
               size: JeebStepper.checkSize,
-              color: scheme.onPrimary,
+              color: scheme.onSecondary,
             ),
           ),
         );
@@ -497,7 +507,7 @@ class _StepNodeState extends State<_StepNode>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: scheme.surfaceContainerHighest,
+              color: semantics.glassBorderStrong,
               width: JeebStepper.pendingRingWidth,
             ),
           ),

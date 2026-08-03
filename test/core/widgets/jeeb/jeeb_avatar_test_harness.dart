@@ -12,7 +12,7 @@ Widget wrapAvatar(
   ThemeData? theme,
 }) {
   return MaterialApp(
-    theme: theme ?? AppTheme.light(),
+    theme: theme ?? AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(body: Center(child: child)),

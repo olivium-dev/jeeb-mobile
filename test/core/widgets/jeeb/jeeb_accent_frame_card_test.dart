@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_accent_frame_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
@@ -9,16 +8,18 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_surface_tone.dart';
 
 import 'jeeb_remainder_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #5.
+/// Gates for redesign-2026-08 §5 #5, re-cut on the MIDNIGHT token sheet.
 ///
 /// FAIL-WITHOUT: the frame form must stay a `JeebOutlinedCard` with a different
 /// stroke. The moment it paints its own surface it becomes a fourth card
 /// primitive and 16/18/20/24 start drifting from 08/11/23 on radius, padding
-/// and semantics.
+/// and semantics. The card's own FILL is asserted by the card lane's harness,
+/// not here — this file owns the stroke, the radius and the shadow.
 void main() {
-  final ThemeData theme = AppTheme.light();
-  final ColorScheme scheme = theme.colorScheme;
-  final JeebColorRoles roles = theme.extension<JeebColorRoles>()!;
+  // Token sheet §1/§2: accent `#D73B00`, `onAccent` `#FFFFFF`, ink `#EDEFFC`.
+  const Color accent = Color(0xFFD73B00);
+  const Color onAccent = Color(0xFFFFFFFF);
+  const Color ink = Color(0xFFEDEFFC);
 
   group('JeebAccentFrameCard frame form', () {
     testWidgets('is a JeebOutlinedCard with a 2px accent stroke and no shadow',
@@ -37,20 +38,19 @@ void main() {
 
       final BoxDecoration decoration =
           remainderDecorationOf(tester, find.byType(JeebAccentFrameCard));
-      expect(decoration.color, scheme.surface);
       expect(decoration.boxShadow, isNull);
       final Border border = decoration.border! as Border;
-      expect(border.top.color, roles.accent);
+      expect(border.top.color, accent);
       expect(border.top.width, 2);
-      expect(decoration.borderRadius, BorderRadius.circular(16));
+      expect(decoration.borderRadius, BorderRadius.circular(JeebRadii.lg));
     });
 
-    testWidgets('carries radius and padding through (18 §T7, 24 §5)',
+    testWidgets('carries a non-default radius and padding through',
         (tester) async {
       await tester.pumpWidget(
         wrapRemainder(
           const JeebAccentFrameCard(
-            radius: 18,
+            radius: JeebRadii.xl,
             padding: EdgeInsetsDirectional.symmetric(
               horizontal: 16,
               vertical: 14,
@@ -62,16 +62,16 @@ void main() {
 
       final JeebOutlinedCard card =
           tester.widget<JeebOutlinedCard>(find.byType(JeebOutlinedCard));
-      expect(card.radius, 18);
+      expect(card.radius, JeebRadii.xl);
       expect(card.borderWidth, 2);
       expect(
         remainderDecorationOf(tester, find.byType(JeebAccentFrameCard))
             .borderRadius,
-        BorderRadius.circular(18),
+        BorderRadius.circular(JeebRadii.xl),
       );
     });
 
-    testWidgets('keeps the light tone — an orange frame is not an orange fill',
+    testWidgets('keeps the rest tone — an orange frame is not an orange fill',
         (tester) async {
       late JeebSurfaceToneData tone;
       await tester.pumpWidget(
@@ -83,7 +83,7 @@ void main() {
       );
 
       expect(tone.kind, JeebSurfaceKind.light);
-      expect(tone.titleInk, scheme.onSurface);
+      expect(tone.titleInk, ink);
     });
 
     testWidgets('is tappable and surfaces its identifier', (tester) async {
@@ -109,7 +109,7 @@ void main() {
   });
 
   group('JeebAccentFrameCard.filled', () {
-    testWidgets('is an accent surface with the accentBanner shadow (13)',
+    testWidgets('is an accent surface with the ctaOrange shadow (13)',
         (tester) async {
       await tester.pumpWidget(
         wrapRemainder(
@@ -125,10 +125,14 @@ void main() {
 
       final BoxDecoration decoration =
           remainderDecorationOf(tester, find.byType(JeebAccentFrameCard));
-      expect(decoration.color, roles.accent);
-      expect(decoration.boxShadow, JeebShadows.accentBanner);
+      expect(decoration.color, accent);
+      expect(
+        decoration.boxShadow,
+        JeebShadows.ctaOrange,
+        reason: 'the navy-tinted accentBanner is dead (§7 migration map)',
+      );
       expect(decoration.border, isNull);
-      expect(decoration.borderRadius, BorderRadius.circular(16));
+      expect(decoration.borderRadius, BorderRadius.circular(JeebRadii.lg));
     });
 
     testWidgets('defaults to 14/16 padding (tpl 799)', (tester) async {
@@ -163,10 +167,10 @@ void main() {
       );
 
       expect(tone.onNavy, isTrue, reason: 'a saturated fill needs light ink');
-      expect(tone.titleInk, roles.onAccent);
-      expect(tone.mutedInk, roles.onAccent.withValues(alpha: 0.7));
-      expect(tone.chipFill, roles.onAccent.withValues(alpha: 0.14));
-      expect(tone.meterEmpty, roles.onAccent.withValues(alpha: 0.25));
+      expect(tone.titleInk, onAccent);
+      expect(tone.mutedInk, onAccent.withValues(alpha: 0.7));
+      expect(tone.chipFill, onAccent.withValues(alpha: 0.14));
+      expect(tone.meterEmpty, onAccent.withValues(alpha: 0.25));
     });
 
     testWidgets('adds no Semantics node when the consumer owns the id',

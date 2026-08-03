@@ -14,7 +14,7 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_top_bar.dart';
 /// written concurrently, so this lane keeps its own.
 Widget _wrap(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(body: SizedBox(width: 400, child: child)),
@@ -35,11 +35,13 @@ BoxDecoration _circleDecoration(WidgetTester tester, {int at = 0}) {
 TextStyle _styleOf(WidgetTester tester, String text) =>
     tester.widget<Text>(find.text(text)).style!;
 
+JeebSemanticColors get _glass => JeebSemanticColors.midnight();
+
 void _noop() {}
 
 void main() {
   group('JeebTopBar — back mode', () {
-    testWidgets('renders the tonal circle, 20px back glyph and an h2 title',
+    testWidgets('renders the glass circle, 19px back glyph and an h2 title',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -51,8 +53,10 @@ void main() {
       final ColorScheme scheme = Theme.of(context).colorScheme;
 
       final BoxDecoration decoration = _circleDecoration(tester);
-      expect(decoration.color, scheme.surfaceContainerHigh);
+      expect(decoration.color, _glass.glassFillEmphasis);
       expect(decoration.shape, BoxShape.circle);
+      expect(decoration.border!.top.color, _glass.glassBorderStrong);
+      expect(decoration.border!.top.width, JeebTopBar.glassBorderWidth);
       expect(decoration.boxShadow, isNull);
 
       final SizedBox box = tester
@@ -68,13 +72,14 @@ void main() {
 
       final Icon glyph = tester.widget<Icon>(_inBar(find.byType(Icon)));
       expect(glyph.icon, Icons.arrow_back);
-      expect(glyph.size, JeebTopBar.backGlyphSize);
-      expect(glyph.color, scheme.primary);
+      expect(JeebTopBar.backGlyphSize, 19);
+      expect(glyph.size, 19);
+      expect(glyph.color, scheme.onSurface);
 
       final TextStyle title = _styleOf(tester, 'Offers');
       expect(title.fontSize, context.jeebText.h2.fontSize);
       expect(title.fontWeight, context.jeebText.h2.fontWeight);
-      expect(title.color, scheme.primary);
+      expect(title.color, scheme.onSurface);
     });
 
     testWidgets('the VISIBLE circle sits on the board 14/24 inset',
@@ -134,7 +139,7 @@ void main() {
       final SemanticsHandle handle = tester.ensureSemantics();
       await tester.pumpWidget(
         MaterialApp(
-          theme: AppTheme.light(),
+          theme: AppTheme.midnight(),
           home: const Scaffold(body: Text('root')),
         ),
       );
@@ -168,7 +173,7 @@ void main() {
         Directionality(
           textDirection: TextDirection.ltr,
           child: Theme(
-            data: AppTheme.light(),
+            data: AppTheme.midnight(),
             child: const Material(
               child: JeebTopBar(title: 'Bare', identifier: 'bare_back'),
             ),
@@ -470,7 +475,7 @@ void main() {
   });
 
   group('JeebTopBar — floating treatment (screen 09 W2)', () {
-    testWidgets('paints surface + floatPill instead of surfaceContainerHigh',
+    testWidgets('keeps the glass fill and adds the overlay lift',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -481,10 +486,10 @@ void main() {
         ),
       );
 
-      final BuildContext context = tester.element(find.byType(JeebTopBar));
       final BoxDecoration decoration = _circleDecoration(tester);
-      expect(decoration.color, Theme.of(context).colorScheme.surface);
-      expect(decoration.boxShadow, JeebShadows.floatPill);
+      expect(decoration.color, _glass.glassFillEmphasis);
+      expect(decoration.border!.top.color, _glass.glassBorderStrong);
+      expect(decoration.boxShadow, JeebShadows.overlay);
     });
   });
 

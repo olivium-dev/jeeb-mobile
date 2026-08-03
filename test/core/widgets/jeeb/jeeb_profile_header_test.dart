@@ -3,15 +3,22 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_text_styles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_profile_header.dart';
+
+/// MIDNIGHT token sheet §1/§3/§6 — the expected values, not a read-back.
+const Color _surfaceHigh = Color(0xFF10175E);
+const Color _ink = Color(0xFFEDEFFC);
+const Color _inkMuted = Color(0xFF8A93D8);
+const Color _amber = Color(0xFFFFC107);
 
 /// Local harness — kept out of the card lane's shared file, which is being
 /// written concurrently.
 Widget _wrap(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(body: SizedBox(width: 400, child: child)),
@@ -32,7 +39,7 @@ const Widget _avatar = SizedBox.square(
 
 void main() {
   group('JeebProfileHeader — type and ink', () {
-    testWidgets('eyebrow is 13/w600 mutedText, name 19/w700 navy',
+    testWidgets('eyebrow is bodySmall mutedText, name titleProminent white ink',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -50,17 +57,22 @@ void main() {
       final JeebSemanticColors semantics =
           Theme.of(context).extension<JeebSemanticColors>()!;
 
+      // §6: bodySmall 12.5/w600 — the pass-1 13px override is gone.
       final TextStyle eyebrow = _styleOf(tester, 'Good morning');
-      expect(eyebrow.fontSize, 13);
+      expect(eyebrow.fontSize, 12.5);
       expect(eyebrow.fontWeight, FontWeight.w600);
+      expect(eyebrow.color, _inkMuted);
       expect(eyebrow.color, semantics.mutedText);
 
+      // §6: titleProminent 17/w700/−0.2 in board ink, NOT `primary` (orange).
       final TextStyle name = _styleOf(tester, 'Hello, Lina');
-      expect(name.fontSize, 19);
+      expect(name.fontSize, 17);
       expect(name.fontWeight, FontWeight.w700);
-      expect(name.color, scheme.primary);
-      // Derived from the h2 token, not a free-standing style.
-      expect(name.fontFamily, context.jeebText.h2.fontFamily);
+      expect(name.letterSpacing, -0.2);
+      expect(name.color, _ink);
+      expect(name.color, scheme.onSurface);
+      expect(name.color, isNot(scheme.primary));
+      expect(name.fontFamily, context.jeebText.titleProminent.fontFamily);
     });
 
     testWidgets('the eyebrow is optional; the name still renders',
@@ -154,7 +166,7 @@ void main() {
   });
 
   group('JeebProfileHeader — trailing', () {
-    testWidgets('a trailing glyph is inked navy at 24px',
+    testWidgets('a trailing glyph is inked white at 24px',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -173,7 +185,8 @@ void main() {
         tester.element(find.byIcon(Icons.notifications)),
       );
       expect(theme.size, JeebProfileHeader.trailingGlyphSize);
-      expect(theme.color, Theme.of(context).colorScheme.primary);
+      expect(theme.color, _ink);
+      expect(theme.color, Theme.of(context).colorScheme.onSurface);
     });
 
     testWidgets('trailingReserve holds end-side width when trailing is null',
@@ -197,7 +210,7 @@ void main() {
   });
 
   group('JeebProfileHeader — rating pill', () {
-    testWidgets('renders a surfaceContainerHigh pill with a NAVY star',
+    testWidgets('renders a solid surfaceHigh pill with a BOARD-INK star',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -214,20 +227,28 @@ void main() {
           tester.element(find.byType(JeebProfileHeader));
       final ColorScheme scheme = Theme.of(context).colorScheme;
 
+      // STUDY kit ruling 4: chips on navy are a SOLID surfaceHigh pill, not
+      // glass, with a white label.
       final BoxDecoration decoration =
           tester.widget<DecoratedBox>(_inHeader(find.byType(DecoratedBox)).last)
               .decoration as BoxDecoration;
+      expect(decoration.color, _surfaceHigh);
       expect(decoration.color, scheme.surfaceContainerHigh);
+      expect(
+        decoration.borderRadius,
+        const BorderRadius.all(Radius.circular(JeebRadii.pill)),
+      );
 
       final Icon star = tester.widget<Icon>(find.byIcon(Icons.star_rounded));
-      expect(star.color, scheme.primary);
-      // §4.1 rations the one warm ink: this pill is a header affordance, not a
-      // rating stat, so the star must never pick up the accent/star tint.
+      expect(star.color, _ink);
+      // §4.1 rations the warm inks: this pill is a header affordance, not a
+      // rating stat, so the star takes neither the accent nor the amber token.
       expect(star.color, isNot(context.jeebRoles.accent));
+      expect(star.color, isNot(_amber));
 
       final TextStyle value = _styleOf(tester, '4.8');
       expect(value.fontWeight, FontWeight.w700);
-      expect(value.color, scheme.primary);
+      expect(value.color, _ink);
       expect(value.fontSize, context.jeebText.bodySmall.fontSize);
     });
 

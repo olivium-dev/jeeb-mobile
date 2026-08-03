@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_page_dots.dart';
 
 import 'jeeb_remainder_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #28.
+/// Gates for redesign-2026-08 §5 #28, re-cut on the MIDNIGHT token sheet.
 ///
 /// FAIL-WITHOUT: the active page is a **pill**, not a larger dot. If it
 /// regresses to a circle, 01 silently looks like every other pager in the store
 /// and `OmdsDotIndicator` (which cannot draw a pill) becomes the tempting fix.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
-  final Color accent = AppTheme.light().extension<JeebColorRoles>()!.accent;
+  // Token sheet §1/§3: accent `#D73B00`, `glassBorderVivid` white 22% — the
+  // board draws the inactive dot at .20, which snaps to the vivid rung, not 14%.
+  const Color accent = Color(0xFFD73B00);
+  const Color inactive = Color(0x38FFFFFF);
 
   Size sizeOfDot(WidgetTester tester, int index) {
     final Finder dots = find.descendant(
@@ -33,8 +33,19 @@ void main() {
     return (container.decoration! as BoxDecoration).color!;
   }
 
+  BorderRadius radiusOfDot(WidgetTester tester, int index) {
+    final Finder dots = find.descendant(
+      of: find.byType(JeebPageDots),
+      matching: find.byType(AnimatedContainer),
+    );
+    final AnimatedContainer container =
+        tester.widget<AnimatedContainer>(dots.at(index));
+    return (container.decoration! as BoxDecoration).borderRadius!
+        as BorderRadius;
+  }
+
   group('JeebPageDots geometry', () {
-    testWidgets('active is a 22x8 accent pill, inactive a Ø8 dot',
+    testWidgets('active is a 22x8 accent pill, inactive a Ø8 vivid-glass dot',
         (tester) async {
       await tester.pumpWidget(
         wrapRemainder(
@@ -46,7 +57,9 @@ void main() {
       expect(sizeOfDot(tester, 0), const Size(22, 8));
       expect(sizeOfDot(tester, 1), const Size(8, 8));
       expect(colorOfDot(tester, 0), accent);
-      expect(colorOfDot(tester, 1), scheme.surfaceContainerHighest);
+      expect(colorOfDot(tester, 1), inactive);
+      expect(radiusOfDot(tester, 0), BorderRadius.circular(999));
+      expect(radiusOfDot(tester, 1), BorderRadius.circular(999));
     });
 
     testWidgets('gap is 7 between dots', (tester) async {

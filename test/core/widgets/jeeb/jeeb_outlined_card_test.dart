@@ -1,23 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_surface_tone.dart';
 
 import 'jeeb_card_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #3.
+/// Gates for the MIDNIGHT rest-glass card (token sheet §4).
 ///
-/// FAIL-WITHOUT: if the outlined card grows a shadow, loses the 1.5px outline,
-/// or stops delegating `selected` to the navy card, ~20 screens drift together
-/// and no other test in the suite notices.
+/// FAIL-WITHOUT: if the card grows a shadow, loses its 1px glass stroke, or
+/// stops delegating `selected` to the emphasis card, ~20 screens drift
+/// together and no other test in the suite notices.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
+  final ThemeData theme = AppTheme.midnight();
+  final ColorScheme scheme = theme.colorScheme;
+  final JeebSemanticColors semantics = theme.extension<JeebSemanticColors>()!;
+
+  // Token sheet §3, typed out rather than read back off the implementation.
+  const Color glassFill = Color(0x12FFFFFF);
+  const Color glassBorder = Color(0x1FFFFFFF);
+  const Color glassFillEmphasis = Color(0x1AFFFFFF);
+  const Color glassBorderStrong = Color(0x29FFFFFF);
 
   group('JeebOutlinedCard default state', () {
-    testWidgets('is white, 1.5px outline, r16 and carries NO shadow',
+    testWidgets('is glass, a 1px glass stroke, r-lg and carries NO shadow',
         (tester) async {
       await tester.pumpWidget(
         wrapCard(const JeebOutlinedCard(child: Text('body'))),
@@ -26,12 +37,12 @@ void main() {
       final BoxDecoration decoration =
           decorationOf(tester, find.byType(JeebOutlinedCard));
 
-      expect(decoration.color, scheme.surface);
-      expect(decoration.boxShadow, isNull, reason: 'outline-over-shadow (§4.5)');
+      expect(decoration.color, glassFill);
+      expect(decoration.boxShadow, isNull, reason: 'glass never lifts');
       final Border border = decoration.border! as Border;
-      expect(border.top.color, scheme.outline);
-      expect(border.top.width, 1.5);
-      expect(decoration.borderRadius, BorderRadius.circular(16));
+      expect(border.top.color, glassBorder);
+      expect(border.top.width, 1);
+      expect(decoration.borderRadius, BorderRadius.circular(JeebRadii.lg));
     });
 
     testWidgets('defaults to 13/16 padding', (tester) async {
@@ -47,20 +58,22 @@ void main() {
             )
             .first,
       );
-      // 13/16 plus the 1.5px stroke, so the board's border-box maths holds.
+      // 13/16 plus the 1px stroke, so the board's border-box maths holds.
       expect(padding.padding.resolve(TextDirection.ltr),
-          const EdgeInsets.symmetric(horizontal: 17.5, vertical: 14.5));
+          const EdgeInsets.symmetric(horizontal: 17, vertical: 14));
     });
 
-    testWidgets('honours a 2px primary border override (11 recommended)',
+    testWidgets('honours the 2px accent stroke of a lit frame (R9/R22)',
         (tester) async {
       await tester.pumpWidget(
         wrapCard(
-          JeebOutlinedCard(
-            radius: 18,
-            borderColor: scheme.primary,
-            borderWidth: 2,
-            child: const Text('body'),
+          Builder(
+            builder: (BuildContext context) => JeebOutlinedCard(
+              radius: JeebRadii.xl,
+              borderColor: context.jeebRoles.accent,
+              borderWidth: 2,
+              child: const Text('body'),
+            ),
           ),
         ),
       );
@@ -68,9 +81,9 @@ void main() {
       final BoxDecoration decoration =
           decorationOf(tester, find.byType(JeebOutlinedCard));
       final Border border = decoration.border! as Border;
-      expect(border.top.color, scheme.primary);
+      expect(border.top.color, const Color(0xFFD73B00));
       expect(border.top.width, 2);
-      expect(decoration.borderRadius, BorderRadius.circular(18));
+      expect(decoration.borderRadius, BorderRadius.circular(JeebRadii.xl));
     });
 
     testWidgets('renders the action row', (tester) async {
@@ -101,15 +114,12 @@ void main() {
       expect(tone.chipFill, scheme.surfaceContainerHigh);
       expect(tone.chipInk, scheme.onSurface);
       expect(tone.meterEmpty, scheme.surfaceContainerHighest);
-      expect(
-        tone.mutedInk,
-        AppTheme.light().extension<JeebSemanticColors>()!.mutedText,
-      );
+      expect(tone.mutedInk, semantics.mutedText);
     });
   });
 
   group('JeebOutlinedCard selected state', () {
-    testWidgets('delegates to JeebNavySurfaceCard — a fill swap, not a border',
+    testWidgets('delegates to JeebNavySurfaceCard — a fill swap, not a stroke',
         (tester) async {
       await tester.pumpWidget(
         wrapCard(
@@ -124,9 +134,12 @@ void main() {
 
       final BoxDecoration decoration =
           decorationOf(tester, find.byType(JeebNavySurfaceCard));
-      expect(decoration.color, scheme.primary);
-      expect(decoration.border, isNull, reason: 'never a thicker border');
-      expect(decoration.boxShadow, JeebNavySurfaceCard.selectedShadow);
+      expect(decoration.color, glassFillEmphasis);
+      final Border border = decoration.border! as Border;
+      expect(border.top.color, glassBorderStrong);
+      expect(border.top.width, 1, reason: 'never a thicker border');
+      // Midnight lights selection instead of lifting it.
+      expect(decoration.boxShadow, JeebShadows.glowRest);
     });
 
     testWidgets('re-tones internal chips/meters without consumer help',
@@ -141,13 +154,12 @@ void main() {
         ),
       );
 
-      // The four measured on-navy values (08 tpl 458-465).
       expect(tone.onNavy, isTrue);
-      expect(tone.chipFill, scheme.onPrimary.withValues(alpha: 0.14));
-      expect(tone.chipInk, scheme.onPrimary);
-      expect(tone.mutedInk, scheme.onPrimary.withValues(alpha: 0.7));
-      expect(tone.meterEmpty, scheme.onPrimary.withValues(alpha: 0.25));
-      expect(tone.meterFill, scheme.onPrimary);
+      expect(tone.chipFill, const Color(0x24FFFFFF));
+      expect(tone.chipInk, scheme.onSurface);
+      expect(tone.mutedInk, semantics.inkSoft);
+      expect(tone.meterEmpty, scheme.onSurface.withValues(alpha: 0.25));
+      expect(tone.meterFill, scheme.onSurface);
     });
 
     testWidgets('keeps the action row', (tester) async {
@@ -170,7 +182,7 @@ void main() {
         wrapCard(
           const JeebOutlinedCard(
             state: JeebCardState.selected,
-            radius: 18,
+            radius: JeebRadii.xl,
             padding: EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
             child: Text('body'),
           ),
@@ -179,7 +191,7 @@ void main() {
 
       final JeebNavySurfaceCard navy =
           tester.widget<JeebNavySurfaceCard>(find.byType(JeebNavySurfaceCard));
-      expect(navy.radius, 18);
+      expect(navy.radius, JeebRadii.xl);
       expect(
         navy.padding,
         const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
@@ -255,7 +267,7 @@ void main() {
             .first,
       );
       expect(cardPadding.padding.resolve(TextDirection.ltr),
-          const EdgeInsets.all(1.5));
+          const EdgeInsets.all(1));
     });
 
     testWidgets('dividers: false emits none', (tester) async {
@@ -380,9 +392,9 @@ void main() {
           tester.getTopRight(find.byType(JeebOutlinedCard)).dx -
               tester.getTopRight(find.byKey(probe)).dx;
 
-      // 1.5px border + 32px directional start padding, on the mirrored edge.
-      expect(ltrGap, closeTo(33.5, 0.01));
-      expect(rtlGap, closeTo(33.5, 0.01));
+      // 1px stroke + 32px directional start padding, on the mirrored edge.
+      expect(ltrGap, closeTo(33, 0.01));
+      expect(rtlGap, closeTo(33, 0.01));
     });
 
     testWidgets('grouped dividers and selected state survive RTL',

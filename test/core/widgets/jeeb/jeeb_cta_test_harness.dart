@@ -8,7 +8,7 @@ import 'package:jeeb_mobile/core/theme/app_theme.dart';
 /// that file and both lanes ship concurrently.
 Widget wrapCta(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(

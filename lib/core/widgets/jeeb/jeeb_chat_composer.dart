@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_semantic_colors.dart';
+import '../../theme/jeeb_shadows.dart';
 import '../../theme/jeeb_text_styles.dart';
 
 /// The single-pill chat composer (redesign-2026-08 §5 #18).
 ///
-/// One `surfaceContainerHigh` pill holds the field and both actions:
-/// `[field] [19px attach glyph] [Ø38 navy circle]`.
+/// One frosted-glass pill holds the field and both actions:
+/// `[field] [19px attach glyph] [Ø38 orange send disc]`.
+///
+/// MIDNIGHT: `glassFillEmphasis` + 1px `glassBorderStrong`, pre-baked (no
+/// `BackdropFilter` — the ≤2-per-screen blur budget belongs to the screen).
 ///
 /// **The circle is SEND, never a mic (B-04).** The board draws no send button
 /// at all — its mic occupies the send slot — so shipping the mic would be
@@ -53,7 +59,7 @@ class JeebChatComposer extends StatelessWidget {
   /// pill instead of clipping.
   static const double pillHeight = 52;
 
-  /// `border: 1px solid var(--jeeb-surface-highest)` (`tpl 1277`).
+  /// 1px, every glass surface (token sheet §4).
   static const double pillBorderWidth = 1;
 
   /// 19px attach glyph (`tpl 1279`).
@@ -159,14 +165,15 @@ class JeebChatComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics = _semanticsOf(context);
     final TextStyle bodyStyle = context.jeebText.body;
 
     final Widget pill = DecoratedBox(
       decoration: ShapeDecoration(
-        color: scheme.surfaceContainerHigh,
+        color: semantics.glassFillEmphasis,
         shape: StadiumBorder(
           side: BorderSide(
-            color: scheme.surfaceContainerHighest,
+            color: semantics.glassBorderStrong,
             width: pillBorderWidth,
           ),
         ),
@@ -205,11 +212,12 @@ class JeebChatComposer extends StatelessWidget {
       maxLines: maxLines,
       onChanged: onChanged,
       style: bodyStyle.copyWith(color: scheme.onSurface),
-      cursorColor: scheme.primary,
+      // Theme ruling 4: the caret is periwinkle app-wide, never the orange.
+      cursorColor: scheme.secondary,
       textInputAction: TextInputAction.newline,
       textCapitalization: TextCapitalization.sentences,
       decoration: InputDecoration(
-        // The pill IS the decoration; the field paints nothing of its own.
+        // No box-in-a-box: the glass pill IS the decoration.
         isCollapsed: true,
         filled: false,
         border: InputBorder.none,
@@ -217,9 +225,8 @@ class JeebChatComposer extends StatelessWidget {
         focusedBorder: InputBorder.none,
         contentPadding: EdgeInsets.zero,
         hintText: hintText,
-        // `onSecondaryContainer` IS the periwinkle (§4.1); it is used rather
-        // than `JeebSemanticColors.mutedText`, which is decorative-only.
-        hintStyle: bodyStyle.copyWith(color: scheme.onSecondaryContainer),
+        hintStyle:
+            bodyStyle.copyWith(color: _semanticsOf(context).mutedText),
       ),
     );
 
@@ -235,20 +242,15 @@ class JeebChatComposer extends StatelessWidget {
   }
 
   Widget _attach(BuildContext context, ColorScheme scheme) {
+    // A secondary action reads in the muted ink, like R1's inactive nav icons.
+    final Color ink = scheme.onSurfaceVariant;
     final Widget glyph = isAttaching
         ? SizedBox(
             width: attachGlyphSize,
             height: attachGlyphSize,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: scheme.onSecondaryContainer,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2, color: ink),
           )
-        : Icon(
-            attachIcon,
-            size: attachGlyphSize,
-            color: scheme.onSecondaryContainer,
-          );
+        : Icon(attachIcon, size: attachGlyphSize, color: ink);
 
     return _JeebComposerAction(
       nodeKey: attachKey,
@@ -261,6 +263,8 @@ class JeebChatComposer extends StatelessWidget {
 
   Widget _send(BuildContext context, ColorScheme scheme) {
     final bool enabled = onSend != null;
+    // R20 draws this disc orange — the composer's one budgeted orange moment.
+    final JeebRoles roles = context.jeebRoles;
     return _JeebComposerAction(
       nodeKey: sendKey,
       identifier: sendIdentifier,
@@ -273,14 +277,21 @@ class JeebChatComposer extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: enabled
-              ? scheme.primary
-              : scheme.primary.withValues(alpha: disabledOpacity),
+              ? roles.accent
+              : roles.accent.withValues(alpha: disabledOpacity),
+          boxShadow: enabled ? JeebShadows.ctaOrangeSmall : null,
         ),
-        child: Icon(sendIcon, size: sendGlyphSize, color: scheme.onPrimary),
+        child: Icon(sendIcon, size: sendGlyphSize, color: roles.onAccent),
       ),
     );
   }
 }
+
+/// Read defensively: harnesses that theme with a bare `ThemeData` carry no
+/// extension, and a bare `!` would crash them.
+JeebSemanticColors _semanticsOf(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
 
 /// A 48×48 tap target with the measured glyph centred inside it.
 ///

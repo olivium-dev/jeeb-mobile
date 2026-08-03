@@ -3,19 +3,26 @@ import 'dart:ui' show Tristate;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_segmented_toggle.dart';
 
 import 'jeeb_remainder_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #19.
+/// Gates for redesign-2026-08 §5 #19, re-cut on the MIDNIGHT token sheet.
 ///
 /// FAIL-WITHOUT: 20's language rows carry frozen keys
 /// (`settings-row-language-en`/`-ar`, tapped by `settings_screen_test.dart:161`)
 /// and frozen identifiers (`settings_language_en_option`/`_ar_option`). A toggle
-/// that cannot carry per-segment keys silently drops both.
+/// that cannot carry per-segment keys silently drops both. And: the active
+/// segment is WHITE on navy — if it regresses to `colorScheme.primary` the
+/// control spends the screen's whole orange budget on a language switch.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
+  // Token sheet §1/§3: white `#FFFFFF`, navy `#0B1351`, `inkSoft` `#B9C0F0`,
+  // `glassFill` white 7%, `glassBorderStrong` white 16%.
+  const Color white = Color(0xFFFFFFFF);
+  const Color navyInk = Color(0xFF0B1351);
+  const Color inkSoft = Color(0xFFB9C0F0);
+  const Color glassFill = Color(0x12FFFFFF);
+  const Color glassBorderStrong = Color(0x29FFFFFF);
 
   const List<JeebSegment> languageSegments = <JeebSegment>[
     JeebSegment(
@@ -56,16 +63,16 @@ void main() {
   }
 
   group('JeebSegmentedToggle visuals', () {
-    testWidgets('outer track is a 1.5px outlined pill padded 4',
-        (tester) async {
+    testWidgets('outer track is a 1px glass pill padded 4', (tester) async {
       await tester.pumpWidget(wrapRemainder(toggle()));
 
       final BoxDecoration track =
           remainderDecorationOf(tester, find.byType(JeebSegmentedToggle));
       expect(track.borderRadius, BorderRadius.circular(999));
+      expect(track.color, glassFill);
       final Border border = track.border! as Border;
-      expect(border.top.color, scheme.outline);
-      expect(border.top.width, 1.5);
+      expect(border.top.color, glassBorderStrong);
+      expect(border.top.width, 1);
 
       final Padding padding = tester.widget<Padding>(
         find
@@ -75,19 +82,19 @@ void main() {
             )
             .first,
       );
-      // 4 track padding + the 1.5px stroke (border-box).
+      // 4 track padding + the 1px stroke (border-box).
       expect(
         padding.padding.resolve(TextDirection.ltr),
-        const EdgeInsets.all(5.5),
+        const EdgeInsets.all(5),
       );
     });
 
-    testWidgets('selection is a navy fill swap, never a border',
+    testWidgets('selection is a WHITE fill swap, never a border and never orange',
         (tester) async {
       await tester.pumpWidget(wrapRemainder(toggle()));
 
       final BoxDecoration selected = segmentDecoration(tester, 'English');
-      expect(selected.color, scheme.primary);
+      expect(selected.color, white);
       expect(selected.border, isNull);
 
       final BoxDecoration unselected = segmentDecoration(tester, 'العربية');
@@ -95,7 +102,7 @@ void main() {
       expect(unselected.border, isNull);
     });
 
-    testWidgets('label is 13.5/w700, onPrimary when selected and navy when not',
+    testWidgets('label is 13.5, navy w700 when selected and inkSoft w600 when not',
         (tester) async {
       await tester.pumpWidget(wrapRemainder(toggle()));
 
@@ -103,15 +110,16 @@ void main() {
           tester.widget<Text>(find.text('English')).style!;
       expect(selected.fontSize, 13.5);
       expect(selected.fontWeight, FontWeight.w700);
-      expect(selected.color, scheme.onPrimary);
+      expect(selected.color, navyInk);
 
-      expect(
-        tester.widget<Text>(find.text('العربية')).style!.color,
-        scheme.primary,
-      );
+      final TextStyle unselected =
+          tester.widget<Text>(find.text('العربية')).style!;
+      expect(unselected.fontSize, 13.5);
+      expect(unselected.fontWeight, FontWeight.w600);
+      expect(unselected.color, inkSoft);
     });
 
-    testWidgets('segments share the width equally', (tester) async {
+    testWidgets('segments share the width equally, 5 apart', (tester) async {
       await tester.pumpWidget(wrapRemainder(toggle()));
 
       final List<Element> expanded =
@@ -120,6 +128,10 @@ void main() {
       final double first = tester.getSize(find.byType(Expanded).at(0)).width;
       final double second = tester.getSize(find.byType(Expanded).at(1)).width;
       expect(first, closeTo(second, 0.01));
+
+      final double gap = tester.getTopLeft(find.byType(Expanded).at(1)).dx -
+          tester.getTopRight(find.byType(Expanded).at(0)).dx;
+      expect(gap, closeTo(5, 0.01));
     });
   });
 

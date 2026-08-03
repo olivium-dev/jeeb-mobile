@@ -2,23 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/jeeb_commission.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_money_breakdown.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
 
 import 'jeeb_card_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #24.
+/// Gates for the MIDNIGHT glass math card (R17 `tpl 1047-1056`).
 ///
 /// FAIL-WITHOUT: this is the only widget every platform-fee row passes
 /// through. If the D41/D44 guard goes, "Commission" can reach a Jeeber's
 /// screen from any of 24 lanes and nothing else in the suite notices until
 /// `decision_violations_test` catches one already-shipped screen.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
-  final Color muted = (AppTheme.light().extension<JeebSemanticColors>() ??
-          JeebSemanticColors.light())
-      .mutedText;
+  final ColorScheme scheme = AppTheme.midnight().colorScheme;
+
+  // Token sheet §1/§3 values, typed out rather than read back.
+  const Color muted = Color(0xFF8A93D8);
+  const Color glassFill = Color(0x12FFFFFF);
+  const Color glassBorder = Color(0x1FFFFFFF);
+  const Color orangeTint = Color(0xFFFFB499);
 
   // 17's economics card, verbatim (`tpl 1010-1023`) minus the board's refused
   // "Jeeb fee" framing.
@@ -46,18 +49,18 @@ void main() {
       );
 
   group('JeebMoneyBreakdown shell', () {
-    testWidgets('is an outlined r16 card with NO shadow', (tester) async {
+    testWidgets('is a glass r-lg card with NO shadow', (tester) async {
       await tester.pumpWidget(wrapCard(composerCard()));
 
       expect(find.byType(JeebOutlinedCard), findsOneWidget);
       final BoxDecoration decoration =
           decorationOf(tester, find.byType(JeebMoneyBreakdown));
-      expect(decoration.color, scheme.surface);
-      expect(decoration.boxShadow, isNull, reason: 'R7: outline-over-shadow');
-      expect(decoration.borderRadius, BorderRadius.circular(16));
+      expect(decoration.color, glassFill);
+      expect(decoration.boxShadow, isNull, reason: 'glass never lifts');
+      expect(decoration.borderRadius, BorderRadius.circular(JeebRadii.lg));
       final Border border = decoration.border! as Border;
-      expect(border.top.color, scheme.outline);
-      expect(border.top.width, 1.5);
+      expect(border.top.color, glassBorder);
+      expect(border.top.width, 1);
     });
 
     testWidgets('pads 15/16 (plus the card stroke it paints over)',
@@ -72,10 +75,10 @@ void main() {
             )
             .first,
       );
-      // Border-box correction: the 1.5px stroke sits outside the CSS padding.
+      // Border-box correction: the 1px stroke sits outside the CSS padding.
       expect(
         padding.padding.resolve(TextDirection.ltr),
-        const EdgeInsets.symmetric(horizontal: 17.5, vertical: 16.5),
+        const EdgeInsets.symmetric(horizontal: 17, vertical: 16),
       );
     });
 
@@ -113,33 +116,35 @@ void main() {
   });
 
   group('JeebMoneyBreakdown typography', () {
-    testWidgets('row = 13.5/w600 muted label + 13.5/w700 navy value',
+    testWidgets('row = body/w600 muted label + body/w700 ink value',
         (tester) async {
       await tester.pumpWidget(wrapCard(composerCard()));
 
       final TextStyle label = tester.widget<Text>(find.text('Your offer')).style!;
-      expect(label.fontSize, 13.5);
+      expect(label.fontSize, 14.5);
       expect(label.fontWeight, FontWeight.w600);
       expect(label.color, muted);
 
       final TextStyle value = tester.widget<Text>(find.text(r'$8.00')).style!;
-      expect(value.fontSize, 13.5);
+      expect(value.fontSize, 14.5);
       expect(value.fontWeight, FontWeight.w700);
       expect(value.color, scheme.onSurface);
     });
 
-    testWidgets('total = 15/w800 with a 17px value', (tester) async {
+    testWidgets('the total is the one warm figure: w800, orangeTint amount',
+        (tester) async {
       await tester.pumpWidget(wrapCard(composerCard()));
 
       final TextStyle label =
           tester.widget<Text>(find.text('You keep (cash)')).style!;
-      expect(label.fontSize, 15);
+      expect(label.fontSize, 15.5, reason: 'ramp cardTitle');
       expect(label.fontWeight, FontWeight.w800);
       expect(label.color, scheme.onSurface);
 
       final TextStyle value = tester.widget<Text>(find.text(r'$7.20')).style!;
-      expect(value.fontSize, 17);
+      expect(value.fontSize, 17, reason: 'ramp titleProminent');
       expect(value.fontWeight, FontWeight.w800);
+      expect(value.color, orangeTint, reason: 'R17 draws #FFB499, not ink');
     });
 
     testWidgets('footnote = 11.5/w500 muted + a 14px filled lock',

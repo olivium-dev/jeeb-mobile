@@ -13,7 +13,14 @@ import 'jeeb_card_test_harness.dart';
 /// without the nearest-ancestor wins rule a navy strip nested in a white card
 /// would paint white-on-white chips.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
+  final ColorScheme scheme = AppTheme.midnight().colorScheme;
+
+  // Token sheet §1/§3 values, typed out rather than read back off the theme.
+  const Color ink = Color(0xFFEDEFFC);
+  const Color inkMuted = Color(0xFF8A93D8);
+  const Color inkSoft = Color(0xFFB9C0F0);
+  const Color glassPressed = Color(0x24FFFFFF);
+  const Color glassBorderWhite12 = Color(0x1FFFFFFF);
 
   testWidgets('falls back to the light tone with no card above',
       (tester) async {
@@ -24,6 +31,42 @@ void main() {
 
     expect(tone.kind, JeebSurfaceKind.light);
     expect(tone.chipFill, scheme.surfaceContainerHigh);
+  });
+
+  testWidgets('the rest tone is the Midnight ink pair', (tester) async {
+    late JeebSurfaceToneData tone;
+    await tester.pumpWidget(
+      wrapCard(
+        JeebOutlinedCard(
+          child: ToneProbe(onTone: (JeebSurfaceToneData t) => tone = t),
+        ),
+      ),
+    );
+
+    expect(tone.titleInk, ink);
+    expect(tone.mutedInk, inkMuted);
+    expect(tone.chipInk, ink);
+    expect(tone.dividerInk, glassBorderWhite12);
+  });
+
+  testWidgets('the emphasis tone brightens the meta ink and the chip fill',
+      (tester) async {
+    late JeebSurfaceToneData tone;
+    await tester.pumpWidget(
+      wrapCard(
+        JeebNavySurfaceCard(
+          child: ToneProbe(onTone: (JeebSurfaceToneData t) => tone = t),
+        ),
+      ),
+    );
+
+    expect(tone.titleInk, ink);
+    expect(tone.mutedInk, inkSoft, reason: 'inkSoft is the meta ink on raised');
+    expect(tone.chipFill, glassPressed);
+    expect(tone.chipInk, ink);
+    expect(tone.meterFill, ink);
+    expect(tone.meterEmpty, ink.withValues(alpha: 0.25));
+    expect(tone.dividerInk, glassBorderWhite12);
   });
 
   testWidgets('survives a bare ThemeData.light() harness', (tester) async {

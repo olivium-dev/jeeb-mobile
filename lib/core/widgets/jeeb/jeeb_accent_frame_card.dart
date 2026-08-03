@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_shadows.dart';
 import 'jeeb_outlined_card.dart';
 import 'jeeb_surface_tone.dart';
@@ -11,13 +12,13 @@ import 'jeeb_surface_tone.dart';
 /// Two forms, and the difference is *loud on purpose*: the frame is a highlight,
 /// the fill is an alarm.
 ///
-///  * **Unnamed (frame)** — white fill, `2px jeebRoles.accent`, radius 16/18,
-///    **no shadow**. 16's active-delivery card, 18's at-door handoff panel
-///    (r18), 20's Become-a-Jeeber row, 24's in-motion order row (r18).
+///  * **Unnamed (frame)** — the card's own glass fill, `2px jeebRoles.accent`,
+///    radius `JeebRadii.lg`, **no shadow**. 16's active-delivery card, 18's
+///    at-door handoff panel, 20's Become-a-Jeeber row, 24's in-motion order row.
 ///  * **[JeebAccentFrameCard.filled]** — `jeebRoles.accent` fill plus
-///    `JeebShadows.accentBanner` (`0 10 24 rgba(215,59,0,.35)`), radius 16,
-///    padding `14/16`. Exactly one consumer: 13's arrival banner
-///    (`13-otp-handover.html` `tpl 799`).
+///    `JeebShadows.ctaOrange` (the ratified successor to the dead navy-tinted
+///    `accentBanner`), padding `14/16`. Exactly one consumer: 13's arrival
+///    banner (`13-otp-handover.html` `tpl 799`).
 ///
 /// It is **not** a fourth card primitive. The frame form is a
 /// [JeebOutlinedCard] with `borderColor: accent, borderWidth: 2` — one card
@@ -36,7 +37,7 @@ class JeebAccentFrameCard extends StatelessWidget {
   const JeebAccentFrameCard({
     super.key,
     required this.child,
-    this.radius = 16,
+    this.radius = JeebRadii.lg,
     this.padding = defaultPadding,
     this.borderWidth = 2,
     this.onTap,
@@ -45,12 +46,12 @@ class JeebAccentFrameCard extends StatelessWidget {
     this.semanticHint,
   }) : filled = false;
 
-  /// 13's arrival banner: accent fill + [JeebShadows.accentBanner]. The one
-  /// place on the board where orange is a surface rather than an outline.
+  /// 13's arrival banner: accent fill + [JeebShadows.ctaOrange]. The one place
+  /// on the board where orange is a surface rather than an outline.
   const JeebAccentFrameCard.filled({
     super.key,
     required this.child,
-    this.radius = 16,
+    this.radius = JeebRadii.lg,
     this.padding = filledPadding,
     this.onTap,
     this.identifier,
@@ -71,8 +72,7 @@ class JeebAccentFrameCard extends StatelessWidget {
   /// Card content.
   final Widget child;
 
-  /// Corner radius in logical px — 16 (13 16 20) · 18 (18 24). Design-exact px
-  /// are legal here (§4.4 two-tier rule).
+  /// Corner radius; the board's 16s and 18s both snap to `JeebRadii.lg` (§5).
   final double radius;
 
   /// Content padding. Accepts `EdgeInsetsDirectional`; never hardcode
@@ -127,7 +127,7 @@ class JeebAccentFrameCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: roles.accent,
         borderRadius: borderRadius,
-        boxShadow: JeebShadows.accentBanner,
+        boxShadow: JeebShadows.ctaOrange,
       ),
       child: ClipRRect(
         borderRadius: borderRadius,

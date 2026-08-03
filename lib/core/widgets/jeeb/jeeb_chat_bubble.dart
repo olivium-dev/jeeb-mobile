@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/jeeb_shadows.dart';
+import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 import 'jeeb_surface_tone.dart';
 
 /// Which side of the thread a bubble belongs to (redesign-2026-08 §5 #16).
 enum JeebChatBubbleSide {
-  /// The counterpart. `surfaceContainerHigh`, tail at the bottom-START corner.
+  /// The counterpart. MIDNIGHT rest glass (`glassFill` + 1px `glassBorder`),
+  /// tail at the bottom-START corner.
   incoming,
 
-  /// The signed-in user. `colorScheme.primary`, tail at the bottom-END corner,
-  /// `JeebShadows.bubbleOut`.
+  /// The signed-in user. MIDNIGHT orange-tinted glass (`bubbleOutFill` + 1px
+  /// `bubbleOutBorder`), tail at the bottom-END corner, flat.
   outgoing,
 }
 
@@ -144,8 +147,8 @@ class JeebChatMedia {
   /// 120×74 photo tile (`tpl 1265`).
   static const double photoHeight = 74;
 
-  /// r10 on the photo tile (`tpl 1265`).
-  static const double photoRadius = 10;
+  /// The board's r10 photo tile, snapped to the ladder's `sm` rung (§5).
+  static const double photoRadius = JeebRadii.sm;
 
   /// 20px placeholder glyph inside the tile (`tpl 1266`).
   static const double photoGlyphSize = 20;
@@ -194,20 +197,17 @@ class JeebChatMedia {
 /// `18/6` directional tail, the 78% max width, the `11/14` padding and the meta
 /// line. Everything else arrives through slots.
 ///
-/// **Not composed on `JeebNavySurfaceCard`.** The outgoing bubble is navy with
-/// a shadow, but its corner set is `topStart 18 · topEnd 18 · bottomStart 18 ·
-/// bottomEnd 6` — three different radii that the card's single `radius`
+/// **Not composed on `JeebNavySurfaceCard`.** The outgoing bubble is an
+/// emphasis surface, but its corner set is `topStart 18 · topEnd 18 ·
+/// bottomStart 18 · bottomEnd 6` — three radii the card's single `radius`
 /// parameter cannot express. Widening that parameter would mean editing a file
 /// another lane owns, so the bubble paints its own decoration and instead
 /// publishes [JeebSurfaceTone] like the cards do, so any kit child dropped
 /// inside an outgoing bubble still re-tones itself.
 ///
-/// Ink, and one deliberate divergence from the HTML: the board sets the
-/// **incoming** timestamp to periwinkle on `surfaceContainerHigh`, which
-/// measures **3.07:1** — below AA for a 10px label. Incoming meta ink is
-/// therefore `colorScheme.onSurfaceVariant` (the board's own brown subtitle
-/// ink); periwinkle (`onSecondaryContainer`) is kept on the navy outgoing
-/// bubble where it measures 4.59:1 (21 §2.1).
+/// MIDNIGHT (R20 measured): the thread reads by temperature — incoming stays
+/// cool rest glass, outgoing is warm orange glass (24% fill / 45% stroke, white
+/// body ink, `#FFB499` meta). The blur the board draws is the screen's to add.
 class JeebChatBubble extends StatelessWidget {
   const JeebChatBubble({
     super.key,
@@ -239,8 +239,11 @@ class JeebChatBubble extends StatelessWidget {
   static const EdgeInsetsGeometry defaultPadding =
       EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 11);
 
-  /// The three round corners.
-  static const double cornerRadius = 18;
+  /// The three round corners — the `lg` rung of the ratified ladder.
+  static const double cornerRadius = JeebRadii.lg;
+
+  /// 1px, every glass surface (token sheet §4).
+  static const double borderWidth = 1;
 
   /// The tail corner.
   static const double tailRadius = 6;
@@ -321,15 +324,24 @@ class JeebChatBubble extends StatelessWidget {
   /// Accessibility hint.
   final String? semanticHint;
 
-  /// The bubble fill for [side].
+  /// The bubble fill for [side] — rest glass in, orange 24% out.
   static Color fillOf(BuildContext context, JeebChatBubbleSide side) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics = _semanticsOf(context);
     return side == JeebChatBubbleSide.outgoing
-        ? scheme.primary
-        : scheme.surfaceContainerHigh;
+        ? semantics.bubbleOutFill
+        : semantics.glassFill;
   }
 
-  /// Body ink for [side].
+  /// The 1px border for [side] — glass in, orange 45% out.
+  static Color borderInkOf(BuildContext context, JeebChatBubbleSide side) {
+    final JeebSemanticColors semantics = _semanticsOf(context);
+    return side == JeebChatBubbleSide.outgoing
+        ? semantics.bubbleOutBorder
+        : semantics.glassBorder;
+  }
+
+  /// Body ink — `onSurface` on glass, pure white on the tinted fill (the board
+  /// literal, and the AA pair `#FFFFFF` on `#D73B00` §9 already gates).
   static Color bodyInkOf(BuildContext context, JeebChatBubbleSide side) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return side == JeebChatBubbleSide.outgoing
@@ -337,23 +349,19 @@ class JeebChatBubble extends StatelessWidget {
         : scheme.onSurface;
   }
 
-  /// Meta / media-label ink for [side].
-  ///
-  /// Outgoing → `onSecondaryContainer` (periwinkle on navy, 4.59:1).
-  /// Incoming → `onSurfaceVariant` (brown on `surfaceContainerHigh`); the
-  /// board's periwinkle measures 3.07:1 there and is refused (21 §2.1).
-  static Color metaInkOf(BuildContext context, JeebChatBubbleSide side) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    return side == JeebChatBubbleSide.outgoing
-        ? scheme.onSecondaryContainer
-        : scheme.onSurfaceVariant;
-  }
+  /// Meta / media-label ink — board literals: `mutedText` on glass (AA 5.9:1),
+  /// `#FFB499` on the tinted fill.
+  /// (R20 measured; the accent quartet's `onContainer` is that hex).
+  static Color metaInkOf(BuildContext context, JeebChatBubbleSide side) =>
+      side == JeebChatBubbleSide.outgoing
+          ? context.jeebRoles.onAccentContainer
+          : _semanticsOf(context).mutedText;
 
-  /// 13.5/w500/lh19 in the body ink — `jeebText.body`.
+  /// 14.5/w500/lh21 in the body ink — `jeebText.body`.
   static TextStyle bodyStyleOf(BuildContext context, JeebChatBubbleSide side) =>
       context.jeebText.body.copyWith(color: bodyInkOf(context, side));
 
-  /// 10/w600 in the meta ink. Derived from `jeebText.bodySmall` (12/w600) —
+  /// 10/w600 in the meta ink. Derived from `jeebText.bodySmall` (12.5/w600) —
   /// the ramp has no 10px entry and the kit may use design-exact px (§4.4).
   static TextStyle metaStyleOf(BuildContext context, JeebChatBubbleSide side) =>
       context.jeebText.bodySmall
@@ -391,8 +399,11 @@ class JeebChatBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: fillOf(context, side),
         borderRadius: radius,
-        // Outgoing only: the incoming bubble is flat on the board.
-        boxShadow: outgoing ? JeebShadows.bubbleOut : null,
+        border: Border.all(
+          color: borderInkOf(context, side),
+          width: borderWidth,
+        ),
+        // `bubbleOut` is retired: the migration map maps it to none.
       ),
       child: ClipRRect(
         borderRadius: radius,
@@ -545,6 +556,12 @@ class JeebChatBubble extends StatelessWidget {
   }
 }
 
+/// Read defensively: harnesses that theme with a bare `ThemeData` carry no
+/// extension, and a bare `!` would crash them.
+JeebSemanticColors _semanticsOf(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
+
 /// The voice row or the photo tile — private, because "one or the other" is
 /// enforced by [JeebChatMedia]'s two constructors, not by a flag here.
 class _MediaSlot extends StatelessWidget {
@@ -559,11 +576,10 @@ class _MediaSlot extends StatelessWidget {
 
   Widget _voice(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    final bool outgoing = side == JeebChatBubbleSide.outgoing;
-    // The board draws only the incoming case; the outgoing inversion is
-    // derived so a navy disc never lands on a navy bubble.
-    final Color discFill = outgoing ? scheme.onPrimary : scheme.primary;
-    final Color discInk = outgoing ? scheme.primary : scheme.onPrimary;
+    // Glass on glass: a play control is not one of §2.2's orange moments, so
+    // the light era's primary/onPrimary inversion is gone.
+    final Color discFill = _semanticsOf(context).glassFillEmphasis;
+    final Color discInk = scheme.onSurface;
 
     Widget disc = Container(
       width: JeebChatMedia.discDiameter,
@@ -614,7 +630,7 @@ class _MediaSlot extends StatelessWidget {
   }
 
   Widget _photo(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics = _semanticsOf(context);
 
     Widget tile = Container(
       width: JeebChatMedia.photoWidth,
@@ -622,7 +638,7 @@ class _MediaSlot extends StatelessWidget {
       alignment: AlignmentDirectional.center,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
+        color: semantics.glassFillEmphasis,
         borderRadius: const BorderRadius.all(
           Radius.circular(JeebChatMedia.photoRadius),
         ),
@@ -632,7 +648,7 @@ class _MediaSlot extends StatelessWidget {
               media.photoIcon,
               size: JeebChatMedia.photoGlyphSize,
               // Decorative placeholder glyph, not body ink.
-              color: scheme.onSecondaryContainer,
+              color: semantics.mutedText,
             )
           : SizedBox.expand(child: media.photo),
     );

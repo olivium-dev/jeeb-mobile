@@ -10,11 +10,11 @@ import '../directional_icons.dart';
 /// (redesign-2026-08 §5 #1). **A mode, never a bool** — `close` is not
 /// "back with a different glyph", and `identity` adds a whole avatar block.
 enum JeebTopBarLeading {
-  /// Ø40 `surfaceContainerHigh` circle + 20px navy `DirectionalIcons.back`
+  /// Ø40 glass circle + 19px ink `DirectionalIcons.back`
   /// (05 06 07 08 09 10 11 12 13 18 20 22 23).
   back,
 
-  /// Same circle, 18px navy `×` (17 — the only consumer).
+  /// Same circle, 18px ink `×` (17 — the only consumer).
   close,
 
   /// Back circle **plus** a Ø42 avatar and a name/sub stack (21).
@@ -23,11 +23,11 @@ enum JeebTopBarLeading {
 
 /// How the leading/trailing circles are painted.
 enum JeebTopBarLeadingTreatment {
-  /// `colorScheme.surfaceContainerHigh` fill, no shadow. The board default.
+  /// Glass fill + 1px glass stroke, no shadow. The board default.
   tonal,
 
-  /// `colorScheme.surface` fill + [JeebShadows.floatPill] — a circle floating
-  /// over a map (09's `/capture-location`, 12's map surface).
+  /// The same glass + [JeebShadows.overlay] — a circle floating over a map
+  /// (09's `/capture-location`, 12's map surface).
   floating,
 }
 
@@ -223,11 +223,14 @@ class JeebTopBar extends StatelessWidget {
   /// The Ø42 avatar the `identity` slot expects (`tpl 1236`).
   static const double identityAvatarDiameter = 42;
 
-  /// Back glyph size.
-  static const double backGlyphSize = 20;
+  /// Back glyph size (R7/R10/R11/R13/R20 all draw 19).
+  static const double backGlyphSize = 19;
 
   /// Close glyph size (`tpl 988` — 18, not 20).
   static const double closeGlyphSize = 18;
+
+  /// The 1px glass stroke every circle carries (token sheet §4).
+  static const double glassBorderWidth = 1;
 
   /// How far the 48dp tap target overhangs the Ø40 circle on each side.
   ///
@@ -408,18 +411,23 @@ class JeebTopBar extends StatelessWidget {
     required JeebTopBarLeadingTreatment treatment,
   }) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors glass = _semantics(context);
     final bool floating = treatment == JeebTopBarLeadingTreatment.floating;
 
     final Widget circle = DecoratedBox(
       decoration: BoxDecoration(
-        color: floating ? scheme.surface : scheme.surfaceContainerHigh,
+        color: glass.glassFillEmphasis,
         shape: BoxShape.circle,
-        boxShadow: floating ? JeebShadows.floatPill : null,
+        border: Border.all(
+          color: glass.glassBorderStrong,
+          width: glassBorderWidth,
+        ),
+        boxShadow: floating ? JeebShadows.overlay : null,
       ),
       child: SizedBox.square(
         dimension: circleDiameter,
         child: Center(
-          child: Icon(icon, size: iconSize, color: scheme.primary),
+          child: Icon(icon, size: iconSize, color: scheme.onSurface),
         ),
       ),
     );
@@ -487,7 +495,7 @@ class JeebTopBar extends StatelessWidget {
 
     return Text(
       title!,
-      style: style.copyWith(color: scheme.primary),
+      style: style.copyWith(color: scheme.onSurface),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
@@ -538,7 +546,7 @@ class JeebTopBar extends StatelessWidget {
 }
 
 /// `JeebSemanticColors` is read defensively: a bare `!` crashes under test
-/// harnesses that theme with `ThemeData.light()`.
+/// harnesses that theme with a bare `ThemeData`.
 JeebSemanticColors _semantics(BuildContext context) =>
     Theme.of(context).extension<JeebSemanticColors>() ??
-    JeebSemanticColors.light();
+    JeebSemanticColors.midnight();

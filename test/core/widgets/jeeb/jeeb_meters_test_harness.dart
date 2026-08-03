@@ -5,6 +5,8 @@ import 'package:jeeb_mobile/core/theme/app_theme.dart';
 
 /// Shared harness for the meters group (kit step 7: #10, #20, #21).
 ///
+/// MIDNIGHT: themed with [AppTheme.midnight] — the one scheme the app ships.
+///
 /// Separate from `jeeb_card_test_harness.dart` because these widgets need the
 /// ambient **locale** under their feet — `JeebSectionLabel` gates its case
 /// transform on it — and the card harness installs none.
@@ -15,7 +17,7 @@ Widget wrapMeter(
   double width = 320,
 }) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     locale: locale,
     supportedLocales: const <Locale>[Locale('en'), Locale('ar')],
     // Without the global delegates an `ar` pump logs a "locale not supported"

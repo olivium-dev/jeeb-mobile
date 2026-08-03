@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/jeeb_color_roles.dart';
-import '../../theme/jeeb_shadows.dart';
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 
 /// The four realized call-to-action treatments (redesign-2026-08 §5 #2).
 enum JeebCtaVariant {
-  /// Navy pill, white [JeebTextStyles.button], `JeebShadows.ctaNavy`.
-  /// h56 (01 08 15 23) or h58 (10 14 17).
+  /// MIDNIGHT: periwinkle `secondary` pill, navy `onSecondary`
+  /// [JeebTextStyles.button], no lift. h56 (01 08 15 23) or h58 (10 14 17).
   primary,
 
-  /// Transparent pill, `1.5px colorScheme.outline`, navy ink.
-  /// h50 (12 18) or h54 (14).
+  /// MIDNIGHT: glass pill — `glassFill` + 1px `glassBorderStrong`, `onSurface`
+  /// ink. h50 (12 18) or h54 (14).
   outline,
 
   /// No pill at all — `colorScheme.onSurfaceVariant` ink (01 `Skip`,
@@ -26,9 +27,9 @@ enum JeebCtaVariant {
 /// The Jeeb call-to-action (redesign-2026-08 §5 #2) — 13 screens.
 ///
 /// Presentation-only: everything arrives by constructor. The widget owns the
-/// pill geometry, the fill/border/shadow per [variant], the disabled and
-/// loading treatments, and the RTL-correct glyph placement. Consumers own the
-/// label string, the callback and (usually) the `Semantics` identifier.
+/// pill geometry, the fill/border per [variant], the disabled and loading
+/// treatments, and the RTL-correct glyph placement. Consumers own the label
+/// string, the callback and (usually) the `Semantics` identifier.
 ///
 /// **Semantics contract** — matching the card primitives: this widget adds a
 /// `Semantics` node **only** when [identifier] or [semanticLabel] is set. Every
@@ -67,8 +68,8 @@ class JeebCtaButton extends StatelessWidget {
     this.semanticHint,
   });
 
-  /// Navy pill (08 10 14 15 17 23). Pass `height: primaryHeightTall` for the
-  /// h58 screens.
+  /// Periwinkle pill (08 10 14 15 17 23). Pass `height: primaryHeightTall` for
+  /// the h58 screens.
   const JeebCtaButton.primary({
     super.key,
     required this.label,
@@ -89,7 +90,7 @@ class JeebCtaButton extends StatelessWidget {
     this.semanticHint,
   }) : variant = JeebCtaVariant.primary;
 
-  /// `1.5px colorScheme.outline` pill (12 14 18).
+  /// Glass pill (12 14 18).
   const JeebCtaButton.outline({
     super.key,
     required this.label,
@@ -170,7 +171,10 @@ class JeebCtaButton extends StatelessWidget {
   static const double textHeight = 48;
 
   /// The board's `border-radius: 999px`.
-  static const double pillRadius = 999;
+  static const double pillRadius = JeebRadii.pill;
+
+  /// The glass pill's hairline — board `1px solid rgba(255,255,255,.16)`.
+  static const double outlineBorderWidth = 1;
 
   /// Disabled alphas, deliberately identical to `OmdsPrimaryButton`'s (its
   /// P0-X01 fix) so a Jeeb CTA and an OMDS CTA disable the same way: the fill
@@ -196,7 +200,7 @@ class JeebCtaButton extends StatelessWidget {
   final bool isEnabled;
 
   /// Swaps the whole content for a spinner and ignores taps, keeping the
-  /// height, pill and shadow (10/14/17 render `state.isSubmitting` here — the
+  /// height and the pill (10/14/17 render `state.isSubmitting` here — the
   /// guard against double-submits).
   final bool isLoading;
 
@@ -279,7 +283,10 @@ class JeebCtaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final JeebSemanticColors semantics =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     final JeebTextStyles text = context.jeebText;
     final bool live = isInteractive;
 
@@ -311,21 +318,15 @@ class JeebCtaButton extends StatelessWidget {
       height: height ?? _defaultHeight,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _fill(scheme, live),
+          color: _fill(scheme, semantics, live),
           borderRadius: radius,
           border: variant == JeebCtaVariant.outline
               ? Border.all(
-                  color: live
-                      ? scheme.outline
-                      : scheme.outline.withValues(alpha: disabledFillOpacity),
+                  color: _alpha(semantics.glassBorderStrong, live),
                   // The board is `box-sizing: border-box`, and so is a Flutter
                   // decoration border on a fixed-height box: h50 stays h50.
-                  width: 1.5,
+                  width: outlineBorderWidth,
                 )
-              : null,
-          // A disabled CTA is not elevated, so the lift goes with the fill.
-          boxShadow: variant == JeebCtaVariant.primary && live
-              ? JeebShadows.ctaNavy
               : null,
         ),
         child: ClipRRect(
@@ -406,7 +407,7 @@ class JeebCtaButton extends StatelessWidget {
         // 17/w600 — the board's CTA label on every h56/h58 pill.
         return text.button;
       case JeebCtaVariant.outline:
-        // 13.5/w600 — 18 `tpl 1086` exactly; 12 measures 14 (override there).
+        // 14.5/w600 — the board's glass CTA label; h50 draws 13.5 (override).
         return text.body.copyWith(fontWeight: FontWeight.w600);
       case JeebCtaVariant.text:
         // 15.5/w600 — 01 `tpl 56`; 11 measures 14.5, 12 measures 14.
@@ -417,32 +418,34 @@ class JeebCtaButton extends StatelessWidget {
     }
   }
 
-  Color? _fill(ColorScheme scheme, bool live) {
-    if (variant != JeebCtaVariant.primary) {
-      return null;
+  Color? _fill(ColorScheme scheme, JeebSemanticColors semantics, bool live) {
+    switch (variant) {
+      case JeebCtaVariant.primary:
+        return _alpha(scheme.secondary, live);
+      case JeebCtaVariant.outline:
+        return _alpha(semantics.glassFill, live);
+      case JeebCtaVariant.text:
+      case JeebCtaVariant.accentText:
+        return null;
     }
-    return live
-        ? scheme.primary
-        : scheme.primary.withValues(alpha: disabledFillOpacity);
   }
 
   Color _ink(BuildContext context, ColorScheme scheme, bool live) {
     switch (variant) {
       case JeebCtaVariant.primary:
         return live
-            ? scheme.onPrimary
-            : scheme.onPrimary.withValues(alpha: disabledLabelOpacity);
+            ? scheme.onSecondary
+            : scheme.onSecondary.withValues(alpha: disabledLabelOpacity);
       case JeebCtaVariant.outline:
-        return live
-            ? scheme.primary
-            : scheme.primary.withValues(alpha: disabledFillOpacity);
+        return _alpha(scheme.onSurface, live);
       case JeebCtaVariant.text:
-        return live
-            ? scheme.onSurfaceVariant
-            : scheme.onSurfaceVariant.withValues(alpha: disabledFillOpacity);
+        return _alpha(scheme.onSurfaceVariant, live);
       case JeebCtaVariant.accentText:
-        final Color accent = context.jeebRoles.accent;
-        return live ? accent : accent.withValues(alpha: disabledFillOpacity);
+        return _alpha(context.jeebRoles.accent, live);
     }
   }
+
+  /// Multiplicative so the glass tokens dim instead of jumping to 45% opaque.
+  Color _alpha(Color color, bool live) =>
+      live ? color : color.withValues(alpha: color.a * disabledFillOpacity);
 }

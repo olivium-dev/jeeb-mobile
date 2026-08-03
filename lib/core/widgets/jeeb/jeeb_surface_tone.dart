@@ -3,24 +3,23 @@ import 'package:flutter/material.dart';
 import '../../theme/jeeb_color_roles.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 
-/// Which Jeeb card surface a subtree is painted on (redesign-2026-08 §5 #3/#4).
+/// Which Jeeb card surface a subtree is painted on (MIDNIGHT sheet §4).
 enum JeebSurfaceKind {
-  /// White card, `1.5px colorScheme.outline`, flat. The app-wide default.
+  /// Rest glass: `glassFill` + 1px `glassBorder`. The app-wide default.
+  /// (Named `light` for API stability — nothing is light in Midnight.)
   light,
 
-  /// `colorScheme.primary` fill — the *selected* state of an outlined card and
-  /// every standalone navy hero/strip.
+  /// Emphasis glass: `glassFillEmphasis` + `glassBorderStrong` — heroes, strips
+  /// and the *selected* state of an outlined card.
   navy,
 }
 
 /// The resolved ink/fill set a Jeeb card imposes on everything inside it.
 ///
-/// Why this exists: §5 #4 requires the navy surface to **re-tone every internal
-/// chip** (fill `rgba(255,255,255,.14)`, ink `rgba(255,255,255,.7)`, empty
-/// meter dots `rgba(255,255,255,.25)`). Leaving that to each consumer means the
-/// first lane that forgets ships a `surfaceContainerHigh` chip on navy. So the
-/// two cards publish their tone and the kit's children read it — the re-tone is
-/// structural, not remembered.
+/// Why this exists: an emphasis surface has to **re-tone every internal chip**,
+/// or the first lane that forgets ships a solid-navy chip on a raised surface
+/// it cannot be seen against. The two cards publish their tone and the kit's
+/// children read it — the re-tone is structural, not remembered.
 ///
 /// Read it with [JeebSurfaceTone.of]; it falls back to [light] when no Jeeb
 /// card is above, so a chip works standalone too.
@@ -37,9 +36,8 @@ class JeebSurfaceToneData {
     required this.dividerInk,
   });
 
-  /// The white-card tone. Values are the measured light-surface readings
-  /// (08 `tpl 420-435`): title navy, meta periwinkle, chip
-  /// `surfaceContainerHigh` + navy w700, meter accent / `surfaceContainerHighest`.
+  /// The rest-glass tone: ink `onSurface`, meta `mutedText`, chip = solid
+  /// deep-navy pill (kit ruling #4 — chips on navy are never glass).
   factory JeebSurfaceToneData.light(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebSemanticColors semantics = _semantics(context);
@@ -55,27 +53,32 @@ class JeebSurfaceToneData {
     );
   }
 
-  /// The navy-surface tone (08 `tpl 452-469`, the selected Standard tier).
-  /// Every alpha here is measured, not invented.
+  /// The emphasis-glass tone. `inkSoft` is the board's meta ink on every raised
+  /// surface (R9's selected tier, R22's lit frame); chips step up to white 14%.
   factory JeebSurfaceToneData.navy(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    final Color onNavy = scheme.onPrimary;
+    final JeebSemanticColors semantics = _semantics(context);
     return JeebSurfaceToneData(
       kind: JeebSurfaceKind.navy,
-      titleInk: onNavy,
-      mutedInk: onNavy.withValues(alpha: 0.7),
-      chipFill: onNavy.withValues(alpha: 0.14),
-      chipInk: onNavy,
-      meterFill: onNavy,
-      meterEmpty: onNavy.withValues(alpha: 0.25),
-      dividerInk: onNavy.withValues(alpha: 0.14),
+      titleInk: scheme.onSurface,
+      mutedInk: semantics.inkSoft,
+      chipFill: semantics.glassFillPressed,
+      chipInk: scheme.onSurface,
+      meterFill: scheme.onSurface,
+      meterEmpty: scheme.onSurface.withValues(alpha: 0.25),
+      dividerInk: scheme.outlineVariant,
     );
   }
+
+  /// R9's accent-selected tone: [navy]'s inks (white title, `inkSoft` meta) on
+  /// the orange-20% fill, and `kind: navy` so `onNavy` still reads true.
+  factory JeebSurfaceToneData.accentSelected(BuildContext context) =>
+      JeebSurfaceToneData.navy(context);
 
   /// The surface this tone describes.
   final JeebSurfaceKind kind;
 
-  /// Card titles and any primary ink (08's tier name).
+  /// Card titles, leading glyphs and any primary ink.
   final Color titleInk;
 
   /// Subtitles, meta rows and meter captions.
@@ -96,7 +99,7 @@ class JeebSurfaceToneData {
   /// The 1px inset rule between grouped rows.
   final Color dividerInk;
 
-  /// True when the subtree sits on the navy surface.
+  /// True when the subtree sits on the emphasis surface.
   bool get onNavy => kind == JeebSurfaceKind.navy;
 
   @override

@@ -5,8 +5,8 @@ import '../../theme/jeeb_text_styles.dart';
 /// The uppercase section header above a control or card group
 /// (redesign-2026-08 §5 #10).
 ///
-/// `w700 / letter-spacing 1.2 / UPPERCASE / mutedText`, realized on 05, 15, 17,
-/// 19, 20 and 23.
+/// `w700 / letter-spacing 1.2 / UPPERCASE / mutedText` — MIDNIGHT re-values
+/// that ink to `#8A93D8` in the token, which every board label confirms.
 ///
 /// Three things are deliberately *not* the caller's job:
 ///
@@ -15,9 +15,9 @@ import '../../theme/jeeb_text_styles.dart';
 ///    an Arabic build ends up calling a locale-sensitive transform on a
 ///    caseless script. See [resolveCase].
 ///  * **The size.** The shipped `jeebText.sectionLabel` is 11px, but that is
-///    the minority reading: 8 of the 9 labels on the board are 12.5–13px
-///    (§4.2). [defaultFontSize] is 12.5; [small] selects the 11px form, which
-///    only 05 draws. 13px (15, 17) is the same token — do **not** add a third
+///    the minority reading: 12 of the 13 labels on the Midnight board are
+///    12.5–13px. [defaultFontSize] is 12.5; [small] selects the 11px form,
+///    which only 05 draws. 13px is the same token — do **not** add a third
 ///    size.
 ///  * **The inline hint.** 17 renders `PICKUP ETA · Flash allows ≤ 60 min`:
 ///    one line, where the continuation is *not* uppercased, has no tracking and

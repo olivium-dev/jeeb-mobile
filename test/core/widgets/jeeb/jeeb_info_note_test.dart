@@ -30,9 +30,13 @@ Semantics? _nodeWithIdentifier(WidgetTester tester, String identifier) {
 TextStyle _styleOf(WidgetTester tester, String data) =>
     tester.widget<Text>(find.text(data)).style!;
 
+// Token sheet §3, typed out rather than read back off the implementation.
+const Color _glassFill = Color(0x12FFFFFF);
+const Color _glassBorder = Color(0x1FFFFFFF);
+
 void main() {
   group('JeebInfoNote — tones', () {
-    testWidgets('muted paints surfaceContainerHigh with muted ink (08)',
+    testWidgets('muted paints a glass panel with muted ink (08)',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCard(
@@ -44,15 +48,16 @@ void main() {
       );
 
       final BuildContext context = tester.element(find.byType(JeebInfoNote));
-      final ColorScheme scheme = Theme.of(context).colorScheme;
       final JeebSemanticColors semantics =
           Theme.of(context).extension<JeebSemanticColors>()!;
 
       final BoxDecoration decoration =
           decorationOf(tester, find.byType(JeebInfoNote));
-      expect(decoration.color, scheme.surfaceContainerHigh);
-      expect(decoration.border, isNull, reason: 'muted is a fill, not a stroke');
-      expect(decoration.boxShadow, isNull, reason: '§4.5 outline-over-shadow');
+      expect(decoration.color, _glassFill);
+      final Border border = decoration.border! as Border;
+      expect(border.top.color, _glassBorder);
+      expect(border.top.width, JeebInfoNote.outlineWidth);
+      expect(decoration.boxShadow, isNull, reason: 'glass never lifts');
       expect(
         decoration.borderRadius,
         BorderRadius.circular(JeebInfoNote.defaultRadius),
@@ -61,7 +66,7 @@ void main() {
       final TextStyle style = _styleOf(tester, 'Jeebers set the price.');
       expect(style.color, semantics.mutedText);
       expect(style.fontWeight, FontWeight.w500);
-      // 12/w500 lh18 — the ramp's bodySmall size, the board's line-height.
+      // 12.5/w500 lh18 — the ramp's bodySmall, the board's line-height.
       expect(style.fontSize, context.jeebText.bodySmall.fontSize);
       expect(style.height, JeebInfoNote.bodyLineHeight);
 
@@ -72,7 +77,7 @@ void main() {
       );
     });
 
-    testWidgets('accent inks the copy navy and the link orange (17)',
+    testWidgets('accent inks the copy white and the link orange (17)',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCard(
@@ -100,7 +105,7 @@ void main() {
       expect(
         tester.widget<Icon>(find.byType(Icon)).color,
         scheme.onSurface,
-        reason: '17 draws the wallet glyph navy, not periwinkle',
+        reason: 'R17 draws the wallet glyph white, not periwinkle',
       );
     });
 
@@ -123,7 +128,12 @@ void main() {
         decorationOf(tester, find.byType(JeebInfoNote)).color,
         roles.successContainer,
       );
-      expect(tester.widget<Icon>(find.byType(Icon)).color, roles.success);
+      expect(
+        tester.widget<Icon>(find.byType(Icon)).color,
+        roles.onSuccessContainer,
+        reason: 'R23 strokes the check #7BD9A4; deep green fails on its own '
+            'container',
+      );
       expect(
         _styleOf(tester, "You're set to bid").color,
         Theme.of(context).colorScheme.onSurface,
@@ -155,7 +165,7 @@ void main() {
       );
     });
 
-    testWidgets('outlined is white + a 1.5px outline stroke, no fill tint (23)',
+    testWidgets('outlined is a stroke with no fill at all (23)',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCard(
@@ -168,15 +178,13 @@ void main() {
         ),
       );
 
-      final ColorScheme scheme =
-          Theme.of(tester.element(find.byType(JeebInfoNote))).colorScheme;
       final BoxDecoration decoration =
           decorationOf(tester, find.byType(JeebInfoNote));
 
-      expect(decoration.color, scheme.surface);
+      expect(decoration.color, Colors.transparent);
       expect(decoration.boxShadow, isNull);
       final Border border = decoration.border! as Border;
-      expect(border.top.color, scheme.outline);
+      expect(border.top.color, _glassBorder);
       expect(border.top.width, JeebInfoNote.outlineWidth);
       expect(find.text(r'$0.80'), findsOneWidget);
     });
@@ -222,7 +230,7 @@ void main() {
   });
 
   group('JeebInfoNote — the two forms', () {
-    testWidgets('strip form: pad 12/16, gap 10, glyph 17',
+    testWidgets('strip form: pad 12/16 + stroke, gap 10, glyph 17',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCard(
@@ -234,8 +242,11 @@ void main() {
       final Rect glyph = tester.getRect(find.byType(Icon));
       final Rect copy = tester.getRect(find.text('Door code'));
 
-      expect(glyph.left - note.left, 16);
-      expect(glyph.top - note.top, closeTo(12, 0.51));
+      expect(glyph.left - note.left, 16 + JeebInfoNote.outlineWidth);
+      expect(
+        glyph.top - note.top,
+        closeTo(12 + JeebInfoNote.outlineWidth, 0.51),
+      );
       expect(copy.left - glyph.right, JeebInfoNote.stripGap);
       expect(glyph.width, JeebInfoNote.stripIconSize);
       // The strip is one line: the copy is vertically centred on the glyph.
@@ -272,7 +283,7 @@ void main() {
       expect(_styleOf(tester, 'Sub').height, isNull);
     });
 
-    testWidgets('outlined folds the 1.5px stroke into the padding (border-box)',
+    testWidgets('outlined folds its stroke into the padding (border-box)',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCard(
@@ -282,7 +293,7 @@ void main() {
 
       final Rect box = tester.getRect(find.byType(JeebInfoNote));
       final Rect glyph = tester.getRect(find.byType(Icon));
-      // 16 padding + 1.5 stroke — the copy must not creep under the outline.
+      // 16 padding + the stroke — the copy must not creep under the outline.
       expect(glyph.left - box.left, 16 + JeebInfoNote.outlineWidth);
     });
 
@@ -304,7 +315,7 @@ void main() {
 
       final Rect box = tester.getRect(find.byType(JeebInfoNote));
       final Rect glyph = tester.getRect(find.byType(Icon));
-      expect(glyph.left - box.left, 24);
+      expect(glyph.left - box.left, 24 + JeebInfoNote.outlineWidth);
       expect(tester.getRect(find.text('x')).left - glyph.right, 4);
       expect(glyph.width, 30);
       expect(
@@ -519,14 +530,14 @@ void main() {
       expect(
         tester.getRect(find.byType(Icon)).left -
             tester.getRect(find.byType(JeebInfoNote)).left,
-        30,
+        30 + JeebInfoNote.outlineWidth,
       );
 
       await tester.pumpWidget(wrapCard(note, direction: TextDirection.rtl));
       expect(
         tester.getRect(find.byType(JeebInfoNote)).right -
             tester.getRect(find.byType(Icon)).right,
-        30,
+        30 + JeebInfoNote.outlineWidth,
         reason: 'start padding must land on the right edge under RTL',
       );
     });
@@ -581,16 +592,12 @@ void main() {
         ),
       );
 
-      final ColorScheme scheme =
-          Theme.of(tester.element(find.byType(JeebInfoNote))).colorScheme;
-      expect(
-        decorationOf(tester, find.byType(JeebInfoNote)).color,
-        scheme.onPrimary.withValues(alpha: 0.14),
-      );
-      expect(
-        _styleOf(tester, 'on navy').color,
-        scheme.onPrimary.withValues(alpha: 0.7),
-      );
+      final JeebSemanticColors semantics =
+          Theme.of(tester.element(find.byType(JeebInfoNote)))
+              .extension<JeebSemanticColors>()!;
+      // The panel keeps its glass recipe; only the ink follows the surface.
+      expect(decorationOf(tester, find.byType(JeebInfoNote)).color, _glassFill);
+      expect(_styleOf(tester, 'on navy').color, semantics.inkSoft);
     });
 
     testWidgets('a state tone keeps its role colours on navy — the state is the message',

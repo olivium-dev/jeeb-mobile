@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 
 /// The three realized tones of a centred timeline chip (redesign-2026-08 §5 #17
 /// plus 21 §2's countdown row).
 enum JeebSystemChipTone {
-  /// A **settled fact** — `Offer accepted · 9:12`. `surfaceContainerHigh` fill,
-  /// pad `4/12`, ink periwinkle (`tpl 1249`). Also the date separator.
+  /// A **settled fact** — `Offer accepted · 9:12`. Solid `surfaceContainerHigh`
+  /// (kit ruling 4: chips on navy are solid, not glass), pad `4/12`, ink
+  /// `inkSoft`. Also the date separator.
   filled,
 
   /// A **live / progress event** — `Karim is on the way · ETA 20 min`.
-  /// `1.5px colorScheme.outline`, pad `5/13`, ink `onSurfaceVariant`
-  /// (`tpl 1271`).
+  /// Fill-less, 1px `colorScheme.outline`, pad `5/13`, ink `onSurfaceVariant`.
   outlined,
 
   /// **What is expiring right now** — the broadcast-window countdown.
-  /// [outlined]'s geometry in `jeebRoles.accent` (21 §2, R5). The plan's table
-  /// lists two tones; this third one is the row 21 §2 requires, kept here so the
-  /// TTL indicator does not hand-roll a fourth pill.
+  /// [outlined]'s geometry in the orange quartet: `accentTint` fill,
+  /// `accentRing` stroke, `onAccentContainer` ink — orange as a live accent is
+  /// budgeted (§2.2), but orange *ink* on navy is ~2.5:1 and is refused.
   accent,
 }
 
@@ -44,7 +45,7 @@ class JeebSystemChip extends StatelessWidget {
     this.center = true,
   });
 
-  /// A settled fact: filled `surfaceContainerHigh`, pad `4/12`.
+  /// A settled fact: solid `surfaceContainerHigh`, pad `4/12`.
   const JeebSystemChip.filled({
     super.key,
     required this.label,
@@ -53,7 +54,7 @@ class JeebSystemChip extends StatelessWidget {
     this.center = true,
   }) : tone = JeebSystemChipTone.filled;
 
-  /// A live event: `1.5px colorScheme.outline`, pad `5/13`.
+  /// A live event: `1px colorScheme.outline`, pad `5/13`.
   const JeebSystemChip.outlined({
     super.key,
     required this.label,
@@ -62,7 +63,7 @@ class JeebSystemChip extends StatelessWidget {
     this.center = true,
   }) : tone = JeebSystemChipTone.outlined;
 
-  /// A countdown: [JeebSystemChip.outlined] in `jeebRoles.accent`.
+  /// A countdown: [JeebSystemChip.outlined]'s geometry in the orange quartet.
   const JeebSystemChip.accent({
     super.key,
     required this.label,
@@ -79,8 +80,8 @@ class JeebSystemChip extends StatelessWidget {
   static const EdgeInsetsGeometry outlinedPadding =
       EdgeInsetsDirectional.symmetric(horizontal: 13, vertical: 5);
 
-  /// `1.5px` — the board's universal outline weight.
-  static const double borderWidth = 1.5;
+  /// 1px — the Midnight stroke weight (token sheet §4); the light era drew 1.5.
+  static const double borderWidth = 1;
 
   /// The chip copy. Build `"{event} · {time}"` at the call site and only when
   /// the message really has a server timestamp (21 §5.3).
@@ -105,18 +106,29 @@ class JeebSystemChip extends StatelessWidget {
 
   /// The label ink for [tone].
   ///
-  /// `onSecondaryContainer` **is** the periwinkle (§4.1), which is why the
-  /// filled chip does not read `JeebSemanticColors.mutedText` — that token is
-  /// decorative-only and a chip label is text (21 §2.1).
+  /// The accent chip reads `onAccentContainer` (`#FFB499`), not the accent
+  /// itself: `#D73B00` as text on navy measures ~2.5:1 (token sheet §9).
   static Color inkOf(BuildContext context, JeebSystemChipTone tone) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     switch (tone) {
       case JeebSystemChipTone.filled:
-        return scheme.onSecondaryContainer;
+        return _semanticsOf(context).inkSoft;
       case JeebSystemChipTone.outlined:
         return scheme.onSurfaceVariant;
       case JeebSystemChipTone.accent:
-        return context.jeebRoles.accent;
+        return context.jeebRoles.onAccentContainer;
+    }
+  }
+
+  /// The chip fill for [tone]; null on [JeebSystemChipTone.outlined].
+  static Color? fillOf(BuildContext context, JeebSystemChipTone tone) {
+    switch (tone) {
+      case JeebSystemChipTone.filled:
+        return Theme.of(context).colorScheme.surfaceContainerHigh;
+      case JeebSystemChipTone.outlined:
+        return null;
+      case JeebSystemChipTone.accent:
+        return _semanticsOf(context).accentTint;
     }
   }
 
@@ -128,17 +140,17 @@ class JeebSystemChip extends StatelessWidget {
     final Color? border = filled
         ? null
         : tone == JeebSystemChipTone.accent
-            ? context.jeebRoles.accent
+            ? _semanticsOf(context).accentRing
             : scheme.outline;
 
-    // The board is `box-sizing: border-box`, so the 1.5px stroke sits outside
+    // The board is `box-sizing: border-box`, so the 1px stroke sits outside
     // the 5/13 inset. `Container` adds `decoration.padding` (the border
     // dimensions) on top of ours, so the correction is already made — folding
     // it in by hand here would double-count it.
     Widget chip = Container(
       padding: filled ? filledPadding : outlinedPadding,
       decoration: ShapeDecoration(
-        color: filled ? scheme.surfaceContainerHigh : null,
+        color: fillOf(context, tone),
         shape: border == null
             ? const StadiumBorder()
             : StadiumBorder(
@@ -166,3 +178,9 @@ class JeebSystemChip extends StatelessWidget {
     return Align(alignment: AlignmentDirectional.center, child: chip);
   }
 }
+
+/// Read defensively: harnesses that theme with a bare `ThemeData` carry no
+/// extension, and a bare `!` would crash them.
+JeebSemanticColors _semanticsOf(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();

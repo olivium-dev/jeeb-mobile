@@ -57,6 +57,16 @@ do their own STEP-0 tile read.
   reduce motion. **Catalog captures run with `disableAnimations: true`** so every capture is
   the deterministic rest frame (M0-9 harness must set this).
 
+## M1 kit-review rulings (2026-08-04, post-workflow)
+
+Confirmed as shipped: glass-capsule default radius = pill · pill nav strict 5 slots, navy
+surface (sheet §4 corrected), active label `onSurface` · composer/bubbles pre-baked
+translucency (screens own real blur) · glass border 1px everywhere · badge pair
+`accentContainer`/`onAccentContainer` · segmented gap 5 · mic `large` glow → `ctaOrange` ·
+avatar `dormant` unchanged. Fixup lane added: accent selected card state (R9, orange 20%/2px/
+glow), `glassBorderVivid` 22%, R20 outgoing bubble orange-tint (fill 24%/border 45%, white
+body, tail-corner 6). R20 outgoing waveform bars = white on the tinted fill (now non-inert).
+
 ## Motion-study rulings (2026-08-04 — 03-MOTION-NOTES.md is authoritative per element)
 
 1. Board-still tiles ship STILL (R1 incl. broadcast dot + rings, R3's map route, E1's ring

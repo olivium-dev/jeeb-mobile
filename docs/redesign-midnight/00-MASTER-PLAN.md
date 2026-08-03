@@ -302,7 +302,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M0-9 Capture-harness fixes — generic GoRouter stand-in (R12 + 8 more crashed captures fixed), shared OMDS tokens (`jeeb_omds_tokens.dart`), Midnight theme + reduce-motion enforced, brand/emoji/Arabic fonts loaded; render failures 18→4 (all pre-existing; rulings in 02-STUDY-NOTES §Harness) @2026-08-03
 
 ### M1 Kit
-- [ ] M1-1 Kit restyle sweep (32 widgets) on new tokens
+- [x] M1-1 Kit restyle sweep — 31 widgets via 7-lane parallel workflow + fixup (orange-budget leaks killed, AA fixes, accent selected state, R20 bubble tint, glassBorderVivid; rulings in 02-STUDY-NOTES §M1) @2026-08-04
 - [ ] M1-2 `JeebGlassCard` + glass capsule
 - [ ] M1-3 `JeebEmptyState` (§2.7) + E1-sample illustration variants
 - [ ] M1-4 Floating pill nav widget

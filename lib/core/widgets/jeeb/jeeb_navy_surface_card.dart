@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
+import '../../theme/jeeb_shadows.dart';
 import 'jeeb_surface_tone.dart';
 
 /// Which ink a decorative [JeebNavyRing] is stroked in.
@@ -9,7 +11,8 @@ enum JeebNavyRingInk {
   /// (04 `tpl 167`, 19 `tpl 23`, 23 `tpl 21`, 02's inner ring).
   accent,
 
-  /// `colorScheme.onPrimary` at 8% — 02's outer band ring only.
+  /// Ink at 8% — the board's quiet white orbit arc (sheet §8). Named
+  /// `onPrimaryFaint` for API stability; it reads `onSurface`, never orange.
   onPrimaryFaint,
 }
 
@@ -42,7 +45,7 @@ class JeebNavyRing {
   static const JeebNavyRing statBottomEnd =
       JeebNavyRing(diameter: 170, bottom: -50, end: -50);
 
-  /// 02's outer band ring: Ø200 at top-END, white 8% (`tpl 12`).
+  /// 02's outer band ring: Ø200 at top-END, ink 8% (`tpl 12`).
   static const JeebNavyRing bandOuter = JeebNavyRing(
     diameter: 200,
     top: -60,
@@ -71,17 +74,17 @@ class JeebNavyRing {
   final double strokeWidth;
 }
 
-/// The navy surface (redesign-2026-08 §5 #4).
+/// The emphasis surface (MIDNIGHT sheet §4 hero glass).
 ///
-/// `colorScheme.primary` fill, parametric radius (14–24) and a parametric
-/// shadow **including none** — 04's r24 hero has no shadow at all; it reads as
-/// a surface because of the clip plus the accent ring.
+/// `glassFillEmphasis` fill + 1px `glassBorderStrong`, parametric radius and a
+/// parametric shadow **including none** — the board's heroes and pinned strips
+/// carry no lift; the fill step and the stroke are what raise them. No
+/// `BackdropFilter`: the ≤2-per-screen blur budget belongs to the screen.
 ///
 /// This is also the `selected` state of `JeebOutlinedCard`: selection is a
 /// **fill swap, never a thicker border**. Because it publishes
 /// [JeebSurfaceTone] to its subtree, every kit child inside it re-tones itself
-/// (chip `rgba(255,255,255,.14)` / ink `.7` / empty dots `.25`) with nothing for
-/// the consumer to remember.
+/// with nothing for the consumer to remember.
 ///
 /// Always clipped: the decorative rings depend on it, and no board element
 /// overhangs a navy card.
@@ -89,7 +92,7 @@ class JeebNavySurfaceCard extends StatelessWidget {
   const JeebNavySurfaceCard({
     super.key,
     required this.child,
-    this.radius = 16,
+    this.radius = JeebRadii.lg,
     this.padding = defaultPadding,
     this.shadow = noShadow,
     this.rings = const <JeebNavyRing>[],
@@ -101,12 +104,12 @@ class JeebNavySurfaceCard extends StatelessWidget {
   }) : topBand = false;
 
   /// The full-bleed band mode — screen 02's registration hero, its only
-  /// consumer. Bottom-only radius (`0 0 36 36`), no shadow, and the status-bar
-  /// inset folded into the top padding so the band paints under it.
+  /// consumer. Bottom-only `hero` radius, no shadow, no stroke, and the
+  /// status-bar inset folded into the top padding so the band paints under it.
   const JeebNavySurfaceCard.topBand({
     super.key,
     required this.child,
-    this.radius = 36,
+    this.radius = JeebRadii.hero,
     this.padding = topBandPadding,
     this.shadow = noShadow,
     this.rings = const <JeebNavyRing>[],
@@ -121,27 +124,12 @@ class JeebNavySurfaceCard extends StatelessWidget {
   /// visible decision at the call site (§5 #4).
   static const List<BoxShadow> noShadow = <BoxShadow>[];
 
-  /// `0 10 22 rgba(11,19,81,.28)` — the selected state of `JeebOutlinedCard`
-  /// (08's chosen tier). Deliberately **not** `JeebShadows.ctaNavy`, which is
-  /// `0 10 24`; the CTA pill and the selected card are different values and
-  /// per-screen-revised/08 §3 pins the difference.
-  static const List<BoxShadow> selectedShadow = <BoxShadow>[
-    BoxShadow(
-      color: Color.fromRGBO(11, 19, 81, 0.28),
-      offset: Offset(0, 10),
-      blurRadius: 22,
-    ),
-  ];
+  /// The selected state of `JeebOutlinedCard`. Midnight lights selection
+  /// instead of lifting it (R9/R22): the navy-tinted lift died with the theme.
+  static const List<BoxShadow> selectedShadow = JeebShadows.glowRest;
 
-  /// `0 8 20 rgba(11,19,81,.25)` — 21's pinned summary strip. (16's availability
-  /// strip is `JeebShadows.ctaNavy`; wiring/16 §4 corrects the plan on that.)
-  static const List<BoxShadow> stripShadow = <BoxShadow>[
-    BoxShadow(
-      color: Color.fromRGBO(11, 19, 81, 0.25),
-      offset: Offset(0, 8),
-      blurRadius: 20,
-    ),
-  ];
+  /// 21's pinned summary strip — a small floating surface, so `overlay`.
+  static const List<BoxShadow> stripShadow = JeebShadows.overlay;
 
   /// 14/16 — the one-line strip padding (16 `tpl 907`). Heroes pass 18–20.
   static const EdgeInsetsGeometry defaultPadding =
@@ -156,8 +144,7 @@ class JeebNavySurfaceCard extends StatelessWidget {
   /// the card (23 does this so the ring stays out of the node).
   final Widget child;
 
-  /// Corner radius in logical px — 14 (21) · 16 (08 16) · 18 (20) · 20 (19 23) ·
-  /// 24 (04). Design-exact px are legal here (§4.4 two-tier rule).
+  /// Corner radius — a [JeebRadii] rung; heroes pass `xl`/`sheet`.
   final double radius;
 
   /// Content padding. Accepts `EdgeInsetsDirectional`; never hardcode
@@ -165,7 +152,7 @@ class JeebNavySurfaceCard extends StatelessWidget {
   final EdgeInsetsGeometry padding;
 
   /// Elevation. [noShadow] · [selectedShadow] · [stripShadow] ·
-  /// `JeebShadows.ctaNavy` · `JeebShadows.heroNavy`.
+  /// `JeebShadows.floatNav`.
   final List<BoxShadow> shadow;
 
   /// Decorative off-canvas circles, painted behind the content and clipped.
@@ -194,6 +181,7 @@ class JeebNavySurfaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics = _semantics(context);
     final BorderRadiusGeometry borderRadius = topBand
         ? BorderRadiusDirectional.only(
             bottomStart: Radius.circular(radius),
@@ -205,7 +193,7 @@ class JeebNavySurfaceCard extends StatelessWidget {
     // rather than in a SafeArea the consumer would have to remember.
     final EdgeInsetsGeometry resolvedPadding = topBand
         ? padding.add(EdgeInsets.only(top: MediaQuery.paddingOf(context).top))
-        : padding;
+        : padding.add(const EdgeInsets.all(_borderWidth));
 
     Widget content = Padding(padding: resolvedPadding, child: child);
 
@@ -225,7 +213,7 @@ class JeebNavySurfaceCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: _ringInk(context, ring.ink, scheme),
+                      color: _ringInk(ring.ink, scheme, semantics),
                       width: ring.strokeWidth,
                     ),
                   ),
@@ -241,8 +229,12 @@ class JeebNavySurfaceCard extends StatelessWidget {
     // the DecoratedBox rather than around it.
     Widget surface = DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.primary,
+        color: semantics.glassFillEmphasis,
         borderRadius: borderRadius,
+        // A full-bleed band has no edges to stroke but the bottom curve.
+        border: topBand
+            ? null
+            : Border.all(color: semantics.glassBorderStrong),
         boxShadow: shadow,
       ),
       child: ClipRRect(
@@ -278,20 +270,24 @@ class JeebNavySurfaceCard extends StatelessWidget {
   }
 
   Color _ringInk(
-    BuildContext context,
     JeebNavyRingInk ink,
     ColorScheme scheme,
+    JeebSemanticColors semantics,
   ) {
     switch (ink) {
       case JeebNavyRingInk.accent:
-        // Defensive read: a bare `!` crashes under harnesses that theme with
-        // ThemeData.light() (see `wrapForTest`).
-        final JeebSemanticColors semantics =
-            Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light();
         return semantics.accentRing;
       case JeebNavyRingInk.onPrimaryFaint:
-        return scheme.onPrimary.withValues(alpha: 0.08);
+        return scheme.onSurface.withValues(alpha: 0.08);
     }
   }
 }
+
+/// The 1px stroke every glass surface carries (sheet §4).
+const double _borderWidth = 1;
+
+/// Defensive read: a bare `!` crashes under harnesses that theme with
+/// `ThemeData.light()` (see `wrapForTest`).
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();

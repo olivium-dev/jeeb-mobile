@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_shadows.dart';
 import '../../theme/jeeb_text_styles.dart';
 
@@ -16,7 +18,7 @@ enum JeebCodeCellsVariant {
   /// 18's h52 keyboard-driven entry row.
   input52,
 
-  /// 13's 74×92 navy display tiles.
+  /// 13's 74×94 backlit-glass display tiles.
   display,
 
   /// 12's one-line `2144` strip.
@@ -49,9 +51,9 @@ enum JeebCodeCellsVariant {
 /// Presentation-only: no cubit, no repository, everything arrives through the
 /// constructor.
 class JeebCodeCells extends StatelessWidget {
-  /// 03's entry row: `h74 r16 surfaceContainerHigh`, `flex:1` cells at gap 12,
-  /// digits `jeebText.codeInput` (29/w800) navy, the next empty cell framed
-  /// `2px jeebRoles.accent` around a 2×30 accent caret (`03 tpl 121-126`).
+  /// 03's entry row: `h74 r18` glass cells at gap 12, digits
+  /// `jeebText.codeInput` (29/w800) in ink, the next empty cell tinted accent
+  /// and framed `2px jeebRoles.accent` around a 2×30 caret (R7).
   ///
   /// [value] is the digits entered so far (`''` … `'1234'`); [length] is the
   /// cell count. Cells past `value.length` render empty — no placeholder, no
@@ -72,9 +74,8 @@ class JeebCodeCells extends StatelessWidget {
         textKey = null,
         assert(length > 0, 'JeebCodeCells: a code needs at least one cell.');
 
-  /// 18's entry row: `h52 r12 surfaceContainerHigh` cells at gap 9, digits
-  /// 22/w800 navy, focused cell framed `2px jeebRoles.accent`
-  /// (`18 tpl 1077-1082`).
+  /// 18's entry row: `h52` glass cells at gap 9, digits 22/w800 in ink,
+  /// focused cell framed `2px jeebRoles.accent` (`18 tpl 1077-1082`).
   ///
   /// Wraps `OmdsOtpInput`, so [value] is not read — the field owns its own
   /// controllers and reports through [onChanged] / [onCompleted].
@@ -97,9 +98,8 @@ class JeebCodeCells extends StatelessWidget {
         textKey = null,
         assert(length > 0, 'JeebCodeCells: a code needs at least one cell.');
 
-  /// 13's share form: 74×92 `r20` navy tiles at gap 13, digits
-  /// `jeebText.statDisplay` (42/w800) white, `JeebShadows.heroNavy`
-  /// (`13 tpl 808-812`).
+  /// 13's share form: 74×94 `r22` backlit-glass tiles at gap 13, digits
+  /// `jeebText.statDisplay` (44/w800) in ink, `JeebShadows.glowRest` (R13).
   ///
   /// The row scales down (never up) on narrow devices: 4×74 + 3×13 is 335 px,
   /// which overflows a 360 pt phone inside 24 pt gutters.
@@ -157,14 +157,17 @@ class JeebCodeCells extends StatelessWidget {
   /// Gap between input74 cells (12).
   static const double inputCellGap = 12;
 
-  /// input74 corner radius (16).
-  static const double inputRadius = 16;
+  /// input74 corner radius — R7 draws 18, the [JeebRadii.lg] rung.
+  static const double inputRadius = JeebRadii.lg;
 
   /// The accent frame on the active cell, and the error frame on every cell
   /// (2). The board is `box-sizing: border-box` and a [DecoratedBox] border
   /// paints inside the box without insetting the child, so h74 stays h74 —
   /// no padding fold is needed here (unlike `JeebOutlinedCard`).
   static const double activeBorderWidth = 2;
+
+  /// The 1px glass stroke every resting cell/tile carries (token sheet §4).
+  static const double glassBorderWidth = 1;
 
   /// Caret width (2), shared by both entry forms.
   static const double caretWidth = 2;
@@ -193,11 +196,11 @@ class JeebCodeCells extends StatelessWidget {
   /// Display tile width (74).
   static const double displayTileWidth = 74;
 
-  /// Display tile height (92).
-  static const double displayTileHeight = 92;
+  /// Display tile height (94).
+  static const double displayTileHeight = 94;
 
-  /// Display tile corner radius (20).
-  static const double displayTileRadius = 20;
+  /// Display tile corner radius — R13 draws 22, the [JeebRadii.xl] rung.
+  static const double displayTileRadius = JeebRadii.xl;
 
   /// Gap between display tiles (13).
   static const double displayTileGap = 13;
@@ -309,9 +312,10 @@ class JeebCodeCells extends StatelessWidget {
 
   Widget _buildInputCells(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors glass = _glass(context);
     final Color accent = context.jeebRoles.accent;
     final TextStyle digitStyle =
-        context.jeebText.codeInput.copyWith(color: scheme.primary);
+        context.jeebText.codeInput.copyWith(color: scheme.onSurface);
     // The next cell to be filled. `value.length == length` (a complete code)
     // puts this out of range, so nothing is framed — which is what the board
     // draws once the 4th digit lands.
@@ -322,18 +326,22 @@ class JeebCodeCells extends StatelessWidget {
       if (index > 0) {
         cells.add(const SizedBox(width: inputCellGap));
       }
-      final bool isActive = index == activeIndex;
-      final BoxBorder? border = switch ((hasError, isActive)) {
+      final bool isActive = index == activeIndex && !hasError;
+      final BoxBorder border = switch ((hasError, isActive)) {
         (true, _) => Border.all(color: scheme.error, width: activeBorderWidth),
         (false, true) => Border.all(color: accent, width: activeBorderWidth),
-        (false, false) => null,
+        (false, false) => Border.all(
+            color: glass.glassBorderStrong,
+            width: glassBorderWidth,
+          ),
       };
 
       Widget cell = DecoratedBox(
         decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
+          color: isActive ? glass.accentTint : glass.glassFillEmphasis,
           borderRadius: BorderRadius.circular(inputRadius),
           border: border,
+          boxShadow: isActive ? JeebShadows.glowRest : null,
         ),
         child: SizedBox(
           height: inputBoxHeight,
@@ -365,10 +373,11 @@ class JeebCodeCells extends StatelessWidget {
 
   Widget _buildCompactInput(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors glass = _glass(context);
     final Color accent = context.jeebRoles.accent;
     final TextStyle digitStyle = context.jeebText.codeInput.copyWith(
       fontSize: compactDigitSize,
-      color: scheme.primary,
+      color: scheme.onSurface,
     );
 
     return LayoutBuilder(
@@ -385,17 +394,17 @@ class JeebCodeCells extends StatelessWidget {
           // The platform caret stands in for the board's drawn 2×22 bar.
           data: TextSelectionThemeData(cursorColor: accent),
           child: OmdsColorTokensProvider(
-            // Kills OMDS's resting hairline (`tokens.inputBorderColor`): the
-            // board's cell is a fill, with a stroke only while focused.
+            // Midnight: the resting hairline IS the glass stroke, so OMDS's
+            // own `inputBorderColor` is re-pointed rather than hidden.
             tokens: context.omdsColorTokens
-                .copyWith(inputBorderColor: scheme.surfaceContainerHigh),
+                .copyWith(inputBorderColor: glass.glassBorderStrong),
             child: OmdsOtpInput(
               length: _cellCount,
               boxWidth: boxWidth,
               boxHeight: compactBoxHeight,
               spacing: compactCellGap,
               autoFocus: autoFocus,
-              fillColor: scheme.surfaceContainerHigh,
+              fillColor: glass.glassFillEmphasis,
               focusedBorderColor: accent,
               errorBorderColor: scheme.error,
               hasError: hasError,
@@ -419,8 +428,9 @@ class JeebCodeCells extends StatelessWidget {
 
   Widget _buildDisplayTiles(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors glass = _glass(context);
     final TextStyle digitStyle =
-        context.jeebText.statDisplay.copyWith(color: scheme.onPrimary);
+        context.jeebText.statDisplay.copyWith(color: scheme.onSurface);
 
     final List<Widget> tiles = <Widget>[];
     for (var index = 0; index < value.length; index++) {
@@ -430,9 +440,14 @@ class JeebCodeCells extends StatelessWidget {
       tiles.add(
         DecoratedBox(
           decoration: BoxDecoration(
-            color: scheme.primary,
+            color: glass.glassFillEmphasis,
             borderRadius: BorderRadius.circular(displayTileRadius),
-            boxShadow: JeebShadows.heroNavy,
+            border: Border.all(
+              color: glass.glassBorderStrong,
+              width: glassBorderWidth,
+            ),
+            // Backlit, not lifted: the room's orange glow is the depth cue.
+            boxShadow: JeebShadows.glowRest,
           ),
           child: SizedBox(
             width: displayTileWidth,
@@ -464,11 +479,17 @@ class JeebCodeCells extends StatelessWidget {
       style: context.jeebText.price.copyWith(
         fontSize: stripFontSize,
         letterSpacing: stripLetterSpacing,
-        color: scheme.primary,
+        color: scheme.onSurface,
       ),
     );
   }
 }
+
+/// Read defensively: a bare `!` crashes under harnesses that theme with a
+/// bare `ThemeData`, and every kit widget must survive that.
+JeebSemanticColors _glass(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
 
 /// The static entry caret: a 2×[height] accent bar, stadium-capped.
 ///

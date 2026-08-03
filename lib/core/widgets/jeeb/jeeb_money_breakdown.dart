@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../jeeb_commission.dart';
+import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_text_styles.dart';
 import 'jeeb_outlined_card.dart';
 import 'jeeb_surface_tone.dart';
@@ -24,7 +26,7 @@ class JeebMoneyLine {
     this.semanticLabel,
   });
 
-  /// The qualifier side of the row — `mutedText` w600 (navy w800 on the total).
+  /// The qualifier side of the row — `mutedText` w600 (ink w800 on the total).
   final String label;
 
   /// The amount. Null renders the label alone (the pending state).
@@ -40,12 +42,13 @@ class JeebMoneyLine {
   final String? semanticLabel;
 }
 
-/// The fee breakdown card (redesign-2026-08 §5 #24).
+/// The glass math card (MIDNIGHT R17 `tpl 1047-1056`).
 ///
-/// Outlined r16, pad `15/16`; label/value rows at 13.5 (`mutedText` w600 label,
-/// navy w700 value) spaced 8; a 1px `outlineVariant` rule with a `10/0` margin;
-/// a total row at 15/w800 whose value is 17px; and a footnote at 11.5/w500 with
-/// a 14px lock glyph.
+/// Glass `lg`, pad `15/16`; `mutedText` w600 labels against ink w700 values,
+/// spaced 8; a 1px rule with a `10/0` margin; a `cardTitle`/w800 total whose
+/// amount is the one warm figure on the card (`onAccentContainer`, w800 — the
+/// board's "you keep $7.20 glows warm"); an 11.5/w500 footnote with a 14px
+/// lock glyph.
 ///
 /// ## This is the single enforcement point for D41/D44
 ///
@@ -77,7 +80,7 @@ class JeebMoneyBreakdown extends StatelessWidget {
     this.footnoteIdentifier,
     this.identifier,
     this.semanticLabel,
-    this.radius = 16,
+    this.radius = JeebRadii.lg,
     this.padding = defaultPadding,
     this.rowSpacing = 8,
     this.dividerSpacing = 10,
@@ -86,8 +89,8 @@ class JeebMoneyBreakdown extends StatelessWidget {
     this.valueSpacing = 12,
   });
 
-  /// `15/16` — measured on 17 (`tpl 1010`). The card folds its own 1.5px stroke
-  /// on top of this, so the realized content inset is 16.5/17.5.
+  /// `15/16` — measured on R17. The card folds its own 1px stroke on top of
+  /// this, so the realized content inset is 16/17.
   static const EdgeInsetsGeometry defaultPadding =
       EdgeInsetsDirectional.symmetric(horizontal: 16, vertical: 15);
 
@@ -133,7 +136,7 @@ class JeebMoneyBreakdown extends StatelessWidget {
   /// Accessibility label for the card node.
   final String? semanticLabel;
 
-  /// Corner radius; 16 on every board occurrence.
+  /// Corner radius; `lg` on every board occurrence.
   final double radius;
 
   /// Content padding. Directional — never hardcode left/right.
@@ -188,8 +191,6 @@ class JeebMoneyBreakdown extends StatelessWidget {
     final JeebSurfaceToneData tone = JeebSurfaceTone.of(context);
     final JeebTextStyles text = context.jeebText;
 
-    // Every style is a Wave-0 token plus the one documented delta the board
-    // asks for; `lib/core/widgets/jeeb/` is the tier allowed design-exact px.
     final TextStyle labelStyle = text.body.copyWith(
       fontWeight: FontWeight.w600,
       color: tone.mutedInk,
@@ -199,13 +200,14 @@ class JeebMoneyBreakdown extends StatelessWidget {
       color: tone.titleInk,
     );
     final TextStyle totalLabelStyle = text.cardTitle.copyWith(
-      fontSize: 15,
       fontWeight: FontWeight.w800,
       color: tone.titleInk,
     );
+    // The one warm figure on the card — R17's tile-drawn money emphasis, now
+    // that w800 has a real ExtraBold face to render.
     final TextStyle totalValueStyle = text.titleProminent.copyWith(
       fontWeight: FontWeight.w800,
-      color: tone.titleInk,
+      color: context.jeebRoles.onAccentContainer,
     );
     final TextStyle footnoteStyle = text.caption.copyWith(
       fontWeight: FontWeight.w500,

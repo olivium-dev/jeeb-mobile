@@ -6,7 +6,7 @@ import '../../theme/jeeb_text_styles.dart';
 /// The three realized footer shapes (redesign-2026-08 §5 #2 / §02-3.3).
 enum JeebCtaFooterForm {
   /// One pill, optionally with a line beneath it (10's cancel note, 23's
-  /// orange fees link).
+  /// fees link).
   single,
 
   /// Two affordances side by side — 01 `Skip` + `Next →`,
@@ -69,11 +69,12 @@ class JeebCtaFooter extends StatelessWidget {
         action = null,
         note = null;
 
-  /// An orange note over a bare text action, both centred — 11 `tpl 705-707`.
+  /// An orange note over a bare text action, both centred — the Midnight board
+  /// draws it `12/w700 orange` over `14.5/w600 periwinkle`, gap 10.
   ///
-  /// [note] is a `String`, not a widget: its 12/w700 accent styling is the
-  /// whole reason this form is named, and the one screen that uses it must not
-  /// be able to re-derive it.
+  /// [note] is a `String`, not a widget: its accent styling is the whole
+  /// reason this form is named, and the one screen that uses it must not be
+  /// able to re-derive it.
   const JeebCtaFooter.textStack({
     super.key,
     required this.note,
@@ -106,7 +107,7 @@ class JeebCtaFooter extends StatelessWidget {
   final Widget? child;
 
   /// Optional line under the single form's affordance (10's cancel note at
-  /// `spacing: Spacing.small`, 23's orange link at the default 10).
+  /// `spacing: Spacing.small`, 23's fee link — board gap 12).
   final Widget? below;
 
   /// Split form: the start-side affordance.
@@ -162,8 +163,8 @@ class JeebCtaFooter extends StatelessWidget {
         );
 
       case JeebCtaFooterForm.textStack:
-        // 12/w700 accent — `jeebText.bodySmall` is already 12/w600, so only the
-        // weight and the ink are added. No raw fontSize, no literal orange.
+        // Board draws this note orange 12/w700 (budget-sanctioned); bodySmall
+        // is 12.5/w600, so only the weight and the ink are added.
         final TextStyle noteStyle = context.jeebText.bodySmall.copyWith(
           fontWeight: FontWeight.w700,
           color: context.jeebRoles.accent,

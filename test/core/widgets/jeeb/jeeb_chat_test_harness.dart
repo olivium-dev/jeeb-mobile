@@ -1,9 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 
 /// Width of the test frame, so 78% ceilings and gutter maths are checkable.
 const double kChatFrameWidth = 360;
+
+/// The MIDNIGHT theme the chat kit is asserted against.
+final ThemeData kChatTheme = AppTheme.midnight();
+
+/// The Midnight glass / ink tokens (token sheet §3).
+final JeebSemanticColors kChatSemantics =
+    kChatTheme.extension<JeebSemanticColors>()!;
+
+/// The Midnight semantic quartets (token sheet §2).
+final JeebColorRoles kChatRoles = kChatTheme.extension<JeebColorRoles>()!;
 
 /// Shared harness for the chat-kit tests (kit step 10).
 ///
@@ -16,7 +28,7 @@ Widget wrapChat(
   double width = kChatFrameWidth,
 }) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: kChatTheme,
     home: Directionality(
       textDirection: direction,
       child: Scaffold(

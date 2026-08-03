@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import 'jeeb_surface_tone.dart';
 
 /// The four realized waveform marks (redesign-2026-08 §5 #14).
@@ -10,25 +11,25 @@ import 'jeeb_surface_tone.dart';
 /// measured board element, which is why there is no geometry knob on
 /// [JeebWaveform].
 enum JeebWaveformMode {
-  /// The small orange signature beside a voice request's title.
+  /// The small orangeSoft signature beside a voice request's title.
   /// 4 bars w3 gap 2, h 8/14/10/15, container h16, last bar at α.4.
   /// Measured on 04 `tpl 189-193`. Consumers: 01, 04, 10, 16.
   cardMark,
 
   /// The wider mark that sits at the end of 04's navy request hero.
-  /// 5 bars w3 gap 3, h 9/17/11/20/10, container h24, white α.4/.55 with the
-  /// two middle bars in accent. Measured on 04 `tpl 176-181`.
+  /// 5 bars w3 gap 3, h 9/17/11/20/10, container h24, board ink α.4/.55 with
+  /// the two middle bars in orangeSoft. Measured on 04 `tpl 176-181`.
   onNavy,
 
   /// The voice-message mark inside a chat bubble.
-  /// 5 bars w2.5 gap 2, h 8/14/10/15/9, container h16, navy at α.4–.7
+  /// 5 bars w2.5 gap 2, h 8/14/10/15/9, container h16, board ink at α.4–.7
   /// (white at the same alphas when [JeebWaveform.outgoing]).
   /// Measured on 21 `tpl 1258-1263`.
   inBubble,
 
   /// The recording mark above 05's timer readout.
-  /// 10 bars w4 gap 4, h 12–38, container h40, **bottom-aligned**, accent with
-  /// an alpha tail at both ends. Measured on 05 `tpl 257-267`.
+  /// 10 bars w4 gap 4, h 12–38, container h40, **bottom-aligned**, orangeSoft
+  /// with an alpha tail at both ends. Measured on 05 `tpl 257-267`.
   live,
 }
 
@@ -60,7 +61,7 @@ class JeebWaveform extends StatelessWidget {
     this.semanticLabel,
   });
 
-  /// 4-bar orange mark, container h16 — 01, 04, 10, 16.
+  /// 4-bar orangeSoft mark, container h16 — 01, 04, 10, 16.
   const JeebWaveform.cardMark({
     super.key,
     this.identifier,
@@ -68,7 +69,7 @@ class JeebWaveform extends StatelessWidget {
   })  : mode = JeebWaveformMode.cardMark,
         outgoing = null;
 
-  /// 5-bar white/orange mark, container h24 — 04's navy request hero.
+  /// 5-bar ink/orangeSoft mark, container h24 — 04's navy request hero.
   const JeebWaveform.onNavy({
     super.key,
     this.identifier,
@@ -107,13 +108,13 @@ class JeebWaveform extends StatelessWidget {
   /// Container height for [JeebWaveformMode.live] (05 `tpl 257`).
   static const double liveHeight = 40;
 
-  /// Bar corner radius — 9 on every bar of every mode, i.e. always a stadium.
-  static const double barRadius = 9;
+  /// Bar corner radius — `JeebRadii.sm` on every bar, i.e. always a stadium.
+  static const double barRadius = JeebRadii.sm;
 
   /// Which measured mark to draw.
   final JeebWaveformMode mode;
 
-  /// [JeebWaveformMode.inBubble] only: white ink instead of navy.
+  /// [JeebWaveformMode.inBubble] only: white ink instead of the board ink.
   ///
   /// Null (the default) resolves from `JeebSurfaceTone.of(context).onNavy`, so
   /// a bubble that publishes the navy tone re-inks its waveform with nothing
@@ -135,7 +136,7 @@ class JeebWaveform extends StatelessWidget {
   Widget build(BuildContext context) {
     final _JeebWaveformSpec spec = _specOf(mode);
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    final Color accent = context.jeebRoles.accent;
+    final Color orangeSoft = _semantics(context).orangeSoft;
     final bool onNavyBubble =
         outgoing ?? JeebSurfaceTone.of(context).onNavy;
 
@@ -150,7 +151,7 @@ class JeebWaveform extends StatelessWidget {
             decoration: BoxDecoration(
               color: _inkFor(
                 spec.inks[i],
-                accent: accent,
+                orangeSoft: orangeSoft,
                 scheme: scheme,
                 onNavyBubble: onNavyBubble,
               ).withValues(alpha: spec.alphas[i]),
@@ -187,30 +188,30 @@ class JeebWaveform extends StatelessWidget {
 
   Color _inkFor(
     _JeebBarInk ink, {
-    required Color accent,
+    required Color orangeSoft,
     required ColorScheme scheme,
     required bool onNavyBubble,
   }) {
     switch (ink) {
-      case _JeebBarInk.accent:
-        return accent;
-      case _JeebBarInk.onPrimary:
-        return scheme.onPrimary;
+      case _JeebBarInk.orangeSoft:
+        return orangeSoft;
+      case _JeebBarInk.ink:
+        return scheme.onSurface;
       case _JeebBarInk.bubble:
-        return onNavyBubble ? scheme.onPrimary : scheme.primary;
+        return onNavyBubble ? scheme.onPrimary : scheme.onSurface;
     }
   }
 }
 
 /// Which token family a single bar is inked from.
 enum _JeebBarInk {
-  /// `jeebRoles.accent`.
-  accent,
+  /// `JeebSemanticColors.orangeSoft` — token sheet §3 names the waveform bars.
+  orangeSoft,
 
-  /// `colorScheme.onPrimary` — the white bars of the on-navy mark.
-  onPrimary,
+  /// `colorScheme.onSurface` — the board ink bars of the on-navy mark.
+  ink,
 
-  /// Navy or white depending on the bubble side / surface tone.
+  /// White on a filled bubble, board ink on a glass one.
   bubble,
 }
 
@@ -258,16 +259,16 @@ const _JeebWaveformSpec _kCardMark = _JeebWaveformSpec(
   heights: <double>[8, 14, 10, 15],
   alphas: <double>[1, 1, 1, 0.4],
   inks: <_JeebBarInk>[
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
   ],
   alignment: CrossAxisAlignment.center,
 );
 
 /// 04 `tpl 176-181` — `align-items: center`, gap 3, h24. Bars 3 and 4 are the
-/// accent pair; the rest are white at .4/.55.
+/// orangeSoft pair; the rest are board ink at .4/.55.
 const _JeebWaveformSpec _kOnNavy = _JeebWaveformSpec(
   containerHeight: JeebWaveform.onNavyHeight,
   barWidth: 3,
@@ -275,16 +276,16 @@ const _JeebWaveformSpec _kOnNavy = _JeebWaveformSpec(
   heights: <double>[9, 17, 11, 20, 10],
   alphas: <double>[0.4, 0.55, 1, 1, 0.55],
   inks: <_JeebBarInk>[
-    _JeebBarInk.onPrimary,
-    _JeebBarInk.onPrimary,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.onPrimary,
+    _JeebBarInk.ink,
+    _JeebBarInk.ink,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.ink,
   ],
   alignment: CrossAxisAlignment.center,
 );
 
-/// 21 `tpl 1258-1263` — `align-items: center`, gap 2, h16, navy α.5/.6/.7/.5/.4.
+/// 21 `tpl 1258-1263` — `align-items: center`, gap 2, h16, ink α.5/.6/.7/.5/.4.
 const _JeebWaveformSpec _kInBubble = _JeebWaveformSpec(
   containerHeight: JeebWaveform.inBubbleHeight,
   barWidth: 2.5,
@@ -310,16 +311,22 @@ const _JeebWaveformSpec _kLive = _JeebWaveformSpec(
   heights: <double>[12, 22, 32, 18, 38, 26, 36, 16, 28, 12],
   alphas: <double>[0.35, 0.45, 1, 1, 1, 1, 1, 0.5, 0.4, 0.3],
   inks: <_JeebBarInk>[
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
-    _JeebBarInk.accent,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
+    _JeebBarInk.orangeSoft,
   ],
   alignment: CrossAxisAlignment.end,
 );
+
+/// Read defensively: a bare `!` crashes under harnesses themed with
+/// `ThemeData.light()`.
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.light();

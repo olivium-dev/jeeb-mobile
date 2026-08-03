@@ -7,6 +7,10 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_footer.dart';
 
 import 'jeeb_cta_test_harness.dart';
 
+/// Token sheet §2/§6 — the board's orange and the re-cut `bodySmall`.
+const Color _orange = Color(0xFFD73B00);
+const double _bodySmall = 12.5;
+
 void main() {
   group('JeebCtaFooter.single', () {
     testWidgets('pads 0/24/32 and stretches its child', (tester) async {
@@ -170,7 +174,7 @@ void main() {
   });
 
   group('JeebCtaFooter.textStack', () {
-    testWidgets('11: accent 12/w700 note over a bare action, no pill',
+    testWidgets('11: accent 12.5/w700 note over a bare action, no pill',
         (tester) async {
       await tester.pumpWidget(
         wrapCta(
@@ -186,8 +190,10 @@ void main() {
       final Text note = tester.widget<Text>(noteFinder);
 
       expect(note.style!.color, context.jeebRoles.accent);
+      expect(note.style!.color, _orange);
       expect(note.style!.fontWeight, FontWeight.w700);
       expect(note.style!.fontSize, context.jeebText.bodySmall.fontSize);
+      expect(note.style!.fontSize, _bodySmall);
       expect(note.textAlign, TextAlign.center);
       expect(
         tester.getRect(find.text('Cancel request')).top,
@@ -216,6 +222,30 @@ void main() {
 
       await tester.tap(find.text('Cancel request'));
       expect(taps, 1);
+    });
+  });
+
+  group('JeebCtaFooter Midnight metrics', () {
+    test('gutters and stack gaps are the board values', () {
+      expect(
+        JeebCtaFooter.docked,
+        const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 32),
+      );
+      expect(
+        JeebCtaFooter.inline,
+        const EdgeInsetsDirectional.fromSTEB(24, 16, 24, 0),
+      );
+      expect(
+        const JeebCtaFooter.textStack(note: 'n', action: SizedBox()).spacing,
+        10,
+      );
+      expect(
+        const JeebCtaFooter.split(
+          leading: SizedBox(),
+          trailing: SizedBox(),
+        ).spacing,
+        12,
+      );
     });
   });
 

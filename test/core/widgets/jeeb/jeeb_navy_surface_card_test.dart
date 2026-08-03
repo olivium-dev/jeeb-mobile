@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
@@ -8,32 +9,39 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_surface_tone.dart';
 
 import 'jeeb_card_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #4.
+/// Gates for the MIDNIGHT emphasis surface (token sheet §4 hero glass).
 ///
 /// FAIL-WITHOUT: the two things that silently break screens are (a) a shadow
-/// appearing on 04's r24 hero, and (b) a decorative ring laid out with
+/// appearing on 04's hero, and (b) a decorative ring laid out with
 /// `Positioned(right:)` instead of `PositionedDirectional(end:)` — 19 §7.1
 /// calls the latter a kit bug outright.
 void main() {
-  final ThemeData theme = AppTheme.light();
+  final ThemeData theme = AppTheme.midnight();
   final ColorScheme scheme = theme.colorScheme;
   final JeebSemanticColors semantics = theme.extension<JeebSemanticColors>()!;
 
+  // Token sheet §3, typed out rather than read back off the implementation.
+  const Color glassFillEmphasis = Color(0x1AFFFFFF);
+  const Color glassBorderStrong = Color(0x29FFFFFF);
+
   group('JeebNavySurfaceCard surface', () {
-    testWidgets('is a primary fill with NO shadow by default', (tester) async {
+    testWidgets('is emphasis glass with a 1px stroke and NO shadow',
+        (tester) async {
       await tester.pumpWidget(
         wrapCard(const JeebNavySurfaceCard(child: Text('hero'))),
       );
 
       final BoxDecoration decoration =
           decorationOf(tester, find.byType(JeebNavySurfaceCard));
-      expect(decoration.color, scheme.primary);
-      expect(decoration.border, isNull);
+      expect(decoration.color, glassFillEmphasis);
+      final Border border = decoration.border! as Border;
+      expect(border.top.color, glassBorderStrong);
+      expect(border.top.width, 1);
       expect(decoration.boxShadow, JeebNavySurfaceCard.noShadow);
-      expect(decoration.borderRadius, BorderRadius.circular(16));
+      expect(decoration.borderRadius, BorderRadius.circular(JeebRadii.lg));
     });
 
-    testWidgets('takes an r24 no-shadow hero (04) and an r20 heroNavy (19/23)',
+    testWidgets('takes a no-shadow hero (04) and a floating strip (19/23)',
         (tester) async {
       await tester.pumpWidget(
         wrapCard(
@@ -52,30 +60,22 @@ void main() {
       await tester.pumpWidget(
         wrapCard(
           const JeebNavySurfaceCard(
-            radius: 20,
+            radius: JeebRadii.xl,
             padding: EdgeInsets.all(20),
-            shadow: JeebShadows.heroNavy,
+            shadow: JeebShadows.floatNav,
             child: Text('hero'),
           ),
         ),
       );
       decoration = decorationOf(tester, find.byType(JeebNavySurfaceCard));
-      expect(decoration.borderRadius, BorderRadius.circular(20));
-      expect(decoration.boxShadow, JeebShadows.heroNavy);
+      expect(decoration.borderRadius, BorderRadius.circular(JeebRadii.xl));
+      expect(decoration.boxShadow, JeebShadows.floatNav);
     });
 
-    testWidgets('the kit-local shadows are the measured values',
-        (tester) async {
-      // 08's selected tier is 0 10 22 .28 — deliberately NOT ctaNavy (0 10 24).
-      expect(JeebNavySurfaceCard.selectedShadow.single.blurRadius, 22);
-      expect(JeebNavySurfaceCard.selectedShadow.single.offset, const Offset(0, 10));
-      expect(
-        JeebNavySurfaceCard.selectedShadow,
-        isNot(JeebShadows.ctaNavy),
-      );
-      // 21's pinned strip is 0 8 20 .25.
-      expect(JeebNavySurfaceCard.stripShadow.single.blurRadius, 20);
-      expect(JeebNavySurfaceCard.stripShadow.single.offset, const Offset(0, 8));
+    test('the kit-local shadows migrated off the dead navy-tinted set', () {
+      // Selection is LIT, not lifted (R9/R22); the strip is a small float.
+      expect(JeebNavySurfaceCard.selectedShadow, JeebShadows.glowRest);
+      expect(JeebNavySurfaceCard.stripShadow, JeebShadows.overlay);
     });
 
     testWidgets('clips its content (overflow: hidden)', (tester) async {
@@ -103,11 +103,11 @@ void main() {
       );
 
       expect(tone.kind, JeebSurfaceKind.navy);
-      expect(tone.titleInk, scheme.onPrimary);
-      expect(tone.chipFill, scheme.onPrimary.withValues(alpha: 0.14));
-      expect(tone.mutedInk, scheme.onPrimary.withValues(alpha: 0.7));
-      expect(tone.meterEmpty, scheme.onPrimary.withValues(alpha: 0.25));
-      expect(tone.dividerInk, scheme.onPrimary.withValues(alpha: 0.14));
+      expect(tone.titleInk, scheme.onSurface);
+      expect(tone.chipFill, semantics.glassFillPressed);
+      expect(tone.mutedInk, semantics.inkSoft);
+      expect(tone.meterEmpty, scheme.onSurface.withValues(alpha: 0.25));
+      expect(tone.dividerInk, scheme.outlineVariant);
     });
   });
 
@@ -173,7 +173,7 @@ void main() {
       expect(ringBottom - cardBottom, closeTo(50, 0.01));
     });
 
-    testWidgets('02 band rings use the white 8% ink', (tester) async {
+    testWidgets('02 band rings use the ink at 8%', (tester) async {
       await tester.pumpWidget(
         wrapCard(
           const JeebNavySurfaceCard.topBand(
@@ -193,7 +193,7 @@ void main() {
           .map((Container c) =>
               ((c.decoration! as BoxDecoration).border! as Border).top.color)
           .toList();
-      expect(inks.first, scheme.onPrimary.withValues(alpha: 0.08));
+      expect(inks.first, scheme.onSurface.withValues(alpha: 0.08));
       expect(inks.last, semantics.accentRing);
     });
   });
@@ -219,9 +219,14 @@ void main() {
       expect(
         decoration.borderRadius,
         const BorderRadiusDirectional.only(
-          bottomStart: Radius.circular(36),
-          bottomEnd: Radius.circular(36),
+          bottomStart: Radius.circular(JeebRadii.hero),
+          bottomEnd: Radius.circular(JeebRadii.hero),
         ),
+      );
+      expect(
+        decoration.border,
+        isNull,
+        reason: 'a full-bleed band has no edges to stroke',
       );
 
       final Padding padding = tester.widget<Padding>(

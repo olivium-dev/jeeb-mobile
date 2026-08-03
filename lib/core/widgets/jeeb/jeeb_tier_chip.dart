@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_text_styles.dart';
-import 'jeeb_select_chip.dart';
 import 'jeeb_surface_tone.dart';
 
 /// The delivery tiers, as the *kit* names them (§5 #7).
@@ -66,10 +66,10 @@ enum JeebTier {
   }
 }
 
-/// The tier meta chip (§5 #7) — `⚡ Flash` on a `surfaceContainerHigh` pill.
+/// The tier meta chip (§5 #7) — `⚡ Flash` on a [JeebSurfaceTone]-toned pill.
 ///
-/// Pad `4/10`, radius 999, label 11.5/w700 navy. One treatment for **all five**
-/// tiers: the old per-tier tinted chip is gone (16 §5, 24 §5).
+/// Pad `4/10`, [JeebRadii.pill], label 11.5/w700 — all three confirmed on the
+/// Midnight board. One treatment for **all five** tiers (16 §5, 24 §5).
 ///
 /// **The emoji and the label are two separate `Text` children, never one
 /// string.** `find.text('Flash')`, `find.text('سريع')` and `find.text('إكسبرس')`
@@ -119,9 +119,13 @@ class JeebTierChip extends StatelessWidget {
   })  : emojiOverride = '',
         tier = JeebTier.unknown;
 
-  /// Content padding — `4/10` on 04 `tpl 197`, 16 `tpl 940`, 24 `tpl 1433`.
+  /// Content padding — `4/10`, unchanged from pass 1 and re-measured on the
+  /// Midnight board (R1/R11/R24 all draw `padding:4px 10px`).
   static const EdgeInsetsGeometry defaultPadding =
       EdgeInsetsDirectional.symmetric(vertical: 4, horizontal: 10);
+
+  static const BorderRadius _pillRadius =
+      BorderRadius.all(Radius.circular(JeebRadii.pill));
 
   /// Gap between emoji and label. The board writes `'⚡ Flash'` as one run; 4px
   /// is that space rendered as real layout so the two stay separate `Text`s.
@@ -164,7 +168,7 @@ class JeebTierChip extends StatelessWidget {
     Widget chip = DecoratedBox(
       decoration: BoxDecoration(
         color: tone.chipFill,
-        borderRadius: jeebPillRadius,
+        borderRadius: _pillRadius,
       ),
       child: Padding(
         padding: defaultPadding,

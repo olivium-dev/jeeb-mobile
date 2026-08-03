@@ -3,9 +3,8 @@ import 'dart:ui' show CheckedState, Tristate;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_price_meter.dart';
@@ -14,17 +13,25 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_tier_row.dart';
 
 import 'jeeb_remainder_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #8.
+/// Gates for redesign-2026-08 §5 #8, re-cut on the MIDNIGHT token sheet (R9).
 ///
 /// FAIL-WITHOUT: 07's a11y node is read byte for byte by
 /// `delivery_create_screens_test.dart:130,137` (`flagsCollection.isChecked`).
 /// If `.compact` drifts to the `selected:` shape that 08 uses, those tests fail
 /// in a way that looks like a screen bug and gets "fixed" in the wrong file.
 void main() {
-  final ThemeData theme = AppTheme.light();
-  final ColorScheme scheme = theme.colorScheme;
-  final JeebColorRoles roles = theme.extension<JeebColorRoles>()!;
-  final JeebSemanticColors semantics = theme.extension<JeebSemanticColors>()!;
+  // Token sheet §1/§2/§3: accent `#D73B00` / `#FFFFFF`, accentContainer
+  // `#431505` / `#FFB499`, ink `#EDEFFC`, mutedText `#8A93D8`,
+  // `glassBorderVivid` white 22%, `accentSelectedFill` orange 20%.
+  const Color accent = Color(0xFFD73B00);
+  const Color onAccent = Color(0xFFFFFFFF);
+  const Color accentContainer = Color(0xFF431505);
+  const Color onAccentContainer = Color(0xFFFFB499);
+  const Color ink = Color(0xFFEDEFFC);
+  const Color inkSoft = Color(0xFFB9C0F0);
+  const Color mutedText = Color(0xFF8A93D8);
+  const Color glassBorderVivid = Color(0x38FFFFFF);
+  const Color accentSelectedFill = Color.fromRGBO(215, 59, 0, 0.20);
 
   Widget compact({
     bool selected = false,
@@ -70,7 +77,7 @@ void main() {
   }
 
   group('JeebTierRow.compact', () {
-    testWidgets('unselected is a white outlined card, r16, pad 14/16',
+    testWidgets('unselected is the rest outlined card, r18, pad 14/16',
         (tester) async {
       await tester.pumpWidget(wrapRemainder(compact()));
 
@@ -78,44 +85,60 @@ void main() {
       final JeebOutlinedCard card =
           tester.widget<JeebOutlinedCard>(find.byType(JeebOutlinedCard));
       expect(card.state, JeebCardState.normal);
-      expect(card.radius, 16);
+      expect(card.radius, JeebRadii.lg);
       expect(card.padding, JeebTierRow.compactPadding);
     });
 
-    testWidgets('selected is a navy fill swap with 0 10 22 — not a border',
+    testWidgets('selected is the lit accent card, not the navy one',
         (tester) async {
       await tester.pumpWidget(wrapRemainder(compact(selected: true)));
 
-      expect(find.byType(JeebNavySurfaceCard), findsOneWidget);
+      // R9 `tpl 530`: orange 20% fill, 2px accent stroke, `0 0 24 orange@.25`.
+      // Delegated to the one state machine — no hand-rolled stroke here.
+      expect(find.byType(JeebNavySurfaceCard), findsNothing);
+      final JeebOutlinedCard card =
+          tester.widget<JeebOutlinedCard>(find.byType(JeebOutlinedCard));
+      expect(card.state, JeebCardState.accentSelected);
+
       final BoxDecoration decoration =
-          remainderDecorationOf(tester, find.byType(JeebNavySurfaceCard));
-      expect(decoration.color, scheme.primary);
-      expect(decoration.border, isNull);
-      expect(decoration.boxShadow, JeebNavySurfaceCard.selectedShadow);
+          remainderDecorationOf(tester, find.byType(JeebOutlinedCard));
+      expect(decoration.color, accentSelectedFill);
+      expect((decoration.border! as Border).top.color, accent);
+      expect(
+        (decoration.border! as Border).top.width,
+        JeebOutlinedCard.accentSelectedBorderWidth,
+      );
+      expect(decoration.boxShadow, JeebShadows.accentSelected);
+      expect(decoration.boxShadow!.single.blurRadius, 24);
+      expect(
+        decoration.boxShadow!.single.color,
+        const Color.fromRGBO(215, 59, 0, 0.25),
+      );
     });
 
     testWidgets('the indicator is an accent disc + white check when selected',
         (tester) async {
       await tester.pumpWidget(wrapRemainder(compact(selected: true)));
 
-      // The HTML wins over plan §5 #8's inverted description: tpl 361 is
-      // `background: var(--jeeb-orange)` with `fill="#fff"`.
+      // R9 draws `background: var(--jeeb-orange)` with `fill="#fff"` — a
+      // tile-drawn orange, inside the budget.
       final Finder disc = find.descendant(
         of: find.byType(JeebTierRow),
         matching: find.byType(Container),
       );
       final Container indicator = tester.widget<Container>(disc.last);
       final BoxDecoration decoration = indicator.decoration! as BoxDecoration;
-      expect(decoration.color, roles.accent);
+      expect(decoration.color, accent);
       expect(decoration.shape, BoxShape.circle);
       expect(tester.getSize(disc.last), const Size(22, 22));
 
       final Icon check = tester.widget<Icon>(find.byIcon(Icons.check));
-      expect(check.color, roles.onAccent);
+      expect(check.color, onAccent);
       expect(check.size, 13);
     });
 
-    testWidgets('the indicator is a 2px ring when unselected', (tester) async {
+    testWidgets('the indicator is a 2px vivid-glass ring when unselected',
+        (tester) async {
       await tester.pumpWidget(wrapRemainder(compact()));
 
       final Finder disc = find.descendant(
@@ -125,10 +148,8 @@ void main() {
       final BoxDecoration decoration =
           tester.widget<Container>(disc.last).decoration! as BoxDecoration;
       expect(decoration.color, isNull);
-      expect(
-        (decoration.border! as Border).top.color,
-        scheme.surfaceContainerHighest,
-      );
+      // R9 draws `2px solid rgba(255,255,255,.25)` — the vivid rung, not 16%.
+      expect((decoration.border! as Border).top.color, glassBorderVivid);
       expect((decoration.border! as Border).top.width, 2);
       expect(find.byIcon(Icons.check), findsNothing);
     });
@@ -139,27 +160,25 @@ void main() {
       final TextStyle title = tester.widget<Text>(find.text('Flash')).style!;
       expect(title.fontSize, 16);
       expect(title.fontWeight, FontWeight.w700);
-      expect(title.color, scheme.onSurface);
+      expect(title.color, ink);
 
       final TextStyle summary = tester
           .widget<Text>(find.text('Under 1 hour · Highest price'))
           .style!;
       expect(summary.fontSize, 12);
       expect(summary.fontWeight, FontWeight.w500);
-      expect(summary.color, semantics.mutedText);
+      expect(summary.color, mutedText);
 
+      // R9's selected row keeps the white title and lifts the summary to
+      // inkSoft — and that lift arrives from the card's tone, not a parameter.
       await tester.pumpWidget(wrapRemainder(compact(selected: true)));
-      expect(
-        tester.widget<Text>(find.text('Flash')).style!.color,
-        scheme.onPrimary,
-      );
+      expect(tester.widget<Text>(find.text('Flash')).style!.color, ink);
       expect(
         tester
             .widget<Text>(find.text('Under 1 hour · Highest price'))
             .style!
             .color,
-        scheme.onPrimary.withValues(alpha: 0.7),
-        reason: 'the re-tone comes from the card, not from a parameter',
+        inkSoft,
       );
     });
 
@@ -170,7 +189,7 @@ void main() {
     });
 
     testWidgets(
-        'the Most picked badge is the one accentTint use, and goes solid on navy',
+        'the Most picked badge is the accentContainer pair, solid on navy',
         (tester) async {
       await tester.pumpWidget(wrapRemainder(compact(badge: 'Most picked')));
       final BoxDecoration tinted = tester
@@ -183,15 +202,15 @@ void main() {
                 .first,
           )
           .decoration as BoxDecoration;
-      expect(tinted.color, semantics.accentTint);
+      expect(tinted.color, accentContainer);
       final TextStyle label =
           tester.widget<Text>(find.text('Most picked')).style!;
       expect(label.fontSize, 10.5);
       expect(label.fontWeight, FontWeight.w800);
-      expect(label.color, roles.accent);
+      expect(label.color, onAccentContainer);
 
       // 07's default tier is also the flagged one, so selected + badged is a
-      // real state: a 12% tint on navy would be invisible.
+      // real state.
       await tester.pumpWidget(
         wrapRemainder(compact(badge: 'Most picked', selected: true)),
       );
@@ -205,10 +224,10 @@ void main() {
                 .first,
           )
           .decoration as BoxDecoration;
-      expect(solid.color, roles.accent);
+      expect(solid.color, accent);
       expect(
         tester.widget<Text>(find.text('Most picked')).style!.color,
-        roles.onAccent,
+        onAccent,
       );
     });
 
@@ -283,7 +302,6 @@ void main() {
       await tester.pumpWidget(wrapRemainder(catalog(selected: true)));
       final Icon check = tester.widget<Icon>(find.byIcon(Icons.check));
       expect(check.size, JeebTierRow.checkSize);
-      expect(check.color, scheme.onPrimary);
       // Second row: below the tier name, and at the row's end edge.
       expect(
         tester.getCenter(find.byIcon(Icons.check)).dy,
@@ -311,20 +329,20 @@ void main() {
                 .first,
           )
           .decoration as BoxDecoration;
-      expect(pill.color, roles.accent);
+      expect(pill.color, accent);
 
       final TextStyle label =
           tester.widget<Text>(find.text('Recommended')).style!;
       expect(label.fontSize, 10);
       expect(label.fontWeight, FontWeight.w800);
-      expect(label.color, roles.onAccent);
+      expect(label.color, onAccent);
     });
 
     testWidgets('the vehicle glyph is optional and muted', (tester) async {
       await tester.pumpWidget(wrapRemainder(catalog()));
       expect(
         tester.widget<Icon>(find.byIcon(Icons.two_wheeler)).color,
-        semantics.mutedText,
+        mutedText,
       );
 
       await tester.pumpWidget(wrapRemainder(catalog(metaIcon: null)));
@@ -350,15 +368,14 @@ void main() {
     testWidgets('the meter and chip invert on the selected card', (tester) async {
       await tester.pumpWidget(wrapRemainder(catalog(selected: true)));
 
-      // Caption ink proves the tone reached the delegated meter.
+      // The navy tone reached the delegated meter and chip: caption lifts to
+      // inkSoft, chip ink stays the white title ink.
+      expect(tester.widget<Icon>(find.byIcon(Icons.check)).color, ink);
       expect(
         tester.widget<Text>(find.text('Highest price')).style!.color,
-        scheme.onPrimary.withValues(alpha: 0.7),
+        inkSoft,
       );
-      expect(
-        tester.widget<Text>(find.text('≤ 1 hr')).style!.color,
-        scheme.onPrimary,
-      );
+      expect(tester.widget<Text>(find.text('≤ 1 hr')).style!.color, ink);
     });
 
     testWidgets('fires onTap', (tester) async {

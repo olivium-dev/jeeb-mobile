@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 
 /// The in-screen 3×4 digit pad (redesign-2026-08 §5 #13).
@@ -9,11 +11,11 @@ import '../../theme/jeeb_text_styles.dart';
 /// the redesign replaces `OmdsOtpInput` there with `JeebCodeCells.input74`
 /// plus this pad.
 ///
-/// `3` columns at gap 10, cells `h62 r16 surfaceContainerHigh` with
-/// `jeebText.keypadDigit` (23/w700) navy digits, a **blank** cell at
-/// bottom-start and a **fill-less** 24 px backspace at bottom-end
-/// (`03 tpl 132-147`). The container carries its own `0/20/30` gutter, so it
-/// mounts OUTSIDE the screen's 24 pt body padding.
+/// `3` columns at gap 10, frosted keys `h62 r18` (glass fill + 1px glass
+/// stroke) with `jeebText.keypadDigit` (23/w700) ink digits, a **blank** cell
+/// at bottom-start and a **fill-less** 24 px backspace at bottom-end (R7).
+/// The container carries its own `0/20/30` gutter, so it mounts OUTSIDE the
+/// screen's 24 pt body padding.
 ///
 /// **The grid is pinned LTR by default** ([forceLtr]). Neither iOS nor Android
 /// mirrors a numeric pad in Arabic — `1 2 3` stays `1 2 3` and backspace stays
@@ -49,8 +51,11 @@ class JeebNumericKeypad extends StatelessWidget {
   /// Gap between keys, both axes (10), measured `03 tpl 133`.
   static const double keyGap = 10;
 
-  /// Key corner radius (16).
-  static const double keyRadius = 16;
+  /// Key corner radius — R7 draws 16, which snaps to the [JeebRadii.lg] rung.
+  static const double keyRadius = JeebRadii.lg;
+
+  /// The 1px glass stroke every frosted key carries (token sheet §4).
+  static const double glassBorderWidth = 1;
 
   /// Backspace glyph size (24), measured `03 tpl 146`.
   static const double backspaceSize = 24;
@@ -155,28 +160,33 @@ class JeebNumericKeypad extends StatelessWidget {
 
   Widget _digitKey(BuildContext context, String digit) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors glass = _glass(context);
     return _KeyCell(
       identifier:
           identifierPrefix == null ? null : '${identifierPrefix}_$digit',
       semanticLabel: digit,
-      fill: scheme.surfaceContainerHigh,
+      fill: glass.glassFill,
+      border: Border.all(
+        color: glass.glassBorder,
+        width: JeebNumericKeypad.glassBorderWidth,
+      ),
       onTap: () => onDigit(digit),
       child: Text(
         digit,
-        style: context.jeebText.keypadDigit.copyWith(color: scheme.primary),
+        style: context.jeebText.keypadDigit.copyWith(color: scheme.onSurface),
       ),
     );
   }
 
   Widget _backspaceKey(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
     return _KeyCell(
       identifier: identifierPrefix == null
           ? null
           : '${identifierPrefix}_backspace',
       semanticLabel: backspaceLabel,
-      // `tpl 145` has no background: the glyph floats on white.
+      // R7 draws neither fill nor stroke here: the glyph floats on the field.
       fill: null,
+      border: null,
       onTap: onBackspace,
       // `Icons.backspace` is declared `matchTextDirection: true`, so it points
       // the right way in both a pinned-LTR pad and a mirrored one. Reaching
@@ -186,19 +196,21 @@ class JeebNumericKeypad extends StatelessWidget {
       child: Icon(
         Icons.backspace,
         size: backspaceSize,
-        color: scheme.primary,
+        // R7 dims this glyph below the digits' full ink.
+        color: _glass(context).inkSoft,
       ),
     );
   }
 }
 
-/// One 62 px keypad cell: an optional fill, a centred glyph, an ink splash and
-/// exactly one Semantics node.
+/// One 62 px keypad cell: an optional fill and stroke, a centred glyph, an ink
+/// splash and exactly one Semantics node.
 class _KeyCell extends StatelessWidget {
   const _KeyCell({
     required this.identifier,
     required this.semanticLabel,
     required this.fill,
+    required this.border,
     required this.onTap,
     required this.child,
   });
@@ -206,6 +218,7 @@ class _KeyCell extends StatelessWidget {
   final String? identifier;
   final String semanticLabel;
   final Color? fill;
+  final BoxBorder? border;
   final VoidCallback onTap;
   final Widget child;
 
@@ -217,7 +230,8 @@ class _KeyCell extends StatelessWidget {
     // The splash lands above the fill and inside the rounded rect, so the
     // Material sits inside the decoration and the InkWell owns the shape.
     final Widget surface = DecoratedBox(
-      decoration: BoxDecoration(color: fill, borderRadius: radius),
+      decoration:
+          BoxDecoration(color: fill, borderRadius: radius, border: border),
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
@@ -249,3 +263,9 @@ class _KeyCell extends StatelessWidget {
     );
   }
 }
+
+/// Read defensively: a bare `!` crashes under harnesses that theme with a
+/// bare `ThemeData`, and every kit widget must survive that.
+JeebSemanticColors _glass(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();

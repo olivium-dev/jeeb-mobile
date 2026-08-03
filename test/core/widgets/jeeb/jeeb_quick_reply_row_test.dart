@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_quick_reply_row.dart';
 
 import 'jeeb_chat_test_harness.dart';
@@ -8,10 +8,11 @@ import 'jeeb_chat_test_harness.dart';
 /// Gates for the quick-reply row (kit §5 #26).
 ///
 /// FAIL-WITHOUT: the row force-LTRs itself and the Arabic pill inside an
-/// English thread renders backwards, or `reverse: true` is added and the row
-/// opens at the wrong edge under RTL.
+/// English thread renders backwards, `reverse: true` is added and the row opens
+/// at the wrong edge under RTL, or the label ink falls back to
+/// `colorScheme.primary` — now ORANGE and outside the §2.2 budget.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
+  final ColorScheme scheme = kChatTheme.colorScheme;
 
   List<JeebQuickReply> replies({VoidCallback? onHome}) => <JeebQuickReply>[
         JeebQuickReply(
@@ -30,32 +31,36 @@ void main() {
       ];
 
   group('JeebQuickReplyRow pills', () {
-    testWidgets('outline pills, 12/w600 navy, gap 8', (tester) async {
+    testWidgets('rest-glass pills, 12.5/w600 ink, gap 8', (tester) async {
       await tester.pumpWidget(
         wrapChat(JeebQuickReplyRow(replies: replies())),
       );
 
       final ShapeDecoration decoration =
           chatShapeOf(tester, find.byType(JeebQuickReplyRow));
-      expect(decoration.color, isNull);
+      // Token sheet §4: rest glass = white 7% + 1px white 12%.
+      expect(decoration.color, const Color(0x12FFFFFF));
+      expect(decoration.color, kChatSemantics.glassFill);
       final StadiumBorder shape = decoration.shape as StadiumBorder;
-      expect(shape.side.color, scheme.outline);
-      expect(shape.side.width, 1.5);
+      expect(shape.side.color, const Color(0x1FFFFFFF));
+      expect(shape.side.color, kChatSemantics.glassBorder);
+      expect(shape.side.width, 1);
 
       final Text label = tester.widget<Text>(find.text("I'm home"));
-      expect(label.style!.fontSize, 12);
+      // Ramp re-cut §6: bodySmall is 12.5/w600.
+      expect(label.style!.fontSize, 12.5);
       expect(label.style!.fontWeight, FontWeight.w600);
-      // R2: quick replies use the navy ink, not the brown unselected ink.
-      expect(label.style!.color, scheme.primary);
+      expect(label.style!.color, JeebMidnight.ink);
+      expect(label.style!.color, isNot(scheme.primary));
       expect(label.softWrap, isFalse);
 
       final Rect first = tester.getRect(find.text("I'm home"));
       final Rect second = tester.getRect(find.text('Call me at the door'));
-      // 8 gap + the 13 inset and 1.5 stroke on each of the facing edges
-      expect(second.left - first.right, closeTo(8 + 2 * (13 + 1.5), 0.01));
+      // 8 gap + the 13 inset and 1px stroke on each of the facing edges
+      expect(second.left - first.right, closeTo(8 + 2 * (13 + 1), 0.01));
     });
 
-    testWidgets('folds the 1.5px stroke into the 8/13 inset', (tester) async {
+    testWidgets('folds the 1px stroke into the 8/13 inset', (tester) async {
       await tester.pumpWidget(
         wrapChat(JeebQuickReplyRow(replies: replies())),
       );
@@ -69,8 +74,8 @@ void main() {
         ).first,
       );
       final Rect label = tester.getRect(find.text("I'm home"));
-      expect(label.left - pill.left, closeTo(13 + 1.5, 0.01));
-      expect(label.top - pill.top, closeTo(8 + 1.5, 0.01));
+      expect(label.left - pill.left, closeTo(13 + 1, 0.01));
+      expect(label.top - pill.top, closeTo(8 + 1, 0.01));
     });
 
     testWidgets('fires onTap and emits the intent-keyed identifiers',
@@ -127,10 +132,10 @@ void main() {
         const EdgeInsets.fromLTRB(24, 10, 24, 0),
       );
 
-      // 24 gutter + 13 pill inset + the 1.5 stroke
+      // 24 gutter + 13 pill inset + the 1px stroke
       expect(
         tester.getRect(find.text("I'm home")).left,
-        closeTo(24 + 13 + 1.5, 0.01),
+        closeTo(24 + 13 + 1, 0.01),
       );
     });
 

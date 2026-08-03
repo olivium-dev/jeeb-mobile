@@ -2,12 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
-import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_surface_tone.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_waveform.dart';
+
+/// MIDNIGHT token sheet §1/§3 — the expected values, not a read-back.
+const Color _orangeSoft = Color(0xFFFFB27A);
+const Color _ink = Color(0xFFEDEFFC);
+const Color _white = Color(0xFFFFFFFF);
+const Color _orange = Color(0xFFD73B00);
+
+/// Publishes the navy card tone without depending on the card lane's widget,
+/// which is being restyled concurrently.
+Widget _onNavyTone(Widget child) => Builder(
+      builder: (BuildContext context) => JeebSurfaceTone(
+        tone: JeebSurfaceToneData.navy(context),
+        child: child,
+      ),
+    );
 
 Widget _wrap(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(body: Center(child: child)),
@@ -128,8 +144,11 @@ void main() {
           JeebWaveform.liveHeight);
     });
 
-    testWidgets('every bar is a full stadium (r9)', (WidgetTester tester) async {
+    testWidgets('every bar is a full stadium on the radii ladder (sm 9)',
+        (WidgetTester tester) async {
       await tester.pumpWidget(_wrap(const JeebWaveform.cardMark()));
+      expect(JeebWaveform.barRadius, JeebRadii.sm);
+      expect(JeebRadii.sm, 9);
       expect(
         _decorationAt(tester, 0).borderRadius,
         const BorderRadius.all(Radius.circular(JeebWaveform.barRadius)),
@@ -138,7 +157,7 @@ void main() {
   });
 
   group('JeebWaveform ink', () {
-    testWidgets('cardMark is accent with the last bar at .4',
+    testWidgets('cardMark is orangeSoft with the last bar at .4',
         (WidgetTester tester) async {
       late Color accent;
       await tester.pumpWidget(
@@ -152,96 +171,55 @@ void main() {
         ),
       );
 
+      // §3 names orangeSoft "waveform bars" — the bars never take the full
+      // accent, which the orange budget reserves for mic/live/active state.
       for (int i = 0; i < 3; i++) {
-        expect(_decorationAt(tester, i).color, accent);
+        expect(_decorationAt(tester, i).color, _orangeSoft);
       }
       expect(
         _decorationAt(tester, 3).color,
-        accent.withValues(alpha: 0.4),
+        _orangeSoft.withValues(alpha: 0.4),
       );
+      expect(accent, _orange);
+      expect(_decorationAt(tester, 0).color, isNot(accent));
     });
 
-    testWidgets('onNavy is white .4/.55 with the two middle bars in accent',
+    testWidgets('onNavy is board ink .4/.55 with two orangeSoft middle bars',
         (WidgetTester tester) async {
-      late Color accent;
-      late Color onPrimary;
-      await tester.pumpWidget(
-        _wrap(
-          Builder(
-            builder: (BuildContext context) {
-              accent = context.jeebRoles.accent;
-              onPrimary = Theme.of(context).colorScheme.onPrimary;
-              return const JeebWaveform.onNavy();
-            },
-          ),
-        ),
-      );
+      await tester.pumpWidget(_wrap(const JeebWaveform.onNavy()));
 
-      expect(_decorationAt(tester, 0).color,
-          onPrimary.withValues(alpha: 0.4));
-      expect(_decorationAt(tester, 1).color,
-          onPrimary.withValues(alpha: 0.55));
-      expect(_decorationAt(tester, 2).color, accent);
-      expect(_decorationAt(tester, 3).color, accent);
-      expect(_decorationAt(tester, 4).color,
-          onPrimary.withValues(alpha: 0.55));
+      expect(_decorationAt(tester, 0).color, _ink.withValues(alpha: 0.4));
+      expect(_decorationAt(tester, 1).color, _ink.withValues(alpha: 0.55));
+      expect(_decorationAt(tester, 2).color, _orangeSoft);
+      expect(_decorationAt(tester, 3).color, _orangeSoft);
+      expect(_decorationAt(tester, 4).color, _ink.withValues(alpha: 0.55));
     });
 
-    testWidgets('inBubble inks navy on a light surface',
+    testWidgets('inBubble inks board ink on a glass bubble',
         (WidgetTester tester) async {
-      late Color navy;
-      await tester.pumpWidget(
-        _wrap(
-          Builder(
-            builder: (BuildContext context) {
-              navy = Theme.of(context).colorScheme.primary;
-              return const JeebWaveform.inBubble();
-            },
-          ),
-        ),
-      );
-      expect(_decorationAt(tester, 0).color, navy.withValues(alpha: 0.5));
-      expect(_decorationAt(tester, 4).color, navy.withValues(alpha: 0.4));
+      await tester.pumpWidget(_wrap(const JeebWaveform.inBubble()));
+      expect(_decorationAt(tester, 0).color, _ink.withValues(alpha: 0.5));
+      expect(_decorationAt(tester, 4).color, _ink.withValues(alpha: 0.4));
     });
 
     testWidgets('inBubble inherits white ink from the navy surface tone',
         (WidgetTester tester) async {
-      late Color onPrimary;
       await tester.pumpWidget(
-        _wrap(
-          Builder(
-            builder: (BuildContext context) {
-              onPrimary = Theme.of(context).colorScheme.onPrimary;
-              return const JeebNavySurfaceCard(
-                child: JeebWaveform.inBubble(),
-              );
-            },
-          ),
-        ),
+        _wrap(_onNavyTone(const JeebWaveform.inBubble())),
       );
       expect(
         _decorationAt(tester, 0).color,
-        onPrimary.withValues(alpha: 0.5),
+        _white.withValues(alpha: 0.5),
         reason: 'the bubble tone re-inks the mark; no onNavy parameter needed',
       );
     });
 
     testWidgets('an explicit outgoing flag beats the inherited tone',
         (WidgetTester tester) async {
-      late Color navy;
       await tester.pumpWidget(
-        _wrap(
-          Builder(
-            builder: (BuildContext context) {
-              navy = Theme.of(context).colorScheme.primary;
-              return const JeebNavySurfaceCard(
-                child: JeebWaveform.inBubble(outgoing: false),
-              );
-            },
-          ),
-        ),
+        _wrap(_onNavyTone(const JeebWaveform.inBubble(outgoing: false))),
       );
-      expect(_decorationAt(tester, 0).color, navy.withValues(alpha: 0.5));
+      expect(_decorationAt(tester, 0).color, _ink.withValues(alpha: 0.5));
     });
   });
 
@@ -322,7 +300,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: AppTheme.light(),
+          theme: AppTheme.midnight(),
           home: const MediaQuery(
             data: MediaQueryData(textScaler: TextScaler.linear(2)),
             child: Directionality(

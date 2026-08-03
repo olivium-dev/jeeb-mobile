@@ -31,6 +31,14 @@ class JeebShadows {
     ),
   ];
 
+  /// `0 0 24px rgba(215,59,0,.25)` — the accent-selected card (R9 `tpl 530`).
+  static const List<BoxShadow> accentSelected = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(215, 59, 0, 0.25),
+      blurRadius: 24,
+    ),
+  ];
+
   /// `0 0 10px rgba(215,59,0,.85)` — live / "Broadcasting" dots.
   static const List<BoxShadow> glowDot = <BoxShadow>[
     BoxShadow(

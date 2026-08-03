@@ -9,9 +9,10 @@ import '../../theme/jeeb_color_roles.dart';
 ///
 /// The board writes the glow as `rgba(215,59,0,α)`, which *is*
 /// `jeebRoles.accent` — so only the alphas, offsets, blurs and spreads are
-/// constants here; the hue is resolved from the token at paint time. That keeps
-/// the widget honest under §4.6 (no hex where a token exists) and correct if the
-/// accent is ever re-tuned.
+/// constants here; the hue is resolved from the token at paint time. MIDNIGHT
+/// re-cuts the drops onto token sheet §7: the two rest discs take `ctaOrange`
+/// (`0 14 32 @ .45`), the recording disc takes `micActive`. Each stack keeps its
+/// own measured contact ring, which §7's flat entries do not carry.
 @immutable
 class JeebMicGlow {
   const JeebMicGlow({
@@ -22,34 +23,32 @@ class JeebMicGlow {
     required this.dropBlur,
   });
 
-  /// Ø56 — 04's request hero: `0 0 0 6 rgba(215,59,0,.22)` +
-  /// `0 10 22 rgba(215,59,0,.45)` (`04 tpl 169`).
+  /// Ø56 — 04/R1's capsule mic at rest: ring `0 0 0 6 @ .22` + §7 `ctaOrange`.
   static const JeebMicGlow compact = JeebMicGlow(
     ringAlpha: 0.22,
     ringSpread: 6,
     dropAlpha: 0.45,
-    dropOffsetY: 10,
-    dropBlur: 22,
+    dropOffsetY: 14,
+    dropBlur: 32,
   );
 
-  /// Ø118 — 01's decorative mic: `0 0 0 10 rgba(215,59,0,.18)` +
-  /// `0 18 40 rgba(215,59,0,.5)` (`01 tpl 43`).
+  /// Ø118 — 01's decorative mic at rest: ring `0 0 0 10 @ .18` + §7 `ctaOrange`.
   static const JeebMicGlow large = JeebMicGlow(
     ringAlpha: 0.18,
     ringSpread: 10,
-    dropAlpha: 0.5,
-    dropOffsetY: 18,
-    dropBlur: 40,
+    dropAlpha: 0.45,
+    dropOffsetY: 14,
+    dropBlur: 32,
   );
 
-  /// Ø128 — 05's recording mic: `0 0 0 9 rgba(215,59,0,.15)` +
-  /// `0 16 34 rgba(215,59,0,.45)` (`05 tpl 277`).
+  /// Ø128 — 05's recording mic: token sheet §7 `micActive`
+  /// (`0 0 0 10 @ .2` + `0 20 46 @ .55`).
   static const JeebMicGlow hero = JeebMicGlow(
-    ringAlpha: 0.15,
-    ringSpread: 9,
-    dropAlpha: 0.45,
-    dropOffsetY: 16,
-    dropBlur: 34,
+    ringAlpha: 0.20,
+    ringSpread: 10,
+    dropAlpha: 0.55,
+    dropOffsetY: 20,
+    dropBlur: 46,
   );
 
   /// Alpha of the tight contact ring (`0 0 0 N`).

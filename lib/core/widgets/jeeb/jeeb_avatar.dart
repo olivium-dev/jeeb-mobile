@@ -11,13 +11,12 @@ import 'jeeb_surface_tone.dart';
 /// rotation (04 `tpl 208-210`); [dormant] is the honest "we do not know this
 /// person" mark; [onAccent] only exists on 13's orange arrival banner.
 enum JeebAvatarFill {
-  /// Navy `colorScheme.primary` + white ink — 21's Karim, 12's courier, 16's O.
-  ///
-  /// Re-tones on a navy surface (20 `tpl 1172`): a navy disc on a navy card is
-  /// invisible, so it becomes the published chip tone (`onPrimary` @ 14 %).
+  /// Raised navy `surfaceContainerHigh` + `onSurface` ink (R1's header disc).
+  /// Re-tones to the published chip tone on a navy card, where it would vanish.
   primary,
 
-  /// Periwinkle `JeebSemanticColors.mutedText` + white ink — 04's `N`, 11's Nour.
+  /// Periwinkle `jeebRoles.info` + page-navy ink — 04's `N`, 11's Nour.
+  /// Navy ink, not white: white on `#8A93D8` is 2.9:1 and fails AA.
   muted,
 
   /// `jeebRoles.accent` + `onAccent` ink — 04's `R`.
@@ -386,9 +385,9 @@ class JeebAvatar extends StatelessWidget {
       case JeebAvatarFill.primary:
         return tone.onNavy
             ? (fill: tone.chipFill, ink: tone.chipInk)
-            : (fill: scheme.primary, ink: scheme.onPrimary);
+            : (fill: scheme.surfaceContainerHigh, ink: scheme.onSurface);
       case JeebAvatarFill.muted:
-        return (fill: semantics.mutedText, ink: scheme.onPrimary);
+        return (fill: roles.info, ink: roles.onInfo);
       case JeebAvatarFill.accent:
         return (fill: roles.accent, ink: roles.onAccent);
       case JeebAvatarFill.dormant:

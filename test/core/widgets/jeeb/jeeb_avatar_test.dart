@@ -8,6 +8,16 @@ import 'package:omds/omds.dart';
 
 import 'jeeb_avatar_test_harness.dart';
 
+/// MIDNIGHT token sheet §1–§3 — the expected values, not a read-back.
+const Color _surfaceHigh = Color(0xFF10175E);
+const Color _surfaceHighest = Color(0xFF151C69);
+const Color _ink = Color(0xFFEDEFFC);
+const Color _inkMuted = Color(0xFF8A93D8);
+const Color _page = Color(0xFF070C33);
+const Color _orange = Color(0xFFD73B00);
+const Color _white = Color(0xFFFFFFFF);
+const Color _success = Color(0xFF3BB273);
+
 void main() {
   group('JeebAvatar — composition contract', () {
     testWidgets('composes OmdsProfileAvatar and forwards avatarKey', (
@@ -157,24 +167,29 @@ void main() {
       );
       expect(JeebAvatarFill.forIndex(3), JeebAvatarFill.primary);
 
+      // Navy is the RAISED navy, never `colorScheme.primary`: under MIDNIGHT
+      // that slot is the brand orange and the rotation would go all-orange.
       final OmdsProfileAvatar primary =
           await pumpFill(tester, JeebAvatarFill.primary);
       final ColorScheme scheme = theme.colorScheme;
-      expect(primary.backgroundColor, scheme.primary);
-      expect(primary.initialColor, scheme.onPrimary);
+      expect(primary.backgroundColor, _surfaceHigh);
+      expect(primary.backgroundColor, scheme.surfaceContainerHigh);
+      expect(primary.backgroundColor, isNot(scheme.primary));
+      expect(primary.initialColor, _ink);
 
       final OmdsProfileAvatar muted =
           await pumpFill(tester, JeebAvatarFill.muted);
-      expect(
-        muted.backgroundColor,
-        theme.extension<JeebSemanticColors>()!.mutedText,
-      );
-      expect(muted.initialColor, scheme.onPrimary);
+      expect(muted.backgroundColor, _inkMuted);
+      expect(muted.backgroundColor, roles.info);
+      // Page navy, not white: white on #8A93D8 is 2.9:1 and fails AA.
+      expect(muted.initialColor, _page);
+      expect(muted.initialColor, roles.onInfo);
 
       final OmdsProfileAvatar accent =
           await pumpFill(tester, JeebAvatarFill.accent);
+      expect(accent.backgroundColor, _orange);
       expect(accent.backgroundColor, roles.accent);
-      expect(accent.initialColor, roles.onAccent);
+      expect(accent.initialColor, _white);
     });
 
     testWidgets('dormant is surfaceContainerHighest + periwinkle ink', (
@@ -182,7 +197,9 @@ void main() {
     ) async {
       final OmdsProfileAvatar avatar =
           await pumpFill(tester, JeebAvatarFill.dormant);
+      expect(avatar.backgroundColor, _surfaceHighest);
       expect(avatar.backgroundColor, theme.colorScheme.surfaceContainerHighest);
+      expect(avatar.initialColor, _inkMuted);
       expect(
         avatar.initialColor,
         theme.extension<JeebSemanticColors>()!.mutedText,
@@ -196,7 +213,7 @@ void main() {
           await pumpFill(tester, JeebAvatarFill.onAccent);
       expect(
         avatar.backgroundColor,
-        roles.onAccent.withValues(alpha: 0.2),
+        _white.withValues(alpha: 0.2),
       );
       expect(avatar.initialColor, roles.onAccent);
     });
@@ -204,14 +221,17 @@ void main() {
     testWidgets('primary re-tones on a navy surface instead of vanishing', (
       tester,
     ) async {
+      late JeebSurfaceToneData navy;
       final OmdsProfileAvatar avatar = await pumpFill(
         tester,
         JeebAvatarFill.primary,
-        tone: JeebSurfaceToneData.navy,
+        tone: (BuildContext context) => navy = JeebSurfaceToneData.navy(context),
       );
-      final Color onNavy = theme.colorScheme.onPrimary;
-      expect(avatar.backgroundColor, onNavy.withValues(alpha: 0.14));
-      expect(avatar.initialColor, onNavy);
+      // Read from the published tone, not a copy of its alphas: the card lane
+      // owns those values and this widget's contract is to inherit them.
+      expect(avatar.backgroundColor, navy.chipFill);
+      expect(avatar.initialColor, navy.chipInk);
+      expect(avatar.backgroundColor, isNot(_surfaceHigh));
     });
 
     testWidgets('a bare ThemeData.light() theme does not crash the read', (
@@ -229,10 +249,12 @@ void main() {
         ),
       );
       expect(tester.takeException(), isNull);
+      // `.light()` is a MIDNIGHT alias now, so the fallback ink is periwinkle.
       expect(
         composedAvatar(tester, find.byType(JeebAvatar)).initialColor,
-        JeebSemanticColors.light().mutedText,
+        _inkMuted,
       );
+      expect(JeebSemanticColors.light().mutedText, _inkMuted);
     });
   });
 
@@ -273,9 +295,10 @@ void main() {
       expect(presence.top, isNull);
       expect(
         _discFill(tester, JeebAvatar.dotKey),
-        roles.success,
+        _success,
         reason: 'sprint-009 §G2 forbids an ad-hoc presence green',
       );
+      expect(_discFill(tester, JeebAvatar.dotKey), roles.success);
       expect(tester.getSize(find.byKey(JeebAvatar.dotKey)), const Size(16, 16));
 
       await tester.pumpWidget(
@@ -292,6 +315,8 @@ void main() {
       expect(unread.end, JeebAvatar.dotOffset);
       expect(unread.top, JeebAvatar.dotOffset);
       expect(unread.bottom, isNull);
+      // Live/unread state is a sanctioned orange (master plan §2.2).
+      expect(_discFill(tester, JeebAvatar.dotKey), _orange);
       expect(_discFill(tester, JeebAvatar.dotKey), roles.accent);
     });
 
@@ -319,12 +344,14 @@ void main() {
       );
       expect(badge.end, JeebAvatar.badgeOffset);
       expect(badge.bottom, JeebAvatar.badgeOffset);
+      expect(_discFill(tester, JeebAvatar.badgeKey), _orange);
       expect(_discFill(tester, JeebAvatar.badgeKey), roles.accent);
       // 26 + a 3px surface ring on each side.
       expect(tester.getSize(find.byKey(JeebAvatar.badgeKey)), const Size(32, 32));
 
       final Icon check = tester.widget(find.byIcon(Icons.check));
       expect(check.size, JeebAvatar.badgeGlyphSize);
+      expect(check.color, _white);
       expect(check.color, roles.onAccent);
     });
 

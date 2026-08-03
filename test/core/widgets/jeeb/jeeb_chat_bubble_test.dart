@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_chat_bubble.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_surface_tone.dart';
 
@@ -11,14 +11,15 @@ import 'jeeb_chat_test_harness.dart';
 ///
 /// FAIL-WITHOUT: without these, the 18/6 tail stops mirroring, the read state
 /// silently becomes a cyan tick again (`readTick` has zero occurrences on the
-/// board), and the inert voice disc grows a Maestro id for a permanent no-op —
-/// the exact B-04 defect.
+/// board), the two sides drift back to the same glass — R20's whole idea is that
+/// the thread reads by temperature — and the inert voice disc grows a Maestro id
+/// for a permanent no-op, the exact B-04 defect.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
+  final ColorScheme scheme = kChatTheme.colorScheme;
   const Key bubbleKey = Key('chat-bubble-m1');
 
   group('JeebChatBubble surface', () {
-    testWidgets('incoming is surfaceContainerHigh, flat, tail at bottom-START',
+    testWidgets('incoming is rest glass, flat, tail at bottom-START',
         (tester) async {
       await tester.pumpWidget(
         wrapChat(
@@ -32,19 +33,25 @@ void main() {
 
       final BoxDecoration decoration =
           chatDecorationOf(tester, find.byKey(bubbleKey));
-      expect(decoration.color, scheme.surfaceContainerHigh);
+      // Token sheet §4: rest glass = white 7% + 1px white 12%, NO blur.
+      expect(decoration.color, const Color(0x12FFFFFF));
+      expect(decoration.color, kChatSemantics.glassFill);
+      expect(decoration.border!.top.color, const Color(0x1FFFFFFF));
+      expect(decoration.border!.top.width, 1);
       expect(decoration.boxShadow, isNull);
+      expect(find.byType(BackdropFilter), findsNothing);
 
       final BorderRadius resolved =
           (decoration.borderRadius! as BorderRadiusDirectional)
               .resolve(TextDirection.ltr);
-      expect(resolved.topLeft, const Radius.circular(18));
-      expect(resolved.topRight, const Radius.circular(18));
-      expect(resolved.bottomRight, const Radius.circular(18));
+      expect(JeebChatBubble.cornerRadius, JeebRadii.lg);
+      expect(resolved.topLeft, const Radius.circular(JeebRadii.lg));
+      expect(resolved.topRight, const Radius.circular(JeebRadii.lg));
+      expect(resolved.bottomRight, const Radius.circular(JeebRadii.lg));
       expect(resolved.bottomLeft, const Radius.circular(6));
     });
 
-    testWidgets('outgoing is navy with bubbleOut and the mirrored tail',
+    testWidgets('outgoing is warm orange glass, flat, mirrored tail',
         (tester) async {
       await tester.pumpWidget(
         wrapChat(
@@ -58,14 +65,30 @@ void main() {
 
       final BoxDecoration decoration =
           chatDecorationOf(tester, find.byKey(bubbleKey));
-      expect(decoration.color, scheme.primary);
-      expect(decoration.boxShadow, JeebShadows.bubbleOut);
+      // R20 measured: orange 24% fill + 1px orange 45%, still no blur here —
+      // the board's `blur(10)` is the screen's to spend (M2-16).
+      expect(decoration.color, const Color.fromRGBO(215, 59, 0, 0.24));
+      expect(decoration.color, kChatSemantics.bubbleOutFill);
+      expect(decoration.color, isNot(scheme.primary));
+      expect(decoration.color, isNot(JeebMidnight.orange));
+      expect(decoration.border!.top.color, kChatSemantics.bubbleOutBorder);
+      expect(
+        decoration.border!.top.color,
+        const Color.fromRGBO(215, 59, 0, 0.45),
+      );
+      expect(decoration.border!.top.width, 1);
+      // `bubbleOut` is retired by the ratified shadow migration map.
+      expect(decoration.boxShadow, isNull);
+      expect(find.byType(BackdropFilter), findsNothing);
 
       final BorderRadius resolved =
           (decoration.borderRadius! as BorderRadiusDirectional)
               .resolve(TextDirection.ltr);
+      // `18 18 6 18` — the 6 lands on the tail (bottom-END) corner.
+      expect(resolved.topLeft, const Radius.circular(JeebRadii.lg));
+      expect(resolved.topRight, const Radius.circular(JeebRadii.lg));
       expect(resolved.bottomRight, const Radius.circular(6));
-      expect(resolved.bottomLeft, const Radius.circular(18));
+      expect(resolved.bottomLeft, const Radius.circular(JeebRadii.lg));
     });
 
     testWidgets('caps at 78% of the column even under tight constraints',
@@ -94,7 +117,7 @@ void main() {
       expect(width, greaterThan(kChatFrameWidth * 0.7));
     });
 
-    testWidgets('body ink follows the side', (tester) async {
+    testWidgets('body ink is Midnight ink in, board white out', (tester) async {
       await tester.pumpWidget(
         wrapChat(
           const Column(
@@ -125,9 +148,18 @@ void main() {
         ).first,
       );
 
+      // Incoming is glass on navy, so it keeps `#EDEFFC`.
+      expect(incoming.style.color, JeebMidnight.ink);
       expect(incoming.style.color, scheme.onSurface);
-      expect(incoming.style.fontSize, 13.5);
+      // Ramp re-cut §6: body is 14.5/w500 on a 21px line.
+      expect(incoming.style.fontSize, 14.5);
+      expect(incoming.style.fontWeight, FontWeight.w500);
+      expect(incoming.style.height, 21 / 14.5);
+      // Outgoing sits on the tinted fill, where R20 draws the `#fff` literal.
+      expect(outgoing.style.color, const Color(0xFFFFFFFF));
       expect(outgoing.style.color, scheme.onPrimary);
+      expect(outgoing.style.color, isNot(JeebMidnight.ink));
+      expect(outgoing.style.fontSize, 14.5);
     });
   });
 
@@ -162,16 +194,20 @@ void main() {
       final Text read = tester.widget<Text>(find.text('Read'));
       expect(read.style!.fontSize, 10);
       expect(read.style!.fontWeight, FontWeight.w600);
-      // JeebSemanticColors.readTick (#20F0FF) has zero board occurrences.
-      expect(read.style!.color, isNot(const Color(0xFF20F0FF)));
-      expect(read.style!.color, scheme.onSecondaryContainer);
+      // readTick (#20F0FF) survives as a token but has zero board occurrences.
+      expect(read.style!.color, isNot(JeebMidnight.readTick));
+      // R20 measured: the outgoing meta line is `#FFB499` on the tinted fill,
+      // which is the accent quartet's onContainer — not the cool inkSoft.
+      expect(read.style!.color, JeebMidnight.orangeTint);
+      expect(read.style!.color, kChatRoles.onAccentContainer);
+      expect(read.style!.color, isNot(kChatSemantics.inkSoft));
       expect(
         find.bySemanticsIdentifier('chat_detail_message_read'),
         findsOneWidget,
       );
     });
 
-    testWidgets('the incoming clock refuses the 3.07:1 periwinkle',
+    testWidgets('the incoming clock carries the board-literal mutedText',
         (tester) async {
       await tester.pumpWidget(
         wrapChat(
@@ -184,8 +220,9 @@ void main() {
       );
 
       final Text clock = tester.widget<Text>(find.text('9:24'));
-      expect(clock.style!.color, scheme.onSurfaceVariant);
-      expect(clock.style!.color, isNot(scheme.onSecondaryContainer));
+      // R20 board literal; #8A93D8 passes AA on every navy (sheet §9, worst 5.17).
+      expect(clock.style!.color, JeebMidnight.inkMuted);
+      expect(clock.style!.color, isNot(JeebMidnight.inkSoft));
     });
 
     testWidgets('an icon status carries its own id and no separator',
@@ -254,16 +291,24 @@ void main() {
       expect(find.byKey(const Key('waveform')), findsOneWidget);
       expect(find.text('0:06 · photo of the box'), findsOneWidget);
 
-      final Size disc = tester.getSize(
-        find.ancestor(
-          of: find.byIcon(Icons.play_arrow_rounded),
-          matching: find.byType(Container),
-        ).first,
-      );
-      expect(disc, const Size(32, 32));
+      final Finder discFinder = find.ancestor(
+        of: find.byIcon(Icons.play_arrow_rounded),
+        matching: find.byType(Container),
+      ).first;
+      expect(tester.getSize(discFinder), const Size(32, 32));
       expect(
         tester.widget<Icon>(find.byIcon(Icons.play_arrow_rounded)).size,
         14,
+      );
+
+      // A play control is not one of §2.2's orange moments — it is glass.
+      final BoxDecoration disc =
+          tester.widget<Container>(discFinder).decoration! as BoxDecoration;
+      expect(disc.color, kChatSemantics.glassFillEmphasis);
+      expect(disc.color, isNot(JeebMidnight.orange));
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.play_arrow_rounded)).color,
+        JeebMidnight.ink,
       );
     });
 
@@ -333,7 +378,7 @@ void main() {
       expect(outgoingOnNavy, isTrue);
     });
 
-    testWidgets('photo renders the 120×74 r10 tile with the 20px glyph',
+    testWidgets('photo renders the 120×74 glass tile on the sm rung',
         (tester) async {
       await tester.pumpWidget(
         wrapChat(
@@ -350,9 +395,15 @@ void main() {
       ).first;
       expect(tester.getSize(tile), const Size(120, 74));
       expect(tester.widget<Icon>(find.byIcon(Icons.image_outlined)).size, 20);
+      // The board's r10 snaps to the ladder's `sm` rung (§5, ±2 tolerance).
+      expect(JeebChatMedia.photoRadius, JeebRadii.sm);
+
+      final BoxDecoration slab =
+          tester.widget<Container>(tile).decoration! as BoxDecoration;
+      expect(slab.color, kChatSemantics.glassFillEmphasis);
       expect(
         tester.widget<Icon>(find.byIcon(Icons.image_outlined)).color,
-        scheme.onSecondaryContainer,
+        JeebMidnight.inkMuted,
       );
     });
   });

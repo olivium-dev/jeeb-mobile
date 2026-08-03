@@ -77,7 +77,11 @@ Board evidence: success `#3BB273` deep / `#7BD9A4` soft; amber `#FFC107` 22×.
 | **NEW** `glassFillEmphasis` | white 10% | capsule / raised glass |
 | **NEW** `glassFillPressed` | white 14% | pressed/active glass |
 | **NEW** `glassBorder` | white 12% | 1px, every glass surface |
-| **NEW** `glassBorderStrong` | white 16% | hero capsules |
+| **NEW** `glassBorderStrong` | white 16% | hero capsules (board .15–.18 snap here) |
+| **NEW** `glassBorderVivid` | white 22% | board .20–.25 cluster (page-dot inactive, radio ring) — added 2026-08-04 |
+| **NEW** `bubbleOutFill` | `#D73B00` @ 24% | R20 outgoing bubble fill (measured) |
+| **NEW** `bubbleOutBorder` | `#D73B00` @ 45% | R20 outgoing bubble 1px border (measured) |
+| **NEW** `accentSelectedFill` | `#D73B00` @ 20% | R9 selected tier row fill (measured; 2px accent border + `0 0 24 orange@.25` glow) |
 
 ## 4. Glass recipe (ratified)
 
@@ -86,7 +90,11 @@ Board evidence: success `#3BB273` deep / `#7BD9A4` soft; amber `#FFC107` 22×.
 - **Hero glass (voice capsule, floating nav):** fill `glassFillEmphasis`, border `glassBorderStrong`,
   radius `capsule`/`pill`, real `BackdropFilter` blur **10** (ladder: soft 8 / standard 10 / hero 12;
   board 8×38, 10×44, 12×23; 14–18 exist but are rare marketing-frame cases).
-- **Budget: ≤2 real BackdropFilters per screen**, hero surfaces only.
+- **Budget: ≤2 real BackdropFilters per screen**, hero surfaces only. Kit widgets ship
+  pre-baked translucency; a SCREEN adds the real blur where its tile earns it.
+- CORRECTION 2026-08-04: the **floating pill nav is NAVY surface** (R1-measured, study-notes
+  ruling 2), not hero glass — the "floating nav" mention in the original hero-glass example
+  list was wrong.
 
 ## 5. Radii ladder (snap to nearest; ±2 board tolerance)
 
@@ -129,6 +137,7 @@ w500/600/700** — face CONFIRMED from `_ds/tokens/typography.css`:
 | `ctaOrange` | `0 14px 32px rgba(215,59,0,.45)` | mic disc, orange CTA (16×) |
 | `ctaOrangeSmall` | `0 8px 20px rgba(215,59,0,.40)` | small orange pills (5×) |
 | `glowRest` | `0 0 30px rgba(215,59,0,.18)` | halos at rest (5×) |
+| `accentSelected` | `0 0 24px rgba(215,59,0,.25)` | R9's lit selected card (`tpl 530`) — added 2026-08-04 |
 | `glowDot` | `0 0 10px rgba(215,59,0,.85)` | live/broadcast dots (.8/.9 cluster) |
 | `glowDotSuccess` | `0 0 14px rgba(59,178,115,.9)` | online/success dots |
 | `micActive` | `0 0 0 10px rgba(215,59,0,.2)` + `0 20px 46px rgba(215,59,0,.55)` | recording mic ring |

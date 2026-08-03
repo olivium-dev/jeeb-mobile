@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_text_styles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 
 import 'jeeb_cta_test_harness.dart';
 
+/// Token sheet §1/§3 — the expected Midnight values, spelled out here rather
+/// than read back off the implementation.
+const Color _periwinkle = Color(0xFF8A93D8);
+const Color _pageNavy = Color(0xFF070C33);
+const Color _ink = Color(0xFFEDEFFC);
+const Color _orange = Color(0xFFD73B00);
+const Color _glassFill = Color(0x12FFFFFF);
+const Color _glassBorderStrong = Color(0x29FFFFFF);
+
+JeebSemanticColors _semanticsOf(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>()!;
+
 void main() {
   group('JeebCtaButton.primary', () {
-    testWidgets('is a navy h56 pill with the CTA shadow', (tester) async {
+    testWidgets('is a periwinkle h56 pill with navy ink and no lift',
+        (tester) async {
       await tester.pumpWidget(
         wrapCta(JeebCtaButton.primary(label: 'Confirm tier', onTap: () {})),
       );
@@ -19,9 +33,14 @@ void main() {
       final BoxDecoration decoration =
           ctaDecorationOf(tester, find.byType(JeebCtaButton));
 
-      expect(decoration.color, scheme.primary);
+      expect(decoration.color, scheme.secondary);
+      expect(decoration.color, _periwinkle);
       expect(decoration.border, isNull);
-      expect(decoration.boxShadow, JeebShadows.ctaNavy);
+      expect(
+        decoration.boxShadow,
+        isNull,
+        reason: 'the Midnight lift belongs to orange fills only',
+      );
       expect(
         decoration.borderRadius,
         BorderRadius.circular(JeebCtaButton.pillRadius),
@@ -34,7 +53,8 @@ void main() {
       expect(tester.getSize(find.byType(JeebCtaButton)).width, 320);
     });
 
-    testWidgets('labels in jeebText.button on onPrimary ink', (tester) async {
+    testWidgets('labels in jeebText.button (17/w600) on navy ink',
+        (tester) async {
       await tester.pumpWidget(
         wrapCta(JeebCtaButton.primary(label: 'Send offer', onTap: () {})),
       );
@@ -43,9 +63,11 @@ void main() {
       final ColorScheme scheme = Theme.of(context).colorScheme;
       final Text label = tester.widget<Text>(find.text('Send offer'));
 
+      expect(label.style!.fontSize, 17);
       expect(label.style!.fontSize, context.jeebText.button.fontSize);
-      expect(label.style!.fontWeight, context.jeebText.button.fontWeight);
-      expect(label.style!.color, scheme.onPrimary);
+      expect(label.style!.fontWeight, FontWeight.w600);
+      expect(label.style!.color, scheme.onSecondary);
+      expect(label.style!.color, _pageNavy);
     });
 
     testWidgets('takes the h58 override (10 14 17)', (tester) async {
@@ -74,7 +96,7 @@ void main() {
   });
 
   group('JeebCtaButton.outline', () {
-    testWidgets('is a 1.5px colorScheme.outline h50 pill, no fill',
+    testWidgets('is a glass h50 pill: glassFill + 1px glassBorderStrong',
         (tester) async {
       await tester.pumpWidget(
         wrapCta(JeebCtaButton.outline(label: 'Open dispute', onTap: () {})),
@@ -82,21 +104,28 @@ void main() {
 
       final BuildContext context = tester.element(find.text('Open dispute'));
       final ColorScheme scheme = Theme.of(context).colorScheme;
+      final JeebSemanticColors semantics = _semanticsOf(context);
       final BoxDecoration decoration =
           ctaDecorationOf(tester, find.byType(JeebCtaButton));
 
-      expect(decoration.color, isNull);
-      expect(decoration.boxShadow, isNull, reason: 'outline never lifts');
-      expect((decoration.border! as Border).top.color, scheme.outline);
-      expect((decoration.border! as Border).top.width, 1.5);
+      expect(decoration.color, semantics.glassFill);
+      expect(decoration.color, _glassFill);
+      expect(decoration.boxShadow, isNull, reason: 'glass never lifts');
+      expect(
+        (decoration.border! as Border).top.color,
+        semantics.glassBorderStrong,
+      );
+      expect((decoration.border! as Border).top.color, _glassBorderStrong);
+      expect((decoration.border! as Border).top.width, 1);
       expect(
         tester.getSize(find.byType(JeebCtaButton)).height,
         JeebCtaButton.outlineHeight,
       );
       expect(
         tester.widget<Text>(find.text('Open dispute')).style!.color,
-        scheme.primary,
+        scheme.onSurface,
       );
+      expect(tester.widget<Text>(find.text('Open dispute')).style!.color, _ink);
     });
 
     testWidgets('h54 override keeps the border (14)', (tester) async {
@@ -143,6 +172,7 @@ void main() {
         tester.widget<Text>(find.text('Skip')).style!.color,
         scheme.onSurfaceVariant,
       );
+      expect(tester.widget<Text>(find.text('Skip')).style!.color, _periwinkle);
       // `expand` defaults to false, so it survives an unbounded Row slot.
       expect(tester.getSize(find.byType(JeebCtaButton)).width, lessThan(320));
     });
@@ -163,6 +193,7 @@ void main() {
         tester.widget<Text>(label).style!.color,
         context.jeebRoles.accent,
       );
+      expect(tester.widget<Text>(label).style!.color, _orange);
     });
 
     testWidgets('reads jeebRoles safely under a bare ThemeData.light()',
@@ -184,7 +215,7 @@ void main() {
   });
 
   group('JeebCtaButton disabled', () {
-    testWidgets('isEnabled: false dims the fill, drops the shadow and the tap',
+    testWidgets('isEnabled: false dims the fill and drops the tap',
         (tester) async {
       var taps = 0;
       await tester.pumpWidget(
@@ -204,9 +235,8 @@ void main() {
 
       expect(
         decoration.color,
-        scheme.primary.withValues(alpha: JeebCtaButton.disabledFillOpacity),
+        scheme.secondary.withValues(alpha: JeebCtaButton.disabledFillOpacity),
       );
-      expect(decoration.boxShadow, isNull);
       // Height and pill are unchanged — only the ink moves.
       expect(
         tester.getSize(find.byType(JeebCtaButton)).height,
@@ -215,6 +245,30 @@ void main() {
 
       await tester.tap(find.byType(JeebCtaButton));
       expect(taps, 0);
+    });
+
+    testWidgets('a disabled glass pill dims multiplicatively, never opaquer',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapCta(
+          JeebCtaButton.outline(
+            label: 'Open dispute',
+            isEnabled: false,
+            onTap: () {},
+          ),
+        ),
+      );
+
+      final BuildContext context = tester.element(find.text('Open dispute'));
+      final JeebSemanticColors semantics = _semanticsOf(context);
+      final BoxDecoration decoration =
+          ctaDecorationOf(tester, find.byType(JeebCtaButton));
+
+      expect(
+        decoration.color!.a,
+        closeTo(semantics.glassFill.a * JeebCtaButton.disabledFillOpacity, 1e-6),
+      );
+      expect(decoration.color!.a, lessThan(semantics.glassFill.a));
     });
 
     testWidgets('a null onTap is disabled too', (tester) async {
@@ -265,15 +319,19 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text('Send offer'), findsNothing);
       expect(find.byIcon(Icons.check), findsNothing);
-      // The pill itself is untouched — height and shadow survive (14 §7).
+      // The pill itself is untouched — the height survives (14 §7).
       expect(
         tester.getSize(find.byType(JeebCtaButton)).height,
         JeebCtaButton.primaryHeight,
       );
+      final BuildContext context = tester.element(find.byType(JeebCtaButton));
       expect(
-        ctaDecorationOf(tester, find.byType(JeebCtaButton)).boxShadow,
-        isNull,
-        reason: 'loading is a disabled state, so the lift goes with it',
+        ctaDecorationOf(tester, find.byType(JeebCtaButton)).color,
+        Theme.of(context)
+            .colorScheme
+            .secondary
+            .withValues(alpha: JeebCtaButton.disabledFillOpacity),
+        reason: 'loading is a disabled state, so the fill dims with it',
       );
 
       await tester.tap(find.byType(JeebCtaButton), warnIfMissed: false);
@@ -323,7 +381,7 @@ void main() {
       final BuildContext context = tester.element(find.text('Top up wallet'));
       final Icon glyph = tester.widget<Icon>(find.byIcon(Icons.add));
       expect(glyph.size, 19);
-      expect(glyph.color, Theme.of(context).colorScheme.onPrimary);
+      expect(glyph.color, Theme.of(context).colorScheme.onSecondary);
     });
   });
 
@@ -395,6 +453,18 @@ void main() {
       );
       expect(node.properties.enabled, isFalse);
       expect(node.properties.button, isTrue);
+    });
+  });
+
+  group('JeebCtaButton Midnight metrics', () {
+    test('geometry consts are the ratified ladder values', () {
+      expect(JeebCtaButton.pillRadius, JeebRadii.pill);
+      expect(JeebCtaButton.pillRadius, 999);
+      expect(JeebCtaButton.outlineBorderWidth, 1);
+      expect(JeebCtaButton.primaryHeight, 56);
+      expect(JeebCtaButton.primaryHeightTall, 58);
+      expect(JeebCtaButton.outlineHeight, 50);
+      expect(JeebCtaButton.textHeight, 48);
     });
   });
 

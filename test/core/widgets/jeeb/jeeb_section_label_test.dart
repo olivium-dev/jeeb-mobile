@@ -14,7 +14,8 @@ import 'jeeb_meters_test_harness.dart';
 /// `Text`s that wrap and align independently; without the size default the
 /// 11px minority reading spreads to all six screens.
 void main() {
-  const Color mutedLight = Color(0xFF777FC0);
+  // Token sheet §3: mutedText, superseding #777FC0 AND pass-1 dark #9DA3E0.
+  const Color midnightMuted = Color(0xFF8A93D8);
 
   TextStyle styleOf(WidgetTester tester) =>
       tester.widget<Text>(find.byType(Text)).style!;
@@ -76,8 +77,10 @@ void main() {
       expect(style.fontSize, 12.5);
       expect(style.fontWeight, FontWeight.w700);
       expect(style.letterSpacing, 1.2);
-      expect(style.color, mutedLight);
+      expect(style.color, midnightMuted);
+      // Both factories are Midnight now, so either accessor must agree.
       expect(style.color, JeebSemanticColors.light().mutedText);
+      expect(style.color, JeebSemanticColors.midnight().mutedText);
     });
 
     testWidgets('small selects the shipped 11px form', (tester) async {
@@ -91,23 +94,23 @@ void main() {
       // Everything else is the same token.
       expect(style.fontWeight, FontWeight.w700);
       expect(style.letterSpacing, 1.2);
-      expect(style.color, mutedLight);
+      expect(style.color, midnightMuted);
     });
 
     testWidgets('keeps the mutedText ink on a navy card', (tester) async {
-      // 19 tpl 1112 / 23 tpl 1361 draw this label on the navy hero and it
-      // stays periwinkle — unlike JeebPriceMeter's caption. Deliberately not
-      // wired to JeebSurfaceTone.
+      // The Midnight board draws "Available to bid" #8A93D8 on a glow card and
+      // every other label the same — deliberately not wired to JeebSurfaceTone.
       await tester.pumpWidget(
         wrapMeter(
           const ColoredBox(
+            // Token sheet §1 surface.
             color: Color(0xFF0B1351),
             child: JeebSectionLabel('Available to bid'),
           ),
         ),
       );
 
-      expect(styleOf(tester).color, mutedLight);
+      expect(styleOf(tester).color, midnightMuted);
     });
   });
 

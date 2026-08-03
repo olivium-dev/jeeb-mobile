@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_meter.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
 
@@ -13,8 +15,11 @@ import 'jeeb_meters_test_harness.dart';
 /// kit ask); a non-nullable value makes 11 fabricate a fraction it does not
 /// have; a knob that clips loses its shadow and overflows its own box.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
-  final Color accent = AppTheme.light().extension<JeebColorRoles>()!.accent;
+  final ColorScheme scheme = AppTheme.midnight().colorScheme;
+  final Color accent = AppTheme.midnight().extension<JeebColorRoles>()!.accent;
+  // Token sheet §2 accent / §1 onPrimary.
+  const Color midnightAccent = Color(0xFFD73B00);
+  const Color midnightOnAccent = Color(0xFFFFFFFF);
 
   Finder trackBox() => find
       .descendant(of: find.byType(JeebMeter), matching: find.byType(DecoratedBox))
@@ -44,9 +49,11 @@ void main() {
 
       final BoxDecoration track = boxOf(tester, trackBox());
       expect(track.color, scheme.surfaceContainerHighest);
-      expect(track.borderRadius, BorderRadius.circular(9));
+      expect(track.borderRadius, BorderRadius.circular(JeebRadii.sm));
+      expect(JeebRadii.sm, 9);
 
       expect(boxOf(tester, fillBox()).color, accent);
+      expect(accent, midnightAccent);
       expect(
         tester.widget<FractionallySizedBox>(find.byType(FractionallySizedBox))
             .widthFactor,
@@ -103,16 +110,18 @@ void main() {
         ),
       );
 
-      expect(boxOf(tester, fillBox()).color, scheme.onPrimary);
+      // Emphasis glass: the meter goes ink-on-glass, not accent-on-navy.
+      expect(boxOf(tester, fillBox()).color, scheme.onSurface);
+      expect(scheme.onSurface, const Color(0xFFEDEFFC));
       expect(
         boxOf(tester, trackBox()).color,
-        scheme.onPrimary.withValues(alpha: 0.25),
+        scheme.onSurface.withValues(alpha: 0.25),
       );
     });
   });
 
   group('scrubber', () {
-    testWidgets('reserves the knob height and paints the Ø14 accent knob',
+    testWidgets('reserves the knob height and paints the Ø14 white knob',
         (tester) async {
       await tester.pumpWidget(
         wrapMeter(const JeebMeter.scrubber(value: 0.55)),
@@ -125,13 +134,28 @@ void main() {
       expect(tester.getSize(knobBox()), const Size(14, 14));
 
       final BoxDecoration decoration = boxOf(tester, knobBox());
-      expect(decoration.color, accent);
+      // Midnight board R6: the knob is white on the orange fill, not tinted.
+      expect(decoration.color, midnightOnAccent);
       expect(decoration.shape, BoxShape.circle);
-      // `0 2 6 rgba(215,59,0,.4)` — derived from the fill, not hardcoded.
+
+      // Token sheet §7 `overlay` — `0 2px 8px rgba(0,0,0,.4)`.
+      expect(decoration.boxShadow, JeebShadows.overlay);
       final BoxShadow shadow = decoration.boxShadow!.single;
-      expect(shadow.color, accent.withValues(alpha: 0.4));
+      expect(shadow.color, const Color.fromRGBO(0, 0, 0, 0.40));
+      expect(shadow.color.a, closeTo(JeebMeter.knobShadowOpacity, 0.005));
       expect(shadow.offset, const Offset(0, 2));
-      expect(shadow.blurRadius, 6);
+      expect(shadow.blurRadius, 8);
+    });
+
+    testWidgets('the knob stays white on a navy card', (tester) async {
+      // It rides on the accent fill, so `onAccent` is right on both tones.
+      await tester.pumpWidget(
+        wrapMeter(
+          const JeebNavySurfaceCard(child: JeebMeter.scrubber(value: 0.5)),
+        ),
+      );
+
+      expect(boxOf(tester, knobBox()).color, midnightOnAccent);
     });
 
     testWidgets('never clips the knob', (tester) async {
@@ -225,7 +249,7 @@ void main() {
       expect(cells, hasLength(2));
       expect(cells.first.color, accent);
       expect(cells.last.color, scheme.surfaceContainerHighest);
-      expect(cells.first.borderRadius, BorderRadius.circular(9));
+      expect(cells.first.borderRadius, BorderRadius.circular(JeebRadii.sm));
 
       final Rect first = tester.getRect(
         find

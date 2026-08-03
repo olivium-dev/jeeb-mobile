@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
+import '../../theme/jeeb_shadows.dart';
 import 'jeeb_navy_surface_card.dart';
 import 'jeeb_surface_tone.dart';
 
-/// The three realized states of a Jeeb card (redesign-2026-08 §5 #3).
+/// The four realized states of a Jeeb card (MIDNIGHT sheet §3/§4).
 enum JeebCardState {
-  /// White fill, `1.5px colorScheme.outline`, no shadow.
+  /// Rest glass: `glassFill` + 1px `glassBorder`, no blur, no shadow.
   normal,
 
   /// Delegates to `JeebNavySurfaceCard` — one state machine, so the navy
   /// variant cannot drift. Selection is a **fill swap, never a thicker border**.
   selected,
+
+  /// R9's *lit* selection (`tpl 530`): `accentSelectedFill` + a 2px accent
+  /// border + `JeebShadows.accentSelected`. The one selection that is a stroke.
+  accentSelected,
 
   /// `opacity .75` **and** the action row dropped (11's third offer).
   ///
@@ -20,12 +28,11 @@ enum JeebCardState {
   dormant,
 }
 
-/// The white card (redesign-2026-08 §5 #3) — the shape almost everything on
+/// The rest glass card (MIDNIGHT sheet §4) — the shape almost everything on
 /// the board sits inside.
 ///
-/// White fill, `1.5px colorScheme.outline`, radius 16/18/20, **no shadow ever**
-/// (the design is outline-over-shadow: a white card with a shadow does not
-/// exist on this board).
+/// `glassFill` (white 7%) + a 1px `glassBorder`, radius `lg`, **no blur** (the
+/// translucency is pre-baked) and no shadow — bar the lit state's glow.
 ///
 /// It is one state machine with [JeebNavySurfaceCard]: passing
 /// [JeebCardState.selected] *is* the navy card, which re-tones the subtree via
@@ -41,10 +48,10 @@ class JeebOutlinedCard extends StatelessWidget {
     required this.child,
     this.actions,
     this.state = JeebCardState.normal,
-    this.radius = 16,
+    this.radius = JeebRadii.lg,
     this.padding = defaultPadding,
     this.borderColor,
-    this.borderWidth = 1.5,
+    this.borderWidth = 1,
     this.actionsSpacing = 12,
     this.selectedShadow,
     this.selectedRings = const <JeebNavyRing>[],
@@ -57,16 +64,16 @@ class JeebOutlinedCard extends StatelessWidget {
 
   /// The grouped form: rows own their own padding, so [padding] defaults to
   /// zero and [dividers] to true (`1px colorScheme.outlineVariant`, inset 16 on
-  /// both sides — 23 `tpl 53`).
+  /// both sides — R22 `margin: 0 16px`).
   const JeebOutlinedCard.grouped({
     super.key,
     required this.children,
     this.dividers = true,
     this.state = JeebCardState.normal,
-    this.radius = 16,
+    this.radius = JeebRadii.lg,
     this.padding = EdgeInsetsDirectional.zero,
     this.borderColor,
-    this.borderWidth = 1.5,
+    this.borderWidth = 1,
     this.selectedShadow,
     this.selectedRings = const <JeebNavyRing>[],
     this.onTap,
@@ -85,6 +92,10 @@ class JeebOutlinedCard extends StatelessWidget {
   /// The dormant opacity (§5 #3).
   static const double dormantOpacity = 0.75;
 
+  /// R9's lit selection is the one 2px stroke in the card system; the state
+  /// owns the width so a consumer cannot half-apply it.
+  static const double accentSelectedBorderWidth = 2;
+
   /// Card body, for the unnamed constructor.
   final Widget? child;
 
@@ -102,26 +113,25 @@ class JeebOutlinedCard extends StatelessWidget {
   /// 1px inset dividers between [children] (grouped form only).
   final bool dividers;
 
-  /// Which of the three states this card is in.
+  /// Which of the four states this card is in.
   final JeebCardState state;
 
-  /// Corner radius in logical px — 16 (04 08 16 20 23) · 18 (11 22 24) ·
-  /// 20 (10 19). Design-exact px are legal here (§4.4 two-tier rule).
+  /// Corner radius — a [JeebRadii] rung; the board's cards are `lg`.
   final double radius;
 
   /// Content padding. Accepts `EdgeInsetsDirectional`; never hardcode
   /// left/right.
   final EdgeInsetsGeometry padding;
 
-  /// Border ink; defaults to `colorScheme.outline` (`#916F66`). 11's
-  /// recommended offer overrides it to `colorScheme.primary`.
+  /// Border ink; defaults to `glassBorder`. A recommended/lit frame overrides
+  /// it to `jeebRoles.accent`.
   final Color? borderColor;
 
-  /// Border width; 1.5 by default, 2 for 11's recommended offer.
+  /// Border width; 1 by default (sheet §4), 2 for a lit frame.
   final double borderWidth;
 
   /// Shadow used when [state] is selected; defaults to
-  /// [JeebNavySurfaceCard.selectedShadow] (`0 10 22 rgba(11,19,81,.28)`).
+  /// [JeebNavySurfaceCard.selectedShadow].
   final List<BoxShadow>? selectedShadow;
 
   /// Decorative rings for the selected (navy) state. Empty on every board
@@ -143,14 +153,19 @@ class JeebOutlinedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isSelected = state == JeebCardState.selected;
-    final JeebSurfaceToneData tone = isSelected
-        ? JeebSurfaceToneData.navy(context)
-        : JeebSurfaceToneData.light(context);
+    final bool isNavySelected = state == JeebCardState.selected;
+    final bool isAccentSelected = state == JeebCardState.accentSelected;
+    final bool isSelected = isNavySelected || isAccentSelected;
+    final JeebSurfaceToneData tone = switch (state) {
+      JeebCardState.selected => JeebSurfaceToneData.navy(context),
+      JeebCardState.accentSelected =>
+        JeebSurfaceToneData.accentSelected(context),
+      _ => JeebSurfaceToneData.light(context),
+    };
 
     final Widget body = _body(tone);
 
-    if (isSelected) {
+    if (isNavySelected) {
       // One state machine: the selected white card IS the navy card, which
       // publishes the navy tone to the subtree on its own.
       return JeebNavySurfaceCard(
@@ -167,24 +182,33 @@ class JeebOutlinedCard extends StatelessWidget {
       );
     }
 
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
     final BorderRadius borderRadius = BorderRadius.circular(radius);
-    // The board is `box-sizing: border-box`: the 1.5px stroke sits OUTSIDE the
-    // 13/16 padding. Flutter paints a decoration border over the child, so the
-    // stroke width has to be folded into the padding or content creeps 1.5px
-    // under the outline.
+    final double stroke =
+        isAccentSelected ? accentSelectedBorderWidth : borderWidth;
+    // The board is `box-sizing: border-box`: the stroke sits OUTSIDE the 13/16
+    // padding, so its width has to be folded in or content creeps under it.
     final EdgeInsetsGeometry contentPadding =
-        padding.add(EdgeInsets.all(borderWidth));
+        padding.add(EdgeInsets.all(stroke));
 
     Widget surface = DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.surface,
+        color: isAccentSelected
+            ? semantics.accentSelectedFill
+            : semantics.glassFill,
         borderRadius: borderRadius,
         border: Border.all(
-          color: borderColor ?? scheme.outline,
-          width: borderWidth,
+          color: borderColor ??
+              (isAccentSelected
+                  ? context.jeebRoles.accent
+                  : semantics.glassBorder),
+          width: stroke,
         ),
-        // No boxShadow, by design. Outlined cards never carry one.
+        // The lit state is the sole exception to "outlined cards carry no lift":
+        // R9 draws a glow, not a shadow.
+        boxShadow: isAccentSelected ? JeebShadows.accentSelected : null,
       ),
       child: ClipRRect(
         borderRadius: borderRadius,

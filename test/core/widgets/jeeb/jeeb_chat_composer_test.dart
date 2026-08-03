@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_chat_composer.dart';
 
 import 'jeeb_chat_test_harness.dart';
@@ -8,9 +9,10 @@ import 'jeeb_chat_test_harness.dart';
 /// Gates for the single-pill composer (kit §5 #18).
 ///
 /// FAIL-WITHOUT: the mic comes back (B-04), the frozen composer keys stop being
-/// tappable, or the 19px glyph ships with a 19px tap target.
+/// tappable, the 19px glyph ships with a 19px tap target, or the glass pill
+/// regresses into a solid navy box-in-a-box behind a Material-filled field.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
+  final ColorScheme scheme = kChatTheme.colorScheme;
   const Key fieldKey = Key('chat-composer-text-field');
   const Key attachKey = Key('chat-composer-attach-button');
   const Key sendKey = Key('chat-composer-send-button');
@@ -64,7 +66,9 @@ void main() {
       final Icon glyph =
           tester.widget<Icon>(find.byIcon(Icons.image_outlined));
       expect(glyph.size, 19);
-      expect(glyph.color, scheme.onSecondaryContainer);
+      // A secondary action reads muted, like R1's inactive nav icons.
+      expect(glyph.color, JeebMidnight.inkMuted);
+      expect(glyph.color, scheme.onSurfaceVariant);
     });
   });
 
@@ -77,25 +81,37 @@ void main() {
       expect(tester.getSize(find.byType(JeebChatComposer)).height, 72);
     });
 
-    testWidgets('fill and 1px border come from the tokens', (tester) async {
+    testWidgets('the pill is frosted glass, not a navy slab', (tester) async {
       await tester.pumpWidget(composer(onSend: () {}, onAttach: () {}));
 
       final ShapeDecoration decoration =
           chatShapeOf(tester, find.byType(JeebChatComposer));
-      expect(decoration.color, scheme.surfaceContainerHigh);
+      // Token sheet §4 hero glass: white 10% + 1px white 16%.
+      expect(decoration.color, const Color(0x1AFFFFFF));
+      expect(decoration.color, kChatSemantics.glassFillEmphasis);
+      expect(decoration.color, isNot(scheme.surfaceContainerHigh));
       final StadiumBorder shape = decoration.shape as StadiumBorder;
-      expect(shape.side.color, scheme.surfaceContainerHighest);
+      expect(shape.side.color, const Color(0x29FFFFFF));
+      expect(shape.side.color, kChatSemantics.glassBorderStrong);
       expect(shape.side.width, 1);
+      // Pre-baked translucency: the blur budget belongs to the screen.
+      expect(find.byType(BackdropFilter), findsNothing);
     });
 
-    testWidgets('placeholder is body in the periwinkle ink', (tester) async {
+    testWidgets('placeholder is body in the muted ink, no box-in-a-box',
+        (tester) async {
       await tester.pumpWidget(composer(onSend: () {}, onAttach: () {}));
 
       final TextField field = tester.widget<TextField>(find.byKey(fieldKey));
       expect(field.decoration!.hintText, 'Message…');
-      expect(field.decoration!.hintStyle!.fontSize, 13.5);
-      expect(field.decoration!.hintStyle!.color, scheme.onSecondaryContainer);
-      // The pill IS the decoration — the field must paint nothing.
+      // Ramp re-cut §6: body is 14.5.
+      expect(field.decoration!.hintStyle!.fontSize, 14.5);
+      expect(field.decoration!.hintStyle!.color, JeebMidnight.inkMuted);
+      expect(field.style!.color, JeebMidnight.ink);
+      // Theme ruling 4: the caret is periwinkle, never the orange.
+      expect(field.cursorColor, JeebMidnight.inkMuted);
+      expect(field.cursorColor, isNot(JeebMidnight.orange));
+      // The glass pill IS the decoration — the field must paint nothing.
       expect(field.decoration!.border, InputBorder.none);
       expect(field.decoration!.filled, isFalse);
     });
@@ -118,7 +134,7 @@ void main() {
       expect(sends, 1);
     });
 
-    testWidgets('the Ø38 circle keeps its measured size inside the target',
+    testWidgets('the Ø38 orange disc keeps its measured size inside the target',
         (tester) async {
       await tester.pumpWidget(composer(onSend: () {}, onAttach: () {}));
 
@@ -130,6 +146,19 @@ void main() {
       );
       expect(circle, const Size(38, 38));
       expect(tester.widget<Icon>(find.byIcon(Icons.send)).size, 18);
+
+      // R20 draws this disc orange — the composer's one budgeted orange.
+      final BoxDecoration disc = tester.widget<Container>(
+        find.descendant(
+          of: find.byKey(sendKey),
+          matching: find.byType(Container),
+        ),
+      ).decoration! as BoxDecoration;
+      expect(disc.color, JeebMidnight.orange);
+      expect(disc.color, kChatRoles.accent);
+      expect(disc.boxShadow, JeebShadows.ctaOrangeSmall);
+      expect(tester.widget<Icon>(find.byIcon(Icons.send)).color,
+          kChatRoles.onAccent);
 
       // ...and it still lands where the board puts it: 1px border + 8 inset.
       // That is what the pill's `end: 3` buys back after the Ø38 circle is
@@ -159,10 +188,10 @@ void main() {
           matching: find.byType(Container),
         ),
       );
-      expect(
-        (circle.decoration! as BoxDecoration).color,
-        scheme.primary.withValues(alpha: 0.38),
-      );
+      final BoxDecoration disc = circle.decoration! as BoxDecoration;
+      expect(disc.color, kChatRoles.accent.withValues(alpha: 0.38));
+      // A disabled CTA must not keep glowing.
+      expect(disc.boxShadow, isNull);
       expect(
         find.descendant(
           of: find.byKey(sendKey),

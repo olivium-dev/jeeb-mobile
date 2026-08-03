@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
-import 'jeeb_select_chip.dart' show jeebPillRadius;
+
+const BorderRadius _pillRadius =
+    BorderRadius.all(Radius.circular(JeebRadii.pill));
 
 /// The `−1` / `+1` price adjuster (redesign-2026-08 §5 #27).
 ///
-/// Pad `6/12`, radius 999, `1.5px colorScheme.outline`, label `12.5/w700` navy
-/// (17 `tpl 999-1000`). Screen 17 is the only consumer: a pair of these sits in
-/// the trailing slot of `JeebMoneyField`, separated by [spacing].
+/// MIDNIGHT (R17 offer composer): pad `6/12`, radius `pill`, `glassFillEmphasis`
+/// fill + `1px glassBorderStrong`, label `bodySmall`/w700 in `onSurface` white —
+/// **not orange**; a stepper is not a budgeted accent. Screen 17 is the only
+/// consumer: a pair sits in the trailing slot of `JeebMoneyField`, [spacing]
+/// apart.
 ///
 /// Identifiers are frozen as `<screen>_price_decrement` / `<screen>_price_increment`
 /// (17: `offer_composer_price_decrement` / `offer_composer_price_increment`) and
@@ -25,7 +31,7 @@ class JeebStepperPill extends StatelessWidget {
     this.semanticLabel,
     this.isEnabled = true,
     this.padding = defaultPadding,
-    this.borderWidth = 1.5,
+    this.borderWidth = 1,
   });
 
   /// `6/12` (17 `tpl 999`).
@@ -62,39 +68,42 @@ class JeebStepperPill extends StatelessWidget {
   /// Content padding. Accepts `EdgeInsetsDirectional`; never hardcode left/right.
   final EdgeInsetsGeometry padding;
 
-  /// Outline width (`1.5`).
+  /// Glass border width (`1`).
   final double borderWidth;
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
 
     Widget pill = DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: jeebPillRadius,
-        border: Border.all(color: scheme.outline, width: borderWidth),
+        color: semantics.glassFillEmphasis,
+        borderRadius: _pillRadius,
+        border:
+            Border.all(color: semantics.glassBorderStrong, width: borderWidth),
       ),
       child: ClipRRect(
-        borderRadius: jeebPillRadius,
+        borderRadius: _pillRadius,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             onTap: isEnabled ? onTap : null,
             child: Padding(
-              // The board is `box-sizing: border-box`, so the 1.5px stroke sits
+              // The board is `box-sizing: border-box`, so the stroke sits
               // outside the 6/12 padding; Flutter paints the border over the
-              // child, so the stroke has to be folded into the inset. Same
-              // correction the card primitives apply.
+              // child, so it has to be folded into the inset. Same correction
+              // the card primitives apply.
               padding: padding.add(EdgeInsets.all(borderWidth)),
               child: Text(
                 label,
-                // 12.5/w700: the ramp's nearest size is `bodySmall` (12/w600),
-                // so both the size and the weight are design-exact overrides —
-                // legal inside the kit (§4.4 two-tier rule).
+                // 12.5/w700 — `bodySmall` is exactly 12.5, so only the weight
+                // is an override.
                 style: context.jeebText.bodySmall.copyWith(
-                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: scheme.primary,
+                  color: scheme.onSurface,
                 ),
                 textAlign: TextAlign.center,
               ),

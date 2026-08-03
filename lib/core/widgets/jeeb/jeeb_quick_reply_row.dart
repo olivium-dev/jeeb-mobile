@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 
 /// One canned reply in a [JeebQuickReplyRow].
@@ -32,8 +33,8 @@ class JeebQuickReply {
 
 /// The quick-reply row (redesign-2026-08 §5 #26) — net new on screen 21.
 ///
-/// Horizontally scrollable outline pills: pad `8/13`, `1.5px colorScheme.outline`,
-/// 12/w600 navy ink, gap 8, `nowrap`, container pad `10/24/0`.
+/// Horizontally scrollable rest-glass pills: pad `8/13`, `glassFill` + 1px
+/// `glassBorder`, 12.5/w600 ink, gap 8, `nowrap`, container pad `10/24/0`.
 ///
 /// **Never force-LTR.** The row deliberately mixes an Arabic pill into an
 /// English thread, so it inherits the ambient [Directionality] and lets each
@@ -59,8 +60,8 @@ class JeebQuickReplyRow extends StatelessWidget {
   static const EdgeInsetsGeometry pillPadding =
       EdgeInsetsDirectional.symmetric(horizontal: 13, vertical: 8);
 
-  /// `1.5px solid var(--jeeb-brown-outline)` (`tpl 1273`).
-  static const double borderWidth = 1.5;
+  /// 1px, every glass surface (token sheet §4) — the light era drew 1.5.
+  static const double borderWidth = 1;
 
   /// `gap: 8` (`tpl 1272`).
   static const double gap = 8;
@@ -83,12 +84,11 @@ class JeebQuickReplyRow extends StatelessWidget {
   /// Accessibility label for the row ("Quick replies").
   final String? semanticLabel;
 
-  /// 12/w600 navy — `jeebText.bodySmall` is exactly 12/w600, so no size
-  /// override. R2: quick replies use the **navy** ink, not the brown unselected
-  /// ink the filter/sort chips use.
+  /// `jeebText.bodySmall` (12.5/w600) in the primary ink — a glass pill takes
+  /// the white ink; `colorScheme.primary` is orange and out of budget here.
   static TextStyle labelStyleOf(BuildContext context) =>
       context.jeebText.bodySmall
-          .copyWith(color: Theme.of(context).colorScheme.primary);
+          .copyWith(color: Theme.of(context).colorScheme.onSurface);
 
   @override
   Widget build(BuildContext context) {
@@ -126,17 +126,20 @@ class _QuickReplyPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
 
     Widget pill = Container(
-      // border-box: the 1.5px stroke sits outside the 8/13 inset. `Container`
+      // border-box: the 1px stroke sits outside the 8/13 inset. `Container`
       // adds `decoration.padding` (the border dimensions) itself, so the
       // correction lands without double-counting it here.
       padding: JeebQuickReplyRow.pillPadding,
       decoration: ShapeDecoration(
+        color: semantics.glassFill,
         shape: StadiumBorder(
           side: BorderSide(
-            color: scheme.outline,
+            color: semantics.glassBorder,
             width: JeebQuickReplyRow.borderWidth,
           ),
         ),

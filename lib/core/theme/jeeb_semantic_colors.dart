@@ -22,6 +22,10 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
     required this.glassFillPressed,
     required this.glassBorder,
     required this.glassBorderStrong,
+    required this.glassBorderVivid,
+    required this.accentSelectedFill,
+    required this.bubbleOutFill,
+    required this.bubbleOutBorder,
   });
 
   /// Named `.light()` for API stability only.
@@ -47,6 +51,10 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
         glassFillPressed: JeebMidnight.glassFillPressed,
         glassBorder: JeebMidnight.glassBorder,
         glassBorderStrong: JeebMidnight.glassBorderStrong,
+        glassBorderVivid: JeebMidnight.glassBorderVivid,
+        accentSelectedFill: JeebMidnight.accentSelectedFill,
+        bubbleOutFill: JeebMidnight.bubbleOutFill,
+        bubbleOutBorder: JeebMidnight.bubbleOutBorder,
       );
 
   /// `#8A93D8`, AA as body text on every navy. Supersedes `#777FC0`/`#9DA3E0`.
@@ -94,6 +102,19 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
   /// White 16% — hero capsule border.
   final Color glassBorderStrong;
 
+  /// White 22% — the board's .20–.25 cluster: page-dot inactive, radio ring.
+  final Color glassBorderVivid;
+
+  /// Orange 20% — R9's selected card fill. Pair with a 2px accent border and
+  /// `JeebShadows.accentSelected`; never use it as ink.
+  final Color accentSelectedFill;
+
+  /// Orange 24% — R20's outgoing bubble fill.
+  final Color bubbleOutFill;
+
+  /// Orange 45% — R20's outgoing bubble 1px border.
+  final Color bubbleOutBorder;
+
   @override
   JeebSemanticColors copyWith({
     Color? mutedText,
@@ -111,6 +132,10 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
     Color? glassFillPressed,
     Color? glassBorder,
     Color? glassBorderStrong,
+    Color? glassBorderVivid,
+    Color? accentSelectedFill,
+    Color? bubbleOutFill,
+    Color? bubbleOutBorder,
   }) {
     return JeebSemanticColors(
       mutedText: mutedText ?? this.mutedText,
@@ -128,6 +153,10 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
       glassFillPressed: glassFillPressed ?? this.glassFillPressed,
       glassBorder: glassBorder ?? this.glassBorder,
       glassBorderStrong: glassBorderStrong ?? this.glassBorderStrong,
+      glassBorderVivid: glassBorderVivid ?? this.glassBorderVivid,
+      accentSelectedFill: accentSelectedFill ?? this.accentSelectedFill,
+      bubbleOutFill: bubbleOutFill ?? this.bubbleOutFill,
+      bubbleOutBorder: bubbleOutBorder ?? this.bubbleOutBorder,
     );
   }
 
@@ -153,6 +182,12 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
       glassBorder: Color.lerp(glassBorder, other.glassBorder, t)!,
       glassBorderStrong:
           Color.lerp(glassBorderStrong, other.glassBorderStrong, t)!,
+      glassBorderVivid:
+          Color.lerp(glassBorderVivid, other.glassBorderVivid, t)!,
+      accentSelectedFill:
+          Color.lerp(accentSelectedFill, other.accentSelectedFill, t)!,
+      bubbleOutFill: Color.lerp(bubbleOutFill, other.bubbleOutFill, t)!,
+      bubbleOutBorder: Color.lerp(bubbleOutBorder, other.bubbleOutBorder, t)!,
     );
   }
 }

@@ -15,7 +15,7 @@ Widget wrapCode(
   double textScale = 1,
 }) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Builder(
       builder: (BuildContext context) => MediaQuery(
         data: MediaQuery.of(context)
@@ -31,8 +31,8 @@ Widget wrapCode(
   );
 }
 
-/// A harness themed with bare `ThemeData.light()` — i.e. **without** the Jeeb
-/// theme extensions registered.
+/// A harness themed with a bare `ThemeData` — i.e. **without** the Jeeb theme
+/// extensions registered.
 ///
 /// `wrapForTest` in the feature suites does exactly this, so every kit widget
 /// has to survive a missing `JeebTextStyles`/`JeebColorRoles`. The accessors

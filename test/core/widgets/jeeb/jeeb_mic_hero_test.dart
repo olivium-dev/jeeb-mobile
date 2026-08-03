@@ -4,9 +4,13 @@ import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_mic_hero.dart';
 
+/// MIDNIGHT token sheet §1/§7 — the expected values, not a read-back.
+const Color _orange = Color(0xFFD73B00);
+const Color _white = Color(0xFFFFFFFF);
+
 Widget _wrap(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(body: Center(child: child)),
@@ -39,7 +43,7 @@ Finder _buttonSemantics() {
 
 void main() {
   group('JeebMicHero disc', () {
-    testWidgets('Ø56 paints the accent fill and the measured compact glow',
+    testWidgets('Ø56 paints the accent fill and the ctaOrange rest glow',
         (WidgetTester tester) async {
       late Color accent;
       await tester.pumpWidget(
@@ -53,39 +57,47 @@ void main() {
         ),
       );
 
+      // The orange disc is tile-drawn (R1) and inside the orange budget.
       final BoxDecoration disc = _discDecoration(tester);
+      expect(disc.color, _orange);
       expect(disc.color, accent);
       expect(disc.shape, BoxShape.circle);
+      expect(tester.widget<Icon>(find.byIcon(Icons.mic)).color, _white);
 
-      // 0 0 0 6 rgba(215,59,0,.22) + 0 10 22 rgba(215,59,0,.45) — 04 tpl 169.
+      // Ring 0 0 0 6 @ .22 + §7 ctaOrange `0 14 32 rgba(215,59,0,.45)`.
       final List<BoxShadow> glow = disc.boxShadow!;
       expect(glow.length, 2);
       expect(glow[0].spreadRadius, 6);
       expect(glow[0].blurRadius, 0);
-      expect(glow[0].color, accent.withValues(alpha: 0.22));
-      expect(glow[1].offset, const Offset(0, 10));
-      expect(glow[1].blurRadius, 22);
-      expect(glow[1].color, accent.withValues(alpha: 0.45));
+      expect(glow[0].color, _orange.withValues(alpha: 0.22));
+      expect(glow[1].offset, const Offset(0, 14));
+      expect(glow[1].blurRadius, 32);
+      expect(glow[1].color, _orange.withValues(alpha: 0.45));
 
       expect(tester.getSize(find.byType(JeebMicHero)),
           const Size(JeebMicHero.sizeCompact, JeebMicHero.sizeCompact));
     });
 
-    testWidgets('Ø118 takes the large glow and the Ø128 hero takes its own',
+    testWidgets('Ø118 rests on ctaOrange, the Ø128 hero on micActive',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(const JeebMicHero.decorative(size: JeebMicHero.sizeLarge)),
       );
       List<BoxShadow> glow = _discDecoration(tester).boxShadow!;
       expect(glow[0].spreadRadius, 10);
-      expect(glow[1].offset, const Offset(0, 18));
-      expect(glow[1].blurRadius, 40);
+      expect(glow[0].color, _orange.withValues(alpha: 0.18));
+      expect(glow[1].offset, const Offset(0, 14));
+      expect(glow[1].blurRadius, 32);
+      expect(glow[1].color, _orange.withValues(alpha: 0.45));
 
+      // §7 micActive: `0 0 0 10 @ .2` + `0 20 46 rgba(215,59,0,.55)`.
       await tester.pumpWidget(_wrap(const JeebMicHero()));
       glow = _discDecoration(tester).boxShadow!;
-      expect(glow[0].spreadRadius, 9);
-      expect(glow[1].offset, const Offset(0, 16));
-      expect(glow[1].blurRadius, 34);
+      expect(glow[0].spreadRadius, 10);
+      expect(glow[0].color, _orange.withValues(alpha: 0.20));
+      expect(glow[1].offset, const Offset(0, 20));
+      expect(glow[1].blurRadius, 46);
+      expect(glow[1].color, _orange.withValues(alpha: 0.55));
     });
 
     testWidgets('an explicit glow beats the size-matched one',
@@ -404,7 +416,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: AppTheme.light(),
+          theme: AppTheme.midnight(),
           home: const MediaQuery(
             data: MediaQueryData(textScaler: TextScaler.linear(2)),
             child: Directionality(

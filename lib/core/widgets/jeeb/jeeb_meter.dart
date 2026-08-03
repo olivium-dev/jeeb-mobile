@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_shadows.dart';
 import 'jeeb_surface_tone.dart';
 
 /// Which of the three realized meter forms a [JeebMeter] is.
@@ -9,17 +12,17 @@ enum _JeebMeterKind { bar, scrubber, segmented }
 
 /// The rounded progress track (redesign-2026-08 §5 #20).
 ///
-/// One track shape, three realized forms — all `r9`, all reading their ink
-/// from [JeebSurfaceTone] so a meter dropped onto a selected (navy) card
-/// inverts without the consumer asking:
+/// One track shape, three realized forms — all [JeebRadii.sm], all reading
+/// their ink from [JeebSurfaceTone] so a meter dropped onto a selected (navy)
+/// card inverts without the consumer asking:
 ///
 ///  * **[JeebMeter]** — 11's offer-window countdown: `70×5`, accent fill over a
-///    `surfaceContainerHighest` track (`11 tpl 658/659`, drawn at 65%).
+///    track, drawn at 65% (Midnight board R11: `70×5 r9`).
 ///  * **[JeebMeter.scrubber]** — 06's replay scrubber: full-width `h5` track
-///    plus a Ø14 knob with an accent-tinted `0 2 6` shadow (`06 tpl 315-317`),
-///    optionally seekable.
+///    plus a Ø14 **white** knob carrying [JeebShadows.overlay] (Midnight board
+///    R6: `0 2px 8px rgba(0,0,0,.4)`), optionally seekable.
 ///  * **[JeebMeter.segmented]** — 22's two-step KYC progress: n `flex:1`
-///    segments, `h6`, gap 8 (`22 tpl 1304-1306`).
+///    segments, `h6`, gap 8 (Midnight board R22 confirms both).
 ///
 /// [value] is nullable everywhere and `null` means **track only**. That is the
 /// honest degraded state for 11, whose window total is session-observed and
@@ -35,7 +38,7 @@ class JeebMeter extends StatelessWidget {
     this.value,
     this.width = 70,
     this.height = 5,
-    this.radius = 9,
+    this.radius = JeebRadii.sm,
     this.trackColor,
     this.fillColor,
     this.identifier,
@@ -63,7 +66,7 @@ class JeebMeter extends StatelessWidget {
     this.value,
     this.width = double.infinity,
     this.height = 5,
-    this.radius = 9,
+    this.radius = JeebRadii.sm,
     this.knobSize = 14,
     this.onSeek,
     this.trackColor,
@@ -84,7 +87,7 @@ class JeebMeter extends StatelessWidget {
     required this.filled,
     this.height = 6,
     this.gap = 8,
-    this.radius = 9,
+    this.radius = JeebRadii.sm,
     this.trackColor,
     this.fillColor,
     this.identifier,
@@ -95,9 +98,8 @@ class JeebMeter extends StatelessWidget {
         knobSize = 0,
         onSeek = null;
 
-  /// Alpha applied to the fill ink for the scrubber knob's shadow
-  /// (`rgba(215,59,0,.4)` — 06 `tpl 317`). Derived from the fill rather than
-  /// hardcoded, so it stays correct when the tone inverts on navy.
+  /// Alpha of the scrubber knob's drop shadow. MIDNIGHT re-points that shadow
+  /// to [JeebShadows.overlay] — black at this same `.4`, not the old fill tint.
   static const double knobShadowOpacity = 0.4;
 
   /// Progress in `0..1`, clamped. `null` renders the track with no fill.
@@ -111,7 +113,8 @@ class JeebMeter extends StatelessWidget {
   /// Track height: 5 on 06/11, 6 on 22.
   final double height;
 
-  /// Corner radius of both the track and the fill (9 everywhere on the board).
+  /// Corner radius of both the track and the fill — [JeebRadii.sm] everywhere
+  /// on the board.
   final double radius;
 
   /// Knob diameter, scrubber only.
@@ -220,7 +223,7 @@ class JeebMeter extends StatelessWidget {
             Align(
               // -1 = start edge, 1 = end edge; AlignmentDirectional mirrors it.
               alignment: AlignmentDirectional(fraction * 2 - 1, 0),
-              child: _knob(fill),
+              child: _knob(context),
             ),
         ],
       ),
@@ -240,20 +243,16 @@ class JeebMeter extends StatelessWidget {
     );
   }
 
-  Widget _knob(Color fill) => SizedBox(
+  /// The knob is white on BOTH tones — it rides on the accent fill, so it is
+  /// `onAccent`, and the board floats it on a black overlay shadow.
+  Widget _knob(BuildContext context) => SizedBox(
         width: knobSize,
         height: knobSize,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: fill,
+            color: context.jeebRoles.onAccent,
             shape: BoxShape.circle,
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: fill.withValues(alpha: knobShadowOpacity),
-                offset: const Offset(0, 2),
-                blurRadius: 6,
-              ),
-            ],
+            boxShadow: JeebShadows.overlay,
           ),
         ),
       );

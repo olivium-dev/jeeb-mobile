@@ -45,6 +45,7 @@ class JeebMidnight {
   static const Color glassFillPressed = Color(0x24FFFFFF);
   static const Color glassBorder = Color(0x1FFFFFFF);
   static const Color glassBorderStrong = Color(0x29FFFFFF);
+  static const Color glassBorderVivid = Color(0x38FFFFFF);
 
   static const Color outline = Color(0x24FFFFFF);
   static const Color outlineVariant = Color(0x1FFFFFFF);
@@ -52,5 +53,12 @@ class JeebMidnight {
   static const Color readTick = Color(0xFF20F0FF);
   static const Color accentTint = Color.fromRGBO(215, 59, 0, 0.12);
   static const Color accentRing = Color.fromRGBO(215, 59, 0, 0.30);
+
+  /// R9's selected tier row (`tpl 530`) and R20's outgoing bubble — the two
+  /// places a tinted orange is a *fill* rather than a stroke or a badge.
+  static const Color accentSelectedFill = Color.fromRGBO(215, 59, 0, 0.20);
+  static const Color bubbleOutFill = Color.fromRGBO(215, 59, 0, 0.24);
+  static const Color bubbleOutBorder = Color.fromRGBO(215, 59, 0, 0.45);
+
   static const Color divider = Color.fromRGBO(138, 147, 216, 0.12);
 }

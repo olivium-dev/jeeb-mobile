@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../accessibility/accessibility.dart';
+import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 
 /// What 04 and 16 have **instead of** a top bar (redesign-2026-08 §5 #23).
 ///
-/// `[Ø46 avatar] [eyebrow 13/w600 muted / name 19/w700 navy] [trailing]`.
-/// The trailing is either a 24px navy glyph (04's bell) or a rating pill
-/// (`surfaceContainerHigh`, `★ 4.8`) — and **the star inherits navy**: it is
-/// not `omdsColorTokens.starRatingColor`, because §4.1 rations the one warm
-/// ink on this board and this pill is not a rating *stat*.
+/// `[Ø46 avatar] [eyebrow bodySmall muted / name titleProminent white] [trailing]`
+/// — R1's header. The trailing is either a 24px white glyph (04's bell) or a
+/// rating pill (solid `surfaceContainerHigh` + white label, STUDY kit ruling 4)
+/// — and **the star stays board ink**: not the amber star token, because §4.1
+/// rations the warm ink and this pill is not a rating *stat*.
 ///
 /// Screen 19 is listed as a consumer by §5 #23 and 02 §3.2; measured, it is
 /// not one (`19-earnings.html:15` is a bare 20/w700 title). Its own reviewed
@@ -52,7 +53,7 @@ class JeebProfileHeader extends StatelessWidget {
   /// 04's bell is a 24px navy glyph.
   static const double trailingGlyphSize = 24;
 
-  /// The greeting/name line — 19/w700 navy, one line, ellipsized.
+  /// The greeting/name line — `titleProminent` white, one line, ellipsized.
   final String name;
 
   /// The muted line above [name] ("Good morning", "Jeeber dashboard").
@@ -159,10 +160,9 @@ class JeebProfileHeader extends StatelessWidget {
 
     final Widget nameLine = Text(
       name,
-      // 19/w700: `h2` is 20/w700, a full px away, so the design-exact size
-      // rides on the token rather than replacing it (§4.4 two-tier rule —
-      // legal inside the kit, banned in lib/features).
-      style: text.h2.copyWith(fontSize: 19, color: scheme.primary),
+      // R1 measures ~17/w700 white: that IS `titleProminent`, so the pass-1
+      // `fontSize: 19` override goes away rather than riding on `h2`.
+      style: text.titleProminent.copyWith(color: scheme.onSurface),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
@@ -177,9 +177,9 @@ class JeebProfileHeader extends StatelessWidget {
       children: <Widget>[
         Text(
           eyebrow!,
-          // 13/w600 on `bodySmall`'s 12/w600.
-          style: text.bodySmall
-              .copyWith(fontSize: 13, color: semantics.mutedText),
+          // The re-cut `bodySmall` is 12.5/w600 — the pass-1 13px override is
+          // inside the ±board tolerance, so the token carries it now.
+          style: text.bodySmall.copyWith(color: semantics.mutedText),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -193,7 +193,7 @@ class JeebProfileHeader extends StatelessWidget {
       return IconTheme.merge(
         data: IconThemeData(
           size: trailingGlyphSize,
-          color: Theme.of(context).colorScheme.primary,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
         child: trailing!,
       );
@@ -209,7 +209,7 @@ class JeebProfileHeader extends StatelessWidget {
     final Widget pill = DecoratedBox(
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHigh,
-        borderRadius: const BorderRadius.all(Radius.circular(999)),
+        borderRadius: const BorderRadius.all(Radius.circular(JeebRadii.pill)),
       ),
       child: Padding(
         padding: const EdgeInsetsDirectional.symmetric(
@@ -219,15 +219,15 @@ class JeebProfileHeader extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            // Navy, deliberately. Tinting this yellow is the §4.1 defect.
-            Icon(Icons.star_rounded, size: 13, color: scheme.primary),
+            // Board ink, deliberately. Tinting this amber is the §4.1 defect.
+            Icon(Icons.star_rounded, size: 13, color: scheme.onSurface),
             const SizedBox(width: 4),
             Text(
               ratingLabel!,
-              // 12/w700 on `bodySmall`'s 12/w600 — same size, one weight step.
+              // `bodySmall` one weight step up — same size, w700.
               style: text.bodySmall.copyWith(
                 fontWeight: FontWeight.w700,
-                color: scheme.primary,
+                color: scheme.onSurface,
               ),
             ),
           ],

@@ -12,7 +12,7 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_surface_tone.dart';
 /// on one file.
 Widget wrapRemainder(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(

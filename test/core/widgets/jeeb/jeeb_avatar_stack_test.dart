@@ -72,6 +72,17 @@ void main() {
           JeebAvatarFill.accent,
         ],
       );
+      // R1's awake card: navy / periwinkle / orange, MIDNIGHT token sheet §1–§3.
+      expect(
+        tester
+            .widgetList<OmdsProfileAvatar>(find.byType(OmdsProfileAvatar))
+            .map((OmdsProfileAvatar a) => a.backgroundColor),
+        <Color>[
+          const Color(0xFF10175E),
+          const Color(0xFF8A93D8),
+          const Color(0xFFD73B00),
+        ],
+      );
     });
 
     testWidgets('the rotation wraps past three', (tester) async {

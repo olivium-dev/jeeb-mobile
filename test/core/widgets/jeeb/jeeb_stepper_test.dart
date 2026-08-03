@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_stepper.dart';
@@ -32,7 +33,7 @@ Widget _wrap(
   double textScale = 1,
 }) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Builder(
       builder: (BuildContext context) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
@@ -63,16 +64,27 @@ Iterable<BoxDecoration> _rules(WidgetTester tester) => _decorations(tester)
     .where((BoxDecoration d) => d.shape == BoxShape.rectangle)
     .where((BoxDecoration d) => d.borderRadius != null);
 
-ColorScheme get _scheme => AppTheme.light().colorScheme;
+ColorScheme get _scheme => AppTheme.midnight().colorScheme;
 
-Color get _accent =>
-    (AppTheme.light().extension<JeebColorRoles>() ?? JeebColorRoles.light())
-        .accent;
+JeebColorRoles get _roles =>
+    AppTheme.midnight().extension<JeebColorRoles>() ??
+    JeebColorRoles.midnight();
 
-Color get _mutedText =>
-    (AppTheme.light().extension<JeebSemanticColors>() ??
-            JeebSemanticColors.light())
-        .mutedText;
+JeebSemanticColors get _semantics =>
+    AppTheme.midnight().extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
+
+Color get _accent => _roles.accent;
+
+Color get _mutedText => _semantics.mutedText;
+
+/// Token sheet §1/§3 — the expected Midnight values, spelled out rather than
+/// read back off the implementation.
+const Color _periwinkle = Color(0xFF8A93D8);
+const Color _pageNavy = Color(0xFF070C33);
+const Color _orange = Color(0xFFD73B00);
+const Color _glassFillPressed = Color(0x24FFFFFF);
+const Color _glassBorderStrong = Color(0x29FFFFFF);
 
 TextStyle _labelStyleOf(WidgetTester tester, String label) =>
     tester.widget<Text>(find.text(label)).style!;
@@ -156,7 +168,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('done nodes are navy discs with a 14px check', (
+    testWidgets('done nodes are periwinkle discs with a 14px navy check', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -170,22 +182,24 @@ void main() {
       );
 
       final List<BoxDecoration> done = _circles(tester)
-          .where((BoxDecoration d) => d.color == _scheme.primary)
+          .where((BoxDecoration d) => d.color == _scheme.secondary)
           .toList();
       expect(done.length, 2);
+      expect(done.first.color, _periwinkle);
       expect(done.first.border, isNull);
 
       expect(find.byIcon(Icons.check), findsNWidgets(2));
       final Icon icon = tester.widget<Icon>(find.byIcon(Icons.check).first);
       expect(icon.size, JeebStepper.checkSize);
-      expect(icon.color, _scheme.onPrimary);
+      expect(icon.color, _scheme.onSecondary);
+      expect(icon.color, _pageNavy);
       expect(
         tester.getSize(find.byIcon(Icons.check).first),
         const Size.square(JeebStepper.nodeSize),
       );
     });
 
-    testWidgets('the active node is accent + stepGlow + a Ø8 white core', (
+    testWidgets('the active node is accent + glowRest + a Ø8 white core', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -202,17 +216,18 @@ void main() {
           .where((BoxDecoration d) => d.color == _accent)
           .toList();
       expect(active.length, 1);
+      expect(active.single.color, _orange);
       // Resting (pulseActive defaults to false) it is byte-identical to the
-      // Wave 0 token — the kit never restates `rgba(215,59,0,.18) 0 0 0 5`.
-      expect(active.single.boxShadow, JeebShadows.stepGlow);
+      // Midnight token — the kit never restates `rgba(215,59,0,.18) 0 0 30`.
+      expect(active.single.boxShadow, JeebShadows.glowRest);
 
       final List<BoxDecoration> cores = _circles(tester)
-          .where((BoxDecoration d) => d.color == _scheme.onPrimary)
+          .where((BoxDecoration d) => d.color == _roles.onAccent)
           .toList();
       expect(cores.length, 1, reason: 'the Ø8 core is the only white circle');
     });
 
-    testWidgets('pending nodes are a 2px surfaceContainerHighest ring, no fill',
+    testWidgets('pending nodes are a 2px glassBorderStrong ring, no fill',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -230,11 +245,12 @@ void main() {
       expect(pending.length, 1);
       expect(pending.single.color, isNull);
       final BorderSide side = (pending.single.border! as Border).top;
-      expect(side.color, _scheme.surfaceContainerHighest);
+      expect(side.color, _semantics.glassBorderStrong);
+      expect(side.color, _glassBorderStrong);
       expect(side.width, JeebStepper.pendingRingWidth);
     });
 
-    testWidgets('connector i is navy exactly while step i-1 is done', (
+    testWidgets('connector i is periwinkle exactly while step i-1 is done', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -249,9 +265,9 @@ void main() {
 
       final List<BoxDecoration> rules = _rules(tester).toList();
       expect(rules.length, 3);
-      expect(rules[0].color, _scheme.primary);
-      expect(rules[1].color, _scheme.primary);
-      expect(rules[2].color, _scheme.surfaceContainerHighest);
+      expect(rules[0].color, _scheme.secondary);
+      expect(rules[1].color, _periwinkle);
+      expect(rules[2].color, _glassFillPressed);
       expect(
         rules.first.borderRadius,
         BorderRadius.circular(JeebStepper.connectorRadius),
@@ -271,17 +287,22 @@ void main() {
         ),
       );
 
+      // Board: only the ACTIVE label is orange; done/pending both read #8A93D8
+      // and separate on weight alone.
       final TextStyle done = _labelStyleOf(tester, 'Ordered');
-      expect(done.color, _scheme.primary);
+      expect(done.color, _scheme.secondary);
+      expect(done.color, _periwinkle);
       expect(done.fontWeight, FontWeight.w700);
       expect(done.fontSize, 10.5);
 
       final TextStyle active = _labelStyleOf(tester, 'In transit');
       expect(active.color, _accent);
+      expect(active.color, _orange);
       expect(active.fontWeight, FontWeight.w800);
 
       final TextStyle pending = _labelStyleOf(tester, 'Delivered');
       expect(pending.color, _mutedText);
+      expect(pending.color, _periwinkle);
       expect(pending.fontWeight, FontWeight.w600);
     });
 
@@ -313,7 +334,7 @@ void main() {
       );
       expect(find.byIcon(Icons.check), findsNWidgets(4));
       expect(
-        _rules(tester).where((BoxDecoration d) => d.color == _scheme.primary)
+        _rules(tester).where((BoxDecoration d) => d.color == _scheme.secondary)
             .length,
         3,
       );
@@ -393,7 +414,7 @@ void main() {
           .single
           .spreadRadius;
 
-      final double resting = JeebShadows.stepGlow.first.spreadRadius;
+      final double resting = JeebShadows.glowRest.first.spreadRadius;
       await tester.pump(JeebStepper.pulsePeriod ~/ 2);
       expect(spread(), greaterThan(resting));
 
@@ -423,7 +444,7 @@ void main() {
           _circles(tester)
               .firstWhere((BoxDecoration d) => d.color == _accent)
               .boxShadow,
-          JeebShadows.stepGlow,
+          JeebShadows.glowRest,
         );
         await tester.pump(JeebStepper.pulsePeriod ~/ 3);
       }
@@ -462,7 +483,7 @@ void main() {
             .boxShadow!
             .single
             .spreadRadius,
-        greaterThan(JeebShadows.stepGlow.first.spreadRadius),
+        greaterThan(JeebShadows.glowRest.first.spreadRadius),
       );
       await tester.pumpAndSettle();
     });
@@ -478,18 +499,19 @@ void main() {
 
       final List<BoxDecoration> bars = _rules(tester).toList();
       expect(bars.length, 5);
-      expect(bars[0].color, _scheme.primary);
-      expect(bars[1].color, _scheme.primary);
-      expect(bars[2].color, _scheme.primary);
-      expect(bars[3].color, _accent);
-      expect(bars[4].color, _scheme.surfaceContainerHighest);
+      expect(bars[0].color, _scheme.secondary);
+      expect(bars[1].color, _periwinkle);
+      expect(bars[2].color, _periwinkle);
+      expect(bars[3].color, _orange);
+      expect(bars[4].color, _semantics.glassFillPressed);
+      expect(bars[4].color, _glassFillPressed);
       expect(
         bars.first.borderRadius,
         BorderRadius.circular(JeebStepper.barRadius),
       );
     });
 
-    testWidgets('the active segment carries the 3px accent ring, not stepGlow',
+    testWidgets('the active segment carries glowDot, not the node halo',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(const JeebStepper.bars(stepCount: 4, currentIndex: 3)),
@@ -497,13 +519,10 @@ void main() {
 
       final BoxDecoration active =
           _rules(tester).firstWhere((BoxDecoration d) => d.color == _accent);
-      expect(active.boxShadow!.single.spreadRadius, JeebStepper.barGlowSpread);
-      // Same ink as the Wave 0 token, a spread sized for a 5px bar.
-      expect(
-        active.boxShadow!.single.color,
-        JeebShadows.stepGlow.first.color,
-      );
-      expect(active.boxShadow, isNot(JeebShadows.stepGlow));
+      // Board `0 0 14px rgba(215,59,0,.7)` snaps to the live-dot glow.
+      expect(active.boxShadow, JeebShadows.glowDot);
+      expect(active.boxShadow, JeebStepper.barGlow);
+      expect(active.boxShadow, isNot(JeebShadows.glowRest));
 
       final List<BoxDecoration> quiet =
           _rules(tester).where((BoxDecoration d) => d.color != _accent).toList();
@@ -585,6 +604,17 @@ void main() {
     });
   });
 
+  group('JeebStepper — Midnight metrics', () {
+    test('radii and segment geometry are the board values', () {
+      expect(JeebStepper.barRadius, JeebRadii.sm);
+      expect(JeebStepper.connectorRadius, JeebRadii.sm);
+      expect(JeebRadii.sm, 9);
+      expect(JeebStepper.barHeight, 5);
+      expect(JeebStepper.barGap, 6);
+      expect(JeebStepper.nodeSize, 26);
+    });
+  });
+
   group('JeebStepper — RTL', () {
     testWidgets('node progress reads start→end in both directions', (
       WidgetTester tester,
@@ -621,7 +651,7 @@ void main() {
       expect(rtl[3], moreOrLessEquals(ltr[0], epsilon: 0.01));
     });
 
-    testWidgets('the navy connectors stay on the START side under RTL', (
+    testWidgets('the passed connectors stay on the START side under RTL', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -637,8 +667,8 @@ void main() {
 
       // Painted order is still index order; geometry is what mirrors.
       final List<BoxDecoration> rules = _rules(tester).toList();
-      expect(rules[0].color, _scheme.primary);
-      expect(rules[2].color, _scheme.surfaceContainerHighest);
+      expect(rules[0].color, _scheme.secondary);
+      expect(rules[2].color, _semantics.glassFillPressed);
 
       final Rect first = tester.getRect(find.text('Ordered'));
       final Rect last = tester.getRect(find.text('Delivered'));

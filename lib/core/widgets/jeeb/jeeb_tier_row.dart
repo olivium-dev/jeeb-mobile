@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 import 'jeeb_outlined_card.dart';
 import 'jeeb_price_meter.dart';
-import 'jeeb_select_chip.dart' show jeebPillRadius;
 import 'jeeb_surface_tone.dart';
 import 'jeeb_tier_chip.dart';
+
+const BorderRadius _pillRadius =
+    BorderRadius.all(Radius.circular(JeebRadii.pill));
 
 /// Which of the two tier rows is being drawn.
 enum JeebTierRowVariant {
@@ -28,9 +31,9 @@ enum JeebTierRowVariant {
 /// plan explicitly rejects.
 ///
 /// Both sit on [JeebOutlinedCard], so selection is the one state machine shared
-/// with every other card: a **fill swap** to navy plus
-/// `0 10 22 rgba(11,19,81,.28)`, never a thicker border (07 `tpl 356`,
-/// 08 `tpl 451`). Both inherit the border-box padding correction and the
+/// with every other card — here [JeebCardState.accentSelected], R9's lit form:
+/// orange-20% fill, 2px accent border, `0 0 24 rgba(215,59,0,.25)` glow
+/// (`tpl 530`). Both inherit the border-box padding correction and the
 /// `JeebSurfaceTone` re-tone, so the SLA chip and the price meter invert on the
 /// selected card without either screen asking.
 ///
@@ -47,7 +50,7 @@ enum JeebTierRowVariant {
 class JeebTierRow extends StatelessWidget {
   /// Screen 07's radio row.
   ///
-  /// Layout `tpl 356-363`: r16, pad `14/16`, gap 12 — 20px emoji · title
+  /// R9-measured: `JeebRadii.lg`, pad `14/16`, gap 12 — 20px emoji · title
   /// `16/w700` with an optional [badge] 8px after it · [summary] `12/w500`,
   /// one line, ellipsized · trailing Ø22 indicator.
   const JeebTierRow.compact({
@@ -61,7 +64,7 @@ class JeebTierRow extends StatelessWidget {
     required this.semanticLabel,
     required this.selectedHint,
     this.badge,
-    this.radius = 16,
+    this.radius = JeebRadii.lg,
     this.padding = compactPadding,
   })  : variant = JeebTierRowVariant.compact,
         summaryText = summary,
@@ -98,7 +101,7 @@ class JeebTierRow extends StatelessWidget {
     this.metaIcon,
     String? badgeLabel,
     this.slaForceLtr = true,
-    this.radius = 16,
+    this.radius = JeebRadii.lg,
     this.padding = catalogPadding,
   })  : variant = JeebTierRowVariant.catalog,
         mark = emoji,
@@ -168,7 +171,7 @@ class JeebTierRow extends StatelessWidget {
   /// Announced as the hint only while [selected].
   final String selectedHint;
 
-  /// Corner radius (16 on both screens).
+  /// Corner radius (`JeebRadii.lg` — R9 draws 18).
   final double radius;
 
   /// Content padding.
@@ -201,7 +204,7 @@ class JeebTierRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget card = JeebOutlinedCard(
-      state: selected ? JeebCardState.selected : JeebCardState.normal,
+      state: selected ? JeebCardState.accentSelected : JeebCardState.normal,
       radius: radius,
       padding: padding,
       onTap: onTap,
@@ -285,8 +288,10 @@ class _CompactBody extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 row.summaryText!,
-                // 12/w500. `bodySmall` is 12/w600; only the weight is overridden.
+                // 12/w500 (R9). `bodySmall` is 12.5/w600, so both are
+                // design-exact overrides — legal inside the kit (§4.4).
                 style: text.bodySmall.copyWith(
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: tone.mutedInk,
                 ),
@@ -305,10 +310,9 @@ class _CompactBody extends StatelessWidget {
 
 /// 07's Ø22 trailing indicator.
 ///
-/// **Selected is an orange disc with a white check** — plan §5 #8 describes this
-/// inverted ("navy disc, orange check"), but `07-request-type.html` `tpl 361-362`
-/// is `background: var(--jeeb-orange)` with `fill="#fff"`, and the render agrees.
-/// The HTML wins (07 §W-2 records the same correction).
+/// **Selected is an orange disc with a white check** — the R9 tile draws
+/// `background: var(--jeeb-orange)` with `fill="#fff"`, so this is a tile-drawn
+/// orange and inside the budget. Unselected is a 2px glass ring.
 class _RadioIndicator extends StatelessWidget {
   const _RadioIndicator({required this.selected});
 
@@ -316,14 +320,14 @@ class _RadioIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
     if (!selected) {
+      final JeebSemanticColors semantics = _semantics(context);
       return Container(
         width: JeebTierRow.indicatorSize,
         height: JeebTierRow.indicatorSize,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: scheme.surfaceContainerHighest, width: 2),
+          border: Border.all(color: semantics.glassBorderVivid, width: 2),
         ),
       );
     }
@@ -439,16 +443,15 @@ class _CatalogBody extends StatelessWidget {
 
 /// The two badges are **not** one treatment.
 ///
-///  * 07 `Most picked` — `accentTint` fill + accent ink at `10.5/w800`. This is
-///    the single legitimate `JeebSemanticColors.accentTint` use in the whole kit
-///    (§4.1: measured exactly once board-wide, `tpl 375`).
+///  * 07 `Most picked` — `accentContainer` fill + `onAccentContainer` ink at
+///    `10.5/w800`. R9 draws orange-28%-on-navy with `#FFB499` ink; the
+///    container/onContainer quartet is that pair, AA-gated (§9).
 ///  * 08 `Recommended` — a **solid** accent pill with `onAccent` ink at
 ///    `10/w800` (`tpl 455`). The dominant board badge is this one.
 ///
-/// On a navy/accent surface the tinted 07 badge would vanish, so it falls back
-/// to the solid 08 treatment there. 07's default tier *is* flagged
-/// `recommended` in today's data (`tier_repository.dart:100`), so the
-/// selected-and-badged combination really happens.
+/// On a navy/accent surface the 07 badge falls back to the solid 08 treatment.
+/// 07's default tier *is* flagged `recommended` in today's data
+/// (`tier_repository.dart:100`), so selected-and-badged really happens.
 class _Badge extends StatelessWidget {
   const _Badge({
     required this.label,
@@ -466,14 +469,10 @@ class _Badge extends StatelessWidget {
     final bool tinted =
         variant == JeebTierRowVariant.compact && !tone.onNavy;
 
-    final JeebSemanticColors semantics =
-        Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.light();
-
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: tinted ? semantics.accentTint : roles.accent,
-        borderRadius: jeebPillRadius,
+        color: tinted ? roles.accentContainer : roles.accent,
+        borderRadius: _pillRadius,
       ),
       child: Padding(
         padding: JeebTierRow.badgePadding,
@@ -484,7 +483,7 @@ class _Badge extends StatelessWidget {
           // to be kept rather than averaged away.
           style: context.jeebText.badge.copyWith(
             fontSize: variant == JeebTierRowVariant.catalog ? 10 : null,
-            color: tinted ? roles.accent : roles.onAccent,
+            color: tinted ? roles.onAccentContainer : roles.onAccent,
           ),
           maxLines: 1,
           softWrap: false,
@@ -493,3 +492,8 @@ class _Badge extends StatelessWidget {
     );
   }
 }
+
+/// A bare `!` read crashes under harnesses themed with `ThemeData.light()`.
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();

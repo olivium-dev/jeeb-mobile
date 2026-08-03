@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
-import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_select_chip.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_surface_tone.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_tier_chip.dart';
 
 /// Local harness — private so concurrent kit lanes cannot break each other.
 Widget _wrap(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(
@@ -61,7 +62,7 @@ void main() {
   });
 
   group('JeebTierChip — shape', () {
-    testWidgets('surfaceContainerHigh pill, navy 11.5/w700, pad 4/10', (
+    testWidgets('toned pill, ink 11.5/w700, pad 4/10, pill radius', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -74,8 +75,13 @@ void main() {
       final ColorScheme scheme = Theme.of(context).colorScheme;
       final BoxDecoration decoration = _pillDecoration(tester);
 
+      // Fill follows JeebSurfaceTone.chipFill — the tone layer owns the value.
       expect(decoration.color, scheme.surfaceContainerHigh);
-      expect(decoration.borderRadius, jeebPillRadius);
+      expect(
+        decoration.borderRadius,
+        const BorderRadius.all(Radius.circular(JeebRadii.pill)),
+      );
+      expect(JeebRadii.pill, 999);
       // Outline-over-shadow: a meta chip never casts one, and never strokes.
       expect(decoration.boxShadow, isNull);
       expect(decoration.border, isNull);
@@ -84,6 +90,8 @@ void main() {
       expect(style.fontSize, 11.5);
       expect(style.fontWeight, FontWeight.w700);
       expect(style.color, scheme.onSurface);
+      // Token sheet §1 onSurface — the board's near-white chip label.
+      expect(style.color, const Color(0xFFEDEFFC));
 
       expect(
         JeebTierChip.defaultPadding.resolve(TextDirection.ltr),
@@ -160,7 +168,7 @@ void main() {
   });
 
   group('JeebTierChip — the re-tone is structural', () {
-    testWidgets('inside a navy card it flips to white14 fill + white ink', (
+    testWidgets('inside a navy card it flips to white14 glass + ink', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -174,12 +182,16 @@ void main() {
       final BuildContext context = tester.element(find.byType(JeebTierChip));
       final JeebSurfaceToneData tone = JeebSurfaceTone.of(context);
       final ColorScheme scheme = Theme.of(context).colorScheme;
+      final JeebSemanticColors semantics =
+          Theme.of(context).extension<JeebSemanticColors>()!;
 
       expect(tone.kind, JeebSurfaceKind.navy);
-      expect(_pillDecoration(tester).color, scheme.onPrimary.withValues(alpha: 0.14));
+      // Token sheet §3 glassFillPressed — white 14%.
+      expect(_pillDecoration(tester).color, semantics.glassFillPressed);
+      expect(semantics.glassFillPressed, const Color(0x24FFFFFF));
       expect(
         tester.widget<Text>(find.text('≤ 4 hr')).style!.color,
-        scheme.onPrimary,
+        scheme.onSurface,
       );
     });
 
@@ -199,7 +211,7 @@ void main() {
       final ColorScheme scheme = Theme.of(context).colorScheme;
       expect(
         tester.widget<Text>(find.text('Standard')).style!.color,
-        scheme.onPrimary,
+        scheme.onSurface,
       );
     });
 

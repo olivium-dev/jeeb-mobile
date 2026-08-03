@@ -1,30 +1,35 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 
 /// The five realized pill scales on the redesign board (§5 #6, 02-PLAN R2).
 ///
 /// Lanes pass a **role, never a size**. The board draws five different pills
-/// and the unselected ink is *not* constant — filters and sorts use the brown
-/// `onSurfaceVariant`, while choices, quick replies and inline actions use
-/// navy. One chip with one padding is visibly wrong on four of the ten spine
-/// screens, so the whole table lives here.
+/// and the unselected ink is *not* constant — filters, sorts and choices read
+/// `inkSoft`, while quick replies and inline actions read full ink. One chip
+/// with one padding is visibly wrong on four of the ten spine screens, so the
+/// whole table lives here.
+///
+/// Paddings/sizes are the doc-13 **Pattern E** corrections, re-verified
+/// against the Midnight board.
 ///
 /// | Role | Padding | Type | Unselected ink | Measured on |
 /// |---|---|---|---|---|
-/// | [filter] | `11/20` | 14.5/w600 | `onSurfaceVariant` | 04 `tpl 183-184`, 16, 24 |
-/// | [sort] | `8/15` | 12.5/w600 (**w700 selected**) | `onSurfaceVariant` | 11 `tpl 661-663`, 19 |
-/// | [choice] | `11/0` + `flex:1` | 13.5/w600 | `primary` | 17 `tpl 1005-1007` |
-/// | [quickReply] | `8/13` | 12/w600 | `primary` | 21 `tpl 53-55`, 09 |
-/// | [inlineAction] | `9/18` | 13/w600 | `primary` | 11 `tpl 678`, 04, 15, 24, 06 |
+/// | [filter] | `9/18` | 13/w600 | `inkSoft` | R16, R21, E1, E4 |
+/// | [sort] | `8/15` | 12.5/w600 | `inkSoft` | R10, R19 |
+/// | [choice] | `11/0` + `flex:1` | 13.5/w600 | `inkSoft` | R17 |
+/// | [quickReply] | `8/13` | 12/w600 | `onSurface` | R20, R11 |
+/// | [inlineAction] | `8/15` | 12/w600 | `onSurface` | R21, R8, R15 |
+///
+/// Selected is one treatment everywhere: white slab, navy ink, **w700**.
 enum JeebChipRole {
   /// Tab-style filters above a list (04 `Pending 1`, 16 `Nearby 12`,
-  /// 24 `Active 1`). The largest pill on the board.
+  /// 24 `Active 1`).
   filter,
 
-  /// Sort/period selectors (11 `Lowest price`, 19 `Today`). The only role whose
-  /// **selected** state also steps up to w700 — measured, not invented.
+  /// Sort/period selectors (11 `Lowest price`, 19 `Today`).
   sort,
 
   /// Equal-width options in a flat row (17's ETA pills). Horizontal padding is
@@ -42,9 +47,9 @@ enum JeebChipRole {
 
 /// The Jeeb pill (§5 #6).
 ///
-/// Selected: `colorScheme.primary` fill, `onPrimary` ink. Unselected: white
-/// fill, `1.5px colorScheme.outline`, ink per [JeebChipRole]. Radius is always
-/// a full pill.
+/// Selected: `colorScheme.inverseSurface` slab, `onInverseSurface` ink — the
+/// ratified Midnight active treatment (STUDY E1). Unselected: `glassFill`,
+/// `1px glassBorder`, ink per [JeebChipRole]. Radius is always a full pill.
 ///
 /// **Height stays under 48dp on purpose.** 11's `client_offers_screen_test`
 /// asserts the visual capsule is smaller than its tap target, so this widget
@@ -58,10 +63,9 @@ enum JeebChipRole {
 /// `ExcludeSemantics(child: chip)` with frozen ids (04 09 11 15 16 24) — a
 /// second node there would either duplicate or swallow those ids.
 ///
-/// **Light surfaces only.** The board has no on-navy unselected chip
-/// (23 §5 states this explicitly), so this widget deliberately does not read
-/// `JeebSurfaceTone`; 21's white `Track` pill and 23's starter-credit pill stay
-/// screen-local shapes. `JeebTierChip` is the chip that re-tones.
+/// **Glass on the field.** Every Midnight surface is navy, so the pill no
+/// longer reads `JeebSurfaceTone`: one glass recipe composites over any of
+/// them. `JeebTierChip` is the chip that re-tones.
 class JeebSelectChip extends StatelessWidget {
   const JeebSelectChip({
     super.key,
@@ -79,13 +83,13 @@ class JeebSelectChip extends StatelessWidget {
   /// (04 `tpl 184`, 09 `tpl 556`, 24 `tpl 1419`).
   static const double contentSpacing = 6;
 
-  /// The 1.5px unselected stroke. Painted by the decoration, so it does **not**
-  /// inset the child: a selected and an unselected pill in the same row have
-  /// identical size and the row cannot jitter on tap. (This is the one place
-  /// the kit does not fold the stroke into the padding the way
+  /// The 1px unselected glass stroke. Painted by the decoration, so it does
+  /// **not** inset the child: a selected and an unselected pill in the same row
+  /// have identical size and the row cannot jitter on tap. (This is the one
+  /// place the kit does not fold the stroke into the padding the way
   /// `JeebOutlinedCard` does — there, folding keeps the box stable; here, it
   /// would be the thing that makes it move.)
-  static const double borderWidth = 1.5;
+  static const double borderWidth = 1;
 
   /// Which of the five measured scales to draw.
   final JeebChipRole role;
@@ -95,7 +99,7 @@ class JeebSelectChip extends StatelessWidget {
   /// on 04, 16 and 24.
   final String label;
 
-  /// Navy fill + white ink.
+  /// White slab + navy ink.
   final bool selected;
 
   /// Makes the pill tappable. `null` renders a static pill.
@@ -103,8 +107,8 @@ class JeebSelectChip extends StatelessWidget {
 
   /// Optional trailing count. The board renders it **two ways** and both are
   /// honoured: selected → inline text in the label's own style
-  /// (`Pending 1`, 04 `tpl 183`); unselected → a Ø18 solid-orange badge with
-  /// white 11/w800 (04 `tpl 185`). Either way it is a separate `Text`.
+  /// (`Pending 1`); unselected → a Ø18 raised-navy badge with ink 11/w800.
+  /// Either way it is a separate `Text`.
   ///
   /// 16 bakes its counts into the localized label string instead
   /// (`jeeberFeedNearbyCount`) and passes `null` here.
@@ -124,14 +128,15 @@ class JeebSelectChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors glass = _glass(context);
     final _JeebChipMetrics metrics = _metricsFor(role);
     final TextStyle base = context.jeebText.bodySmall;
     final Color ink = selected
-        ? scheme.onPrimary
-        : (metrics.navyInk ? scheme.primary : scheme.onSurfaceVariant);
+        ? scheme.onInverseSurface
+        : (metrics.brightInk ? scheme.onSurface : glass.inkSoft);
     final TextStyle labelStyle = base.copyWith(
       fontSize: metrics.fontSize,
-      fontWeight: selected ? metrics.selectedWeight : base.fontWeight,
+      fontWeight: selected ? FontWeight.w700 : base.fontWeight,
       color: ink,
     );
 
@@ -179,11 +184,11 @@ class JeebSelectChip extends StatelessWidget {
 
     Widget pill = DecoratedBox(
       decoration: BoxDecoration(
-        color: selected ? scheme.primary : scheme.surface,
+        color: selected ? scheme.inverseSurface : glass.glassFill,
         borderRadius: jeebPillRadius,
         border: selected
             ? null
-            : Border.all(color: scheme.outline, width: borderWidth),
+            : Border.all(color: glass.glassBorder, width: borderWidth),
       ),
       child: content,
     );
@@ -316,7 +321,11 @@ class JeebChipRow extends StatelessWidget {
   }
 }
 
-/// The Ø18 orange count badge (04 `tpl 185`) — unselected chips only.
+/// The Ø18 count badge — unselected chips only.
+///
+/// Deliberately NOT orange: the Midnight board draws no count badge at all and
+/// §2.2 rations orange to mic / active tab / live accents. STUDY kit ruling 4
+/// (a pill inside a surface is solid raised navy) supplies the treatment.
 class _JeebChipCountBadge extends StatelessWidget {
   const _JeebChipCountBadge({required this.count});
 
@@ -324,23 +333,23 @@ class _JeebChipCountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final JeebRoles roles = context.jeebRoles;
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     return Container(
       height: 18,
       constraints: const BoxConstraints(minWidth: 18),
       alignment: AlignmentDirectional.center,
       padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: roles.accent,
+        color: scheme.surfaceContainerHigh,
         borderRadius: jeebPillRadius,
       ),
       child: Text(
-        '$count',
         // 11/w800 has no ramp entry; `badge` is the nearest (10.5/w800) and the
         // kit is exempt from the `fontSize:` ban (§4.4).
+        '$count',
         style: context.jeebText.badge.copyWith(
           fontSize: 11,
-          color: roles.onAccent,
+          color: scheme.onSurface,
         ),
         maxLines: 1,
       ),
@@ -350,7 +359,14 @@ class _JeebChipCountBadge extends StatelessWidget {
 
 /// `border-radius: 999px` — the board's pill, shared by every chip here and by
 /// `JeebTierChip`.
-const BorderRadius jeebPillRadius = BorderRadius.all(Radius.circular(999));
+const BorderRadius jeebPillRadius =
+    BorderRadius.all(Radius.circular(JeebRadii.pill));
+
+/// Read defensively: a bare `!` crashes under harnesses that theme with a
+/// bare `ThemeData`, and every kit widget must survive that.
+JeebSemanticColors _glass(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
 
 /// The measured geometry of one [JeebChipRole].
 @immutable
@@ -358,55 +374,47 @@ class _JeebChipMetrics {
   const _JeebChipMetrics({
     required this.padding,
     required this.fontSize,
-    required this.selectedWeight,
-    required this.navyInk,
+    required this.brightInk,
   });
 
   final EdgeInsetsGeometry padding;
   final double fontSize;
-  final FontWeight selectedWeight;
 
-  /// Unselected ink: navy when true, brown `onSurfaceVariant` when false.
-  final bool navyInk;
+  /// Unselected ink: full `onSurface` when true, `inkSoft` when false.
+  final bool brightInk;
 }
 
 _JeebChipMetrics _metricsFor(JeebChipRole role) {
   switch (role) {
     case JeebChipRole.filter:
       return const _JeebChipMetrics(
-        padding: EdgeInsetsDirectional.symmetric(vertical: 11, horizontal: 20),
-        fontSize: 14.5,
-        selectedWeight: FontWeight.w600,
-        navyInk: false,
+        padding: EdgeInsetsDirectional.symmetric(vertical: 9, horizontal: 18),
+        fontSize: 13,
+        brightInk: false,
       );
     case JeebChipRole.sort:
       return const _JeebChipMetrics(
         padding: EdgeInsetsDirectional.symmetric(vertical: 8, horizontal: 15),
         fontSize: 12.5,
-        // 11 `tpl 661` is the one measured selected pill that steps to w700.
-        selectedWeight: FontWeight.w700,
-        navyInk: false,
+        brightInk: false,
       );
     case JeebChipRole.choice:
       return const _JeebChipMetrics(
         padding: EdgeInsetsDirectional.symmetric(vertical: 11),
         fontSize: 13.5,
-        selectedWeight: FontWeight.w600,
-        navyInk: true,
+        brightInk: false,
       );
     case JeebChipRole.quickReply:
       return const _JeebChipMetrics(
         padding: EdgeInsetsDirectional.symmetric(vertical: 8, horizontal: 13),
         fontSize: 12,
-        selectedWeight: FontWeight.w600,
-        navyInk: true,
+        brightInk: true,
       );
     case JeebChipRole.inlineAction:
       return const _JeebChipMetrics(
-        padding: EdgeInsetsDirectional.symmetric(vertical: 9, horizontal: 18),
-        fontSize: 13,
-        selectedWeight: FontWeight.w600,
-        navyInk: true,
+        padding: EdgeInsetsDirectional.symmetric(vertical: 8, horizontal: 15),
+        fontSize: 12,
+        brightInk: true,
       );
   }
 }

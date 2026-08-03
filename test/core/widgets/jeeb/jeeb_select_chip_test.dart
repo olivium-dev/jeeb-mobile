@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_select_chip.dart';
 
 /// Local harness: kept private so concurrent kit lanes cannot break each other
 /// by renaming a shared helper.
 Widget _wrap(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(
@@ -33,9 +34,11 @@ BoxDecoration _pillDecoration(WidgetTester tester) {
 TextStyle _labelStyle(WidgetTester tester, String label) =>
     tester.widget<Text>(find.text(label)).style!;
 
+JeebSemanticColors get _glass => JeebSemanticColors.midnight();
+
 void main() {
   group('JeebSelectChip — fill / border state machine', () {
-    testWidgets('unselected is white with a 1.5px outline stroke',
+    testWidgets('unselected is glass with a 1px glass stroke',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -46,18 +49,18 @@ void main() {
         ),
       );
 
-      final BuildContext context = tester.element(find.byType(JeebSelectChip));
-      final ColorScheme scheme = Theme.of(context).colorScheme;
       final BoxDecoration decoration = _pillDecoration(tester);
 
-      expect(decoration.color, scheme.surface);
+      expect(decoration.color, _glass.glassFill);
       expect(decoration.border, isNotNull);
-      expect(decoration.border!.top.color, scheme.outline);
-      expect(decoration.border!.top.width, JeebSelectChip.borderWidth);
+      expect(decoration.border!.top.color, _glass.glassBorder);
+      expect(JeebSelectChip.borderWidth, 1);
+      expect(decoration.border!.top.width, 1);
       expect(decoration.borderRadius, jeebPillRadius);
+      expect(jeebPillRadius.topLeft.x, JeebRadii.pill);
     });
 
-    testWidgets('selected is a navy fill with NO border — a fill swap',
+    testWidgets('selected is the white slab with NO border — a fill swap',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -73,22 +76,22 @@ void main() {
       final ColorScheme scheme = Theme.of(context).colorScheme;
       final BoxDecoration decoration = _pillDecoration(tester);
 
-      expect(decoration.color, scheme.primary);
+      expect(decoration.color, scheme.inverseSurface);
       expect(decoration.border, isNull);
-      expect(_labelStyle(tester, 'Pending').color, scheme.onPrimary);
+      expect(_labelStyle(tester, 'Pending').color, scheme.onInverseSurface);
     });
   });
 
   group('JeebSelectChip — the five-role table (02-PLAN R2)', () {
-    testWidgets('each role ships its own measured size', (
+    testWidgets('each role ships its own measured size (Pattern E corrected)', (
       WidgetTester tester,
     ) async {
       const Map<JeebChipRole, double> expected = <JeebChipRole, double>{
-        JeebChipRole.filter: 14.5,
+        JeebChipRole.filter: 13,
         JeebChipRole.sort: 12.5,
         JeebChipRole.choice: 13.5,
         JeebChipRole.quickReply: 12,
-        JeebChipRole.inlineAction: 13,
+        JeebChipRole.inlineAction: 12,
       };
 
       for (final MapEntry<JeebChipRole, double> entry in expected.entries) {
@@ -103,11 +106,44 @@ void main() {
       }
     });
 
-    testWidgets('unselected ink is brown for filter/sort and navy for the rest',
+    testWidgets('each role ships its own measured padding (Pattern E)', (
+      WidgetTester tester,
+    ) async {
+      const Map<JeebChipRole, List<double>> expected =
+          <JeebChipRole, List<double>>{
+        JeebChipRole.filter: <double>[9, 18],
+        JeebChipRole.sort: <double>[8, 15],
+        JeebChipRole.choice: <double>[11, 0],
+        JeebChipRole.quickReply: <double>[8, 13],
+        JeebChipRole.inlineAction: <double>[8, 15],
+      };
+
+      for (final MapEntry<JeebChipRole, List<double>> entry
+          in expected.entries) {
+        await tester.pumpWidget(
+          _wrap(JeebSelectChip(role: entry.key, label: 'x')),
+        );
+        final EdgeInsets padding = tester
+            .widget<Padding>(
+              find
+                  .descendant(
+                    of: find.byType(JeebSelectChip),
+                    matching: find.byType(Padding),
+                  )
+                  .first,
+            )
+            .padding
+            .resolve(TextDirection.ltr);
+        expect(padding.top, entry.value[0], reason: 'vertical ${entry.key}');
+        expect(padding.left, entry.value[1], reason: 'horizontal ${entry.key}');
+      }
+    });
+
+    testWidgets('unselected ink is inkSoft except on quickReply/inlineAction',
         (WidgetTester tester) async {
-      const Set<JeebChipRole> brown = <JeebChipRole>{
-        JeebChipRole.filter,
-        JeebChipRole.sort,
+      const Set<JeebChipRole> bright = <JeebChipRole>{
+        JeebChipRole.quickReply,
+        JeebChipRole.inlineAction,
       };
 
       for (final JeebChipRole role in JeebChipRole.values) {
@@ -116,23 +152,23 @@ void main() {
             Theme.of(tester.element(find.byType(JeebSelectChip))).colorScheme;
         expect(
           _labelStyle(tester, 'x').color,
-          brown.contains(role) ? scheme.onSurfaceVariant : scheme.primary,
+          bright.contains(role) ? scheme.onSurface : _glass.inkSoft,
           reason: 'the unselected ink is NOT constant across roles',
         );
       }
     });
 
-    testWidgets('only `sort` steps up to w700 when selected', (
+    testWidgets('every role steps up to w700 when selected', (
       WidgetTester tester,
     ) async {
       for (final JeebChipRole role in JeebChipRole.values) {
         await tester.pumpWidget(
           _wrap(JeebSelectChip(role: role, label: 'x', selected: true)),
         );
-        expect(
-          _labelStyle(tester, 'x').fontWeight,
-          role == JeebChipRole.sort ? FontWeight.w700 : FontWeight.w600,
-        );
+        expect(_labelStyle(tester, 'x').fontWeight, FontWeight.w700);
+
+        await tester.pumpWidget(_wrap(JeebSelectChip(role: role, label: 'x')));
+        expect(_labelStyle(tester, 'x').fontWeight, FontWeight.w600);
       }
     });
 
@@ -199,7 +235,7 @@ void main() {
       expect(find.text('Pending'), findsOneWidget);
       expect(find.text('1'), findsOneWidget);
       expect(_labelStyle(tester, '1'), _labelStyle(tester, 'Pending'));
-      // No orange disc in the selected mode.
+      // No badge disc in the selected mode.
       expect(
         find.descendant(
           of: find.byType(JeebSelectChip),
@@ -209,7 +245,7 @@ void main() {
       );
     });
 
-    testWidgets('unselected renders the Ø18 orange badge', (
+    testWidgets('unselected renders the Ø18 raised-navy badge — never orange', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -226,7 +262,7 @@ void main() {
       expect(find.text('3'), findsOneWidget);
 
       final BuildContext context = tester.element(find.byType(JeebSelectChip));
-      final JeebRoles roles = context.jeebRoles;
+      final ColorScheme scheme = Theme.of(context).colorScheme;
       final Container badge = tester.widget<Container>(
         find
             .descendant(
@@ -236,7 +272,8 @@ void main() {
             .first,
       );
       final BoxDecoration decoration = badge.decoration! as BoxDecoration;
-      expect(decoration.color, roles.accent);
+      // §2.2 budgets orange to mic / active tab / live accents — not counts.
+      expect(decoration.color, scheme.surfaceContainerHigh);
       expect(decoration.borderRadius, jeebPillRadius);
 
       final Size size = tester.getSize(
@@ -253,7 +290,7 @@ void main() {
       final TextStyle style = _labelStyle(tester, '3');
       expect(style.fontSize, 11);
       expect(style.fontWeight, FontWeight.w800);
-      expect(style.color, roles.onAccent);
+      expect(style.color, scheme.onSurface);
     });
   });
 

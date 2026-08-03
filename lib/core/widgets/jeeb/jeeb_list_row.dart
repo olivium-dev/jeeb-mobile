@@ -4,11 +4,11 @@ import '../../theme/jeeb_text_styles.dart';
 import '../directional_icons.dart';
 import 'jeeb_surface_tone.dart';
 
-/// A navigation row inside a grouped card (redesign-2026-08 §5 #25).
+/// A navigation row inside a grouped card (MIDNIGHT R19/R22/R23).
 ///
-/// Padding `14/16`, gap 12; leading glyph 19px navy; title 14/w700 navy;
-/// subtitle 11.5/w500 `mutedText`; trailing 16px `mutedText` chevron via
-/// [DirectionalIcons.disclosure] (23 `tpl 1386-1403`).
+/// Padding `11/14`, gap 12; leading glyph 19px ink; title `body` w700 ink;
+/// subtitle `caption` `mutedText`; trailing 16px `mutedText` chevron via
+/// [DirectionalIcons.disclosure].
 ///
 /// ## The divider is NOT drawn here
 ///
@@ -67,9 +67,10 @@ class JeebListRow extends StatelessWidget {
     this.semanticHint,
   });
 
-  /// `14/16` — measured on 23 (`tpl 1387`). 20's rows use the same.
+  /// `11/14` — R19's rows, and the doc-13 Pattern E metric fix (was 14/16, one
+  /// size class too loose). Grouped card rows pass R22's 13/16.
   static const EdgeInsetsGeometry defaultPadding =
-      EdgeInsetsDirectional.symmetric(horizontal: 16, vertical: 14);
+      EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 11);
 
   /// Opacity applied when [isEnabled] is false (20's sign-out row while a
   /// sign-out is in flight).
@@ -82,15 +83,14 @@ class JeebListRow extends StatelessWidget {
   /// (and both of 23's) keep it.
   final String? subtitle;
 
-  /// Leading glyph. Filled, single-colour, navy (R10 — no outline variants:
+  /// Leading glyph. Filled, single-colour (R10 — no outline variants:
   /// `Icons.show_chart` / `Icons.article`, not their `_outlined` twins).
   final IconData? icon;
 
   /// Leading glyph size — 19 on 23, 18 on 20's sign-out row.
   final double iconSize;
 
-  /// Leading glyph ink. Defaults to `colorScheme.primary` on a light surface
-  /// and to the tone's title ink on navy.
+  /// Leading glyph ink. Defaults to the surface tone's title ink.
   final Color? iconColor;
 
   /// Replaces the chevron entirely (a value, a switch, a badge).
@@ -135,27 +135,20 @@ class JeebListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebSurfaceToneData tone = JeebSurfaceTone.of(context);
     final JeebTextStyles text = context.jeebText;
 
-    // The board inks the glyph and the title with the same `--jeeb-navy`
-    // (`colorScheme.primary`); on a navy card the tone's title ink is the only
-    // legible choice. `JeebSurfaceTone` carries no glyph slot, so resolve here.
-    final Color primaryInk = tone.onNavy ? tone.titleInk : scheme.primary;
+    // R22 inks the glyph and the title with the same white; orange here would
+    // spend the accent budget on chrome.
+    final Color primaryInk = tone.titleInk;
 
     // Merged, not replaced: a lane overriding the weight must not silently
-    // lose the surface ink and paint navy text on a navy card.
+    // lose the surface ink.
     final TextStyle titleInk = text.body
-        .copyWith(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: primaryInk,
-        )
+        .copyWith(fontWeight: FontWeight.w700, color: primaryInk)
         .merge(titleStyle);
-    final TextStyle subtitleInk = text.caption
-        .copyWith(fontWeight: FontWeight.w500, color: tone.mutedInk)
-        .merge(subtitleStyle);
+    final TextStyle subtitleInk =
+        text.caption.copyWith(color: tone.mutedInk).merge(subtitleStyle);
 
     final Widget? trailingWidget = _trailing(context, tone);
     final Widget row = Row(

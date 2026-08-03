@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_code_cells.dart';
 import 'package:omds/omds.dart';
 
 import 'jeeb_code_test_harness.dart';
 
-ColorScheme get _scheme => AppTheme.light().colorScheme;
-Color get _accent => JeebColorRoles.light().accent;
+ColorScheme get _scheme => AppTheme.midnight().colorScheme;
+Color get _accent => JeebColorRoles.midnight().accent;
+JeebSemanticColors get _glass => JeebSemanticColors.midnight();
 
 /// The `DecoratedBox` of cell [index], skipping the caret's own decoration by
 /// taking only the boxes that carry a fill.
@@ -19,7 +22,7 @@ BoxDecoration _cellBox(WidgetTester tester, int index) {
           .where((BoxDecoration d) => d.color != null && d.borderRadius != null)
           .toList();
   // Cells paint before their carets, and the caret is 2 px wide — filter it
-  // out by radius, which is 2 on the caret and 16/20 on a cell.
+  // out by radius, which is 2 on the caret and 18/22 on a cell.
   final List<BoxDecoration> cells = filled
       .where((BoxDecoration d) =>
           (d.borderRadius! as BorderRadius).topLeft.x > 4)
@@ -59,19 +62,22 @@ void main() {
       );
     });
 
-    testWidgets('cells are h74 r16 surfaceContainerHigh at gap 12, flex 1',
+    testWidgets('cells are h74 r18 glass at gap 12, flex 1',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCode(const JeebCodeCells.input74(length: 4, value: '1')),
       );
 
       final BoxDecoration first = _cellBox(tester, 0);
-      expect(first.color, _scheme.surfaceContainerHigh);
+      expect(first.color, _glass.glassFillEmphasis);
+      expect(JeebCodeCells.inputRadius, JeebRadii.lg);
       expect(
         (first.borderRadius! as BorderRadius).topLeft.x,
-        JeebCodeCells.inputRadius,
+        JeebRadii.lg,
       );
-      // No shadow anywhere on the light entry row.
+      expect(first.border!.top.color, _glass.glassBorderStrong);
+      expect(first.border!.top.width, JeebCodeCells.glassBorderWidth);
+      // Only the active cell glows; a resting cell is flat.
       expect(first.boxShadow, isNull);
 
       final List<Rect> rects = tester
@@ -86,21 +92,25 @@ void main() {
       expect(rects[1].left - rects[0].right, JeebCodeCells.inputCellGap);
     });
 
-    testWidgets('the next empty cell is framed 2px accent and carries a caret',
+    testWidgets('the active cell is accent-tinted, framed and glowing',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCode(const JeebCodeCells.input74(length: 4, value: '12')),
       );
 
-      // Filled cells: fill only, no stroke.
-      expect(_cellBox(tester, 0).border, isNull);
-      expect(_cellBox(tester, 1).border, isNull);
+      // Filled cells keep the resting 1px glass stroke.
+      expect(_cellBox(tester, 0).border!.top.color, _glass.glassBorderStrong);
+      expect(_cellBox(tester, 1).border!.top.width,
+          JeebCodeCells.glassBorderWidth);
 
-      final BoxBorder active = _cellBox(tester, 2).border!;
-      expect(active.top.color, _accent);
-      expect(active.top.width, JeebCodeCells.activeBorderWidth);
+      final BoxDecoration active = _cellBox(tester, 2);
+      expect(active.border!.top.color, _accent);
+      expect(active.border!.top.width, JeebCodeCells.activeBorderWidth);
+      expect(active.color, _glass.accentTint);
+      expect(active.boxShadow, JeebShadows.glowRest);
       // The cell after the active one is untouched.
-      expect(_cellBox(tester, 3).border, isNull);
+      expect(_cellBox(tester, 3).border!.top.color, _glass.glassBorderStrong);
+      expect(_cellBox(tester, 3).boxShadow, isNull);
 
       final Finder caret = find.byWidgetPredicate(
         (Widget w) =>
@@ -113,14 +123,18 @@ void main() {
           closeTo(tester.getRect(find.byType(Expanded).at(2)).center.dx, 0.01));
     });
 
-    testWidgets('a complete code frames nothing — the caret is gone',
+    testWidgets('a complete code accents nothing — the caret is gone',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCode(const JeebCodeCells.input74(length: 4, value: '1234')),
       );
 
       for (var i = 0; i < 4; i++) {
-        expect(_cellBox(tester, i).border, isNull, reason: 'cell $i');
+        final BoxDecoration cell = _cellBox(tester, i);
+        expect(cell.border!.top.color, _glass.glassBorderStrong,
+            reason: 'cell $i');
+        expect(cell.color, _glass.glassFillEmphasis, reason: 'cell $i');
+        expect(cell.boxShadow, isNull, reason: 'cell $i');
       }
     });
 
@@ -139,7 +153,7 @@ void main() {
       }
     });
 
-    testWidgets('digits use jeebText.codeInput (29/w800) in navy',
+    testWidgets('digits use jeebText.codeInput (29/w800) in ink',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCode(const JeebCodeCells.input74(length: 4, value: '7')),
@@ -148,7 +162,7 @@ void main() {
       final TextStyle style = _styleOf(tester, '7');
       expect(style.fontSize, 29);
       expect(style.fontWeight, FontWeight.w800);
-      expect(style.color, _scheme.primary);
+      expect(style.color, _scheme.onSurface);
     });
 
     testWidgets('cellIdentifier emits one addressable leaf per cell',
@@ -244,7 +258,7 @@ void main() {
       expect(input.spacing, JeebCodeCells.compactCellGap);
       // 392 - 3 gaps of 9 = 365, split four ways.
       expect(input.boxWidth, closeTo(91.25, 0.01));
-      expect(input.fillColor, _scheme.surfaceContainerHigh);
+      expect(input.fillColor, _glass.glassFillEmphasis);
       expect(input.focusedBorderColor, _accent);
       expect(input.errorBorderColor, _scheme.error);
       // Never steal focus on mount: 18's card is already on screen.
@@ -259,17 +273,17 @@ void main() {
           tester.widget<OmdsOtpInput>(find.byType(OmdsOtpInput)).textStyle!;
       expect(style.fontSize, JeebCodeCells.compactDigitSize);
       expect(style.fontWeight, FontWeight.w800);
-      expect(style.color, _scheme.primary);
+      expect(style.color, _scheme.onSurface);
     });
 
-    testWidgets('kills the resting hairline and tints the caret accent',
+    testWidgets('re-points the resting hairline to glass and tints the caret',
         (WidgetTester tester) async {
       await tester.pumpWidget(wrapCode(const JeebCodeCells.input52()));
 
       final OmdsColorTokensProvider provider = tester.widget(
         find.byType(OmdsColorTokensProvider),
       );
-      expect(provider.tokens.inputBorderColor, _scheme.surfaceContainerHigh);
+      expect(provider.tokens.inputBorderColor, _glass.glassBorderStrong);
 
       final TextSelectionTheme selection =
           tester.widget(find.byType(TextSelectionTheme));
@@ -329,21 +343,25 @@ void main() {
   });
 
   group('JeebCodeCells.display — 13 share tiles', () {
-    testWidgets('four 74×92 r20 navy tiles with heroNavy at gap 13',
+    testWidgets('four 74×94 r22 glass tiles backlit by glowRest at gap 13',
         (WidgetTester tester) async {
       await tester.pumpWidget(wrapCode(const JeebCodeCells.display('2144')));
+
+      expect(JeebCodeCells.displayTileHeight, 94);
+      expect(JeebCodeCells.displayTileRadius, JeebRadii.xl);
 
       final List<BoxDecoration> tiles =
           decorationsUnder(tester, find.byType(JeebCodeCells)).toList();
       expect(tiles, hasLength(4));
       for (final BoxDecoration tile in tiles) {
-        expect(tile.color, _scheme.primary);
+        expect(tile.color, _glass.glassFillEmphasis);
         expect(
           (tile.borderRadius! as BorderRadius).topLeft.x,
-          JeebCodeCells.displayTileRadius,
+          JeebRadii.xl,
         );
-        expect(tile.boxShadow, JeebShadows.heroNavy);
-        expect(tile.border, isNull);
+        expect(tile.boxShadow, JeebShadows.glowRest);
+        expect(tile.border!.top.color, _glass.glassBorderStrong);
+        expect(tile.border!.top.width, JeebCodeCells.glassBorderWidth);
       }
 
       final Finder box = find.byWidgetPredicate(
@@ -358,14 +376,14 @@ void main() {
           closeTo(JeebCodeCells.displayTileGap, 0.01));
     });
 
-    testWidgets('digits are statDisplay (42/w800) in onPrimary',
+    testWidgets('digits are statDisplay (44/w800) in ink',
         (WidgetTester tester) async {
       await tester.pumpWidget(wrapCode(const JeebCodeCells.display('2144')));
 
       final TextStyle style = _styleOf(tester, '2');
-      expect(style.fontSize, 42);
+      expect(style.fontSize, 44);
       expect(style.fontWeight, FontWeight.w800);
-      expect(style.color, _scheme.onPrimary);
+      expect(style.color, _scheme.onSurface);
     });
 
     testWidgets('length reports value.length', (WidgetTester tester) async {
@@ -411,7 +429,7 @@ void main() {
       expect(style.fontSize, JeebCodeCells.stripFontSize);
       expect(style.fontWeight, FontWeight.w800);
       expect(style.letterSpacing, JeebCodeCells.stripLetterSpacing);
-      expect(style.color, _scheme.primary);
+      expect(style.color, _scheme.onSurface);
     });
 
     testWidgets('a key on the widget also resolves for find.byKey',

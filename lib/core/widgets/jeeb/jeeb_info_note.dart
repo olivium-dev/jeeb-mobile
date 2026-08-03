@@ -1,34 +1,34 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 import 'jeeb_surface_tone.dart';
 
-/// The six realized tones of [JeebInfoNote] (redesign-2026-08 §5 #22).
+/// The six realized tones of [JeebInfoNote] (MIDNIGHT R12/R17/R19/R23).
 ///
 /// A tone is a *fill + ink pair*, never a size: every tone shares the same
-/// geometry so five lanes cannot each invent a grey panel.
+/// geometry so five lanes cannot each invent a quiet panel.
 enum JeebInfoNoteTone {
-  /// `surfaceContainerHigh` fill, muted ink — the default quiet panel.
-  /// 08's "Jeebers set the price", 12's door-code strip, 16's offline banner,
-  /// 23's KYC-pending banner.
+  /// Glass panel, muted ink — the default quiet strip. 08's "Jeebers set the
+  /// price", 12's door-code strip, 16's offline banner, 23's KYC banner.
   muted,
 
-  /// `surfaceContainerHigh` fill, **navy** ink, orange trailing link — 17's
-  /// wallet strip and 11's countdown strip. The accent is the *link*, not the
-  /// fill (the board never tints this panel orange).
+  /// Glass panel, **ink** copy, orange trailing link — 17's wallet strip and
+  /// 11's countdown strip. The accent is the *link*, never the fill.
   accent,
 
-  /// `jeebRoles.successContainer` + a success-green glyph — 23's "You're set to
-  /// bid", 05's sent confirmation.
+  /// `jeebRoles.successContainer` + `onSuccessContainer` glyph/copy — 23's
+  /// "You're set to bid", 05's sent confirmation.
   success,
 
   /// `jeebRoles.warningContainer` / `onWarningContainer` — 23's three
   /// non-healthy affordability states, 16's offline banner.
   warning,
 
-  /// White + `1.5px colorScheme.outline`, no shadow — 23's reserve row and 15's
-  /// blind-reveal note. Same geometry as [muted]; a border instead of a fill.
+  /// Stroke only, no fill — 23's reserve row and 15's blind-reveal note. Same
+  /// geometry as [muted]; the border carries the shape.
   outlined,
 
   /// `colorScheme.errorContainer` / `onErrorContainer` — 11's dismissible
@@ -124,7 +124,7 @@ class JeebInfoNote extends StatelessWidget {
           'An info note with nothing to say is a coloured slab.',
         );
 
-  /// `surfaceContainerHigh` + muted ink (08 12 16 22 23-KYC).
+  /// Glass + muted ink (08 12 16 22 23-KYC).
   const JeebInfoNote.muted({
     super.key,
     this.icon,
@@ -152,7 +152,7 @@ class JeebInfoNote extends StatelessWidget {
         assert(linkLabel == null || onLink != null, 'link needs onLink'),
         assert(title != null || text != null || label != null, 'needs copy');
 
-  /// `surfaceContainerHigh` + navy ink + an orange link (17 11).
+  /// Glass + ink copy + an orange link (17 11).
   const JeebInfoNote.accent({
     super.key,
     this.icon,
@@ -236,7 +236,7 @@ class JeebInfoNote extends StatelessWidget {
         assert(linkLabel == null || onLink != null, 'link needs onLink'),
         assert(title != null || text != null || label != null, 'needs copy');
 
-  /// White + `1.5px colorScheme.outline`, no shadow (23 15).
+  /// Stroke only, no fill (23 15).
   const JeebInfoNote.outlined({
     super.key,
     this.icon,
@@ -292,9 +292,8 @@ class JeebInfoNote extends StatelessWidget {
         assert(linkLabel == null || onLink != null, 'link needs onLink'),
         assert(title != null || text != null || label != null, 'needs copy');
 
-  /// r16. The board draws 14 on 11/17 and 16 on 08/12/23; §4.4 collapses both
-  /// to `OmdsBorderRadius.medium` at feature level, so one default is honest.
-  static const double defaultRadius = 16;
+  /// The board draws 14 on 11/17 and 16 on 08/12/23; both snap to `lg`.
+  static const double defaultRadius = JeebRadii.lg;
 
   /// `12/16` — the single-line strip (08 `tpl 500`, 12 `tpl 774`).
   static const EdgeInsetsGeometry stripPadding =
@@ -316,14 +315,13 @@ class JeebInfoNote extends StatelessWidget {
   /// Leading glyph on the stacked form (23's padlock is 19, its check 20).
   static const double stackedIconSize = 19;
 
-  /// The 1.5px stroke of [JeebInfoNoteTone.outlined] — matches
-  /// `JeebOutlinedCard`, because it is the same stroke.
-  static const double outlineWidth = 1.5;
+  /// The 1px glass stroke — matches `JeebOutlinedCard`, same stroke.
+  static const double outlineWidth = 1;
 
-  /// `line-height: 18px` over the ramp's 12px `bodySmall` (08 `tpl 503`).
+  /// `line-height: 18px` over the ramp's 12.5px `bodySmall` (R17/R23).
   /// Applied to the standalone body line only; the stacked sub-line has no
   /// line-height on the board.
-  static const double bodyLineHeight = 18 / 12;
+  static const double bodyLineHeight = 18 / 12.5;
 
   /// Which fill/ink pair to paint.
   final JeebInfoNoteTone tone;
@@ -562,16 +560,20 @@ class JeebInfoNote extends StatelessWidget {
   _JeebInfoNoteStyle _styleFor(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebRoles roles = context.jeebRoles;
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
     // Read the surface tone rather than take an `onNavy` flag: a note dropped
-    // inside a selected (navy) card re-tones itself, and the neutral tones are
-    // the only ones that can — a success/warning/error panel keeps its role
+    // inside a selected card re-tones itself, and the neutral tones are the
+    // only ones that can — a success/warning/error panel keeps its role
     // colours everywhere, because the state is the message.
     final JeebSurfaceToneData surface = JeebSurfaceTone.of(context);
 
     switch (tone) {
       case JeebInfoNoteTone.muted:
         return _JeebInfoNoteStyle(
-          fill: surface.chipFill,
+          fill: semantics.glassFill,
+          borderInk: semantics.glassBorder,
           glyphInk: surface.mutedInk,
           titleInk: surface.titleInk,
           textInk: surface.mutedInk,
@@ -579,18 +581,19 @@ class JeebInfoNote extends StatelessWidget {
         );
       case JeebInfoNoteTone.accent:
         return _JeebInfoNoteStyle(
-          fill: surface.chipFill,
-          glyphInk: surface.chipInk,
+          fill: semantics.glassFill,
+          borderInk: semantics.glassBorder,
+          glyphInk: surface.titleInk,
           titleInk: surface.titleInk,
-          textInk: surface.chipInk,
+          textInk: surface.titleInk,
           textWeight: FontWeight.w600,
         );
       case JeebInfoNoteTone.success:
         return _JeebInfoNoteStyle(
           fill: roles.successContainer,
-          glyphInk: roles.success,
+          glyphInk: roles.onSuccessContainer,
           titleInk: scheme.onSurface,
-          textInk: surface.mutedInk,
+          textInk: roles.onSuccessContainer,
           textWeight: FontWeight.w500,
         );
       case JeebInfoNoteTone.warning:
@@ -603,10 +606,10 @@ class JeebInfoNote extends StatelessWidget {
         );
       case JeebInfoNoteTone.outlined:
         return _JeebInfoNoteStyle(
-          // On navy the fill has to disappear, or a white slab lands on the
-          // hero; the stroke carries the shape instead.
-          fill: surface.onNavy ? Colors.transparent : scheme.surface,
-          borderInk: surface.onNavy ? surface.dividerInk : scheme.outline,
+          // No fill at all: on any Midnight surface a second glass layer only
+          // muddies the field, so the stroke carries the shape.
+          fill: Colors.transparent,
+          borderInk: semantics.glassBorder,
           glyphInk: surface.titleInk,
           titleInk: surface.titleInk,
           textInk: surface.mutedInk,
@@ -642,7 +645,7 @@ class _JeebInfoNoteStyle {
   final Color textInk;
   final FontWeight textWeight;
 
-  /// Null on every tone but [JeebInfoNoteTone.outlined] — the presence of a
-  /// stroke is also what triggers the border-box padding correction.
+  /// Null on the state tones only — the presence of a stroke is also what
+  /// triggers the border-box padding correction.
   final Color? borderInk;
 }

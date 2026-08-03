@@ -16,10 +16,14 @@ import 'jeeb_meters_test_harness.dart';
 /// selected tier on 08 paints orange-on-navy empties and a `surfaceContainer`
 /// grey that vanishes into the card.
 void main() {
-  final ThemeData theme = AppTheme.light();
+  final ThemeData theme = AppTheme.midnight();
   final ColorScheme scheme = theme.colorScheme;
   final Color accent = theme.extension<JeebColorRoles>()!.accent;
   final Color muted = theme.extension<JeebSemanticColors>()!.mutedText;
+  final Color inkSoft = theme.extension<JeebSemanticColors>()!.inkSoft;
+  // Token sheet §2 accent / §3 mutedText.
+  const Color midnightAccent = Color(0xFFD73B00);
+  const Color midnightMuted = Color(0xFF8A93D8);
 
   List<BoxDecoration> dots(WidgetTester tester) =>
       boxesUnder(tester, find.byType(JeebPriceMeter)).toList();
@@ -39,6 +43,7 @@ void main() {
         painted.map((BoxDecoration d) => d.color).toList(),
         <Color>[accent, accent, accent, scheme.surfaceContainerHighest],
       );
+      expect(accent, midnightAccent);
       expect(painted.every((BoxDecoration d) => d.shape == BoxShape.circle),
           isTrue);
 
@@ -63,6 +68,7 @@ void main() {
       expect(style.fontSize, 10.5);
       expect(style.fontWeight, FontWeight.w700);
       expect(style.color, muted);
+      expect(style.color, midnightMuted);
     });
 
     testWidgets('clamps the level to the dot count', (tester) async {
@@ -95,21 +101,23 @@ void main() {
         ),
       );
 
-      // 08 tpl 458-463: white / rgba(255,255,255,.25) dots, .7 caption.
-      final Color onNavy = scheme.onPrimary;
+      // Emphasis glass: ink dots at 25% for the empties, inkSoft caption.
+      final Color ink = scheme.onSurface;
       expect(
         dots(tester).map((BoxDecoration d) => d.color).toList(),
         <Color>[
-          onNavy,
-          onNavy,
-          onNavy.withValues(alpha: 0.25),
-          onNavy.withValues(alpha: 0.25),
+          ink,
+          ink,
+          ink.withValues(alpha: 0.25),
+          ink.withValues(alpha: 0.25),
         ],
       );
+      expect(ink, const Color(0xFFEDEFFC));
       expect(
         tester.widget<Text>(find.text('Balanced price')).style!.color,
-        onNavy.withValues(alpha: 0.7),
+        inkSoft,
       );
+      expect(inkSoft, const Color(0xFFB9C0F0));
     });
 
     testWidgets('inverts via the selected state of an outlined card',
@@ -124,10 +132,10 @@ void main() {
         ),
       );
 
-      expect(dots(tester).first.color, scheme.onPrimary);
+      expect(dots(tester).first.color, scheme.onSurface);
       expect(
         tester.widget<Text>(find.text('Balanced price')).style!.color,
-        scheme.onPrimary.withValues(alpha: 0.7),
+        inkSoft,
       );
     });
 

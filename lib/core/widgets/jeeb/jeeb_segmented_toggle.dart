@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
-import 'jeeb_select_chip.dart' show jeebPillRadius;
+
+const BorderRadius _pillRadius =
+    BorderRadius.all(Radius.circular(JeebRadii.pill));
+
+/// Gap between segments (`5` — R5 language toggle).
+const double _segmentGap = 5;
 
 /// One segment of a [JeebSegmentedToggle].
 ///
@@ -33,10 +40,11 @@ class JeebSegment {
 
 /// The two-up pill switch (redesign-2026-08 §5 #19).
 ///
-/// Outer pill: `1.5px colorScheme.outline`, radius 999, padding 4. Segments are
-/// `flex:1`, padding `9/0`, radius 999; the selected one takes a
-/// `colorScheme.primary` fill with `13.5/w700` `onPrimary` ink, the rest stay
-/// transparent with navy ink (20 `tpl 1188-1190`).
+/// MIDNIGHT (R5 language toggle · E1 chip row · R17 ETA row): the outer track is
+/// glass — `glassFill` + `1px glassBorderStrong`, radius `pill`, padding 4,
+/// segments 5 apart. Segments are `flex:1`, padding `9/0`; the selected one is a
+/// **white fill with navy (`#0B1351`) ink at 13.5/w700**, the rest stay
+/// transparent with `inkSoft` ink at 13.5/w600. Orange is not in this control.
 ///
 /// **Scope, deliberately narrow:**
 ///  * 20's language switch is the only kit consumer.
@@ -57,7 +65,7 @@ class JeebSegmentedToggle extends StatelessWidget {
     required this.onChanged,
     this.padding = defaultPadding,
     this.segmentPadding = defaultSegmentPadding,
-    this.borderWidth = 1.5,
+    this.borderWidth = 1,
     this.identifier,
   });
 
@@ -87,7 +95,7 @@ class JeebSegmentedToggle extends StatelessWidget {
   /// Per-segment padding.
   final EdgeInsetsGeometry segmentPadding;
 
-  /// Outline width (`1.5`).
+  /// Track border width (`1` — the glass hairline).
   final double borderWidth;
 
   /// Maestro id for the track itself. Segments carry their own
@@ -97,12 +105,14 @@ class JeebSegmentedToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics = _semantics(context);
 
     Widget track = DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: jeebPillRadius,
-        border: Border.all(color: scheme.outline, width: borderWidth),
+        color: semantics.glassFill,
+        borderRadius: _pillRadius,
+        border:
+            Border.all(color: semantics.glassBorderStrong, width: borderWidth),
       ),
       child: Padding(
         // Border-box correction: the board's stroke sits outside the 4px track
@@ -110,7 +120,8 @@ class JeebSegmentedToggle extends StatelessWidget {
         padding: padding.add(EdgeInsets.all(borderWidth)),
         child: Row(
           children: <Widget>[
-            for (var index = 0; index < segments.length; index++)
+            for (var index = 0; index < segments.length; index++) ...<Widget>[
+              if (index > 0) const SizedBox(width: _segmentGap),
               Expanded(
                 child: _Segment(
                   segment: segments[index],
@@ -119,6 +130,7 @@ class JeebSegmentedToggle extends StatelessWidget {
                   onTap: () => onChanged(index),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -155,19 +167,21 @@ class _Segment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics = _semantics(context);
 
     final Widget body = DecoratedBox(
       decoration: BoxDecoration(
-        // Selection is a fill swap, never a border (§5 #4).
-        color: selected ? scheme.primary : Colors.transparent,
-        borderRadius: jeebPillRadius,
+        // Selection is a fill swap, never a border (§5 #4). White fill + navy
+        // ink; `onPrimary` is the sheet's `#FFFFFF`, `surface` its `#0B1351`.
+        color: selected ? scheme.onPrimary : Colors.transparent,
+        borderRadius: _pillRadius,
       ),
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
           key: segment.key,
           onTap: onTap,
-          borderRadius: jeebPillRadius,
+          borderRadius: _pillRadius,
           child: Padding(
             padding: padding,
             child: Text(
@@ -175,10 +189,12 @@ class _Segment extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              // 13.5/w700: `body` is the 13.5 token, the weight is the override.
+              // 13.5 is between the `bodySmall`/`body` rungs — design-exact px
+              // are legal inside the kit (§4.4).
               style: context.jeebText.body.copyWith(
-                fontWeight: FontWeight.w700,
-                color: selected ? scheme.onPrimary : scheme.primary,
+                fontSize: 13.5,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                color: selected ? scheme.surface : semantics.inkSoft,
               ),
             ),
           ),
@@ -197,3 +213,8 @@ class _Segment extends StatelessWidget {
     );
   }
 }
+
+/// A bare `!` read crashes under harnesses themed with `ThemeData.light()`.
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();

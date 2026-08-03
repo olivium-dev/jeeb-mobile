@@ -3,22 +3,25 @@ import 'dart:ui' show Tristate;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_stepper_pill.dart';
 
 import 'jeeb_remainder_test_harness.dart';
 
-/// Gates for redesign-2026-08 §5 #27.
+/// Gates for redesign-2026-08 §5 #27, re-cut on the MIDNIGHT token sheet.
 ///
 /// FAIL-WITHOUT: the `offer_composer_price_decrement` / `_increment`
 /// identifiers are frozen Maestro targets. If this widget stops emitting them,
-/// 17's E2E goes green while the price stepper is unreachable.
+/// 17's E2E goes green while the price stepper is unreachable. And: the label
+/// is WHITE — an orange `−1`/`+1` pair spends 17's orange budget twice over.
 void main() {
-  final ColorScheme scheme = AppTheme.light().colorScheme;
+  // Token sheet §1/§3: ink `#EDEFFC`, `glassFillEmphasis` white 10%,
+  // `glassBorderStrong` white 16%.
+  const Color ink = Color(0xFFEDEFFC);
+  const Color glassFillEmphasis = Color(0x1AFFFFFF);
+  const Color glassBorderStrong = Color(0x29FFFFFF);
 
   group('JeebStepperPill visuals', () {
-    testWidgets('is a 1.5px outlined pill with 12.5/w700 navy ink',
-        (tester) async {
+    testWidgets('is a 1px glass pill with 12.5/w700 white ink', (tester) async {
       await tester.pumpWidget(
         wrapRemainder(
           JeebStepperPill(label: '+1', onTap: () {}),
@@ -29,18 +32,17 @@ void main() {
           remainderDecorationOf(tester, find.byType(JeebStepperPill));
       expect(decoration.borderRadius, BorderRadius.circular(999));
       final Border border = decoration.border! as Border;
-      expect(border.top.color, scheme.outline);
-      expect(border.top.width, 1.5);
-      expect(decoration.color, isNull, reason: 'the pill is never filled');
+      expect(border.top.color, glassBorderStrong);
+      expect(border.top.width, 1);
+      expect(decoration.color, glassFillEmphasis);
 
       final TextStyle style = tester.widget<Text>(find.text('+1')).style!;
       expect(style.fontSize, 12.5);
       expect(style.fontWeight, FontWeight.w700);
-      expect(style.color, scheme.primary);
+      expect(style.color, ink);
     });
 
-    testWidgets('insets 6/12 plus the 1.5px stroke (border-box)',
-        (tester) async {
+    testWidgets('insets 6/12 plus the 1px stroke (border-box)', (tester) async {
       await tester.pumpWidget(
         wrapRemainder(JeebStepperPill(label: '-1', onTap: () {})),
       );
@@ -55,7 +57,7 @@ void main() {
       );
       expect(
         padding.padding.resolve(TextDirection.ltr),
-        const EdgeInsets.symmetric(horizontal: 13.5, vertical: 7.5),
+        const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
       );
     });
 
@@ -176,9 +178,9 @@ void main() {
           tester.getTopRight(find.byType(JeebStepperPill)).dx -
               tester.getTopRight(find.text('+1')).dx;
 
-      // 24 start + 1.5 stroke, on the mirrored edge.
-      expect(ltrGap, closeTo(25.5, 0.01));
-      expect(rtlGap, closeTo(25.5, 0.01));
+      // 24 start + 1 stroke, on the mirrored edge.
+      expect(ltrGap, closeTo(25, 0.01));
+      expect(rtlGap, closeTo(25, 0.01));
     });
   });
 

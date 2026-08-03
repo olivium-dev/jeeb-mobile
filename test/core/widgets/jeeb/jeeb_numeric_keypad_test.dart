@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_numeric_keypad.dart';
 
 import 'jeeb_code_test_harness.dart';
 
-ColorScheme get _scheme => AppTheme.light().colorScheme;
+ColorScheme get _scheme => AppTheme.midnight().colorScheme;
+JeebSemanticColors get _glass => JeebSemanticColors.midnight();
 
 /// A pad with recording callbacks, so every test can assert what a tap did.
 JeebNumericKeypad _pad({
@@ -44,7 +47,7 @@ void main() {
       expect(find.byType(InkWell), findsNWidgets(11));
     });
 
-    testWidgets('keys are h62 r16 surfaceContainerHigh at gap 10 in 3 columns',
+    testWidgets('keys are h62 r18 frosted glass at gap 10 in 3 columns',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCode(_pad(digits: <String>[], backspaces: <int>[])),
@@ -64,16 +67,19 @@ void main() {
         tester,
         find.bySemanticsIdentifier('phone_otp_keypad_1'),
       ).first;
-      expect(key.color, _scheme.surfaceContainerHigh);
+      expect(key.color, _glass.glassFill);
+      expect(JeebNumericKeypad.keyRadius, JeebRadii.lg);
       expect(
         (key.borderRadius! as BorderRadius).topLeft.x,
-        JeebNumericKeypad.keyRadius,
+        JeebRadii.lg,
       );
+      expect(key.border!.top.color, _glass.glassBorder);
+      expect(key.border!.top.width, JeebNumericKeypad.glassBorderWidth);
       // Flat: no keypad key casts a shadow on the board.
       expect(key.boxShadow, isNull);
     });
 
-    testWidgets('digits use jeebText.keypadDigit (23/w700) in navy',
+    testWidgets('digits use jeebText.keypadDigit (23/w700) in ink',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCode(_pad(digits: <String>[], backspaces: <int>[])),
@@ -82,10 +88,10 @@ void main() {
       final TextStyle style = tester.widget<Text>(find.text('7')).style!;
       expect(style.fontSize, 23);
       expect(style.fontWeight, FontWeight.w700);
-      expect(style.color, _scheme.primary);
+      expect(style.color, _scheme.onSurface);
     });
 
-    testWidgets('the backspace key has NO fill and a 24px navy glyph',
+    testWidgets('the backspace key has NO fill, NO stroke and a 24px glyph',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapCode(_pad(digits: <String>[], backspaces: <int>[])),
@@ -95,11 +101,12 @@ void main() {
         tester,
         find.bySemanticsIdentifier('phone_otp_keypad_backspace'),
       ).first;
-      expect(back.color, isNull, reason: '`tpl 145` draws no background');
+      expect(back.color, isNull, reason: 'R7 draws no background');
+      expect(back.border, isNull, reason: 'R7 draws no stroke');
 
       final Icon icon = tester.widget<Icon>(find.byIcon(Icons.backspace));
       expect(icon.size, JeebNumericKeypad.backspaceSize);
-      expect(icon.color, _scheme.primary);
+      expect(icon.color, _glass.inkSoft);
     });
 
     testWidgets('the pad carries its own 0/20/30 gutter',

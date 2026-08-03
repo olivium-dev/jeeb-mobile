@@ -8,7 +8,7 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_surface_tone.dart';
 /// Kept out of the widget files so nothing test-only ships in `lib/`.
 Widget wrapCard(Widget child, {TextDirection direction = TextDirection.ltr}) {
   return MaterialApp(
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     home: Directionality(
       textDirection: direction,
       child: Scaffold(
