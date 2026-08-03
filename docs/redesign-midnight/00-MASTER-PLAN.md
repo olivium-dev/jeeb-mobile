@@ -297,7 +297,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M0-5 Fonts: Inter-ExtraBold w800 + Baloo Bhaijaan 2 (500/600/700) bundled as verified static TTFs (no fvar, correct usWeightClass, Inter metrics match rsms instances; family string exactly "Baloo Bhaijaan 2"); `fontFamilyFallback` wired by M0-2 @2026-08-03
 - [x] M0-6 Dark map style JSON (`assets/map_styles/midnight.json`, measured from R3/R11: land=wash, roads land+0x0F, labels periwinkle ON by ruling, POI/transit off) + `JeebMapStyle` helper + both live `GoogleMap` sites styled via `style:` param @2026-08-03
 - [x] M0-7 Board assets imported → `assets/brand/jeeb_wordmark.svg`, `assets/illustrations/delivery_3d.png` (repo snake_case convention; delivery art flagged navy-hostile for M5) @2026-08-03
-- [ ] M0-8 AA contrast tests re-cut for navy pairs (retire brown-on-white guard)
+- [x] M0-8 AA tests re-cut for navy — all sheet-§9 pairs PASS (worst body ink 5.17:1), failure-by-design pairs asserted, brown-on-white guard retired; 165 theme tests green @2026-08-03
 - [ ] M0-9 Capture-harness fixes (R12 `standInRouter`, star token provider, harness emoji/Arabic fonts)
 
 ### M1 Kit
