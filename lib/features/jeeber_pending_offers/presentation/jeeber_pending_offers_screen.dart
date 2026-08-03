@@ -40,13 +40,12 @@ import '../../jeeber_request_feed/presentation/pending_offer_row.dart';
 /// (`back` circle + `jeebText.h2` title, board padding `14/24/0`), the list
 /// picked up the board's vertical rhythm, and the empty state is top-aligned
 /// (R1: the residual space stays white, never vertically centred).
-/// **[PendingOfferRow] itself is NOT this lane's file** — it lives in
-/// `jeeber_request_feed/` and is shared with the feed's Pending-Response
-/// sub-tab and the jeeber home feed. Its card/type treatment is filed as a
-/// paste-ready request in
-/// `docs/redesign-2026-08/wiring/w4-jeeber-pending-offers.md`; the list's
-/// horizontal gutter stays 0 until it lands, because the row still supplies its
-/// own 16px inset (adding a 24px gutter now would indent the rows to 40px).
+/// [PendingOfferRow] itself lives in `jeeber_request_feed/` and is shared with
+/// the feed's Pending-Response sub-tab and the shell dashboard's copy of it.
+/// **w5 landed its card/type treatment** (the `w4-jeeber-pending-offers.md` R1
+/// request), and the row now owns the board's 24px gutter itself — one gutter
+/// for all three surfaces — so the list's horizontal padding stays 0 here
+/// deliberately: adding one would indent the cards to 48px.
 ///
 /// Self-provides the cubit over `sl<Dio>()` because the route builder constructs
 /// `const JeeberPendingOffersScreen()` with no DI param (mirrors
@@ -182,8 +181,9 @@ class _PendingOffersView extends StatelessWidget {
     return OmdsPullToRefresh(
       onRefresh: cubit.load,
       child: ListView.builder(
-        // Horizontal gutter stays 0 while [PendingOfferRow] owns its own 16px
-        // inset (see the class docs) — the vertical rhythm is this lane's.
+        // Horizontal gutter stays 0: [PendingOfferRow] owns the board's 24px
+        // page margin itself (see the class docs) so all three of its host
+        // surfaces line up — the vertical rhythm is this lane's.
         padding: const EdgeInsetsDirectional.only(
           top: Spacing.medium,
           bottom: Spacing.xLarge,

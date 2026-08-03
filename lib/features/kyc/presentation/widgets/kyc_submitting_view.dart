@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/kyc_wizard_cubit.dart';
 import '../../application/kyc_wizard_state.dart';
@@ -30,6 +31,20 @@ enum _ProbeSource { scheduled, resume }
 /// probes bound the mounted view to eight automatic requests. After both
 /// budgets, recovery remains with the submit future, the CDN-upload timeout,
 /// and [KycWizardCubit.onJeeberRoleGranted], not additional polling.
+///
+/// redesign-2026-08 (no render exists for this step — it applies the language of
+/// its neighbour `22-become-a-jeeber` and, above all, of its own already-migrated
+/// sibling `kyc_status_view.dart`): a RE-SKIN only. Same copy, same three
+/// elements, same order, same keys, same live region, same polling. What
+/// changed is that the head disc no longer paints itself with the brand's
+/// peach `primaryContainer` (§4 rations orange; R5 lets it mark only what is
+/// live or decaying — an upload progress disc is neither), the type comes from
+/// the ramp instead of two ad-hoc `copyWith`s, the gutter is the board's
+/// directional 24, and the block is TOP-aligned over real emptiness instead of
+/// vertically centred (R1). Geometry is deliberately copied from
+/// `_StatusScaffold` / `_GlyphMark` in `kyc_status_view.dart` — this view and
+/// the status view are consecutive frames of one wizard, so they must not
+/// disagree by a pixel.
 class KycSubmittingView extends StatefulWidget {
   const KycSubmittingView({super.key});
 
@@ -185,10 +200,7 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
       liveRegion: true,
       label: l10n.kycSubmittingTitle,
       hint: l10n.kycSubmittingBody,
-      child: const Padding(
-        padding: EdgeInsets.all(Spacing.large),
-        child: _SubmittingBody(),
-      ),
+      child: const _SubmittingBody(),
     );
   }
 }
@@ -196,19 +208,44 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
 class _SubmittingBody extends StatelessWidget {
   const _SubmittingBody();
 
+  /// The board's 24px side gutters — byte-for-byte `_kStatusBodyPadding` from
+  /// `kyc_status_view.dart`, because the two steps sit back-to-back and a
+  /// different gutter would read as a jump. Directional, so Arabic mirrors it.
+  static const EdgeInsetsGeometry _padding = EdgeInsetsDirectional.fromSTEB(
+    Spacing.xLarge,
+    Spacing.xLarge,
+    Spacing.xLarge,
+    Spacing.large,
+  );
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final jeebText = context.jeebText;
+    // R1 — the block sits at the TOP and whatever is left over stays plain
+    // white; it is never centred in the viewport. The list also lets the long
+    // Arabic body scroll instead of overflowing at a large text scale, which
+    // the old fixed `Column` could not do.
+    return ListView(
+      padding: _padding,
       children: [
-        _SubmittingIcon(scheme: theme.colorScheme),
+        const _SubmittingMark(),
         const SizedBox(height: Spacing.large),
-        _SubmittingTitle(text: l10n.kycSubmittingTitle, theme: theme),
+        Text(
+          l10n.kycSubmittingTitle,
+          key: KycSubmittingView.titleKey,
+          textAlign: TextAlign.center,
+          style: jeebText.h1.copyWith(color: theme.colorScheme.primary),
+        ),
         const SizedBox(height: Spacing.small),
-        _SubmittingBodyText(text: l10n.kycSubmittingBody, theme: theme),
+        Text(
+          l10n.kycSubmittingBody,
+          textAlign: TextAlign.center,
+          style: jeebText.body.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: Spacing.xLarge),
         const _SubmittingSpinner(),
       ],
@@ -216,68 +253,49 @@ class _SubmittingBody extends StatelessWidget {
   }
 }
 
-class _SubmittingIcon extends StatelessWidget {
-  const _SubmittingIcon({required this.scheme});
-
-  final ColorScheme scheme;
+/// The head mark: the same soft tinted disc `_GlyphMark` draws on the status
+/// step (Ø88 `surfaceContainerHigh`, 40px navy glyph), so the wizard's last two
+/// frames share one head band.
+///
+/// It keeps `cloud_upload_outlined` rather than adopting `KycReviewMark`: the
+/// scan-line loop means "a reviewer is reading your document", which is the
+/// PENDING state one frame later — this frame is the upload itself, and two
+/// consecutive screens wearing the same mark would erase the difference.
+class _SubmittingMark extends StatelessWidget {
+  const _SubmittingMark();
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     return Center(
       child: Container(
         width: Sizes.nineXLarge,
         height: Sizes.nineXLarge,
         decoration: BoxDecoration(
-          color: scheme.primaryContainer,
+          // NOT `primaryContainer`: that role is the brand's peach #FFDBD1, so
+          // the old disc was the largest orange fill on any KYC screen.
+          color: scheme.surfaceContainerHigh,
           shape: BoxShape.circle,
         ),
+        alignment: Alignment.center,
         child: Icon(
           Icons.cloud_upload_outlined,
-          size: Sizes.fourXLarge,
-          color: scheme.onPrimaryContainer,
+          size: Sizes.threeXLarge,
+          color: scheme.primary,
         ),
       ),
     );
   }
 }
 
-class _SubmittingTitle extends StatelessWidget {
-  const _SubmittingTitle({required this.text, required this.theme});
-
-  final String text;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      key: KycSubmittingView.titleKey,
-      textAlign: TextAlign.center,
-      style: theme.textTheme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _SubmittingBodyText extends StatelessWidget {
-  const _SubmittingBodyText({required this.text, required this.theme});
-
-  final String text;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
-      ),
-    );
-  }
-}
-
+/// The single in-line wait indicator.
+///
+/// Deliberately still [OmdsLoadingState] and not the `loading-dots` Lottie:
+/// every other wait in this feature — the status view's `isLoadingStatus`
+/// branch and the wizard's schema step — is an [OmdsLoadingState], and one
+/// screen inventing a second wait idiom is exactly the inconsistency this wave
+/// exists to remove. Adopting the dots is a feature-wide move, not a one-file
+/// one.
 class _SubmittingSpinner extends StatelessWidget {
   const _SubmittingSpinner();
 
