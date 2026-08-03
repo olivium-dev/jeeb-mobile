@@ -1,0 +1,379 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": []
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "components/core/**",
+              "components/forms/**",
+              "components/jeeb/**",
+              "ui_kits/jeeb-app/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "Literal[value=/font-family\\s*:\\s*(?!['\\\"]?(?:Inter|Baloo Bhaijaan 2))/i]",
+        "message": "Font not provided by the design system. Available: Inter, Baloo Bhaijaan 2."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Avatar'] > JSXAttribute > JSXIdentifier[name!=/^(?:src|name|size|ring|key|ref|className|style|children)$/]",
+        "message": "<Avatar> doesn't accept that prop. Declared props: src, name, size, ring."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Badge'] > JSXAttribute > JSXIdentifier[name!=/^(?:tone|soft|children|key|ref|className|style|children)$/]",
+        "message": "<Badge> doesn't accept that prop. Declared props: tone, soft, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Badge'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:navy|orange|success|muted|flash|express|standard|ontheway|eco)$/]",
+        "message": "<Badge> tone must be one of 'navy' | 'orange' | 'success' | 'muted' | 'flash' | 'express' | 'standard' | 'ontheway' | 'eco'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|size|disabled|full|leadingIcon|trailingIcon|children|key|ref|className|style|children)$/]",
+        "message": "<Button> doesn't accept that prop. Declared props: variant, size, disabled, full, leadingIcon, trailingIcon, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:primary|accent|secondary|ghost)$/]",
+        "message": "<Button> variant must be one of 'primary' | 'accent' | 'secondary' | 'ghost'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md|lg)$/]",
+        "message": "<Button> size must be one of 'sm' | 'md' | 'lg'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Card'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|selected|children|key|ref|className|style|children)$/]",
+        "message": "<Card> doesn't accept that prop. Declared props: variant, selected, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Card'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:plain|outlined|muted|filled)$/]",
+        "message": "<Card> variant must be one of 'plain' | 'outlined' | 'muted' | 'filled'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ChatInput'] > JSXAttribute > JSXIdentifier[name!=/^(?:value|onChange|onSend|onMic|onAttach|placeholder|key|ref|className|style|children)$/]",
+        "message": "<ChatInput> doesn't accept that prop. Declared props: value, onChange, onSend, onMic, onAttach, placeholder."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='IconButton'] > JSXAttribute > JSXIdentifier[name!=/^(?:icon|tone|size|filled|key|ref|className|style|children)$/]",
+        "message": "<IconButton> doesn't accept that prop. Declared props: icon, tone, size, filled."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='IconButton'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:navy|ghost|light|surface)$/]",
+        "message": "<IconButton> tone must be one of 'navy' | 'ghost' | 'light' | 'surface'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Input'] > JSXAttribute > JSXIdentifier[name!=/^(?:value|onChange|placeholder|leadingIcon|trailingIcon|onTrailingClick|multiline|rows|style|key|ref|className|style|children)$/]",
+        "message": "<Input> doesn't accept that prop. Declared props: value, onChange, placeholder, leadingIcon, trailingIcon, onTrailingClick, multiline, rows, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='MessageBubble'] > JSXAttribute > JSXIdentifier[name!=/^(?:from|time|read|children|key|ref|className|style|children)$/]",
+        "message": "<MessageBubble> doesn't accept that prop. Declared props: from, time, read, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='MessageBubble'] > JSXAttribute[name.name='from'] > Literal[value!=/^(?:me|them)$/]",
+        "message": "<MessageBubble> from must be one of 'me' | 'them'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='OfferCard'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|rating|message|time|accepted|onAccept|key|ref|className|style|children)$/]",
+        "message": "<OfferCard> doesn't accept that prop. Declared props: name, rating, message, time, accepted, onAccept."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ProgressTracker'] > JSXAttribute > JSXIdentifier[name!=/^(?:steps|current|tone|key|ref|className|style|children)$/]",
+        "message": "<ProgressTracker> doesn't accept that prop. Declared props: steps, current, tone."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ProgressTracker'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:navy|white)$/]",
+        "message": "<ProgressTracker> tone must be one of 'navy' | 'white'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RatingStars'] > JSXAttribute > JSXIdentifier[name!=/^(?:value|max|size|showValue|key|ref|className|style|children)$/]",
+        "message": "<RatingStars> doesn't accept that prop. Declared props: value, max, size, showValue."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='TierMeta'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|emoji|color|promise|framing|key|ref|className|style|children)$/]",
+        "message": "<TierMeta> doesn't accept that prop. Declared props: name, emoji, color, promise, framing."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='TierOption'] > JSXAttribute > JSXIdentifier[name!=/^(?:tier|selected|onSelect|key|ref|className|style|children)$/]",
+        "message": "<TierOption> doesn't accept that prop. Declared props: tier, selected, onSelect."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='TopAppBar'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|logoSrc|action|onAction|onLogo|key|ref|className|style|children)$/]",
+        "message": "<TopAppBar> doesn't accept that prop. Declared props: title, logoSrc, action, onAction, onLogo."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {
+      "Avatar": {
+        "replaces": []
+      },
+      "Badge": {
+        "replaces": []
+      },
+      "Button": {
+        "replaces": []
+      },
+      "Card": {
+        "replaces": []
+      },
+      "ChatInput": {
+        "replaces": []
+      },
+      "IconButton": {
+        "replaces": []
+      },
+      "Input": {
+        "replaces": []
+      },
+      "MessageBubble": {
+        "replaces": []
+      },
+      "OfferCard": {
+        "replaces": []
+      },
+      "ProgressTracker": {
+        "replaces": []
+      },
+      "RatingStars": {
+        "replaces": []
+      },
+      "TierMeta": {
+        "replaces": []
+      },
+      "TierOption": {
+        "replaces": []
+      },
+      "TopAppBar": {
+        "replaces": []
+      }
+    },
+    "tokens": [
+      "--border-strong",
+      "--border-subtle",
+      "--border-warm",
+      "--color-accent",
+      "--color-bg",
+      "--color-primary",
+      "--color-surface",
+      "--color-surface-field",
+      "--color-surface-subtle",
+      "--font-arabic",
+      "--font-sans",
+      "--font-ui",
+      "--jeeb-brown-outline",
+      "--jeeb-brown-subtitle",
+      "--jeeb-cyan-check",
+      "--jeeb-danger",
+      "--jeeb-ink",
+      "--jeeb-navy",
+      "--jeeb-on-primary",
+      "--jeeb-orange",
+      "--jeeb-periwinkle",
+      "--jeeb-star",
+      "--jeeb-success",
+      "--jeeb-surface",
+      "--jeeb-surface-high",
+      "--jeeb-surface-highest",
+      "--jeeb-surface-muted",
+      "--jeeb-tier-eco",
+      "--jeeb-tier-express",
+      "--jeeb-tier-flash",
+      "--jeeb-tier-ontheway",
+      "--jeeb-tier-standard",
+      "--jeeb-warning",
+      "--jeeb-white",
+      "--radius-field",
+      "--radius-lg",
+      "--radius-md",
+      "--radius-pill",
+      "--radius-sm",
+      "--radius-xl",
+      "--ring-focus",
+      "--screen-gutter",
+      "--screen-width",
+      "--shadow-card",
+      "--shadow-fab",
+      "--shadow-raised",
+      "--shadow-sheet",
+      "--space-1",
+      "--space-10",
+      "--space-12",
+      "--space-2",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--space-7",
+      "--space-8",
+      "--text-accent",
+      "--text-body-line",
+      "--text-body-size",
+      "--text-body-strong-weight",
+      "--text-body-weight",
+      "--text-caption-line",
+      "--text-caption-size",
+      "--text-caption-weight",
+      "--text-display-line",
+      "--text-display-size",
+      "--text-display-weight",
+      "--text-h1-line",
+      "--text-h1-size",
+      "--text-h1-weight",
+      "--text-h2-line",
+      "--text-h2-size",
+      "--text-h2-weight",
+      "--text-heading",
+      "--text-label-line",
+      "--text-label-size",
+      "--text-label-weight",
+      "--text-muted",
+      "--text-on-primary",
+      "--text-primary",
+      "--text-subtitle",
+      "--text-title-line",
+      "--text-title-size",
+      "--text-title-weight",
+      "--tracking-label",
+      "--tracking-normal",
+      "--tracking-tight",
+      "--tracking-wide",
+      "--weight-bold",
+      "--weight-medium",
+      "--weight-regular",
+      "--weight-semibold"
+    ],
+    "tokenKinds": {
+      "--jeeb-navy": "color",
+      "--jeeb-ink": "color",
+      "--jeeb-orange": "color",
+      "--jeeb-white": "color",
+      "--jeeb-periwinkle": "color",
+      "--jeeb-brown-outline": "color",
+      "--jeeb-brown-subtitle": "color",
+      "--jeeb-surface": "color",
+      "--jeeb-surface-high": "color",
+      "--jeeb-surface-highest": "color",
+      "--jeeb-surface-muted": "color",
+      "--jeeb-on-primary": "color",
+      "--jeeb-tier-flash": "color",
+      "--jeeb-tier-express": "color",
+      "--jeeb-tier-standard": "color",
+      "--jeeb-tier-ontheway": "color",
+      "--jeeb-tier-eco": "color",
+      "--jeeb-success": "color",
+      "--jeeb-warning": "color",
+      "--jeeb-danger": "color",
+      "--jeeb-star": "color",
+      "--jeeb-cyan-check": "color",
+      "--color-bg": "color",
+      "--color-surface": "color",
+      "--color-surface-subtle": "color",
+      "--color-surface-field": "color",
+      "--text-primary": "font",
+      "--text-heading": "font",
+      "--text-muted": "font",
+      "--text-subtitle": "font",
+      "--text-on-primary": "font",
+      "--text-accent": "font",
+      "--color-primary": "color",
+      "--color-accent": "color",
+      "--border-subtle": "color",
+      "--border-warm": "color",
+      "--border-strong": "color",
+      "--font-sans": "font",
+      "--font-arabic": "font",
+      "--font-ui": "font",
+      "--weight-regular": "font",
+      "--weight-medium": "font",
+      "--weight-semibold": "font",
+      "--weight-bold": "font",
+      "--text-display-size": "font",
+      "--text-display-line": "font",
+      "--text-display-weight": "font",
+      "--text-h1-size": "font",
+      "--text-h1-line": "font",
+      "--text-h1-weight": "font",
+      "--text-h2-size": "font",
+      "--text-h2-line": "font",
+      "--text-h2-weight": "font",
+      "--text-title-size": "font",
+      "--text-title-line": "font",
+      "--text-title-weight": "font",
+      "--text-body-size": "font",
+      "--text-body-line": "font",
+      "--text-body-weight": "font",
+      "--text-body-strong-weight": "font",
+      "--text-label-size": "font",
+      "--text-label-line": "font",
+      "--text-label-weight": "font",
+      "--text-caption-size": "font",
+      "--text-caption-line": "font",
+      "--text-caption-weight": "font",
+      "--tracking-tight": "font",
+      "--tracking-normal": "font",
+      "--tracking-label": "font",
+      "--tracking-wide": "font",
+      "--space-1": "spacing",
+      "--space-2": "spacing",
+      "--space-3": "spacing",
+      "--space-4": "spacing",
+      "--space-5": "spacing",
+      "--space-6": "spacing",
+      "--space-7": "spacing",
+      "--space-8": "spacing",
+      "--space-10": "spacing",
+      "--space-12": "spacing",
+      "--screen-gutter": "spacing",
+      "--screen-width": "spacing",
+      "--radius-sm": "radius",
+      "--radius-md": "radius",
+      "--radius-lg": "radius",
+      "--radius-xl": "radius",
+      "--radius-pill": "radius",
+      "--radius-field": "radius",
+      "--shadow-card": "shadow",
+      "--shadow-raised": "shadow",
+      "--shadow-sheet": "shadow",
+      "--shadow-fab": "shadow",
+      "--ring-focus": "shadow"
+    },
+    "fontFamilies": [
+      "Baloo Bhaijaan 2",
+      "Inter"
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+/* ============================================================
+   Jeeb — Color tokens
+   Navy-led, warmed by brown outlines + an energetic orange accent.
+   Source of truth: jeeb-mobile app_theme.dart + Figma 56535:1525
+   ============================================================ */
+:root {
+  /* ---- Brand core ---- */
+  --jeeb-navy: #0B1351;        /* The brand. Logo, primary buttons, headlines, app-bar ink */
+  --jeeb-ink: #0B0E53;         /* Body text / headlines on light surfaces */
+  --jeeb-orange: #D73B00;      /* Energy + action. Highlights, progress, "do it now" moments */
+  --jeeb-white: #FFFFFF;
+
+  /* ---- Supporting ---- */
+  --jeeb-periwinkle: #777FC0;  /* Secondary / muted text, supportive labels, names */
+  --jeeb-brown-outline: #916F66; /* Chip borders, dividers — warmth against the cool navy */
+  --jeeb-brown-subtitle: #5C4038; /* Subtitles / secondary copy */
+
+  /* ---- Surfaces ---- */
+  --jeeb-surface: #FFFFFF;            /* Page background */
+  --jeeb-surface-high: #EAE7EB;       /* Search fields, cards (lilac-grey) */
+  --jeeb-surface-highest: #E5E1E5;    /* Outline variants, subtle fills */
+  --jeeb-surface-muted: #F4F4F6;      /* Offer / message cards (light grey) */
+  --jeeb-on-primary: #FFFFFF;         /* Text on navy */
+
+  /* ---- Tier spectrum (urgent red -> relaxed green) ---- */
+  --jeeb-tier-flash: #E53935;       /* ⚡ Flash    — under 1 hour, priority */
+  --jeeb-tier-express: #FB8C00;     /* 🚀 Express  — 2-3 hours, fast */
+  --jeeb-tier-standard: #1E88E5;    /* 🟦 Standard — later today, best value */
+  --jeeb-tier-ontheway: #43A047;    /* 🤝 On-the-Way — matched, flexible */
+  --jeeb-tier-eco: #7CB342;         /* 🌿 Eco      — 24-48h, affordable */
+
+  /* ---- Functional / semantic ---- */
+  --jeeb-success: #43A047;     /* "On the way", confirmed */
+  --jeeb-warning: #FB8C00;
+  --jeeb-danger: #E53935;
+  --jeeb-star: #FFC107;        /* Rating stars */
+  --jeeb-cyan-check: #20F0FF;  /* Read-receipt double-tick in chat */
+
+  /* ---- Semantic aliases (use these in components) ---- */
+  --color-bg: var(--jeeb-surface);
+  --color-surface: var(--jeeb-surface);
+  --color-surface-subtle: var(--jeeb-surface-muted);
+  --color-surface-field: var(--jeeb-surface-high);
+
+  --text-primary: var(--jeeb-ink);
+  --text-heading: var(--jeeb-navy);
+  --text-muted: var(--jeeb-periwinkle);
+  --text-subtitle: var(--jeeb-brown-subtitle);
+  --text-on-primary: var(--jeeb-on-primary);
+  --text-accent: var(--jeeb-orange);
+
+  --color-primary: var(--jeeb-navy);
+  --color-accent: var(--jeeb-orange);
+  --border-subtle: var(--jeeb-surface-highest);
+  --border-warm: var(--jeeb-brown-outline);
+  --border-strong: var(--jeeb-navy);
+}

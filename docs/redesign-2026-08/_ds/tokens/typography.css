@@ -1,0 +1,34 @@
+/* ============================================================
+   Jeeb — Typography tokens
+   Inter is the locked UI typeface (overrides Figma's Roboto/Urbanist
+   per OMDS standard). First-class Arabic, RTL-mirrored.
+   ============================================================ */
+:root {
+  /* ---- Families ---- */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-arabic: "Baloo Bhaijaan 2", "Inter", "SF Arabic", sans-serif; /* expressive AR display for headlines */
+  --font-ui: var(--font-sans);
+
+  /* ---- Weights ---- */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ---- Type scale (observed from app: 12 / 14 / 16 / 20 / 24) ---- */
+  --text-display-size: 28px;   --text-display-line: 34px;   --text-display-weight: 700;
+  --text-h1-size: 24px;        --text-h1-line: 30px;        --text-h1-weight: 700;
+  --text-h2-size: 20px;        --text-h2-line: 26px;        --text-h2-weight: 600;
+  --text-title-size: 18px;     --text-title-line: 24px;     --text-title-weight: 600;
+  --text-body-size: 16px;      --text-body-line: 24px;      --text-body-weight: 400;
+  --text-body-strong-weight: 600;
+  --text-label-size: 14px;     --text-label-line: 20px;     --text-label-weight: 500;
+  --text-caption-size: 12px;   --text-caption-line: 16px;   --text-caption-weight: 500;
+
+  /* ---- Tracking ---- */
+  --tracking-tight: -0.2px;
+  --tracking-normal: 0;
+  --tracking-label: 0.1px;
+  --tracking-wide: 0.15px;
+}

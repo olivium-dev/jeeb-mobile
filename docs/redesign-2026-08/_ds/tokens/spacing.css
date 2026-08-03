@@ -1,0 +1,29 @@
+/* ============================================================
+   Jeeb — Spacing, radius & layout tokens
+   The live UI is clean and airy — generous white space.
+   ============================================================ */
+:root {
+  /* ---- Spacing scale (4px base) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;   /* screen gutter */
+  --space-7: 28px;   /* default block gap */
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ---- Screen layout ---- */
+  --screen-gutter: 24px;   /* left/right page padding */
+  --screen-width: 440px;   /* design canvas width (mobile) */
+
+  /* ---- Radii ---- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;     /* cards, tier rows */
+  --radius-xl: 24px;     /* sheets, message bubbles */
+  --radius-pill: 999px;  /* buttons, chips, send button */
+  --radius-field: 32px;  /* chat input field */
+}
