@@ -5,6 +5,10 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/set_password_cubit.dart';
 import '../application/set_password_state.dart';
@@ -41,6 +45,13 @@ enum SetPasswordMode {
 /// from settings). The former recovery entry (email/password recovery funnel)
 /// was removed in JEBV4-199; `email`/`resetToken` stay as optional inputs the
 /// authenticated caller may forward but are not required in-app-social.
+///
+/// redesign-2026-08: re-skinned onto the Jeeb system so it reads as one product
+/// with its caller (`password_security_screen.dart`) and its settings-family
+/// sibling (`profile_edit_screen.dart`). Bands, top to bottom: in-body
+/// [JeebTopBar] → the two password fields at 24px gutters → the validation
+/// note → a real empty band → the docked [JeebCtaFooter] Save pill. The flow,
+/// the copy, the cubit calls and every `Semantics(identifier:)` are unchanged.
 class SetPasswordScreen extends StatelessWidget {
   const SetPasswordScreen({
     super.key,
@@ -133,7 +144,8 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
       container: true,
       explicitChildNodes: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: l10n.setpwTitle, showBackButton: true),
+        // The header is an in-body [JeebTopBar] row, not a Material app bar
+        // (§5 #1) — the same swap password-security and profile-edit made.
         body: BlocConsumer<SetPasswordCubit, SetPasswordState>(
           listenWhen: (p, n) =>
               p.status != n.status && n.status == SetPasswordStatus.succeeded,
@@ -142,95 +154,120 @@ class _SetPasswordViewState extends State<_SetPasswordView> {
             final cubit = context.read<SetPasswordCubit>();
             final submitting = state.status == SetPasswordStatus.submitting;
             return SafeArea(
-              child: ListView(
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  Spacing.medium,
-                  Spacing.large,
-                  Spacing.medium,
-                  Spacing.xLarge,
-                ),
+              // The docked footer owns the bottom inset, so the scroll body
+              // must not claim it (same split as profile_edit_screen.dart).
+              bottom: false,
+              child: Column(
                 children: [
-                  // New password field + its eye toggle.
-                  Semantics(
-                    identifier: 'setpw_new_field',
-                    textField: true,
-                    child: OmdsTextField(
-                      controller: _newController,
-                      labelText: l10n.setpwNewLabel,
-                      hintText: l10n.setpwNewHint,
-                      obscureText: state.newObscured,
-                      autoValidate: false,
-                      enabled: !submitting,
-                      textInputAction: TextInputAction.next,
-                      onChanged: (_) => cubit.acknowledgeError(),
-                      suffixIcon: Semantics(
-                        identifier: 'setpw_new_visibility_toggle',
-                        button: true,
-                        child: IconButton(
-                          icon: Icon(
-                            state.newObscured
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                          onPressed: cubit.toggleNewObscured,
-                        ),
-                      ),
-                    ),
+                  // Back is still the guarded `Navigator.maybePop()` the
+                  // OMDSAppBar back button called — the kit's default
+                  // `onLeadingPressed` is that same call, so the route's
+                  // `backFallbacks['set-password']` wrapper is untouched.
+                  JeebTopBar.back(
+                    title: l10n.setpwTitle,
+                    identifier: 'setpw_back',
                   ),
-                  const SizedBox(height: Spacing.medium),
-                  // Confirm password field + its eye toggle.
-                  Semantics(
-                    identifier: 'setpw_confirm_field',
-                    textField: true,
-                    child: OmdsTextField(
-                      controller: _confirmController,
-                      labelText: l10n.setpwConfirmLabel,
-                      hintText: l10n.setpwConfirmHint,
-                      obscureText: state.confirmObscured,
-                      autoValidate: false,
-                      enabled: !submitting,
-                      textInputAction: TextInputAction.done,
-                      onChanged: (_) => cubit.acknowledgeError(),
-                      onSubmitted: (_) => _onSubmit(),
-                      suffixIcon: Semantics(
-                        identifier: 'setpw_confirm_visibility_toggle',
-                        button: true,
-                        child: IconButton(
-                          icon: Icon(
-                            state.confirmObscured
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                          ),
-                          onPressed: cubit.toggleConfirmObscured,
-                        ),
+                  Expanded(
+                    child: ListView(
+                      // 24px side gutters (§4.3), shared with every redesigned
+                      // settings-family screen; the band below the last field
+                      // stays white — the CTA is docked, not last in the list.
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        Spacing.xLarge,
+                        Spacing.medium,
+                        Spacing.xLarge,
+                        Spacing.large,
                       ),
-                    ),
-                  ),
-                  // Validation / submit error node. Mismatch or weak password
-                  // (AC3) and any server failure both surface here so QA has a
-                  // single assertable id (60_W0_TEST_PLAN §2.11).
-                  if (state.hasError) ...[
-                    const SizedBox(height: Spacing.medium),
-                    Semantics(
-                      identifier: 'setpw_validation_error',
-                      liveRegion: true,
-                      child: Text(
-                        l10n.setpwValidationError,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.error,
+                      children: [
+                        // New password field + its eye toggle.
+                        Semantics(
+                          identifier: 'setpw_new_field',
+                          textField: true,
+                          child: OmdsTextField(
+                            controller: _newController,
+                            labelText: l10n.setpwNewLabel,
+                            hintText: l10n.setpwNewHint,
+                            obscureText: state.newObscured,
+                            autoValidate: false,
+                            enabled: !submitting,
+                            textInputAction: TextInputAction.next,
+                            onChanged: (_) => cubit.acknowledgeError(),
+                            suffixIcon: Semantics(
+                              identifier: 'setpw_new_visibility_toggle',
+                              button: true,
+                              child: IconButton(
+                                icon: Icon(
+                                  state.newObscured
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                ),
+                                onPressed: cubit.toggleNewObscured,
+                              ),
                             ),
-                      ),
+                          ),
+                        ),
+                        const SizedBox(height: Spacing.medium),
+                        // Confirm password field + its eye toggle.
+                        Semantics(
+                          identifier: 'setpw_confirm_field',
+                          textField: true,
+                          child: OmdsTextField(
+                            controller: _confirmController,
+                            labelText: l10n.setpwConfirmLabel,
+                            hintText: l10n.setpwConfirmHint,
+                            obscureText: state.confirmObscured,
+                            autoValidate: false,
+                            enabled: !submitting,
+                            textInputAction: TextInputAction.done,
+                            onChanged: (_) => cubit.acknowledgeError(),
+                            onSubmitted: (_) => _onSubmit(),
+                            suffixIcon: Semantics(
+                              identifier: 'setpw_confirm_visibility_toggle',
+                              button: true,
+                              child: IconButton(
+                                icon: Icon(
+                                  state.confirmObscured
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
+                                ),
+                                onPressed: cubit.toggleConfirmObscured,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Validation / submit error node. Mismatch or weak
+                        // password (AC3) and any server failure both surface
+                        // here so QA has a single assertable id
+                        // (60_W0_TEST_PLAN §2.11). Same soft `errorContainer`
+                        // note the caller renders for its own guards — never
+                        // the legacy red-slab body text.
+                        if (state.hasError) ...[
+                          const SizedBox(height: Spacing.small),
+                          Semantics(
+                            identifier: 'setpw_validation_error',
+                            liveRegion: true,
+                            child: JeebInfoNote.error(
+                              icon: Icons.error,
+                              text: l10n.setpwValidationError,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                  const SizedBox(height: Spacing.xLarge),
-                  // Primary submit CTA.
-                  Semantics(
-                    identifier: 'setpw_submit_cta',
-                    button: true,
-                    child: OmdsPrimaryButton(
-                      text: l10n.setpwSubmitCta,
-                      isEnabled: !submitting,
-                      onTap: _onSubmit,
+                  ),
+                  // Primary submit CTA, docked over the empty band (§3).
+                  SafeArea(
+                    top: false,
+                    child: JeebCtaFooter.single(
+                      child: Semantics(
+                        identifier: 'setpw_submit_cta',
+                        button: true,
+                        child: JeebCtaButton.primary(
+                          label: l10n.setpwSubmitCta,
+                          isEnabled: !submitting,
+                          onTap: _onSubmit,
+                        ),
+                      ),
                     ),
                   ),
                 ],

@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_empty_view.dart';
+import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_motion.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 /// Synchronous ARB-backed localizations delegate so widget tests render the
@@ -89,16 +91,43 @@ void main() {
       expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
     });
 
-    testWidgets('renders the hero illustration asset', (tester) async {
+    testWidgets('renders the empty-say-it motion mark', (tester) async {
       await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
 
-      final image = tester.widget<Image>(find.byType(Image));
-      expect(image.image, isA<AssetImage>());
+      // redesign-2026-08 motion spec §2.6: the client empty state's mark is the
+      // mic (`empty-say-it.json`), not the pre-redesign `empty_orders.png` shop
+      // illustration — the empty state and the hero above it now say one thing.
+      expect(find.byType(ClientHomeEmptyMark), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+
+      final lottie = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
+      expect(lottie.lottie, isA<AssetLottie>());
       expect(
-        (image.image as AssetImage).assetName,
-        'assets/illustrations/empty_orders.png',
+        (lottie.lottie as AssetLottie).assetName,
+        'assets/animations/empty-say-it.json',
       );
+      // One-shot by contract: an empty list is a still state.
+      expect(lottie.repeat, isFalse);
+    });
+
+    testWidgets('reduce motion parks the mark on its settled final frame', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: _harness(onNewOrder: () {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final lottie = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
+      // `empty-say-it` frame 0 is BLANK (pre-entrance), so parking at 0 would
+      // leave an empty box; progress 1.0 is the settled navy mic.
+      expect(lottie.animate, isFalse);
+      expect(lottie.controller, same(kAlwaysCompleteAnimation));
+      expect(lottie.controller!.value, 1.0);
     });
 
     testWidgets('exposes Semantics identifiers on root and CTA', (

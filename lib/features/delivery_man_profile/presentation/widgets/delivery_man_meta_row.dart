@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_text_styles.dart';
+
 /// A small icon + text meta row in the delivery-man profile header
-/// (rating summary, location/availability). The leading glyph is brand orange
-/// ([ColorScheme.primary] per design §4); text uses muted secondary text.
+/// (rating summary, location/availability).
+///
+/// redesign-2026-08: the board's meta line is 12/w600 periwinkle
+/// (`context.jeebText.bodySmall` + `colorScheme.onSecondaryContainer`) with a
+/// navy leading glyph — the same treatment the jeeber-home cards use for
+/// "1.2 km · Achrafieh". The glyph ink is `ColorScheme.primary` (navy), which
+/// is what keeps the rating star off the rationed warm ink (§4.1).
 class DeliveryManMetaRow extends StatelessWidget {
   const DeliveryManMetaRow({
     super.key,
@@ -50,7 +57,7 @@ class _MetaText extends StatelessWidget {
     final theme = Theme.of(context);
     return Text(
       text,
-      style: theme.textTheme.bodyMedium?.copyWith(
+      style: context.jeebText.bodySmall.copyWith(
         color: theme.colorScheme.onSecondaryContainer,
       ),
       overflow: TextOverflow.ellipsis,

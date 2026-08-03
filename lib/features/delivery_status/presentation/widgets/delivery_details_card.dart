@@ -1,12 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_snapshot.dart';
 import '../../domain/delivery_tier.dart';
 
 /// Pickup / drop-off / tier section. Pure-presentational — relies on the
 /// caller to embed it inside the scrolling column.
+///
+/// redesign-2026-08: `OMDSSectionCard` + three hand-rolled rows (each with a
+/// peach `primaryContainer` icon disc) become the house shape — a
+/// [JeebSectionLabel] over one grouped [JeebOutlinedCard] of [JeebListRow]s.
+/// The address is the FACT so it takes the row title; the field name is the
+/// qualifier and rides the subtitle beside the optional second address line
+/// (`Pickup · Floor 3`), which is the ranking every other redesigned list on
+/// this journey uses.
 class DeliveryDetailsCard extends StatelessWidget {
   const DeliveryDetailsCard({super.key, required this.snapshot});
 
@@ -17,35 +28,44 @@ class DeliveryDetailsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OMDSSectionCard(
+    return Column(
       key: rootKey,
-      title: l10n.deliveryDetailsTitle,
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _DetailRow(
-            icon: Icons.adjust,
-            label: l10n.deliveryPickupLabel,
-            primary: snapshot.pickup.label,
-            secondary: snapshot.pickup.detail,
-          ),
-          const SizedBox(height: Spacing.medium),
-          _DetailRow(
-            icon: Icons.location_on_outlined,
-            label: l10n.deliveryDropoffLabel,
-            primary: snapshot.dropoff.label,
-            secondary: snapshot.dropoff.detail,
-          ),
-          const SizedBox(height: Spacing.medium),
-          _DetailRow(
-            icon: _iconForTier(snapshot.tier),
-            label: l10n.deliveryTierLabel,
-            primary: _labelForTier(l10n, snapshot.tier),
-          ),
-        ],
-      ),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        JeebSectionLabel(l10n.deliveryDetailsTitle),
+        const SizedBox(height: Spacing.xSmall),
+        JeebOutlinedCard.grouped(
+          children: [
+            JeebListRow(
+              icon: Icons.adjust,
+              title: snapshot.pickup.label,
+              subtitle: _qualifier(l10n.deliveryPickupLabel, snapshot.pickup.detail),
+              showChevron: false,
+            ),
+            JeebListRow(
+              // Filled glyph (R10).
+              icon: Icons.location_on,
+              title: snapshot.dropoff.label,
+              subtitle:
+                  _qualifier(l10n.deliveryDropoffLabel, snapshot.dropoff.detail),
+              showChevron: false,
+            ),
+            JeebListRow(
+              icon: _iconForTier(snapshot.tier),
+              title: _labelForTier(l10n, snapshot.tier),
+              subtitle: l10n.deliveryTierLabel,
+              showChevron: false,
+            ),
+          ],
+        ),
+      ],
     );
   }
+
+  /// `Pickup`, or `Pickup · Floor 3` when the address carries a second line.
+  /// Never fabricates a detail — an absent one simply leaves the field name.
+  String _qualifier(String label, String? detail) =>
+      (detail == null || detail.isEmpty) ? label : '$label · $detail';
 
   IconData _iconForTier(DeliveryTier tier) {
     switch (tier) {
@@ -71,70 +91,5 @@ class DeliveryDetailsCard extends StatelessWidget {
       case DeliveryTier.pickup:
         return l10n.deliveryTierPickup;
     }
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.icon,
-    required this.label,
-    required this.primary,
-    this.secondary,
-  });
-
-  final IconData icon;
-  final String label;
-  final String primary;
-  final String? secondary;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: Sizes.twoXLarge,
-          height: Sizes.twoXLarge,
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 18, color: colorScheme.onPrimaryContainer),
-        ),
-        const SizedBox(width: Spacing.medium),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: Sizes.threeXSmall),
-              Text(
-                primary,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (secondary != null && secondary!.isNotEmpty) ...[
-                const SizedBox(height: Sizes.threeXSmall),
-                Text(
-                  secondary!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }

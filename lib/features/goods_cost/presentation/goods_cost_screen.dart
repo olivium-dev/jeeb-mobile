@@ -4,6 +4,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/goods_cost_cubit.dart';
 import '../application/goods_cost_state.dart';
@@ -22,6 +28,17 @@ import '../domain/goods_cost_repository.dart';
 /// `sl<Dio>()` so the running app reaches the real gateway; a DI-less
 /// widget/router test falls back to the in-memory fake. Mirrors
 /// `DeliveryReceiptScreen`'s self-resolving pattern.
+///
+/// Redesign-2026-08: re-skinned onto the Jeeb design system against its nearest
+/// neighbour, screen 17 (offer composer) — in-body [JeebTopBar], an h1
+/// headline, a [JeebSectionLabel] over the board's money-field treatment, the
+/// honest cash note as a [JeebInfoNote], and one docked [JeebCtaFooter]. The
+/// flow is untouched: same single field, same submit, same pop-with-record.
+///
+/// **This screen carries NO fee math, by design.** The goods cost is cash the
+/// Client hands over in full — Jeeb takes its cut of the delivery fee, never of
+/// the goods — so no platform-fee line, no [JeebMoneyBreakdown], no net row
+/// belongs here.
 // ORPHAN (JEBV4-227, verified 2026-07-12): zero external refs; its backend endpoint is also broken — see docs/project-understanding/reconciliation/orphans.md
 class GoodsCostScreen extends StatelessWidget {
   const GoodsCostScreen({
@@ -66,43 +83,33 @@ class _GoodsCostView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: OMDSAppBar(title: AppLocalizations.of(context).goodsCostTitle),
-      body: const Padding(
-        padding: EdgeInsets.all(Spacing.medium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Header(),
-            SizedBox(height: Spacing.xLarge),
-            Expanded(child: _CostFieldAndSubmit()),
-          ],
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'goods_cost_root',
+      explicitChildNodes: true,
+      child: Scaffold(
+        // R3: the app bar moves in-body — a 40px circle + title inside the
+        // 24px gutter, not a Material chrome bar above it.
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Title + prompt, not title + h1: the board never stacks a
+              // headline larger than the bar title under it (17 `tpl 991-993`
+              // is the same two-line bar). Both existing strings survive, in
+              // the right order of voice — the imperative on top, the question
+              // as its muted qualifier.
+              JeebTopBar.back(
+                title: l10n.goodsCostTitle,
+                subtitle: l10n.goodsCostHeadline,
+                identifier: 'goods_cost_back',
+                leadingTooltip:
+                    MaterialLocalizations.of(context).backButtonTooltip,
+              ),
+              const Expanded(child: _CostFieldAndSubmit()),
+            ],
+          ),
         ),
       ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          l10n.goodsCostHeadline,
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: Spacing.xSmall),
-        Text(
-          l10n.goodsCostBody,
-          style: theme.textTheme.bodyMedium,
-        ),
-      ],
     );
   }
 }
@@ -156,39 +163,58 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
       },
       builder: (context, state) {
         final submitting = state.isSubmitting;
+        final failed = state.submitStatus == GoodsCostSubmitStatus.failed;
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            OmdsTextField(
-              controller: _controller,
-              labelText: _label(l10n, state.currency),
-              keyboardType: TextInputType.number,
-              prefixIcon: const Icon(Icons.attach_money),
-              enabled: !submitting,
-              onChanged: (_) {
-                if (state.submitStatus == GoodsCostSubmitStatus.failed) {
-                  context.read<GoodsCostCubit>().acknowledgeError();
-                } else {
-                  setState(() {});
-                }
-              },
-            ),
-            if (state.submitStatus == GoodsCostSubmitStatus.failed) ...[
-              const SizedBox(height: Spacing.small),
-              Text(
-                _errorCopy(l10n, state.submitError),
-                key: const Key('goods-cost-error'),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
+            Expanded(
+              // R1: the residual space below the note stays plain white — the
+              // content is top-aligned and never grows to fill it.
+              child: SingleChildScrollView(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  Spacing.xLarge,
+                  Spacing.large,
+                  Spacing.xLarge,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    JeebSectionLabel(_label(l10n, state.currency)),
+                    const SizedBox(height: Spacing.small),
+                    _AmountField(
+                      controller: _controller,
+                      isEnabled: !submitting,
+                      errorText:
+                          failed ? _errorCopy(l10n, state.submitError) : null,
+                      onChanged: (_) {
+                        if (failed) {
+                          context.read<GoodsCostCubit>().acknowledgeError();
+                        } else {
+                          setState(() {});
+                        }
+                      },
                     ),
+                    const SizedBox(height: Spacing.medium),
+                    // The honest cash line, in the board's repeated note shape
+                    // (17's wallet strip sits in exactly this slot). Copy is the
+                    // screen's existing body string — unchanged, just re-housed.
+                    JeebInfoNote.muted(
+                      icon: Icons.payments,
+                      text: l10n.goodsCostBody,
+                      identifier: 'goods_cost_cash_note',
+                    ),
+                  ],
+                ),
               ),
-            ],
-            const Spacer(),
-            OmdsLoadingButton(
-              text: l10n.goodsCostSubmit,
-              isLoading: submitting,
-              isEnabled: _controller.text.trim().isNotEmpty && !submitting,
-              onTap: _submit,
+            ),
+            JeebCtaFooter.single(
+              child: JeebCtaButton.primary(
+                label: l10n.goodsCostSubmit,
+                isLoading: submitting,
+                isEnabled: _controller.text.trim().isNotEmpty && !submitting,
+                onTap: _submit,
+                identifier: 'goods_cost_submit_cta',
+              ),
             ),
           ],
         );
@@ -208,5 +234,138 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
       case null:
         return l10n.goodsCostErrorGeneric;
     }
+  }
+}
+
+/// The goods-cost money input, drawn to the board's money-field treatment
+/// (screen 17 `tpl 995`): `min-h 64 / r16 / 2px navy` over a
+/// `surfaceContainerHigh` fill, with the amount in a w800 navy run. A failure
+/// swaps the stroke to `colorScheme.error` and hangs the message beneath.
+///
+/// **Why not `OmdsTextField`.** The board needs a caller-set text style (the
+/// amount is w800, far above any input style OMDS ships), `textDirection` on
+/// the editable core, and no decoration at all (the border and fill belong to
+/// this box). `omds_text_field.dart` exposes none of the three — the same
+/// finding screen 17 recorded on `JeebMoneyField`.
+///
+/// **Why not that `JeebMoneyField`.** It lives in another lane's feature
+/// directory (`lib/features/offers/presentation/widgets/`), and its `onStep`
+/// and `±1` [JeebStepperPill] pair are required parameters — mounting it here
+/// would add a price-stepper affordance this flow does not have. Wiring request
+/// W4-GOODS-1 asks for it to be promoted into `lib/core/widgets/jeeb/` with an
+/// optional stepper slot; this widget is deleted the day that lands.
+///
+/// Design values are snapped, not exact: `lib/features` may not write
+/// `fontSize:` literals (`tool/check_design_tokens.sh`), so the amount uses
+/// `jeebText.h1` at w800 (24/w800) against the board's 26/w800.
+///
+/// RTL: a plain box, so it mirrors as a block, while the editable core is
+/// pinned to [TextDirection.ltr] so the digits and the decimal point never
+/// reorder; the run hugs the leading edge in both directions.
+class _AmountField extends StatelessWidget {
+  const _AmountField({
+    required this.controller,
+    required this.isEnabled,
+    required this.onChanged,
+    this.errorText,
+  });
+
+  /// `height: 64` (board `tpl 995`) — a MINIMUM, not a fixed height, so the box
+  /// grows with the text scale instead of clipping at 200%.
+  static const double minHeight = Sizes.sixXLarge;
+
+  /// The board's `2px` navy stroke.
+  static const double borderWidth = 2;
+
+  final TextEditingController controller;
+
+  /// False while a record is in flight — the field stops taking keystrokes,
+  /// exactly as the previous `OmdsTextField(enabled:)` did.
+  final bool isEnabled;
+
+  final ValueChanged<String> onChanged;
+
+  /// Submit failure. Non-null also swaps the stroke to `colorScheme.error`.
+  final String? errorText;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final message = errorText;
+
+    final field = DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: OmdsBorderRadius.medium,
+        border: Border.all(
+          color: message != null ? scheme.error : scheme.primary,
+          width: borderWidth,
+        ),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: minHeight),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.medium,
+          ),
+          child: _editableCore(context),
+        ),
+      ),
+    );
+
+    if (message == null) return field;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        field,
+        const SizedBox(height: Spacing.xSmall),
+        Padding(
+          padding: const EdgeInsetsDirectional.only(start: Spacing.twoXSmall),
+          child: Text(
+            message,
+            key: const Key('goods-cost-error'),
+            style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _editableCore(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // The box mirrors, so the digits must hug the leading edge from whichever
+    // side it lands on — while the run itself stays LTR.
+    final alignment = Directionality.of(context) == TextDirection.rtl
+        ? TextAlign.end
+        : TextAlign.start;
+
+    return Semantics(
+      identifier: 'goods_cost_amount_field',
+      textField: true,
+      child: TextField( // EXEMPT(flutter-omds-design-system-usage): see class doc.
+        controller: controller,
+        enabled: isEnabled,
+        onChanged: onChanged,
+        style: context.jeebText.h1.copyWith(
+          fontWeight: FontWeight.w800,
+          color: scheme.primary,
+        ),
+        textDirection: TextDirection.ltr,
+        textAlign: alignment,
+        cursorColor: scheme.primary,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          isDense: true,
+          filled: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+    );
   }
 }

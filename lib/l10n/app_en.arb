@@ -479,6 +479,10 @@
   "@biometricNotAvailable": {
     "description": "Shown on the biometric prompt screen when the device has no usable biometric sensor."
   },
+  "biometricPromptSubtitle": "Sign in quickly with your fingerprint or face",
+  "@biometricPromptSubtitle": {
+    "description": "Subtitle under the heading on the biometric enrolment prompt screen; explains what enabling biometrics buys you."
+  },
   "requestNoLongerAvailable": "Request {requestId} is no longer available.",
   "@requestNoLongerAvailable": {
     "description": "Shown on the jeeber request-unavailable screen when a deep-linked request was matched, cancelled, or expired.",
@@ -3311,10 +3315,6 @@
   "@pendingTabRetryCta": {
     "description": "CTA button label on an expired pending request card."
   },
-  "pendingTabSearchingLabel": "Searching for Jeebers…",
-  "@pendingTabSearchingLabel": {
-    "description": "Sub-line shown on each pending request card while the system is finding a Jeeber (Figma 56535:1783 / T-MOB-007)."
-  },
   "pendingTabReconnecting": "Reconnecting…",
   "@pendingTabReconnecting": {
     "description": "Faint banner shown at the top of the Pending tab when the WebSocket is disconnected and falling back to polling."
@@ -4565,6 +4565,10 @@
   "@disputeStatusTitle": { "description": "JM-065 dispute-status OMDSAppBar title." },
   "disputeStatusOpenLabel": "Open — under review",
   "@disputeStatusOpenLabel": { "description": "JM-065 open-state label (dispute_status_state) — Open vs Resolved." },
+  "disputeStatusStepSubmitted": "Submitted",
+  "@disputeStatusStepSubmitted": { "description": "JM-065 dispute lifecycle stepper, node 1 (dispute_status_step_submitted) — always complete." },
+  "disputeStatusStepUnderReview": "Under review",
+  "@disputeStatusStepUnderReview": { "description": "JM-065 dispute lifecycle stepper, node 2 (dispute_status_step_review) — active while the dispute is open. Short form of disputeStatusOpenLabel." },
   "disputeStatusBody": "We're reviewing your dispute and the attached evidence. You'll be notified of the outcome.",
   "@disputeStatusBody": { "description": "JM-065 stub body — the JM-065 engineer fills outcome (refund/penalty D2) + evidence summary (D53)." },
   "disputeStatusSupportCta": "Contact support",
@@ -4630,6 +4634,28 @@
   "@goodsCostTitle": {"description": "App bar title for the Jeeber goods-cost entry screen."},
   "goodsCostHeadline": "How much did the goods cost?",
   "@goodsCostHeadline": {"description": "Headline prompting the Jeeber to enter the goods cost."},
+  "clientUnreachableTitle": "Client Unreachable",
+  "@clientUnreachableTitle": { "description": "client_unreachable top-bar title (jeeber flags a client who is not answering at the door)." },
+  "clientUnreachableNoticeTitle": "Cannot reach the Client",
+  "@clientUnreachableNoticeTitle": { "description": "client_unreachable notice headline — the state the jeeber is in." },
+  "clientUnreachableNoticeBody": "If the Client is not responding, you can flag them as unreachable. They will have 15 minutes to respond before the delivery is escalated.",
+  "@clientUnreachableNoticeBody": { "description": "client_unreachable notice body — what flagging does and the 15-minute grace window before escalation." },
+  "clientUnreachableCallAgainCta": "Try Calling Again",
+  "@clientUnreachableCallAgainCta": { "description": "client_unreachable_call_again_cta — retry the phone call." },
+  "clientUnreachableChatCta": "Send Chat Message",
+  "@clientUnreachableChatCta": { "description": "client_unreachable_chat_cta — reach the client in the order chat instead." },
+  "clientUnreachableFlagCta": "Flag as Unreachable",
+  "@clientUnreachableFlagCta": { "description": "client_unreachable_flag_cta — the docked escalating edge; pops true to the caller." },
+  "prohibitedItemReportTitle": "Report Prohibited Item",
+  "@prohibitedItemReportTitle": { "description": "Top-bar title of the prohibited-item report screen" },
+  "prohibitedItemReportGuidance": "If the Client requested delivery of a prohibited item, report it here.",
+  "@prohibitedItemReportGuidance": { "description": "Caution note above the form explaining when to use the screen" },
+  "prohibitedItemReportDescriptionLabel": "Describe the prohibited item",
+  "@prohibitedItemReportDescriptionLabel": { "description": "Floating label of the free-text description field" },
+  "prohibitedItemReportAttachPhotoCta": "Attach Photo",
+  "@prohibitedItemReportAttachPhotoCta": { "description": "Secondary outline action — attach optional photo evidence" },
+  "prohibitedItemReportSubmitCta": "Report Item",
+  "@prohibitedItemReportSubmitCta": { "description": "Docked primary action that submits the prohibited-item report" },
   "goodsCostBody": "Enter the amount the Client needs to pay for the purchased goods.",
   "@goodsCostBody": {"description": "Body explaining the goods-cost amount the Client reimburses."},
   "goodsCostFieldLabel": "Goods cost ({currency})",

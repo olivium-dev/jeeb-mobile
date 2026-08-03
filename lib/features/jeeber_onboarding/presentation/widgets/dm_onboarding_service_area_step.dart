@@ -3,7 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/directional_icons.dart';
+import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/dm_onboarding_cubit.dart';
 import '../../application/dm_onboarding_state.dart';
@@ -57,12 +63,7 @@ class _ServiceAreaContent extends StatelessWidget {
           subtitle: l10n.dmOnboardingServiceAreaSubtitle,
         ),
         const SizedBox(height: Spacing.xLarge),
-        Text(
-          l10n.dmOnboardingServiceAreaPrimaryLocationLabel,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-        ),
+        JeebSectionLabel(l10n.dmOnboardingServiceAreaPrimaryLocationLabel),
         const SizedBox(height: Spacing.small),
         const _HomeBaseMapPin(),
         const SizedBox(height: Spacing.medium),
@@ -93,7 +94,8 @@ class _HomeBaseMapPin extends StatelessWidget {
           image: true,
           label: l10n.dmOnboardingServiceAreaPrimaryLocationLabel,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(Sizes.small),
+            // Soft, large radii: 16 is the board's card corner, not 12.
+            borderRadius: OmdsBorderRadius.medium,
             child: Container(
               height: Sizes.elevenXLarge,
               width: double.infinity,
@@ -119,7 +121,6 @@ class _HomeBaseMapContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final label = base?.label.trim() ?? '';
     final pinned = label.isNotEmpty;
@@ -129,8 +130,10 @@ class _HomeBaseMapContent extends StatelessWidget {
         Icon(
           pinned ? Icons.location_on : Icons.map_outlined,
           size: Sizes.threeXLarge,
-          // Accent PAINT (map pin), not a container fill — same #D73B00.
-          color: scheme.tertiary,
+          // The one rationed orange on this step: accent PAINT (the map pin),
+          // never a fill. `jeebRoles.accent` is the sanctioned token — the raw
+          // `tertiary` role is not.
+          color: context.jeebRoles.accent,
         ),
         const SizedBox(height: Spacing.xSmall),
         _HomeBaseMapLabel(
@@ -155,10 +158,9 @@ class _HomeBaseMapLabel extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: Theme.of(context)
-            .textTheme
-            .bodyMedium
-            ?.copyWith(color: scheme.onSurfaceVariant),
+        style: context.jeebText.bodySmall.copyWith(
+          color: scheme.onSurfaceVariant,
+        ),
       ),
     );
   }
@@ -166,6 +168,10 @@ class _HomeBaseMapLabel extends StatelessWidget {
 
 /// Tappable "Select location" row (`service_area_select_location`, JM-038 AC3)
 /// → opens the shared location-map-pin screen, then records the pinned base.
+///
+/// Shaped as the board shapes every navigation row: a kit [JeebListRow] inside
+/// an outlined card. The card owns no tap and no identifier, so it adds no
+/// semantics node of its own — the frozen wrapper below stays the only one.
 class _SelectLocationRow extends StatelessWidget {
   const _SelectLocationRow();
 
@@ -180,11 +186,13 @@ class _SelectLocationRow extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       label: l10n.dmOnboardingServiceAreaLocationFieldLabel,
-      child: InkWell(
-        onTap: () => _pickHomeBase(context),
-        child: const Padding(
-          padding: EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
-          child: _SelectLocationRowBody(),
+      child: JeebOutlinedCard(
+        padding: EdgeInsetsDirectional.zero,
+        child: JeebListRow(
+          icon: Icons.location_on,
+          title: l10n.dmOnboardingServiceAreaLocationFieldLabel,
+          trailing: const _SelectLocationTrailing(),
+          onTap: () => _pickHomeBase(context),
         ),
       ),
     );
@@ -222,26 +230,31 @@ class _SelectLocationRow extends StatelessWidget {
   }
 }
 
-class _SelectLocationRowBody extends StatelessWidget {
-  const _SelectLocationRowBody();
+/// The row's end slot: the chosen-place value plus the disclosure chevron.
+///
+/// [JeebListRow.trailing] replaces the built-in chevron outright, so the row
+/// re-declares it here at the kit's own size and muted ink.
+class _SelectLocationTrailing extends StatelessWidget {
+  const _SelectLocationTrailing();
+
+  /// The kit's own `JeebListRow.chevronSize` default.
+  static const double _chevronSize = 16;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
+    // The surface tone, not a raw extension read: it degrades gracefully when
+    // no Jeeb theme extension is registered and inverts on a navy card.
+    final muted = JeebSurfaceTone.of(context).mutedInk;
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.location_on, color: scheme.tertiary),
-        const SizedBox(width: Spacing.twoXSmall),
-        Text(
-          l10n.dmOnboardingServiceAreaLocationFieldLabel,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: scheme.onSecondaryContainer,
-              ),
-        ),
-        const Spacer(),
         const _SelectLocationValue(),
-        Icon(DirectionalIcons.disclosure(context), color: scheme.primary),
+        const SizedBox(width: Spacing.xSmall),
+        Icon(
+          DirectionalIcons.disclosure(context),
+          size: _chevronSize,
+          color: muted,
+        ),
       ],
     );
   }
@@ -274,7 +287,9 @@ class _LocationValueText extends StatelessWidget {
       identifier: 'dm_onboarding_location_value',
       child: Text(
         isPlaceholder ? l10n.dmOnboardingServiceAreaLocationPlaceholder : chosen,
-        style: theme.textTheme.titleSmall?.copyWith(
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: context.jeebText.bodySmall.copyWith(
           color: isPlaceholder
               ? theme.colorScheme.outline
               : theme.colorScheme.onSurface,

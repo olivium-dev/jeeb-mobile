@@ -9,6 +9,10 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/network/auth_token_store.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/address_form_cubit.dart';
 import '../../application/address_form_state.dart';
@@ -252,20 +256,29 @@ class _AddressFormViewState extends State<_AddressFormView> {
           identifier: 'address_detail_form_root',
           container: true,
           child: Scaffold(
-            appBar: OMDSAppBar(
-              title: l10n.addressFormTitle,
-              showBackButton: true,
-            ),
+            // Redesign: the header is an in-body row, not a Material app bar —
+            // no elevation, no surface tint, no centred title (kit §5 #1).
             body: SafeArea(
-              child: _FormBody(
-                label: _label,
-                building: _building,
-                floorApt: _floorApt,
-                notes: _notes,
-                codPhone: _codPhone,
-                hasPin: _hasPin,
-                onEditPin: _onEditPin,
-                onChanged: () => setState(() {}),
+              bottom: false,
+              child: Column(
+                children: [
+                  JeebTopBar.back(
+                    title: l10n.addressFormTitle,
+                    identifier: 'address_form_back',
+                  ),
+                  Expanded(
+                    child: _FormBody(
+                      label: _label,
+                      building: _building,
+                      floorApt: _floorApt,
+                      notes: _notes,
+                      codPhone: _codPhone,
+                      hasPin: _hasPin,
+                      onEditPin: _onEditPin,
+                      onChanged: () => setState(() {}),
+                    ),
+                  ),
+                ],
               ),
             ),
             bottomNavigationBar: _SaveBar(
@@ -317,10 +330,12 @@ class _FormBody extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final f = AddressFormL10n.of(context);
     return ListView(
+      // The board's 24px side gutter (§4.3 `--screen-gutter`); the bottom inset
+      // lets the last field clear the docked save pill.
       padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
         Spacing.medium,
-        Spacing.medium,
-        Spacing.medium,
+        Spacing.xLarge,
         Spacing.xLarge,
       ),
       children: [
@@ -394,6 +409,9 @@ class _FormBody extends StatelessWidget {
 class _PinPreview extends StatelessWidget {
   const _PinPreview({required this.hasPin, required this.onEditPin});
 
+  /// The redesign's outline weight (§5 #3) — matches `JeebOutlinedCard`.
+  static const double _outlineWidth = 1.5;
+
   final bool hasPin;
   final VoidCallback onEditPin;
 
@@ -409,11 +427,8 @@ class _PinPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            f.pinSectionTitle,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: Spacing.small),
+          JeebSectionLabel(f.pinSectionTitle),
+          const SizedBox(height: Spacing.xSmall),
           ClipRRect(
             borderRadius: OmdsBorderRadius.large,
             child: SizedBox(
@@ -428,7 +443,13 @@ class _PinPreview extends StatelessWidget {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         borderRadius: OmdsBorderRadius.large,
-                        border: Border.all(color: scheme.outlineVariant),
+                        // §4.1: the warm brown `colorScheme.outline` at 1.5px
+                        // is the board's card stroke — the same weight the
+                        // outlined cards on screen 09 carry.
+                        border: Border.all(
+                          color: scheme.outline,
+                          width: _outlineWidth,
+                        ),
                       ),
                     ),
                   ),
@@ -442,8 +463,11 @@ class _PinPreview extends StatelessWidget {
             child: Semantics(
               identifier: 'address_form_edit_pin_cta',
               button: true,
-              child: OMDSOutlinedButton(
-                text: f.editPinCta,
+              child: JeebCtaButton.outline(
+                label: f.editPinCta,
+                // Intrinsic width: this is a secondary action parked at the end
+                // of the band, not a docked full-width pill.
+                expand: false,
                 onTap: onEditPin,
               ),
             ),
@@ -469,23 +493,20 @@ class _SaveBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return SafeArea(
-      // SafeArea.minimum is typed EdgeInsets (not Directional); symmetric
-      // horizontal padding is RTL-safe (left == right).
-      minimum: const EdgeInsets.fromLTRB(
-        Spacing.medium,
-        Spacing.small,
-        Spacing.medium,
-        Spacing.medium,
-      ),
-      child: Semantics(
-        identifier: 'address_form_save_cta',
-        button: true,
-        container: true,
-        child: OmdsLoadingButton(
-          text: l10n.addressFormSaveCta,
-          isLoading: isSaving,
-          isEnabled: isEnabled,
-          onTap: onSave,
+      top: false,
+      // JeebCtaFooter applies no SafeArea of its own — the docked pad is
+      // 24/0/24/32, which is the board's own footer inset.
+      child: JeebCtaFooter.single(
+        child: Semantics(
+          identifier: 'address_form_save_cta',
+          button: true,
+          container: true,
+          child: JeebCtaButton.primary(
+            label: l10n.addressFormSaveCta,
+            isLoading: isSaving,
+            isEnabled: isEnabled,
+            onTap: onSave,
+          ),
         ),
       ),
     );

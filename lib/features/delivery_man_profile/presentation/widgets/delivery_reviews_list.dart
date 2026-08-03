@@ -10,6 +10,10 @@ import 'delivery_review_card.dart';
 /// reviews (design §5). Non-scrollable + shrink-wrapped: it lives inside the
 /// page's single scroll view so the whole column scrolls as one.
 ///
+/// redesign-2026-08: the list rides the board's 24px gutter and the cards are
+/// separated by air alone — outlined cards are their own separation, so a
+/// divider between two of them would draw a third line (R7/R12).
+///
 /// JM-067/D57: read-only — no Helpful/Reply callbacks (jeeber reviews are
 /// immutable). D58: cards render the reviewer's first name only.
 class DeliveryReviewsList extends StatelessWidget {
@@ -23,9 +27,9 @@ class DeliveryReviewsList extends StatelessWidget {
     return ListView.separated(
       key: const Key('delivery-man-profile-reviews-list'),
       padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.large,
-        Spacing.medium,
-        Spacing.large,
+        Spacing.xLarge,
+        Spacing.small,
+        Spacing.xLarge,
         Spacing.large,
       ),
       shrinkWrap: true,
@@ -45,7 +49,7 @@ class _EmptyReviews extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Padding(
-      padding: const EdgeInsetsDirectional.all(Spacing.large),
+      padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
       child: OmdsEmptyState(
         key: const Key('delivery-man-profile-reviews-empty'),
         icon: Icons.reviews_outlined,

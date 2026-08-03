@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
@@ -224,13 +225,15 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Create your first request'), findsOneWidget);
+      // redesign-2026-08 motion spec §2.6: the empty mark is the mic
+      // (`empty-say-it.json`), replacing the retired `empty_orders.png`.
       expect(
         find.byWidgetPredicate(
           (widget) =>
-              widget is Image &&
-              widget.image is AssetImage &&
-              (widget.image as AssetImage).assetName ==
-                  'assets/illustrations/empty_orders.png',
+              widget is LottieBuilder &&
+              widget.lottie is AssetLottie &&
+              (widget.lottie as AssetLottie).assetName ==
+                  'assets/animations/empty-say-it.json',
         ),
         findsOneWidget,
       );

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../mixed_direction/presentation/mixed_direction_text.dart';
 import '../domain/entities/rating_status.dart';
@@ -126,16 +130,15 @@ class _RatingScreenState extends State<RatingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     // D56: mandatory — suppress system back; no leading/close affordance.
+    //
+    // redesign-24: the OMDSAppBar is gone — the board leads with the in-body
+    // headline (`FeedbackHeader`), and the bar carried
+    // `automaticallyImplyLeading: false`, so it held no affordance to lose.
+    // Same treatment already shipped on `MutualRatingScreen`.
     return PopScope(
       canPop: false,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.mutualRatingTitle,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          automaticallyImplyLeading: false,
-        ),
         body: _FeedbackBody(
           data: _data,
           submitting: _submitting,
@@ -187,7 +190,11 @@ class _FeedbackBody extends StatelessWidget {
         child: Column(
           children: [
             Expanded(child: _FeedbackScrollArea(data: data)),
-            _FeedbackFooter(submitting: submitting, onSubmit: onSubmit),
+            _FeedbackFooter(
+              stars: data.stars,
+              submitting: submitting,
+              onSubmit: onSubmit,
+            ),
           ],
         ),
       ),
@@ -203,9 +210,12 @@ class _FeedbackScrollArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.large,
-        vertical: Spacing.medium,
+      // 24px board gutters, directional so `ar` mirrors (§4 layout rules).
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        Spacing.xLarge,
       ),
       child: _FeedbackContent(data: data),
     );
@@ -219,23 +229,30 @@ class _FeedbackContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Board order (screen 15): headline → identity hero → the prompt and its
+    // stars → the optional note. The comment field moved BELOW the stars — it
+    // annotates a score, so it cannot precede the score it annotates. Same
+    // elements, same actions; only the reading order is the system's.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: Spacing.large),
-        FeedbackAvatar(name: data.rateeName, avatarUrl: data.rateeAvatarUrl),
-        const SizedBox(height: Spacing.xLarge),
         FeedbackHeader(isClient: data.isClient),
         const SizedBox(height: Spacing.xLarge),
-        _FeedbackCommentField(controller: data.commentController),
+        FeedbackAvatar(name: data.rateeName, avatarUrl: data.rateeAvatarUrl),
         const SizedBox(height: Spacing.xLarge),
         _FeedbackRateName(name: data.rateeName),
-        const SizedBox(height: Spacing.medium),
+        const SizedBox(height: Spacing.small),
         FeedbackStarInput(stars: data.stars, onChanged: data.onStarsChanged),
+        const SizedBox(height: Spacing.twoXLarge),
+        _FeedbackCommentField(controller: data.commentController),
       ],
     );
   }
 }
+
+/// Same cap the removed `maxLength: 1000` enforced — kept as a named constant
+/// so the swap to a formatter is provably lossless.
+const int _commentMaxLength = 1000;
 
 class _FeedbackCommentField extends StatelessWidget {
   const _FeedbackCommentField({required this.controller});
@@ -251,8 +268,16 @@ class _FeedbackCommentField extends StatelessWidget {
       child: OmdsTextField(
         controller: controller,
         hintText: l10n.feedbackCommentHint,
+        fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+        borderRadius: Sizes.medium,
+        minLines: 3,
         maxLines: 4,
-        maxLength: 1000,
+        // Same 1000-character cap as the removed `maxLength:`, enforced by a
+        // formatter so the `0/1000` counter chrome disappears — the board draws
+        // a bare note box (identical treatment to `MutualRatingScreen`).
+        inputFormatters: <TextInputFormatter>[
+          LengthLimitingTextInputFormatter(_commentMaxLength),
+        ],
       ),
     );
   }
@@ -265,29 +290,32 @@ class _FeedbackRateName extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // `titleProminent` (17/w700) carries no ink, so the ambient onSurface navy
+    // applies — the old `secondaryContainer` foreground was a fill role used as
+    // text. `MixedDirectionText` stays: this is a name-ONLY line.
     return MixedDirectionText(
       AppLocalizations.of(context).feedbackRateName(name),
       textAlign: TextAlign.center,
-      style: theme.textTheme.titleLarge?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
-        fontWeight: FontWeight.w800,
-      ),
+      style: context.jeebText.titleProminent,
     );
   }
 }
 
 class _FeedbackFooter extends StatelessWidget {
-  const _FeedbackFooter({required this.submitting, required this.onSubmit});
+  const _FeedbackFooter({
+    required this.stars,
+    required this.submitting,
+    required this.onSubmit,
+  });
 
+  final int stars;
   final bool submitting;
   final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(Spacing.large),
+    return JeebCtaFooter.single(
       // `rating_submit_cta` is the W1 contract id (JM-034 §2.14). `container:
       // true` + `explicitChildNodes: true` make this an explicit Semantics
       // boundary so the id surfaces as its own queryable node (without it the
@@ -297,8 +325,12 @@ class _FeedbackFooter extends StatelessWidget {
         button: true,
         container: true,
         explicitChildNodes: true,
-        child: OmdsLoadingButton(
-          text: l10n.feedbackSubmit,
+        // `isEnabled` surfaces the gate `_onSubmit` already enforced silently
+        // (`if (_stars == 0) return`) — same behaviour, now visible. Matches
+        // `MutualRatingScreen._SubmitButton`.
+        child: JeebCtaButton.primary(
+          label: l10n.feedbackSubmit,
+          isEnabled: stars > 0,
           isLoading: submitting,
           onTap: onSubmit,
         ),

@@ -3,7 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/locale/locale_cubit.dart';
+import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../../core/widgets/jeeb/jeeb_segmented_toggle.dart';
+import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Settings → Language picker (T-mobile-044 / JEEB-135; registered as
@@ -14,6 +18,18 @@ import '../../../../l10n/app_localizations.dart';
 /// instant (no app restart): the root [MaterialApp] watches the cubit and
 /// rebuilds with the new [Locale], including the RTL flip when Arabic is
 /// picked.
+///
+/// redesign-2026-08: re-skinned onto the Jeeb design system. The Material app
+/// bar became the in-body [JeebTopBar] and the two check-marked settings rows
+/// became the one two-up [JeebSegmentedToggle] screen 20 draws for the same
+/// choice — selection is a navy fill swap, not a trailing glyph. The band is
+/// deliberately the only content: the empty lower two-thirds is the board's
+/// `flex: 1`, never filled.
+///
+/// Directionality is the point of this screen, so nothing here is positional:
+/// the toggle's `selectedIndex` is derived from the locale (not from which
+/// segment sits on the leading edge), and the segments mirror for free under
+/// the RTL flip they themselves trigger.
 ///
 /// W4-INT (JM-059): canonical Semantics ids added while registering the route
 /// (40_GUARDRAILS_ARCH §8 — touch a widget for a JM, add its `identifier:`):
@@ -35,94 +51,62 @@ class LanguageSettingsScreen extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.settingsLanguage,
-          showBackButton: false,
-          leading: Semantics(
-            identifier: 'language_back',
-            button: true,
-            onTap: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/');
-              }
-            },
-            child: ExcludeSemantics(
-              child: IconButton(
-                icon: const BackButtonIcon(),
-                onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/');
-                  }
-                },
+        body: SafeArea(
+          // The list reserves the nav-bar inset itself, so it may scroll under
+          // the soft buttons in edge-to-edge mode.
+          bottom: false,
+          child: Column(
+            children: [
+              JeebTopBar.back(
+                title: l10n.settingsLanguage,
+                identifier: 'language_back',
+                // Reachable with an empty Navigator stack (deep link), so pop
+                // only when we can — popping the last page shows a blank
+                // surface.
+                onLeadingPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/'),
               ),
-            ),
+              Expanded(
+                child: ListView(
+                  key: const Key('language-settings-list'),
+                  padding: EdgeInsetsDirectional.fromSTEB(
+                    Spacing.xLarge,
+                    0,
+                    Spacing.xLarge,
+                    context.scrollBodyBottomInset,
+                  ),
+                  children: [
+                    // Same first-band offset the sibling `/settings` list uses
+                    // under its own JeebTopBar, so the two screens line up.
+                    const SizedBox(height: Spacing.medium),
+                    JeebSectionLabel(l10n.settingsLanguage),
+                    const SizedBox(height: Spacing.xSmall),
+                    JeebSegmentedToggle(
+                      // Driven by the locale, never by a positional guess — an
+                      // unlisted locale selects nothing rather than lighting up
+                      // "English".
+                      selectedIndex: locale.languageCode == 'ar' ? 1 : 0,
+                      onChanged: (index) => context
+                          .read<LocaleCubit>()
+                          .setLocale(Locale(index == 0 ? 'en' : 'ar')),
+                      segments: [
+                        JeebSegment(
+                          key: const Key('language-row-en'),
+                          identifier: 'language_english_option',
+                          label: l10n.settingsLanguageEnglish,
+                        ),
+                        JeebSegment(
+                          key: const Key('language-row-ar'),
+                          identifier: 'language_arabic_option',
+                          label: l10n.settingsLanguageArabic,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ),
-        body: ListView(
-          key: const Key('language-settings-list'),
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-          children: [
-            OmdsSettingsSection(
-              title: l10n.settingsLanguage,
-              children: [
-                _LanguageRow(
-                  rowKey: const Key('language-row-en'),
-                  identifier: 'language_english_option',
-                  title: l10n.settingsLanguageEnglish,
-                  languageCode: 'en',
-                  selected: locale.languageCode == 'en',
-                ),
-                _LanguageRow(
-                  rowKey: const Key('language-row-ar'),
-                  identifier: 'language_arabic_option',
-                  title: l10n.settingsLanguageArabic,
-                  languageCode: 'ar',
-                  selected: locale.languageCode == 'ar',
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LanguageRow extends StatelessWidget {
-  const _LanguageRow({
-    required this.rowKey,
-    required this.identifier,
-    required this.title,
-    required this.languageCode,
-    required this.selected,
-  });
-
-  final Key rowKey;
-  final String identifier;
-  final String title;
-  final String languageCode;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      identifier: identifier,
-      label: title,
-      button: true,
-      container: true,
-      inMutuallyExclusiveGroup: true,
-      selected: selected,
-      child: ExcludeSemantics(
-        child: OmdsSettingsRow(
-          key: rowKey,
-          title: title,
-          trailing: selected ? const Icon(Icons.check) : null,
-          onTap: () =>
-              context.read<LocaleCubit>().setLocale(Locale(languageCode)),
         ),
       ),
     );

@@ -92,7 +92,9 @@ class _AddressFields extends StatelessWidget {
       children: [
         for (final spec in specs)
           Padding(
-            padding: const EdgeInsetsDirectional.only(bottom: Spacing.small),
+            // ~16px between labelled groups keeps the board's airy rhythm; 12
+            // read as one dense block once the labels went to 12/w600.
+            padding: const EdgeInsetsDirectional.only(bottom: Spacing.medium),
             child: DmOnboardingAddressField(spec: spec),
           ),
       ],

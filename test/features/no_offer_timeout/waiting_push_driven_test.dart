@@ -40,13 +40,13 @@ class _FakeWaitingRepository implements WaitingRepository {
   int fetchOfferCountCount = 0;
 
   WaitingRequest _build() => WaitingRequest(
-        requestId: 'req-1',
-        phase: phase,
-        notifiedCount: 4,
-        offerCount: offerCount,
-        receivedAt: DateTime.utc(2026, 7, 26, 12),
-        remainingAtReceipt: const Duration(minutes: 5),
-      );
+    requestId: 'req-1',
+    phase: phase,
+    notifiedCount: 4,
+    offerCount: offerCount,
+    receivedAt: DateTime.utc(2026, 7, 26, 12),
+    remainingAtReceipt: const Duration(minutes: 5),
+  );
 
   @override
   Future<WaitingRequest> fetchWaiting(String requestId) async {
@@ -83,8 +83,11 @@ void main() {
       addTearDown(cubit.close);
 
       await cubit.load();
-      expect(repo.fetchWaitingCount, 0,
-          reason: 'the cold load uses fetchRequest, not fetchWaiting');
+      expect(
+        repo.fetchWaitingCount,
+        0,
+        reason: 'the cold load uses fetchRequest, not fetchWaiting',
+      );
       expect(cubit.debugPushRefreshWired, isTrue);
 
       // An inbound `type=offer` push: the bid is now visible to the server.
@@ -115,18 +118,27 @@ void main() {
         async.elapse(const Duration(seconds: 30));
         async.flushMicrotasks();
 
-        expect(repo.fetchWaitingCount, 0,
-            reason: 'the ungated 5s poll must be GONE');
-        expect(repo.fetchRequestCount, coldRequestReads,
-            reason: 'no extra request reads either');
+        expect(
+          repo.fetchWaitingCount,
+          0,
+          reason: 'the ungated 5s poll must be GONE',
+        );
+        expect(
+          repo.fetchRequestCount,
+          coldRequestReads,
+          reason: 'no extra request reads either',
+        );
 
         // The LOCAL countdown timer is untouched — it advances `now` and does
         // not touch the gateway.
         final before = cubit.state.now;
         clock.add(null);
         async.flushMicrotasks();
-        expect(cubit.state.now, isNot(before),
-            reason: 'the 1s countdown tick is NOT a poll and must survive');
+        expect(
+          cubit.state.now,
+          isNot(before),
+          reason: 'the 1s countdown tick is NOT a poll and must survive',
+        );
         expect(repo.fetchWaitingCount, 0);
 
         cubit.close();
@@ -160,27 +172,32 @@ void main() {
 
       bus.add(null);
       await Future<void>.delayed(Duration.zero);
-      expect(repo.fetchWaitingCount, 1,
-          reason: 'a dead request takes no further reads');
-    });
-
-    test('a cold load that already reads a terminal phase never arms the bus',
-        () async {
-      final repo = _FakeWaitingRepository(phase: WaitingRequestPhase.expired);
-      final bus = StreamController<void>.broadcast();
-      addTearDown(bus.close);
-
-      final cubit = WaitingCubit(
-        repository: repo,
-        requestId: 'req-1',
-        refreshSignals: bus.stream,
-        clockTicks: const Stream<void>.empty(),
+      expect(
+        repo.fetchWaitingCount,
+        1,
+        reason: 'a dead request takes no further reads',
       );
-      addTearDown(cubit.close);
-
-      await cubit.load();
-      expect(cubit.state.status, WaitingScreenStatus.loaded);
-      expect(cubit.debugPushRefreshWired, isFalse);
     });
+
+    test(
+      'a cold load that already reads a terminal phase never arms the bus',
+      () async {
+        final repo = _FakeWaitingRepository(phase: WaitingRequestPhase.expired);
+        final bus = StreamController<void>.broadcast();
+        addTearDown(bus.close);
+
+        final cubit = WaitingCubit(
+          repository: repo,
+          requestId: 'req-1',
+          refreshSignals: bus.stream,
+          clockTicks: const Stream<void>.empty(),
+        );
+        addTearDown(cubit.close);
+
+        await cubit.load();
+        expect(cubit.state.status, WaitingScreenStatus.loaded);
+        expect(cubit.debugPushRefreshWired, isFalse);
+      },
+    );
   });
 }

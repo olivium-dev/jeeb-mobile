@@ -1,14 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/formatting/money_format.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_shadows.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/settlement_statement.dart';
+import 'widgets/settlement_status_pill.dart';
 
 /// Settlement statement detail screen (T-MOB-032 AC2).
 ///
 /// Shows per-delivery breakdown for a single weekly statement.
 /// Route: /jeeber/settlement/:id
+///
+/// redesign-2026-08: re-skinned to match its neighbour, the earnings dashboard
+/// (screen 19) — the payout is a navy hero with the 38px `statHero` amount, the
+/// breakdown is a `JeebSectionLabel` over grey `JeebListRow`s. Same data, same
+/// order, no new affordances.
+///
+/// D41/D44: the per-delivery cut is a **platform fee**, never a "commission".
+/// The wording lives in `l10n.settlementCommissionLabel` ("Platform fee:
+/// {amount}") and is pinned by `test/decision_violations_test.dart`.
 // ORPHAN (JEBV4-227, verified 2026-07-12): dead chain from orphaned SettlementScreen — see docs/project-understanding/reconciliation/orphans.md
 class SettlementDetailScreen extends StatelessWidget {
   const SettlementDetailScreen({
@@ -25,95 +42,107 @@ class SettlementDetailScreen extends StatelessWidget {
       identifier: 'settlement_detail_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: statement.weekLabel,
-          showBackButton: true,
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(Spacing.medium),
-          children: [
-            _SummaryCard(statement: statement, l10n: l10n),
-            const SizedBox(height: Spacing.medium),
-            Text(
-              l10n.settlementBreakdownTitle,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: Spacing.small),
-            ...statement.deliveries.map(
-              (d) => _DeliveryLineRow(line: d, l10n: l10n),
-            ),
-          ],
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              JeebTopBar.back(
+                title: statement.weekLabel,
+                identifier: 'settlement_detail_back',
+              ),
+              Expanded(
+                child: ListView(
+                  // 24px board gutter; the list simply ends and the white below
+                  // it is the design (R1) — no Spacer, no centring.
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    Spacing.xLarge,
+                    Spacing.medium,
+                    Spacing.xLarge,
+                    Spacing.xLarge,
+                  ),
+                  children: [
+                    _PayoutHero(statement: statement, l10n: l10n),
+                    const SizedBox(height: Spacing.large),
+                    JeebSectionLabel(l10n.settlementBreakdownTitle),
+                    const SizedBox(height: Spacing.small),
+                    for (var i = 0; i < statement.deliveries.length; i++) ...[
+                      if (i > 0) const SizedBox(height: Spacing.xSmall),
+                      _DeliveryLineRow(
+                        line: statement.deliveries[i],
+                        l10n: l10n,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.statement, required this.l10n});
+/// The navy payout hero — 19's `_CashHero` shape: eyebrow + status pill, then
+/// the 38px amount.
+class _PayoutHero extends StatelessWidget {
+  const _PayoutHero({required this.statement, required this.l10n});
 
   final SettlementStatement statement;
   final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
-    final isPaid = statement.status == SettlementStatus.paid;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Spacing.medium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
+    final scheme = Theme.of(context).colorScheme;
+    final amount = MoneyFormat.format(
+      statement.totalPayout,
+      currency: statement.currency,
+    );
+    final statusLabel =
+        SettlementStatusPill.labelFor(l10n, statement.status);
+
+    return JeebNavySurfaceCard(
+      radius: Spacing.large,
+      padding: const EdgeInsetsDirectional.all(Spacing.large),
+      shadow: JeebShadows.heroNavy,
+      rings: const [JeebNavyRing.statTopEnd],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                // NOT `JeebSectionLabel`: that widget uppercases its label, and
+                // `test/decision_violations_test.dart` pins this string exactly
+                // ("Total cash kept"). The token — and its periwinkle ink, which
+                // is the same ink the kit label keeps on navy — still applies.
+                child: Text(
                   l10n.settlementTotalPayout,
-                  style: Theme.of(context).textTheme.labelMedium,
+                  style: context.jeebText.sectionLabel,
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: Spacing.small,
-                    vertical: Spacing.twoXSmall,
-                  ),
-                  decoration: BoxDecoration(
-                    // paid = success, pending = warning (semantic roles).
-                    color: isPaid
-                        ? context.jeebRoles.successContainer
-                        : context.jeebRoles.warningContainer,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    isPaid
-                        ? l10n.settlementStatusPaid
-                        : l10n.settlementStatusPending,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: isPaid
-                              ? context.jeebRoles.onSuccessContainer
-                              : context.jeebRoles.onWarningContainer,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: Spacing.xSmall),
-            Semantics(
-              label: l10n.settlementRowSemantics(
-                '${statement.currency} ${statement.totalPayout.toStringAsFixed(2)}',
-                isPaid ? l10n.settlementStatusPaid : l10n.settlementStatusPending,
               ),
-              child: Text(
-                '${statement.currency} ${statement.totalPayout.toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.headlineSmall,
+              const SizedBox(width: Spacing.small),
+              SettlementStatusPill(status: statement.status),
+            ],
+          ),
+          const SizedBox(height: Spacing.xSmall),
+          Semantics(
+            label: l10n.settlementRowSemantics(amount, statusLabel),
+            child: Text(
+              amount,
+              style: context.jeebText.statHero.copyWith(
+                color: scheme.onPrimary,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
+/// One delivery line — 19's grey breakdown row: `surfaceContainerHigh` block,
+/// date over tier, amount kept and the platform fee on the trailing edge.
 class _DeliveryLineRow extends StatelessWidget {
   const _DeliveryLineRow({required this.line, required this.l10n});
 
@@ -122,43 +151,45 @@ class _DeliveryLineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  line.date,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Text(
-                  line.tier,
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-              ],
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    // Never a bare `!`: `wrapForTest` themes with ThemeData.light(), where the
+    // extension is absent, and the bang would crash every widget test.
+    final semantic =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.light();
+    final net = MoneyFormat.format(line.net, currency: line.currency);
+    final fee = MoneyFormat.format(line.commission, currency: line.currency);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: OmdsBorderRadius.medium,
+      ),
+      child: JeebListRow(
+        title: line.date,
+        subtitle: line.tier,
+        showChevron: false,
+        trailing: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              net,
+              style: context.jeebText.cardTitle.copyWith(
+                color: scheme.primary,
+              ),
+              semanticsLabel: net,
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${line.currency} ${line.net.toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.bodyMedium,
+            // D41/D44: fee-only framing. The l10n value is "Platform fee:
+            // {amount}" and the word "Commission" appears nowhere.
+            Text(
+              l10n.settlementCommissionLabel(fee),
+              style: context.jeebText.caption.copyWith(
+                color: semantic.mutedText,
               ),
-              Text(
-                l10n.settlementCommissionLabel(
-                  '${line.currency} ${line.commission.toStringAsFixed(2)}',
-                ),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

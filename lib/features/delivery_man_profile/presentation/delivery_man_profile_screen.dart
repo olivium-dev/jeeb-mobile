@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/delivery_man_profile_view_data.dart';
 import 'widgets/delivery_man_profile_header.dart';
@@ -15,6 +16,12 @@ import 'widgets/delivery_reviews_list.dart';
 /// (close "X", no bottom nav). Identity header + a "Reviews" section.
 /// Reuse posture: identity composes OMDS primitives; review cards reuse
 /// [OmdsReviewCard] (reuse-table.md Ratings/Feedback → feedback-service).
+///
+/// redesign-2026-08: re-skinned onto the Jeeb kit. The Material app bar became
+/// the in-body [JeebTopBar] close form (the board's only close treatment), the
+/// identity block a `JeebAvatar` + `context.jeebText` ramp, and the review
+/// cards `JeebOutlinedCard`s on the 24px gutter. Same flow, same copy, same
+/// identifiers — this is a re-skin, not a product change.
 ///
 /// JM-067 changes against the divergent baseline (20_GAP_MAP):
 ///   - NO Helpful/Reply controls — reviews are immutable/read-only (D57).
@@ -45,14 +52,36 @@ class DeliveryManProfileScreen extends StatelessWidget {
       identifier: rootId,
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: '',
-          automaticallyImplyLeading: false,
-          actions: [_CloseButton(label: l10n.deliveryManProfileCloseLabel)],
+        // The board's header is an in-body row, not a Material app bar; the
+        // close circle is its leading slot (JeebTopBar.close is the one
+        // realized close treatment), so `Scaffold.appBar` stays null.
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar.close(
+                // Canonical id per JM-067 AC + 41_GUARDRAILS_TESTING §1.1
+                // (`profile_close`) — the bar lands it on the leading circle.
+                identifier: 'profile_close',
+                leadingTooltip: l10n.deliveryManProfileCloseLabel,
+                onLeadingPressed: () => _close(context),
+              ),
+              Expanded(child: _DeliveryManProfileBody(data: data)),
+            ],
+          ),
         ),
-        body: _DeliveryManProfileBody(data: data),
       ),
     );
+  }
+
+  /// EDGE (21_NAV_PLAN §C, JM-067): `profile_close` → offer-review-list. The
+  /// profile is PUSHED onto offer-review-list from the offer card, so popping
+  /// returns there. Falls back to home only on a cold deep-link with no stack.
+  void _close(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
   }
 }
 
@@ -65,10 +94,14 @@ class _DeliveryManProfileBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       key: DeliveryManProfileScreen.rootKey,
-      padding: const EdgeInsetsDirectional.only(bottom: Spacing.large),
+      padding: const EdgeInsetsDirectional.only(
+        top: Spacing.small,
+        bottom: Spacing.xLarge,
+      ),
       children: [
         _Header(data: data),
-        const SizedBox(height: Spacing.large),
+        // Block rhythm between the identity band and the reviews band.
+        const SizedBox(height: Spacing.xLarge),
         DeliveryReviewsHeader(
           reviewCount: data.reviewCount,
           onViewAll: () => _openAllReviews(context),
@@ -112,39 +145,5 @@ class _Header extends StatelessWidget {
       isAvailable: data.isAvailable,
       isColdStart: data.isColdStart, // D59 — hide score until N>=5.
     );
-  }
-}
-
-class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    // Canonical id per JM-067 AC + 41_GUARDRAILS_TESTING §1.1 (`profile_close`).
-    return Semantics(
-      identifier: 'profile_close',
-      button: true,
-      label: label,
-      child: IconButton(
-        key: const Key('delivery-man-profile-close'),
-        icon: const Icon(Icons.close),
-        tooltip: label,
-        color: Theme.of(context).colorScheme.secondaryContainer,
-        onPressed: () => _close(context),
-      ),
-    );
-  }
-
-  /// EDGE (21_NAV_PLAN §C, JM-067): `profile_close` → offer-review-list. The
-  /// profile is PUSHED onto offer-review-list from the offer card, so popping
-  /// returns there. Falls back to home only on a cold deep-link with no stack.
-  void _close(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go('/');
-    }
   }
 }

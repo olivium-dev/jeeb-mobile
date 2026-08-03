@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -18,6 +19,7 @@ import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repo
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/tabs/pending_requests_tab.dart';
+import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_motion.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -180,11 +182,14 @@ void main() {
       );
       expect(find.text('Create your first request'), findsOneWidget);
       expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
-      final image = tester.widget<Image>(find.byType(Image));
-      expect(image.image, isA<AssetImage>());
+      // redesign-2026-08 motion spec §2.6: the empty mark is the mic
+      // (`empty-say-it.json`), not the retired `empty_orders.png`.
+      expect(find.byType(ClientHomeEmptyMark), findsOneWidget);
+      final lottie = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
+      expect(lottie.lottie, isA<AssetLottie>());
       expect(
-        (image.image as AssetImage).assetName,
-        'assets/illustrations/empty_orders.png',
+        (lottie.lottie as AssetLottie).assetName,
+        'assets/animations/empty-say-it.json',
       );
     });
 

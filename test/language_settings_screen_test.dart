@@ -29,12 +29,28 @@ Widget _harness(LocaleCubit cubit) {
   );
 }
 
+/// The selected segment of a [JeebSegmentedToggle] is a **fill swap**, not a
+/// trailing glyph (redesign-2026-08 §5 #19), so selection is read off the
+/// segment's own [DecoratedBox] — the nearest one above its frozen key.
+BoxDecoration _segmentDecoration(WidgetTester tester, Key key) {
+  final DecoratedBox box = tester.widget<DecoratedBox>(
+    find
+        .ancestor(of: find.byKey(key), matching: find.byType(DecoratedBox))
+        .first,
+  );
+  return box.decoration as BoxDecoration;
+}
+
+Color _primaryOf(WidgetTester tester) => Theme.of(
+      tester.element(find.byKey(const Key('language-settings-list'))),
+    ).colorScheme.primary;
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  testWidgets('renders both language rows with the active one checked',
+  testWidgets('renders both language segments with the active one filled',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     final cubit = LocaleCubit(
@@ -48,18 +64,16 @@ void main() {
     expect(find.byKey(const Key('language-row-en')), findsOneWidget);
     expect(find.byKey(const Key('language-row-ar')), findsOneWidget);
 
-    // English is active, so its row carries the check mark while the Arabic
-    // row does not.
-    final englishCheck = find.descendant(
-      of: find.byKey(const Key('language-row-en')),
-      matching: find.byIcon(Icons.check),
+    // English is active, so its segment carries the navy fill while the Arabic
+    // one stays transparent.
+    expect(
+      _segmentDecoration(tester, const Key('language-row-en')).color,
+      _primaryOf(tester),
     );
-    final arabicCheck = find.descendant(
-      of: find.byKey(const Key('language-row-ar')),
-      matching: find.byIcon(Icons.check),
+    expect(
+      _segmentDecoration(tester, const Key('language-row-ar')).color,
+      Colors.transparent,
     );
-    expect(englishCheck, findsOneWidget);
-    expect(arabicCheck, findsNothing);
   });
 
   testWidgets('tapping Arabic flips strings, RTL, and persists the choice',
@@ -92,17 +106,15 @@ void main() {
     // case).
     expect(prefs.getString('app.locale.languageCode'), 'ar');
 
-    // The check mark moved to the Arabic row.
-    final arabicCheck = find.descendant(
-      of: find.byKey(const Key('language-row-ar')),
-      matching: find.byIcon(Icons.check),
+    // The navy fill moved to the Arabic segment.
+    expect(
+      _segmentDecoration(tester, const Key('language-row-ar')).color,
+      _primaryOf(tester),
     );
-    final englishCheck = find.descendant(
-      of: find.byKey(const Key('language-row-en')),
-      matching: find.byIcon(Icons.check),
+    expect(
+      _segmentDecoration(tester, const Key('language-row-en')).color,
+      Colors.transparent,
     );
-    expect(arabicCheck, findsOneWidget);
-    expect(englishCheck, findsNothing);
   });
 
   testWidgets('tapping the already-selected language is a no-op',

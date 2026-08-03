@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_text_styles.dart';
+
 /// Immutable description of one address-step field: its semantics id, label,
 /// hint, and the cubit setter to call on change. Lets the step declare its
 /// five fields as data rather than five hand-written widgets.
@@ -19,8 +21,12 @@ class DmAddressFieldSpec {
 }
 
 /// A single labeled outlined text field for the onboarding address step
-/// (Figma 56591:4109 — external label above, periwinkle hint inside the
-/// outlined field). One reusable widget for all five rows.
+/// (Figma 56591:4109 — external label above, hint inside the outlined field).
+/// One reusable widget for all four rows.
+///
+/// The label rides the redesign ramp (`jeebText.bodySmall`, brand navy) rather
+/// than stock `bodyLarge`, so a form row reads at the same weight as the
+/// board's row titles instead of competing with the step headline.
 class DmOnboardingAddressField extends StatelessWidget {
   const DmOnboardingAddressField({super.key, required this.spec});
 
@@ -34,11 +40,11 @@ class DmOnboardingAddressField extends StatelessWidget {
       children: [
         Text(
           spec.label,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: theme.colorScheme.onSurface,
+          style: context.jeebText.bodySmall.copyWith(
+            color: theme.colorScheme.primary,
           ),
         ),
-        const SizedBox(height: Spacing.twoXSmall),
+        const SizedBox(height: Spacing.xSmall),
         Semantics(
           identifier: spec.identifier,
           textField: true,

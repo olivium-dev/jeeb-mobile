@@ -21,15 +21,22 @@ class FeedbackStarInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'feedback_star_rating',
       slider: true,
       value: '$stars / 5',
       child: Center(
         key: rootKey,
+        // Size, spacing and empty-star ink are matched to
+        // `MutualRatingScreen._StarSection` so both rating terminals draw one
+        // star row. The active colour is deliberately NOT passed — the app-wide
+        // `OmdsColorTokens.starRatingColor` is already the redesign's amber.
         child: OmdsStarRating(
           rating: stars,
           starSize: Sizes.threeXLarge,
+          spacing: Spacing.xSmall,
+          inactiveColor: scheme.surfaceContainerHighest,
           onRatingChanged: onChanged,
         ),
       ),

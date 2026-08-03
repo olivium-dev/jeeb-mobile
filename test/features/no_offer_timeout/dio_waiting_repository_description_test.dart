@@ -101,23 +101,20 @@ void main() {
     // never back-filled with an invented window. (A LIVE row that omits it is a
     // contract violation and throws — see
     // dio_waiting_repository_contract_test.dart T4.1.)
-    test(
-      'an omitted deadline on a terminal row stays unknown across repeated '
-      'reads',
-      () async {
-        for (final status in const <String>['expired', 'cancelled']) {
-          final body = <String, dynamic>{'id': 'req-1', 'status': status};
-          final repo = DioWaitingRepository(_FakeDio(requestBody: body));
+    test('an omitted deadline on a terminal row stays unknown across repeated '
+        'reads', () async {
+      for (final status in const <String>['expired', 'cancelled']) {
+        final body = <String, dynamic>{'id': 'req-1', 'status': status};
+        final repo = DioWaitingRepository(_FakeDio(requestBody: body));
 
-          final first = await repo.fetchRequest('req-1');
-          final second = await repo.fetchRequest('req-1');
+        final first = await repo.fetchRequest('req-1');
+        final second = await repo.fetchRequest('req-1');
 
-          expect(first.remainingAtReceipt, isNull, reason: status);
-          expect(second.remainingAtReceipt, isNull, reason: status);
-          expect(first.deadline, isNull, reason: status);
-        }
-      },
-    );
+        expect(first.remainingAtReceipt, isNull, reason: status);
+        expect(second.remainingAtReceipt, isNull, reason: status);
+        expect(first.deadline, isNull, reason: status);
+      }
+    });
 
     test('anchors the server-supplied remaining seconds exactly', () async {
       final anchor = DateTime.utc(2026, 7, 22, 8, 31, 17);

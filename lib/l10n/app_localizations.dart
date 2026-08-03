@@ -350,6 +350,7 @@ class AppLocalizations {
 
   String get useBiometrics => _get('useBiometrics');
   String get biometricNotAvailable => _get('biometricNotAvailable');
+  String get biometricPromptSubtitle => _get('biometricPromptSubtitle');
   String get biometricRowTitle => _get('biometricRowTitle');
   String get biometricRowSubtitle => _get('biometricRowSubtitle');
   String get biometricLockTitle => _get('biometricLockTitle');
@@ -2461,6 +2462,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   // JM-065 — Dispute Status (dispute-status, D2/D53)
   String get disputeStatusTitle => _get('disputeStatusTitle');
   String get disputeStatusOpenLabel => _get('disputeStatusOpenLabel');
+  String get disputeStatusStepSubmitted => _get('disputeStatusStepSubmitted');
+  String get disputeStatusStepUnderReview =>
+      _get('disputeStatusStepUnderReview');
   String get disputeStatusBody => _get('disputeStatusBody');
   String get disputeStatusSupportCta => _get('disputeStatusSupportCta');
   String get disputeStatusBackCta => _get('disputeStatusBackCta');
@@ -2479,6 +2483,23 @@ extension AppLocalizationsRestored on AppLocalizations {
   // Goods cost (jeeber goods-cost entry, Sprint 5 RTL/l10n pass)
   String get goodsCostTitle => _get('goodsCostTitle');
   String get goodsCostHeadline => _get('goodsCostHeadline');
+  String get clientUnreachableTitle => _get('clientUnreachableTitle');
+  String get clientUnreachableNoticeTitle =>
+      _get('clientUnreachableNoticeTitle');
+  String get clientUnreachableNoticeBody => _get('clientUnreachableNoticeBody');
+  String get clientUnreachableCallAgainCta =>
+      _get('clientUnreachableCallAgainCta');
+  String get clientUnreachableChatCta => _get('clientUnreachableChatCta');
+  String get clientUnreachableFlagCta => _get('clientUnreachableFlagCta');
+  String get prohibitedItemReportTitle => _get('prohibitedItemReportTitle');
+  String get prohibitedItemReportGuidance =>
+      _get('prohibitedItemReportGuidance');
+  String get prohibitedItemReportDescriptionLabel =>
+      _get('prohibitedItemReportDescriptionLabel');
+  String get prohibitedItemReportAttachPhotoCta =>
+      _get('prohibitedItemReportAttachPhotoCta');
+  String get prohibitedItemReportSubmitCta =>
+      _get('prohibitedItemReportSubmitCta');
   String get goodsCostBody => _get('goodsCostBody');
   String goodsCostFieldLabel(String currency) =>
       _get('goodsCostFieldLabel').replaceFirst('{currency}', currency);

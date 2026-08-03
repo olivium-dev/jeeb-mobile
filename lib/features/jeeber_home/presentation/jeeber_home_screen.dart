@@ -11,6 +11,8 @@ import '../../../core/notifications/application/offer_lifecycle_signals.dart';
 import '../../../core/role/jeeber_role_activator.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
@@ -547,7 +549,10 @@ class _LoadErrorView extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.large),
+        // The board's 24px side gutter, same as every other band on this screen.
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.xLarge,
+        ),
         child: _LoadErrorContent(
           title: l10n.availabilityLoadError,
           retryLabel: l10n.availabilityLoadRetry,
@@ -571,29 +576,33 @@ class _LoadErrorContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
           Icons.signal_wifi_off,
           size: Sizes.threeXLarge,
-          color: theme.colorScheme.onSurfaceVariant,
+          color: colorScheme.onSurfaceVariant,
         ),
         const SizedBox(height: Spacing.medium),
         Text(
           title,
           textAlign: TextAlign.center,
-          style: theme.textTheme.titleMedium,
+          // Navy headline on white — the ramp every other band on this screen
+          // reads from, instead of the stock M3 titleMedium.
+          style: context.jeebText.titleProminent.copyWith(
+            color: colorScheme.primary,
+          ),
         ),
-        const SizedBox(height: Spacing.medium),
+        const SizedBox(height: Spacing.xLarge),
         Semantics(
           identifier: 'jeeber_home_load_error_retry_cta',
           container: true,
           button: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.primary(
             key: JeeberHomeScreen.loadErrorRetryKey,
-            text: retryLabel,
+            label: retryLabel,
             onTap: onRetry,
           ),
         ),

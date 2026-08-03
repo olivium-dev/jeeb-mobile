@@ -48,7 +48,16 @@ class DisputeStatusL10n {
   // ── Genuinely-missing copy (feature-local until the integrator lands keys). ─
 
   /// `dispute_status_state` label when resolved (D2). Open uses [openLabel].
+  /// Doubles as the third node's label on the lifecycle stepper.
   String get resolvedLabel => _pick('Resolved', 'تم الحل');
+
+  /// First node of the lifecycle stepper — always `done` (the dispute exists,
+  /// so it was submitted). Short by design: a stepper label is 10.5/w700.
+  String get stepSubmittedLabel => _l10n.disputeStatusStepSubmitted;
+
+  /// Second node of the lifecycle stepper — the active step while the dispute
+  /// is open. The short form of [openLabel] ("Open — under review").
+  String get stepUnderReviewLabel => _l10n.disputeStatusStepUnderReview;
 
   /// Outcome note heading shown above the typed outcome line (D2).
   String get outcomeHeading => _pick('Outcome', 'النتيجة');

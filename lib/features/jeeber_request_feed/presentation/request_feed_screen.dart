@@ -5,7 +5,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/request_feed_cubit.dart';
 import '../cubit/request_feed_state.dart';
@@ -88,12 +91,25 @@ class _RequestFeedViewState extends State<_RequestFeedView> {
       identifier: 'request_feed_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: l10n.requestFeedTitle, centerTitle: false),
+        // The redesign's header is an in-BODY row, not a Material app bar —
+        // no elevation, no surface tint, start-aligned h2 title. It sits
+        // above the BlocConsumer so feed state changes never rebuild it.
         body: SafeArea(
-          child: BlocConsumer<RequestFeedCubit, RequestFeedState>(
-            listenWhen: (prev, curr) => prev.lastEffect != curr.lastEffect,
-            listener: _onEffect,
-            builder: (context, state) => _FeedColumn(state: state, now: _now),
+          child: Column(
+            children: [
+              JeebTopBar(
+                title: l10n.requestFeedTitle,
+                identifier: 'request_feed_back',
+              ),
+              Expanded(
+                child: BlocConsumer<RequestFeedCubit, RequestFeedState>(
+                  listenWhen: (prev, curr) => prev.lastEffect != curr.lastEffect,
+                  listener: _onEffect,
+                  builder: (context, state) =>
+                      _FeedColumn(state: state, now: _now),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -247,6 +263,10 @@ class _FeedListRow extends StatelessWidget {
   }
 }
 
+/// Reconnecting is a transient attention state — self-recovering, not a
+/// failure — so it keeps the warning role but stops behaving like a full-bleed
+/// system error bar: an inset kit note on the page's own 24px gutter, exactly
+/// as the live dashboard feed renders its offline banner.
 class _ReconnectingBanner extends StatelessWidget {
   const _ReconnectingBanner({required this.message});
 
@@ -254,49 +274,25 @@ class _ReconnectingBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      key: const Key('requestFeed.reconnectingBanner'),
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.xSmall,
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.xSmall,
+        Spacing.xLarge,
+        0,
       ),
-      // Reconnecting is a transient attention state -> semantic warning role.
-      color: context.jeebRoles.warningContainer,
-      child: _ReconnectingRow(message: message),
+      child: JeebInfoNote.warning(
+        key: const Key('requestFeed.reconnectingBanner'),
+        icon: Icons.wifi_off_outlined,
+        text: message,
+      ),
     );
   }
 }
 
-class _ReconnectingRow extends StatelessWidget {
-  const _ReconnectingRow({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(
-          Icons.wifi_off_outlined,
-          size: Sizes.medium,
-          color: context.jeebRoles.onWarningContainer,
-        ),
-        const SizedBox(width: Spacing.xSmall),
-        Expanded(
-          child: Text(
-            message,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: context.jeebRoles.onWarningContainer,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
+/// An empty feed is not an error: two start-aligned lines where the first card
+/// would be, on the same white body — the treatment the redesigned dashboard
+/// feed already uses for this exact state.
 class _EmptyFeed extends StatelessWidget {
   const _EmptyFeed({required this.l10n});
 
@@ -304,6 +300,11 @@ class _EmptyFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final Color mutedInk =
+        (Theme.of(context).extension<JeebSemanticColors>() ??
+                JeebSemanticColors.light())
+            .mutedText;
     // OmdsPullToRefresh's child must be scrollable for the gesture to fire,
     // so the empty state is wrapped in a single-child scroll view sized to
     // the viewport.
@@ -312,11 +313,31 @@ class _EmptyFeed extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: OmdsEmptyState(
+          child: Padding(
             key: const Key('requestFeed.empty'),
-            icon: Icons.inbox_outlined,
-            title: l10n.requestFeedEmptyTitle,
-            subtitle: l10n.requestFeedEmptySubtitle,
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.xLarge,
+              Spacing.xLarge,
+              0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.requestFeedEmptyTitle,
+                  style: context.jeebText.titleProminent.copyWith(
+                    color: scheme.primary,
+                  ),
+                ),
+                const SizedBox(height: Spacing.xSmall),
+                Text(
+                  l10n.requestFeedEmptySubtitle,
+                  style: context.jeebText.bodySmall.copyWith(color: mutedInk),
+                ),
+              ],
+            ),
           ),
         ),
       ),

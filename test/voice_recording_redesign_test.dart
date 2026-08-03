@@ -126,7 +126,12 @@ Future<void> _pressAndSlide(WidgetTester tester, double dx) async {
   final gesture = await tester.startGesture(
     tester.getCenter(find.byKey(VoiceRecordingKeys.micButton)),
   );
-  await tester.pumpAndSettle();
+  // NOT pumpAndSettle: the recording phase now carries two looping Lottie
+  // films (the mic sonar + the live waveform, motion spec §2.1/§2.2), so the
+  // tree never settles while the mic is held. Two frames are enough — one to
+  // flush `startRecording`'s microtasks, one to rebuild into `recording`.
+  await tester.pump();
+  await tester.pump();
   await gesture.moveBy(Offset(dx, 0));
   await tester.pump();
   await gesture.up();

@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
-import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/formatting/money_format.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/settlement_cubit.dart';
 import '../domain/settlement_repository.dart';
 import '../domain/settlement_statement.dart';
+import 'widgets/settlement_status_pill.dart';
 
 /// Settlement statement list screen (T-MOB-032).
 ///
@@ -14,6 +18,12 @@ import '../domain/settlement_statement.dart';
 /// Lists weekly statements with status chips (paid / pending).
 /// Tap a row → [SettlementDetailScreen].
 /// Download CTA → GET /v1/wallet/jeeb/earnings/statements/{id}/pdf.
+///
+/// redesign-2026-08: re-skinned onto the Jeeb system alongside its neighbour,
+/// the earnings dashboard (screen 19) — in-body [JeebTopBar] instead of an app
+/// bar, [JeebOutlinedCard] rows on 24px gutters, and every amount through
+/// [MoneyFormat]. The flow is untouched: same states, same row tap, same
+/// per-row PDF download.
 // ORPHAN (JEBV4-227, verified 2026-07-12): registered route, zero inbound nav (T-MOB-032 designed but never linked) — see docs/project-understanding/reconciliation/orphans.md
 class SettlementScreen extends StatelessWidget {
   const SettlementScreen({
@@ -60,15 +70,54 @@ class SettlementScreen extends StatelessWidget {
   }
 }
 
+/// The page shell every state of this screen sits in: the in-body top bar over
+/// a `flex:1` body. No `Scaffold.appBar` — the board's header is a body row.
+class _SettlementScaffold extends StatelessWidget {
+  const _SettlementScaffold({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            JeebTopBar.back(
+              title: l10n.settlementTitle,
+              identifier: 'settlement_back',
+            ),
+            Expanded(child: child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _Unavailable extends StatelessWidget {
   const _Unavailable();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(title: l10n.settlementTitle),
-      body: Center(child: Text(l10n.settlementUnavailable)),
+    return _SettlementScaffold(
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          Spacing.xLarge,
+          Spacing.xLarge,
+          0,
+        ),
+        child: Text(
+          l10n.settlementUnavailable,
+          style: context.jeebText.body.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -107,12 +156,8 @@ class _Body extends StatelessWidget {
     return Semantics(
       identifier: 'settlement_root',
       container: true,
-      child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.settlementTitle,
-          showBackButton: true,
-        ),
-        body: _buildBody(context, state, l10n),
+      child: _SettlementScaffold(
+        child: _buildBody(context, state, l10n),
       ),
     );
   }
@@ -133,7 +178,26 @@ class _Body extends StatelessWidget {
         );
       case SettlementListMode.ready:
         if (state.statements.isEmpty) {
-          return Center(child: Text(l10n.settlementEmptyMessage));
+          // R1: the residual space stays white and top-aligned. The list is
+          // what keeps it there — `OmdsEmptyState` centres itself vertically
+          // when it is given a bounded height (the same shape order-history
+          // uses).
+          return ListView(
+            children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  Spacing.xLarge,
+                  Spacing.twoXLarge,
+                  Spacing.xLarge,
+                  0,
+                ),
+                child: OmdsEmptyState(
+                  icon: Icons.receipt_long,
+                  title: l10n.settlementEmptyMessage,
+                ),
+              ),
+            ],
+          );
         }
         return _StatementList(
           statements: state.statements,
@@ -162,12 +226,16 @@ class _StatementList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.small,
+      // 24px board gutter; the outlines are the separation, so the rows are
+      // spaced rather than divided (R7/R12).
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        Spacing.xLarge,
       ),
       itemCount: statements.length,
-      separatorBuilder: (context, index) => const SizedBox(height: Spacing.xSmall),
+      separatorBuilder: (context, index) => const SizedBox(height: Spacing.small),
       itemBuilder: (context, i) => _StatementRow(
         statement: statements[i],
         isExporting: isExporting,
@@ -194,97 +262,68 @@ class _StatementRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // Semantic roles: paid = success, pending = warning. The old
-    // secondary/tertiary container pairs were brand hues doing state duty
-    // (onSecondaryContainer on navy fails AA).
-    final roles = context.jeebRoles;
-    final chipColor = statement.status == SettlementStatus.paid
-        ? roles.successContainer
-        : roles.warningContainer;
-    final chipTextColor = statement.status == SettlementStatus.paid
-        ? roles.onSuccessContainer
-        : roles.onWarningContainer;
-    final chipLabel = statement.status == SettlementStatus.paid
-        ? l10n.settlementStatusPaid
-        : l10n.settlementStatusPending;
-    final amountStr =
-        '${statement.currency} ${statement.totalPayout.toStringAsFixed(2)}';
+    final scheme = Theme.of(context).colorScheme;
+    final chipLabel = SettlementStatusPill.labelFor(l10n, statement.status);
+    // One formatter for every amount in the app (JEBV4-98): `$90.00`, wrapped
+    // in an LTR isolate so it cannot scramble inside an Arabic row.
+    final amountStr = MoneyFormat.format(
+      statement.totalPayout,
+      currency: statement.currency,
+    );
 
-    return Semantics(
-      label: l10n.settlementRowSemantics(amountStr, chipLabel),
-      child: Card(
-        child: Semantics(
-          identifier: 'settlement_statement_row_${statement.id}',
-          button: true,
-          container: true,
-          child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(Spacing.medium),
-            child: Row(
+    return JeebOutlinedCard(
+      // FROZEN identifier — Maestro and the devtool catalog find rows by it.
+      identifier: 'settlement_statement_row_${statement.id}',
+      semanticLabel: l10n.settlementRowSemantics(amountStr, chipLabel),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        statement.weekLabel,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: Spacing.xSmall),
-                      Text(
-                        amountStr,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ],
+                Text(
+                  statement.weekLabel,
+                  style: context.jeebText.titleProminent.copyWith(
+                    color: scheme.primary,
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: Spacing.small,
-                        vertical: Spacing.twoXSmall,
-                      ),
-                      decoration: BoxDecoration(
-                        color: chipColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        chipLabel,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: chipTextColor,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(height: Spacing.xSmall),
-                    isExporting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: OmdsLoadingState(),
-                          )
-                        : Semantics(
-                            identifier:
-                                'settlement_download_${statement.id}',
-                            button: true,
-                            container: true,
-                            child: IconButton(
-                              icon: const Icon(Icons.download),
-                              tooltip: l10n.settlementDownloadTooltip,
-                              onPressed: onDownload,
-                              iconSize: 20,
-                            ),
-                          ),
-                  ],
+                const SizedBox(height: Spacing.twoXSmall),
+                Text(
+                  amountStr,
+                  style: context.jeebText.price.copyWith(color: scheme.primary),
+                  semanticsLabel: amountStr,
                 ),
               ],
             ),
           ),
+          const SizedBox(width: Spacing.small),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              SettlementStatusPill(status: statement.status),
+              const SizedBox(height: Spacing.twoXSmall),
+              isExporting
+                  ? const SizedBox.square(
+                      dimension: Sizes.large,
+                      child: OmdsLoadingState(),
+                    )
+                  : Semantics(
+                      identifier:
+                          'settlement_download_${statement.id}',
+                      button: true,
+                      container: true,
+                      child: IconButton(
+                        icon: const Icon(Icons.download),
+                        color: scheme.primary,
+                        tooltip: l10n.settlementDownloadTooltip,
+                        onPressed: onDownload,
+                        iconSize: Sizes.large,
+                      ),
+                    ),
+            ],
           ),
-        ),
+        ],
       ),
     );
   }

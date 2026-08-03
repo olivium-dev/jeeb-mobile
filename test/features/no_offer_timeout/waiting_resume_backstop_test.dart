@@ -177,7 +177,8 @@ void main() {
         expect(
           repository.fetchWaitingCount,
           0,
-          reason: 'the cold load uses fetchRequest; fetchWaiting is the re-read',
+          reason:
+              'the cold load uses fetchRequest; fetchWaiting is the re-read',
         );
         expect(
           find.bySemanticsIdentifier('waiting_review_offers_cta'),
@@ -261,7 +262,8 @@ void main() {
         expect(
           repository.fetchWaitingCount,
           0,
-          reason: 'an invisible surface must not read — same rule the '
+          reason:
+              'an invisible surface must not read — same rule the '
               'dashboard card already respects through DeferredRefreshGate',
         );
 
@@ -276,35 +278,35 @@ void main() {
       },
     );
 
-    testWidgets(
-      'a rapid background/foreground FLAP costs ONE read, not N',
-      (tester) async {
-        final repository = _ScriptedWaitingRepository();
-        await _pumpLoaded(tester, repository);
+    testWidgets('a rapid background/foreground FLAP costs ONE read, not N', (
+      tester,
+    ) async {
+      final repository = _ScriptedWaitingRepository();
+      await _pumpLoaded(tester, repository);
 
-        // Hold the read open so the trailing emission lands INSIDE the first
-        // round trip — the exact shape the cubit's in-flight latch exists for.
-        repository.hold();
-        await _driveToBackground(tester);
-        await _driveToForeground(tester);
-        await _driveToBackground(tester);
-        await _driveToForeground(tester);
-        await _driveToBackground(tester);
-        await _driveToForeground(tester);
-        await tester.pump(_resumeSettle);
-        await tester.pump();
+      // Hold the read open so the trailing emission lands INSIDE the first
+      // round trip — the exact shape the cubit's in-flight latch exists for.
+      repository.hold();
+      await _driveToBackground(tester);
+      await _driveToForeground(tester);
+      await _driveToBackground(tester);
+      await _driveToForeground(tester);
+      await _driveToBackground(tester);
+      await _driveToForeground(tester);
+      await tester.pump(_resumeSettle);
+      await tester.pump();
 
-        expect(
-          repository.fetchWaitingCount,
-          1,
-          reason: 'AppResumeSignals collapses the burst; the cubit latch drops '
-              'whatever survives it while a read is on the wire',
-        );
+      expect(
+        repository.fetchWaitingCount,
+        1,
+        reason:
+            'AppResumeSignals collapses the burst; the cubit latch drops '
+            'whatever survives it while a read is on the wire',
+      );
 
-        repository.release();
-        await tester.pumpAndSettle();
-      },
-    );
+      repository.release();
+      await tester.pumpAndSettle();
+    });
 
     testWidgets(
       'the backstop introduces NO cadence: five idle minutes cost zero reads',
@@ -319,7 +321,8 @@ void main() {
         expect(
           repository.fetchWaitingCount,
           0,
-          reason: 'the deleted 5 s poll must stay deleted — this is 60 of its '
+          reason:
+              'the deleted 5 s poll must stay deleted — this is 60 of its '
               'ticks',
         );
         expect(repository.fetchRequestCount, baseline);
@@ -333,73 +336,80 @@ void main() {
   });
 
   group('N9 waiting — resume coalescing (cubit level)', () {
-    test('two resume events with one fetch IN FLIGHT produce ONE fetch', () async {
-      final repository = _ScriptedWaitingRepository();
-      final cubit = WaitingCubit(
-        repository: repository,
-        requestId: _requestId,
-        now: () => _fixedNow,
-        refreshSignals: const Stream<void>.empty(),
-        clockTicks: const Stream<void>.empty(),
-      );
-      addTearDown(cubit.close);
+    test(
+      'two resume events with one fetch IN FLIGHT produce ONE fetch',
+      () async {
+        final repository = _ScriptedWaitingRepository();
+        final cubit = WaitingCubit(
+          repository: repository,
+          requestId: _requestId,
+          now: () => _fixedNow,
+          refreshSignals: const Stream<void>.empty(),
+          clockTicks: const Stream<void>.empty(),
+        );
+        addTearDown(cubit.close);
 
-      await cubit.load();
-      expect(cubit.state.status, WaitingScreenStatus.loaded);
-      expect(repository.fetchWaitingCount, 0);
+        await cubit.load();
+        expect(cubit.state.status, WaitingScreenStatus.loaded);
+        expect(repository.fetchWaitingCount, 0);
 
-      repository.hold();
-      cubit.refreshOnResume();
-      await Future<void>.delayed(Duration.zero);
-      cubit.refreshOnResume();
-      await Future<void>.delayed(Duration.zero);
+        repository.hold();
+        cubit.refreshOnResume();
+        await Future<void>.delayed(Duration.zero);
+        cubit.refreshOnResume();
+        await Future<void>.delayed(Duration.zero);
 
-      expect(
-        repository.fetchWaitingCount,
-        1,
-        reason: 'the second resume must coalesce onto the read already on the '
-            'wire — two overlapping reads can complete out of order and paint '
-            'the OLDER snapshot',
-      );
+        expect(
+          repository.fetchWaitingCount,
+          1,
+          reason:
+              'the second resume must coalesce onto the read already on the '
+              'wire — two overlapping reads can complete out of order and paint '
+              'the OLDER snapshot',
+        );
 
-      repository.release();
-      await Future<void>.delayed(Duration.zero);
+        repository.release();
+        await Future<void>.delayed(Duration.zero);
 
-      // POSITIVE CONTROL — once the wire is free the next resume DOES read, so
-      // the 1 above is coalescing rather than a permanently wedged latch.
-      cubit.refreshOnResume();
-      await Future<void>.delayed(Duration.zero);
-      expect(repository.fetchWaitingCount, 2);
-    });
+        // POSITIVE CONTROL — once the wire is free the next resume DOES read, so
+        // the 1 above is coalescing rather than a permanently wedged latch.
+        cubit.refreshOnResume();
+        await Future<void>.delayed(Duration.zero);
+        expect(repository.fetchWaitingCount, 2);
+      },
+    );
 
-    test('a resume before the cold load resolves does not double-read', () async {
-      final repository = _ScriptedWaitingRepository();
-      final cubit = WaitingCubit(
-        repository: repository,
-        requestId: _requestId,
-        now: () => _fixedNow,
-        refreshSignals: const Stream<void>.empty(),
-        clockTicks: const Stream<void>.empty(),
-      );
-      addTearDown(cubit.close);
+    test(
+      'a resume before the cold load resolves does not double-read',
+      () async {
+        final repository = _ScriptedWaitingRepository();
+        final cubit = WaitingCubit(
+          repository: repository,
+          requestId: _requestId,
+          now: () => _fixedNow,
+          refreshSignals: const Stream<void>.empty(),
+          clockTicks: const Stream<void>.empty(),
+        );
+        addTearDown(cubit.close);
 
-      repository.hold();
-      unawaited(cubit.load());
-      await Future<void>.delayed(Duration.zero);
-      expect(cubit.state.status, WaitingScreenStatus.loading);
+        repository.hold();
+        unawaited(cubit.load());
+        await Future<void>.delayed(Duration.zero);
+        expect(cubit.state.status, WaitingScreenStatus.loading);
 
-      cubit.refreshOnResume();
-      await Future<void>.delayed(Duration.zero);
+        cubit.refreshOnResume();
+        await Future<void>.delayed(Duration.zero);
 
-      expect(
-        repository.fetchWaitingCount,
-        0,
-        reason: 'the cold load is already fetching this snapshot',
-      );
+        expect(
+          repository.fetchWaitingCount,
+          0,
+          reason: 'the cold load is already fetching this snapshot',
+        );
 
-      repository.release();
-      await Future<void>.delayed(Duration.zero);
-      expect(cubit.state.status, WaitingScreenStatus.loaded);
-    });
+        repository.release();
+        await Future<void>.delayed(Duration.zero);
+        expect(cubit.state.status, WaitingScreenStatus.loaded);
+      },
+    );
   });
 }

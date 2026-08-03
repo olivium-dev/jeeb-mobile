@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 
 /// delivery-register-prompt (JM-044, route `/jeeber/register-prompt`). The
@@ -15,82 +19,106 @@ import '../../../l10n/app_localizations.dart';
 /// The "Register now" CTA chains into the delivery-man onboarding wizard
 /// (`jeeber-onboarding`, JM-039); back returns to the gate / shell.
 ///
+/// redesign-2026-08: re-skinned onto the Jeeb kit alongside its gate — in-body
+/// [JeebTopBar], start-aligned `jeebText` headline/body, and the two exits
+/// docked in a [JeebCtaFooter] under a real `flex: 1` band of white. The
+/// centred `delivery_dining` hero glyph was dropped: the board carries no
+/// oversized outline icon on any of its 24 screens, and it was the single
+/// element that made this prompt read as a different product from the KYC
+/// wizard it leads into. No flow, copy, affordance or identifier changed.
+///
 /// Semantics ids:
-///   `delivery_register_prompt`        — screen root (the id JM-044 AC3 asserts)
-///   `delivery_register_prompt_cta`    — "Register now" → jeeber-onboarding
-///   `delivery_register_prompt_back`   — back → shell
+///   `delivery_register_prompt`         — screen root (the id JM-044 AC3 asserts)
+///   `delivery_register_prompt_cta`     — "Register now" → jeeber-onboarding
+///   `delivery_register_prompt_back`    — back → shell
+///   `delivery_register_prompt_top_back`— the redesign's new top-bar circle.
+///     Deliberately NOT `delivery_register_prompt_back`: that id is already
+///     owned by the in-body CTA below, and two nodes sharing one identifier
+///     break both Maestro's `tapOn: id` and `find.bySemanticsIdentifier`.
 class DeliveryRegisterPromptScreen extends StatelessWidget {
   const DeliveryRegisterPromptScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'delivery_register_prompt',
       container: true,
       explicitChildNodes: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.offerKycGateTitle,
-          showBackButton: true,
-          // JEBV4-13 P1-6: without an explicit destination, OMDSAppBar's
-          // default `maybePop()` no-ops when this screen is the stack root
-          // (reached via `go`), leaving the AppBar back arrow dead. Mirror
-          // the screen's own `delivery_register_prompt_back` exit.
-          onBackPressed: () =>
-              context.canPop() ? context.pop() : context.go('/'),
-        ),
-        body: ListView(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            Spacing.medium,
-            Spacing.large,
-            Spacing.medium,
-            Spacing.xLarge,
+        // No Material app bar: the redesign's header is a body row.
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar.back(
+                title: l10n.offerKycGateTitle,
+                identifier: 'delivery_register_prompt_top_back',
+                // JEBV4-13 P1-6: without an explicit destination the kit's
+                // default `maybePop()` no-ops when this screen is the stack
+                // root (reached via `go`), leaving the back circle dead. Mirror
+                // the screen's own `delivery_register_prompt_back` exit.
+                onLeadingPressed: () => _back(context),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    Spacing.xLarge,
+                    Spacing.large,
+                    Spacing.xLarge,
+                    Spacing.large,
+                  ),
+                  // Top-aligned: the lower band stays plain white.
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        l10n.offerKycGateHeadline,
+                        style: context.jeebText.h1
+                            .copyWith(color: scheme.onSurface),
+                      ),
+                      const SizedBox(height: Spacing.xSmall),
+                      Text(
+                        l10n.offerKycGateBody,
+                        // NOT periwinkle: periwinkle-on-white is a documented
+                        // AA failure (color_role_contrast_test.dart).
+                        style: context.jeebText.body
+                            .copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              JeebCtaFooter.single(
+                below: Semantics(
+                  identifier: 'delivery_register_prompt_back',
+                  button: true,
+                  container: true,
+                  child: JeebCtaButton.text(
+                    label: l10n.gateBackCta,
+                    contentPadding: EdgeInsetsDirectional.zero,
+                    onTap: () => _back(context),
+                  ),
+                ),
+                child: Semantics(
+                  identifier: 'delivery_register_prompt_cta',
+                  button: true,
+                  container: true,
+                  child: JeebCtaButton.primary(
+                    label: l10n.gateStartKycCta,
+                    onTap: () => context.goNamed('jeeber-onboarding'),
+                  ),
+                ),
+              ),
+            ],
           ),
-          children: [
-            Icon(
-              Icons.delivery_dining_outlined,
-              size: Sizes.sixXLarge,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(height: Spacing.large),
-            Text(
-              l10n.offerKycGateHeadline,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: Spacing.small),
-            Text(
-              l10n.offerKycGateBody,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: Spacing.xLarge),
-            Semantics(
-              identifier: 'delivery_register_prompt_cta',
-              button: true,
-              container: true,
-              child: OmdsPrimaryButton(
-                text: l10n.gateStartKycCta,
-                onTap: () => context.goNamed('jeeber-onboarding'),
-              ),
-            ),
-            const SizedBox(height: Spacing.small),
-            Semantics(
-              identifier: 'delivery_register_prompt_back',
-              button: true,
-              container: true,
-              child: TextButton(
-                onPressed: () =>
-                    context.canPop() ? context.pop() : context.go('/'),
-                child: Text(l10n.gateBackCta),
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
+
+  /// Back to whatever pushed the prompt, or the shell root when it is the
+  /// stack root (it is reached via `go`, so `canPop()` is usually false).
+  void _back(BuildContext context) =>
+      context.canPop() ? context.pop() : context.go('/');
 }

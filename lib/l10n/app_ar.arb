@@ -213,6 +213,7 @@
     "description": "Heading on the biometric enrolment prompt screen offering biometric sign-in."
   },
   "biometricNotAvailable": "المصادقة بالقياسات الحيوية غير متاحة",
+  "biometricPromptSubtitle": "سجّل دخولك بسرعة ببصمتك أو بوجهك",
   "@biometricNotAvailable": {
     "description": "Shown on the biometric prompt screen when the device has no usable biometric sensor."
   },
@@ -1600,6 +1601,8 @@
 
   "disputeStatusTitle": "حالة النزاع",
   "disputeStatusOpenLabel": "مفتوح — قيد المراجعة",
+  "disputeStatusStepSubmitted": "تم الإرسال",
+  "disputeStatusStepUnderReview": "قيد المراجعة",
   "disputeStatusBody": "نراجع نزاعك والأدلة المرفقة. سنُعلمك بالنتيجة.",
   "disputeStatusSupportCta": "التواصل مع الدعم",
   "disputeStatusBackCta": "العودة إلى المحادثة",
@@ -1641,6 +1644,17 @@
 
   "goodsCostTitle": "إدخال تكلفة البضائع",
   "goodsCostHeadline": "كم كانت تكلفة البضائع؟",
+  "clientUnreachableTitle": "تعذّر الوصول إلى العميل",
+  "clientUnreachableNoticeTitle": "لا يمكن الوصول إلى العميل",
+  "clientUnreachableNoticeBody": "إذا لم يستجب العميل، يمكنك الإبلاغ عن تعذّر الوصول إليه. سيكون أمامه 15 دقيقة للرد قبل تصعيد التوصيل.",
+  "clientUnreachableCallAgainCta": "حاول الاتصال مجددًا",
+  "clientUnreachableChatCta": "إرسال رسالة في المحادثة",
+  "clientUnreachableFlagCta": "الإبلاغ عن تعذّر الوصول",
+  "prohibitedItemReportTitle": "الإبلاغ عن صنف ممنوع",
+  "prohibitedItemReportGuidance": "إذا طلب العميل توصيل صنف ممنوع، أبلغ عنه هنا.",
+  "prohibitedItemReportDescriptionLabel": "صف الصنف الممنوع",
+  "prohibitedItemReportAttachPhotoCta": "إرفاق صورة",
+  "prohibitedItemReportSubmitCta": "إبلاغ عن الصنف",
   "goodsCostBody": "أدخل المبلغ الذي يجب على العميل دفعه مقابل البضائع المشتراة.",
   "goodsCostFieldLabel": "تكلفة البضائع ({currency})",
   "goodsCostFieldLabelNeutral": "تكلفة البضائع",

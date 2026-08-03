@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -19,8 +20,8 @@ import 'widgets/dm_onboarding_progress_header.dart';
 import 'widgets/dm_onboarding_service_area_step.dart';
 
 /// Delivery-man onboarding wizard host (Figma flow 56591:5323 → 56591:4109 →
-/// 56591:5337). Three pushed full-screen steps share one [OMDSAppBar] (the
-/// title swaps per step) and one progress bar; there is no bottom nav.
+/// 56591:5337). Three pushed full-screen steps share one in-body [JeebTopBar]
+/// (the title swaps per step) and one progress bar; there is no bottom nav.
 ///
 /// Builds a single [DmOnboardingCubit] per visit, falling back to in-process
 /// fakes when GetIt hasn't been configured (cold deep link / boot tests) so the
@@ -118,10 +119,12 @@ class _Scaffold extends StatelessWidget {
       ],
       child: const Scaffold(
         key: DmOnboardingScreen.rootKey,
-        appBar: _OnboardingAppBar(),
+        // Redesign-2026-08 §5 #1: the header is a body row, not a Material app
+        // bar — no elevation, no surface tint, start-aligned title.
         body: SafeArea(
           child: Column(
             children: [
+              _OnboardingTopBar(),
               DmOnboardingProgressHeader(),
               Expanded(child: _OnboardingBody()),
             ],
@@ -159,22 +162,25 @@ class _Scaffold extends StatelessWidget {
   }
 }
 
-class _OnboardingAppBar extends StatelessWidget
-    implements PreferredSizeWidget {
-  const _OnboardingAppBar();
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+/// The wizard header: the kit's Ø40 tonal back circle + the start-aligned
+/// `jeebText.h2` navy step title, on the board's 24px gutter.
+class _OnboardingTopBar extends StatelessWidget {
+  const _OnboardingTopBar();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return BlocBuilder<DmOnboardingCubit, DmOnboardingState>(
       buildWhen: (prev, curr) => prev.step != curr.step,
-      builder: (context, state) => OMDSAppBar(
+      builder: (context, state) => JeebTopBar.back(
+        // JM-039: canonical wizard back id (one id across every step; only one
+        // step is mounted at a time, so QA can assert/tap it unambiguously).
+        identifier: 'dm_onboarding_back',
         title: _titleFor(l10n, state.step),
-        centerTitle: true,
-        leading: _OnboardingBackButton(canGoBack: state.step.index > 0),
+        onLeadingPressed: () => _onBack(
+          context,
+          canGoBack: state.step.index > 0,
+        ),
       ),
     );
   }
@@ -189,29 +195,6 @@ class _OnboardingAppBar extends StatelessWidget
         return l10n.dmOnboardingServiceAreaTitle;
     }
   }
-}
-
-class _OnboardingBackButton extends StatelessWidget {
-  const _OnboardingBackButton({required this.canGoBack});
-
-  /// Whether the wizard has a previous step to fall back to. `false` on the
-  /// first (photo) step, where Back must leave the wizard entirely.
-  final bool canGoBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      // JM-039: canonical wizard back id (one id across every step; only one
-      // step is mounted at a time, so QA can assert/tap it unambiguously).
-      identifier: 'dm_onboarding_back',
-      button: true,
-      child: IconButton(
-        icon: const BackButtonIcon(),
-        tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-        onPressed: () => _onBack(context),
-      ),
-    );
-  }
 
   /// JM-039 AC1: from the first (photo) step, Back returns to the
   /// `delivery-register-prompt` the wizard was pushed from (DELIVERY tab) —
@@ -221,7 +204,10 @@ class _OnboardingBackButton extends StatelessWidget {
   /// `go('/')` branch only fires on a cold deep-link entry where nothing was
   /// pushed (no register-prompt below); it routes to the first-run/shell gate so
   /// Back never strands the user on a rootless wizard.
-  void _onBack(BuildContext context) {
+  ///
+  /// [canGoBack] is false on the first (photo) step, where Back must leave the
+  /// wizard entirely.
+  void _onBack(BuildContext context, {required bool canGoBack}) {
     if (canGoBack) {
       context.read<DmOnboardingCubit>().back();
       return;

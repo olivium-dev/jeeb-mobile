@@ -23,6 +23,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:jeeb_mobile/core/accessibility/accessibility.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
 import 'package:jeeb_mobile/features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import 'package:jeeb_mobile/features/offer_kyc_gate/presentation/delivery_register_prompt_screen.dart';
@@ -70,7 +71,15 @@ Widget _wrapRouter(GoRouter router) {
 String _locationOf(GoRouter router) =>
     router.routerDelegate.currentConfiguration.uri.toString();
 
-Finder _appBarBackButton() => find.widgetWithIcon(IconButton, Icons.arrow_back);
+/// The screen's back affordance.
+///
+/// redesign-2026-08: all three screens under test replaced their Material
+/// `OMDSAppBar` with the in-body kit `JeebTopBar`, whose leading circle is a
+/// `MinTapTarget` + `Icon`, not an `IconButton`. None of the three bars carries
+/// a trailing action or an identity avatar, so the leading circle is the only
+/// `MinTapTarget` on each. The guarded-fallback behaviour under test is
+/// unchanged — only the handle is.
+Finder _appBarBackButton() => find.byType(MinTapTarget);
 
 void main() {
   setUpAll(_loadArbFromDisk);

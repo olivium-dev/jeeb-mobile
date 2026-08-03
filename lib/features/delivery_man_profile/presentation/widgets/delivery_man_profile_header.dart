@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../core/widgets/jeeb_verified_badge.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../chat/presentation/widgets/auto_direction_text.dart';
@@ -8,8 +10,12 @@ import 'delivery_man_meta_row.dart';
 
 /// Identity header for the delivery-man public profile: large circular avatar +
 /// (name row with verified badge) + rating summary + location/availability.
-/// Composed from OMDS primitives (design §6: [OmdsProfileCard] is an
-/// image-background card, not an inline identity block).
+///
+/// redesign-2026-08: the avatar is the kit [JeebAvatar] hero disc (Ø74 — the
+/// board's identity-block size) and the type comes off `context.jeebText`.
+/// The row keeps its own name node because `delivery_man_profile_name` is a
+/// frozen Maestro id and `JeebProfileHeader` has no name slot to carry it (nor
+/// a place for the verified badge) — see the apply report.
 class DeliveryManProfileHeader extends StatelessWidget {
   const DeliveryManProfileHeader({
     super.key,
@@ -38,9 +44,10 @@ class DeliveryManProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
+      // The board's 24px side gutter (§4.3).
       padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.large,
-        vertical: Spacing.small,
+        horizontal: Spacing.xLarge,
+        vertical: Spacing.xSmall,
       ),
       child: _HeaderRow(
         name: name,
@@ -83,7 +90,7 @@ class _HeaderRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _Avatar(name: name, avatarUrl: avatarUrl),
-        const SizedBox(width: Spacing.small),
+        const SizedBox(width: Spacing.medium),
         Expanded(
           child: _Details(
             name: name,
@@ -108,12 +115,13 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = name.trim().isNotEmpty ? name.trim()[0] : '?';
-    return OmdsProfileAvatar(
-      key: const Key('delivery-man-profile-avatar'),
-      initial: initial,
-      profilePicUrl: avatarUrl,
-      size: Sizes.nineXLarge,
+    // `JeebAvatar.hero` normalises the initial itself (first non-blank
+    // character, '?' when there is none) — the same fallback this widget used
+    // to compute by hand.
+    return JeebAvatar.hero(
+      initial: name,
+      imageUrl: avatarUrl,
+      avatarKey: const Key('delivery-man-profile-avatar'),
     );
   }
 }
@@ -183,6 +191,9 @@ class _RatingRow extends StatelessWidget {
       );
     }
     return DeliveryManMetaRow(
+      // The star stays navy (§4.1 rations the one warm ink): this profile's
+      // score is a meta line, not a rating stat, so it must NOT be tinted with
+      // `omdsColorTokens.starRatingColor`.
       icon: Icons.star,
       text: l10n.deliveryManProfileRatingSummary(
         rating.toStringAsFixed(1),
@@ -254,10 +265,8 @@ class _NameText extends StatelessWidget {
       identifier: 'delivery_man_profile_name',
       child: AutoDirectionText(
         name,
-        style: theme.textTheme.headlineSmall?.copyWith(
-          color: theme.colorScheme.secondaryContainer,
-          fontWeight: FontWeight.w700,
-        ),
+        // The board's identity name: navy `h2` (20/w700), not a headline.
+        style: context.jeebText.h2.copyWith(color: theme.colorScheme.primary),
       ),
     );
   }

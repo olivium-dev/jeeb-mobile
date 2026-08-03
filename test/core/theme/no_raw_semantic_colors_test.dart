@@ -33,6 +33,7 @@ void main() {
     'lib/features/wallet/presentation/wallet_hub_screen.dart',
     'lib/features/settlement/presentation/settlement_screen.dart',
     'lib/features/settlement/presentation/settlement_detail_screen.dart',
+    'lib/features/settlement/presentation/widgets/settlement_status_pill.dart',
     'lib/features/order_history/presentation/order_status_chip.dart',
     // sign_up_screen.dart removed with the email/password funnel (JEBV4-199).
     'lib/features/prohibited_acknowledgment/presentation/prohibited_acknowledgment_dialog.dart',

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_footer.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_info_note.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_poll_schedule.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_cubit.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
@@ -185,15 +187,12 @@ void main() {
         ),
         findsOneWidget,
       );
-      final cta = tester.widget<OmdsLoadingButton>(
+      // Promotion is now the kit variant, not a hand-passed fill: the primary
+      // JeebCtaButton IS the navy pill + JeebShadows.ctaNavy.
+      final cta = tester.widget<JeebCtaButton>(
         find.byKey(KycStatusView.checkAgainCtaKey),
       );
-      expect(
-        cta.backgroundColor,
-        Theme.of(
-          tester.element(find.byType(KycStatusView)),
-        ).colorScheme.primary,
-      );
+      expect(cta.variant, JeebCtaVariant.primary);
       expect(
         tester.getTopLeft(find.byKey(KycStatusView.checkAgainCtaKey)).dy,
         lessThan(tester.getTopLeft(_byIdentifier('kyc_status_topup_cta')).dy),
@@ -212,6 +211,13 @@ void main() {
       expect(find.byKey(KycStatusView.checkAgainCtaKey), findsOneWidget);
       expect(find.text('Check again'), findsOneWidget);
       expect(_byIdentifier('kyc_status_poll_expired'), findsNothing);
+      // Not promoted while the automatic poller is still running.
+      expect(
+        tester
+            .widget<JeebCtaButton>(find.byKey(KycStatusView.checkAgainCtaKey))
+            .variant,
+        JeebCtaVariant.outline,
+      );
       expect(
         tester.getTopLeft(_byIdentifier('kyc_status_topup_cta')).dy,
         lessThan(
@@ -367,6 +373,32 @@ void main() {
       expect(harness.gateway.statusCalls, 0);
       await _pumpInterval(tester, const Duration(milliseconds: 1));
       expect(harness.gateway.statusCalls, 1);
+
+      await _disposeHarness(tester, harness);
+    },
+  );
+
+  // redesign-2026-08 (screen 22's companion): the re-skin is composed from the
+  // Jeeb kit, not from bespoke containers — a docked CTA footer of kit buttons
+  // over a kit info note. Locks the swap so a later edit cannot quietly
+  // reintroduce a hand-rolled grey panel or an OMDS pill here.
+  testWidgets(
+    'redesign-2026-08: the pending body is a JeebCtaFooter of JeebCtaButtons '
+    'over a JeebInfoNote',
+    (tester) async {
+      final harness = await _Harness.withStatus(KycStatus.pending);
+      await tester.pumpWidget(_host(harness, schedule: _oneProbeSchedule));
+
+      expect(find.byType(JeebCtaFooter), findsOneWidget);
+      // Top up · Check again · Back to profile.
+      expect(find.byType(JeebCtaButton), findsNWidgets(3));
+      expect(
+        find.descendant(
+          of: _byIdentifier('kyc_status_topup_allowed_note'),
+          matching: find.byType(JeebInfoNote),
+        ),
+        findsOneWidget,
+      );
 
       await _disposeHarness(tester, harness);
     },

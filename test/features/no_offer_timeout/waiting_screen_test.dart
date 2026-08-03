@@ -20,6 +20,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_section_label.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/application/waiting_cubit.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
@@ -122,7 +123,15 @@ void main() {
         findsOneWidget,
         reason: 'the customer must see what they asked for while waiting',
       );
-      expect(find.text('Your request'), findsOneWidget);
+      // redesign-24: the echo card's label is a `JeebSectionLabel`, which
+      // owns the locale-gated uppercase transform (AR/FA/HE/UR pass through) —
+      // so the expected string is derived, never re-typed.
+      expect(
+        find.text(
+          JeebSectionLabel.resolveCase('Your request', const Locale('en')),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Pharmacy run'), findsOneWidget);
     });
 
@@ -416,10 +425,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(
-        find.bySemanticsIdentifier('waiting_error_state'),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsIdentifier('waiting_error_state'), findsOneWidget);
       expect(
         find.text(
           'Your request status came back in an unexpected format. '
@@ -428,9 +434,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text(
-          "We couldn't load your request status. Please try again.",
-        ),
+        find.text("We couldn't load your request status. Please try again."),
         findsNothing,
       );
       expect(find.bySemanticsIdentifier('waiting_countdown'), findsNothing);
@@ -448,9 +452,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text(
-          "We couldn't load your request status. Please try again.",
-        ),
+        find.text("We couldn't load your request status. Please try again."),
         findsOneWidget,
       );
     });
