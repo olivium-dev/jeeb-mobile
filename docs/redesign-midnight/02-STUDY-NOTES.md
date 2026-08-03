@@ -74,6 +74,21 @@ do their own STEP-0 tile read.
    expansionTile, scrollbar, badge, banner) → M6 sweep list.
 6. `test/app_shell_test.dart` brightness test rewritten: both factories assert Midnight.
 
+## Harness rulings (M0-9, ratified 2026-08-03)
+
+- Emoji in captures come from the macOS system `Apple Color Emoji.ttc` (device-parity with
+  iOS); the CBDT `NotoColorEmoji.ttf` painted nothing under `flutter test` → deleted, with
+  the `zz_probe_test.dart` diagnostic. Linux capture runs render no emoji — accepted.
+- OMDS token set extracted to `lib/core/theme/jeeb_omds_tokens.dart` (single source for
+  app.dart + harness; kills silent drift).
+- Harness themes with `AppTheme.midnight()`; every capture mounts under a stand-in GoRouter
+  (`canPop()==true` — matches the ~44 pushed screens; sole build-time reader is R12's ticket).
+- 4 remaining render failures are pre-existing, not harness-shaped: live-tracking ×2
+  (GoogleMap platform view — unmockable), customer-profile (network avatar fixture),
+  rating-prompt compact overflow (screen defect → its M3 row).
+- Midnight capture re-baseline = `flutter test test/tools/catalog_capture_test.dart
+  --update-goldens` — run per-screen during M2, not at G-M0.
+
 ## Map rulings (M0-6, ratified 2026-08-03)
 
 - R3/R11 tiles draw ZERO map labels/POIs. Ruling: **labels stay**, styled periwinkle

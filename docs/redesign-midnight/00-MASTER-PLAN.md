@@ -298,7 +298,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M0-6 Dark map style JSON (`assets/map_styles/midnight.json`, measured from R3/R11: land=wash, roads land+0x0F, labels periwinkle ON by ruling, POI/transit off) + `JeebMapStyle` helper + both live `GoogleMap` sites styled via `style:` param @2026-08-03
 - [x] M0-7 Board assets imported → `assets/brand/jeeb_wordmark.svg`, `assets/illustrations/delivery_3d.png` (repo snake_case convention; delivery art flagged navy-hostile for M5) @2026-08-03
 - [x] M0-8 AA tests re-cut for navy — all sheet-§9 pairs PASS (worst body ink 5.17:1), failure-by-design pairs asserted, brown-on-white guard retired; 165 theme tests green @2026-08-03
-- [ ] M0-9 Capture-harness fixes (R12 `standInRouter`, star token provider, harness emoji/Arabic fonts)
+- [x] M0-9 Capture-harness fixes — generic GoRouter stand-in (R12 + 8 more crashed captures fixed), shared OMDS tokens (`jeeb_omds_tokens.dart`), Midnight theme + reduce-motion enforced, brand/emoji/Arabic fonts loaded; render failures 18→4 (all pre-existing; rulings in 02-STUDY-NOTES §Harness) @2026-08-03
 
 ### M1 Kit
 - [ ] M1-1 Kit restyle sweep (32 widgets) on new tokens

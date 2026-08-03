@@ -19,9 +19,12 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_omds_tokens.dart';
 import 'package:jeeb_mobile/devtool/catalog/screen_catalog.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:omds/omds.dart';
 
 import '../support/load_test_fonts.dart';
 import '../support/sync_app_localizations.dart';
@@ -30,15 +33,39 @@ import '../support/sync_app_localizations.dart';
 /// without rescaling, which is the whole point of the comparison.
 const Size _kCanvas = Size(440, 956);
 
+/// Mounted as a child route so `context.canPop()` is TRUE, the way every
+/// catalog screen is really reached — pushed on top of something.
+const String _kCapturePath = '/capture';
+
+
+
 String _slug(String s) => s
     .toLowerCase()
     .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
     .replaceAll(RegExp(r'^-|-$'), '');
 
+/// Screens reached by a push read `Router.of` (`RootAwareBackScope`) and
+/// `GoRouter.of` (`RequestTicket`) at BUILD time and throw without an ancestor.
+GoRouter _captureRouter(WidgetBuilder builder) => GoRouter(
+  initialLocation: _kCapturePath,
+  routes: <RouteBase>[
+    GoRoute(
+      path: '/',
+      builder: (_, _) => const Scaffold(),
+      routes: <RouteBase>[
+        GoRoute(
+          path: _kCapturePath.substring(1),
+          builder: (BuildContext context, _) => builder(context),
+        ),
+      ],
+    ),
+  ],
+);
+
 void main() {
   // Without this the captures render every glyph as a solid block: the theme
   // NAMES Inter but the faces are never loaded, so copy cannot be compared.
-  setUpAll(loadInterTestFont);
+  setUpAll(loadCatalogCaptureFonts);
 
   for (final CatalogEntry entry in kScreenCatalog) {
     for (int i = 0; i < entry.states.length; i++) {
@@ -51,23 +78,38 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.reset);
 
+        // M0-4 ruling: Midnight motion primitives loop forever, so every
+        // capture is taken at the deterministic reduce-motion rest frame.
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(disableAnimations: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+
+        final GoRouter router = _captureRouter(state.builder);
+        addTearDown(router.dispose);
+
         await tester.pumpWidget(
-          MaterialApp(
-            theme: withGoldenTestFonts(AppTheme.light()),
-            supportedLocales: AppLocalizations.supportedLocales,
-            localizationsDelegates: const <LocalizationsDelegate<Object?>>[
-              SyncAppLocalizationsDelegate(),
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            home: Builder(builder: state.builder),
+          OmdsColorTokensProvider(
+            tokens: jeebMidnightOmdsTokens,
+            child: MaterialApp.router(
+              theme: withCaptureTestFonts(AppTheme.midnight()),
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates:
+                  const <LocalizationsDelegate<Object?>>[
+                    SyncAppLocalizationsDelegate(),
+                    GlobalMaterialLocalizations.delegate,
+                    GlobalWidgetsLocalizations.delegate,
+                    GlobalCupertinoLocalizations.delegate,
+                  ],
+              routerConfig: router,
+            ),
           ),
         );
 
-        // Screens with an indefinite animation (mic pulse, Lottie loops, live
-        // waveform) never settle, so a bare pumpAndSettle would time out. Give
-        // it a chance, then fall back to fixed pumps and capture mid-flight.
+        // Reduce motion settles the tree on the first frame, so the clock has
+        // to be advanced before a fixture that loads behind a delay is drawn.
+        await tester.pump(const Duration(milliseconds: 400));
         try {
           await tester.pumpAndSettle(const Duration(milliseconds: 120));
         } on Object {

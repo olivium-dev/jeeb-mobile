@@ -277,9 +277,11 @@ final CatalogEntry _voiceRecordingEntry = CatalogEntry(
       'Idle — ready to record',
       (_) => VoiceRecordingScreen(cubit: voiceRecordingScreenCubit()),
     ),
+    // Driven ticker, not the default 100ms `Stream.periodic`: a wall-clock
+    // ticker leaves a pending timer and makes the elapsed readout undrawable.
     CatalogState('Recording — press-and-hold in progress', (_) {
-      final cubit = voiceRecordingScreenCubit();
-      unawaited(cubit.startRecording());
+      final (:cubit, :ticker) = voiceRecordingScreenCubitWithTicker();
+      unawaited(voiceRecordingScreenSeedRecording(cubit, ticker));
       return VoiceRecordingScreen(cubit: cubit);
     }),
     CatalogState('Recorded — playback preview, ready to send', (_) {

@@ -52,7 +52,7 @@ import '../core/session/session_cubit.dart';
 import '../core/session/session_gate.dart';
 import '../core/session/session_state.dart';
 import '../core/theme/app_theme.dart';
-import '../core/theme/jeeb_midnight_palette.dart';
+import '../core/theme/jeeb_omds_tokens.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/dev_biometric_gateway.dart';
 import '../features/biometric_auth/data/local_auth_biometric_gateway.dart';
@@ -612,37 +612,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
           // omds widgets read `OmdsColorTokens.defaultTokens` (a light set)
           // DIRECTLY, so the theme override alone cannot reach them.
           return OmdsColorTokensProvider(
-            tokens: const OmdsColorTokens(
-              textLight: JeebMidnight.ink,
-              textMedium: JeebMidnight.inkMuted,
-              textDisabled: Color(0x61FFFFFF),
-              bodyTextColor: JeebMidnight.ink,
-              secondaryTextColor: JeebMidnight.inkMuted,
-              dividerColor: JeebMidnight.divider,
-              surfaceGreyScale: JeebMidnight.surfaceHigh,
-              greyScale700: JeebMidnight.surfaceLow,
-              greyScale600: JeebMidnight.surface,
-              greyScale500: JeebMidnight.surfaceHigh,
-              greyScale400: JeebMidnight.surfaceHighest,
-              greyScale300: JeebMidnight.glassBorderStrong,
-              greyScale200: JeebMidnight.glassBorder,
-              greyScale100: JeebMidnight.glassFillEmphasis,
-              greyScale50: JeebMidnight.glassFill,
-              shimmerBase: JeebMidnight.glassFill,
-              shimmerHighlight: JeebMidnight.glassFillPressed,
-              // Mirrors AppTheme's frosted field.
-              inputFillColor: JeebMidnight.glassFill,
-              inputBorderColor: JeebMidnight.glassBorder,
-              inputLabelColor: JeebMidnight.inkMuted,
-              successColor: JeebMidnight.success,
-              warningColor: JeebMidnight.amber,
-              infoColor: JeebMidnight.inkMuted,
-              semanticErrorColor: JeebMidnight.danger,
-              favoriteActiveColor: JeebMidnight.danger,
-              favoriteInactiveColor: JeebMidnight.inkMuted,
-              starRatingColor: JeebMidnight.amber,
-              starInactiveColor: JeebMidnight.glassBorderStrong,
-            ),
+            tokens: jeebMidnightOmdsTokens,
             child: MaterialApp.router(
               title: 'Jeeb',
               debugShowCheckedModeBanner: false,

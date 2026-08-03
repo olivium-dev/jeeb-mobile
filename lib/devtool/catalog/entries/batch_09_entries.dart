@@ -334,6 +334,13 @@ class _PendingSuperLoginService implements SuperLoginService {
       Completer<SuperLoginResult>().future;
 }
 
+// Without an injected cubit the sheet resolves `sl<SuperLoginService>()`, which
+// is unregistered outside a booted app and throws in the capture harness.
+SuperLoginCubit _idleSuperLoginCubit() => SuperLoginCubit(
+  service: const _FakeSuperLoginService(),
+  tokenStore: AuthTokenStore(),
+);
+
 // submit emits submitting synchronously before first await — never-resolving service pins loading state.
 SuperLoginCubit _submittingSuperLoginCubit() {
   final cubit = SuperLoginCubit(
@@ -392,11 +399,12 @@ final CatalogEntry _superLoginSheetEntry = CatalogEntry(
   states: [
     CatalogState(
       'Idle — Empty',
-      (_) => const _SuperLoginSheetHost(),
+      (_) => _SuperLoginSheetHost(cubit: _idleSuperLoginCubit()),
     ),
     CatalogState(
       'Prefilled — Ready to Submit',
-      (_) => const _SuperLoginSheetHost(
+      (_) => _SuperLoginSheetHost(
+        cubit: _idleSuperLoginCubit(),
         initialUserId: 'nour.demo',
         initialPasscode: 'super-admin-dev-passcode',
       ),
