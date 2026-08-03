@@ -26,8 +26,10 @@ class DiagnosticsScreenEnabledScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: invalid_use_of_visible_for_testing_member
     // The gate is a `@visibleForTesting` seam and this is dev-only code that
+    // The Dev Tool is compile-time gated out of release builds, which
+    // @visibleForTesting cannot express.
+    // ignore: invalid_use_of_visible_for_testing_member
     Diag.enabledOverride = enabled;
     return child;
   }

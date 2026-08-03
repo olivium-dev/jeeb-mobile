@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 
 import 'diag.dart';
-import 'diag_redaction.dart';
 
 class DiagDioInterceptor extends Interceptor {
   const DiagDioInterceptor();

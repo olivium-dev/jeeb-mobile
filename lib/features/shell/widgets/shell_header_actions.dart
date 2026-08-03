@@ -126,7 +126,7 @@ Widget shellHeaderActionsRequestsTab() => _shellHeaderActionsHosted(
       idPrefix: 'orders_home',
       body: ListView(
         children: <Widget>[
-          ClientHomeGreeting(name: 'Sami', onAddPressed: () {}),
+          ClientHomeGreeting(name: 'Sami'),
         ],
       ),
     );
@@ -145,7 +145,6 @@ Widget shellHeaderActionsRequestsNarrowLongName() => _shellHeaderActionsHosted(
         children: <Widget>[
           ClientHomeGreeting(
             name: _shellHeaderActionsLongFirstName,
-            onAddPressed: () {},
           ),
         ],
       ),

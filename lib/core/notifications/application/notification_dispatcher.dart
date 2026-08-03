@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../diagnostics/diag.dart';
 import '../../observability/session_trace/session_trace.dart';
 import '../../role/user_role.dart';
-import '../data/push_transport.dart';
 import '../domain/notification_deep_link.dart';
 import '../domain/notification_message.dart';
 import 'push_notification_handler.dart';

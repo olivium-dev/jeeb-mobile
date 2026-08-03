@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../profile_name/domain/display_name_repository.dart';
 import '../domain/account_service.dart';
-import '../domain/notification_preferences.dart';
 import '../domain/profile_repository.dart';
 import '../domain/user_profile.dart';
 import 'settings_state.dart';

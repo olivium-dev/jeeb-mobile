@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
-import '../../domain/delivery_chat_message.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'dart:ui' as ui show TextDirection;

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/previews/jeeb_preview.dart';
-import '../../../l10n/app_localizations.dart';
-import 'request_tier_card.dart';
 
 /// Decorative single-choice radio glyph used by delivery-create cards.
 /// No OMDS radio primitive in catalog; draws ring + filled dot from colorScheme roles.
@@ -77,7 +75,6 @@ const Size _selectableRadioGlyphStripBox = Size(390, 190);
 
 /// Taller box for the in-situ specimen: a whole tier card, which at 200% text
 /// grows to roughly twice the height it has at 1x.
-const Size _selectableRadioGlyphCardBox = Size(390, 300);
 
 /// One specimen: [sample] — the glyph in whatever surround the state calls for
 /// — with a caption naming the state underneath it.
@@ -223,35 +220,3 @@ Widget selectableRadioGlyphBothStates() => _selectableRadioGlyphHosted(
         ],
       ),
     );
-
-/// The glyph at its true production proportions, inside a real [RequestTierCard].
-/// The card takes only plain arguments — no cubit, no repository — so mounting
-@JeebPreview(
-  group: 'request_type',
-  name: 'In a real tier card',
-  size: _selectableRadioGlyphCardBox,
-)
-Widget selectableRadioGlyphInTierCard() => _selectableRadioGlyphHosted(
-      caption: 'In a real tier card',
-      sample: Builder(
-        builder: (BuildContext context) {
-          final AppLocalizations l10n = AppLocalizations.of(context);
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.large),
-            child: RequestTierCard(
-              icon: Icons.bolt_outlined,
-              title: l10n.tierFlashTitle,
-              speed: l10n.tierFlashSpeed,
-              value: l10n.tierFlashValue,
-              selected: false,
-              onTap: _selectableRadioGlyphNoop,
-              semanticIdentifier: 'preview_selectable_radio_glyph_tier',
-              semanticLabel: l10n.tierFlashTitle,
-              selectedHint: l10n.requestTypeTierSelectedHint,
-            ),
-          );
-        },
-      ),
-    );
-
-void _selectableRadioGlyphNoop() {}

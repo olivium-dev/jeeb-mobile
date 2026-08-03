@@ -123,6 +123,18 @@ class DeliveryTrackingInfo extends Equatable {
     this.positionStatus,
   });
 
+  /// T-MOB-017: Parses the TrackingPolylineDto shape returned by
+  /// GET /deliveries/{id}/tracking.
+  ///
+  /// It used to name a second producer, the SSE `geo` alias. That route is
+  /// deleted (`jeeb-gateway` #333 `b6fe888`, guard `Sse_Alias_Route_Is_Gone`),
+  /// so listing it here was stale — and worse than stale, because a reader
+  /// looking for "which routes feed this parser" would have gone looking for a
+  /// 404.
+  ///
+  /// Verified contract (d6-tracking-geo, s09-live-tracking):
+  ///   { deliveryId, jeeberId, polyline: [[lat,lng], …], position: {lat,lng},
+  ///     etag, serverTimestamp }
   factory DeliveryTrackingInfo.fromTrackingJson(
     String deliveryId,
     Map<String, dynamic> json,
