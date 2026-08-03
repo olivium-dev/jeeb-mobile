@@ -286,7 +286,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
   "5 infos" figure predates the integration merge; the extra infos are pre-existing test-file
   deprecations on `integration/redesign-ui`, none ours). Bar stays: 0 errors, no new warnings.
 - [x] **G-M0** foundation gate @2026-08-04 — analyze 0 err/31 infos; token tests green (165 theme + 27 field + 54 motion); full suite minus captures 6234 pass / 61 skip / 48 fail, ALL classified: 18 kit (M1 handoff), ~26 feature/preview assertion+golden churn (their M2 rows), **3 REAL overflow regressions from the bigger ramp** (earnings AR body → M2-15, chat header 320×480@2.0 → M2-16, offer composer 200% → M2-13 — live defects, do not lose), 1 baseline (gesture_log; the other 3 baseline reds now PASS post-re-cut). Captures excluded (light-theme goldens stale by design; re-baselined per-screen in M2). Boot-on-navy evidenced via harness full-app mounts; device boot at M7.
-- [ ] **G-M1** kit gate · [ ] **G-M2** mapped-surfaces gate ·
+- [x] **G-M1** kit gate @2026-08-04 — 570/570 kit tests green (was 552/18 red pre-wave); analyze kit+theme 0 issues; greps: 0 raw hex outside palette, 0 `Colors.*` beyond 3 sanctioned field canvas paints + transparent, 0 orange-budget leaks. Workflow: 11 agents / 0 errors / ~21 min.
+- [ ] **G-M2** mapped-surfaces gate ·
   [ ] **G-M3** remainder gate · [ ] **G-M4** states gate · [ ] **G-M5** motion gate ·
   [ ] **G-M6** audit gate · [ ] **G-M7** S22 sign-off
 
@@ -306,7 +307,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M1-2 `JeebGlassCard` + `JeebGlassCapsule` (pill default, pre-baked translucency) @2026-08-04
 - [x] M1-3 `JeebEmptyState` — E1 canon + 3 sample variants, board-static ring/medallions, loading=jBreathe skeleton, error=danger tint @2026-08-04
 - [x] M1-4 `JeebPillNav` — navy capsule, 5 slots, orange active pill only, 48dp hit targets, RTL @2026-08-04
-- [ ] M1-5 Kit metric fixes (Pattern E) + tests updated → **kit re-frozen**
+- [x] M1-5 Pattern E metric fixes (rode in M1-1: list-row 11/14, size-class overrides deleted, 48dp hit-test nav) + tests → **kit RE-FROZEN** @2026-08-04. API additions this wave (all Fable-sanctioned): JeebCardState.accentSelected, JeebSurfaceToneData.accentSelected, JeebShadows.accentSelected, semantic fields glassBorderVivid/bubbleOutFill/bubbleOutBorder/accentSelectedFill, 3 new widgets. From here kit API changes need a fresh ruling.
 
 ### M2 Mapped surfaces (order = exposure)
 - [ ] M2-01 Shell / floating nav (`shell_screen.dart`)
