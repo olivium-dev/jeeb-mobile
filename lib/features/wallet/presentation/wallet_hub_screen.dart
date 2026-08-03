@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +24,7 @@ import '../application/wallet_hub_cubit.dart';
 import '../application/wallet_hub_state.dart';
 import '../domain/wallet_repository.dart';
 import 'wallet_hub_l10n.dart';
+import 'widgets/wallet_topup_confirmed_mark.dart';
 
 /// wallet-hub (JM-053). REPLACES the `/wallet` "coming soon" stub
 /// (21_NAV_PLAN §A: exists-stub → REPLACE). The Jeeber's money home.
@@ -86,14 +89,61 @@ class WalletHubScreen extends StatelessWidget {
   }
 }
 
-class _WalletHubView extends StatelessWidget {
+class _WalletHubView extends StatefulWidget {
   const _WalletHubView({required this.kycPending});
 
   final bool kycPending;
 
   @override
+  State<_WalletHubView> createState() => _WalletHubViewState();
+}
+
+class _WalletHubViewState extends State<_WalletHubView> {
+  /// True while the one-shot top-up mark is on screen.
+  ///
+  /// There is no in-app top-up TRANSACTION to hang this off (D92/D93: the
+  /// Jeeber pays cash at a store and "the balance auto-updates"), so the only
+  /// honest "top-up confirmed" signal the app owns is a reload that comes back
+  /// with MORE available balance than the reload before it. No invented
+  /// endpoint, no faked event — see [_isTopUp].
+  bool _topUpConfirmed = false;
+
+  /// The 1.1s composition plus a short settled hold. The HOST owns this clock,
+  /// not the player: an asset that loads slowly or fails outright must never
+  /// leave an overlay parked on the wallet.
+  static const Duration _markLifetime = Duration(milliseconds: 1800);
+
+  Timer? _dismissTimer;
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showTopUpMark() {
+    setState(() => _topUpConfirmed = true);
+    _dismissTimer?.cancel();
+    _dismissTimer = Timer(_markLifetime, () {
+      if (mounted) setState(() => _topUpConfirmed = false);
+    });
+  }
+
+  /// A reload that raised the available balance is a landed top-up. Guarded on
+  /// both snapshots existing so the cold `initial → loaded` transition (which
+  /// has no "before") can never masquerade as one.
+  bool _isTopUp(WalletHubState prev, WalletHubState next) {
+    if (prev.status != WalletHubStatus.loaded) return false;
+    if (next.status != WalletHubStatus.loaded) return false;
+    final before = prev.balance;
+    final after = next.balance;
+    if (before == null || after == null) return false;
+    return after.availableBalance > before.availableBalance;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final copy = WalletHubL10n.of(context, kycPending: kycPending);
+    final copy = WalletHubL10n.of(context, kycPending: widget.kycPending);
     return Semantics(
       identifier: 'wallet_hub_root',
       container: true,
@@ -116,30 +166,42 @@ class _WalletHubView extends StatelessWidget {
                     context.canPop() ? context.pop() : context.go('/'),
               ),
               Expanded(
-                child: BlocBuilder<WalletHubCubit, WalletHubState>(
-                  builder: (context, state) {
-                    switch (state.status) {
-                      case WalletHubStatus.initial:
-                      case WalletHubStatus.loading:
-                        return const OmdsLoadingState();
-                      case WalletHubStatus.failed:
-                        return OmdsErrorState(
-                          message: copy.loadError,
-                          retryLabel: copy.retry,
-                          onRetry: () =>
-                              context.read<WalletHubCubit>().refresh(),
-                        );
-                      case WalletHubStatus.loaded:
-                        return OmdsPullToRefresh(
-                          onRefresh: () =>
-                              context.read<WalletHubCubit>().refresh(),
-                          child: _LoadedBody(
-                            balance: state.balance,
-                            copy: copy,
-                          ),
-                        );
-                    }
-                  },
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    BlocConsumer<WalletHubCubit, WalletHubState>(
+                      listenWhen: _isTopUp,
+                      listener: (context, state) => _showTopUpMark(),
+                      builder: (context, state) {
+                        switch (state.status) {
+                          case WalletHubStatus.initial:
+                          case WalletHubStatus.loading:
+                            return const OmdsLoadingState();
+                          case WalletHubStatus.failed:
+                            return OmdsErrorState(
+                              message: copy.loadError,
+                              retryLabel: copy.retry,
+                              onRetry: () =>
+                                  context.read<WalletHubCubit>().refresh(),
+                            );
+                          case WalletHubStatus.loaded:
+                            return OmdsPullToRefresh(
+                              onRefresh: () =>
+                                  context.read<WalletHubCubit>().refresh(),
+                              child: _LoadedBody(
+                                balance: state.balance,
+                                copy: copy,
+                              ),
+                            );
+                        }
+                      },
+                    ),
+                    // The landed-top-up mark. IgnorePointer is load-bearing:
+                    // the wallet stays fully tappable/scrollable underneath, so
+                    // nothing the Jeeber can do waits on the animation.
+                    if (_topUpConfirmed)
+                      const IgnorePointer(child: WalletTopUpConfirmedMark()),
+                  ],
                 ),
               ),
             ],

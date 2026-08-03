@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
+
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 
 /// Graceful terminal screen for `/jeeber/requests/:id` when the request can
@@ -28,32 +32,46 @@ class JeeberRequestUnavailableScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(title: l10n.requestUnavailableTitle),
       body: SafeArea(
         child: Semantics(
           identifier: 'jeeber_request_unavailable',
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(Spacing.large),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  OmdsEmptyState(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // The leading circle resolves to the SAME edge the CTA already
+              // owns (back to the feed) — this terminal screen never had a
+              // pop-able parent to return to.
+              JeebTopBar.back(
+                title: l10n.requestUnavailableTitle,
+                identifier: 'jeeber_request_unavailable_back',
+                onLeadingPressed: onBack,
+              ),
+              // R1: top-aligned, not vertically centred — the residual space
+              // below the message is deliberate emptiness.
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    Spacing.xLarge,
+                    Spacing.large,
+                    Spacing.xLarge,
+                    Spacing.xLarge,
+                  ),
+                  child: OmdsEmptyState(
                     key: const Key('jeeber-request-unavailable-state'),
                     icon: Icons.inbox_outlined,
                     title: l10n.requestUnavailableTitle,
                     subtitle: l10n.requestNoLongerAvailable(requestId),
                   ),
-                  const SizedBox(height: Spacing.large),
-                  OmdsPrimaryButton(
-                    key: const Key('jeeber-request-unavailable-back-cta'),
-                    text: l10n.requestUnavailableBrowseCta,
-                    onTap: onBack,
-                  ),
-                ],
+                ),
               ),
-            ),
+              JeebCtaFooter.single(
+                child: JeebCtaButton.primary(
+                  key: const Key('jeeber-request-unavailable-back-cta'),
+                  label: l10n.requestUnavailableBrowseCta,
+                  onTap: onBack,
+                ),
+              ),
+            ],
           ),
         ),
       ),

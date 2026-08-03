@@ -5,11 +5,28 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/role/role_availability_cubit.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/support_cubit.dart';
 import '../application/support_state.dart';
 import '../data/stub_support_repository.dart';
 import '../domain/support_repository.dart';
+
+/// Board gutter + block rhythm (redesign-2026-08 §4.3): 24px sides, 16px above
+/// the first block. The docked footer owns the bottom edge, so the scroll body
+/// only needs to clear it. Same constant shape the neighbouring dispute-status
+/// screen uses.
+const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.medium,
+  Spacing.xLarge,
+  Spacing.large,
+);
 
 /// support-ticket / contact-us (JM-063, D76).
 ///
@@ -32,6 +49,15 @@ import '../domain/support_repository.dart';
 /// route-resolution nav-honesty pin builds the router with no GetIt setup), it
 /// falls back to the in-memory [StubSupportRepository] so the route still
 /// resolves to a rendered screen.
+///
+/// redesign-2026-08 (no board render for this screen — the design LANGUAGE of
+/// its neighbour, screen 20, applied): a re-skin, not a rewrite. In-body
+/// [JeebTopBar] instead of the Material app bar, 24px gutters, the category
+/// picker as a [JeebSelectChip] group (fill-swap selection, not radios), the
+/// two free-text fields untouched (OMDS owns the input primitive),
+/// [JeebSectionLabel] band headers, and the dispute link + submit CTA docked in
+/// a [JeebCtaFooter] in their existing order. Same flow, same copy, same
+/// identifiers, same navigation.
 ///
 /// Semantics ids exposed (30_BACKLOG JM-063): `support_root`,
 /// `support_category`, `support_body`, `support_attach`, `support_order_link`,
@@ -94,20 +120,35 @@ class _SupportTicketView extends StatelessWidget {
       identifier: 'support_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: l10n.supportTitle, showBackButton: true),
-        body: BlocBuilder<SupportCubit, SupportState>(
-          builder: (context, state) {
-            switch (state.phase) {
-              case SupportPhase.inputting:
-                return _SupportForm(state: state);
-              case SupportPhase.submitting:
-                return const _SubmittingView();
-              case SupportPhase.success:
-                return const _ConfirmationView();
-              case SupportPhase.error:
-                return _ErrorView(failure: state.failure);
-            }
-          },
+        // redesign-2026-08: the header is an in-body row (Ø40 back circle +
+        // title), not a Material app bar, so it renders identically in every
+        // phase (form / submitting / success / error) — the same shape screen
+        // 20 and the neighbouring dispute-status screen wear.
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar.back(
+                identifier: 'support_back',
+                title: l10n.supportTitle,
+              ),
+              Expanded(
+                child: BlocBuilder<SupportCubit, SupportState>(
+                  builder: (context, state) {
+                    switch (state.phase) {
+                      case SupportPhase.inputting:
+                        return _SupportForm(state: state);
+                      case SupportPhase.submitting:
+                        return const _SubmittingView();
+                      case SupportPhase.success:
+                        return const _ConfirmationView();
+                      case SupportPhase.error:
+                        return _ErrorView(failure: state.failure);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -121,41 +162,52 @@ class _SupportForm extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    return SafeArea(
-      child: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                Spacing.medium,
-                Spacing.large,
-                Spacing.medium,
-                Spacing.large,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(l10n.supportBody, style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: Spacing.large),
-                  _CategoryField(selected: state.category),
-                  const SizedBox(height: Spacing.large),
-                  _BodyField(),
-                  const SizedBox(height: Spacing.large),
-                  _OrderLinkField(orderRef: state.orderRef),
-                  const SizedBox(height: Spacing.large),
-                  _AttachSection(paths: state.attachmentPaths),
-                ],
-              ),
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: _kBodyPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l10n.supportBody,
+                  // Brown subtitle ink — the board's secondary voice. Periwinkle
+                  // is banned as body text on white (§4.1 contrast gate).
+                  style: context.jeebText.body.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: Spacing.large),
+                _CategoryField(selected: state.category),
+                const SizedBox(height: Spacing.large),
+                const _BodyField(),
+                const SizedBox(height: Spacing.large),
+                _OrderLinkField(orderRef: state.orderRef),
+                const SizedBox(height: Spacing.large),
+                _AttachSection(paths: state.attachmentPaths),
+              ],
             ),
           ),
-          // Pinned bottom actions: the dispute link (D76 secondary edge) sits
-          // above the submit CTA so both are always reachable (not buried at
-          // the end of the scroll).
-          _DisputeLink(orderRef: state.orderRef),
-          _SubmitButton(canSubmit: state.canSubmit),
-        ],
-      ),
+        ),
+        // Pinned bottom actions: the dispute link (D76 secondary edge) sits
+        // above the submit CTA so both are always reachable (not buried at
+        // the end of the scroll). Both live inside the kit's docked footer —
+        // passed as one stack under `child:` rather than via `below:`, which
+        // would swap the two and move the dispute edge under the CTA.
+        JeebCtaFooter.single(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DisputeLink(orderRef: state.orderRef),
+              const SizedBox(height: Spacing.small),
+              _SubmitButton(canSubmit: state.canSubmit),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -170,11 +222,14 @@ class _CategoryField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     // Inline single-select category picker (same shape as EscalateScreen's
     // reason picker — no modal, so it is reliably Maestro/widget-testable).
     // `support_category` is the container for the whole group; each option
     // carries its own `support_category_<name>` id.
+    //
+    // redesign-2026-08: the same options, the same single-select, rendered as
+    // the board's pill group instead of a radio list — every option stays
+    // visible (a Wrap, never a scroller that hides a pill from the finder).
     return Semantics(
       identifier: 'support_category',
       container: true,
@@ -184,13 +239,15 @@ class _CategoryField extends StatelessWidget {
           // l10n KEY REQUEST (50_ROUTE_REQUESTS): `supportCategoryLabel` not in
           // the ARB yet — reuse the closest existing label. The identifier is
           // the contract, not the visible text.
-          Text(
-            l10n.customerProfileSectionSupport,
-            style: theme.textTheme.titleSmall,
-          ),
+          JeebSectionLabel(l10n.customerProfileSectionSupport),
           const SizedBox(height: Spacing.xSmall),
-          ..._visibleCategories(context).map(
-            (c) => _CategoryTile(category: c, selected: c == selected),
+          Wrap(
+            spacing: Spacing.xSmall,
+            runSpacing: Spacing.xSmall,
+            children: <Widget>[
+              for (final c in _visibleCategories(context))
+                _CategoryTile(category: c, selected: c == selected),
+            ],
           ),
         ],
       ),
@@ -223,22 +280,18 @@ class _CategoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     return Semantics(
       identifier: 'support_category_${category.name}',
       button: true,
       selected: selected,
       container: true,
-      child: ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(
-          selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-          color: selected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.onSurfaceVariant,
-        ),
-        title: Text(_label(l10n, category)),
+      // Selection is a fill swap (navy + white w700), never a leading radio:
+      // the kit pill is the board's single-select mark. The chip adds no
+      // Semantics node of its own, so the frozen id above stays the only one.
+      child: JeebSelectChip(
+        role: JeebChipRole.filter,
+        label: _label(l10n, category),
+        selected: selected,
         onTap: () => context.read<SupportCubit>().setCategory(category),
       ),
     );
@@ -269,6 +322,8 @@ class _CategoryTile extends StatelessWidget {
 /// `support_body` — the free-text problem description (required, S1 rejects an
 /// empty body with 400 → guarded by `canSubmit`).
 class _BodyField extends StatelessWidget {
+  const _BodyField();
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -278,6 +333,10 @@ class _BodyField extends StatelessWidget {
       container: true,
       // l10n KEY REQUEST: `supportBodyLabel` not in ARB — reuse the escalate
       // free-text label (`support_body` identifier is the contract).
+      //
+      // The kit has no input primitive; OmdsTextField already reads the Wave-0
+      // theme, so it stays — swapping it would be churn, not migration
+      // (same call the redesigned profile-edit screen makes).
       child: OmdsTextField(
         labelText: l10n.escalateCommentLabel,
         maxLines: 5,
@@ -341,17 +400,17 @@ class _AttachSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // l10n KEY REQUEST: `supportAttachLabel`/`supportAttachItem` not in ARB
         // — reuse the escalate photo label + count copy.
-        Text(l10n.escalatePhotoLabel, style: theme.textTheme.titleSmall),
-        const SizedBox(height: Spacing.small),
+        JeebSectionLabel(l10n.escalatePhotoLabel),
+        const SizedBox(height: Spacing.xSmall),
         if (paths.isNotEmpty)
           Wrap(
             spacing: Spacing.xSmall,
+            runSpacing: Spacing.xSmall,
             children: paths.indexed
                 .map(
                   (e) => Semantics(
@@ -361,9 +420,10 @@ class _AttachSection extends StatelessWidget {
                     identifier: 'support_attach_item_${e.$1}',
                     container: true,
                     button: true,
-                    child: OmdsChip(
+                    child: JeebSelectChip(
+                      role: JeebChipRole.inlineAction,
                       label: l10n.escalatePhotoAttached(e.$1 + 1),
-                      isSelected: true,
+                      selected: true,
                       onTap: () =>
                           context.read<SupportCubit>().removeAttachment(e.$2),
                     ),
@@ -379,10 +439,9 @@ class _AttachSection extends StatelessWidget {
             container: true,
             // l10n KEY REQUEST: `supportAttachCta` not in ARB — reuse the photo
             // attachment add label (`support_attach` identifier is the contract).
-            child: OmdsPrimaryButton(
-              text: l10n.photoAttachmentAddLabel,
-              variant: OmdsButtonVariant.outlined,
-              icon: const Icon(Icons.attach_file),
+            child: JeebCtaButton.outline(
+              label: l10n.photoAttachmentAddLabel,
+              leadingIcon: Icons.attach_file,
               onTap: () => _pickAttachment(context),
             ),
           ),
@@ -411,27 +470,19 @@ class _DisputeLink extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final id = (orderRef == null || orderRef!.isEmpty) ? '_' : orderRef!;
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.large,
-        Spacing.small,
-        Spacing.large,
-        0,
-      ),
-      child: Semantics(
-        identifier: 'support_dispute_link',
-        button: true,
-        container: true,
-        // Full-width tap target so the Semantics-node centre always hits the
-        // button (Maestro/widget taps the node centre).
-        child: TextButton.icon(
-          style: TextButton.styleFrom(
-            minimumSize: const Size.fromHeight(Sizes.fiveXLarge),
-          ),
-          icon: const Icon(Icons.report_gmailerrorred_outlined),
-          label: Text(l10n.supportDisputeLink),
-          onPressed: () => context.push('/orders/$id/escalate'),
-        ),
+    return Semantics(
+      identifier: 'support_dispute_link',
+      button: true,
+      container: true,
+      // The secondary edge is a text affordance, not a second pill (the board
+      // never stacks two filled CTAs). `expand` keeps the full-width tap target
+      // so the Semantics-node centre always hits it (Maestro taps node centre);
+      // the glyph is the filled variant (R10).
+      child: JeebCtaButton.text(
+        label: l10n.supportDisputeLink,
+        leadingIcon: Icons.report,
+        expand: true,
+        onTap: () => context.push('/orders/$id/escalate'),
       ),
     );
   }
@@ -444,20 +495,14 @@ class _SubmitButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(Spacing.large),
-        child: Semantics(
-          identifier: 'support_submit_cta',
-          button: true,
-          container: true,
-          child: OmdsPrimaryButton(
-            text: l10n.supportSubmitCta,
-            isEnabled: canSubmit,
-            onTap: () => context.read<SupportCubit>().submit(),
-          ),
-        ),
+    return Semantics(
+      identifier: 'support_submit_cta',
+      button: true,
+      container: true,
+      child: JeebCtaButton(
+        label: l10n.supportSubmitCta,
+        isEnabled: canSubmit,
+        onTap: () => context.read<SupportCubit>().submit(),
       ),
     );
   }
@@ -479,7 +524,12 @@ class _SubmittingView extends StatelessWidget {
             const OmdsLoadingState(),
             const SizedBox(height: Spacing.medium),
             // l10n KEY REQUEST: `supportSubmitting` not in ARB — reuse escalate.
-            Text(l10n.escalateSubmitting),
+            Text(
+              l10n.escalateSubmitting,
+              style: context.jeebText.body.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
@@ -512,8 +562,10 @@ class _ConfirmationView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Filled glyph (R10) in the brand navy — the confirmation mark is
+            // a settled fact, so it spends no orange.
             Icon(
-              Icons.check_circle_outline,
+              Icons.check_circle,
               size: Sizes.sixXLarge,
               color: theme.colorScheme.primary,
             ),
@@ -522,13 +574,17 @@ class _ConfirmationView extends StatelessWidget {
             // escalate confirmation copy (same "we received it" semantics).
             Text(
               l10n.escalateConfirmationTitle,
-              style: theme.textTheme.titleLarge,
+              style: context.jeebText.h1.copyWith(
+                color: theme.colorScheme.onSurface,
+              ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: Spacing.medium),
+            const SizedBox(height: Spacing.small),
             Text(
               l10n.escalateConfirmationBody,
-              style: theme.textTheme.bodyMedium,
+              style: context.jeebText.body.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: Spacing.xLarge),
@@ -545,8 +601,11 @@ class _ConfirmationView extends StatelessWidget {
                 identifier: 'support_success_done_cta',
                 button: true,
                 container: true,
-                child: OmdsPrimaryButton(
-                  text: l10n.escalateConfirmationDone,
+                // Hugs its label: a full-width pill under a centred column
+                // reads as a docked footer that isn't there.
+                child: JeebCtaButton(
+                  label: l10n.escalateConfirmationDone,
+                  expand: false,
                   onTap: () => context.canPop()
                       ? context.pop()
                       : context.goNamed('customer-profile'),
@@ -573,7 +632,10 @@ class _ErrorView extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: Padding(
-        padding: const EdgeInsetsDirectional.all(Spacing.large),
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.xLarge,
+          vertical: Spacing.large,
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
@@ -588,10 +650,11 @@ class _ErrorView extends StatelessWidget {
               container: true,
               // retryLabel: no dedicated `supportRetryCta` ARB key yet
               // (50_ROUTE_REQUESTS) — reuse the submit label for the action.
-              child: OmdsPrimaryButton(
-                text: l10n.supportSubmitCta,
-                icon: const Icon(Icons.refresh),
-                variant: OmdsButtonVariant.outlined,
+              child: JeebCtaButton.outline(
+                label: l10n.supportSubmitCta,
+                leadingIcon: Icons.refresh,
+                // Hugs its label — see the confirmation CTA.
+                expand: false,
                 onTap: () => context.read<SupportCubit>().retryFromError(),
               ),
             ),

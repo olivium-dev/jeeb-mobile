@@ -2072,6 +2072,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   ).replaceFirst('{remaining}', remaining.toString());
   String escalatePhotoAttached(int count) =>
       _get('escalatePhotoAttached').replaceFirst('{count}', count.toString());
+  String escalatePhotoChipLabel(int index) =>
+      _get('escalatePhotoChipLabel').replaceFirst('{index}', index.toString());
   String get escalateCommentLabel => _get('escalateCommentLabel');
   String get escalateSubmitButton => _get('escalateSubmitButton');
   String get escalateSubmitting => _get('escalateSubmitting');

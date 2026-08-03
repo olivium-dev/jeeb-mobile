@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/order_summary_cubit.dart';
 import '../application/order_summary_state.dart';
 import '../data/fake_order_summary_repository.dart';
@@ -81,29 +82,51 @@ class _OrderSummaryView extends StatelessWidget {
       identifier: 'order_summary_root',
       container: true,
       child: Scaffold(
-      appBar: OMDSAppBar(title: l10n.title, showBackButton: true),
-      body: SafeArea(
-        child: BlocBuilder<OrderSummaryCubit, OrderSummaryState>(
-          builder: (context, state) {
-            switch (state.status) {
-              case OrderSummaryStatus.initial:
-              case OrderSummaryStatus.loading:
-                return const Center(child: OmdsLoadingState());
-              case OrderSummaryStatus.failed:
-                return Center(
-                  child: OmdsErrorState(
-                    message: l10n.errorGeneric,
-                    retryLabel: l10n.retryLabel,
-                    onRetry: () =>
-                        context.read<OrderSummaryCubit>().refresh(),
-                  ),
-                );
-              case OrderSummaryStatus.loaded:
-                return _Loaded(summary: state.summary!);
-            }
-          },
+        // redesign-2026-08: the OMDS app bar is gone — the board draws the
+        // title as an in-body row beside a tonal Ø40 back circle (10 `tpl 570`).
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar.back(
+                title: l10n.title,
+                identifier: 'order_summary_back',
+                // Mirrors `backFallbacks['order-summary'] = '/'`; the route is
+                // already wrapped, so no RootAwareBackScope here. Without the
+                // fallback the circle would dead-end on a deep-link cold start,
+                // which is exactly how this route is reached (JM-056).
+                onLeadingPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
+              ),
+              Expanded(
+                child: BlocBuilder<OrderSummaryCubit, OrderSummaryState>(
+                  builder: (context, state) {
+                    switch (state.status) {
+                      case OrderSummaryStatus.initial:
+                      case OrderSummaryStatus.loading:
+                        return const Center(child: OmdsLoadingState());
+                      case OrderSummaryStatus.failed:
+                        return Center(
+                          child: OmdsErrorState(
+                            message: l10n.errorGeneric,
+                            retryLabel: l10n.retryLabel,
+                            onRetry: () =>
+                                context.read<OrderSummaryCubit>().refresh(),
+                          ),
+                        );
+                      case OrderSummaryStatus.loaded:
+                        return _Loaded(summary: state.summary!);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -117,11 +140,13 @@ class _Loaded extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      // The pinned widget owns the 24px board gutter and its own top inset, so
+      // the list contributes only the docked-footer bottom rhythm (10 `tpl 622`).
       padding: const EdgeInsetsDirectional.fromSTEB(
         0,
-        Spacing.small,
         0,
-        Spacing.xLarge,
+        0,
+        Spacing.twoXLarge,
       ),
       children: [
         OrderSummaryPinned(

@@ -7,6 +7,7 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/notifications/domain/notification_deep_link.dart';
 import '../../../core/notifications/domain/notification_message.dart';
 import '../../../core/role/role_cubit.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/notifications_list_cubit.dart';
 import '../application/notifications_list_state.dart';
 import '../data/empty_notifications_repository.dart';
@@ -49,8 +50,16 @@ import 'widgets/notification_row.dart';
 /// list+read mock-ready on :4010 — 42_GUARDRAILS_MOCK §4). [repository] is a
 /// constructor test seam (§5.4) — production leaves it null.
 ///
+/// Redesign-2026-08: a re-skin onto the Jeeb kit, not a rewrite — same route,
+/// same 4-state machine, same D84 dispatch, every identifier unmoved. There is
+/// no board render for this screen; the language is taken from its neighbour in
+/// the shell, screen 24 (order history): an in-body [JeebTopBar] that renders in
+/// EVERY state, a 24px gutter, and a list of outlined cards 12px apart instead
+/// of full-bleed rows separated by hairlines.
+///
 /// Semantics identifiers exposed (EXACT — 30_BACKLOG JM-057, 41_GUARDRAILS_TESTING):
 ///   `notifications_root`             — screen host container (bell nav target)
+///   `notifications_back`             — the top bar's leading circle
 ///   `notif_row_<id>`                 — per-notification row (dynamic), tap → D84
 ///   `notif_row_<id>_timestamp`       — per-row relative timestamp
 ///   `notif_row_<id>_unread_badge`    — per-row unread dot (accessibility)
@@ -93,39 +102,54 @@ class _NotificationsListView extends StatelessWidget {
       identifier: 'notifications_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: copy.title,
-          showBackButton: true,
-          // The bell reaches this screen via stack-REPLACING `goNamed(
-          // 'notifications')`, so there is usually nothing to pop. Pop when we
-          // can (pushed entry), else return to the shell — never pop the last
-          // page (which would leave an empty Navigator → black surface).
-          onBackPressed: () =>
-              context.canPop() ? context.pop() : context.go('/'),
-        ),
-        body: BlocBuilder<NotificationsListCubit, NotificationsListState>(
-          builder: (context, state) {
-            switch (state.status) {
-              case NotificationsListStatus.initial:
-              case NotificationsListStatus.loading:
-                return const OmdsLoadingState();
-              case NotificationsListStatus.failed:
-                return OmdsErrorState(
-                  message: _errorCopy(copy, state.error),
-                  retryLabel: copy.retry,
-                  onRetry: () =>
-                      context.read<NotificationsListCubit>().refresh(),
-                );
-              case NotificationsListStatus.loaded:
-                return OmdsPullToRefresh(
-                  onRefresh: () =>
-                      context.read<NotificationsListCubit>().refresh(),
-                  child: !state.hasItems
-                      ? _EmptyBody(copy: copy)
-                      : _LoadedList(items: state.items, copy: copy),
-                );
-            }
-          },
+        // The header is an in-body row, not a Material app bar, so it renders
+        // in EVERY state (loading / failed / loaded) and carries the board's
+        // 24px gutter instead of a centred M3 title.
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar(
+                identifier: 'notifications_back',
+                title: copy.title,
+                leadingTooltip:
+                    MaterialLocalizations.of(context).backButtonTooltip,
+                // The bell reaches this screen via stack-REPLACING `goNamed(
+                // 'notifications')`, so there is usually nothing to pop. Pop
+                // when we can (pushed entry), else return to the shell — never
+                // pop the last page (which would leave an empty Navigator →
+                // black surface).
+                onLeadingPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/'),
+              ),
+              Expanded(
+                child:
+                    BlocBuilder<NotificationsListCubit, NotificationsListState>(
+                  builder: (context, state) {
+                    switch (state.status) {
+                      case NotificationsListStatus.initial:
+                      case NotificationsListStatus.loading:
+                        return const OmdsLoadingState();
+                      case NotificationsListStatus.failed:
+                        return OmdsErrorState(
+                          message: _errorCopy(copy, state.error),
+                          retryLabel: copy.retry,
+                          onRetry: () =>
+                              context.read<NotificationsListCubit>().refresh(),
+                        );
+                      case NotificationsListStatus.loaded:
+                        return OmdsPullToRefresh(
+                          onRefresh: () =>
+                              context.read<NotificationsListCubit>().refresh(),
+                          child: !state.hasItems
+                              ? _EmptyBody(copy: copy)
+                              : _LoadedList(items: state.items, copy: copy),
+                        );
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -154,8 +178,13 @@ class _EmptyBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
+      // R1: the residual space stays white and top-aligned — the same band
+      // 24's empty tab uses, not a viewport-fraction spacer.
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.xLarge,
+        vertical: Sizes.sixXLarge,
+      ),
       children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
         OmdsEmptyState(
           icon: Icons.notifications_none_outlined,
           title: copy.emptyTitle,
@@ -176,9 +205,16 @@ class _LoadedList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        Spacing.xLarge,
+      ),
       itemCount: items.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      // R7/R12: the card outlines ARE the separation — a divider between two
+      // outlined cards draws a third line nobody asked for.
+      separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
       itemBuilder: (context, index) {
         final item = items[index];
         return NotificationRow(

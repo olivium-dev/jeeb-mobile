@@ -3751,6 +3751,13 @@
       "count": { "type": "int" }
     }
   },
+  "escalatePhotoChipLabel": "Photo {index}",
+  "@escalatePhotoChipLabel": {
+    "description": "Label of an attached dispute-evidence photo chip. {index} is 1-based.",
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
   "escalateCommentLabel": "Additional details (optional)",
   "@escalateCommentLabel": {
     "description": "T-MOB-022: Label above the optional free-text comment field"

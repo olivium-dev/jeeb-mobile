@@ -10,6 +10,7 @@ import '../../../client_offers/presentation/widgets/offer_accept_sheet.dart';
 import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
+import '../widgets/client_home_motion.dart';
 import '../widgets/replies_card.dart';
 
 /// JM-027 — Replies sub-tab (`my-orders`).
@@ -173,7 +174,13 @@ class _RepliesLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(key: Key('replies-loading'), child: OmdsLoadingState());
+    return const Center(
+      key: Key('replies-loading'),
+      child: Padding(
+        padding: EdgeInsets.all(Spacing.large),
+        child: ClientHomeLoadingDots(),
+      ),
+    );
   }
 }
 

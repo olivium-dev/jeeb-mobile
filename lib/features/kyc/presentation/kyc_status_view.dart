@@ -11,6 +11,12 @@ import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/role/role_sync.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/domain/role_switch_repository.dart';
 import '../application/kyc_poll_schedule.dart';
@@ -18,6 +24,7 @@ import '../application/kyc_status_poll_controller.dart';
 import '../application/kyc_wizard_cubit.dart';
 import '../application/kyc_wizard_state.dart';
 import '../domain/kyc_submission.dart';
+import 'widgets/kyc_status_marks.dart';
 
 /// Terminal-state view for the wizard: pending, approved, or rejected (JM-042).
 ///
@@ -42,6 +49,14 @@ import '../domain/kyc_submission.dart';
 /// D52/D87: rejection is FINAL — there is NO resubmit CTA here. The old
 /// `kyc-status-resubmit` path was removed for JM-042/043; the rejected branch
 /// now hands off to the dedicated `kyc-rejected` screen (appeal-via-support).
+///
+/// redesign-2026-08 (screen 22's companion; no render exists for this one, so
+/// it applies the language of `22-become-a-jeeber` rather than a picture): a
+/// re-skin only. 24px gutters, the mark/title/copy band top-aligned over a real
+/// empty band (R1 — never vertically centre), notes as [JeebInfoNote], the
+/// "what to fix" list as [JeebListRow]s in a grouped [JeebOutlinedCard], and
+/// every CTA as a [JeebCtaButton] in a docked [JeebCtaFooter]. Same four
+/// bodies, same CTA order, same edges, all identifiers unmoved.
 class KycStatusView extends StatefulWidget {
   const KycStatusView({
     super.key,
@@ -213,61 +228,139 @@ class _KycStatusViewState extends State<KycStatusView>
   }
 }
 
-/// Shared scaffolding for a status body: icon + title + body copy + a column of
-/// CTAs pushed to the bottom. Keeps the three variants visually consistent.
+/// The board's 24px side gutters with a block of air above the mark and below
+/// the last note (§4.3 `--screen-gutter: 24`).
+const EdgeInsetsGeometry _kStatusBodyPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.xLarge,
+  Spacing.xLarge,
+  Spacing.large,
+);
+
+/// Shared scaffolding for a status body: mark + title + body copy over a real
+/// empty band, with the CTAs docked in a [JeebCtaFooter]. Keeps the four
+/// variants visually consistent.
 class _StatusScaffold extends StatelessWidget {
   const _StatusScaffold({
     required this.titleKey,
     required this.icon,
     required this.iconColor,
+    required this.iconTint,
     required this.title,
     required this.body,
     required this.actions,
     this.extra,
+    this.mark,
   });
+
+  /// Matches the two authored marks' display size (88 / 100) so a glyph
+  /// terminal and a Lottie terminal occupy the same head band.
+  static const double glyphDiameter = 88;
 
   final Key titleKey;
   final IconData icon;
+
+  /// Glyph ink — always the `on…Container` half of [iconTint]'s role pair, so
+  /// the head reads as a soft tinted disc rather than a raw red slab.
   final Color iconColor;
+  final Color iconTint;
   final String title;
   final String body;
 
-  /// CTA widgets, top-to-bottom (primary first).
+  /// CTA widgets, top-to-bottom (the promoted one first — it becomes the
+  /// footer's `child`, the rest stack beneath it in order).
   final List<Widget> actions;
   final Widget? extra;
+
+  /// Optional Lottie mark that takes the head slot instead of [icon]
+  /// (08-MOTION-SPEC §2.8/§2.5). The icon params stay required so the two
+  /// bodies with no authored composition keep their glyph.
+  final Widget? mark;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(Spacing.large),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: Spacing.xLarge),
-          Icon(icon, size: Sizes.sixXLarge, color: iconColor),
-          const SizedBox(height: Spacing.large),
-          Text(
-            title,
-            key: titleKey,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+    final jeebText = context.jeebText;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          // Scrolls instead of overflowing when a looping mark, a long Arabic
+          // reason and a large text scale meet on a short device; whatever is
+          // left over stays white and top-aligned (R1).
+          child: ListView(
+            padding: _kStatusBodyPadding,
+            children: [
+              mark ?? _GlyphMark(icon: icon, ink: iconColor, tint: iconTint),
+              const SizedBox(height: Spacing.large),
+              Text(
+                title,
+                key: titleKey,
+                textAlign: TextAlign.center,
+                style: jeebText.h1.copyWith(color: theme.colorScheme.primary),
+              ),
+              const SizedBox(height: Spacing.small),
+              Text(
+                body,
+                textAlign: TextAlign.center,
+                style: jeebText.body.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (extra != null) ...[
+                const SizedBox(height: Spacing.xLarge),
+                extra!,
+              ],
+            ],
           ),
-          const SizedBox(height: Spacing.small),
-          Text(
-            body,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium,
-          ),
-          if (extra != null) ...[const SizedBox(height: Spacing.large), extra!],
-          const Spacer(),
-          for (var i = 0; i < actions.length; i++) ...[
-            if (i > 0) const SizedBox(height: Spacing.small),
-            actions[i],
-          ],
+        ),
+        JeebCtaFooter.single(
+          spacing: Spacing.small,
+          below: _stackedActions(),
+          child: actions.first,
+        ),
+      ],
+    );
+  }
+
+  /// The secondary CTAs, in order, under the footer's promoted one.
+  Widget? _stackedActions() {
+    if (actions.length < 2) return null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 1; i < actions.length; i++) ...[
+          if (i > 1) const SizedBox(height: Spacing.small),
+          actions[i],
         ],
+      ],
+    );
+  }
+}
+
+/// The head slot for a terminal with no authored composition: the glyph on a
+/// soft role-tinted disc, sized to the Lottie marks it sits beside.
+class _GlyphMark extends StatelessWidget {
+  const _GlyphMark({
+    required this.icon,
+    required this.ink,
+    required this.tint,
+  });
+
+  final IconData icon;
+  final Color ink;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: _StatusScaffold.glyphDiameter,
+        height: _StatusScaffold.glyphDiameter,
+        decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
+        alignment: Alignment.center,
+        child: Icon(icon, size: Sizes.threeXLarge, color: ink),
       ),
     );
   }
@@ -327,16 +420,32 @@ class _PendingContent extends StatelessWidget {
       titleKey: KycStatusView.pendingTitleKey,
       icon: Icons.hourglass_top_rounded,
       iconColor: colorScheme.primary,
+      iconTint: colorScheme.surfaceContainerHigh,
+      // The scan-line loop says "your document is being checked" better than a
+      // static hourglass; the glyph stays as the reduce-motion-free fallback
+      // for any caller that omits the mark.
+      mark: const KycReviewMark(),
       title: l10n.kycStatusPendingTitle,
       body: l10n.kycStatusPendingBody,
       extra: _PendingNotes(isExpired: isExpired),
+      // Order is contract, not taste (FM5-F11-W3/W4): once the automatic
+      // poller has expired, re-checking is the do-it-now action and takes the
+      // promoted navy pill above top-up; before that it sits below it.
       actions: [
-        _PendingActions(
-          isExpired: isExpired,
-          isChecking: isChecking,
-          onCheckAgain: onCheckAgain,
-          onBackToProfile: onBackToProfile,
-        ),
+        if (isExpired)
+          _CheckAgainCta(
+            isChecking: isChecking,
+            isPromoted: true,
+            onTap: onCheckAgain,
+          ),
+        const _PendingTopupCta(),
+        if (!isExpired)
+          _CheckAgainCta(
+            isChecking: isChecking,
+            isPromoted: false,
+            onTap: onCheckAgain,
+          ),
+        _BackToProfileCta(onTap: onBackToProfile),
       ],
     );
   }
@@ -353,6 +462,7 @@ class _PendingNotes extends StatelessWidget {
     final topupNote = _TopupAllowedNote(text: l10n.gateTopupNote);
     if (!isExpired) return topupNote;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _AutoCheckStoppedNote(text: l10n.kycStatusAutoCheckStoppedNote),
         const SizedBox(height: Spacing.small),
@@ -373,103 +483,15 @@ class _AutoCheckStoppedNote extends StatelessWidget {
     return Text(
       text,
       textAlign: TextAlign.center,
-      style: theme.textTheme.bodySmall?.copyWith(
+      style: context.jeebText.bodySmall.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
       ),
     );
   }
 }
 
-class _PendingActions extends StatelessWidget {
-  const _PendingActions({
-    required this.isExpired,
-    required this.isChecking,
-    required this.onCheckAgain,
-    required this.onBackToProfile,
-  });
-
-  final bool isExpired;
-  final bool isChecking;
-  final VoidCallback onCheckAgain;
-  final VoidCallback onBackToProfile;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isExpired) {
-      return _ExpiredPendingActions(
-        isChecking: isChecking,
-        onCheckAgain: onCheckAgain,
-        onBackToProfile: onBackToProfile,
-      );
-    }
-    return _ActivePendingActions(
-      isChecking: isChecking,
-      onCheckAgain: onCheckAgain,
-      onBackToProfile: onBackToProfile,
-    );
-  }
-}
-
-class _ExpiredPendingActions extends StatelessWidget {
-  const _ExpiredPendingActions({
-    required this.isChecking,
-    required this.onCheckAgain,
-    required this.onBackToProfile,
-  });
-
-  final bool isChecking;
-  final VoidCallback onCheckAgain;
-  final VoidCallback onBackToProfile;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _CheckAgainCta(
-          isChecking: isChecking,
-          isPromoted: true,
-          onTap: onCheckAgain,
-        ),
-        const SizedBox(height: Spacing.small),
-        const _PendingTopupCta(),
-        const SizedBox(height: Spacing.small),
-        _PendingBackCta(onTap: onBackToProfile),
-      ],
-    );
-  }
-}
-
-class _ActivePendingActions extends StatelessWidget {
-  const _ActivePendingActions({
-    required this.isChecking,
-    required this.onCheckAgain,
-    required this.onBackToProfile,
-  });
-
-  final bool isChecking;
-  final VoidCallback onCheckAgain;
-  final VoidCallback onBackToProfile;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _PendingTopupCta(),
-        const SizedBox(height: Spacing.small),
-        _CheckAgainCta(
-          isChecking: isChecking,
-          isPromoted: false,
-          onTap: onCheckAgain,
-        ),
-        const SizedBox(height: Spacing.small),
-        _PendingBackCta(onTap: onBackToProfile),
-      ],
-    );
-  }
-}
-
+/// "Check again" — a navy pill once the automatic poller has expired (the
+/// do-it-now moment), the outline treatment while it is still running.
 class _CheckAgainCta extends StatelessWidget {
   const _CheckAgainCta({
     required this.isChecking,
@@ -483,19 +505,13 @@ class _CheckAgainCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    return OmdsLoadingButton(
+    return JeebCtaButton(
       key: KycStatusView.checkAgainCtaKey,
       identifier: 'kyc_status_check_again_cta',
-      text: l10n.kycStatusCheckAgainCta,
+      label: l10n.kycStatusCheckAgainCta,
+      variant: isPromoted ? JeebCtaVariant.primary : JeebCtaVariant.outline,
       isLoading: isChecking,
-      backgroundColor: isPromoted
-          ? colorScheme.primary
-          : colorScheme.surfaceContainerHighest,
-      textColor: isPromoted
-          ? colorScheme.onPrimary
-          : colorScheme.onSurfaceVariant,
       onTap: onTap,
     );
   }
@@ -511,17 +527,16 @@ class _PendingTopupCta extends StatelessWidget {
       identifier: 'kyc_status_topup_cta',
       button: true,
       container: true,
-      child: OmdsPrimaryButton(
-        text: l10n.walletTopUpCta,
-        variant: OmdsButtonVariant.secondary,
+      child: JeebCtaButton.outline(
+        label: l10n.walletTopUpCta,
         onTap: () => context.goNamed('wallet-charge-info'),
       ),
     );
   }
 }
 
-class _PendingBackCta extends StatelessWidget {
-  const _PendingBackCta({required this.onTap});
+class _BackToProfileCta extends StatelessWidget {
+  const _BackToProfileCta({required this.onTap});
 
   final VoidCallback onTap;
 
@@ -532,10 +547,9 @@ class _PendingBackCta extends StatelessWidget {
       identifier: 'kyc_status_back',
       button: true,
       container: true,
-      child: OmdsPrimaryButton(
+      child: JeebCtaButton.text(
         key: KycStatusView.backCtaKey,
-        text: l10n.kycStatusBackToProfileCta,
-        variant: OmdsButtonVariant.text,
+        label: l10n.kycStatusBackToProfileCta,
         onTap: onTap,
       ),
     );
@@ -696,6 +710,10 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
       titleKey: KycStatusView.approvedTitleKey,
       icon: Icons.verified_rounded,
       iconColor: theme.colorScheme.primary,
+      iconTint: theme.colorScheme.surfaceContainerHigh,
+      // The shared terminal mark (08-MOTION-SPEC §2.5): an approval must feel
+      // identical to a delivered order and a landed top-up. One-shot.
+      mark: const KycApprovedMark(),
       title: l10n.kycStatusApprovedTitle,
       body: l10n.kycStatusApprovedBody,
       actions: [
@@ -706,10 +724,10 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
           identifier: 'kyc_status_feed_cta',
           button: true,
           container: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.primary(
             // L10N-REQ: kycStatusFeedCta ("Go to feed") — reusing
             // jeeberFeedSectionTitle ("Available requests").
-            text: l10n.jeeberFeedSectionTitle,
+            label: l10n.jeeberFeedSectionTitle,
             isEnabled: !_navigating,
             onTap: () => unawaited(_goToFeed()),
           ),
@@ -719,11 +737,10 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
           identifier: 'kyc_status_wallet_cta',
           button: true,
           container: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.outline(
             // L10N-REQ: kycStatusWalletCta — reusing shellWalletChipLabel
             // ("Wallet").
-            text: l10n.shellWalletChipLabel,
-            variant: OmdsButtonVariant.secondary,
+            label: l10n.shellWalletChipLabel,
             onTap: () => context.goNamed('wallet'),
           ),
         ),
@@ -732,10 +749,9 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
           identifier: 'kyc_status_topup_cta',
           button: true,
           container: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.text(
             // L10N-REQ: kycStatusTopupCta — reusing walletTopUpCta ("Top up").
-            text: l10n.walletTopUpCta,
-            variant: OmdsButtonVariant.text,
+            label: l10n.walletTopUpCta,
             onTap: () => context.goNamed('wallet-charge-info'),
           ),
         ),
@@ -759,7 +775,9 @@ class _RejectedBody extends StatelessWidget {
     return _StatusScaffold(
       titleKey: KycStatusView.rejectedTitleKey,
       icon: Icons.error_outline_rounded,
-      iconColor: theme.colorScheme.error,
+      // Wave 0's soft error pair, never the legacy #B00020 slab.
+      iconColor: theme.colorScheme.onErrorContainer,
+      iconTint: theme.colorScheme.errorContainer,
       title: l10n.kycStatusRejectedTitle,
       body: l10n.kycStatusRejectedBody,
       extra: _RejectionReasonNotice(reason: reason),
@@ -770,24 +788,14 @@ class _RejectedBody extends StatelessWidget {
           identifier: 'kyc_status_view_rejection',
           button: true,
           container: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.primary(
             // L10N-REQ: kycStatusViewRejectionCta ("View rejection details") —
             // reusing profileKycViewCta ("View status").
-            text: l10n.profileKycViewCta,
+            label: l10n.profileKycViewCta,
             onTap: () => context.goNamed('kyc-rejected'),
           ),
         ),
-        Semantics(
-          identifier: 'kyc_status_back',
-          button: true,
-          container: true,
-          child: OmdsPrimaryButton(
-            key: KycStatusView.backCtaKey,
-            text: l10n.kycStatusBackToProfileCta,
-            variant: OmdsButtonVariant.text,
-            onTap: onBackToProfile,
-          ),
-        ),
+        _BackToProfileCta(onTap: onBackToProfile),
       ],
     );
   }
@@ -818,7 +826,8 @@ class _ResubmitBody extends StatelessWidget {
     return _StatusScaffold(
       titleKey: KycStatusView.resubmitTitleKey,
       icon: Icons.upload_file_rounded,
-      iconColor: context.jeebRoles.warning,
+      iconColor: context.jeebRoles.onWarningContainer,
+      iconTint: context.jeebRoles.warningContainer,
       title: l10n.kycStatusResubmitTitle,
       body: l10n.kycStatusResubmitBody,
       extra: Column(
@@ -826,7 +835,7 @@ class _ResubmitBody extends StatelessWidget {
         children: [
           _RejectionReasonNotice(reason: reason),
           if (steps.isNotEmpty) ...[
-            const SizedBox(height: Spacing.medium),
+            const SizedBox(height: Spacing.small),
             _ResubmitStepsList(steps: steps),
           ],
         ],
@@ -836,22 +845,12 @@ class _ResubmitBody extends StatelessWidget {
           identifier: 'kyc_status_resubmit_cta',
           button: true,
           container: true,
-          child: OmdsPrimaryButton(
-            text: l10n.kycStatusResubmitRequestedCta,
+          child: JeebCtaButton.primary(
+            label: l10n.kycStatusResubmitRequestedCta,
             onTap: onResubmit,
           ),
         ),
-        Semantics(
-          identifier: 'kyc_status_back',
-          button: true,
-          container: true,
-          child: OmdsPrimaryButton(
-            key: KycStatusView.backCtaKey,
-            text: l10n.kycStatusBackToProfileCta,
-            variant: OmdsButtonVariant.text,
-            onTap: onBackToProfile,
-          ),
-        ),
+        _BackToProfileCta(onTap: onBackToProfile),
       ],
     );
   }
@@ -882,33 +881,20 @@ class _ResubmitStepsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    // The kit's grouped card draws the inset dividers, so the rows carry no
+    // separator of their own. The glyph stays the bare `arrow_forward_rounded`
+    // — it declares `matchTextDirection`, so `Icon` already mirrors it in
+    // Arabic; resolving it through `DirectionalIcons` would flip it twice.
     return Semantics(
       identifier: 'kyc_status_resubmit_steps',
       container: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: JeebOutlinedCard.grouped(
         children: [
           for (final step in steps)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    size: Sizes.small,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: Spacing.small),
-                  Expanded(
-                    child: Text(
-                      _label(l10n, step),
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              ),
+            JeebListRow(
+              icon: Icons.arrow_forward_rounded,
+              title: _label(l10n, step),
+              showChevron: false,
             ),
         ],
       ),
@@ -924,33 +910,14 @@ class _TopupAllowedNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // The outer wrapper keeps `kyc_status_topup_allowed_note` (jm-042 Maestro)
+    // exactly where it was, so the note itself takes no identifier.
     return Semantics(
       identifier: 'kyc_status_topup_allowed_note',
       container: true,
-      child: Container(
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: OmdsBorderRadius.small,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.info_outline_rounded,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: Spacing.small),
-            Expanded(
-              child: Text(
-                text,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
+      child: JeebInfoNote.muted(
+        icon: Icons.info_outline_rounded,
+        text: text,
       ),
     );
   }
@@ -979,31 +946,14 @@ class _RejectionReasonNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    return Container(
+    // The kit's error tone is Wave 0's soft errorContainer pair — the decision
+    // IS the message, so it keeps its role colour on every surface. The glyph
+    // stays `info_outline` (not `error_outline`): the head of the rejected body
+    // already owns that mark.
+    return JeebInfoNote.error(
       key: KycStatusView.rejectionReasonKey,
-      padding: const EdgeInsets.all(Spacing.medium),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.errorContainer.withValues(alpha: 0.7),
-        borderRadius: OmdsBorderRadius.small,
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.info_outline_rounded,
-            color: theme.colorScheme.onErrorContainer,
-          ),
-          const SizedBox(width: Spacing.small),
-          Expanded(
-            child: Text(
-              _label(l10n),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
-              ),
-            ),
-          ),
-        ],
-      ),
+      icon: Icons.info_outline_rounded,
+      text: _label(l10n),
     );
   }
 }

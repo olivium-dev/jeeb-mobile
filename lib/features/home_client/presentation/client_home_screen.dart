@@ -14,6 +14,7 @@ import 'tabs/in_progress_tab.dart';
 import 'tabs/pending_requests_tab.dart';
 import 'tabs/replies_tab.dart';
 import 'widgets/client_home_greeting.dart';
+import 'widgets/client_home_motion.dart';
 import 'widgets/client_home_request_hero.dart';
 
 /// Client home screen — redesign-2026-08 screen 04 (`04-client-home.html`).
@@ -284,7 +285,17 @@ class _LoadingLayout extends StatelessWidget {
           child: ClientHomeRequestHero(onCreateRequest: onCreateRequest),
         ),
         const SizedBox(height: Spacing.large),
-        const Center(child: OmdsLoadingState()),
+        // The brand's own inline wait (motion spec §2.9) replaces the Material
+        // spinner. Same indeterminate promise, same infinite ticker cost — a
+        // `CircularProgressIndicator` is one too — but in the Jeeb voice.
+        const Center(
+          child: Padding(
+            // Keeps the breathing room `OmdsLoadingState` used to supply from
+            // its own default padding.
+            padding: EdgeInsets.all(Spacing.large),
+            child: ClientHomeLoadingDots(),
+          ),
+        ),
       ],
     );
   }

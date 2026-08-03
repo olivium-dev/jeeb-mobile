@@ -12,11 +12,30 @@ import '../../core/di/injection_container.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
 import '../../core/router/root_aware_back_scope.dart';
+import '../../core/theme/jeeb_text_styles.dart';
+import '../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/data/dio_order_chat_summary_repository.dart';
 import '../chat/domain/order_chat_summary.dart';
 import '../rating/domain/entities/rating_status.dart';
 import '../rating/domain/rating_repository.dart';
+
+/// Board gutter for the hub body: 24px sides (§4 layout rule), 16 below the
+/// top bar, and a 32 bottom so the last block clears the gesture bar.
+const EdgeInsetsGeometry _kBandPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.medium,
+  Spacing.xLarge,
+  Spacing.twoXLarge,
+);
+
+/// Vertical rhythm between two blocks (§4 layout rule: ~28px).
+const double _kBlockGap = 28;
 
 /// Which lifecycle bucket the delivery-details hub is rendering. Derived from
 /// the wire `statusId` via [DeliveryStatusVocab] (JEBV4-309).
@@ -233,14 +252,32 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
         identifier: 'order-detail-root',
         container: true,
         child: Scaffold(
-          appBar: OMDSAppBar(
-            title: l10n.deliveryDetailsTitle,
-            showBackButton: true,
-          ),
-          body: ListView(
-            key: const Key('delivery-detail-list'),
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-            children: _buildChildren(context, l10n),
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          // Redesign: an in-body [JeebTopBar], not a Material app bar — the
+          // house header shape shared with the two screens this hub sits
+          // between (24 Order history, 12 Live tracking).
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                JeebTopBar.back(
+                  identifier: 'order_detail_back',
+                  title: l10n.deliveryDetailsTitle,
+                  // Same root-awareness the surrounding [RootAwareBackScope]
+                  // gives the system gesture: `maybePop` alone would be a dead
+                  // circle when the hub IS the stack root (push / deep link).
+                  onLeadingPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/'),
+                ),
+                Expanded(
+                  child: ListView(
+                    key: const Key('delivery-detail-list'),
+                    padding: _kBandPadding,
+                    children: _buildChildren(context, l10n),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -266,14 +303,16 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   /// path can never expose Cancel on a known-Delivered order.
   List<Widget> _failOpenChildren(BuildContext context, AppLocalizations l10n) {
     return [
-      const SizedBox(height: Spacing.medium),
-      _ActionRow(action: _trackAction(l10n)),
-      _ActionRow(action: _chatAction(context, l10n)),
-      _ActionRow(action: _otpAction(l10n)),
-      _ActionRow(action: _rateAction(l10n)),
-      _ActionRow(action: _escalateAction(l10n)),
-      const SizedBox(height: Spacing.medium),
-      _CancelButton(deliveryId: widget.deliveryId),
+      JeebOutlinedCard.grouped(
+        children: [
+          _ActionRow(action: _trackAction(l10n)),
+          _ActionRow(action: _chatAction(context, l10n)),
+          _ActionRow(action: _otpAction(l10n)),
+          _ActionRow(action: _rateAction(l10n)),
+          _ActionRow(action: _escalateAction(l10n)),
+        ],
+      ),
+      _CancelFooter(deliveryId: widget.deliveryId),
     ];
   }
 
@@ -282,15 +321,16 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   /// delivered-class-only affordance, so it is not shown here.
   List<Widget> _activeChildren(BuildContext context, AppLocalizations l10n) {
     return [
-      const SizedBox(height: Spacing.medium),
-      _ActionRow(action: _trackAction(l10n)),
-      _ActionRow(action: _chatAction(context, l10n)),
-      _ActionRow(action: _otpAction(l10n)),
-      _ActionRow(action: _escalateAction(l10n)),
-      if (DeliveryStatusVocab.isCancelAllowed(_statusId)) ...[
-        const SizedBox(height: Spacing.medium),
-        _CancelButton(deliveryId: widget.deliveryId),
-      ],
+      JeebOutlinedCard.grouped(
+        children: [
+          _ActionRow(action: _trackAction(l10n)),
+          _ActionRow(action: _chatAction(context, l10n)),
+          _ActionRow(action: _otpAction(l10n)),
+          _ActionRow(action: _escalateAction(l10n)),
+        ],
+      ),
+      if (DeliveryStatusVocab.isCancelAllowed(_statusId))
+        _CancelFooter(deliveryId: widget.deliveryId),
     ];
   }
 
@@ -298,35 +338,41 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   /// No Cancel / Verify OTP / Live tracking.
   List<Widget> _deliveredChildren(BuildContext context, AppLocalizations l10n) {
     return [
-      const SizedBox(height: Spacing.medium),
       _StatusBanner(
         semanticsId: 'order-detail-status-delivered',
-        icon: Icons.check_circle_outline,
+        icon: Icons.check_circle,
         title: l10n.deliveryDetailDeliveredBanner,
         body: l10n.deliveryDetailDeliveredBannerBody,
-        tone: _StatusBannerTone.success,
+        tone: JeebInfoNoteTone.success,
       ),
-      const SizedBox(height: Spacing.medium),
-      _ActionRow(action: _chatAction(context, l10n)),
-      _ActionRow(action: _rateAction(l10n)),
-      _ActionRow(action: _receiptAction(l10n)),
-      _ActionRow(action: _escalateAction(l10n)),
+      const SizedBox(height: _kBlockGap),
+      JeebOutlinedCard.grouped(
+        children: [
+          _ActionRow(action: _chatAction(context, l10n)),
+          _ActionRow(action: _rateAction(l10n)),
+          _ActionRow(action: _receiptAction(l10n)),
+          _ActionRow(action: _escalateAction(l10n)),
+        ],
+      ),
     ];
   }
 
   /// Cancelled (or any non-delivered terminal): Cancelled banner + Report only.
   List<Widget> _cancelledChildren(BuildContext context, AppLocalizations l10n) {
     return [
-      const SizedBox(height: Spacing.medium),
       _StatusBanner(
         semanticsId: 'order-detail-status-cancelled',
-        icon: Icons.cancel_outlined,
+        icon: Icons.cancel,
         title: l10n.deliveryDetailCancelledBanner,
         body: l10n.deliveryDetailCancelledBannerBody,
-        tone: _StatusBannerTone.error,
+        tone: JeebInfoNoteTone.error,
       ),
-      const SizedBox(height: Spacing.medium),
-      _ActionRow(action: _escalateAction(l10n)),
+      const SizedBox(height: _kBlockGap),
+      JeebOutlinedCard.grouped(
+        children: [
+          _ActionRow(action: _escalateAction(l10n)),
+        ],
+      ),
     ];
   }
 
@@ -335,7 +381,7 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   _DeliveryAction _trackAction(AppLocalizations l10n) => _DeliveryAction(
         semanticsId: 'order-detail-track',
         title: l10n.trackingTitle,
-        leadingIcon: Icons.location_on_outlined,
+        leadingIcon: Icons.location_on,
         onTap: (c) => c.push('/orders/${widget.deliveryId}/tracking'),
       );
 
@@ -343,7 +389,7 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
       _DeliveryAction(
         semanticsId: 'order-detail-chat',
         title: _contactLabel(context, l10n),
-        leadingIcon: Icons.chat_bubble_outline,
+        leadingIcon: Icons.chat_bubble,
         onTap: (c) => c.pushNamed(
           'chat-detail',
           pathParameters: {'id': widget.deliveryId},
@@ -353,14 +399,14 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   _DeliveryAction _otpAction(AppLocalizations l10n) => _DeliveryAction(
         semanticsId: 'order-detail-otp',
         title: l10n.otpVerifyButton,
-        leadingIcon: Icons.lock_outline,
+        leadingIcon: Icons.lock,
         onTap: (c) => c.push('/orders/${widget.deliveryId}/otp'),
       );
 
   _DeliveryAction _rateAction(AppLocalizations l10n) => _DeliveryAction(
         semanticsId: 'order-detail-rate',
         title: l10n.ratingPromptTitle,
-        leadingIcon: Icons.star_outline,
+        leadingIcon: Icons.star,
         // JEBV4-308: status-aware entry (see class doc). Fire-and-forget the
         // async handler; `_ActionRow` invokes this from a sync `onTap`.
         onTap: (c) {
@@ -373,14 +419,14 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
         // `/orders/:id/receipt`) — reachable only from the delivered hub.
         semanticsId: 'order-detail-receipt',
         title: l10n.deliveryActionReceipt,
-        leadingIcon: Icons.receipt_long_outlined,
+        leadingIcon: Icons.receipt_long,
         onTap: (c) => c.push('/orders/${widget.deliveryId}/receipt'),
       );
 
   _DeliveryAction _escalateAction(AppLocalizations l10n) => _DeliveryAction(
         semanticsId: 'order-detail-escalate',
         title: l10n.escalateTitle,
-        leadingIcon: Icons.report_problem_outlined,
+        leadingIcon: Icons.report_problem,
         onTap: (c) => c.push('/orders/${widget.deliveryId}/escalate'),
       );
 
@@ -514,44 +560,49 @@ class _RatingSummarySheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Semantics(
       identifier: 'delivery-rating-summary',
       container: true,
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(Spacing.large),
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.xSmall,
+            Spacing.xLarge,
+            Spacing.large,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Navy, not warm: the board rations orange to do-it-now moments,
+              // and a read-only summary is not one (§4.1 — the same rule that
+              // keeps JeebProfileHeader's star navy).
               Icon(
                 Icons.star_rounded,
-                size: 40,
-                color: theme.colorScheme.primary,
+                size: Sizes.threeXLarge,
+                color: Theme.of(context).colorScheme.primary,
               ),
               const SizedBox(height: Spacing.medium),
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleLarge,
+                style: context.jeebText.h2,
               ),
-              const SizedBox(height: Spacing.small),
+              const SizedBox(height: Spacing.xSmall),
               Text(
                 content,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: Spacing.large),
-              Semantics(
-                identifier: 'delivery-rating-summary-done',
-                button: true,
-                container: true,
-                child: OmdsPrimaryButton(
-                  key: const Key('delivery-rating-summary-done'),
-                  text: doneLabel,
-                  onTap: () => Navigator.of(context).pop(),
+                style: context.jeebText.body.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
+              ),
+              const SizedBox(height: _kBlockGap),
+              JeebCtaButton(
+                key: const Key('delivery-rating-summary-done'),
+                identifier: 'delivery-rating-summary-done',
+                label: doneLabel,
+                onTap: () => Navigator.of(context).pop(),
               ),
             ],
           ),
@@ -561,13 +612,13 @@ class _RatingSummarySheet extends StatelessWidget {
   }
 }
 
-/// Tone of the terminal-state banner — drives the container/foreground colour
-/// roles from the active [ColorScheme].
-enum _StatusBannerTone { success, error }
-
 /// A terminal-state banner shown at the top of the delivery-details hub
 /// (JEBV4-309). Carries a stable Semantics id + its title text so a Maestro
 /// flow can assert the Delivered / Cancelled state.
+///
+/// Redesign: a kit [JeebInfoNote] in its stacked form. The success/error tones
+/// keep their role colours on every surface — the state IS the message — so no
+/// container/foreground pair is computed here any more.
 class _StatusBanner extends StatelessWidget {
   const _StatusBanner({
     required this.semanticsId,
@@ -581,58 +632,17 @@ class _StatusBanner extends StatelessWidget {
   final IconData icon;
   final String title;
   final String body;
-  final _StatusBannerTone tone;
+  final JeebInfoNoteTone tone;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final (bg, fg) = switch (tone) {
-      _StatusBannerTone.success => (
-          scheme.secondaryContainer,
-          scheme.onSecondaryContainer,
-        ),
-      _StatusBannerTone.error => (
-          scheme.errorContainer,
-          scheme.onErrorContainer,
-        ),
-    };
-    return Semantics(
+    return JeebInfoNote(
+      key: Key(semanticsId),
       identifier: semanticsId,
-      container: true,
-      label: title,
-      child: Container(
-        key: Key(semanticsId),
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(Spacing.small),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: fg),
-            const SizedBox(width: Spacing.medium),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(color: fg, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: Spacing.twoXSmall),
-                  Text(
-                    body,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: fg),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      tone: tone,
+      icon: icon,
+      title: title,
+      text: body,
     );
   }
 }
@@ -652,7 +662,8 @@ class _DeliveryAction {
   final void Function(BuildContext) onTap;
 }
 
-/// A single OMDS settings row wrapped with a QA-targetable Semantics id.
+/// A single kit row inside the hub's grouped card. [JeebListRow] owns the
+/// Semantics node itself, so there is no outer wrapper to double the button.
 class _ActionRow extends StatelessWidget {
   const _ActionRow({required this.action});
 
@@ -660,36 +671,35 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
+    return JeebListRow(
+      key: Key(action.semanticsId),
       identifier: action.semanticsId,
-      button: true,
-      child: OmdsSettingsRow(
-        key: Key(action.semanticsId),
-        title: action.title,
-        leadingIcon: action.leadingIcon,
-        onTap: () => action.onTap(context),
-      ),
+      title: action.title,
+      icon: action.leadingIcon,
+      onTap: () => action.onTap(context),
     );
   }
 }
 
-/// Destructive cancel action rendered as an outlined primary button to
-/// visually separate it from the navigational rows above.
-class _CancelButton extends StatelessWidget {
-  const _CancelButton({required this.deliveryId});
+/// Destructive cancel action rendered as an outline pill below the grouped
+/// rows — the board's secondary-action shape (12's "Open dispute"), and still
+/// visually separate from the navigational rows above.
+class _CancelFooter extends StatelessWidget {
+  const _CancelFooter({required this.deliveryId});
 
   final String deliveryId;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'order-detail-cancel',
-      button: true,
-      child: OmdsPrimaryButton(
+    return JeebCtaFooter.single(
+      // The footer sits INSIDE the already-gutted list, so it keeps only its
+      // top rhythm — the 24 gutter would otherwise double.
+      padding: const EdgeInsetsDirectional.only(top: _kBlockGap),
+      child: JeebCtaButton.outline(
         key: const Key('order-detail-cancel'),
-        text: l10n.deliveryActionCancel,
-        variant: OmdsButtonVariant.outlined,
+        identifier: 'order-detail-cancel',
+        label: l10n.deliveryActionCancel,
         onTap: () => context.push('/orders/$deliveryId/cancel'),
       ),
     );

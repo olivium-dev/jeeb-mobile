@@ -4,9 +4,9 @@ import 'package:omds/omds.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
-import '../../../../core/widgets/jeeb/jeeb_waveform.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../cubit/voice_recording_state.dart';
+import 'recording_waveform.dart';
 
 /// The waveform + `00:07 / 1:00` + status stack that sits directly above the
 /// mic cluster.
@@ -41,7 +41,9 @@ class RecordingReadout extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         if (recording) ...<Widget>[
-          JeebWaveform.live(
+          // The live mark moves while audio is being captured (motion spec
+          // §2.2); it falls back to the kit's static bars under reduce-motion.
+          RecordingWaveform(
             key: waveformKey,
             identifier: 'voice_request_recording_waveform',
             semanticLabel: l10n.voiceRecordingReleaseToStop,

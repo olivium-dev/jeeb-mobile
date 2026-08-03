@@ -9,6 +9,15 @@ import '../../../core/formatting/countdown_format.dart';
 import '../../../core/lifecycle/route_resume_refetch.dart';
 import '../../../core/network/single_flight_get.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../core/widgets/motion/jeeb_lottie_mark.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
 import '../application/waiting_cubit.dart';
@@ -56,6 +65,16 @@ typedef WaitingCubitFactory =
 /// (real `:4010` Dio) so the screen is still data-bound; a [FakeWaitingRepository]
 /// is the last-resort fallback only when even `Dio` is unavailable (mirrors
 /// `ClientOffersScreen._resolveRepository`).
+///
+/// Redesign-24 (`docs/redesign-2026-08`, no board render — screen 11
+/// offer-review is the neighbour this borrows its language from): a RE-SKIN,
+/// not a rewrite. Same states, same order, same edges, same copy, every
+/// identifier unmoved. What changed: the Material app bar became an in-body
+/// [JeebTopBar]; the countdown became the accent strip 11 puts its offer window
+/// in ([JeebInfoNote] + Ø8 orange dot); the grey request-echo slab became an
+/// outlined [JeebOutlinedCard] with a [JeebSectionLabel]; the three stacked
+/// `OmdsPrimaryButton`s became [JeebCtaButton]s docked in a [JeebCtaFooter];
+/// and every raw `TextStyle` now resolves through `context.jeebText`.
 ///
 /// Semantics identifiers (EXACT, per 63_W1_TEST_PLAN §2.6):
 ///   waiting_notified_count     — number of Jeebers notified (broadcast signature)
@@ -161,12 +180,30 @@ class _WaitingView extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return BlocBuilder<WaitingCubit, WaitingState>(
       builder: (context, state) => Scaffold(
-        appBar: OMDSAppBar(
-          title: state.isTerminal
-              ? l10n.offersRequestClosedTitle
-              : l10n.waitingTitle,
+        // No `appBar:` — like the redesigned neighbour (11 offer-review) the
+        // header is an in-body JeebTopBar, so the title and the back circle
+        // share the body's gutter and render in every state.
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar.back(
+                title: state.isTerminal
+                    ? l10n.offersRequestClosedTitle
+                    : l10n.waitingTitle,
+                identifier: 'waiting_back',
+                leadingTooltip: MaterialLocalizations.of(
+                  context,
+                ).backButtonTooltip,
+                // Same resolution as the route's registered `backFallbacks`
+                // entry ('waiting-no-coverage' → '/'): this screen is usually a
+                // stack root, where a bare pop would be a dead arrow.
+                onLeadingPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/'),
+              ),
+              Expanded(child: _body(context, state)),
+            ],
+          ),
         ),
-        body: SafeArea(child: _body(context, state)),
       ),
     );
   }
@@ -246,7 +283,10 @@ class _WaitingTerminal extends StatelessWidget {
       explicitChildNodes: true,
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(Spacing.large),
+          // 24px side gutters, the board's rhythm.
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.xLarge,
+          ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -257,14 +297,14 @@ class _WaitingTerminal extends StatelessWidget {
                 title: _title(l10n),
                 subtitle: _subtitle(l10n),
               ),
-              const SizedBox(height: Spacing.large),
+              const SizedBox(height: Spacing.xLarge),
               Semantics(
                 identifier: 'waiting_terminal_home_cta',
                 container: true,
                 button: true,
-                child: OmdsPrimaryButton(
+                child: JeebCtaButton(
                   key: const Key('waiting-terminal-home-cta'),
-                  text: l10n.trackingCancelledHomeCta,
+                  label: l10n.trackingCancelledHomeCta,
                   onTap: () => context.go('/'),
                 ),
               ),
@@ -327,85 +367,121 @@ class _WaitingLoaded extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     final request = state.request;
     final notifiedCount = request?.notifiedCount ?? 0;
     final showReviewOffers = state.hasOffers;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(Spacing.large),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: Spacing.large),
-          // Header is re-driven off REAL signals — offers, phase, and the
-          // broadcast countdown — never off notifiedCount (BUG-4 / JM-026
-          // false-no-coverage). The softened "No offers yet" state appears ONLY
-          // once the broadcast window has fully elapsed with zero offers in;
-          // while offers exist or the clock is still running we stay optimistic.
-          if (state.isNoOffersYet)
-            const _NoOffersYetHeader()
-          else
-            _BroadcastHeader(
-              notifiedCount: notifiedCount,
-              remaining: state.remaining,
+    return Column(
+      children: [
+        // ── The waiting band: hero mark, headline, count, countdown strip and
+        //    the request echo. Top-aligned with the residual space left white
+        //    (R1), exactly as the neighbouring offer list.
+        Expanded(
+          child: SingleChildScrollView(
+            // Gutter 24; first block 16 under the top bar (the wallet's
+            // rhythm), and 24 of air before the docked footer.
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.medium,
+              Spacing.xLarge,
+              Spacing.xLarge,
             ),
-          // G1 (sprint-009 P0): echo the customer's own request content while
-          // they wait — the same text the jeeber feed is showing right now.
-          if (request?.title != null && request!.title!.trim().isNotEmpty) ...[
-            const SizedBox(height: Spacing.xLarge),
-            _RequestSummaryCard(text: request.title!.trim()),
-          ],
-          const SizedBox(height: Spacing.twoXLarge),
-
-          // ── Offers-arrived: live transition to the review CTA (AC2) ───────
-          if (showReviewOffers) ...[
-            Semantics(
-              identifier: 'waiting_review_offers_cta',
-              button: true,
-              child: OmdsPrimaryButton(
-                text: l10n.waitingReviewOffersCta,
-                onTap: () => _openReviewOffers(context),
-              ),
-            ),
-            const SizedBox(height: Spacing.small),
-          ],
-
-          // ── Re-target (D48; AC3) ──────────────────────────────────────────
-          Semantics(
-            identifier: 'waiting_retarget_cta',
-            button: true,
-            child: OmdsPrimaryButton(
-              text: l10n.waitingRetargetCta,
-              variant: OmdsButtonVariant.outlined,
-              onTap: () => _retarget(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header is re-driven off REAL signals — offers, phase, and the
+                // broadcast countdown — never off notifiedCount (BUG-4 /
+                // JM-026 false-no-coverage). The softened "No offers yet" state
+                // appears ONLY once the broadcast window has fully elapsed with
+                // zero offers in; while offers exist or the clock is still
+                // running we stay optimistic.
+                if (state.isNoOffersYet)
+                  const _NoOffersYetHeader()
+                else
+                  _BroadcastHeader(
+                    notifiedCount: notifiedCount,
+                    remaining: state.remaining,
+                  ),
+                // G1 (sprint-009 P0): echo the customer's own request content
+                // while they wait — the same text the jeeber feed is showing
+                // right now.
+                if (request?.title != null &&
+                    request!.title!.trim().isNotEmpty) ...[
+                  const SizedBox(height: Spacing.xLarge),
+                  _RequestSummaryCard(text: request.title!.trim()),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: Spacing.small),
+        ),
 
-          // ── Cancel (free pre-accept, D69; AC4) ────────────────────────────
-          Semantics(
+        // ── Docked actions. Same three affordances in the same order; the
+        //    board's footer keeps them off the scroll body so the cancel exit
+        //    is never scrolled past.
+        JeebCtaFooter.single(
+          // ── Cancel (free pre-accept, D69; AC4) ──────────────────────────
+          below: Semantics(
             identifier: 'waiting_cancel_cta',
             button: true,
-            child: OmdsPrimaryButton(
-              text: l10n.waitingCancelCta,
-              variant: OmdsButtonVariant.text,
-              textColor: theme.colorScheme.error,
+            child: JeebCtaButton.text(
+              label: l10n.waitingCancelCta,
               onTap: () => _cancel(context),
             ),
           ),
-        ],
-      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Offers-arrived: live transition to the review CTA (AC2) ──
+              if (showReviewOffers) ...[
+                Semantics(
+                  identifier: 'waiting_review_offers_cta',
+                  button: true,
+                  child: JeebCtaButton(
+                    label: l10n.waitingReviewOffersCta,
+                    onTap: () => _openReviewOffers(context),
+                  ),
+                ),
+                const SizedBox(height: Spacing.small),
+              ],
+
+              // ── Re-target (D48; AC3) ────────────────────────────────────
+              Semantics(
+                identifier: 'waiting_retarget_cta',
+                button: true,
+                child: JeebCtaButton.outline(
+                  label: l10n.waitingRetargetCta,
+                  onTap: () => _retarget(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
 /// Broadcast (coverage) header — notified count + live countdown (AC1).
+///
+/// motion (08-MOTION-SPEC §2.3): the static `podcasts` glyph is replaced by
+/// `broadcasting.json` — the calm navy sonar with the single orange "your
+/// request is live" heartbeat at its centre. The loop is functional, not
+/// decorative: while this header is mounted the matching service really is
+/// fanning the request out, which is exactly the ongoing state the spec allows
+/// a loop for. The file is authored WHITE-SURFACE ONLY (measured 0.00–0.59% ink
+/// on navy, 09-MOTION-VALIDATION §7) and this header sits on the scaffold's
+/// white surface, so it lands where it was authored to. Radial composition —
+/// no RTL mirror.
 class _BroadcastHeader extends StatelessWidget {
   const _BroadcastHeader({
     required this.notifiedCount,
     required this.remaining,
   });
+
+  /// Half of the 280×280 authored canvas (motion spec §4: the canvases are ~2×
+  /// their display size so the strokes stay crisp).
+  static const double _markSize = 140;
 
   final int notifiedCount;
 
@@ -417,21 +493,25 @@ class _BroadcastHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.light();
+    final hasCountdown = remaining != null;
     return Column(
       children: [
-        Icon(
-          Icons.podcasts,
-          size: Sizes.eightXLarge,
-          color: theme.colorScheme.primary,
+        const JeebLottieMark(
+          asset: 'assets/animations/broadcasting.json',
+          width: _markSize,
+          height: _markSize,
         ),
         const SizedBox(height: Spacing.large),
         Text(
           l10n.requestSummaryFindingTitle,
-          style: theme.textTheme.headlineSmall,
+          style: context.jeebText.h1.copyWith(color: scheme.primary),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: Spacing.medium),
+        const SizedBox(height: Spacing.xSmall),
         // waiting_notified_count — broadcast-state signature id (63 §2.6). The
         // node is ALWAYS present (Maestro flows resolve it), but its text is
         // re-driven: with a real count we show "Notified N nearby Jeebers";
@@ -444,29 +524,59 @@ class _BroadcastHeader extends StatelessWidget {
             notifiedCount > 0
                 ? l10n.requestSummaryFindingNotifiedCount(notifiedCount)
                 : l10n.waitingReachingOutLabel,
-            style: theme.textTheme.titleMedium,
+            style: context.jeebText.body.copyWith(color: semantic.mutedText),
             textAlign: TextAlign.center,
           ),
         ),
-        const SizedBox(height: Spacing.small),
+        const SizedBox(height: Spacing.xLarge),
         // waiting_countdown — broadcast countdown timer (AC1). The node is
         // ALWAYS present (Maestro flows resolve it) but its text is honest: no
         // anchor pair means no number, never a fabricated one.
-        Semantics(
+        //
+        // Shape: the same accent strip 11 puts its offer-window countdown in
+        // (`OfferWindowTimer`) — an Ø8 orange dot and one w700 line. The
+        // pending variant drops to the muted tone with an hourglass, because
+        // "we'll show a countdown when the server sends one" is not a
+        // do-it-now moment and must not spend the rationed orange.
+        JeebInfoNote(
           identifier: 'waiting_countdown',
-          child: Text(
-            remaining == null
-                ? l10n.waitingCountdownPending
-                : l10n.waitingCountdownLabel(
-                    CountdownFormat.format(remaining!),
-                  ),
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          tone: hasCountdown ? JeebInfoNoteTone.accent : JeebInfoNoteTone.muted,
+          icon: hasCountdown ? null : Icons.hourglass_top,
+          leading: hasCountdown
+              ? _CountdownDot(color: context.jeebRoles.accent)
+              : null,
+          label: Text(
+            hasCountdown
+                ? l10n.waitingCountdownLabel(CountdownFormat.format(remaining!))
+                : l10n.waitingCountdownPending,
+            style: context.jeebText.bodySmall.copyWith(
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface,
+              // A countdown that reflows every second is unreadable — fix the
+              // digit advance so only the glyphs change.
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
-            textAlign: TextAlign.center,
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The Ø8 accent dot at the head of the countdown strip — the same mark 11
+/// draws on its offer-window strip, so the two waiting surfaces read as one.
+class _CountdownDot extends StatelessWidget {
+  const _CountdownDot({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: Sizes.xSmall,
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
     );
   }
 }
@@ -483,32 +593,22 @@ class _RequestSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'waiting_request_description',
       container: true,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: OmdsBorderRadius.uiLarge,
-        ),
+      // Outline over shadow, r16 — the grey slab was the only card on this
+      // screen and read as a different product from 11's outlined offer cards.
+      child: JeebOutlinedCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l10n.waitingRequestSummaryLabel,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: Spacing.xSmall),
+            JeebSectionLabel(l10n.waitingRequestSummaryLabel),
+            const SizedBox(height: Spacing.twoXSmall),
             Text(
               text,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.w600,
+              style: context.jeebText.cardTitle.copyWith(
+                color: scheme.onSurface,
               ),
             ),
           ],
@@ -524,13 +624,35 @@ class _RequestSummaryCard extends StatelessWidget {
 /// and it is no longer gated on `notifiedCount` (BUG-4 / JM-026
 /// false-no-coverage). The Semantics id is intentionally kept as
 /// `waiting_no_coverage_state` so existing Maestro flows still resolve it.
+///
+/// motion (08-MOTION-SPEC §2.7): `nearby-scan.json` replaces the
+/// `location_off_outlined` warning glyph. The glyph contradicted the copy this
+/// state actually ships — "Jeebers near you are **still reviewing** your
+/// request. Keep waiting…" is not a coverage failure, and a struck-through
+/// location pin read like one. The scan mark says what is true: a patch of
+/// ground is being watched. It is the spec's only ZERO-ORANGE composition,
+/// which is the right register here — nothing on this screen is a do-it-now
+/// moment. White surface (as authored), radial/vertical motion, no RTL mirror.
+///
+/// DIVERGENCE, flagged for the owner: the spec's screen column assigns this
+/// file to 16 (jeeber-home empty feed). The waiting screen is not one of the 24
+/// board screens, so no render is contradicted, but re-using the jeeber's mark
+/// on a client surface is a call the spec did not make. See
+/// `apply-reports/w3-motion-tracking.md`.
 class _NoOffersYetHeader extends StatelessWidget {
   const _NoOffersYetHeader();
+
+  /// Half of the 280×200 authored canvas.
+  static const double _markWidth = 140;
+  static const double _markHeight = 100;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.light();
     // waiting_no_coverage_state — variant root (63 §2.6, coined). Container so a
     // Maestro flow can assert the whole no-offers-yet block is present. Id kept
     // unchanged on purpose so existing flows keep resolving it.
@@ -539,25 +661,21 @@ class _NoOffersYetHeader extends StatelessWidget {
       container: true,
       child: Column(
         children: [
-          Icon(
-            Icons.location_off_outlined,
-            size: Sizes.eightXLarge,
-            // No-coverage is an attention state → semantic warning role, not
-            // the brand tertiary orange.
-            color: context.jeebRoles.warning,
+          const JeebLottieMark(
+            asset: 'assets/animations/nearby-scan.json',
+            width: _markWidth,
+            height: _markHeight,
           ),
           const SizedBox(height: Spacing.large),
           Text(
             l10n.waitingNoCoverageTitle,
-            style: theme.textTheme.headlineSmall,
+            style: context.jeebText.h1.copyWith(color: scheme.primary),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: Spacing.small),
+          const SizedBox(height: Spacing.xSmall),
           Text(
             l10n.waitingNoCoverageBody,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: context.jeebText.body.copyWith(color: semantic.mutedText),
             textAlign: TextAlign.center,
           ),
         ],

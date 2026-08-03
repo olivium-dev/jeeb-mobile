@@ -8,6 +8,7 @@ import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
 import '../widgets/active_request_card.dart';
+import '../widgets/client_home_motion.dart';
 
 /// T-MOB-006: Isolated In Progress tab widget.
 ///
@@ -139,7 +140,10 @@ class _InProgressLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Center(
       key: Key('in-progress-loading'),
-      child: OmdsLoadingState(),
+      child: Padding(
+        padding: EdgeInsets.all(Spacing.large),
+        child: ClientHomeLoadingDots(),
+      ),
     );
   }
 }

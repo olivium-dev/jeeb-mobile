@@ -94,8 +94,8 @@ class _WizardScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // The BlocBuilder sits ABOVE the Scaffold so `appBar:` can read the step:
-    // the redesigned identity step owns its own JeebTopBar chrome, while the
-    // schema/submitting/status steps keep the OMDS bar.
+    // the redesigned identity and status steps own their own JeebTopBar chrome,
+    // while the schema/submitting steps keep the OMDS bar.
     return MultiBlocListener(
       listeners: [
         BlocListener<KycWizardCubit, KycWizardState>(
@@ -127,7 +127,7 @@ class _WizardScaffold extends StatelessWidget {
       child: BlocBuilder<KycWizardCubit, KycWizardState>(
         builder: (context, state) => Scaffold(
           key: KycWizardScreen.rootKey,
-          appBar: state.step == KycWizardStep.identity
+          appBar: _ownsItsChrome(state.step)
               ? null
               : OMDSAppBar(title: l10n.kycWizardTitle, centerTitle: false),
           // `kyc_wizard_root` (65_W2_TEST_PLAN §2 JM-040): the asserted root id
@@ -155,12 +155,31 @@ class _WizardScaffold extends StatelessWidget {
     context.goNamed('onboarding-funding');
   }
 
+  /// Steps that render their own [JeebTopBar] instead of the OMDS app bar.
+  bool _ownsItsChrome(KycWizardStep step) =>
+      step == KycWizardStep.identity || step == KycWizardStep.status;
+
   Widget _buildBody(
     BuildContext context,
     KycWizardState state,
     AppLocalizations l10n,
   ) {
-    if (state.step == KycWizardStep.status) return const KycStatusView();
+    if (state.step == KycWizardStep.status) {
+      // redesign-2026-08: the terminal states get the board's header — a Ø40
+      // back circle + `jeebText.h2` title in-body — rather than the Material
+      // app bar their neighbour (screen 22's identity step) already dropped.
+      return Column(
+        children: [
+          JeebTopBar(
+            title: l10n.kycWizardTitle,
+            identifier: 'kyc_wizard_back',
+            leadingTooltip: MaterialLocalizations.of(context).backButtonTooltip,
+            onLeadingPressed: () => _leaveWizard(context),
+          ),
+          const Expanded(child: KycStatusView()),
+        ],
+      );
+    }
     if (state.step == KycWizardStep.submitting) {
       return const KycSubmittingView();
     }

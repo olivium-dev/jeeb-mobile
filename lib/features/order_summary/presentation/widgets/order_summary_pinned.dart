@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_tier_chip.dart';
 import '../../domain/order_summary.dart';
 import '../order_summary_l10n.dart';
+
+/// Ticket radius. 20, not the kit's default 16: this is the same "one outlined
+/// ticket, dividers between the rows that have data" object screen 10 draws
+/// (`10-request-summary.html` tpl 575), and the two screens sit next to each
+/// other in the customer journey.
+const double _ticketRadius = 20;
 
 /// JM-031 — the pinned order-summary header WIDGET (CTO-D3 primary rendering).
 ///
@@ -25,6 +39,15 @@ import '../order_summary_l10n.dart';
 ///
 /// Every interactive/asserted element carries the EXACT `Semantics(identifier:)`
 /// from `63_W1_TEST_PLAN §2.11`.
+///
+/// ## redesign-2026-08
+///
+/// A re-skin onto the Jeeb kit, not a product change: same data, same block
+/// order, same callbacks, same identifiers. The bespoke grey slab became the
+/// neighbour's shape — one [JeebOutlinedCard.grouped] ticket (identity → tier +
+/// ETA → item → price) over a [JeebInfoNote] trust line and a [JeebCtaFooter].
+/// There is no render for this screen; the language is taken from 10
+/// (`Review & send`), which the customer sees immediately before this one.
 class OrderSummaryPinned extends StatelessWidget {
   const OrderSummaryPinned({
     super.key,
@@ -51,163 +74,105 @@ class OrderSummaryPinned extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = OrderSummaryL10n.of(context);
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final priceText = summary.price.toStringAsFixed(2);
+    final OrderSummaryL10n l10n = OrderSummaryL10n.of(context);
+    // 24px board gutter on the standalone screen; the dense injection keeps the
+    // tighter 16 it has always had.
+    final double gutter = dense ? Spacing.medium : Spacing.xLarge;
+    final String? item = summary.itemSummary?.trim();
+    final Widget? footer = _footer(context, l10n);
 
     return Semantics(
       identifier: 'order_summary_pinned',
       container: true,
       explicitChildNodes: true,
-      child: Container(
-        margin: EdgeInsetsDirectional.all(dense ? Spacing.small : Spacing.medium),
-        padding: const EdgeInsetsDirectional.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: colors.surfaceContainerHighest,
-          borderRadius: OmdsBorderRadius.medium,
-          border: Border.all(color: colors.outlineVariant),
+      child: Padding(
+        padding: EdgeInsetsDirectional.fromSTEB(
+          gutter,
+          dense ? Spacing.small : Spacing.medium,
+          gutter,
+          0,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Jeeber identity + accepted price ──────────────────────────
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                OmdsProfileAvatar(
-                  initial: _initial(summary.jeeberName),
-                  profilePicUrl: summary.jeeberAvatarUrl,
-                  size: Sizes.fourXLarge,
-                ),
-                const SizedBox(width: Spacing.small),
-                Expanded(child: _JeeberBlock(summary: summary)),
-                const SizedBox(width: Spacing.small),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            JeebOutlinedCard.grouped(
+              radius: _ticketRadius,
+              children: <Widget>[
+                _JeeberBlock(summary: summary),
+                _TierEtaBlock(summary: summary),
+                if (item != null && item.isNotEmpty)
+                  _ItemBlock(label: l10n.itemLabel, value: item),
                 _PriceBlock(
                   label: l10n.priceLabel,
-                  amount: priceText,
+                  amount: summary.price.toStringAsFixed(2),
                   currency: summary.currency,
                 ),
               ],
             ),
-            const SizedBox(height: Spacing.small),
-            // ── Facts row: ETA + tier ─────────────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: _Fact(
-                    identifier: 'order_summary_eta',
-                    icon: Icons.access_time,
-                    label: l10n.etaLabel,
-                    value: summary.etaMinutes != null
-                        ? l10n.etaMinutes(summary.etaMinutes!)
-                        : l10n.etaPending,
-                  ),
-                ),
-                const SizedBox(width: Spacing.small),
-                Expanded(
-                  child: _Fact(
-                    identifier: 'order_summary_tier',
-                    icon: Icons.bolt_outlined,
-                    label: l10n.tierLabel,
-                    // `tierName('')` returns '' (its `default` arm echoes the
-                    // id back), so an absent tier used to render a labelled
-                    // BLANK — an icon and the word "Tier" with nothing after
-                    // it, which reads as a broken field rather than an unknown
-                    // one. The ETA cell beside it already had this placeholder;
-                    // so does the chat header's tier chip. Give the tier cell
-                    // the same honest "Pending" rather than a hole.
-                    value: summary.tier.trim().isEmpty
-                        ? l10n.tierPending
-                        : l10n.tierName(summary.tier),
-                  ),
-                ),
-              ],
-            ),
-            // ── Item summary ──────────────────────────────────────────────
-            if (summary.itemSummary != null) ...[
-              const SizedBox(height: Spacing.small),
-              _Fact(
-                identifier: 'order_summary_item',
-                icon: Icons.inventory_2_outlined,
-                label: l10n.itemLabel,
-                value: summary.itemSummary!,
-              ),
-            ],
-            const SizedBox(height: Spacing.small),
-            // ── Pay-cash-on-delivery reminder (D11) ───────────────────────
-            Semantics(
+            SizedBox(height: dense ? Spacing.small : Spacing.medium),
+            // ── Pay-cash-on-delivery reminder (D11). The trust line under the
+            //    ticket, exactly where 10 puts "Free to cancel any time…".
+            JeebInfoNote.muted(
               identifier: 'order_summary_cash_label',
-              container: true,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.payments_outlined,
-                    size: Sizes.medium,
-                    color: colors.primary,
-                  ),
-                  const SizedBox(width: Spacing.xSmall),
-                  Expanded(
-                    child: Text(
-                      l10n.cashLabel,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              icon: Icons.payments,
+              text: l10n.cashLabel,
             ),
-            // ── CTAs (each hidden when its callback is null) ──────────────
-            if (onOpenChat != null || onTrack != null) ...[
-              const SizedBox(height: Spacing.medium),
-              Row(
-                children: [
-                  if (onOpenChat != null)
-                    Expanded(
-                      child: Semantics(
-                        identifier: 'order_summary_open_chat',
-                        button: true,
-                        child: OmdsPrimaryButton(
-                          text: l10n.openChat,
-                          variant: OmdsButtonVariant.outlined,
-                          onTap: onOpenChat!,
-                        ),
-                      ),
-                    ),
-                  if (onOpenChat != null && onTrack != null)
-                    const SizedBox(width: Spacing.small),
-                  if (onTrack != null)
-                    Expanded(
-                      child: Semantics(
-                        identifier: 'order_summary_track',
-                        button: true,
-                        child: OmdsPrimaryButton(
-                          text: l10n.track,
-                          onTap: onTrack!,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
+            // ── CTAs (each hidden when its callback is null) ────────────────
+            ?footer,
           ],
         ),
       ),
     );
   }
 
-  static String _initial(String name) {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) return '?';
-    return trimmed.substring(0, 1).toUpperCase();
+  /// The CTA pair, the surviving one, or nothing at all. Both pills are 56 tall
+  /// so the split row's two variants (outline defaults to 50) share a baseline.
+  Widget? _footer(BuildContext context, OrderSummaryL10n l10n) {
+    final VoidCallback? openChat = onOpenChat;
+    final VoidCallback? track = onTrack;
+    if (openChat == null && track == null) return null;
+
+    final EdgeInsetsGeometry padding = EdgeInsetsDirectional.only(
+      top: dense ? Spacing.small : Spacing.large,
+    );
+
+    final Widget? chatCta = openChat == null
+        ? null
+        : Semantics(
+            identifier: 'order_summary_open_chat',
+            button: true,
+            child: JeebCtaButton.outline(
+              label: l10n.openChat,
+              height: JeebCtaButton.primaryHeight,
+              onTap: openChat,
+            ),
+          );
+    final Widget? trackCta = track == null
+        ? null
+        : Semantics(
+            identifier: 'order_summary_track',
+            button: true,
+            child: JeebCtaButton(label: l10n.track, onTap: track),
+          );
+
+    if (chatCta != null && trackCta != null) {
+      return JeebCtaFooter.split(
+        padding: padding,
+        expandLeading: true,
+        leading: chatCta,
+        trailing: trackCta,
+      );
+    }
+    return JeebCtaFooter.single(
+      padding: padding,
+      child: (chatCta ?? trackCta)!,
+    );
   }
 }
 
-/// Jeeber name (`order_summary_jeeber_name`) + rating chip (D6: only when a
-/// real score exists — cold-start jeebers show the name alone).
+/// Jeeber avatar + name (`order_summary_jeeber_name`) + rating chip (D6: only
+/// when a real score exists — cold-start jeebers show the name alone).
 class _JeeberBlock extends StatelessWidget {
   const _JeeberBlock({required this.summary});
 
@@ -215,49 +180,199 @@ class _JeeberBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          identifier: 'order_summary_jeeber_name',
-          container: true,
-          child: Text(
-            summary.jeeberName,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.all(Spacing.medium),
+      child: Row(
+        children: <Widget>[
+          // `initial` takes a full name — the kit's `initialFrom` normalises it
+          // (and renders '?' rather than inventing a mark when it is empty).
+          JeebAvatar.thread(
+            initial: summary.jeeberName,
+            imageUrl: summary.jeeberAvatarUrl,
           ),
-        ),
-        if (summary.hasRating) ...[
-          const SizedBox(height: Spacing.twoXSmall),
-          // JEBV4-285: the stars + rating + review-count row is intrinsically
-          // wider than the Expanded name/rating block can be once the avatar and
-          // price pill claim their share of the header Row — a long review count
-          // (e.g. "(312)") pushed it past the edge and tripped a RenderFlex
-          // overflow stripe. scaleDown keeps the whole rating legible by shrinking
-          // it to the available width instead of clipping; centerStart keeps it
-          // leading-aligned in both LTR and RTL.
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: AlignmentDirectional.centerStart,
-            child: OmdsStarRatingDisplay(
-              averageRating: summary.jeeberRating!,
-              totalReviews: summary.jeeberRatingCount,
-              starSize: Sizes.medium,
-              reviewsLabelBuilder: (count) => '($count)',
+          const SizedBox(width: Spacing.small),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Semantics(
+                  identifier: 'order_summary_jeeber_name',
+                  container: true,
+                  child: Text(
+                    summary.jeeberName,
+                    style: context.jeebText.cardTitle.copyWith(
+                      color: scheme.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (summary.hasRating) ...<Widget>[
+                  const SizedBox(height: Spacing.twoXSmall),
+                  // JEBV4-285: the stars + rating + review-count row is
+                  // intrinsically wider than the Expanded name/rating block can
+                  // be — a long review count (e.g. "(312)") pushed it past the
+                  // edge and tripped a RenderFlex overflow stripe. scaleDown
+                  // keeps the whole rating legible by shrinking it to the
+                  // available width instead of clipping; centerStart keeps it
+                  // leading-aligned in both LTR and RTL.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: OmdsStarRatingDisplay(
+                      averageRating: summary.jeeberRating!,
+                      totalReviews: summary.jeeberRatingCount,
+                      starSize: Sizes.medium,
+                      reviewsLabelBuilder: (count) => '($count)',
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
-      ],
+      ),
     );
   }
 }
 
-/// Accepted COD price (`order_summary_price`) pill.
+/// Tier pill + ETA qualifier — 10's tier row (`tpl 596`: chip, then the muted
+/// SLA line) carrying `order_summary_tier` and `order_summary_eta`.
+///
+/// A [Wrap], not a [Row], for the reason `tracking_header_overflow_test`
+/// documents on the tracking surface: an unmapped tier id arrives raw off the
+/// wire and Arabic ETA copy is twice as long as English, so at 200% text scale
+/// the two runs cannot share a line. Wrapping stacks them instead of painting
+/// an overflow stripe; the [ConstrainedBox] bounds the unbounded main-axis
+/// constraints a `Wrap` hands its children so one long token ellipsises.
+class _TierEtaBlock extends StatelessWidget {
+  const _TierEtaBlock({required this.summary});
+
+  final OrderSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final OrderSummaryL10n l10n = OrderSummaryL10n.of(context);
+    final String tier = summary.tier.trim();
+    final int? eta = summary.etaMinutes;
+    final JeebTier resolved = JeebTier.fromId(tier);
+    final TextStyle mutedRun = context.jeebText.bodySmall.copyWith(
+      color: _mutedInk(context),
+    );
+    final Widget chip;
+    if (tier.isEmpty) {
+      // `tierName('')` echoes the id back, so an absent tier used to render a
+      // labelled BLANK — a field that reads broken rather than unknown. The
+      // meta chip carries the same honest "Pending" the chat header's chip uses.
+      chip = JeebTierChip.meta(label: l10n.tierPending);
+    } else if (resolved == JeebTier.unknown) {
+      // An unmapped slug comes straight off the wire, so its length is
+      // unbounded — and the kit chip cannot ellipsise (its `Row` hands the
+      // label Text unbounded constraints). Render the unknown case as a muted
+      // run, the way the tracking header does, rather than an overflow stripe.
+      chip = Text(
+        l10n.tierName(tier),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: mutedRun,
+      );
+    } else {
+      chip = JeebTierChip(tier: resolved, label: l10n.tierName(tier));
+    }
+    // ETA keeps its label in the run (the tracking header's composition) so the
+    // number is never a bare, unattributed "20 min".
+    final String etaText = eta == null
+        ? l10n.etaPending
+        : '${l10n.etaLabel}: ${l10n.etaMinutes(eta)}';
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.medium,
+        Spacing.small,
+        Spacing.medium,
+        Spacing.small,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Wrap(
+            spacing: Spacing.xSmall,
+            runSpacing: Spacing.twoXSmall,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: <Widget>[
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                child: Semantics(
+                  identifier: 'order_summary_tier',
+                  container: true,
+                  child: chip,
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                child: Semantics(
+                  identifier: 'order_summary_eta',
+                  container: true,
+                  child: Text(
+                    etaText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: mutedRun,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// The one-line order summary (`order_summary_item`), drawn as 10 draws its
+/// stops: a muted qualifier over the value.
+class _ItemBlock extends StatelessWidget {
+  const _ItemBlock({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.all(Spacing.medium),
+      child: Semantics(
+        identifier: 'order_summary_item',
+        container: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              label,
+              style: context.jeebText.bodySmall.copyWith(
+                color: _mutedInk(context),
+              ),
+            ),
+            Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: context.jeebText.cardTitle.copyWith(
+                color: scheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Accepted COD price (`order_summary_price`) — the ticket's last row and the
+/// only number on the screen, so it carries the `price` token.
 class _PriceBlock extends StatelessWidget {
   const _PriceBlock({
     required this.label,
@@ -271,37 +386,39 @@ class _PriceBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Semantics(
-      identifier: 'order_summary_price',
-      container: true,
-      child: Container(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.small,
-          vertical: Spacing.xSmall,
-        ),
-        decoration: BoxDecoration(
-          color: colors.primaryContainer,
-          borderRadius: OmdsBorderRadius.small,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: colors.onPrimaryContainer.withValues(
-                  alpha: UIConstants.opacityHigh,
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.all(Spacing.medium),
+      child: Semantics(
+        identifier: 'order_summary_price',
+        container: true,
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.jeebText.bodySmall.copyWith(
+                  color: _mutedInk(context),
                 ),
               ),
             ),
-            Text(
-              '$amount $currency',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colors.onPrimaryContainer,
+            const SizedBox(width: Spacing.small),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.centerEnd,
+                // An amount never reorders in Arabic.
+                child: Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Text(
+                    '$amount $currency',
+                    style: context.jeebText.price.copyWith(
+                      color: scheme.primary,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -311,57 +428,9 @@ class _PriceBlock extends StatelessWidget {
   }
 }
 
-/// A labelled fact chip (icon + label + value) used for ETA / tier / item. The
-/// [identifier] is applied to the value-bearing container so Maestro can assert
-/// the field is present regardless of its visible (localized) copy.
-class _Fact extends StatelessWidget {
-  const _Fact({
-    required this.identifier,
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final String identifier;
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Semantics(
-      identifier: identifier,
-      container: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: Sizes.medium, color: colors.onSurfaceVariant),
-          const SizedBox(width: Spacing.xSmall),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: colors.onSurface),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+/// Read defensively: `ThemeData.light()` harnesses carry no [JeebSemanticColors]
+/// extension.
+Color _mutedInk(BuildContext context) =>
+    (Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.light())
+        .mutedText;

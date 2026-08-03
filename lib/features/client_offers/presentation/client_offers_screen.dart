@@ -11,6 +11,7 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../core/widgets/motion/jeeb_lottie_mark.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/domain/cancel_request_repository.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
@@ -257,6 +258,9 @@ class _LoadedBody extends StatelessWidget {
   static const EdgeInsetsGeometry _gutter =
       EdgeInsetsDirectional.symmetric(horizontal: Spacing.xLarge);
 
+  /// Half of `broadcasting.json`'s 280×280 authored canvas (motion spec §4).
+  static const double _emptyMarkSize = 140;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -269,6 +273,10 @@ class _LoadedBody extends StatelessWidget {
     final acceptingOfferId = state.acceptingOfferId;
     final bestValueOfferId = state.bestValueOfferId;
     final fastestOfferId = state.fastestOfferId;
+    // The offer window is only "live" while the server still says the request
+    // is open AND has not expired — the same authority `acceptDisabled` reads,
+    // not the locally elapsed display countdown.
+    final windowIsLive = state.requestIsOpen && !state.requestIsExpired;
     return Column(
       children: [
         // ── Fixed header: strip, banners, sort bar. These used to scroll away
@@ -354,7 +362,23 @@ class _LoadedBody extends StatelessWidget {
                     ),
                     child: OmdsEmptyState(
                       key: const Key('offer-empty-state'),
-                      icon: Icons.hourglass_top_outlined,
+                      // motion (08-MOTION-SPEC §2.3): `broadcasting.json` IS
+                      // the board's "waiting for offers" empty state — the
+                      // spec names screen 11 with zero offers in as one of its
+                      // three homes. It only plays while the window is
+                      // genuinely live: on a closed or expired request nothing
+                      // is being broadcast any more, and a sonar loop there
+                      // would be a picture of an event that is not happening,
+                      // so the static hourglass stays. White surface as
+                      // authored; radial, so no RTL mirror.
+                      illustration: windowIsLive
+                          ? const JeebLottieMark(
+                              asset: 'assets/animations/broadcasting.json',
+                              width: _emptyMarkSize,
+                              height: _emptyMarkSize,
+                            )
+                          : null,
+                      icon: windowIsLive ? null : Icons.hourglass_top_outlined,
                       title: l10n.offersEmptyTitle,
                       subtitle: l10n.offersEmptyBody,
                     ),

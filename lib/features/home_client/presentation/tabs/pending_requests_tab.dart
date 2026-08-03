@@ -11,6 +11,7 @@ import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
 import '../widgets/client_home_empty_view.dart';
+import '../widgets/client_home_motion.dart';
 import '../widgets/client_home_tier_chip.dart';
 
 /// T-MOB-007: Isolated Pending Requests tab widget.
@@ -85,7 +86,15 @@ class _PendingLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(key: Key('pending-loading'), child: OmdsLoadingState());
+    // Motion spec §2.9: screen 04 waits in the brand's own voice, so all four
+    // of its loading surfaces share one mark.
+    return const Center(
+      key: Key('pending-loading'),
+      child: Padding(
+        padding: EdgeInsets.all(Spacing.large),
+        child: ClientHomeLoadingDots(),
+      ),
+    );
   }
 }
 

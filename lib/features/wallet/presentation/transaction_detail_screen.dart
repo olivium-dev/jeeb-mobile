@@ -5,6 +5,14 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/server_time.dart';
+import '../../../core/theme/jeeb_shadows.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/transaction_detail_cubit.dart';
 import '../application/transaction_detail_state.dart';
 import '../data/stub_wallet_transaction_repository.dart';
@@ -33,8 +41,17 @@ import 'transaction_detail_l10n.dart';
 ///
 /// Semantics ids placed (30_BACKLOG JM-056):
 ///   `txn_detail_root`         — screen host container
+///   `txn_detail_back`         — the top bar's leading circle (redesign-2026-08)
 ///   `txn_detail_order_link`   — → order-summary-pinned
 ///   `txn_detail_dispute_link` — → dispute-open-evidence
+///
+/// Redesign-2026-08: a re-skin onto the Jeeb kit, not a rewrite — same route,
+/// same 4-state machine, same fields in the same order, every identifier
+/// unmoved. There is no board render for this screen; the language comes from
+/// the hub two steps up, 23 (`screens/23-wallet.png`): an in-body [JeebTopBar]
+/// that renders in EVERY state, the navy stat hero for the one number the
+/// screen exists to state, a muted note for the explanation, and outlined cards
+/// for the fields and the outbound edges.
 class TransactionDetailScreen extends StatelessWidget {
   const TransactionDetailScreen({
     super.key,
@@ -89,43 +106,57 @@ class _TransactionDetailView extends StatelessWidget {
       identifier: 'txn_detail_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: copy.title,
-          showBackButton: true,
-          // Normally pushed from wallet-activity-list's
-          // `wallet_activity_row_<id>` tap, but also reachable via deep link
-          // with an empty Navigator stack. Pop when we can (pushed entry),
-          // else return to the shell — never pop the last page (which would
-          // leave an empty Navigator → black surface).
-          onBackPressed: () =>
-              context.canPop() ? context.pop() : context.go('/'),
-        ),
-        body: BlocBuilder<TransactionDetailCubit, TransactionDetailState>(
-          builder: (context, state) {
-            switch (state.status) {
-              case TransactionDetailStatus.initial:
-              case TransactionDetailStatus.loading:
-                return const OmdsLoadingState();
-              case TransactionDetailStatus.failed:
-                return OmdsErrorState(
-                  message: _errorCopy(copy, state.error),
-                  retryLabel: copy.retry,
-                  onRetry: () =>
-                      context.read<TransactionDetailCubit>().retry(),
-                );
-              case TransactionDetailStatus.loaded:
-                final txn = state.transaction;
-                if (txn == null) {
-                  return OmdsErrorState(
-                    message: copy.loadErrorGeneric,
-                    retryLabel: copy.retry,
-                    onRetry: () =>
-                        context.read<TransactionDetailCubit>().retry(),
-                  );
-                }
-                return _LoadedBody(txn: txn, copy: copy);
-            }
-          },
+        // The header is an in-body row, not a Material app bar, so it renders
+        // in EVERY state (loading / failed / loaded) and carries the board's
+        // 24px gutter instead of a centred M3 title.
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar(
+                identifier: 'txn_detail_back',
+                title: copy.title,
+                leadingTooltip:
+                    MaterialLocalizations.of(context).backButtonTooltip,
+                // Normally pushed from wallet-activity-list's
+                // `wallet_activity_row_<id>` tap, but also reachable via deep
+                // link with an empty Navigator stack. Pop when we can (pushed
+                // entry), else return to the shell — never pop the last page
+                // (which would leave an empty Navigator → black surface).
+                onLeadingPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/'),
+              ),
+              Expanded(
+                child:
+                    BlocBuilder<TransactionDetailCubit, TransactionDetailState>(
+                  builder: (context, state) {
+                    switch (state.status) {
+                      case TransactionDetailStatus.initial:
+                      case TransactionDetailStatus.loading:
+                        return const OmdsLoadingState();
+                      case TransactionDetailStatus.failed:
+                        return OmdsErrorState(
+                          message: _errorCopy(copy, state.error),
+                          retryLabel: copy.retry,
+                          onRetry: () =>
+                              context.read<TransactionDetailCubit>().retry(),
+                        );
+                      case TransactionDetailStatus.loaded:
+                        final txn = state.transaction;
+                        if (txn == null) {
+                          return OmdsErrorState(
+                            message: copy.loadErrorGeneric,
+                            retryLabel: copy.retry,
+                            onRetry: () =>
+                                context.read<TransactionDetailCubit>().retry(),
+                          );
+                        }
+                        return _LoadedBody(txn: txn, copy: copy);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       ),
@@ -156,16 +187,28 @@ class _LoadedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final List<Widget> fields = _fields();
+    final List<Widget> edges = _edges(context);
 
     return ListView(
+      // Board gutter 24, 16 above the hero, 32 below the last card.
       padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.medium,
-        Spacing.large,
+        Spacing.xLarge,
         Spacing.medium,
         Spacing.xLarge,
+        Spacing.twoXLarge,
       ),
       children: [
+        // ── Amount (sign-prefixed, D41) — the one number this screen exists to
+        //    state, so it takes 23's navy stat hero rather than the first line
+        //    of a label/value stack. Same string, same id, same position.
+        _AmountHero(
+          label: copy.amountLabel,
+          amount: copy.signedAmount(txn.sign, _fmt(txn.amount), txn.currency),
+        ),
+
+        const SizedBox(height: Spacing.medium),
+
         // ── Per-type heading + body (D37 fee_won / D2 refund-penalty / D1). ──
         // JM-056 asserts `txn_detail_type_label`; the legacy id is
         // `txn_detail_type_summary` — nest both.
@@ -173,156 +216,140 @@ class _LoadedBody extends StatelessWidget {
           identifier: 'txn_detail_type_label',
           container: true,
           explicitChildNodes: true,
-          child: Semantics(
-          identifier: 'txn_detail_type_summary',
-          container: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(_typeIcon(txn.type),
-                      color: theme.colorScheme.onSurfaceVariant),
-                  const SizedBox(width: Spacing.small),
-                  Expanded(
-                    child: Text(
-                      copy.typeHeading(txn.type),
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: Spacing.xSmall),
-              Text(copy.typeBody(txn.type),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  )),
-            ],
-          ),
-        ),
-        ),
-
-        const SizedBox(height: Spacing.large),
-
-        // ── Amount (sign-prefixed, D41). ─────────────────────────────────────
-        Semantics(
-          identifier: 'txn_detail_amount',
-          container: true,
-          child: _DetailRow(
-            label: copy.amountLabel,
-            value: copy.signedAmount(txn.sign, _fmt(txn.amount), txn.currency),
-            emphasize: true,
+          child: JeebInfoNote.muted(
+            identifier: 'txn_detail_type_summary',
+            icon: _typeIcon(txn.type),
+            title: copy.typeHeading(txn.type),
+            text: copy.typeBody(txn.type),
           ),
         ),
 
-        // ── Date. ────────────────────────────────────────────────────────────
-        if (txn.timestamp.isNotEmpty)
-          _DetailRow(label: copy.dateLabel, value: _fmtDate(txn.timestamp)),
-
-        // ── Fee-won breakdown: EXACT 10% + the pinned accepted price (D37). ──
-        if (txn.type == WalletLedgerType.feeWon) ...[
-          if (txn.feePercent != null)
-            // JM-056 AC4 asserts `txn_detail_fee_percentage_label`; the legacy
-            // id is `txn_detail_fee_rate` — nest both.
-            Semantics(
-              identifier: 'txn_detail_fee_percentage_label',
-              container: true,
-              explicitChildNodes: true,
-              child: Semantics(
-                identifier: 'txn_detail_fee_rate',
-                container: true,
-                child: _DetailRow(
-                  label: copy.feeRateLabel,
-                  value: copy.feePercentText(txn.feePercent!),
-                ),
-              ),
-            ),
-          if (txn.pinnedPrice != null)
-            Semantics(
-              identifier: 'txn_detail_pinned_price',
-              container: true,
-              child: _DetailRow(
-                label: copy.pinnedPriceLabel,
-                value: '${_fmt(txn.pinnedPrice!)} ${txn.currency}'.trim(),
-              ),
-            ),
+        // ── The typed fields, in the order they have always been in. Grouped
+        //    inside one outlined card: the kit draws the 1px inset dividers, so
+        //    the rows stop being loose lines on a bare white body.
+        if (fields.isNotEmpty) ...[
+          const SizedBox(height: Spacing.medium),
+          JeebOutlinedCard.grouped(children: fields),
         ],
 
-        // ── Dispute reference (refund / penalty, D2). ────────────────────────
-        if (txn.hasDisputeLink)
-          _DetailRow(label: copy.disputeRefLabel, value: txn.disputeId!),
-
-        // ── Reference (the originating offer / row ref). JM-056 AC1 asserts
-        //    `txn_detail_order_ref` (the order/row reference). ────────────────
-        if (txn.ref != null && txn.ref!.isNotEmpty)
-          Semantics(
-            identifier: 'txn_detail_order_ref',
-            container: true,
-            child: _DetailRow(label: copy.referenceLabel, value: txn.ref!),
-          ),
-
-        const SizedBox(height: Spacing.large),
-
-        // ── EDGE → order-summary-pinned (`/orders/:id/summary`, CTO-D3). Shown
-        //    only when the row carries a resolved orderId (reserve / fee_won /
-        //    released). Routes by NAME with the real order id (21_NAV_PLAN §C). ─
-        if (txn.hasOrderLink)
-          Semantics(
-            identifier: 'txn_detail_order_link',
-            button: true,
-            container: true,
-            child: OmdsSettingsRow(
-              title: copy.orderLink,
-              leadingIcon: Icons.receipt_long_outlined,
-              onTap: () => context.pushNamed(
-                'order-summary',
-                pathParameters: {'id': txn.orderId!},
-              ),
-            ),
-          ),
-
-        // ── EDGE → dispute-open-evidence (`/orders/:id/escalate`, JM-060).
-        //    Shown only for refund / penalty rows with a disputeId (D2). The
-        //    escalate route is keyed on a delivery/order id; W3m gives only the
-        //    disputeId, so it is passed as the route handle (param-shape gap
-        //    noted in 50_ROUTE_REQUESTS.md). ──────────────────────────────────
-        if (txn.hasDisputeLink)
-          Semantics(
-            identifier: 'txn_detail_dispute_link',
-            button: true,
-            container: true,
-            child: OmdsSettingsRow(
-              title: copy.disputeLink,
-              leadingIcon: Icons.gavel_outlined,
-              onTap: () => context.pushNamed(
-                'escalate',
-                pathParameters: {'id': txn.disputeId!},
-              ),
-            ),
-          ),
+        // ── The outbound edges, in 23's own grouped-exits card. ──────────────
+        if (edges.isNotEmpty) ...[
+          const SizedBox(height: Spacing.medium),
+          JeebOutlinedCard.grouped(children: edges),
+        ],
       ],
     );
   }
 
+  /// Date · fee rate · pinned price · dispute ref · reference — unchanged in
+  /// content and order; only their shell moved into a grouped card.
+  List<Widget> _fields() {
+    return <Widget>[
+      // ── Date. ──────────────────────────────────────────────────────────────
+      if (txn.timestamp.isNotEmpty)
+        _DetailRow(label: copy.dateLabel, value: _fmtDate(txn.timestamp)),
+
+      // ── Fee-won breakdown: EXACT 10% + the pinned accepted price (D37). ────
+      if (txn.type == WalletLedgerType.feeWon) ...[
+        if (txn.feePercent != null)
+          // JM-056 AC4 asserts `txn_detail_fee_percentage_label`; the legacy
+          // id is `txn_detail_fee_rate` — nest both.
+          Semantics(
+            identifier: 'txn_detail_fee_percentage_label',
+            container: true,
+            explicitChildNodes: true,
+            child: Semantics(
+              identifier: 'txn_detail_fee_rate',
+              container: true,
+              child: _DetailRow(
+                label: copy.feeRateLabel,
+                value: copy.feePercentText(txn.feePercent!),
+              ),
+            ),
+          ),
+        if (txn.pinnedPrice != null)
+          Semantics(
+            identifier: 'txn_detail_pinned_price',
+            container: true,
+            child: _DetailRow(
+              label: copy.pinnedPriceLabel,
+              value: '${_fmt(txn.pinnedPrice!)} ${txn.currency}'.trim(),
+            ),
+          ),
+      ],
+
+      // ── Dispute reference (refund / penalty, D2). ──────────────────────────
+      if (txn.hasDisputeLink)
+        _DetailRow(label: copy.disputeRefLabel, value: txn.disputeId!),
+
+      // ── Reference (the originating offer / row ref). JM-056 AC1 asserts
+      //    `txn_detail_order_ref` (the order/row reference). ──────────────────
+      if (txn.ref != null && txn.ref!.isNotEmpty)
+        Semantics(
+          identifier: 'txn_detail_order_ref',
+          container: true,
+          child: _DetailRow(label: copy.referenceLabel, value: txn.ref!),
+        ),
+    ];
+  }
+
+  List<Widget> _edges(BuildContext context) {
+    return <Widget>[
+      // ── EDGE → order-summary-pinned (`/orders/:id/summary`, CTO-D3). Shown
+      //    only when the row carries a resolved orderId (reserve / fee_won /
+      //    released). Routes by NAME with the real order id (21_NAV_PLAN §C). ─
+      if (txn.hasOrderLink)
+        JeebListRow(
+          // FROZEN id re-homed onto the kit row, which emits the same
+          // `Semantics(identifier:, button:, container:)` node the hand-rolled
+          // wrapper did around `OmdsSettingsRow`.
+          identifier: 'txn_detail_order_link',
+          title: copy.orderLink,
+          icon: Icons.receipt_long,
+          onTap: () => context.pushNamed(
+            'order-summary',
+            pathParameters: {'id': txn.orderId!},
+          ),
+        ),
+
+      // ── EDGE → dispute-open-evidence (`/orders/:id/escalate`, JM-060).
+      //    Shown only for refund / penalty rows with a disputeId (D2). The
+      //    escalate route is keyed on a delivery/order id; W3m gives only the
+      //    disputeId, so it is passed as the route handle (param-shape gap
+      //    noted in 50_ROUTE_REQUESTS.md). ────────────────────────────────────
+      if (txn.hasDisputeLink)
+        JeebListRow(
+          identifier: 'txn_detail_dispute_link',
+          title: copy.disputeLink,
+          icon: Icons.gavel,
+          onTap: () => context.pushNamed(
+            'escalate',
+            pathParameters: {'id': txn.disputeId!},
+          ),
+        ),
+    ];
+  }
+
+  /// Filled glyphs (R10) — the hub's own set, so a fee row carries the same
+  /// mark here as it does in the ledger list.
   IconData _typeIcon(WalletLedgerType type) {
     switch (type) {
       case WalletLedgerType.reserve:
-        return Icons.lock_clock_outlined;
+        return Icons.lock_clock;
       case WalletLedgerType.feeWon:
-        return Icons.percent_outlined;
+        return Icons.percent;
       case WalletLedgerType.released:
-        return Icons.lock_open_outlined;
+        return Icons.lock_open;
       case WalletLedgerType.refund:
-        return Icons.south_west_outlined;
+        return Icons.south_west;
       case WalletLedgerType.penalty:
-        return Icons.gavel_outlined;
+        return Icons.gavel;
       case WalletLedgerType.topup:
-        return Icons.add_card_outlined;
+        return Icons.add_card;
       case WalletLedgerType.gift:
-        return Icons.card_giftcard_outlined;
+        return Icons.card_giftcard;
       case WalletLedgerType.unknown:
-        return Icons.receipt_long_outlined;
+        return Icons.receipt_long;
     }
   }
 
@@ -343,43 +370,98 @@ class _LoadedBody extends StatelessWidget {
   }
 }
 
-/// A label / value row used for the transaction fields. `emphasize` bolds the
-/// value (used for the amount).
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    this.emphasize = false,
-  });
+/// The navy stat hero — the signed amount under its section label, in 23's
+/// balance-hero treatment (`JeebShadows.heroNavy`, one off-canvas orange ring at
+/// the bottom-END corner). Hosts the asserted `txn_detail_amount` node, which
+/// merges label + value into one announcement exactly as the label/value row it
+/// replaces did.
+class _AmountHero extends StatelessWidget {
+  const _AmountHero({required this.label, required this.amount});
 
   final String label;
-  final String value;
-  final bool emphasize;
+  final String amount;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+
+    return JeebNavySurfaceCard(
+      radius: Spacing.large,
+      padding: const EdgeInsetsDirectional.all(Spacing.large),
+      shadow: JeebShadows.heroNavy,
+      rings: const [JeebNavyRing.statBottomEnd],
+      // The id belongs to the CONTENT, not the card: wrapping the card would
+      // pull the decorative ring into the node (23's own rule).
+      child: Semantics(
+        identifier: 'txn_detail_amount',
+        container: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Natural casing in, uppercase out — the kit owns the transform.
+            JeebSectionLabel(label),
+            const SizedBox(height: Spacing.twoXSmall),
+            // A signed amount plus an ISO code is the one string a 200% text
+            // scale can push off the card, so it scales down rather than wraps.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                amount,
+                // The `+`/`-` is the load-bearing half of this token and the
+                // copy layer builds the string by hand (no `MoneyFormat`
+                // isolate), so an Arabic paragraph would reorder it to
+                // `USD 1.50-`. Resolve the run LTR instead.
+                textDirection: TextDirection.ltr,
+                style: context.jeebText.statHero.copyWith(
+                  color: scheme.onPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A label / value row used for the transaction fields, sized to sit inside a
+/// [JeebOutlinedCard.grouped] (14/16 — [JeebListRow]'s own padding, so a field
+/// row and an edge row keep the same rhythm). The label is periwinkle meta ink,
+/// the value the navy fact.
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsetsDirectional.only(bottom: Spacing.small),
+      padding: JeebListRow.defaultPadding,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(
               label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              style: context.jeebText.bodySmall.copyWith(
+                color: scheme.onSecondaryContainer,
               ),
             ),
           ),
-          const SizedBox(width: Spacing.medium),
-          Text(
-            value,
-            textAlign: TextAlign.end,
-            style: emphasize
-                ? theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)
-                : theme.textTheme.bodyLarge,
+          const SizedBox(width: Spacing.small),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: context.jeebText.body.copyWith(
+                fontWeight: FontWeight.w700,
+                color: scheme.primary,
+              ),
+            ),
           ),
         ],
       ),

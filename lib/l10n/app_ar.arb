@@ -1250,6 +1250,7 @@
   "escalatePhotoLabel": "صور (اختياري، حتى 5)",
   "escalatePhotoCountRemaining": "متبقي {remaining} من 5",
   "escalatePhotoAttached": "{count} من 5 مُرفقة",
+  "escalatePhotoChipLabel": "صورة {index}",
   "escalateCommentLabel": "تفاصيل إضافية (اختياري)",
   "escalateSubmitButton": "إرسال البلاغ",
   "escalateSubmitting": "جارٍ الإرسال…",

@@ -137,7 +137,16 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       key: CustomerProfileScreen.rootKey,
-      padding: const EdgeInsetsDirectional.only(bottom: Spacing.xLarge),
+      // redesign-2026-08: the board's 24px side gutter, owned once by the list
+      // instead of by each band. The top inset clears the shell-overlaid header
+      // actions (wallet chip + bell) so the identity card never sits under them;
+      // Spacing tops out at fourXLarge, so the 56 comes from the Sizes ramp.
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Sizes.fiveXLarge,
+        Spacing.xLarge,
+        Spacing.twoXLarge,
+      ),
       children: [
         CustomerProfileHeader(
           name: data.name,
@@ -147,6 +156,7 @@ class _Body extends StatelessWidget {
           rating: data.rating,
           ratingCount: data.ratingCount,
         ),
+        const SizedBox(height: Spacing.small),
         CustomerProfileRows(
           showRegister: !data.isJeeber,
           // AC2 / R-3 (jm-035): register-as-delivery → the standalone

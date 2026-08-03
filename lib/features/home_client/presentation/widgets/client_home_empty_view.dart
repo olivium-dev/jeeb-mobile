@@ -2,16 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
+import 'client_home_motion.dart';
 
 /// Pending-list empty content for the client Requests screen.
 ///
 /// The profile header, mic hero, filter chips, and bottom navigation remain
 /// owned by the surrounding screen. This widget supplies only the branded Jeeb
-/// application illustration, localized empty copy, and first-request CTA.
+/// empty-state mark, localized empty copy, and first-request CTA.
 ///
 /// It deliberately carries **no title**: `homeEmptyTitle` ("What do you need?")
 /// now belongs to the mic hero directly above it, and printing it twice on one
 /// screen was the duplication this redesign removes.
+///
+/// The mark is [ClientHomeEmptyMark] (`empty-say-it.json`), not the pre-redesign
+/// `empty_orders.png` shop illustration: motion spec §2.6 rules that this empty
+/// state and "no orders yet" share one CTA — make your first request — so the
+/// empty-state visual **is the mic**, matching the hero directly above.
 class ClientHomeEmptyView extends StatelessWidget {
   const ClientHomeEmptyView({super.key, this.onNewOrder});
 
@@ -34,7 +40,7 @@ class ClientHomeEmptyView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             OmdsEmptyState(
-              illustration: const _ApplicationIllustration(),
+              illustration: const ClientHomeEmptyMark(),
               subtitle: AppLocalizations.of(context).homePendingEmpty,
               padding: const EdgeInsetsDirectional.symmetric(
                 vertical: Spacing.medium,
@@ -43,24 +49,6 @@ class ClientHomeEmptyView extends StatelessWidget {
             _NewOrderButton(onPressed: onNewOrder),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Decorative Jeeb application illustration. Screen readers use the localized
-/// title and subtitle instead of receiving an unhelpful image announcement.
-class _ApplicationIllustration extends StatelessWidget {
-  const _ApplicationIllustration();
-
-  @override
-  Widget build(BuildContext context) {
-    return ExcludeSemantics(
-      child: Image.asset(
-        'assets/illustrations/empty_orders.png',
-        width: Sizes.twoHundredLarge,
-        height: Sizes.twoHundredLarge,
-        fit: BoxFit.contain,
       ),
     );
   }

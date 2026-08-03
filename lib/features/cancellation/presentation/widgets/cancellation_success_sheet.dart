@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/cancellation_result.dart';
 
@@ -9,6 +11,10 @@ import '../../domain/cancellation_result.dart';
 /// EXEMPT: OmdsBottomSheet lacks a `show` static factory with the required
 /// scroll-safe body layout. Using Flutter's `showModalBottomSheet` directly
 /// with a custom child that uses OMDS design tokens exclusively.
+///
+/// redesign-2026-08: same sheet, Jeeb ink — the 24px sheet corner the board
+/// specifies, a filled confirmation glyph (R10: no `_outlined` variants), the
+/// `h2` headline token and the kit's navy CTA pill.
 class CancellationSuccessSheet extends StatelessWidget {
   const CancellationSuccessSheet({
     super.key,
@@ -28,6 +34,7 @@ class CancellationSuccessSheet extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
+        // 24 — the board's sheet corner (Spacing.large is that value).
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(Spacing.large),
         ),
@@ -44,21 +51,21 @@ class CancellationSuccessSheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(Spacing.large),
+        padding: const EdgeInsetsDirectional.all(Spacing.large),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SuccessIcon(),
+            const _SuccessIcon(),
             const SizedBox(height: Spacing.medium),
             _SuccessTitle(text: l10n.cancellationSuccess),
-            const SizedBox(height: Spacing.medium),
+            const SizedBox(height: Spacing.large),
             Semantics(
               identifier: 'cancellation_sheet_done_cta',
               container: true,
               button: true,
-              child: OmdsPrimaryButton(
-                text: l10n.actionDone,
+              child: JeebCtaButton.primary(
+                label: l10n.actionDone,
                 onTap: onDone,
               ),
             ),
@@ -70,10 +77,13 @@ class CancellationSuccessSheet extends StatelessWidget {
 }
 
 class _SuccessIcon extends StatelessWidget {
+  const _SuccessIcon();
+
   @override
   Widget build(BuildContext context) {
     return Icon(
-      Icons.check_circle_outline,
+      // Filled glyph (R10) — the outline variants are off this board.
+      Icons.check_circle,
       size: 56,
       color: Theme.of(context).colorScheme.primary,
     );
@@ -90,7 +100,7 @@ class _SuccessTitle extends StatelessWidget {
     return Text(
       text,
       textAlign: TextAlign.center,
-      style: Theme.of(context).textTheme.titleLarge,
+      style: context.jeebText.h2,
     );
   }
 }

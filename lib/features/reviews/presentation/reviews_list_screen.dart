@@ -5,7 +5,12 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
-import '../../../core/widgets/directional_icons.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_system_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/reviews_cubit.dart';
 import '../application/reviews_state.dart';
 import '../data/empty_reviews_repository.dart';
@@ -53,6 +58,17 @@ import 'widgets/review_row.dart';
 ///   `review_<id>_report_cta`       — per-row report (dynamic id, D27)
 ///   `reviews_load_more`            — in-list next-page skeleton (D73 infinite)
 ///   `reviews_back`                 — → jeeber-profile-reviews
+///
+/// redesign-2026-08 (no board render — screen 15 `15-mutual-rating` is the
+/// adjacent reference): a re-skin onto the Jeeb kit, not a product change. The
+/// `OMDSAppBar` became an in-body [JeebTopBar] (so the header renders in EVERY
+/// state, the wallet-hub idiom), the divider-separated `OmdsReviewCard` rows
+/// became outlined [JeebOutlinedCard]s on a 24px gutter with an 12px rhythm,
+/// the D59 badge/note pair became a [JeebSystemChip] + [JeebInfoNote], and the
+/// error/retry pair became a [JeebInfoNote] + [JeebCtaButton]. Every raw
+/// `TextStyle` now resolves through `context.jeebText`. All 11 identifiers are
+/// unmoved and the 4-state machine, pagination and D27 confirm flow are byte
+/// -for-byte the same behaviour.
 // ORPHAN (JEBV4-227, verified 2026-07-12): path-param route twin, zero callsites (query-param twin is live) — see docs/project-understanding/reconciliation/orphans.md
 class ReviewsListScreen extends StatelessWidget {
   const ReviewsListScreen({
@@ -128,66 +144,78 @@ class _ReviewsView extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: copy.title,
-          // EDGE: reviews-list → jeeber-profile-reviews (back). The asserted
-          // `reviews_back` node is the leading affordance (21_NAV_PLAN §C,
-          // JM-068). pop() returns to the profile that pushed us; on a cold
-          // deep-link (no history) fall back to the shell root.
-          leading: Semantics(
-            identifier: 'reviews_back',
-            button: true,
-            child: IconButton(
-              icon: Icon(DirectionalIcons.back(context)),
-              onPressed: () =>
-                  context.canPop() ? context.pop() : context.go('/'),
-            ),
+        // The board's header is an in-body row, not a Material app bar, so it
+        // renders in EVERY state (loading / failed / loaded) — the wallet-hub
+        // idiom. `identifier` lands on the kit's leading circle, which is the
+        // frozen `<screen>_back` contract (03-WAVE1-KIT §1.1).
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar(
+                // EDGE: reviews-list → jeeber-profile-reviews (back). The
+                // asserted `reviews_back` node is the leading affordance
+                // (21_NAV_PLAN §C, JM-068). pop() returns to the profile that
+                // pushed us; on a cold deep-link (no history) fall back to the
+                // shell root.
+                identifier: 'reviews_back',
+                title: copy.title,
+                onLeadingPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/'),
+              ),
+              Expanded(child: _body(context, copy)),
+            ],
           ),
         ),
-        body: BlocConsumer<ReviewsCubit, ReviewsState>(
-          // One-shot report side-effect (D27): fire a single snackbar when a
-          // report finishes, then acknowledge so a rebuild doesn't replay it
-          // (40_GUARDRAILS_ARCH §3 nav/side-effects in listener, never builder).
-          listenWhen: (p, n) =>
-              p.reportStatus != n.reportStatus &&
-              (n.reportStatus == ReportStatus.succeeded ||
-                  n.reportStatus == ReportStatus.failed),
-          listener: (context, state) {
-            final messenger = ScaffoldMessenger.of(context);
-            messenger.hideCurrentSnackBar();
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text(
-                  state.reportStatus == ReportStatus.succeeded
-                      ? copy.reportSuccess
-                      : copy.reportFailure,
-                ),
-              ),
-            );
-            context.read<ReviewsCubit>().acknowledgeReport();
-          },
-          builder: (context, state) {
-            switch (state.status) {
-              case ReviewsStatus.initial:
-              case ReviewsStatus.loading:
-                return _LoadingSkeletons(copy: copy);
-              case ReviewsStatus.failed:
-                return _ErrorBody(
-                  message: _errorCopy(copy, state.error),
-                  retryLabel: copy.retry,
-                  onRetry: () => context.read<ReviewsCubit>().refresh(),
-                );
-              case ReviewsStatus.loaded:
-                return RefreshIndicator(
-                  onRefresh: () => context.read<ReviewsCubit>().refresh(),
-                  child: !state.hasReviews
-                      ? _EmptyBody(copy: copy)
-                      : _LoadedList(state: state, copy: copy),
-                );
-            }
-          },
-        ),
       ),
+    );
+  }
+
+  Widget _body(BuildContext context, ReviewsL10n copy) {
+    return BlocConsumer<ReviewsCubit, ReviewsState>(
+      // One-shot report side-effect (D27): fire a single snackbar when a
+      // report finishes, then acknowledge so a rebuild doesn't replay it
+      // (40_GUARDRAILS_ARCH §3 nav/side-effects in listener, never builder).
+      listenWhen: (p, n) =>
+          p.reportStatus != n.reportStatus &&
+          (n.reportStatus == ReportStatus.succeeded ||
+              n.reportStatus == ReportStatus.failed),
+      listener: (context, state) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              state.reportStatus == ReportStatus.succeeded
+                  ? copy.reportSuccess
+                  : copy.reportFailure,
+            ),
+          ),
+        );
+        context.read<ReviewsCubit>().acknowledgeReport();
+      },
+      builder: (context, state) {
+        switch (state.status) {
+          case ReviewsStatus.initial:
+          case ReviewsStatus.loading:
+            return const _LoadingSkeletons();
+          case ReviewsStatus.failed:
+            return _ErrorBody(
+              message: _errorCopy(copy, state.error),
+              retryLabel: copy.retry,
+              onRetry: () => context.read<ReviewsCubit>().refresh(),
+            );
+          case ReviewsStatus.loaded:
+            // `OmdsPullToRefresh`, not a raw `RefreshIndicator` — the house
+            // wrapper the order-history / wallet lists use, and what
+            // `tool/check_design_tokens.sh` gates on.
+            return OmdsPullToRefresh(
+              onRefresh: () => context.read<ReviewsCubit>().refresh(),
+              child: !state.hasReviews
+                  ? _EmptyBody(copy: copy)
+                  : _LoadedList(state: state, copy: copy),
+            );
+        }
+      },
     );
   }
 
@@ -204,11 +232,24 @@ class _ReviewsView extends StatelessWidget {
   }
 }
 
+/// The board gutter (24) for every band on this screen, with the 16px first
+/// block below the top bar and a 24px tail under the last card.
+const EdgeInsetsGeometry _kListPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.medium,
+  Spacing.xLarge,
+  Spacing.xLarge,
+);
+
 /// Cold-load failure (D30). Renders the error message in the asserted
 /// `reviews_error` node and the retry as a distinct `reviews_retry_cta` node (the
 /// D30 `<screen>_retry_cta` convention) — a custom layout (not `OmdsErrorState`)
 /// so a flow can assert the error AND tap the retry by id (the OMDS widget merges
 /// its internal retry button into one node). Mirrors JM-055.
+///
+/// redesign-2026-08: the 64px red glyph slab became the kit's error note — the
+/// soft `errorContainer` tint the migration's error family was added for — over
+/// a navy retry pill. Same two nodes, same behaviour.
 class _ErrorBody extends StatelessWidget {
   const _ErrorBody({
     required this.message,
@@ -222,36 +263,25 @@ class _ErrorBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(Spacing.large),
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.xLarge,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, size: 64, color: theme.colorScheme.error),
-            const SizedBox(height: Spacing.medium),
-            Semantics(
+            JeebInfoNote.error(
               identifier: 'reviews_error',
-              container: true,
-              child: Text(
-                message,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
+              icon: Icons.error,
+              text: message,
             ),
             const SizedBox(height: Spacing.large),
-            Semantics(
+            JeebCtaButton.primary(
               identifier: 'reviews_retry_cta',
-              button: true,
-              container: true,
-              child: FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: Text(retryLabel),
-              ),
+              label: retryLabel,
+              leadingIcon: Icons.refresh,
+              onTap: onRetry,
             ),
           ],
         ),
@@ -262,10 +292,11 @@ class _ErrorBody extends StatelessWidget {
 
 /// First-load skeletons (D73 — never a bare spinner on a list, 42 §5.1). Hosts
 /// the asserted `reviews_loading` state node.
+///
+/// redesign-2026-08: the shimmers now sit in the same outlined cards the loaded
+/// rows use, so the list does not re-flow its own geometry when the page lands.
 class _LoadingSkeletons extends StatelessWidget {
-  const _LoadingSkeletons({required this.copy});
-
-  final ReviewsL10n copy;
+  const _LoadingSkeletons();
 
   @override
   Widget build(BuildContext context) {
@@ -273,18 +304,10 @@ class _LoadingSkeletons extends StatelessWidget {
       identifier: 'reviews_loading',
       container: true,
       child: ListView.separated(
-        padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
+        padding: _kListPadding,
         itemCount: 6,
-        separatorBuilder: (context, index) => const Divider(
-          height: 1,
-          indent: Spacing.medium,
-          endIndent: Spacing.medium,
-        ),
-        itemBuilder: (context, index) => const Padding(
-          padding: EdgeInsetsDirectional.symmetric(
-            horizontal: Spacing.medium,
-            vertical: Spacing.small,
-          ),
+        separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
+        itemBuilder: (_, _) => const JeebOutlinedCard(
           child: OmdsListItemShimmer(hasTrailing: false),
         ),
       ),
@@ -303,6 +326,9 @@ class _EmptyBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.xLarge,
+      ),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.18),
         Semantics(
@@ -331,66 +357,47 @@ class _AggregateHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     if (state.coldStart || state.averageScore == null) {
-      return Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(
-          Spacing.medium,
-          Spacing.medium,
-          Spacing.medium,
-          Spacing.small,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              identifier: 'reviews_new_badge',
-              child: OmdsChip(
-                label: copy.newBadge,
-                icon: Icon(
-                  Icons.auto_awesome,
-                  size: Sizes.small,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ),
-            const SizedBox(height: Spacing.xSmall),
-            Semantics(
-              identifier: 'reviews_hidden_score_note',
-              child: Text(
-                copy.hiddenScoreNote,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
+      // The badge is a settled fact about the jeeber, not a live/expiring one,
+      // so it takes the filled system tone — orange stays rationed.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          JeebSystemChip.filled(
+            identifier: 'reviews_new_badge',
+            label: copy.newBadge,
+            center: false,
+          ),
+          const SizedBox(height: Spacing.small),
+          // `.outlined` (brown 1.5px, periwinkle body) — byte-for-byte the
+          // treatment 15's blind-reveal note uses, so the two rating surfaces
+          // explain themselves the same way.
+          JeebInfoNote.outlined(
+            identifier: 'reviews_hidden_score_note',
+            icon: Icons.auto_awesome,
+            text: copy.hiddenScoreNote,
+          ),
+        ],
       );
     }
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.medium,
-        Spacing.medium,
-        Spacing.medium,
-        Spacing.small,
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.star, size: Sizes.medium, color: theme.colorScheme.primary),
-          const SizedBox(width: Spacing.xSmall),
-          Semantics(
+    return Row(
+      children: [
+        // Navy, never `starRatingColor`: §4.1 rations the warm ink, and this
+        // aggregate is the same meta line `delivery_man_profile_header` draws.
+        Icon(Icons.star, size: Sizes.large, color: scheme.primary),
+        const SizedBox(width: Spacing.xSmall),
+        Expanded(
+          child: Semantics(
             identifier: 'reviews_aggregate',
             child: Text(
               copy.aggregate(state.averageScore!, state.reviewCount),
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurface,
-              ),
+              style: context.jeebText.titleProminent
+                  .copyWith(color: scheme.primary),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -450,20 +457,14 @@ class _LoadedListState extends State<_LoadedList> {
     return ListView.separated(
       controller: _controller,
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsetsDirectional.only(bottom: Spacing.large),
+      padding: _kListPadding,
       itemCount: itemCount,
-      separatorBuilder: (_, index) {
-        // No divider under the header or above the footer slot.
-        if (index < headerCount) return const SizedBox.shrink();
-        if (index >= headerCount + reviews.length - 1) {
-          return const SizedBox.shrink();
-        }
-        return const Divider(
-          height: 1,
-          indent: Spacing.medium,
-          endIndent: Spacing.medium,
-        );
-      },
+      // R7/R12: the card outlines ARE the separation — a divider between two
+      // outlined cards draws a third line nobody asked for. The header keeps
+      // the wider block rhythm below it; the cards sit on the 12px list gap.
+      separatorBuilder: (_, index) => SizedBox(
+        height: index < headerCount ? Spacing.large : Spacing.small,
+      ),
       itemBuilder: (context, index) {
         if (index < headerCount) {
           return _AggregateHeader(state: state, copy: copy);
@@ -520,42 +521,32 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.loadMoreError) {
-      return Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.medium,
-          vertical: Spacing.medium,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Flexible(
-              child: Text(
-                copy.loadMoreError,
-                style: Theme.of(context).textTheme.bodySmall,
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Text(
+              copy.loadMoreError,
+              style: context.jeebText.bodySmall.copyWith(
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
               ),
             ),
-            const SizedBox(width: Spacing.small),
-            Semantics(
-              identifier: 'reviews_load_more_retry',
-              button: true,
-              container: true,
-              child: TextButton(
-                onPressed: () => context.read<ReviewsCubit>().retryLoadMore(),
-                child: Text(copy.retry),
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: Spacing.xSmall),
+          JeebCtaButton.text(
+            identifier: 'reviews_load_more_retry',
+            label: copy.retry,
+            labelStyle: context.jeebText.bodySmall,
+            contentPadding: EdgeInsetsDirectional.zero,
+            onTap: () => context.read<ReviewsCubit>().retryLoadMore(),
+          ),
+        ],
       );
     }
     return Semantics(
       identifier: 'reviews_load_more',
       container: true,
-      child: const Padding(
-        padding: EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.medium,
-          vertical: Spacing.small,
-        ),
+      child: const JeebOutlinedCard(
         child: OmdsListItemShimmer(hasTrailing: false),
       ),
     );

@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/cancellation_repository.dart';
 import '../domain/cancellation_result.dart';
@@ -16,6 +20,13 @@ import 'widgets/cancellation_success_sheet.dart';
 ///
 /// Accessible from the active delivery menu for both client and Jeeber roles.
 /// Emits [onCancelled] with the result when the gateway returns 200.
+///
+/// redesign-2026-08 (unrendered screen, neighbour = 10 request-summary): a
+/// re-skin onto the Jeeb kit, not a redesign. Same cubit, same reasons, same
+/// submit, same copy — but the Material app bar becomes an in-body
+/// [JeebTopBar], the reason radio-rows become selectable Jeeb cards (white +
+/// 1.5px outline → navy fill when picked, the board's single-select language),
+/// and the submit button docks in a [JeebCtaFooter] on the 24px gutter.
 class CancellationScreen extends StatelessWidget {
   const CancellationScreen({
     super.key,
@@ -171,17 +182,30 @@ class _CancellationViewState extends State<_CancellationView> {
         identifier: 'cancellation_root',
         container: true,
         child: Scaffold(
-          appBar: OMDSAppBar(
-            title: l10n.cancellationTitle,
-            showBackButton: true,
-          ),
-          body: _Body(
-            reasons: reasons,
-            selectedReason: _selectedReason,
-            otherController: _otherController,
-            label: (r) => _label(r, l10n),
-            onReasonChanged: (r) => setState(() => _selectedReason = r),
-            onSubmit: () => _submit(context),
+          // The board's header is an in-body row, not a Material app bar, so
+          // it shares the body's 24px gutter with the content beneath it.
+          body: SafeArea(
+            child: Column(
+              children: [
+                JeebTopBar.back(
+                  identifier: 'cancellation_back',
+                  title: l10n.cancellationTitle,
+                ),
+                Expanded(
+                  child: _Body(
+                    reasons: reasons,
+                    selectedReason: _selectedReason,
+                    otherController: _otherController,
+                    label: (r) => _label(r, l10n),
+                    onReasonChanged: (r) => setState(() => _selectedReason = r),
+                  ),
+                ),
+                _SubmitFooter(
+                  isEnabled: _selectedReason != null,
+                  onSubmit: () => _submit(context),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -196,7 +220,6 @@ class _Body extends StatelessWidget {
     required this.otherController,
     required this.label,
     required this.onReasonChanged,
-    required this.onSubmit,
   });
 
   final List<String> reasons;
@@ -204,48 +227,35 @@ class _Body extends StatelessWidget {
   final TextEditingController otherController;
   final String Function(String) label;
   final ValueChanged<String?> onReasonChanged;
-  final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.medium,
-          vertical: Spacing.medium,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _PromptText(text: l10n.cancellationReasonPrompt),
-            const SizedBox(height: Spacing.medium),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    CancellationReasonGroup(
-                      reasons: reasons,
-                      selectedReason: selectedReason,
-                      labelOf: label,
-                      onChanged: onReasonChanged,
-                    ),
-                    if (selectedReason == 'other') ...[
-                      const SizedBox(height: Spacing.small),
-                      _OtherTextField(controller: otherController),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: Spacing.medium),
-            _SubmitButton(
-              isEnabled: selectedReason != null,
-              onSubmit: onSubmit,
-            ),
+    return SingleChildScrollView(
+      // 24px gutters; 16 under the top bar, 24 of breathing room before the
+      // docked footer.
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        Spacing.xLarge,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PromptText(text: l10n.cancellationReasonPrompt),
+          const SizedBox(height: Spacing.medium),
+          CancellationReasonGroup(
+            reasons: reasons,
+            selectedReason: selectedReason,
+            labelOf: label,
+            onChanged: onReasonChanged,
+          ),
+          if (selectedReason == 'other') ...[
+            const SizedBox(height: Spacing.small),
+            _OtherTextField(controller: otherController),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -260,7 +270,9 @@ class _PromptText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: Theme.of(context).textTheme.titleMedium,
+      // `titleProminent` (17/w700), not `h2`: the top bar already owns the
+      // screen's 20/w700 line, so the question reads as its section headline.
+      style: context.jeebText.titleProminent,
     );
   }
 }
@@ -282,13 +294,16 @@ class _OtherTextField extends StatelessWidget {
         controller: controller,
         labelText: l10n.cancellationOtherHint,
         maxLines: 3,
+        // Aligns the field with the 16px reason-card radius rather than
+        // OMDS's 12px default (§4.4).
+        borderRadius: UIConstants.borderRadiusLarge,
       ),
     );
   }
 }
 
-class _SubmitButton extends StatelessWidget {
-  const _SubmitButton({required this.isEnabled, required this.onSubmit});
+class _SubmitFooter extends StatelessWidget {
+  const _SubmitFooter({required this.isEnabled, required this.onSubmit});
 
   final bool isEnabled;
   final VoidCallback onSubmit;
@@ -299,16 +314,23 @@ class _SubmitButton extends StatelessWidget {
     return BlocBuilder<CancellationCubit, CancellationState>(
       builder: (context, state) {
         final loading = state is CancellationLoading;
-        return Semantics(
-          identifier: 'cancellation_submit_cta',
-          container: true,
-          button: true,
-          child: OmdsPrimaryButton(
-            text: loading
-                ? l10n.deliveryActionCancellingLabel
-                : l10n.cancellationConfirmButton,
-            isEnabled: isEnabled && !loading,
-            onTap: onSubmit,
+        return JeebCtaFooter.single(
+          // The frozen id keeps its own node; the kit button's InkWell already
+          // exposes the button role, so `button: true` stays on this wrapper
+          // exactly as it shipped.
+          child: Semantics(
+            identifier: 'cancellation_submit_cta',
+            container: true,
+            button: true,
+            child: JeebCtaButton.primary(
+              // Copy is unchanged: the in-flight label is the existing
+              // "Cancelling…" string, not the kit's label-replacing spinner.
+              label: loading
+                  ? l10n.deliveryActionCancellingLabel
+                  : l10n.cancellationConfirmButton,
+              isEnabled: isEnabled && !loading,
+              onTap: onSubmit,
+            ),
           ),
         );
       },

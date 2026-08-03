@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -19,6 +21,7 @@ import '../domain/delivery_receipt.dart';
 import '../domain/delivery_receipt_repository.dart';
 import 'widgets/proof_photo_hero.dart';
 import 'widgets/proof_photo_viewer.dart';
+import 'widgets/receipt_confirmed_overlay.dart';
 
 /// `delivered-receipt-confirm` (JM-033) — the **customer** confirm-receipt
 /// prompt, reached at `/orders/:id/receipt` (auto-advanced from order-tracking
@@ -103,8 +106,58 @@ class DeliveryReceiptScreen extends StatelessWidget {
   }
 }
 
-class _DeliveryReceiptView extends StatelessWidget {
+class _DeliveryReceiptView extends StatefulWidget {
   const _DeliveryReceiptView();
+
+  @override
+  State<_DeliveryReceiptView> createState() => _DeliveryReceiptViewState();
+}
+
+class _DeliveryReceiptViewState extends State<_DeliveryReceiptView> {
+  /// How long the one-shot success mark holds the screen before the rating
+  /// hand-off. `success-check.json` draws its check by f44 (733ms at 60fps), so
+  /// this shows the whole gesture and nothing more.
+  static const Duration _confirmBeat = Duration(milliseconds: 900);
+
+  /// Owns the navigation, so the composition never can: if the asset is slow,
+  /// missing or fails to parse, the customer still lands on the rating screen.
+  Timer? _navTimer;
+
+  bool _confirmed = false;
+
+  @override
+  void dispose() {
+    _navTimer?.cancel();
+    super.dispose();
+  }
+
+  /// EDGE (63_W1_TEST_PLAN §3 jm-033 AC2, JM-034): receipt_confirm_cta →
+  /// rate-jeeber. The canonical post-delivery rating terminal is the blind
+  /// mutual-rating screen (`mutual-rating`, JM-034 reconciliation). Client mode
+  /// is the default (no `?mode=jeeber`), so the customer rates the Jeeber. We
+  /// replace the stack so the mandatory rating cannot be backed out of (D56).
+  void _goToRating(String id) {
+    if (!mounted) return;
+    context.goNamed(
+      'mutual-rating',
+      pathParameters: <String, String>{'id': id},
+    );
+  }
+
+  /// The confirm round-trip succeeded. Unchanged destination and unchanged
+  /// stack-replacing semantics — only the timing moved, to give
+  /// `success-check.json` its 900ms beat (08-MOTION-SPEC §2.5).
+  void _onConfirmSucceeded(DeliveryReceiptState state) {
+    final id = state.receipt?.deliveryId;
+    if (id == null || id.isEmpty) return;
+    // Reduce motion: no mark, no beat — navigate exactly as before.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _goToRating(id);
+      return;
+    }
+    setState(() => _confirmed = true);
+    _navTimer = Timer(_confirmBeat, () => _goToRating(id));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -117,54 +170,49 @@ class _DeliveryReceiptView extends StatelessWidget {
         child: Semantics(
           identifier: 'receipt_prompt',
           explicitChildNodes: true,
-          child: BlocConsumer<DeliveryReceiptCubit, DeliveryReceiptState>(
-            listenWhen: (prev, next) =>
-                prev.confirmStatus != next.confirmStatus &&
-                next.confirmStatus == ReceiptConfirmStatus.succeeded,
-            listener: (context, state) {
-              // Side effect ONLY in the listener (40_GUARDRAILS_ARCH §3).
-              // EDGE (63_W1_TEST_PLAN §3 jm-033 AC2, JM-034):
-              // receipt_confirm_cta → rate-jeeber. The canonical post-delivery
-              // rating terminal is the blind mutual-rating screen
-              // (`mutual-rating`, JM-034 reconciliation — mutual is the
-              // compliant terminal). Client mode is the default (no
-              // `?mode=jeeber`), so the customer rates the Jeeber. We replace
-              // the stack so the mandatory rating cannot be backed out of
-              // (D56).
-              final id = state.receipt?.deliveryId;
-              if (id != null && id.isNotEmpty) {
-                context.goNamed(
-                  'mutual-rating',
-                  pathParameters: <String, String>{'id': id},
-                );
-              }
-            },
-            builder: (context, state) {
-              switch (state.status) {
-                case DeliveryReceiptStatus.initial:
-                case DeliveryReceiptStatus.loading:
-                  return const OmdsLoadingState();
-                case DeliveryReceiptStatus.failed:
-                  return OmdsErrorState(
-                    key: const Key('receipt-load-error'),
-                    message: _errorCopy(l10n, state.error),
-                    retryLabel: l10n.receiptRetryAction,
-                    onRetry: () =>
-                        context.read<DeliveryReceiptCubit>().refresh(),
-                  );
-                case DeliveryReceiptStatus.loaded:
-                  final receipt = state.receipt;
-                  if (receipt == null) {
-                    return OmdsErrorState(
-                      message: _errorCopy(l10n, DeliveryReceiptFailure.unknown),
-                      retryLabel: l10n.receiptRetryAction,
-                      onRetry: () =>
-                          context.read<DeliveryReceiptCubit>().refresh(),
-                    );
+          child: Stack(
+            // `expand` keeps the body's constraints exactly as they were before
+            // the Stack existed (tight, full-bleed) — the overlay is additive.
+            fit: StackFit.expand,
+            children: [
+              BlocConsumer<DeliveryReceiptCubit, DeliveryReceiptState>(
+                listenWhen: (prev, next) =>
+                    prev.confirmStatus != next.confirmStatus &&
+                    next.confirmStatus == ReceiptConfirmStatus.succeeded,
+                // Side effect ONLY in the listener (40_GUARDRAILS_ARCH §3).
+                listener: (context, state) => _onConfirmSucceeded(state),
+                builder: (context, state) {
+                  switch (state.status) {
+                    case DeliveryReceiptStatus.initial:
+                    case DeliveryReceiptStatus.loading:
+                      return const OmdsLoadingState();
+                    case DeliveryReceiptStatus.failed:
+                      return OmdsErrorState(
+                        key: const Key('receipt-load-error'),
+                        message: _errorCopy(l10n, state.error),
+                        retryLabel: l10n.receiptRetryAction,
+                        onRetry: () =>
+                            context.read<DeliveryReceiptCubit>().refresh(),
+                      );
+                    case DeliveryReceiptStatus.loaded:
+                      final receipt = state.receipt;
+                      if (receipt == null) {
+                        return OmdsErrorState(
+                          message:
+                              _errorCopy(l10n, DeliveryReceiptFailure.unknown),
+                          retryLabel: l10n.receiptRetryAction,
+                          onRetry: () =>
+                              context.read<DeliveryReceiptCubit>().refresh(),
+                        );
+                      }
+                      return _LoadedBody(receipt: receipt, state: state);
                   }
-                  return _LoadedBody(receipt: receipt, state: state);
-              }
-            },
+                },
+              ),
+              // The terminal mark, over the prompt it just answered.
+              if (_confirmed)
+                const Positioned.fill(child: ReceiptConfirmedOverlay()),
+            ],
           ),
         ),
       ),

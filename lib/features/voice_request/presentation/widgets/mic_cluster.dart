@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_semantic_colors.dart';
@@ -67,7 +68,7 @@ class MicCluster extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    return Row(
+    final Widget cluster = Row(
       children: <Widget>[
         // Equal flex on both flanks, so the mic sits on the screen's axis no
         // matter how wide a satellite caption grows — the board pins the two
@@ -129,6 +130,73 @@ class MicCluster extends StatelessWidget {
           ),
         ),
       ],
+    );
+    // The Stack is unconditional and the pulse owns its own on/off. Swapping
+    // the cluster in and out of a wrapper on `isRecording` would re-parent
+    // JeebMicHero mid-press, disposing the State that is tracking the live
+    // pointer — release-to-stop and slide-to-cancel both die with it.
+    return Stack(
+      // Concentric with the disc, which the equal-flex flanks already centre —
+      // a plain centre alignment is directional-safe.
+      alignment: Alignment.center,
+      children: <Widget>[
+        _MicListeningPulse(isRecording: isRecording),
+        cluster,
+      ],
+    );
+  }
+}
+
+/// The listening breath that plays while the mic is held (motion spec §2.1).
+///
+/// `mic-listening.json` carries its own static orange disc + white glyph at the
+/// canvas centre. At [extent] that disc lands at Ø105.6 — entirely behind the
+/// Ø128 [JeebMicHero] — so only the two expanding rings ever read, which is
+/// exactly the division of labour the spec asks for: Dart owns the press state,
+/// the glow and the data-driven max-duration arc; the film owns the pulse.
+///
+/// Nothing here duplicates kit motion: [JeebMicHero]'s glow and halo are static
+/// gradients, and its arc is bound to real elapsed time.
+///
+/// Radially symmetric (09-MOTION-VALIDATION §8 `RTL: none`) — no mirror.
+class _MicListeningPulse extends StatelessWidget {
+  const _MicListeningPulse({required this.isRecording});
+
+  /// 240×240 canvas, 120f, seamless loop, reads on white and on navy.
+  static const String asset = 'assets/animations/mic-listening.json';
+
+  /// 1.2× the canvas. The rings run Ø115→Ø240 at this scale, so a ring emerges
+  /// from the Ø128 disc's edge at ~49% opacity and has dissolved well before
+  /// the box edge; 288 also stays inside the 24px gutters on a 360dp screen.
+  static const double extent = 288;
+
+  /// Only a held mic breathes — an idle composer that pulsed would claim to be
+  /// listening when nothing is being captured.
+  final bool isRecording;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isRecording) return const SizedBox.shrink();
+    return ExcludeSemantics(
+      child: IgnorePointer(
+        // Laid out at the cluster's own mic square so the rings can overflow
+        // the disc without widening the Row or moving the satellites.
+        child: SizedBox.square(
+          dimension: MicCluster.micExtent,
+          child: OverflowBox(
+            maxWidth: extent,
+            maxHeight: extent,
+            child: Lottie.asset(
+              asset,
+              width: extent,
+              height: extent,
+              // Reduce-motion holds frame 0: one still ring around the disc.
+              animate: !MediaQuery.disableAnimationsOf(context),
+              addRepaintBoundary: true,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

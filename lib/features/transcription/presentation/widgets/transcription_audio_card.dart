@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:lottie/lottie.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_shadows.dart';
@@ -32,6 +33,8 @@ class TranscriptionAudioCard extends StatelessWidget {
       child: Row(
         children: [
           _PlaybackToggle(isPlaying: state.isPlaying),
+          const SizedBox(width: Spacing.small),
+          _PlaybackWaveform(isPlaying: state.isPlaying),
           const SizedBox(width: Spacing.small),
           Expanded(child: _PlaybackProgress(state: state)),
         ],
@@ -76,6 +79,47 @@ class _PlaybackToggle extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The voice mark inside the replay card (motion spec §2.2 — 06 is a listed
+/// consumer of `voice-waveform.json`, "previewing a voice clip").
+///
+/// It occupies the same box whether or not the clip is running, so starting
+/// playback never resizes the scrubber beside it; the bars move only while
+/// audio is genuinely playing and otherwise rest on the composition's first
+/// frame. Decorative: the toggle and the scrubber already carry the card's
+/// semantics.
+///
+/// Radially symmetric (09-MOTION-VALIDATION §8 `RTL: none`) — no mirror.
+class _PlaybackWaveform extends StatelessWidget {
+  const _PlaybackWaveform({required this.isPlaying});
+
+  /// 320×96 canvas, 90f, seamless loop, orange bars with an alpha tail.
+  static const String _asset = 'assets/animations/voice-waveform.json';
+
+  /// Sized to sit on the row's midline beside a Ø48 disc without crowding the
+  /// scrubber; the width holds the composition's 320:96 canvas aspect. The
+  /// film wants ~48dp of height to render its 6px bars at full weight, which
+  /// this row cannot give without halving the (functional) scrubber — the
+  /// scrubber wins.
+  static const double _height = 24;
+  static const double _width = _height * 320 / 96;
+
+  final bool isPlaying;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: Lottie.asset(
+        _asset,
+        width: _width,
+        height: _height,
+        // Reduce-motion (and pause) hold frame 0 — a still voice mark.
+        animate: isPlaying && !MediaQuery.disableAnimationsOf(context),
+        addRepaintBoundary: true,
       ),
     );
   }
