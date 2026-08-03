@@ -285,7 +285,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
   Re-measured analyze on this branch: **0 errors / 0 warnings / 31 infos** (the `_BASELINE.md`
   "5 infos" figure predates the integration merge; the extra infos are pre-existing test-file
   deprecations on `integration/redesign-ui`, none ours). Bar stays: 0 errors, no new warnings.
-- [ ] **G-M0** foundation gate · [ ] **G-M1** kit gate · [ ] **G-M2** mapped-surfaces gate ·
+- [x] **G-M0** foundation gate @2026-08-04 — analyze 0 err/31 infos; token tests green (165 theme + 27 field + 54 motion); full suite minus captures 6234 pass / 61 skip / 48 fail, ALL classified: 18 kit (M1 handoff), ~26 feature/preview assertion+golden churn (their M2 rows), **3 REAL overflow regressions from the bigger ramp** (earnings AR body → M2-15, chat header 320×480@2.0 → M2-16, offer composer 200% → M2-13 — live defects, do not lose), 1 baseline (gesture_log; the other 3 baseline reds now PASS post-re-cut). Captures excluded (light-theme goldens stale by design; re-baselined per-screen in M2). Boot-on-navy evidenced via harness full-app mounts; device boot at M7.
+- [ ] **G-M1** kit gate · [ ] **G-M2** mapped-surfaces gate ·
   [ ] **G-M3** remainder gate · [ ] **G-M4** states gate · [ ] **G-M5** motion gate ·
   [ ] **G-M6** audit gate · [ ] **G-M7** S22 sign-off
 
@@ -509,6 +510,11 @@ Seeded from doc-13 §4 — these survive into Midnight:
 
 - 2026-08-03 · Plan authored (Fable). Branch not yet cut — G-BOOT is the first action of the
   next session.
+- 2026-08-04 · M0 COMPLETE (9/9) + G-M0 closed. Foundation: token sheet, theme re-cut (29
+  sub-themes, orange budget), field widget (pixel-verified), motion module (54 tests), fonts,
+  dark map, harness fixes. Extra: board-measured motion notes (20/30 tiles STATIC — plan M5
+  amended), ORPHAN rulings (4 delete/5 keep), 3 ramp-overflow regressions flagged to M2 rows.
+  Orchestration: parallel Opus agents per user directive; M1 kit workflow launching.
 
 ---
 
