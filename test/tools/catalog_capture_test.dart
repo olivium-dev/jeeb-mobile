@@ -20,7 +20,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
-import 'package:jeeb_mobile/devtool/catalog/catalog_models.dart';
 import 'package:jeeb_mobile/devtool/catalog/screen_catalog.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -45,7 +44,7 @@ void main() {
     for (int i = 0; i < entry.states.length; i++) {
       final CatalogState state = entry.states[i];
       final String name =
-          '${_slug(entry.feature)}__${_slug(entry.screen)}__${i}-${_slug(state.label)}';
+          '${_slug(entry.feature)}__${_slug(entry.screen)}__$i-${_slug(state.label)}';
 
       testWidgets('capture $name', (WidgetTester tester) async {
         tester.view.physicalSize = _kCanvas;

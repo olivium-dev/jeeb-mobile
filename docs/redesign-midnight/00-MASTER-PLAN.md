@@ -280,8 +280,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 (ORPHAN ruling) · `[!]` blocked → §8 queue.
 
 ### Wave gates
-- [ ] **G-BOOT** branch `feat/redesign-midnight` created; plan + doc-13 + `actual/` + harness
-  fixes (`test/support/fonts`, `test/tools`) committed; baseline re-measured
+- [x] **G-BOOT** branch `feat/redesign-midnight` created; plan + doc-13 + `actual/` + harness
+  fixes (`test/support/fonts`, `test/tools`) committed; baseline re-measured @8b49108b 2026-08-03.
+  Re-measured analyze on this branch: **0 errors / 0 warnings / 31 infos** (the `_BASELINE.md`
+  "5 infos" figure predates the integration merge; the extra infos are pre-existing test-file
+  deprecations on `integration/redesign-ui`, none ours). Bar stays: 0 errors, no new warnings.
 - [ ] **G-M0** foundation gate · [ ] **G-M1** kit gate · [ ] **G-M2** mapped-surfaces gate ·
   [ ] **G-M3** remainder gate · [ ] **G-M4** states gate · [ ] **G-M5** motion gate ·
   [ ] **G-M6** audit gate · [ ] **G-M7** S22 sign-off
