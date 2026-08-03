@@ -303,9 +303,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 
 ### M1 Kit
 - [x] M1-1 Kit restyle sweep — 31 widgets via 7-lane parallel workflow + fixup (orange-budget leaks killed, AA fixes, accent selected state, R20 bubble tint, glassBorderVivid; rulings in 02-STUDY-NOTES §M1) @2026-08-04
-- [ ] M1-2 `JeebGlassCard` + glass capsule
-- [ ] M1-3 `JeebEmptyState` (§2.7) + E1-sample illustration variants
-- [ ] M1-4 Floating pill nav widget
+- [x] M1-2 `JeebGlassCard` + `JeebGlassCapsule` (pill default, pre-baked translucency) @2026-08-04
+- [x] M1-3 `JeebEmptyState` — E1 canon + 3 sample variants, board-static ring/medallions, loading=jBreathe skeleton, error=danger tint @2026-08-04
+- [x] M1-4 `JeebPillNav` — navy capsule, 5 slots, orange active pill only, 48dp hit targets, RTL @2026-08-04
 - [ ] M1-5 Kit metric fixes (Pattern E) + tests updated → **kit re-frozen**
 
 ### M2 Mapped surfaces (order = exposure)
