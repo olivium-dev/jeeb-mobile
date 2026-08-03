@@ -57,6 +57,16 @@ do their own STEP-0 tile read.
   reduce motion. **Catalog captures run with `disableAnimations: true`** so every capture is
   the deterministic rest frame (M0-9 harness must set this).
 
+## Motion-study rulings (2026-08-04 — 03-MOTION-NOTES.md is authoritative per element)
+
+1. Board-still tiles ship STILL (R1 incl. broadcast dot + rings, R3's map route, E1's ring
+   and medallions, 20 of 30 tiles total). Field consumers on still tiles disable decor
+   animation — `JeebMidnightField` gains an `animateDecor: false` knob at M2-02 (sanctioned).
+2. jWave is CONTAINER-level (one scaling row); never add per-bar stagger the board lacks.
+3. Motion-module defaults unchanged; per-element durations come from 03-MOTION-NOTES at
+   wiring time (board ranges are wider than §2.6's column).
+4. Do NOT add: R20 typing indicator, R15 star twinkle — tempting, board-absent.
+
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
 | Screen | Ruling | Key evidence |
