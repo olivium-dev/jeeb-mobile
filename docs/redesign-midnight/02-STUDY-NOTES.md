@@ -45,6 +45,18 @@ do their own STEP-0 tile read.
 3. `JeebSegmentedToggle` restyle: active = white fill/navy ink, inactive = glass.
 4. Chips on navy ("⚡ Flash"): solid deep-navy pill (surfaceHigh) + white label, NOT glass.
 
+## Motion rulings (M0-4, ratified 2026-08-03)
+
+- Defaults accepted: jBreathe 2.6s (range midpoint), jTwinkle 2.4s (+3s slow variant),
+  jWave bar stagger 120ms, jBreathe stagger caller-supplied, dash default 5/5.
+- Dash patterns are per-surface: map route = `5 6` (measured) → call sites MUST override
+  travel to a multiple of 11 (e.g. −44) for a seamless wrap; orbit rings = `1 9` (period 10
+  divides −40, fine as-is).
+- Midnight primitives loop ∞ (board-faithful), unlike the bounded `JeebLottieMark` rule.
+  Consequence: screen tests advance with `tester.pump(duration)`; `pumpAndSettle` only under
+  reduce motion. **Catalog captures run with `disableAnimations: true`** so every capture is
+  the deterministic rest frame (M0-9 harness must set this).
+
 ## Map rulings (M0-6, ratified 2026-08-03)
 
 - R3/R11 tiles draw ZERO map labels/POIs. Ruling: **labels stay**, styled periwinkle
