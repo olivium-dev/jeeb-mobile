@@ -773,6 +773,13 @@ class _FeedRequestSliverBody extends StatelessWidget {
             onOffer: () => onMakeOffer(request),
             onAdvanceStatus: () => cubit.accept(request.id),
             exposeMakeOfferId: index == firstIncomingIndex,
+            // R5: the same computation also decides the ONE orange CTA on the
+            // screen — the newest offerable row. No second source of truth.
+            isFreshest: index == firstIncomingIndex,
+            // TODO(redesign-24): the board marks voice-filed requests with a
+            // waveform. `DeliveryRequest` carries no `hasAudio`/`audioUrl`, so
+            // the mark stays off rather than guessed — see W-2 §4.5.
+            isVoice: false,
           );
         },
       ),

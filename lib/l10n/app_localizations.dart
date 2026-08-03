@@ -950,6 +950,34 @@ class AppLocalizations {
   String get jeeberFeedFilterReplies => _get('jeeberFeedFilterReplies');
   String get jeeberFeedIgnoreAction => _get('jeeberFeedIgnoreAction');
   String get jeeberFeedOfferAction => _get('jeeberFeedOfferAction');
+  String get jeeberFeedMakeOfferAction => _get('jeeberFeedMakeOfferAction');
+
+  /// Feed-card age lines. Six CLDR branches are selected here because this
+  /// class has no ICU engine — the ARB stores one key per branch, per the
+  /// repo's key-suffix convention (qa/t-mob-fix-002/ar_plurals_check.sh).
+  String jeeberFeedMinutesAgo(int count) =>
+      _jeeberFeedAge('jeeberFeedMinutesAgo', count);
+  String jeeberFeedHoursAgo(int count) =>
+      _jeeberFeedAge('jeeberFeedHoursAgo', count);
+  String jeeberFeedDaysAgo(int count) =>
+      _jeeberFeedAge('jeeberFeedDaysAgo', count);
+
+  String _jeeberFeedAge(String base, int count) {
+    if (count == 0) return _get('${base}Zero');
+    if (count == 1) return _get('${base}One');
+    if (count == 2) return _get('${base}Two');
+    final mod = count % 100;
+    final String branch;
+    if (mod >= 3 && mod <= 10) {
+      branch = 'Few';
+    } else if (mod >= 11 && mod <= 99) {
+      branch = 'Many';
+    } else {
+      branch = 'Other';
+    }
+    return _get('$base$branch').replaceFirst('{count}', '$count');
+  }
+
   String get jeeberFeedAnonymousClient => _get('jeeberFeedAnonymousClient');
   String jeeberFeedDistanceAway(String distance) =>
       _get('jeeberFeedDistanceAway').replaceFirst('{distance}', distance);

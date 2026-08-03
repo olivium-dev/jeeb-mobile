@@ -71,7 +71,6 @@ import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -311,7 +310,7 @@ void main() {
       await _settleWellInsideTheFirstBackoffStep(tester);
 
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsOneWidget,
         reason: 'network down: the screen says it does not know',
       );
@@ -355,7 +354,7 @@ void main() {
             'the negative control',
       );
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsNothing,
         reason: 'the thread renders itself with no tap and no re-entry',
       );
@@ -389,7 +388,7 @@ void main() {
 
       await tester.pumpWidget(_host(role, _ReconnectDio.requestId));
       await _settleWellInsideTheFirstBackoffStep(tester);
-      expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+      expect(find.byType(ChatResolutionErrorView), findsOneWidget);
       expect(net.resolutionAttempts, 1);
 
       // Identical to the discriminator EXCEPT that no event is delivered. The
@@ -408,7 +407,7 @@ void main() {
             'pump budget — the two cases differ by exactly one thing',
       );
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsOneWidget,
         reason: 'still dark, because nothing told it the network was back',
       );
@@ -545,7 +544,7 @@ void main() {
             'a 5 s cadence would be 12 in this window. Still a terminating '
             'backoff on a FAILED read, not a poll: attempts=$retries',
       );
-      expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+      expect(find.byType(ChatResolutionErrorView), findsOneWidget);
     },
   );
 
@@ -580,7 +579,7 @@ void main() {
             'budget is spent and the bounded backoff owns the episode. Without '
             'the cap, 20 edges would be 20 reads with the clock frozen',
       );
-      expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+      expect(find.byType(ChatResolutionErrorView), findsOneWidget);
     },
   );
 

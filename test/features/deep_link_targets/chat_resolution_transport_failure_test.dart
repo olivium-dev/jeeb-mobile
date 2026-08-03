@@ -44,7 +44,6 @@ import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -240,7 +239,7 @@ void main() {
 
         // 1. The error body is on screen, with a retry.
         expect(
-          find.byType(OmdsErrorStatePage),
+          find.byType(ChatResolutionErrorView),
           findsOneWidget,
           reason: 'a transport failure must surface as an error with retry',
         );
@@ -280,14 +279,14 @@ void main() {
 
         await tester.pumpWidget(_host(role, _HealingDio.requestId));
         await tester.pumpAndSettle();
-        expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+        expect(find.byType(ChatResolutionErrorView), findsOneWidget);
 
         // Connectivity comes back; the user taps retry.
         healing.healed = true;
         await tester.tap(find.text('Try again'));
         await tester.pumpAndSettle();
 
-        expect(find.byType(OmdsErrorStatePage), findsNothing);
+        expect(find.byType(ChatResolutionErrorView), findsNothing);
         final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
         expect(
           chatScreen.deliveryId,
@@ -339,7 +338,7 @@ void main() {
         await tester.pumpWidget(_host(role, _OfflineDio.inTransitRequestId));
         await tester.pumpAndSettle();
 
-        expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+        expect(find.byType(ChatResolutionErrorView), findsOneWidget);
         expect(find.text('Waiting for Jeebers…'), findsNothing);
       },
     );
@@ -360,7 +359,7 @@ void main() {
 
         // NO error body: the server answered, and its answer was "not yet".
         expect(
-          find.byType(OmdsErrorStatePage),
+          find.byType(ChatResolutionErrorView),
           findsNothing,
           reason:
               'a definitive 404 is an ANSWER — turning it into an error would '

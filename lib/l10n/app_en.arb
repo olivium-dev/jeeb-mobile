@@ -1710,6 +1710,40 @@
   "@jeeberFeedOfferAction": {
     "description": "Primary action on an incoming feed card — opens the offer submission flow"
   },
+  "jeeberFeedMakeOfferAction": "Make offer",
+  "@jeeberFeedMakeOfferAction": {
+    "description": "Board wording for the feed-card offer CTA (jeeberFeedOfferAction = 'Offer' stays for any other caller)."
+  },
+  "jeeberFeedMinutesAgoZero": "Just now",
+  "jeeberFeedMinutesAgoOne": "1 min ago",
+  "jeeberFeedMinutesAgoTwo": "2 min ago",
+  "jeeberFeedMinutesAgoFew": "{count} min ago",
+  "jeeberFeedMinutesAgoMany": "{count} min ago",
+  "jeeberFeedMinutesAgoOther": "{count} min ago",
+  "@jeeberFeedMinutesAgoOther": {
+    "description": "Feed-card age line: whole minutes since the request landed. All six Arabic CLDR plural forms provided; English reuses one/other.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+  "jeeberFeedHoursAgoZero": "Just now",
+  "jeeberFeedHoursAgoOne": "1 h ago",
+  "jeeberFeedHoursAgoTwo": "2 h ago",
+  "jeeberFeedHoursAgoFew": "{count} h ago",
+  "jeeberFeedHoursAgoMany": "{count} h ago",
+  "jeeberFeedHoursAgoOther": "{count} h ago",
+  "@jeeberFeedHoursAgoOther": {
+    "description": "Feed-card age line: whole hours since the request landed. All six Arabic CLDR plural forms provided.",
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
+  "jeeberFeedDaysAgoZero": "Just now",
+  "jeeberFeedDaysAgoOne": "1 d ago",
+  "jeeberFeedDaysAgoTwo": "2 d ago",
+  "jeeberFeedDaysAgoFew": "{count} d ago",
+  "jeeberFeedDaysAgoMany": "{count} d ago",
+  "jeeberFeedDaysAgoOther": "{count} d ago",
+  "@jeeberFeedDaysAgoOther": {
+    "description": "Feed-card age line: whole days since the request landed. All six Arabic CLDR plural forms provided.",
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
   "jeeberFeedAnonymousClient": "Customer",
   "@jeeberFeedAnonymousClient": {
     "description": "Intentional Jeeber-feed identity fallback while the privacy-filtered gateway item omits customer name and avatar"

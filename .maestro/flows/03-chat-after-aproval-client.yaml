@@ -30,8 +30,10 @@
 #        phase (those are broadcasting-only). Asserting their ABSENCE would be
 #        over-reach; we assert the three text bubbles that ARE designed here.
 #
-#   The shared composer (field + attach + voice + send) is also present, same
-#   ids as state 02.
+#   The shared composer (field + attach + send) is also present, same ids as
+#   state 02. There is no mic affordance — decision B-04 refused it, so
+#   `chat_detail_voice_button` has never been emitted and the assertion on it
+#   that used to sit below was stale.
 #
 #   SEMANTICS MERGING — confirmed empirically (not assumed):
 #     • chat_detail_message_read — the read-receipt tick Semantics merges into
@@ -170,13 +172,11 @@ appId: ${APP_ID}
 - assertVisible:
     id: "chat_detail_message_dev-a-out-2"
 
-# Composer affordances: field + attach (+) + mic + send pill.
+# Composer affordances: field + attach + send pill. No mic — see B-04 above.
 - assertVisible:
     id: "chat_detail_message_input"
 - assertVisible:
     id: "chat_detail_attach_button"
-- assertVisible:
-    id: "chat_detail_voice_button"
 - assertVisible:
     id: "chat_detail_send_button"
 

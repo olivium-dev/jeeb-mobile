@@ -96,11 +96,17 @@ class RequestTypeScreen extends StatelessWidget {
 // (20/16/20/32) is owned by location/ and shared with the 09 lane — not edited.
 // Top inset is the board's 14 between the top bar and the catalog subtitle
 // (08 `tpl 417`), rounded to the 12 token.
+//
+// The bottom inset is NOT on the board (which draws a 956dp viewport where the
+// content never reaches the footer): on a 360x780 phone the catalog scrolls,
+// and without it the "Deliver to" card ends flush against the docked Continue
+// pill at the end of the scroll. It costs nothing on tall viewports — the
+// `Spacer` below absorbs it.
 const _bodyPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
   Spacing.small,
   Spacing.xLarge,
-  0,
+  Spacing.large,
 );
 const _footerPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,

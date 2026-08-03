@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intl/intl.dart' show DateFormat;
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_tier_chip.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_waveform.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_models.dart';
 import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import 'package:omds/omds.dart';
@@ -20,6 +24,8 @@ DeliveryRequest _request({
   String? senderAvatarUrl,
   double? senderRating = 4,
   JeeberRequestTier? tier = JeeberRequestTier.flash,
+  String? itemsSummary = '1 kilo potato, water gallon, coffee blend',
+  double? distanceFromYouKm = 3,
 }) {
   return DeliveryRequest(
     id: id,
@@ -33,8 +39,8 @@ DeliveryRequest _request({
     senderName: senderName,
     senderAvatarUrl: senderAvatarUrl,
     senderRating: senderRating,
-    itemsSummary: '1 kilo potato, water gallon, coffee blend',
-    distanceFromYouKm: 3,
+    itemsSummary: itemsSummary,
+    distanceFromYouKm: distanceFromYouKm,
     receivedAt: receivedAt ?? DateTime(2026, 6, 11, 9, 41),
     feedStatus: status,
     nextDeliveryAction: action,
@@ -42,18 +48,27 @@ DeliveryRequest _request({
 }
 
 void main() {
-  testWidgets('renders name, summary, distance, tier, rating', (tester) async {
+  // The board's card leads with the JOB (16 `tpl 931–943`): what was asked for,
+  // then tier + distance + neighbourhood. The client's identity is deliberately
+  // absent — it is not what the jeeber prices, and it lives on the detail.
+  testWidgets('leads with the job, then tier + distance + neighbourhood', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host(JeeberFeedCard(request: _request())));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sami Fawaz'), findsOneWidget);
     expect(
       find.text('1 kilo potato, water gallon, coffee blend'),
       findsOneWidget,
     );
-    expect(find.text('3km away from you'), findsOneWidget);
+    expect(find.text('3 km'), findsOneWidget);
+    expect(find.text('Hamra'), findsOneWidget);
     expect(find.text('Flash'), findsOneWidget);
-    expect(find.byType(OmdsStarRatingDisplay), findsOneWidget);
+
+    // The identity band is gone, not merely restyled.
+    expect(find.text('Sami Fawaz'), findsNothing);
+    expect(find.byType(OmdsStarRatingDisplay), findsNothing);
+    expect(find.byType(OmdsProfileAvatar), findsNothing);
   });
 
   testWidgets('unknown tier renders no fabricated tier chip', (tester) async {
@@ -62,73 +77,77 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(OmdsChip), findsNothing);
+    expect(find.byType(JeebTierChip), findsNothing);
     expect(find.text('Light'), findsNothing);
-    expect(find.text('Offer'), findsOneWidget);
+    expect(find.text('Make offer'), findsOneWidget);
   });
 
-  testWidgets('missing gateway identity renders an intentional OMDS fallback',
-      (tester) async {
+  // A request filed with no description is still a job: the headline falls back
+  // to the client's name (and to the localized anonymous label), never to an
+  // empty row.
+  testWidgets('a request with no description falls back, never blanks', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _host(
         JeeberFeedCard(
-          request: _request(senderName: null, senderRating: null),
+          request: _request(
+            itemsSummary: null,
+            senderName: null,
+            senderRating: null,
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Customer'), findsOneWidget);
-    expect(find.text('?'), findsNothing);
-    final avatar = tester.widget<OmdsProfileAvatar>(
-      find.byKey(const Key('jeeber-feed-card-avatar')),
+    final headline = tester.widget<Text>(
+      find.byKey(const Key('jeeber-feed-card-summary')),
     );
-    expect(avatar.initial, 'C');
-    expect(avatar.profilePicUrl, isNull);
+    expect(headline.data, 'Customer');
   });
 
-  testWidgets('row groups identity, summary, metadata, and actions coherently',
-      (tester) async {
-    tester.view.physicalSize = const Size(360, 800);
+  // Structure proof for the two-row content model: the headline sits above the
+  // meta row, the timestamp is pinned to the end of row 1, and the CTA is
+  // pinned to the end of row 2 — the whole point of the redesign is that a
+  // jeeber can scan a column of these without reading them.
+  testWidgets('two rows: job + time, then tier + meta + one action', (
+    tester,
+  ) async {
+    // 480, not a handset 360: `flutter_test`'s stand-in font advances every
+    // glyph by its full font size (~1.8x Inter), so a 360 surface here models
+    // a ~200dp device, not the S22 this row is measured for.
+    tester.view.physicalSize = const Size(480, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       _host(
-        JeeberFeedCard(
-          request: _request(senderName: null, senderRating: null),
-          onIgnore: () {},
-          onOffer: () {},
-        ),
+        JeeberFeedCard(request: _request(), onIgnore: () {}, onOffer: () {}),
       ),
     );
     await tester.pumpAndSettle();
 
-    final avatarRect = tester.getRect(
-      find.byKey(const Key('jeeber-feed-card-avatar')),
-    );
-    final contentRect = tester.getRect(
-      find.byKey(const Key('jeeber-feed-card-content')),
-    );
-    final summaryRect = tester.getRect(
+    final headlineRect = tester.getRect(
       find.byKey(const Key('jeeber-feed-card-summary')),
     );
     final timeRect = tester.getRect(
       find.byKey(const Key('jeeber-feed-card-timestamp')),
     );
-    final footerRect = tester.getRect(
+    final metaRect = tester.getRect(
       find.byKey(const Key('jeeber-feed-card-footer')),
     );
     final offerRect = tester.getRect(
       find.byKey(const Key('jeeber-feed-offer-req-1')),
     );
 
-    expect(contentRect.left, greaterThan(avatarRect.right));
-    expect(summaryRect.left, closeTo(contentRect.left, 0.1));
-    expect(timeRect.top, lessThan(summaryRect.top));
-    expect(footerRect.top, greaterThan(summaryRect.bottom));
-    expect(offerRect.top, greaterThan(summaryRect.bottom));
+    // Row 1: headline and time share a baseline band; the time is at the end.
+    expect(timeRect.center.dy, closeTo(headlineRect.center.dy, 4));
+    expect(timeRect.left, greaterThan(headlineRect.right - 1));
+    // Row 2 is below row 1, and the action is its end-most element.
+    expect(metaRect.top, greaterThan(headlineRect.bottom));
+    expect(offerRect.right, greaterThan(metaRect.center.dx));
     expect(
       find.descendant(
         of: find.byKey(const Key('jeeber-feed-card-footer')),
@@ -136,57 +155,115 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('jeeber-feed-card-footer')),
-        matching: find.byKey(const Key('jeeber-feed-offer-req-1')),
-      ),
-      findsOneWidget,
-    );
   });
 
   // G1 (sprint-009 P0): the description is the request CONTENT the jeeber
-  // prices — it gets a prominent TWO-line preview in the on-surface role.
-  testWidgets(
-      'G1: description preview is 2-line, ellipsised, and body-prominent',
-      (tester) async {
+  // prices, so it is the card's HEADLINE. The board gives it one line — the
+  // full text lives on the request detail, and a wrapping headline pushed the
+  // decision row below the fold.
+  testWidgets('the description is the one-line, card-title headline', (
+    tester,
+  ) async {
     const longDescription =
         '2 shawarma + cola from Barbar, extra garlic, no pickles, and a '
         'large fries — call me when you arrive at the building entrance, '
         'third floor, ring twice';
-    await tester.pumpWidget(_host(JeeberFeedCard(
-      request: DeliveryRequest(
-        id: 'req-long',
-        pickup:
-            const RequestLocation(label: 'Hamra', latitude: 0, longitude: 0),
-        dropoff:
-            const RequestLocation(label: 'Verdun', latitude: 0, longitude: 0),
-        tier: JeeberRequestTier.flash,
-        estimatedDistanceKm: 3,
-        potentialEarnings: 4,
-        currency: 'USD',
-        expiresAt: DateTime(2030),
-        itemsSummary: longDescription,
-      ),
-    )));
+    await tester.pumpWidget(
+      _host(JeeberFeedCard(request: _request(itemsSummary: longDescription))),
+    );
     await tester.pumpAndSettle();
 
     final summary = tester.widget<Text>(
       find.byKey(const Key('jeeber-feed-card-summary')),
     );
-    expect(summary.data, longDescription,
-        reason: 'the customer\'s own words render verbatim');
-    expect(summary.maxLines, 2,
-        reason: 'the card shows a 2-line preview (full text on the detail)');
+    expect(
+      summary.data,
+      longDescription,
+      reason: 'the customer\'s own words render verbatim',
+    );
+    expect(summary.maxLines, 1);
     expect(summary.overflow, TextOverflow.ellipsis);
 
-    // Prominence: on-surface body style, not the old muted caption.
     final context = tester.element(
       find.byKey(const Key('jeeber-feed-card-summary')),
     );
     final theme = Theme.of(context);
-    expect(summary.style?.color, theme.colorScheme.onSurface);
-    expect(summary.style?.fontSize, theme.textTheme.bodyMedium?.fontSize);
+    expect(summary.style?.color, theme.colorScheme.primary);
+  });
+
+  // R5: orange is rationed to the ONE action worth taking right now. The feed
+  // marks only its freshest offerable row, so a column of cards sorts itself.
+  group('R5 the one action that decays', () {
+    testWidgets('the freshest row fills its offer pill with the accent role', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          JeeberFeedCard(request: _request(), onOffer: () {}, isFreshest: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final pill = tester.widget<JeebCtaButton>(
+        find.byKey(const Key('jeeber-feed-offer-req-1')),
+      );
+      expect(pill.variant, JeebCtaVariant.primary);
+
+      // The fill is the accent role, not the navy a selected chip normally
+      // paints — proof the accent re-pointing actually reached the pill.
+      final context = tester.element(
+        find.byKey(const Key('jeeber-feed-offer-req-1')),
+      );
+      expect(Theme.of(context).colorScheme.primary, context.jeebRoles.accent);
+    });
+
+    testWidgets('every older row keeps the same pill, outlined', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(JeeberFeedCard(request: _request(), onOffer: () {})),
+      );
+      await tester.pumpAndSettle();
+
+      final pill = tester.widget<JeebCtaButton>(
+        find.byKey(const Key('jeeber-feed-offer-req-1')),
+      );
+      expect(pill.variant, JeebCtaVariant.outline);
+    });
+  });
+
+  // The card is an outlined kit card — never a shadowed one (§1.6
+  // outline-over-shadow), so a feed of them reads as one flat column.
+  testWidgets('the card is the kit outlined card', (tester) async {
+    await tester.pumpWidget(_host(JeeberFeedCard(request: _request())));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(JeebOutlinedCard), findsOneWidget);
+  });
+
+  // The waveform mark is opt-in and OFF by default: the feed item carries no
+  // voice flag, and a guessed mark would misreport how the request was filed.
+  group('voice mark', () {
+    testWidgets('is absent by default', (tester) async {
+      await tester.pumpWidget(_host(JeeberFeedCard(request: _request())));
+      await tester.pumpAndSettle();
+      expect(find.byType(JeebWaveform), findsNothing);
+    });
+
+    testWidgets('renders before the headline when the request is voice', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(JeeberFeedCard(request: _request(), isVoice: true)),
+      );
+      await tester.pumpAndSettle();
+
+      final markRect = tester.getRect(find.byType(JeebWaveform));
+      final headlineRect = tester.getRect(
+        find.byKey(const Key('jeeber-feed-card-summary')),
+      );
+      expect(markRect.right, lessThanOrEqualTo(headlineRect.left));
+    });
   });
 
   testWidgets('incoming status shows Ignore + Offer actions', (tester) async {
@@ -204,7 +281,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ignore'), findsOneWidget);
-    expect(find.text('Offer'), findsOneWidget);
+    expect(find.text('Make offer'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('jeeber-feed-offer-req-1')));
     await tester.tap(find.byKey(const Key('jeeber-feed-ignore-req-1')));
@@ -224,11 +301,12 @@ void main() {
 
     expect(find.text('Pending'), findsOneWidget);
     expect(find.text('Ignore'), findsNothing);
-    expect(find.text('Offer'), findsNothing);
+    expect(find.text('Make offer'), findsNothing);
   });
 
-  testWidgets('accepted status shows the delivery-action button',
-      (tester) async {
+  testWidgets('accepted status shows the delivery-action button', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _host(
         JeeberFeedCard(
@@ -244,8 +322,9 @@ void main() {
     expect(find.text('Order picked'), findsOneWidget);
   });
 
-  testWidgets('accepted status renders heading-to-drop-off label',
-      (tester) async {
+  testWidgets('accepted status renders heading-to-drop-off label', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _host(
         JeeberFeedCard(
@@ -267,8 +346,9 @@ void main() {
   // expands to `double.infinity` unless given a tight content-width constraint via
   // `IntrinsicWidth`; without that wrap this assertion fails (pill == card width).
   // Fails-without-fix: removing `IntrinsicWidth` makes pillWidth == cardWidth.
-  testWidgets('accepted-action pill is content-hugging (not full-width)',
-      (tester) async {
+  testWidgets('accepted-action pill is content-hugging (not full-width)', (
+    tester,
+  ) async {
     // Fixed surface so card width is deterministic.
     tester.view.physicalSize = const Size(800, 600);
     tester.view.devicePixelRatio = 1.0;
@@ -287,8 +367,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final pillWidth =
-        tester.getSize(find.byKey(const Key('jeeber-feed-action-req-1'))).width;
+    final pillWidth = tester
+        .getSize(find.byKey(const Key('jeeber-feed-action-req-1')))
+        .width;
     final cardWidth = tester.getSize(find.byType(JeeberFeedCard)).width;
 
     // The pill must hug its label, leaving a clear horizontal gap to the gutter.
@@ -301,10 +382,17 @@ void main() {
     );
   });
 
-  // End-alignment proof: the hugged pill's right edge is flush with the card's
+  // End-alignment proof: the hugged pill's end edge is flush with the card's
   // tokenized inset (LTR), while the tier stays at the opposite edge.
-  testWidgets('accepted-action pill is end-aligned (right-flush in LTR)',
-      (tester) async {
+  //
+  // The tolerance is the REAL inset the redesign put there: the 24 page gutter
+  // + the kit card's 16 content padding + its 1.5 stroke = 41.5. (Pre-redesign
+  // this assertion read `Spacing.threeXLarge` against a 16 gutter and was RED
+  // on main at 538.8 — the pill was full-width inside a `Wrap`. The two-row Row
+  // is what actually pins it; the constant now matches the board's gutter.)
+  testWidgets('accepted-action pill is end-aligned (right-flush in LTR)', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(800, 600);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -322,20 +410,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final pillRect =
-        tester.getRect(find.byKey(const Key('jeeber-feed-action-req-1')));
+    final pillRect = tester.getRect(
+      find.byKey(const Key('jeeber-feed-action-req-1')),
+    );
     final cardRect = tester.getRect(find.byType(JeeberFeedCard));
 
-    // Right edges flush within the outer + inner OMDS inset, and the pill does
-    // NOT start at the card's left gutter (so it is not full-width).
+    // 24 page gutter + 16 kit-card padding + the card's 1.5 stroke = 41.5.
+    const cardInset = Spacing.xLarge + Spacing.medium + 2;
     expect(
       (cardRect.right - pillRect.right).abs(),
-      lessThan(Spacing.threeXLarge),
+      lessThanOrEqualTo(cardInset),
     );
-    expect(
-      pillRect.left,
-      greaterThan(cardRect.left + Spacing.xLarge),
-    );
+    expect(pillRect.left, greaterThan(cardRect.left + Spacing.xLarge));
   });
 
   testWidgets('exposes a stable card semantics identifier', (tester) async {
@@ -344,73 +430,73 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.bySemanticsLabel(RegExp('Pending')),
-      findsNothing,
-    );
+    expect(find.bySemanticsLabel(RegExp('Pending')), findsNothing);
     expect(find.byKey(const Key('jeeber-feed-card-req-1')), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('jeeber_feed_request_card_req-1'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('renders mirrored under Arabic locale', (tester) async {
     await tester.pumpWidget(
-      _host(
-        JeeberFeedCard(request: _request()),
-        locale: const Locale('ar'),
-      ),
+      _host(JeeberFeedCard(request: _request()), locale: const Locale('ar')),
     );
     await tester.pumpAndSettle();
 
-    final dir = Directionality.of(
-      tester.element(find.byType(JeeberFeedCard)),
-    );
+    final dir = Directionality.of(tester.element(find.byType(JeeberFeedCard)));
     expect(dir, TextDirection.rtl);
-    expect(find.text('Sami Fawaz'), findsOneWidget);
     expect(find.text('فلاش'), findsOneWidget);
+    // The tier label is its own Text — the emoji never concatenates into it.
+    expect(find.text('⚡ فلاش'), findsNothing);
   });
 
   group('G3 graceful expiry state', () {
     testWidgets(
-        'expired card fades, swaps actions for "Expired", and goes inert',
-        (tester) async {
-      var tapped = false;
-      var offered = false;
-      await tester.pumpWidget(
-        _host(
-          JeeberFeedCard(
-            request: _request(),
-            isExpired: true,
-            onTap: () => tapped = true,
-            onOffer: () => offered = true,
-            onIgnore: () {},
+      'expired card fades, swaps actions for "Expired", and goes inert',
+      (tester) async {
+        var tapped = false;
+        var offered = false;
+        await tester.pumpWidget(
+          _host(
+            JeeberFeedCard(
+              request: _request(),
+              isExpired: true,
+              onTap: () => tapped = true,
+              onOffer: () => offered = true,
+              onIgnore: () {},
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      // Action row replaced by the expired status (visible, per-request id).
-      expect(find.text('Expired'), findsOneWidget);
-      expect(find.text('Ignore'), findsNothing);
-      expect(find.text('Offer'), findsNothing);
-      expect(
-        find.bySemanticsIdentifier('jeeber_feed_request_expired_req-1'),
-        findsOneWidget,
-      );
+        // Action row replaced by the expired status (visible, per-request id).
+        expect(find.text('Expired'), findsOneWidget);
+        expect(find.text('Ignore'), findsNothing);
+        expect(find.text('Make offer'), findsNothing);
+        expect(
+          find.bySemanticsIdentifier('jeeber_feed_request_expired_req-1'),
+          findsOneWidget,
+        );
 
-      // Faded, not vanished.
-      final fade = tester.widget<AnimatedOpacity>(
-        find.ancestor(
-          of: find.byKey(const Key('jeeber-feed-card-req-1')),
-          matching: find.byType(AnimatedOpacity),
-        ),
-      );
-      expect(fade.opacity, lessThan(1.0));
+        // Faded, not vanished.
+        final fade = tester.widget<AnimatedOpacity>(
+          find.ancestor(
+            of: find.byKey(const Key('jeeber-feed-card-req-1')),
+            matching: find.byType(AnimatedOpacity),
+          ),
+        );
+        expect(fade.opacity, lessThan(1.0));
 
-      // Inert: the tap-through is disabled during the linger window.
-      await tester.tap(find.byKey(const Key('jeeber-feed-card-req-1')),
-          warnIfMissed: false);
-      expect(tapped, isFalse);
-      expect(offered, isFalse);
-    });
+        // Inert: the tap-through is disabled during the linger window.
+        await tester.tap(
+          find.byKey(const Key('jeeber-feed-card-req-1')),
+          warnIfMissed: false,
+        );
+        expect(tapped, isFalse);
+        expect(offered, isFalse);
+      },
+    );
 
     testWidgets('expired label is localized in Arabic', (tester) async {
       await tester.pumpWidget(
@@ -425,27 +511,47 @@ void main() {
   });
 
   group('SW-03 device-local timestamp', () {
-    testWidgets('card time renders in DEVICE-LOCAL time, not raw UTC',
-        (tester) async {
-      // A UTC instant, as the gateway parse layer now guarantees.
-      final utcInstant = DateTime.utc(2026, 6, 11, 9, 41);
+    testWidgets('age is measured against the DEVICE clock, not raw UTC', (
+      tester,
+    ) async {
+      // A UTC instant two hours old, as the gateway parse layer guarantees.
+      final utcInstant = DateTime.now().toUtc().subtract(
+        const Duration(hours: 2),
+      );
       await tester.pumpWidget(
         _host(JeeberFeedCard(request: _request(receivedAt: utcInstant))),
       );
       await tester.pumpAndSettle();
 
-      final localExpected = DateFormat.Hm('en').format(utcInstant.toLocal());
-      expect(find.text(localExpected), findsOneWidget,
-          reason: 'the card must format the local wall clock');
+      final stamp = tester.widget<Text>(
+        find.byKey(const Key('jeeber-feed-card-timestamp')),
+      );
+      expect(
+        stamp.data,
+        '2 h ago',
+        reason: 'the card must render the age against the device clock',
+      );
+      // The pre-fix leak was a wall clock formatted off the raw UTC fields
+      // ("09:41" under a 2h-ahead status bar). No clock may survive here.
+      expect(
+        stamp.data,
+        isNot(contains(':')),
+        reason: 'the timestamp is a relative age now, never a wall clock',
+      );
+    });
 
-      // On any host whose zone differs from UTC, the raw-UTC rendering
-      // ("09:41" under a 2h-ahead clock — the audit's SW-03 leak) must be
-      // GONE. Skipped when the host zone IS UTC (strings coincide).
-      final utcRendering = DateFormat.Hm('en').format(utcInstant);
-      if (utcRendering != localExpected) {
-        expect(find.text(utcRendering), findsNothing,
-            reason: 'pre-fix the card rendered raw UTC fields');
-      }
+    testWidgets('a fresh request reads "Just now", not a clock', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          JeeberFeedCard(
+            request: _request(receivedAt: DateTime.now().toUtc()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Just now'), findsOneWidget);
     });
   });
 }

@@ -186,30 +186,36 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      // The compact disclosure is now on screen (rebuilt off the push-triggered
-      // refetch), mounted above the still-showing feed. The full delivery card
-      // remains unbuilt until the Jeeber explicitly expands it.
+      // The just-won delivery is now PINNED on screen (rebuilt off the
+      // push-triggered refetch), above the still-showing feed. W-3: a single
+      // delivery is always expanded — the ~64dp accent-framed card cannot bury
+      // the feed, so a `View all (1)` disclosure in front of it was ceremony.
       expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
-      expect(find.text('Your active deliveries'), findsOneWidget);
-      expect(find.text('View all (1)'), findsOneWidget);
-      expect(find.text('Flash delivery request'), findsNothing);
+      expect(find.text('Your active deliveries'), findsNothing);
+      expect(find.text('View all (1)'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('jeeber_active_deliveries_view_all'),
+        findsNothing,
+        reason: 'the disclosure row only exists from two deliveries up',
+      );
       expect(
         find.bySemanticsIdentifier('jeeber_feed_request_card_pending-1'),
         findsOneWidget,
         reason: 'surfacing active work must not displace the live feed',
       );
 
-      await tester.tap(
-        find.bySemanticsIdentifier('jeeber_active_deliveries_view_all'),
-      );
-      await tester.pump();
-
       expect(
-        find.text('Flash delivery request'),
+        find.textContaining('Flash delivery request'),
         findsOneWidget,
         reason:
-            'the just-won Ordered delivery card must be available from the '
-            'push-rendered disclosure while the feed is non-empty',
+            'the just-won Ordered delivery must be readable the moment the '
+            'push lands, while the feed is non-empty',
+      );
+      expect(
+        find.bySemanticsIdentifier(
+          'jeeber_active_delivery_row_${_wonDelivery.id}',
+        ),
+        findsOneWidget,
       );
       expect(repo.calls, greaterThanOrEqualTo(2)); // initial + push refetch
       expect(tester.takeException(), isNull);

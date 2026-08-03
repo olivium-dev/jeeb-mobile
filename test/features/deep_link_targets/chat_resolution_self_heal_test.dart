@@ -38,7 +38,6 @@ import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -167,7 +166,7 @@ void main() {
       await tester.pumpWidget(_host(role, _HealingDio.requestId));
       await tester.pumpAndSettle();
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsOneWidget,
         reason: 'network down: the screen says it does not know',
       );
@@ -178,7 +177,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsNothing,
         reason:
             'the failed read must retry itself once the network is back; the '
@@ -223,7 +222,7 @@ void main() {
             'a 5 s cadence would be 12 in this window. This is a terminating '
             'backoff on a FAILED read, not a poll: attempts=$retries',
       );
-      expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+      expect(find.byType(ChatResolutionErrorView), findsOneWidget);
     },
   );
 

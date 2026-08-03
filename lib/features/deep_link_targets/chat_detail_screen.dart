@@ -22,6 +22,9 @@ import '../../core/notifications/domain/active_chat_thread.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/router/app_route_observer.dart';
 import '../../core/role/user_role.dart';
+import '../../core/widgets/jeeb/jeeb_chat_bubble.dart';
+import '../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/application/order_compose_coordinator.dart';
 import '../chat/data/dev_chat_fixture_gateway.dart';
@@ -1663,20 +1666,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   /// THE THIRD STATE, rendered. We do not know whether this conversation
   /// exists, so we assert nothing about it — no "Waiting for Jeebers", no empty
-  /// thread, no composer that would broadcast a duplicate request. OMDS only
-  /// ([OmdsErrorStatePage]); the copy is the same `chatHistoryError*` family the
-  /// #186 history-read error body uses, because it is the same statement to the
-  /// user ("couldn't load this chat — check your connection and try again").
+  /// thread, no composer that would broadcast a duplicate request. The copy is
+  /// the same `chatHistoryError*` family the #186 history-read error body uses,
+  /// because it is the same statement to the user ("couldn't load this chat —
+  /// check your connection and try again"); the redesign-2026-08 rendering of
+  /// it lives in [ChatResolutionErrorView].
   Widget _buildResolutionError(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final isJeeber = _readRole(context) == UserRole.jeeber;
     return Semantics(
       identifier: 'chat_resolution_error',
-      child: OmdsErrorStatePage(
-        appBar: ChatAppBar(title: _headerTitle(l10n, isJeeber)),
-        title: l10n.chatHistoryErrorTitle,
-        message: l10n.chatHistoryErrorMessage,
-        retryLabel: l10n.chatHistoryErrorRetry,
+      child: ChatResolutionErrorView(
+        title: _headerTitle(l10n, isJeeber),
         onRetry: _retryResolution,
       ),
     );
@@ -1685,7 +1686,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: OmdsLoadingState()));
+      // The resolving frame carries the SAME chrome the resolved thread does.
+      // It used to be a bare `Scaffold(body: Center(OmdsLoadingState()))`: a
+      // blank page with no header, so every chat open flashed a pre-redesign
+      // screen with no way back while up to three sequential gateway reads ran,
+      // and then jumped to a full identity bar. Same top bar, same 24 gutter,
+      // same bubble geometry — only the content is missing, which is the one
+      // thing that is actually still unknown here.
+      return _ChatResolvingView(
+        title: _headerTitle(
+          AppLocalizations.of(context),
+          _readRole(context) == UserRole.jeeber,
+        ),
+      );
     }
     // Checked BEFORE the gateway is dereferenced below: on this branch there is
     // deliberately no gateway, because building one would give a downstream
@@ -1790,6 +1803,180 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               pathParameters: {'id': _deliveryId},
             )
           : null,
+    );
+  }
+}
+
+/// The `/chat/:id` RESOLVING frame — screen 21's chrome with the thread still
+/// unknown.
+///
+/// It is a real screen, not a spinner: the identity [ChatAppBar] means the back
+/// circle (`chat_detail_back_button`) is reachable for the whole resolution,
+/// which the old bare `Center(OmdsLoadingState())` never offered — a user on a
+/// slow network had a blank page and no exit.
+class _ChatResolvingView extends StatelessWidget {
+  const _ChatResolvingView({required this.title});
+
+  /// The same header title the resolved thread will carry (the order reference
+  /// pre-accept), so the bar does not re-label itself under the user.
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: ChatAppBar(title: title),
+      body: const _ChatThreadSkeleton(),
+    );
+  }
+}
+
+/// Placeholder bubbles in the kit's own geometry, shown while the conversation
+/// resolves.
+///
+/// One deliberate refusal: **no outgoing (navy) placeholder**. A navy bubble is
+/// the board's "you said this"; drawing one before a single message has loaded
+/// would assert content that may not exist. Every placeholder is an incoming
+/// muted shell.
+///
+/// It renders through [JeebChatBubble] rather than re-deriving the radii, fill
+/// and padding, so the resolving frame and the resolved thread cannot drift.
+///
+/// The slow pulse is not decoration. `OmdsLoadingState`'s spinner kept a frame
+/// scheduled for as long as this screen was resolving, and several suites
+/// depend on that: their `pumpAndSettle()` is what lets the async lookup land
+/// (`chat_detail_active_thread_test` fails against a motionless placeholder).
+/// A skeleton with no motion also reads as an empty thread that finished
+/// loading, which is precisely the wrong statement. Same ticker semantics as
+/// before, in the redesign's language.
+class _ChatThreadSkeleton extends StatefulWidget {
+  const _ChatThreadSkeleton();
+
+  @override
+  State<_ChatThreadSkeleton> createState() => _ChatThreadSkeletonState();
+}
+
+class _ChatThreadSkeletonState extends State<_ChatThreadSkeleton>
+    with SingleTickerProviderStateMixin {
+  /// Width of each placeholder as a fraction of the thread column — unequal on
+  /// purpose, so the shell reads as "messages are coming" rather than as a
+  /// rendered thread. Below the kit's own 0.78 ceiling.
+  static const List<double> _widthFractions = <double>[0.62, 0.44, 0.7];
+
+  /// Trough of the pulse. High enough that the shells never blink out.
+  static const double _minOpacity = 0.45;
+
+  late final AnimationController _pulse =
+      AnimationController(vsync: this, duration: UIConstants.animationSlow)
+        ..repeat(reverse: true);
+
+  late final Animation<double> _fade = Tween<double>(
+    begin: _minOpacity,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: FadeTransition(
+        opacity: _fade,
+        child: Padding(
+          // The thread's own gutter (24) and top inset (16) — html:31.
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.medium,
+            Spacing.xLarge,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              for (final fraction in _widthFractions) ...<Widget>[
+                JeebChatBubble(
+                  side: JeebChatBubbleSide.incoming,
+                  maxWidthFraction: fraction,
+                  // An empty line box: the bubble supplies the fill and the
+                  // 18/18/18/6 corners, this supplies its height.
+                  child: const SizedBox(
+                    width: double.infinity,
+                    height: Sizes.small,
+                  ),
+                ),
+                const SizedBox(height: Spacing.small),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The `/chat/:id` resolution-error surface in the redesign-2026-08 language.
+///
+/// Screen 21's board draws no error state, so this borrows the kit's two error
+/// primitives instead of inventing a third: [JeebInfoNote.error] carries the
+/// statement (soft `errorContainer` panel, not the legacy full-bleed red slab)
+/// and the retry is the standard navy [JeebCtaButton] pill. It replaces
+/// `OmdsErrorStatePage`, whose Ø80 red glyph + Material `FilledButton.icon`
+/// was the last pre-redesign surface this route could show.
+///
+/// The `chat_resolution_error` identifier stays on the caller's wrapper — this
+/// widget adds only the new retry id.
+class ChatResolutionErrorView extends StatelessWidget {
+  const ChatResolutionErrorView({
+    super.key,
+    required this.title,
+    required this.onRetry,
+  });
+
+  /// Header title — the resolved counterpart name or the order reference.
+  final String title;
+
+  /// Re-runs the conversation lookup. Never null: an error page whose only
+  /// affordance is dead is the same dead end the old blank loader was.
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: ChatAppBar(title: title),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Spacing.xLarge,
+              vertical: Spacing.xLarge,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                JeebInfoNote.error(
+                  // The failure this screen can actually name: the lookup could
+                  // not reach the gateway. Never a generic "error".
+                  icon: Icons.wifi_off_rounded,
+                  title: l10n.chatHistoryErrorTitle,
+                  text: l10n.chatHistoryErrorMessage,
+                ),
+                const SizedBox(height: Spacing.large),
+                JeebCtaButton.primary(
+                  label: l10n.chatHistoryErrorRetry,
+                  onTap: onRetry,
+                  identifier: 'chat_detail_resolution_retry',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
