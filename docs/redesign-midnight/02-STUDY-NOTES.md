@@ -57,6 +57,24 @@ do their own STEP-0 tile read.
   reduce motion. **Catalog captures run with `disableAnimations: true`** so every capture is
   the deterministic rest frame (M0-9 harness must set this).
 
+## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
+
+| Screen | Ruling | Key evidence |
+|---|---|---|
+| M3-15/16 settlement pair | **DELETE** (routes+screens+tests+catalog; keep cubit/repo only if referenced elsewhere) | zero inbound, no deep link, no Maestro; T-MOB-032 designed-never-linked — restorable from git |
+| M3-23 profile_edit | **KEEP+restyle** | live row in SettingsScreen (R22/M2-19 chain); 9 widget tests incl. regression guard |
+| M3-31 reviews_list | **KEEP+restyle, BOTH routes** | query-param route is LIVE (client_offers→profile→reviews); path-param twin pinned by Maestro jm-068 |
+| M3-36 jeeber_pending_offers | **KEEP+restyle** | notification_deep_link.dart:57 fallback + dispatcher tests + Maestro jm-047 |
+| M3-37 live_settings | **KEEP+restyle** (loading/error chrome only; delegates to SettingsScreen) | sole live mount of SettingsScreen; destination of 5 back-fallbacks |
+| M3-38 diagnostics | **KEEP+restyle** | Diag.enabled-gated, 19 tests, dev-support value |
+| M3-42 rating_prompt | **DELETE screen+previews+fixtures; KEEP route+redirect** (inline minimal builder; update Type-A gate list if it names the file) | builder unreachable behind unconditional redirect; redirect is the live rating-push path |
+| M3-43 location placeholder | **DELETE with M2-05** incl. the devtool-only 626-LOC twin + its catalog entries | ratified P0-1/P0-2; twin's only importer is batch_06 catalog |
+
+Also: docs claim all 9 carry `// ORPHAN` tags — only 5 do (live_settings, diagnostics,
+rating_prompt, location placeholder untagged). Evidence tables live in the sweep agent
+report; deletion agents must update `no_raw_semantic_colors_test.dart` pinned paths and
+back-fallback maps when removing routes.
+
 ## Theme rulings (M0-2/M0-8, ratified 2026-08-03)
 
 1. **Shadow migration map RATIFIED** — legacy navy-tinted `JeebShadows` entries survive M0

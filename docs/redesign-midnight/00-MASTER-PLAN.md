@@ -494,7 +494,11 @@ Seeded from doc-13 §4 — these survive into Midnight:
 6. R21/24 expired-row dimming vs AA (0.65 opacity) — designer sign-off.
 7. R18 "Costs" third pill: wire it or ratify the 2-pill board (escalation was never resolved).
 8. Pattern-A gateway contract request (the 13 fields) — raise as ONE backend ticket with doc-13's table attached.
-9. ORPHAN deletions (9 screens, §6 M3 rows marked "ruling") — default is delete; confirm.
+9. ORPHAN deletions — RULED 2026-08-04 (evidence-based, see 02-STUDY-NOTES §ORPHAN): DELETE
+   settlement×2 + rating_prompt screen (route redirect kept) + location placeholder/twin;
+   KEEP+restyle profile_edit, reviews_list (both routes), jeeber_pending_offers,
+   live_settings, diagnostics. Owner: confirm the 4 deletions, esp. settlement (designed
+   T-MOB-032, never linked — restorable from git if product wires it later).
 10. `actual/` capture set (9.7 MB) committed for evidence — object if repo weight matters.
 
 *(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
