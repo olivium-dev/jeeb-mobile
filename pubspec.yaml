@@ -56,6 +56,20 @@ dependencies:
   # rationale as `crypto` below). Version matches omds_library (^2.0.10+1).
   flutter_svg: ^2.0.10+1
 
+  # Lottie vector animations (motion wave, 2026-08-03). The brand's motion is
+  # "functional and gentle" — fades and short slides, no bounce, no decorative
+  # loops — which the 10 hand-authored compositions in assets/animations/ encode.
+  # SDK-PIN — EXACT, not a caret range (same discipline as `record` 6.x and
+  # `google_maps_flutter` 2.17.1 above). 3.3.1 declares sdk ^3.6.0 /
+  # flutter >=3.27.0, satisfied by this app's Dart 3.10.8 floor and CI's
+  # Flutter 3.38.9. **`^3.3.1` resolves to 3.5.1 on a dev machine running
+  # Flutter 3.44**, and 3.5.1 requires sdk ^3.12.0 / flutter >=3.44.0 — which
+  # builds locally and then fails CI. Pub solves against the LOCAL SDK, not the
+  # declared floor, so only an exact pin is safe here. Raise it when CI moves.
+  # Shape layers only — the assets carry no images, fonts or expressions, so
+  # nothing resolves at runtime.
+  lottie: 3.3.1
+
   # URL launcher — used by active-delivery screen (T-MOB-031) to open Google
   # Maps / Waze deep-link and by share-PDF flow (T-MOB-032).
   url_launcher: ^6.3.0
@@ -269,6 +283,19 @@ flutter:
     - assets/illustrations/onboarding_trusted_jeebers.svg
     - assets/illustrations/onboarding_live_tracking.svg
 
+    # Lottie motion set (docs/redesign-2026-08/08-MOTION-SPEC.md). Registered
+    # individually rather than as a directory so an unreferenced file cannot
+    # silently inflate the bundle. Surface + RTL notes live in 09-MOTION-VALIDATION.md.
+    - assets/animations/broadcasting.json
+    - assets/animations/courier-in-transit.json
+    - assets/animations/empty-say-it.json
+    - assets/animations/kyc-review.json
+    - assets/animations/loading-dots.json
+    - assets/animations/mic-listening.json
+    - assets/animations/nearby-scan.json
+    - assets/animations/onboarding-say-it.json
+    - assets/animations/success-check.json
+    - assets/animations/voice-waveform.json
   # Inter, bundled locally (OFL-1.1) as discrete STATIC instances. A single
   # variable TTF registered under discrete `weight:` keys does NOT engage the
   # weight axis — Flutter renders 400/500/600/700 identically (proven by
