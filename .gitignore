@@ -95,3 +95,6 @@ docs/figma-cache/
 ios/Runner/GoogleService-Info.plist
 # FlutterFire-generated real options (placeholder template stays committed).
 lib/core/firebase/firebase_options.g.dart
+
+# Agent worktrees (large, machine-local)
+.claude/worktrees/

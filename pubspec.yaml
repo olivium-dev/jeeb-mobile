@@ -286,14 +286,17 @@ flutter:
     # Lottie motion set (docs/redesign-2026-08/08-MOTION-SPEC.md). Registered
     # individually rather than as a directory so an unreferenced file cannot
     # silently inflate the bundle. Surface + RTL notes live in 09-MOTION-VALIDATION.md.
+    # NOT registered (deliberate): courier-in-transit.json and onboarding-say-it.json.
+    # Both are authored and validated but unplayable today — the first needs a courier
+    # position the gateway does not provide, and the second would replace real localized
+    # Arabic copy with placeholder bars (Lottie carries no fonts). Kept on disk, out of
+    # the bundle; re-register when the data exists rather than re-authoring them.
     - assets/animations/broadcasting.json
-    - assets/animations/courier-in-transit.json
     - assets/animations/empty-say-it.json
     - assets/animations/kyc-review.json
     - assets/animations/loading-dots.json
     - assets/animations/mic-listening.json
     - assets/animations/nearby-scan.json
-    - assets/animations/onboarding-say-it.json
     - assets/animations/success-check.json
     - assets/animations/voice-waveform.json
   # Inter, bundled locally (OFL-1.1) as discrete STATIC instances. A single
