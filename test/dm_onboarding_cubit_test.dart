@@ -133,7 +133,6 @@ void main() {
       await cubit.next();
       expect(cubit.state.coverageReady, isTrue);
       // The DTO forwards the pinned home base as the matching origin (D51).
-      // No vehicleNumber on the DTO — D20 removal (JM-037).
       expect(gateway.lastSubmission!.state, 'Mount Lebanon');
       expect(gateway.lastSubmission!.address, '12 Hamra St');
       expect(gateway.lastSubmission!.homeBaseLat, 33.89);

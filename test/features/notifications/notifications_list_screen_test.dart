@@ -1,15 +1,3 @@
-// Widget tests for NotificationsListScreen (JM-057). Proves:
-//   - the EXACT Semantics identifiers render off an injected repository
-//     (notifications_root, typed notif_row_<id>) — 30_BACKLOG JM-057;
-//   - the 4-state machine (loading → failed → loaded/empty, §3);
-//   - mark-read flips the row's unread badge on tap;
-//   - the D84 per-row deep-link DISPATCH lands on the right route
-//     (tab kinds → shell; chat/wallet/kyc-rejected/waiting/receipt → their
-//     routes; unknown/missing-ref → stays on the inbox).
-//
-// A minimal GoRouter with stub destination screens (each carrying a *_root id)
-// backs the dispatch assertions, since context.goNamed needs a router.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -107,7 +95,6 @@ Widget _harness(
             _stub('delivered_receipt_root_${s.pathParameters['id']}'),
       ),
       // G3: the new_request row routes through deepLinkForMessage — the SAME
-      // resolver the push tap uses — which returns /jeeber/requests/:id.
       GoRoute(
         path: '/jeeber/requests/:id',
         name: 'jeeber-request-detail',
@@ -115,12 +102,6 @@ Widget _harness(
             _stub('jeeber_request_root_${s.pathParameters['id']}'),
       ),
       // P2/F4: the `offer` row now lands on the offer-review list, via the
-      // SAME resolver the push tap uses (`/requests/:id/offers`).
-      //
-      // The stub id is `offer_review_list_root`, the REAL production signature
-      // id (`client_offers_screen.dart:122`), not an invented one — a grep for
-      // it leads to the product rather than to a test fiction. Registered
-      // ONCE: two GoRoutes on the same path would leave the second unreachable.
       GoRoute(
         path: '/requests/:id/offers',
         name: 'offer-review',
@@ -130,8 +111,6 @@ Widget _harness(
     ],
   );
   // P2/F5: the screen reads the LIVE role (`context.read<RoleCubit>()`) to
-  // refuse a jeeber-scoped destination for a client, so the harness must
-  // provide the cubit exactly as `app.dart` does.
   return BlocProvider<RoleCubit>.value(
     value: role,
     child: MaterialApp.router(
@@ -220,10 +199,6 @@ void main() {
   );
 
   // P0-X08 regression: each row's eyebrow (category, derived from `kind`) must
-  // be DISTINCT from its title (the payload headline) — never the same string
-  // rendered twice (the "collapsed hierarchy" fixture bug). The `offer` kind
-  // eyebrow is "New offer"; the title is "title-notif-001". Both must render,
-  // and the eyebrow must NOT equal the title.
   testWidgets('row eyebrow (category) is distinct from the title (P0-X08)', (
     tester,
   ) async {
@@ -265,7 +240,6 @@ void main() {
     tester,
   ) async {
     // `unknown` has no D84 target → no navigation, so the row stays mounted and
-    // we can observe the optimistic badge clear on the SAME screen.
     final repo = _ScriptedRepository([
       _item('notif-x', NotificationKind.unknown),
     ]);
@@ -306,17 +280,12 @@ void main() {
     }
 
     // C10a (P2/F4): before P2 the inbox row went to `shell` while the push tap
-    // went to `/orders/:id` — two different wrong answers for one event. Both
-    // now consume the SAME resolver and land on the offer-review list.
     testWidgets('offer (ref) → offer-review list (P2/F4)', (tester) async {
       await tapKind(tester, NotificationKind.offer,
           ref: 'req-1', expectRootId: 'offer_review_list_root_req-1');
     });
 
     // No `ref` → the shell, never a fabricated destination. This is also b01's
-    // C10b ('offer with NO ref → shell (no fabricated destination)'): same
-    // body, and main's AC-17 name is kept because it carries the AC-ledger
-    // binding plus the stronger no-exception assertion.
     testWidgets('AC-17b/AC-17c offer with null ref → shell without exception', (
       tester,
     ) async {
@@ -325,10 +294,6 @@ void main() {
     });
 
     // AC-17a, formerly FM-1's 'FM1 offer with ref → offer-review'. Kept
-    // separate from C10a so the AC-ledger binding is not silently dropped.
-    // `expectRootId` retargeted to the real `offer_review_list_root`
-    // (client_offers_screen.dart:122): `offer_review_root` has 0 hits in `lib/`
-    // and only ONE stub route may be registered on /requests/:id/offers.
     testWidgets(
       'AC-17a resolved offer ref → offer-review at /requests/{requestId}/offers',
       (tester) async {
@@ -342,8 +307,6 @@ void main() {
     );
 
     // C10c (P2/F5): the FIX-REQUESTS 403 fix on the inbox surface — a CLIENT
-    // tapping a `new_request` row must not reach `/jeeber/requests/:id`, whose
-    // recovery path calls the jeeber-only `GET /v1/jeebers/me/feed`.
     testWidgets('new_request (ref) as a CLIENT → shell, never the jeeber '
         'request screen (F5)', (tester) async {
       await tapKind(tester, NotificationKind.newRequest,
@@ -458,8 +421,6 @@ void main() {
     });
 
     // G3: a dismissed new-request push keeps a persistent, TAPPABLE inbox
-    // row that lands on the request screen — via the push-tap resolver
-    // (deepLinkForMessage), never a re-mapped route.
     testWidgets('new_request (ref) → jeeber request screen (G3)', (
       tester,
     ) async {

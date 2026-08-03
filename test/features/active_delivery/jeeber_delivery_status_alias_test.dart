@@ -1,11 +1,4 @@
 // sprint-009 scenario matrix #11 (feat/request-scenarios).
-//
-// PROVES JeeberDeliveryStatus.fromApi resolves EVERY canonical token and every
-// legacy alias in the frozen DeliveryStatusAlias table (ADR-002 §3) to the
-// correct jeeber-side stage. Pre-fix, the underscore-stripped legacy tokens
-// `picked_up` and `heading_off` fell through to the `ordered` default (an
-// in-flight delivery re-rendered at step 1), and `disputed` /
-// `FailedNeedsEscalation` resurrected an admin-parked delivery as fresh.
 
 import 'package:flutter_test/flutter_test.dart';
 

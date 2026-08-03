@@ -4,19 +4,8 @@ import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 
-/// Empty-state scaffolding shown on the additive jeeber tabs (Dashboard /
-/// Earnings) to a regular user who is NOT (yet) a jeeber.
-///
-/// UX LAW (consolidated-lessons §12): a jeeber is also a user — EVERY user
-/// sees the full jeeber-tab scaffolding, but a non-jeeber sees the tab's
-/// EMPTY STATE inviting them to become a jeeber, NOT a role switch. There is
-/// no mode-switch: the tabs are additive and always present; only their body
-/// differs based on whether the signed-in user already has the `jeeber` role
-/// (resolved from getMe `available_roles`, never an in-app role flip).
-///
-/// The CTA routes to the become-a-jeeber / KYC flow (the same `kyc-status`
-/// target the Profile-tab `BecomeJeeberCard` uses), guarded by
-/// [GoRouter.maybeOf] so it degrades to a no-op in a router-less widget test.
+import '../../../core/previews/jeeb_preview.dart';
+
 class JeeberTabEmptyState extends StatelessWidget {
   const JeeberTabEmptyState({
     super.key,
@@ -26,40 +15,28 @@ class JeeberTabEmptyState extends StatelessWidget {
     this.subtitle,
   });
 
-  /// Empty state for the additive jeeber DASHBOARD tab (availability + feed).
-  /// A non-jeeber sees a "Become a Jeeber" invitation instead of the live
-  /// availability toggle + request feed.
   const JeeberTabEmptyState.dashboard({super.key})
       : identifier = dashboardIdentifier,
         icon = Icons.two_wheeler_outlined,
         title = null,
         subtitle = null;
 
-  /// Empty state for the additive jeeber EARNINGS tab. A non-jeeber sees the
-  /// same "Become a Jeeber" invitation instead of an empty earnings dashboard.
   const JeeberTabEmptyState.earnings({super.key})
       : identifier = earningsIdentifier,
         icon = Icons.payments_outlined,
         title = null,
         subtitle = null;
 
-  /// Stable screen-level Semantics id for the dashboard-tab empty state so QA
-  /// (Maestro / adb ui-tree) can assert a non-jeeber lands here.
   static const String dashboardIdentifier = 'jeeber_dashboard_empty_state';
 
-  /// Stable screen-level Semantics id for the earnings-tab empty state.
   static const String earningsIdentifier = 'jeeber_earnings_empty_state';
 
-  /// Screen-level Semantics identifier for this empty state.
   final String identifier;
 
-  /// Leading icon for the invitation card.
   final IconData icon;
 
-  /// Optional explicit title override; defaults to the become-a-jeeber title.
   final String? title;
 
-  /// Optional explicit subtitle override; defaults to the become-a-jeeber copy.
   final String? subtitle;
 
   @override
@@ -85,3 +62,95 @@ class JeeberTabEmptyState extends StatelessWidget {
     GoRouter.maybeOf(context)?.goNamed('kyc-status');
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+const Size _jeeberTabEmptyStatePhoneBody = Size(390, 680);
+
+/// The narrowest device the app still supports.
+const Size _jeeberTabEmptyStateCompactBox = Size(320, 600);
+
+/// A short body — a small phone in a locale with a tall system 
+const Size _jeeberTabEmptyStateShortBody = Size(390, 420);
+
+/// One state, optionally pinned to a device width. `height: dou
+Widget _jeeberTabEmptyStateHosted(Widget state, {double? width}) {
+  if (width == null) return state;
+  return Center(
+    child: SizedBox(width: width, height: double.infinity, child: state),
+  );
+}
+
+/// The `title` / `subtitle` overrides take raw [String]s, not A
+Widget _jeeberTabEmptyStateWithCopy({
+  required String identifier,
+  required IconData icon,
+  required String Function(AppLocalizations) title,
+  required String Function(AppLocalizations) subtitle,
+}) {
+  return Builder(
+    builder: (BuildContext context) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      return JeeberTabEmptyState(
+        identifier: identifier,
+        icon: icon,
+        title: title(l10n),
+        subtitle: subtitle(l10n),
+      );
+    },
+  );
+}
+
+/// Exactly how `shell_screen.dart` builds the Dashboard tab for
+@JeebPreview(
+  group: 'shell',
+  name: 'Dashboard tab · non-jeeber',
+  size: _jeeberTabEmptyStatePhoneBody,
+)
+Widget jeeberTabEmptyStateDashboard() =>
+    _jeeberTabEmptyStateHosted(const JeeberTabEmptyState.dashboard());
+
+/// The Earnings tab for the same user — the SAME invitation, de
+@JeebPreview(
+  group: 'shell',
+  name: 'Earnings tab · non-jeeber',
+  size: _jeeberTabEmptyStatePhoneBody,
+)
+Widget jeeberTabEmptyStateEarnings() =>
+    _jeeberTabEmptyStateHosted(const JeeberTabEmptyState.earnings());
+
+/// **The state that breaks.** The production invitation on a 32
+@JeebPreview(
+  group: 'shell',
+  name: 'Compact 320pt phone',
+  size: _jeeberTabEmptyStateCompactBox,
+)
+Widget jeeberTabEmptyStateCompactPhone() => _jeeberTabEmptyStateHosted(
+      const JeeberTabEmptyState.dashboard(),
+      width: 320,
+    );
+
+/// The override API, driven with real ARB copy: a KYC applicant
+@JeebPreview(
+  group: 'shell',
+  name: 'KYC resubmit copy',
+  size: _jeeberTabEmptyStatePhoneBody,
+)
+Widget jeeberTabEmptyStateKycResubmit() => _jeeberTabEmptyStateWithCopy(
+      identifier: JeeberTabEmptyState.earningsIdentifier,
+      icon: Icons.upload_file_outlined,
+      title: (AppLocalizations l10n) => l10n.kycStatusResubmitTitle,
+      subtitle: (AppLocalizations l10n) => l10n.kycStatusResubmitBody,
+    );
+
+/// The longest ARB copy in a 420pt body — the only state that c
+@JeebPreview(
+  group: 'shell',
+  name: 'KYC pending · short body',
+  size: _jeeberTabEmptyStateShortBody,
+)
+Widget jeeberTabEmptyStateKycPendingShortBody() =>
+    _jeeberTabEmptyStateWithCopy(
+      identifier: JeeberTabEmptyState.dashboardIdentifier,
+      icon: Icons.hourglass_top_outlined,
+      title: (AppLocalizations l10n) => l10n.kycStatusPendingTitle,
+      subtitle: (AppLocalizations l10n) => l10n.kycStatusPendingBody,
+    );

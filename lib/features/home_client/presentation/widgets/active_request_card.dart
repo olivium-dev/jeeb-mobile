@@ -5,15 +5,9 @@ import '../../../../core/theme/jeeb_tier_colors.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/client_home_request.dart';
 
-/// Active delivery card matching the Figma design (node 56611:18887).
-///
-/// Layout: avatar | (title + tier badge, destination, progress bar,
-/// progress labels, optional "Track my order" CTA). Sits flush in the home
-/// list and is separated from siblings by a hairline [Divider].
-///
-/// The card is composed entirely of OMDS primitives — [OmdsProfileAvatar],
-/// [OmdsPrimaryButton], plus tokenized [LinearProgressIndicator]. No raw
-/// `FilledButton`, no `CircleAvatar`, no hardcoded colors.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+
 class ActiveOrderCard extends StatelessWidget {
   const ActiveOrderCard({
     super.key,
@@ -25,21 +19,11 @@ class ActiveOrderCard extends StatelessWidget {
   final ClientHomeRequest request;
   final VoidCallback onTap;
 
-  /// Post-accept "Open chat" entry point. When non-null (and the order is
-  /// trackable, i.e. a Jeeber is engaged), the card surfaces an "Open chat"
-  /// CTA that re-opens the accepted order's conversation. Null on surfaces
-  /// without a conversation (and in existing widget tests), where it hides.
   final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // `container: true` + `explicitChildNodes: true` make the card a Semantics
-    // *boundary*. Without it the outer `orders_active_card_<id>` node
-    // auto-merges its descendants and swallows the Track CTA's
-    // `orders_track_order_button_<id>` identifier, so Maestro/screen readers
-    // can't address the Track button. The boundary keeps the card id AND
-    // surfaces the Track-button id as its own queryable node.
     return Semantics(
       identifier: 'orders_active_card_${request.id}',
       container: true,
@@ -175,21 +159,10 @@ class _ActiveOrderBody extends StatelessWidget {
     );
   }
 
-  /// Q-085 (option A, ratified) — the "Track my order" CTA renders on EVERY
-  /// In-Progress card. Even a still-searching order is trackable: opening the
-  /// tracking view shows the pilot straight-line route + locked D18 deadline
-  /// (Q-061), and gracefully handles the "no delivery row yet" 404. Only the
-  /// terminal states — delivered / cancelled — have nothing to track (and are
-  /// filtered out of In Progress upstream anyway; this stays defensive).
   static bool _canTrack(ClientRequestStatus s) =>
       s != ClientRequestStatus.delivered &&
       s != ClientRequestStatus.cancelled;
 
-  /// The "Open chat" re-entry pill is a DISTINCT gate from tracking: it only
-  /// makes sense once a Jeeber is actually engaged (accepted → at pickup → en
-  /// route), because a still-searching / offers-received order has no accepted
-  /// 1:1 conversation to re-open yet. Decoupled from [_canTrack] so widening
-  /// the Track CTA to every card (Q-085) does not surface a phantom chat CTA.
   static bool _hasJeeber(ClientRequestStatus s) =>
       s == ClientRequestStatus.accepted ||
       s == ClientRequestStatus.atPickup ||
@@ -226,9 +199,6 @@ class _ActiveOrderHeader extends StatelessWidget {
   }
 }
 
-/// Tier chip used by every home-tab card (In Progress / Pending / Replies).
-/// Picks its color from [JeebTierColors] so the same theme extension drives
-/// the visual treatment everywhere.
 class ClientHomeTierBadge extends StatelessWidget {
   const ClientHomeTierBadge({super.key, required this.tier});
 
@@ -298,10 +268,6 @@ class _ActiveOrderDestination extends StatelessWidget {
     return Text(
       label,
       style: theme.textTheme.labelSmall?.copyWith(
-        // UX-AUDIT §T3: this label sits on the white `surface`, so it must use
-        // the on-surface muted role (AA-passing 9.35:1), NOT `onSecondaryContainer`
-        // (periwinkle, the ~3.76:1 periwinkle-on-white failure). See
-        // color_role_contrast_test.dart.
         color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.4,
       ),
@@ -314,7 +280,6 @@ class _ActiveOrderDestination extends StatelessWidget {
 class _ActiveOrderProgressBar extends StatelessWidget {
   const _ActiveOrderProgressBar({required this.progressStep});
 
-  /// 0=Ordered, 1=Picked, 2=InTransit, 3=AtDoor/Done.
   final int progressStep;
 
   @override
@@ -326,8 +291,6 @@ class _ActiveOrderProgressBar extends StatelessWidget {
         value: _progressFor(progressStep),
         minHeight: Sizes.twoXSmall,
         backgroundColor: colorScheme.outlineVariant,
-        // Accent PAINT (progress bar), not a container fill — `tertiary` is
-        // the same #D73B00 this bar rendered before the palette fix.
         valueColor: AlwaysStoppedAnimation<Color>(colorScheme.tertiary),
       ),
     );
@@ -368,8 +331,6 @@ class _ProgressStepLabel extends StatelessWidget {
       text,
       style: theme.textTheme.labelSmall?.copyWith(
         fontWeight: FontWeight.w500,
-        // UX-AUDIT §T3: progress labels sit on the white `surface`; use the
-        // on-surface muted role (AA), not periwinkle `onSecondaryContainer`.
         color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.5,
       ),
@@ -377,10 +338,6 @@ class _ProgressStepLabel extends StatelessWidget {
   }
 }
 
-/// End-aligned action row for the accepted/in-progress card: an "Open chat"
-/// re-entry pill (post-accept conversation re-entry — JM-025) alongside the
-/// "Track my order" pill. Either may be absent (null callback) and simply does
-/// not render, so existing surfaces that only pass `onTap` are unchanged.
 class _ActiveOrderActions extends StatelessWidget {
   const _ActiveOrderActions({
     required this.requestId,
@@ -410,12 +367,6 @@ class _ActiveOrderActions extends StatelessWidget {
                 key: Key('active-open-chat-$requestId'),
                 text: AppLocalizations.of(context).orderSummaryOpenChat,
                 onTap: onOpenChat,
-                // UX-AUDIT §T2/T3: `OMDSOutlinedButton` defaults to a navy
-                // `secondaryContainer` fill with periwinkle text (the flagged
-                // low-contrast "Open chat" chip on the white card). Bind it to
-                // an explicit tonal pair — navy ink on the light surface
-                // container (14:1) — so it reads as a clear secondary action
-                // beside the primary Track pill. Both are ColorScheme roles.
                 backgroundColor: theme.colorScheme.surfaceContainerHigh,
                 textColor: theme.colorScheme.onSurface,
               ),
@@ -438,10 +389,6 @@ class _TrackOrderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Content-hugging trailing pill. `OmdsPrimaryButton` expands to fill bounded
-    // width, so `IntrinsicWidth` feeds it a tight content-width constraint —
-    // otherwise the Track CTA renders full-width instead of a trailing pill.
-    // Alignment + top padding are owned by the parent [_ActiveOrderActions] row.
     return IntrinsicWidth(
       child: Semantics(
         identifier: 'orders_track_order_button_$requestId',
@@ -456,3 +403,344 @@ class _TrackOrderButton extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+// --- ActiveOrderCard -------------------------------------------------------
+
+/// A phone-width card box. The full card lays out at **181 pt** tall at 390 pt
+/// (249 pt at 200% text), so 200 pt frames it with the divider visible.
+const Size _activeOrderCardCardBox = Size(390, 200);
+
+/// A card whose gates are both closed loses the whole action row: **121 pt**
+/// instead of 181.
+const Size _activeOrderCardShortCardBox = Size(390, 140);
+
+/// Builds the card exactly the way `in_progress_tab.dart` `_ActiveList` does:
+/// `onTap` = Track, and `onOpenChat` ALWAYS non-null.
+Widget _activeOrderCardHosted({
+  required String id,
+  required String title,
+  required ClientRequestStatus status,
+  required int progressStep,
+  ClientRequestTier tier = ClientRequestTier.flash,
+  String destinationLabel = 'Ashrafieh, Beirut',
+  String? itemsSummary,
+}) =>
+    ActiveOrderCard(
+      request: ClientHomeRequest(
+        id: id,
+        title: title,
+        status: status,
+        destinationLabel: destinationLabel,
+        itemsSummary: itemsSummary,
+        progressStep: progressStep,
+        tier: tier,
+      ),
+      onTap: () {},
+      onOpenChat: () {},
+    );
+
+/// The fullest card: a Jeeber is on the road, so BOTH gates are open and the
+/// action row carries "Open chat" + "Track my order".
+@JeebPreview(
+  group: 'home_client',
+  name: 'En route · chat + track',
+  size: _activeOrderCardCardBox,
+)
+Widget activeOrderCardEnRoute() => _activeOrderCardHosted(
+      id: 'preview-en-route',
+      title: 'Pharmacy run',
+      status: ClientRequestStatus.enRoute,
+      progressStep: 2,
+    );
+
+/// Still searching: the auction is open and NO Jeeber is engaged yet.
+/// The regression guard, made visible. `onOpenChat` is non-null here exactly as
+@JeebPreview(
+  group: 'home_client',
+  name: 'Searching · track only',
+  size: _activeOrderCardCardBox,
+)
+Widget activeOrderCardSearching() => _activeOrderCardHosted(
+      id: 'preview-searching',
+      title: 'Grocery run',
+      status: ClientRequestStatus.searching,
+      progressStep: 0,
+      tier: ClientRequestTier.standard,
+    );
+
+/// Terminal state: delivered. Both gates close, so the card renders with NO
+/// action row at all.
+@JeebPreview(
+  group: 'home_client',
+  name: 'Delivered · no actions',
+  size: _activeOrderCardShortCardBox,
+)
+Widget activeOrderCardDelivered() => _activeOrderCardHosted(
+      id: 'preview-delivered',
+      title: 'Bakery order',
+      status: ClientRequestStatus.delivered,
+      progressStep: 3,
+      tier: ClientRequestTier.express,
+    );
+
+/// Content ceiling: the longest plausible title next to the longest plausible
+/// items summary (the multi-item `description` G1 now routes into
+@JeebPreview(
+  group: 'home_client',
+  name: 'Long title + long summary',
+  size: _activeOrderCardCardBox,
+)
+Widget activeOrderCardLongContent() => _activeOrderCardHosted(
+      id: 'preview-long',
+      title: 'Pharmacy pickup for Mrs. Haddad on Rue Sursock',
+      status: ClientRequestStatus.accepted,
+      progressStep: 0,
+      itemsSummary: '1 kilo potato, water gallon, coffee blend, two loaves of '
+          'brown bread, a bag of ice and paracetamol',
+    );
+
+/// Degraded payload: no title and a tier the app does not know.
+/// Two fallbacks fire at once. `_initial('')` gives the avatar a literal "?"
+@JeebPreview(
+  group: 'home_client',
+  name: 'Untitled · unknown tier',
+  size: _activeOrderCardCardBox,
+)
+Widget activeOrderCardUntitledUnknownTier() => _activeOrderCardHosted(
+      id: 'preview-untitled',
+      title: '',
+      status: ClientRequestStatus.atPickup,
+      progressStep: 1,
+      tier: ClientRequestTier.unknown,
+      destinationLabel: 'Mar Mikhael, Beirut',
+    );
+
+// --- ClientHomeTierBadge ---------------------------------------------------
+
+/// The width the in-progress header row really gets: a 390pt phone, the card's
+/// `Spacing.medium` gutters on both sides, the `Sizes.threeXLarge` avatar and
+const double _clientHomeTierBadgeActiveHeaderWidth = 314;
+
+/// The width the pending header row gets: same phone, same gutters, no avatar.
+/// `390 - 16 - 16 = 358`.
+const double _clientHomeTierBadgePendingHeaderWidth = 358;
+
+/// Canvas box for a header row. Tall enough that the 200% rendering (a 22pt
+/// title at 44pt) still has air around it.
+const Size _clientHomeTierBadgeHeaderBox = Size(390, 120);
+
+/// Canvas box for the four-value strip, which wraps at 200%.
+const Size _clientHomeTierBadgeStripBox = Size(390, 260);
+
+/// Puts [child] at the width its production row really has, centred in the
+/// canvas.
+Widget _clientHomeTierBadgeHosted(
+  Widget child, {
+  double width = _clientHomeTierBadgeActiveHeaderWidth,
+}) =>
+    Center(
+      child: SizedBox(width: width, child: child),
+    );
+
+/// Reproduces `_ActiveOrderHeader` from `active_request_card.dart`: a
+/// [Flexible] ellipsizing title, `Spacing.xSmall`, the badge, spread apart and
+/// vertically centred.
+class _ClientHomeTierBadgeActiveHeader extends StatelessWidget {
+  const _ClientHomeTierBadgeActiveHeader({
+    required this.title,
+    required this.tier,
+  });
+
+  final String title;
+  final ClientRequestTier tier;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: <Widget>[
+        Flexible(
+          child: Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w400,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: Spacing.xSmall),
+        ClientHomeTierBadge(tier: tier),
+      ],
+    );
+  }
+}
+
+/// Reproduces `_PendingCardHeader` from `pending_requests_tab.dart` (and its
+/// twin `_PendingHeader` in `pending_request_card.dart`): an [Expanded] title
+/// and `CrossAxisAlignment.start`.
+class _ClientHomeTierBadgePendingHeader extends StatelessWidget {
+  const _ClientHomeTierBadgePendingHeader({
+    required this.title,
+    required this.tier,
+  });
+
+  final String title;
+  final ClientRequestTier tier;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: theme.colorScheme.onSurface,
+              fontWeight: FontWeight.w400,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: Spacing.xSmall),
+        ClientHomeTierBadge(tier: tier),
+      ],
+    );
+  }
+}
+
+/// One cell of the comparison strip: the badge over the enum value that
+/// produced it.
+/// The enum name is preview scaffolding, not widget output. It exists because
+class _ClientHomeTierBadgeTierSwatch extends StatelessWidget {
+  const _ClientHomeTierBadgeTierSwatch(this.tier);
+
+  final ClientRequestTier tier;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          SizedBox(
+            height: Sizes.large,
+            child: Center(child: ClientHomeTierBadge(tier: tier)),
+          ),
+          const SizedBox(height: Spacing.twoXSmall),
+          Text(
+            tier.name,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          ),
+        ],
+      );
+}
+
+/// The state that ships on an in-progress card: Flash, in the header row the
+/// card really gives it.
+@JeebPreview(
+  group: 'home_client',
+  name: 'Flash · in-progress header',
+  size: _clientHomeTierBadgeHeaderBox,
+)
+Widget clientHomeTierBadgeFlash() => _clientHomeTierBadgeHosted(
+      const _ClientHomeTierBadgeActiveHeader(
+        title: 'Kamal Hajj',
+        tier: ClientRequestTier.flash,
+      ),
+    );
+
+/// The state that ships on a pending card: Express, in the OTHER production
+/// header — `Expanded` title, `CrossAxisAlignment.start`.
+@JeebPreview(
+  group: 'home_client',
+  name: 'Express · pending header',
+  size: _clientHomeTierBadgeHeaderBox,
+)
+Widget clientHomeTierBadgeExpressPending() => _clientHomeTierBadgeHosted(
+      const _ClientHomeTierBadgePendingHeader(
+        title: 'ORD-23470',
+        tier: ClientRequestTier.express,
+      ),
+      width: _clientHomeTierBadgePendingHeaderWidth,
+    );
+
+/// Standard, the default tier and the quietest of the three.
+/// `#1E88E5` on white is 3.68:1 — above the 3:1 asked of a graphical object,
+@JeebPreview(
+  group: 'home_client',
+  name: 'Standard · in-progress header',
+  size: _clientHomeTierBadgeHeaderBox,
+)
+Widget clientHomeTierBadgeStandard() => _clientHomeTierBadgeHosted(
+      const _ClientHomeTierBadgeActiveHeader(
+        title: 'Pharmacy run',
+        tier: ClientRequestTier.standard,
+      ),
+    );
+
+/// The state that breaks, and the reason this widget has a fallback branch at
+/// all: a tier the backend introduced mid-deploy.
+@JeebPreview(
+  group: 'home_client',
+  name: 'Unknown tier · nothing renders',
+  size: _clientHomeTierBadgeHeaderBox,
+)
+Widget clientHomeTierBadgeUnknown() => _clientHomeTierBadgeHosted(
+      const _ClientHomeTierBadgeActiveHeader(
+        title: 'ORD-88213',
+        tier: ClientRequestTier.unknown,
+      ),
+    );
+
+/// Longest plausible content: a title that cannot fit, pressing on the badge.
+/// The good news, and the failure this preview was written to look for: the
+@JeebPreview(
+  group: 'home_client',
+  name: 'Long title · badge holds its place',
+  size: _clientHomeTierBadgeHeaderBox,
+)
+Widget clientHomeTierBadgeLongTitle() => _clientHomeTierBadgeHosted(
+      const _ClientHomeTierBadgeActiveHeader(
+        title: 'Pharmacy run — Ashrafieh to Hamra, ring the second bell',
+        tier: ClientRequestTier.flash,
+      ),
+    );
+
+/// All four enum values side by side, which is the only way to see the palette
+/// as a palette.
+@JeebPreview(
+  group: 'home_client',
+  name: 'All four tiers · strip',
+  size: _clientHomeTierBadgeStripBox,
+)
+Widget clientHomeTierBadgeStrip() => _clientHomeTierBadgeHosted(
+      const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Wrap(
+            spacing: Spacing.large,
+            runSpacing: Spacing.small,
+            alignment: WrapAlignment.center,
+            children: <Widget>[
+              _ClientHomeTierBadgeTierSwatch(ClientRequestTier.flash),
+              _ClientHomeTierBadgeTierSwatch(ClientRequestTier.express),
+              _ClientHomeTierBadgeTierSwatch(ClientRequestTier.standard),
+              _ClientHomeTierBadgeTierSwatch(ClientRequestTier.unknown),
+            ],
+          ),
+          SizedBox(height: Spacing.small),
+          Text(
+            'Every ClientRequestTier value',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+      width: _clientHomeTierBadgePendingHeaderWidth,
+    );

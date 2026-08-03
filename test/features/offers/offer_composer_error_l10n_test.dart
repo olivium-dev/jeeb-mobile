@@ -1,5 +1,4 @@
 // JEBV4-246 + JEBV4-243: the offer-composer error snack must render LOCALIZED
-// copy (not a hardcoded English string) and the draft must survive the error.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';

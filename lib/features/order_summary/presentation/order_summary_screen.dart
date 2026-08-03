@@ -13,19 +13,10 @@ import '../domain/order_summary_repository.dart';
 import 'order_summary_l10n.dart';
 import 'widgets/order_summary_pinned.dart';
 
-/// `order-summary` (JM-031, CTO-D3). The standalone accepted-order summary
-/// screen at `/orders/:id/summary`.
-///
-/// CTO-D3: the PRIMARY rendering of `order-summary-pinned` is the reusable
-/// [OrderSummaryPinned] header widget injected into `order-chat` (JM-025) +
-/// `order-tracking` (JM-032). THIS route is the navigable deep-link TARGET for
-/// `transaction-detail → order-summary-pinned` (JM-056, W3) so every blueprint
-/// edge stays honest (21_NAV_PLAN §A/§C). It wires BOTH CTAs (the embedded
-/// chat/tracking hosts pass only the OTHER screen's CTA).
-///
-/// Data: `GET /v1/delivery/:deliveryId` (+ best-effort request/offer/user) via
-/// [OrderSummaryRepository] resolved from DI. A constructor [repository] /
-/// [cubitFactory] override is the widget-test seam.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../core/previews/jeeb_preview.dart';
+import '../../../devtool/catalog/fixtures/order_summary_screen_fixtures.dart';
+
 class OrderSummaryScreen extends StatelessWidget {
   const OrderSummaryScreen({
     super.key,
@@ -34,15 +25,10 @@ class OrderSummaryScreen extends StatelessWidget {
     this.cubitFactory,
   });
 
-  /// The accepted delivery/order id from the `/orders/:id/summary` path.
   final String deliveryId;
 
-  /// Optional repository override. Production leaves this null and resolves
-  /// [OrderSummaryRepository] from GetIt (the Dio impl). Widget tests inject a
-  /// scripted instance.
   final OrderSummaryRepository? repository;
 
-  /// Test seam — builds the cubit (e.g. without auto-load) for widget tests.
   final OrderSummaryCubit Function(
     OrderSummaryRepository repository,
     String deliveryId,
@@ -151,9 +137,6 @@ class _Loaded extends StatelessWidget {
       children: [
         OrderSummaryPinned(
           summary: summary,
-          // EDGE: order_summary_open_chat → chat-detail (`/chat/:id`).
-          // 21_NAV_PLAN §C, JM-031→JM-025. Falls back to the request/delivery
-          // id when no conversation id surfaced (the route resolves either).
           onOpenChat: () => context.pushNamed(
             'chat-detail',
             pathParameters: {
@@ -164,8 +147,6 @@ class _Loaded extends StatelessWidget {
                       : summary.deliveryId),
             },
           ),
-          // EDGE: order_summary_track → live-tracking (`/orders/:id/tracking`).
-          // 21_NAV_PLAN §C, JM-031→JM-032.
           onTrack: () => context.pushNamed(
             'live-tracking',
             pathParameters: {'id': summary.deliveryId},
@@ -175,3 +156,199 @@ class _Loaded extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// The canvas box for a whole screen: a real phone, not the harness default.
+const Size _orderSummaryScreenPhoneBox = Size(390, 844);
+
+/// The narrowest viewport the app supports.
+const Size _orderSummaryScreenCompactBox = Size(320, 568);
+
+/// The caption each preview is pinned by.
+/// Public because the render test's `expectedText` map reads the four that pin
+final class OrderSummaryScreenCaptions {
+  OrderSummaryScreenCaptions._();
+
+  /// The reference reading: an accepted order with every field populated.
+  static const String loaded = 'preview · loaded · every field populated';
+
+  /// The fetch is on the wire and nothing has come back.
+  static const String coldRead = 'preview · cold read · fetch in flight';
+
+  /// A 404 on the delivery read.
+  static const String notFound = 'preview · error · NOT FOUND (404)';
+
+  /// Offline / gateway unreachable — the same picture as [notFound].
+  static const String networkFailure = 'preview · error · NETWORK (offline)';
+
+  /// Every optional field absent, every required one defaulted.
+  static const String minimalPayload = 'preview · minimal payload · 0.00 + uuid';
+
+  /// Every string at its longest plausible length.
+  static const String longestContent = 'preview · longest content · 7-digit SYP';
+
+  /// The same content on the narrowest supported device.
+  static const String compact = 'preview · loaded · 320x568 viewport';
+
+  /// No repository, no DI — the shipped fake answers instead.
+  static const String unconfiguredDi =
+      'preview · unconfigured DI · FABRICATED order';
+}
+
+/// Mounts the real screen on one shared designed state, framed, captioned and
+/// frozen.
+Widget _orderSummaryScreenHosted(
+  OrderSummaryScreenDesignedState state,
+  String caption, {
+  Size box = _orderSummaryScreenPhoneBox,
+}) {
+  return TickerMode(
+    enabled: false,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _OrderSummaryScreenCaption(caption: caption),
+        Expanded(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: box.width,
+              height: box.height,
+              child: OrderSummaryScreen(
+                deliveryId: state.deliveryId,
+                repository: state.repository,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// The dev-chrome line painted above each device frame.
+class _OrderSummaryScreenCaption extends StatelessWidget {
+  const _OrderSummaryScreenCaption({required this.caption});
+
+  final String caption;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.small,
+        vertical: Spacing.xSmall,
+      ),
+      child: Text(
+        caption,
+        // Dev chrome: LTR and unscaled, so the AR card still reads it as one
+        textDirection: TextDirection.ltr,
+        textScaler: TextScaler.noScaling,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+/// CATALOG · "Loaded". The reference reading: an accepted express order with a
+/// rating, a review count, an ETA and an item line, and BOTH CTAs — this route
+@JeebPreview(
+  group: 'order_summary',
+  name: 'Loaded · both CTAs',
+  size: _orderSummaryScreenPhoneBox,
+  matrix: true,
+)
+Widget orderSummaryScreenLoaded() => _orderSummaryScreenHosted(
+      OrderSummaryScreenFixtures.loaded,
+      OrderSummaryScreenCaptions.loaded,
+    );
+
+/// CATALOG · "Loading". Cold start: the fetch is in flight and nothing has come
+/// back.
+@JeebPreview(
+  group: 'order_summary',
+  name: 'Loading · cold read',
+  size: _orderSummaryScreenPhoneBox,
+)
+Widget orderSummaryScreenColdRead() => _orderSummaryScreenHosted(
+      OrderSummaryScreenFixtures.coldRead,
+      OrderSummaryScreenCaptions.coldRead,
+    );
+
+/// CATALOG · "Failed — Not Found". The accepted order is gone, or the deep link
+/// carried an id this account cannot see.
+@JeebPreview(
+  group: 'order_summary',
+  name: 'Error · not found',
+  size: _orderSummaryScreenPhoneBox,
+)
+Widget orderSummaryScreenNotFound() => _orderSummaryScreenHosted(
+      OrderSummaryScreenFixtures.notFound,
+      OrderSummaryScreenCaptions.notFound,
+    );
+
+/// The offline failure — the one where Retry could actually work, and the one
+/// the copy could actually help with ("check your connection").
+@JeebPreview(
+  group: 'order_summary',
+  name: 'Error · network',
+  size: _orderSummaryScreenPhoneBox,
+)
+Widget orderSummaryScreenNetworkFailure() => _orderSummaryScreenHosted(
+      OrderSummaryScreenFixtures.networkFailure,
+      OrderSummaryScreenCaptions.networkFailure,
+    );
+
+/// The emptiest LOADED body this screen can reach: every optional field absent
+/// and every required one defaulted by the parser.
+@JeebPreview(
+  group: 'order_summary',
+  name: 'Minimal payload',
+  size: _orderSummaryScreenPhoneBox,
+)
+Widget orderSummaryScreenMinimalPayload() => _orderSummaryScreenHosted(
+      OrderSummaryScreenFixtures.minimalPayload,
+      OrderSummaryScreenCaptions.minimalPayload,
+    );
+
+/// The ceiling on every axis at once: a seven-digit SYP price, a three-part
+/// name, the longest tier label, a four-hour ETA, a five-digit review count and
+@JeebPreview(
+  group: 'order_summary',
+  name: 'Longest content',
+  size: _orderSummaryScreenPhoneBox,
+  matrix: true,
+)
+Widget orderSummaryScreenLongestContent() => _orderSummaryScreenHosted(
+      OrderSummaryScreenFixtures.longestContent,
+      OrderSummaryScreenCaptions.longestContent,
+    );
+
+/// The reference order on the narrowest viewport the app supports.
+/// 320 pt is where the header row runs out of slack first: the avatar and the
+@JeebPreview(
+  group: 'order_summary',
+  name: 'Compact viewport',
+  size: _orderSummaryScreenCompactBox,
+)
+Widget orderSummaryScreenCompact() => _orderSummaryScreenHosted(
+      OrderSummaryScreenFixtures.loaded,
+      OrderSummaryScreenCaptions.compact,
+      box: _orderSummaryScreenCompactBox,
+    );
+
+/// NO repository and NO DI: what a misconfigured build actually shows.
+/// This is the one preview that does not hand the screen a fixture — it hands
+@JeebPreview(
+  group: 'order_summary',
+  name: 'Unconfigured DI · fabricated summary',
+  size: _orderSummaryScreenPhoneBox,
+)
+Widget orderSummaryScreenUnconfiguredDi() => _orderSummaryScreenHosted(
+      OrderSummaryScreenFixtures.unconfiguredDi,
+      OrderSummaryScreenCaptions.unconfiguredDi,
+    );

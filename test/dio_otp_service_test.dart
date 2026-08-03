@@ -140,11 +140,6 @@ void main() {
     });
 
     // Regression (sprint-7 step-login): the LIVE Express mock's OTP-verify
-    // handler returns the identity as `user.id` (uuid), NOT `user.userId`. The
-    // prior fixture used `{'userId': ...}` and so masked the defect where
-    // _persistTokens read `user['userId']` only → userId persisted as null on
-    // the real OTP login path. This fixture mirrors the mock exactly and asserts
-    // the userId is still persisted (via the `?? user['id']` fallback).
     test('persists userId from mock user.id shape (not userId)', () async {
       when(() => tokenStore.save(
             accessToken: any(named: 'accessToken'),

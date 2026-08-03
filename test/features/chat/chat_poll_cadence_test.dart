@@ -1,11 +1,4 @@
 // ignore_for_file: avoid_dynamic_calls
-//
-// `ChatDetailScreen`'s State class is PRIVATE (`_ChatDetailScreenState`), so
-// `tester.state(find.byType(ChatDetailScreen))` can only be typed as `dynamic`
-// from a test. The alternative — widening the State class or adding a public
-// accessor to production code purely so a test can name it — is worse than the
-// lint. Scoped to this file, and only for that one call.
-
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -166,12 +159,6 @@ void _driveToBackground(WidgetTester tester) {
   }
 }
 
-/// Walks the wall clock past the 60s cadence the chat SUMMARY used to run at,
-/// [count] times over. The constant is inlined rather than imported because
-/// `kChatSummarySafetyNetPollInterval` no longer exists — the whole point of the
-/// assertions below is that nothing happens at this interval any more. Keeping
-/// the duration is what makes the absence assertion meaningful: a reintroduced
-/// 60s summary poll fires [count] times inside this window.
 Future<void> _pumpSummaryIntervals(WidgetTester tester, int count) async {
   for (var index = 0; index < count; index++) {
     await tester.pump(const Duration(seconds: 60));
@@ -197,18 +184,6 @@ void main() {
   });
 
   // N4 — INVERTED, not deleted, exactly as V2 below was inverted in wave B.2.
-  //
-  // This used to be the PRESENCE control: "a supportsPolling gateway DOES arm
-  // the history poller at the 60s constant over a 300s window", asserting 5
-  // ticks and 6 reads. The mandate makes that shape the defect. The window, the
-  // arithmetic and the `supportsPolling: true` gateway are all kept — only the
-  // expected values invert, 5 ticks becoming 0 reads. Inverting rather than
-  // deleting is what keeps the case able to catch the poll's accidental return.
-  //
-  // The push CONTROL at the end is what stops this from being a test that
-  // passes against a cubit nobody wired: an absence assertion whose instrument
-  // is never shown alive is the exact failure shape TESTING-INSTRUMENTS.md
-  // catalogues.
   test('AC2 G23 V1 ABSENCE: a supportsPolling gateway arms NO history cadence '
       '— zero reads over a 300s window, and a push still reads', () {
     final gate = ManualAppLifecycleGate();
@@ -268,11 +243,6 @@ void main() {
   });
 
   // b02 wave B.2 — INVERTED, not deleted. This used to be a PRESENCE control
-  // asserting the summary poll armed at the 60s constant and ticked 5 times over
-  // 300s. The mandate makes that shape the defect, so the assertion is flipped:
-  // an assertion that a cadence is ABSENT is the only thing that can catch its
-  // accidental return. The 300s window and the tick arithmetic are kept, only the
-  // expected values invert — 5 ticks becomes 0 reads.
   testWidgets(
     'AC2 G23 V2 ABSENCE: the chat summary arms NO cadence — zero repeat reads '
     'over a 300s window, foregrounded, with no push and no user action',
@@ -295,7 +265,6 @@ void main() {
       final mountSummaryReads = recorder.summaryReads;
 
       // The refresh IS armed — this is not a dead screen, it is a screen with no
-      // clock. The positive control below proves it can still fetch.
       expect(state.debugSummaryRefreshArmed, isTrue);
       expect(state.debugSummaryRefetchCount, isZero);
 
@@ -321,7 +290,6 @@ void main() {
       expect(recorder.summaryReads, mountSummaryReads);
 
       // POSITIVE CONTROL, in the same test so a zero can never come from a
-      // broken recorder or an unmounted screen: one push event fetches.
       refresh.add(null);
       await tester.pumpAndSettle();
       expect(state.debugSummaryRefetchCount, 1);
@@ -407,11 +375,6 @@ void main() {
       expect(state.debugSummaryRefreshArmed, isTrue);
 
       // NOTE `_driveToBackground` walks resumed -> inactive -> hidden -> paused,
-      // and that leading `resumed` legitimately fires the chat's foreground-resume
-      // one-shot (a single catch-up read, explicitly allowed by the mandate — it
-      // is caused by the app coming forward, not by a clock). So the baseline for
-      // the absence assertion is taken AFTER the lifecycle walk settles; snapshot
-      // it before and the one-shot reads as a poll.
       _driveToBackground(tester);
       await tester.pumpAndSettle();
       final summaryReadsAtArm = recorder.summaryReads;
@@ -419,11 +382,8 @@ void main() {
 
       await _pumpSummaryIntervals(tester, 5);
       // Foreground-latch mutations produce 5 ticks in this five-interval
-      // window, separated by 5 from the asserted zero threshold.
       expect(historyGateway.loadHistoryCalls, 1, reason: 'mount read only');
       // The summary needed a lifecycle gate only because it had a clock. With the
-      // clock gone there is nothing to gate: a backgrounded chat issues zero
-      // summary reads for the same reason a foregrounded one does.
       expect(recorder.summaryReads, summaryReadsAtArm);
       expect(state.debugSummaryRefetchCount, refetchesAtArm);
 

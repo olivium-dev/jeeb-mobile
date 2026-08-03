@@ -2,14 +2,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/handover_code_store.dart';
 
-/// SharedPreferences-backed [HandoverCodeStore].
-///
-/// One row per delivery: `jeeb.handover_code.<deliveryId>` → the 4-digit code.
-/// Mirrors the persistence class of the other on-device stores
-/// (`SharedPrefsPinRepository`, `NotificationPrefsStore`): plain prefs, no
-/// expiry sweep — rows are cleared on successful handover and vanish with an
-/// uninstall. The value never flows into any log line (see
-/// `DiagRedaction.kSensitiveDataKeys`).
 class SharedPrefsHandoverCodeStore implements HandoverCodeStore {
   SharedPrefsHandoverCodeStore({required SharedPreferences prefs})
       : _prefs = prefs;

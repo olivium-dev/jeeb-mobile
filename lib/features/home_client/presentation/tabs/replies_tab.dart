@@ -13,37 +13,16 @@ import '../../domain/client_home_request.dart';
 import '../widgets/client_home_motion.dart';
 import '../widgets/replies_card.dart';
 
-/// JM-027 — Replies sub-tab (`my-orders`).
-///
-/// Renders requests where ≥1 Jeeber has replied with an offer. Each row shows
-/// the stacked offerer avatars (max 3 + overflow count), an offer badge, and a
-/// CTA row with two actions:
-///   * `replies_check_offers_cta` → `offer-review` list (`/requests/:id/offers`,
-///     JM-028). This REPLACES the old divergent `→ /chat/:id` edge the gap map
-///     flagged for `my-orders` (20_GAP_MAP customer row + 21_NAV_PLAN §"185").
-///   * `replies_accept_cta` → `offer-accept-confirm` sheet (`offer_accept_sheet`,
-///     JM-029) [D11/D71].
-///
-/// Avatar images are rendered by [OmdsProfileAvatar] with network URLs to
-/// benefit from the OS image cache.
-///
-/// WS push integration: real-time offer increments are handled by the cubit;
-/// this tab rebuilds when the cubit emits a new replies list.
-///
-/// Mock endpoint: `GET /delivery-service/v1/requests?status=offers-received`
-/// (reached via the `/v1/requests` gateway-contract path the home repository
-/// already speaks; `MockGatewayClient` rewrites the prefix to :4010).
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import 'dart:async';
+import '../../../../core/previews/jeeb_preview.dart';
+import '../../domain/client_home_repository.dart';
+
 class RepliesTab extends StatefulWidget {
   const RepliesTab({super.key, this.onCheckOffers, this.onAccept});
 
-  /// Called when `replies_check_offers_cta` is tapped. When null the tab routes
-  /// to the registered `offer-review` route itself (JM-028); tests inject a
-  /// callback to observe the tapped request.
   final void Function(ClientHomeRequest request)? onCheckOffers;
 
-  /// Called when `replies_accept_cta` is tapped. When null the tab opens the
-  /// `offer-accept-confirm` sheet (JM-029) via [_openAcceptConfirm]; tests
-  /// inject a callback to observe the tapped request.
   final void Function(ClientHomeRequest request)? onAccept;
 
   @override
@@ -51,11 +30,6 @@ class RepliesTab extends StatefulWidget {
 }
 
 class _RepliesTabState extends State<RepliesTab> {
-  // B-01 (second call site): guards against a double-tap on the reply Accept
-  // CTA stacking two `offer-accept-confirm` sheets (each would open its own
-  // accept flow → the double-accept surface the auditor flagged widening from
-  // this home-replies entry point). True from the first tap until the sheet the
-  // tap opened has closed.
   bool _openingAcceptSheet = false;
 
   @override
@@ -74,9 +48,6 @@ class _RepliesTabState extends State<RepliesTab> {
   static bool _rebuildWhen(ClientHomeState prev, ClientHomeState next) =>
       prev.status != next.status || prev.replies != next.replies;
 
-  /// JM-027 AC1: Check Offers → offer-review-list (JM-028), NOT chat.
-  /// Routes to the registered `offer-review` route (`/requests/:id/offers`),
-  /// keyed by the request id (the seam seeds it as `req-client-001-offers`).
   static void _openOfferReview(
     BuildContext context,
     ClientHomeRequest request,
@@ -87,25 +58,11 @@ class _RepliesTabState extends State<RepliesTab> {
     ).pushNamed('offer-review', pathParameters: {'id': request.id});
   }
 
-  /// JM-027 AC2: Accept → offer-accept-confirm sheet (`offer_accept_sheet`,
-  /// JM-029) [D11/D71].
-  ///
-  /// JM-029's `OfferAcceptSheet` (a `showModalBottomSheet`, no route —
-  /// 21_NAV_PLAN §"117") has now landed, so the reply card's Accept opens it
-  /// directly. The reply card only carries the [ClientHomeRequest], so we
-  /// resolve the request's open offers via [OffersRepository] (the same
-  /// gateway-backed read the offer-review list uses) and front the
-  /// top-of-list offer on the sheet (D11/D71 comprehension gate). On any
-  /// failure / no offers / no GoRouter we degrade HONESTLY to the registered
-  /// `offer-review` route — where JM-028's `offer_card_<id>_accept_cta` opens
-  /// the same sheet — so the nav is never a dead end.
   Future<void> _openAcceptConfirm(
     BuildContext context,
     ClientHomeRequest request,
   ) async {
     if (request.id.isEmpty) return;
-    // B-01: swallow a second tap while the first is still resolving offers /
-    // showing the sheet, so two accept sheets never stack.
     if (_openingAcceptSheet) return;
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<OffersRepository>()) {
@@ -127,8 +84,6 @@ class _RepliesTabState extends State<RepliesTab> {
         requestId: request.id,
       );
     } catch (_) {
-      // Soft-fail to the honest registered destination rather than trapping
-      // the user (40_GUARDRAILS_ARCH §6.7 navigation honesty).
       if (!context.mounted) return;
       _openOfferReview(context, request);
     } finally {
@@ -257,3 +212,169 @@ class _RepliesList extends StatelessWidget {
     return l10n.repliesTabA11yLabel(r.offerCount);
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// One reply row: header + two-line summary + the CTA row + divider. Phone
+/// width, because the CTA row is `MainAxisAlignment.end` and only overflows
+const Size repliesTabCardBox = Size(390, 200);
+
+/// The full-tab states (empty / error / loading) centre an icon + copy block,
+/// so they need the height a tab body actually gets.
+const Size _repliesTabStateBox = Size(390, 340);
+
+/// Three stacked rows. `_RepliesList` is a bare [Column] with no scrollable of
+/// its own — in production it is a child of the home `ListView`, so it may be
+const Size _repliesTabListBox = Size(390, 620);
+
+/// Canned snapshot, delivered on the next microtask. The cubit's `load()`
+/// therefore passes through `loading` and lands on `ready`.
+class _RepliesTabSeededHomeRepository implements ClientHomeRepository {
+  const _RepliesTabSeededHomeRepository(this.replies);
+
+  final List<ClientHomeRequest> replies;
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      ClientHomeSnapshot(replies: replies);
+}
+
+/// A cold load that throws. `ClientHomeCubit._fetch` swallows the error and
+/// emits `failed` only because nothing is cached yet — which is precisely the
+/// condition this tab's error state is for.
+class _RepliesTabFailingHomeRepository implements ClientHomeRepository {
+  const _RepliesTabFailingHomeRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      throw Exception('preview: home snapshot unreachable');
+}
+
+/// A read that never resolves, so the cubit stays on `loading` for as long as
+/// the canvas is open. A `Completer` that is never completed holds no timer and
+/// no subscription — it simply never settles.
+class _RepliesTabStalledHomeRepository implements ClientHomeRepository {
+  const _RepliesTabStalledHomeRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() =>
+      Completer<ClientHomeSnapshot>().future;
+}
+
+Widget _repliesTabHosted(ClientHomeRepository repository) {
+  return BlocProvider<ClientHomeCubit>(
+    create: (_) => ClientHomeCubit(
+      repository: repository,
+      // The Replies tab never reads the greeting; `null` keeps the fake
+      greetingNameProvider: () => null,
+    )..load(),
+    child: RepliesTab(onCheckOffers: (_) {}, onAccept: (_) {}),
+  );
+}
+
+/// A replies row. [avatarCount] drives how many overlapping circles render;
+/// `offerCount - avatarCount` is what the "+N" cluster shows.
+ClientHomeRequest _repliesTabReply({
+  required String displayId,
+  required int offerCount,
+  int avatarCount = 3,
+  String destination = 'Hamra, Beirut',
+  String? itemsSummary,
+}) {
+  return ClientHomeRequest(
+    id: displayId.toLowerCase(),
+    displayId: displayId,
+    title: displayId,
+    status: ClientRequestStatus.offersReceived,
+    destinationLabel: destination,
+    itemsSummary: itemsSummary,
+    tier: ClientRequestTier.express,
+    offerCount: offerCount,
+    // Empty strings on purpose — see the banner prose: the avatar resolves to
+    offerAvatarUrls: List<String>.filled(avatarCount, ''),
+    conversationId: 'conv-${displayId.toLowerCase()}',
+  );
+}
+
+/// The Figma reference row (`+6 offers`): nine offers, three inline avatars.
+/// Three things have to survive together on one line here — an ellipsizing
+@JeebPreview(
+  group: 'home_client',
+  name: 'Nine offers · +6',
+  size: repliesTabCardBox,
+)
+Widget repliesTabWithOverflowCount() => _repliesTabHosted(
+      _RepliesTabSeededHomeRepository(<ClientHomeRequest>[
+        _repliesTabReply(displayId: 'ORD-23470', offerCount: 9),
+      ]),
+    );
+
+/// Layout ceiling: the longest row the gateway can actually produce.
+/// A redelivery order id long past the width of the header, a three-digit offer
+@JeebPreview(
+  group: 'home_client',
+  name: 'Long content · +117',
+  size: repliesTabCardBox,
+)
+Widget repliesTabLongContent() => _repliesTabHosted(
+      _RepliesTabSeededHomeRepository(<ClientHomeRequest>[
+        _repliesTabReply(
+          displayId: 'ORD-23470-EXPRESS-REDELIVERY-ATTEMPT-3',
+          offerCount: 120,
+          itemsSummary: '1 kilo potato, water gallon, coffee blend, two boxes '
+              'of paracetamol, a phone charger and whatever else is still open '
+              'at this hour near the pharmacy',
+          destination: 'Rue Gouraud, Gemmayzeh, Beirut',
+        ),
+      ]),
+    );
+
+/// Three rows at once, spanning all three shapes of the offer cluster: one
+/// offer (no `+N` badge at all — `extra == 0` hides it), five offers (`+2`) and
+@JeebPreview(
+  group: 'home_client',
+  name: 'Three replies',
+  size: _repliesTabListBox,
+)
+Widget repliesTabMultipleReplies() => _repliesTabHosted(
+      _RepliesTabSeededHomeRepository(<ClientHomeRequest>[
+        _repliesTabReply(
+          displayId: 'ORD-23471',
+          offerCount: 1,
+          avatarCount: 1,
+        ),
+        _repliesTabReply(displayId: 'ORD-23472', offerCount: 5),
+        _repliesTabReply(displayId: 'ORD-23473', offerCount: 9),
+      ]),
+    );
+
+/// No replies yet — the state a sender sees between submitting a request and
+/// the first Jeeber bidding, which is most of the time they spend on this tab.
+@JeebPreview(
+  group: 'home_client',
+  name: 'Empty',
+  size: _repliesTabStateBox,
+)
+Widget repliesTabEmpty() => _repliesTabHosted(
+      const _RepliesTabSeededHomeRepository(<ClientHomeRequest>[]),
+    );
+
+/// Cold load failed: no cached snapshot, so the whole tab is replaced by the
+/// error block and its Retry button.
+@JeebPreview(
+  group: 'home_client',
+  name: 'Load failed',
+  size: _repliesTabStateBox,
+)
+Widget repliesTabFailed() =>
+    _repliesTabHosted(const _RepliesTabFailingHomeRepository());
+
+/// The read is in flight and nothing is cached.
+/// This is a spinner with no text of any kind — no skeleton row, no "loading
+@JeebPreview(
+  group: 'home_client',
+  name: 'Loading',
+  size: _repliesTabStateBox,
+)
+Widget repliesTabLoading() =>
+    _repliesTabHosted(const _RepliesTabStalledHomeRepository());

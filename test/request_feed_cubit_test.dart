@@ -140,7 +140,6 @@ void main() {
       final cubit = build();
       await cubit.start();
       // Give the `yield* transport.stream` inside the mock's async* generator
-      // a microtask to actually subscribe before we publish polling.
       await Future<void>.delayed(const Duration(milliseconds: 10));
       transport.add(const FeedTransportUpdate(FeedTransport.polling));
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -189,7 +188,6 @@ void main() {
       expect(cubit.state.requests.map((r) => r.id), ['r1'],
           reason: 'an in-flight row survives a refresh that no longer lists it');
       // Resolve the in-flight accept and let it settle BEFORE close so its
-      // terminal emit doesn't land after the cubit is torn down.
       completer.complete(RequestActionOutcome.accepted);
       await Future<void>.delayed(const Duration(milliseconds: 10));
       await cubit.close();
@@ -341,8 +339,6 @@ void main() {
     });
 
     // THE G3 regression test. Pre-fix the cubit truncated every card at
-    // min(expiresAt, addTime + 60s), so this card (server window 300s)
-    // vanished at 60s — FOUR minutes before the request actually died.
     test(
         'card SURVIVES past the old 60s client cap and stays live until '
         'the server expiresAt', () async {

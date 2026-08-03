@@ -195,7 +195,6 @@ void main() {
       ],
       verify: (_) {
         // Identity linking is user-management's (GR-2); the client never
-        // persists a session on a blocked second method.
         expect(store.saveCalls, 0);
       },
     );

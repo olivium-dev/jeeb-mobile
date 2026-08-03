@@ -127,32 +127,11 @@ Future<void> _driveToForeground(WidgetTester tester) async {
 
 void main() {
   // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
-  // floor. Without a per-test reset the floor bleeds across cases in this file
-  // (they run milliseconds apart) and a genuine resume in test N is silently
-  // folded into test N-1's window.
   setUp(() async => AppResumeSignals.debugReset());
 
   tearDown(AppLifecycleGate.debugReset);
 
   // b02 wave C — N6. Every test below used to assert the 5s `LifecyclePoller`'s
-  // CADENCE MECHANICS (isRunning / debugTickCount / one fetch per elapsed
-  // interval). That poller is deleted: a `type=delivery` push now drives the
-  // re-read (`Notifications/DeliveryStatusPushNotifier.cs:211`, fanned to BOTH
-  // parties by `Controllers/DeliveriesController.cs:1296-1300`).
-  //
-  // The cadence assertions are therefore gone BY DESIGN — they described a
-  // mechanism that no longer exists. Every BEHAVIOURAL claim they were
-  // protecting is re-asserted here in push form, and the two that mattered most
-  // are strengthened rather than relaxed:
-  //   * AC13's P6/A4 claim (a non-terminal read must not clobber the door-OTP
-  //     entry) now fires a real push at the OTP surface instead of waiting for
-  //     a tick — a push can land mid-typing exactly as a tick could.
-  //   * AC14's terminal-stop claim is now "the subscription is RETIRED", which
-  //     is stronger than "the timer is stopped": the bus is app-wide, so an
-  //     unretired subscription would keep re-reading a Done row on every
-  //     unrelated push, forever.
-  // The pure cadence tests (old AC12/AC16) are replaced by the inverse claim:
-  // elapsed wall-clock with no push produces ZERO reads.
 
   test('N6 (was AC16) no root gate install, no MaterialApp: a push drives the '
       'read and elapsed time does NOT', () {
@@ -211,9 +190,6 @@ void main() {
       expect(repository.fetchCalls, 1);
 
       // The old form asserted the poller was PARKED here (gate not foreground)
-      // and resumed on setForeground(true). A push carries no such gate — and
-      // must not: a foreground push arriving for a live delivery is precisely
-      // the event the jeeber needs, and only ONE read answers it.
       async.elapse(const Duration(minutes: 5));
       async.flushMicrotasks();
       expect(repository.fetchCalls, 1, reason: 'no cadence to fire');
@@ -235,15 +211,6 @@ void main() {
   });
 
   // R29 NOTE — preserved from the poll era, and still exact. The assertion set
-  // is unchanged except that "the poller stays running" became "the push
-  // subscription stays armed", and the liveness tail fires a real push.
-  //
-  //   AUTHORITY: the FROZEN state machine, `DeliverySm.cs:53-62`. `AtDoor` has
-  //   exactly three exits — `otp_verified -> Done`,
-  //   `otp_fail_or_jeeber_escalate -> FailedNeedsEscalation`,
-  //   `escalate_either -> FailedNeedsEscalation` — and NONE of them is a jeeber
-  //   tap. `JeeberDeliveryStatus.next` returns `null` at `atDoor` for that
-  //   reason.
   test(
     'AC13 markDelivered stops at AtDoor and keeps the push subscription armed '
     'for the door-OTP handover (frozen SM: AtDoor->Done is otp_verified only)',
@@ -293,12 +260,9 @@ void main() {
               'the gateway refuses with 422',
         );
         // 4. The subscription stays ARMED: an admin/customer can still move
-        //    this row, and the jeeber must see it.
         expect(cubit.debugPushRefreshWired, isTrue);
 
         // P6/A4 tail, now stronger: a real push lands WHILE the OTP surface is
-        // up. The read happens, and the non-terminal result is REFUSED so it
-        // never clobbers the code the jeeber is typing.
         final atHandover = repository.fetchCalls;
         bus.add(null);
         async.flushMicrotasks();
@@ -336,9 +300,6 @@ void main() {
         final repository = _CountingActiveDeliveryRepository(
           fetchStatuses: <JeeberDeliveryStatus>[JeeberDeliveryStatus.atDoor],
           // Stated explicitly: `otp_verified -> Done` is the ONLY edge the
-          // frozen SM (DeliverySm.cs:53-62) opens out of AtDoor, and this test
-          // owns that terminal-stop assertion now that AC13 correctly stops at
-          // the door.
           verifyOtpResult: JeeberDeliveryStatus.done,
         );
         final bus = StreamController<void>.broadcast();
@@ -362,8 +323,6 @@ void main() {
         expect(cubit.debugPushRefreshWired, isFalse);
 
         // STRONGER than the old timer claim: the bus is app-wide, so an
-        // unretired subscription would keep re-reading this Done row on every
-        // unrelated push for the rest of the session.
         for (var i = 0; i < 3; i++) {
           bus.add(null);
           async.flushMicrotasks();
@@ -418,8 +377,6 @@ void main() {
     await tester.pump();
 
     // The resume backstop is UNCHANGED and still load-bearing: it catches a
-    // push the OS dropped or coalesced while the process was backgrounded.
-    // EXACTLY one read — never a double-fetch.
     expect(repository.fetchCalls, backgroundBaseline + 1);
     await tester.pump(_resumePollInterval);
     expect(

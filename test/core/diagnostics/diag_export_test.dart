@@ -3,7 +3,6 @@ import 'package:jeeb_mobile/core/diagnostics/diag_export.dart';
 
 /// Pins the EXACT export path contract documented in docs/diagnostics.md —
 /// if the on-device layout or the adb one-liner shape changes, this fails and
-/// the doc must move with it.
 void main() {
   group('androidPackageFromPath', () {
     test('extracts the applicationId from a modern user-0 data path', () {

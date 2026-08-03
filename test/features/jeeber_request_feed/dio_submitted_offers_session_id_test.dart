@@ -1,12 +1,4 @@
 // S0-OAD-03 identity-cleanup regression: DioSubmittedOffersRepository must scope
-// the submitted-offers list to the REAL AUTHENTICATED SESSION jeeber id resolved
-// from AuthTokenStore — NEVER a hardcoded `user-jeeber-002` fixture id.
-//
-// Failing-first proof: before the fix the screens passed
-// `SessionSeamBootstrap.jeeberUserId` (== 'user-jeeber-002') into the repo, so a
-// real jeeber's offers were queried against the mock fixture id. These tests
-// pin that the query param now carries the session id (and that a hardcoded
-// fixture id never leaks).
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';

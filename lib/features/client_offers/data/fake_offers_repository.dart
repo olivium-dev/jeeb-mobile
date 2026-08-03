@@ -5,11 +5,6 @@ import '../domain/jeeber_vehicle.dart';
 import '../domain/offer.dart';
 import '../domain/offers_repository.dart';
 
-/// In-memory repository for development + tests. Drip-feeds new offers to
-/// simulate the gateway streaming them as Jeebers bid (T-mobile-015 AC: "real
-/// time updates as new offers arrive"). Production swaps this for the Dio
-/// implementation in [DioOffersRepository] (lands with the gateway wiring
-/// ticket).
 class FakeOffersRepository implements OffersRepository {
   FakeOffersRepository({
     DateTime? windowExpiresAt,
@@ -36,20 +31,14 @@ class FakeOffersRepository implements OffersRepository {
   OffersFailure? _acceptFailure;
   bool _requestOpen = true;
 
-  /// Allows tests to seed an additional offer mid-flight without relying on
-  /// timers. The cubit's next poll picks it up.
   void pushOffer(Offer offer) => _offers.add(offer);
 
-  /// Simulates the gateway closing the request (matched / cancelled / expired).
   void closeRequest() => _requestOpen = false;
 
-  /// Overrides the failure surface for the next accept call.
   void scriptAcceptFailure(OffersFailure failure) => _acceptFailure = failure;
 
   @override
   Future<OffersSnapshot> fetchOffers(String requestId) async {
-    // Drip one new offer per call once the seed has been served. Mirrors the
-    // "new bid arrived" cadence the cubit subscribes to via polling.
     if (_incoming.isNotEmpty &&
         DateTime.now().isAfter(_lastEmittedAt.add(_incomingInterval))) {
       _offers.add(_incoming.removeAt(0));
@@ -80,9 +69,6 @@ class FakeOffersRepository implements OffersRepository {
       throw const OffersRepositoryException(OffersFailure.offerNotPending);
     }
     _requestOpen = false;
-    // The fake mirrors the mock convention deliveryId == accepted-request-id,
-    // and surfaces a derived conversation id so JM-029's confirm → order-chat
-    // navigation lands on a non-empty `/chat/<id>` in dev/offline runs.
     return OfferAcceptResult(
       deliveryId: requestId,
       conversationId: 'conv-for-$requestId',

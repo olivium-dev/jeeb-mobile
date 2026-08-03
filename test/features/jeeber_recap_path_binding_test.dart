@@ -1,14 +1,4 @@
 // §6B jeeber re-capture (S22) — DEFECT-A & DEFECT-B regression locks.
-//
-// DEFECT-A: the jeeber order-history (Delivery tab) repository must call the
-//   gateway-contract `GET /v1/requests` — NOT the dead `/api/requests` prefix
-//   (which 404'd, showing "Couldn't load orders"). The CUSTOMER list already
-//   uses `/v1/requests`; this proves the shared repo now matches.
-//
-// DEFECT-B: the jeeber Earnings repository must NOT send a hardcoded
-//   `jeeberId=user-jeeber-002` query param — the live gateway resolves the
-//   owner from the bearer token and ignores any client-supplied id. When the
-//   caller passes no id, no `jeeberId` key is on the request.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,16 +30,12 @@ void main() {
     test('GET path is /v1/requests', () async {
       String? capturedPath;
       // DioOrderRepository calls `dio.get<dynamic>` (it parses the envelope
-      // defensively), so the stub MUST match that generic — a `get<Map<..>>`
-      // stub silently misses and returns null.
       when(() => dio.get<dynamic>(
             any(),
             queryParameters: any(named: 'queryParameters'),
           )).thenAnswer((inv) async {
         capturedPath = inv.positionalArguments.first as String;
         // A non-empty page so fetchPage completes (the repo treats an empty
-        // `{items:[]}` Map envelope as a parse error) — this test only locks the
-        // request PATH.
         return _ok({
           'items': [
             {'id': 'r-1', 'status': 'pending'},
@@ -90,8 +76,6 @@ void main() {
           reason: 'live gateway scopes to the token; no client id is sent');
       expect(capturedQuery!['period'], 'today');
       // NOTE: binding the response tiles (totalNet/rowCount/entries) is fixed by
-      // PR #57's EarningsSummary parser + its own tests; this file only locks the
-      // param-omission half of DEFECT-B (the part this PR adds).
     });
 
     test('jeeberId IS sent when a caller explicitly supplies one (mock/tests)',

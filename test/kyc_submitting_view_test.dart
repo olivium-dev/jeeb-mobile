@@ -157,7 +157,6 @@ void main() {
     expect(find.byKey(KycSubmittingView.spinnerKey), findsOneWidget);
     expect(find.text('Submitting your documents'), findsOneWidget);
     // D20: the KYC submit copy no longer references vehicle details (the
-    // vehicle step was removed; the stale "vehicle" wording was dropped).
     expect(find.textContaining('uploading your ID and selfie'), findsOneWidget);
     expect(find.textContaining('vehicle'), findsNothing);
     expect(find.byIcon(Icons.cloud_upload_outlined), findsOneWidget);

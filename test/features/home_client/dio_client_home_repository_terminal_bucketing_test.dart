@@ -1,11 +1,4 @@
 // Lane C (PR-C1) — terminal-safe bucketing on the customer home.
-//
-// A non-accepted request that is TERMINAL (cancelled / expired / delivered)
-// must be treated as history — it must NEVER surface in Pending / Replies /
-// In Progress where a dead auction would re-arm. An already in-flight request
-// (picked / in_transit / …) must surface In Progress with a mapped stage, not
-// as a Pending/Replies auction. Cancelled shipments drop out of In Progress
-// exactly like delivered ones.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';

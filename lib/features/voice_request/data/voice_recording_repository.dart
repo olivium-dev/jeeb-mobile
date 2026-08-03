@@ -5,10 +5,6 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/voice_clip.dart';
 
-/// Result echoed back by the gateway after a successful upload. The
-/// `transcript` is optional because the back-end may complete the upload
-/// synchronously but resolve the Whisper transcription asynchronously; the UI
-/// only requires the id to acknowledge "sent".
 class TranscriptionResult extends Equatable {
   const TranscriptionResult({required this.id, this.transcript});
 
@@ -19,7 +15,6 @@ class TranscriptionResult extends Equatable {
   List<Object?> get props => [id, transcript];
 }
 
-/// Reason a voice upload failed. The cubit maps these onto user copy.
 enum VoiceUploadFailure { network, server, unknown }
 
 class VoiceUploadException implements Exception {
@@ -29,9 +24,6 @@ class VoiceUploadException implements Exception {
   String toString() => 'VoiceUploadException($failure)';
 }
 
-/// Repository that ships a captured clip to the jeeb-gateway transcription
-/// endpoint. The gateway proxies to `voice-transcription-service` per the
-/// REUSE-MAP — jeeb-mobile only talks to its own BFF.
 abstract class VoiceRecordingRepository {
   Future<TranscriptionResult> upload(VoiceClip clip);
 }
@@ -39,12 +31,6 @@ abstract class VoiceRecordingRepository {
 class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
   HttpVoiceRecordingRepository({required Dio dio}) : _dio = dio;
 
-  /// JEBV4-209: `/v1/voice/transcribe` is a dead alias — jeeb-gateway never
-  /// registers that route (`RequestVoiceController` owns `POST /v1/requests`
-  /// for the full voice-order create; the standalone transcribe-only surface
-  /// this repository needs, for populating the compose field, is
-  /// `TranscriptionController` at `POST /transcribe`). That controller takes
-  /// JSON `{fileName, contentType, audioBase64}`, not multipart.
   static const String endpoint = '/transcribe';
 
   final Dio _dio;
@@ -62,7 +48,7 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
         options: Options(contentType: 'application/json'),
       );
       final body = response.data ?? const <String, dynamic>{};
-      // Gateway contract (TranscribeResponse): { audioId, status, transcription, language, reason }
+
       final id = body['audioId'] as String?;
       if (id == null || id.isEmpty) {
         throw const VoiceUploadException(VoiceUploadFailure.server);
@@ -98,18 +84,11 @@ class HttpVoiceRecordingRepository implements VoiceRecordingRepository {
   }
 }
 
-/// In-memory stub used by the UI milestone + cubit tests. Echoes the clip
-/// duration in the result id so tests can assert ordering, and supports an
-/// injected failure to cover the error branch.
 class FakeVoiceRecordingRepository implements VoiceRecordingRepository {
   FakeVoiceRecordingRepository({this.failure, this.transcript});
 
-  /// If non-null, the next [upload] throws with this failure. Reset to null
-  /// to recover after the cubit's retry.
   VoiceUploadFailure? failure;
 
-  /// Transcript echoed in the success response. Tests can leave this null to
-  /// verify the cubit handles a delayed-transcript response.
   final String? transcript;
 
   int uploadCalls = 0;

@@ -1,17 +1,3 @@
-// F3 (offers-polling storm — home path 429 tolerance).
-//
-// A 429 while loading the customer home must degrade GRACEFULLY: it must never
-// paint the full-screen "Couldn't reach Jeeb" connection error, must keep any
-// already-rendered data, and must leave both approved create entries reachable.
-//
-// These tests pin that behaviour at the cubit + screen seam:
-//   1. a COLD load that is rate-limited lands on READY (not FAILED), so the
-//      pending empty state + first-request CTA render — the full-screen error never
-//      shows;
-//   2. a rate-limited background REFRESH keeps the previously-loaded data on
-//      screen (no blank, no error) and honors Retry-After by skipping the next
-//      poll tick.
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -27,8 +13,7 @@ import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-/// Repository whose snapshots are scripted per-call so a test can drive a clean
-/// first load followed by a throttled (429) refresh, and count calls.
+/// Repository whose snapshots are scripted per-call so a test c
 class _ScriptedRepo implements ClientHomeRepository {
   _ScriptedRepo(this._script);
 
@@ -164,7 +149,6 @@ void main() {
       await cubit.load();
       expect(repo.calls, 1);
 
-      // Inside the 5-minute Retry-After window: refresh must be skipped.
       await cubit.refresh();
       expect(
         repo.calls,
@@ -189,7 +173,6 @@ void main() {
       await cubit.load();
       await tester.pumpAndSettle();
 
-      // The status never regressed to the full-screen failure state.
       expect(cubit.state.status, ClientHomeStatus.ready);
 
       expect(

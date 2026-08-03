@@ -1,18 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// Lifecycle status of an outbound chat message on the wire.
-///
-/// LEAD pin (JEB-1423 comment #14900) — the canonical set is five values in
-/// this order. The historical AC list cited `{queued, sending, ...}`; that
-/// wording is superseded — `pending` is the post-enqueue / pre-ack state.
 enum ChatMessageStatus { pending, sent, delivered, read, failed }
 
-/// Canonical wire-shape chat message exchanged with the chat-service.
-///
-/// Eight fields per the LEAD pin: `clientId`, `serverId`, `conversationId`,
-/// `senderId`, `body`, `createdAt`, `attempts`, `status`. The codec is
-/// hand-written (Option A — no build_runner) so the JSON keys and the enum
-/// lowercase names are the contract.
 class ChatMessage extends Equatable {
   const ChatMessage({
     required this.clientId,
@@ -38,12 +27,8 @@ class ChatMessage extends Equatable {
     );
   }
 
-  /// Locally-generated id assigned when the cubit enqueues the message.
-  /// Pairs with [serverId] once the server has accepted the send.
   final String clientId;
 
-  /// Server-assigned id, present once the message has been acked. Null while
-  /// the message is still pending or has failed.
   final String? serverId;
 
   final String conversationId;
@@ -53,8 +38,6 @@ class ChatMessage extends Equatable {
   /// Wall-clock at enqueue time. Always serialized as UTC ISO-8601.
   final DateTime createdAt;
 
-  /// Number of transport attempts made so far. Bumped by the flush path;
-  /// reset to 0 by the retry path.
   final int attempts;
 
   final ChatMessageStatus status;

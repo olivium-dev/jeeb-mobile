@@ -1,14 +1,3 @@
-// Unit tests for DioDisplayNameRepository (profile-name lane).
-//
-// Verifies the gateway-contract shape (cycle-6 400 fix): the repo first sources
-// the authenticated identity via `GET /v1/users/me` (getMe) to obtain the
-// REQUIRED userId + email, then submits:
-//   PUT /api/User/profile
-//     body: { "userId", "email", "username": "<display name>", "profilePic" }
-// (all four fields are required by the gateway→user-management contract;
-// omitting any → HTTP 400). Plus trimming, the empty-input no-op, and typed
-// failure mapping.
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -22,8 +11,6 @@ void main() {
   late _MockDio dio;
   late DioDisplayNameRepository repo;
 
-  // The identity the getMe pre-fetch surfaces; both fields are mirrored into the
-  // required PUT body.
   const meUserId = 'u-77777777-7777-4777-8777-777777777777';
   const meEmail = 'ahmad@example.com';
 
@@ -38,7 +25,6 @@ void main() {
         data: const <String, dynamic>{},
       );
 
-  // Stub the getMe identity source the PUT depends on.
   void stubMe() {
     when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer(
       (_) async => Response<Map<String, dynamic>>(

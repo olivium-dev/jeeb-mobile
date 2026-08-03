@@ -1,21 +1,4 @@
 // QA-PRE for JEB-1423 (T-MOB-FIX-005). Pins the ChatMessageStatus state
-// machine and the ChatOutbox.markFailed default impl per the LEAD pin
-// (comment #14900).
-//
-// LEAD-pin reconciliation: the parent issue's AC list quoted the status enum
-// as `{queued, sending, sent, delivered, read, failed}`. The LEAD pin
-// supersedes that with `{pending, sent, delivered, read, failed}` — there is
-// no `queued` or `sending` value. The pin also re-frames the state machine
-// in terms of `pending` as the "outbound-not-yet-acked" state. These tests
-// follow the LEAD pin.
-//
-// Happy path        : pending → sent → delivered → read    (server acks)
-// Dead-letter path  : pending → failed                       (server error)
-// Retry semantics   : failed → pending (and attempts → 0)   (user tap)
-//
-// `markFailed` is the ChatOutbox default impl that walks the persisted queue
-// and flips the matching entry's status to `failed` WITHOUT removing it —
-// the entry must stay so the UI can render a retry-able badge.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,8 +27,6 @@ void main() {
   group('ChatMessageStatus enum surface', () {
     test('contains exactly the LEAD-pinned 5 values in the pinned order', () {
       // Order matters per LEAD pin Decision 3 — pinned: pending, sent,
-      // delivered, read, failed. (The historical "queued" / "sending"
-      // names from the AC list are explicitly out per the pin.)
       expect(ChatMessageStatus.values.map((s) => s.name).toList(), <String>[
         'pending',
         'sent',
@@ -80,7 +61,6 @@ void main() {
       msg = msg.copyWith(status: ChatMessageStatus.failed);
       expect(msg.status, ChatMessageStatus.failed);
       // attempts is independently tracked — flipping to failed must not zero
-      // it on its own. The cubit's retry() is the only path that resets.
       expect(msg.attempts, 0);
     });
 
@@ -91,7 +71,6 @@ void main() {
       expect(msg.attempts, 3);
 
       // Per ChatConnectionCubit.retry() — the LEAD pin documents this as the
-      // canonical reset contract: status → pending, attempts → 0.
       msg = msg.copyWith(status: ChatMessageStatus.pending, attempts: 0);
       expect(msg.status, ChatMessageStatus.pending);
       expect(msg.attempts, 0);
@@ -172,8 +151,6 @@ void main() {
       final loaded = await outbox.load();
       expect(loaded.single.status, ChatMessageStatus.failed);
       // Per the retry contract: only the cubit's retry() zeroes attempts.
-      // markFailed alone preserves the counter so the UI can show "tried N
-      // times".
       expect(loaded.single.attempts, 2);
     });
   });

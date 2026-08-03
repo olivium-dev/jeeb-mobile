@@ -195,15 +195,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // Sheet still open, localized error surfaced INLINE (not a transient
-      // snackbar) — the 401 ProblemDetails is now visible to the user.
       expect(find.byKey(const Key('superLogin.submit')), findsOneWidget);
       expect(
         find.text('Invalid user id or passcode. Please try again.'),
         findsOneWidget,
       );
       // The message is wired into the passcode field's OMDS errorText slot,
-      // so it lives inside the passcode field's subtree (inline), not in a
-      // ScaffoldMessenger overlay.
       expect(
         find.descendant(
           of: find.byKey(const Key('superLogin.passcode')),
@@ -339,7 +336,6 @@ void main() {
         'demo-kamal',
       );
       // FAIL-WITHOUT: without the initState _computeCanSubmit() call the button
-      // would be disabled despite both fields being non-empty.
       expect(
         tester
             .widget<OmdsLoadingButton>(find.byKey(const Key('superLogin.submit')))
@@ -403,9 +399,6 @@ void main() {
       );
 
       // FAIL-WITHOUT: the fields used to pass `labelText` into their
-      // InputDecoration, which on the borderless filled OMDS field floats to
-      // the top edge and crowds the pre-filled value. The fix lifts the label
-      // out of the decoration, so labelText is now null on both fields.
       expect(
         tester
             .widget<OmdsTextField>(find.byKey(const Key('superLogin.userId')))

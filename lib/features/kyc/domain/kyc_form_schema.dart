@@ -1,11 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// Field type in the form-builder schema rendered by the gateway.
 enum KycFieldType { string, enumField, date, file, unknown }
 
-/// One field descriptor from the form-builder schema.
-///
-/// Mirrors the `schema.fields[]` shape from `GET /v1/kyc/jeeb/form-schema`.
 class KycFormField extends Equatable {
   const KycFormField({
     required this.key,
@@ -30,14 +26,10 @@ class KycFormField extends Equatable {
   final String key;
   final KycFieldType type;
 
-  /// Backend i18n label key — displayed as-is since mobile resolves labels
-  /// from its own ARB catalogue via [KycFormSchema.resolveLabel].
   final String i18nLabelKey;
 
-  /// Non-empty for [KycFieldType.enumField] fields.
   final List<String> options;
 
-  /// Optional regex validation for string fields.
   final String? validationRegex;
 
   static KycFieldType _parseType(String raw) {
@@ -59,7 +51,6 @@ class KycFormField extends Equatable {
   List<Object?> get props => [key, type, i18nLabelKey, options, validationRegex];
 }
 
-/// Schema envelope returned by `GET /v1/kyc/jeeb/form-schema`.
 class KycFormSchema extends Equatable {
   const KycFormSchema({
     required this.templateVersion,

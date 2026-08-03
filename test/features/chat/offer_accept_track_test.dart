@@ -1,15 +1,5 @@
 /// T-MOB-ACCEPTTRACK — accept→track gap fix (E2E happy-path map gaps G3 + G5).
-///
 /// G3 (deliveryId capture): the offer-accept path now surfaces the
-/// server-created deliveryId. These tests assert the [ChatCubit] captures it
-/// from both the [ChatGateway.acceptOffer] return value and the synthetic
-/// [PhaseChanged] event, null-safely (no crash when absent).
-///
-/// G5 (Track-Order CTA): [OfferAcceptedBanner] renders a client "Track order"
-/// CTA — keyed + Semantics(identifier: 'offer_accepted_track_cta') — only when
-/// a delivery id is available, and tapping it routes to live tracking. The
-/// fail-without test proves the CTA is absent when no callback is wired (the
-/// dead-end this ticket removes).
 library;
 
 import 'dart:async';
@@ -31,8 +21,6 @@ import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_ser
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 
-// ---------------------------------------------------------------------------
-// G3 — cubit deliveryId capture
 // ---------------------------------------------------------------------------
 
 /// Gateway whose accept returns a scripted [OfferAcceptResult] and (optionally)
@@ -98,8 +86,6 @@ ChatCubit _cubit(_AcceptGateway gw) {
 }
 
 // ---------------------------------------------------------------------------
-// G5 — banner / chat-screen localization host
-// ---------------------------------------------------------------------------
 
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncLocDelegate(this._arbByTag);
@@ -140,7 +126,6 @@ Widget _host(Widget child, {Locale locale = const Locale('en')}) => MaterialApp(
 const _trackCtaKey = Key('offer-accepted-track-cta');
 
 // Gateway that seeds an accepted thread (with a winner) so the ChatScreen
-// renders the OfferAcceptedBanner. Accept returns a scripted delivery id.
 class _ScreenGateway extends ChatGateway {
   _ScreenGateway({this.acceptDeliveryId});
 
@@ -180,12 +165,7 @@ class _ScreenGateway extends ChatGateway {
 
 void main() {
   // b02: the pinned header's expand choice is SESSION state and widget
-  // tests share one process — reset it so a test that expands cannot make
-  // the next test's collapsed-by-default assertion pass (or fail) for the
-  // wrong reason.
   setUp(ChatHeaderExpansionStore.instance.reset);
-  // -------------------------------------------------------------------------
-  // G3 — ChatCubit captures the deliveryId
   // -------------------------------------------------------------------------
   group('G3 — accept surfaces deliveryId into ChatState', () {
     test('captures deliveryId from the accept return value', () async {
@@ -213,7 +193,6 @@ void main() {
 
     test('empty-string deliveryId is treated as not-available', () async {
       // OfferAcceptResult never stores '' from the parsers, but the guard must
-      // hold even if a result is constructed with one directly.
       const state = ChatState(acceptedDeliveryId: '');
       expect(state.canTrackDelivery, isFalse);
     });
@@ -222,8 +201,6 @@ void main() {
         'seeds the tracking deliveryId from initialDeliveryId (client accepted '
         'from the review-list sheet) — Track CTA reachable on load', () async {
       // The client accepted the offer in OfferAcceptSheet, which routed here
-      // with the accept response deliveryId. The cubit must surface tracking
-      // immediately, without an in-chat accept.
       final gw = _AcceptGateway(acceptDeliveryId: null);
       final cubit = ChatCubit(
         deliveryId: 'conv-track-001',
@@ -295,8 +272,6 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // G5 — OfferAcceptedBanner Track-order CTA (widget)
-  // -------------------------------------------------------------------------
   group('G5 — OfferAcceptedBanner Track-order CTA', () {
     setUpAll(_loadArb);
 
@@ -323,7 +298,6 @@ void main() {
     testWidgets('FAIL-WITHOUT: no Track CTA when no callback is wired',
         (tester) async {
       // This is the dead-end the ticket removes: a client banner with no path
-      // to tracking. Without onTrackOrder the CTA must be entirely absent.
       await tester.pumpWidget(
         _host(const OfferAcceptedBanner(jeeberName: 'Kamal Hajj')),
       );
@@ -367,8 +341,6 @@ void main() {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // G3 + G5 together — ChatScreen wires accept→Track CTA→navigation
   // -------------------------------------------------------------------------
   group('ChatScreen — accept surfaces a navigable Track CTA', () {
     setUpAll(_loadArb);
@@ -418,14 +390,6 @@ void main() {
         'NON-PREBUILT path: ChatScreen built with a gateway (not a cubit) '
         'forwards onTrackOrder so the Track CTA appears + routes', (tester) async {
       // FIX-A: the production/normal ChatScreen branch (no prebuilt cubit) must
-      // forward onTrackOrder to _ChatScaffold exactly like the prebuilt branch.
-      // The existing tests above all pass `cubit:`, exercising ONLY the prebuilt
-      // branch; this one passes `gateway:` so ChatScreen takes the
-      // BlocProvider.create(..)..load() path the real app uses.
-      //
-      // FAIL-WITHOUT: before FIX-A the non-prebuilt branch dropped onTrackOrder,
-      // so _trackOrderCallback() saw a null handler and the CTA never rendered —
-      // these assertions are red without the one-line forward.
       final gw = _ScreenGateway(acceptDeliveryId: 'dlv-nonprebuilt-9');
       addTearDown(gw.dispose);
 
@@ -436,14 +400,12 @@ void main() {
             deliveryId: 'conv-nonprebuilt',
             counterpartName: 'Kamal Hajj',
             // No `cubit:` → ChatScreen owns the cubit via BlocProvider.create,
-            // the real non-prebuilt branch.
             gateway: gw,
             onTrackOrder: (id) => trackedId = id,
           ),
         ),
       );
       // The create()..load() path resolves loadHistory/loadPhase synchronously
-      // (the gateway returns immediately); pump to settle the initial emit.
       await tester.pump();
       await tester.pump();
 
@@ -452,7 +414,6 @@ void main() {
       expect(find.byKey(_trackCtaKey), findsNothing);
 
       // Accept surfaces the delivery id → the forwarded callback makes the CTA
-      // appear (this is exactly what the prebuilt branch already did).
       final ctx = tester.element(find.byKey(const Key('offer-accepted-banner')));
       await ctx.read<ChatCubit>().acceptOffer('offer-kamal');
       await tester.pump();

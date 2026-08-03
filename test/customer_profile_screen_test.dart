@@ -59,7 +59,6 @@ const _ratedCustomer = CustomerProfileViewData(
 );
 
 // An unrated customer (the seeded `user-client-001` carries no rating) — the
-// rating chip must still render with its identifier (cold-start "No reviews").
 const _unratedCustomer = CustomerProfileViewData(
   name: 'Nadia Client',
   isVerified: true,
@@ -74,8 +73,6 @@ const _jeeberCustomer = CustomerProfileViewData(
 
 /// No GoRouter is provided: the screen runs in fixture-only mode (GetIt is not
 /// configured under test, so no live `getMe` fires), and the tests assert on
-/// identifier presence + render behaviour, never on a navigation side-effect
-/// (those are covered by the JM-035 Maestro flow against the emulator).
 Widget _harness({
   CustomerProfileViewData data = _ratedCustomer,
   Locale locale = const Locale('en'),
@@ -97,11 +94,6 @@ Widget _harness({
 
 /// Router-backed harness for the row-navigation assertions. The profile rows
 /// (password / language / contact / addresses) now `goNamed`/`pushNamed` REAL
-/// registered routes (the W3/W4 cross-wave targets landed — they are no longer
-/// AP-9 guarded coming-soon). A tap therefore needs a GoRouter in context; this
-/// mounts the screen at `/profile` with stub destination roots so the test can
-/// assert the row navigates to the wired target by id (the on-device jm-061
-/// flow asserts the same `password_security_root` landing on the emulator).
 Widget _stubRoot(String id) => Semantics(
       identifier: id,
       container: true,
@@ -228,7 +220,6 @@ void main() {
       await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
       // These are painted by ShellHeaderActions (the shell), never by the
-      // screen — asserting absence guards against a duplicate-id regression.
       expect(
         find.bySemanticsIdentifier('customer_profile_wallet_chip'),
         findsNothing,
@@ -244,9 +235,6 @@ void main() {
         'password row navigates to the registered password-security route',
         (tester) async {
       // W3/W4 cross-wave: password-security now EXISTS and is registered, so the
-      // row is no longer an AP-9 guarded coming-soon — it `pushNamed`s the real
-      // route. Assert the row is wired to the registered target (the on-device
-      // jm-061 flow asserts the same `password_security_root` landing).
       await tester.pumpWidget(_routerHarness());
       await tester.pumpAndSettle();
 
@@ -259,7 +247,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // Navigated honestly to the registered password-security screen — never an
-      // unregistered name (navigation honesty, CTO brief §6.7).
       expect(
         find.bySemanticsIdentifier('password_security_root'),
         findsOneWidget,

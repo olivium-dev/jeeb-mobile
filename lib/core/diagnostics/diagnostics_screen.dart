@@ -10,7 +10,10 @@ import 'diag.dart';
 import 'diag_export.dart';
 import 'diag_file_sink.dart';
 
-/// One row of the sessions list — a persisted diag JSONL session file.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../devtool/catalog/fixtures/diagnostics_screen_fixtures.dart';
+import '../previews/jeeb_preview.dart';
+
 class DiagSessionFileInfo {
   const DiagSessionFileInfo({
     required this.path,
@@ -25,23 +28,9 @@ class DiagSessionFileInfo {
   final int sizeBytes;
   final DateTime modified;
 
-  /// True for the session file the LIVE sink is currently appending to.
   final bool isCurrent;
 }
 
-/// Dev-only "Diagnostics" screen (Settings → Diagnostics, debug/dev builds
-/// only — the Settings row and this body are gated on [Diag.enabled]).
-///
-/// A deliberately minimal DEV TOOL, not a product surface: lists the persisted
-/// `[jeeb-diag]` JSONL session files (see `DiagFileSink`) and lets a tester
-/// export one through the platform share sheet or copy its on-device path /
-/// `adb` pull one-liner as the no-share-target fallback. Strings are literal
-/// English by design — this surface never ships to release users, so it stays
-/// out of the ARB catalogs.
-///
-/// All side-effecting seams (file listing, share sheet, clipboard) are
-/// constructor-injectable so widget tests run without platform channels.
-// ORPHAN (JEBV4-227, verified 2026-07-12): dead chain via orphaned /settings; dev-gated — see docs/project-understanding/reconciliation/orphans.md
 class DiagnosticsScreen extends StatefulWidget {
   const DiagnosticsScreen({
     super.key,
@@ -56,9 +45,6 @@ class DiagnosticsScreen extends StatefulWidget {
   final Future<void> Function(DiagSessionFileInfo file)? _shareLauncher;
   final Future<void> Function(String text)? _clipboardWriter;
 
-  /// Production loader: lists `*.jsonl` under the diag directory (the live
-  /// sink's dir when installed, else the default app-support location),
-  /// newest first. Total: IO failures degrade to an empty list.
   static Future<List<DiagSessionFileInfo>> defaultSessionsLoader() async {
     try {
       final active = DiagFileSink.active;
@@ -79,7 +65,6 @@ class DiagnosticsScreen extends StatefulWidget {
           isCurrent: entity.path == active?.sessionFilePath,
         ));
       }
-      // ISO-stamped names sort chronologically; show newest first.
       files.sort((a, b) => b.name.compareTo(a.name));
       return files;
     } catch (_) {
@@ -87,8 +72,6 @@ class DiagnosticsScreen extends StatefulWidget {
     }
   }
 
-  /// Production share: flush the live sink first so the exported file carries
-  /// the whole session so far, then hand it to the platform share sheet.
   static Future<void> defaultShareLauncher(DiagSessionFileInfo file) async {
     await Diag.flushPersistent();
     await Share.shareXFiles(
@@ -105,15 +88,12 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   late Future<List<DiagSessionFileInfo>> _sessions = _load();
 
   Future<List<DiagSessionFileInfo>> _load() async {
-    // Flush before listing so the current session's size/content is fresh.
     await Diag.flushPersistent();
     return (widget._sessionsLoader ??
         DiagnosticsScreen.defaultSessionsLoader)();
   }
 
   void _refresh() {
-    // Kick the load OUTSIDE setState — the callback must stay synchronous
-    // (and must not RETURN the future, which an arrow closure would).
     final next = _load();
     setState(() {
       _sessions = next;
@@ -195,8 +175,6 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   }
 }
 
-/// Body for release-like builds (belt and braces: the Settings row that routes
-/// here is itself hidden when [Diag.enabled] is false).
 class _DisabledBody extends StatelessWidget {
   const _DisabledBody();
 
@@ -351,3 +329,112 @@ class _SessionRow extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// The phone this dev tool is read on.
+const Size _diagnosticsScreenPhoneBox = Size(390, 844);
+
+/// The narrowest phone the app still supports — and roughly what an Android
+/// multi-window split leaves a foreground app.
+const Size _diagnosticsScreenCompactBox = Size(320, 568);
+
+/// Pins the screen to a device-sized frame inside whatever box the host gives
+/// it, with all three side-effecting seams inert and the build gate driven.
+Widget _diagnosticsScreenHosted(
+  Future<List<DiagSessionFileInfo>> Function() loader, {
+  bool enabled = true,
+  Size box = _diagnosticsScreenPhoneBox,
+}) {
+  return Align(
+    alignment: Alignment.topCenter,
+    child: SizedBox(
+      width: box.width,
+      height: box.height,
+      child: DiagnosticsScreenEnabledScope(
+        enabled: enabled,
+        child: DiagnosticsScreen(
+          sessionsLoader: loader,
+          shareLauncher: DiagnosticsScreenPreviewFixtures.inertShare,
+          clipboardWriter: DiagnosticsScreenPreviewFixtures.inertClipboard,
+        ),
+      ),
+    ),
+  );
+}
+
+/// The reference reading: the live session above a closed one from the other
+/// role, with the export rows resolved from the newest file's parent.
+@JeebPreview(
+  group: 'core',
+  name: 'Sessions · newest first',
+  size: _diagnosticsScreenPhoneBox,
+  matrix: true,
+)
+Widget diagnosticsScreenSessions() =>
+    _diagnosticsScreenHosted(DiagnosticsScreenPreviewFixtures.listing);
+
+/// A listing that came back with nothing: no `*.jsonl` written yet, so both
+/// export rows are disabled and the sessions section is one placeholder row.
+@JeebPreview(
+  group: 'core',
+  name: 'Empty · no session files',
+  size: _diagnosticsScreenPhoneBox,
+)
+Widget diagnosticsScreenEmpty() =>
+    _diagnosticsScreenHosted(DiagnosticsScreenPreviewFixtures.empty);
+
+/// The listing THREW — and the screen says so nowhere.
+/// `_enabledBody` takes `snapshot.data ?? const []` and never inspects
+@JeebPreview(
+  group: 'core',
+  name: 'Loader failed · degrades to empty',
+  size: _diagnosticsScreenPhoneBox,
+)
+Widget diagnosticsScreenLoadFailed() =>
+    _diagnosticsScreenHosted(DiagnosticsScreenPreviewFixtures.failing);
+
+/// The listing in flight: a bare centred `CircularProgressIndicator` under the
+/// app bar, with nothing naming what is being awaited.
+@JeebPreview(
+  group: 'core',
+  name: 'Loading · listing files',
+  size: _diagnosticsScreenPhoneBox,
+)
+Widget diagnosticsScreenLoading() =>
+    _diagnosticsScreenHosted(DiagnosticsScreenPreviewFixtures.stalled);
+
+/// The layout ceiling: the longest session name inside the deepest directory.
+/// Every string on this card is an unbroken machine token — a 58-character
+@JeebPreview(
+  group: 'core',
+  name: 'Longest content · long name, deep path',
+  size: _diagnosticsScreenPhoneBox,
+  matrix: true,
+)
+Widget diagnosticsScreenLongestContent() =>
+    _diagnosticsScreenHosted(DiagnosticsScreenPreviewFixtures.longestListing);
+
+/// The 320 x 568 floor with one 3.5 MB session listed — the width where the
+/// leading icon, the two-line label and the trailing share/copy pair have to
+@JeebPreview(
+  group: 'core',
+  name: 'Compact 320 pt · one session',
+  size: _diagnosticsScreenCompactBox,
+)
+Widget diagnosticsScreenCompact() => _diagnosticsScreenHosted(
+      DiagnosticsScreenPreviewFixtures.compactListing,
+      box: _diagnosticsScreenCompactBox,
+    );
+
+/// Release-like build: `Diag.enabled` is false, so the body is the dev-only
+/// notice and no listing happens at all.
+@JeebPreview(
+  group: 'core',
+  name: 'Release-like build · diag disabled',
+  size: _diagnosticsScreenPhoneBox,
+)
+Widget diagnosticsScreenDisabled() => _diagnosticsScreenHosted(
+      DiagnosticsScreenPreviewFixtures.listing,
+      enabled: false,
+    );

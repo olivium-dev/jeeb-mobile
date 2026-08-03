@@ -1,12 +1,4 @@
 // Unit tests for LocaleCubit's server-persistence seam (JEBV4-205, E10).
-//
-// Covers the remote-user-preferences integration only (the widget-level
-// switching/RTL behaviour lives in test/locale_switching_test.dart):
-//   * setLocale mirrors the choice to the remote store.
-//   * syncFromServer applies a server-held language over the local cache — the
-//     "survives reinstall" case (local cache empty, server still holds it).
-//   * a failing/offline remote never breaks a local switch (offline-first).
-//   * an unsupported server value is ignored.
 
 import 'dart:ui';
 

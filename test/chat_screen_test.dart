@@ -98,7 +98,6 @@ void main() {
 
     await tester.enterText(find.byKey(ChatComposer.textFieldKey), 'Hi');
     // The send button rebuilds on canSendText flipping — pump a frame so the
-    // BlocBuilder sees the new state before we tap.
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(ChatComposer.sendButtonKey));
     await tester.pumpAndSettle();
@@ -144,7 +143,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Send Arabic, then English, then mixed — exactly mirrors a real
-    // WhatsApp-style mixed conversation.
     for (final text in const ['مرحباً', 'On my way', 'OK شكراً']) {
       await tester.enterText(find.byKey(ChatComposer.textFieldKey), text);
       await tester.pumpAndSettle();
@@ -153,7 +151,6 @@ void main() {
     }
 
     // Walk the rendered Text widgets and verify the conversation order is
-    // intact — the screen does not normalise direction across messages.
     expect(find.text('مرحباً'), findsOneWidget);
     expect(find.text('On my way'), findsOneWidget);
     expect(find.text('OK شكراً'), findsOneWidget);

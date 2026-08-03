@@ -1,14 +1,4 @@
 // cycle-4 P0 fix — customer cancellations must actually reach the server.
-//
-// The old repo POSTed the mock-era `/v1/delivery/cancel` (404s on the real
-// gateway) and SWALLOWED 404/422, so the UI pretended success while the
-// request stayed live server-side. These tests pin the corrected contract:
-//
-//   1. Verb + path: DELETE /v1/requests/{id} (request-keyed cancel,
-//      requestId == deliveryId convention) — never the dead POST.
-//   2. Typed mapping: 409 → conflict, 404 → notFound, 403 → forbidden,
-//      connection/timeout → network, 5xx/other → unknown.
-//   3. NO swallowing: every non-2xx throws — a failing cancel MUST surface.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';

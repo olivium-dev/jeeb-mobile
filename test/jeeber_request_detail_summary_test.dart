@@ -1,13 +1,3 @@
-// P2 polish — Jeeber request-detail summary enrichment (DEF-2).
-//
-// The summary used to render a single flat `Text(shortLabel)` under a
-// "What the client says" header — sparse, and semantically wrong (the
-// shortLabel the feed row sets is the PICKUP label, not the client's item
-// description). These tests pin the enriched layout: the two genuinely-present
-// FeedRequest fields (`shortLabel` → pickup, `id` → request reference) laid
-// out with the OMDS `OMDSSectionCard` + detail-row idiom. No invented fields,
-// no network calls — only data actually present on the model.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -60,12 +50,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // shortLabel is the pickup, now under the "Pickup" row (was mislabelled
-    // under the description header).
     expect(find.text('Pickup'), findsOneWidget);
     expect(find.text('2kg tomatoes from the souq'), findsOneWidget);
 
     // FAIL-WITHOUT: the prior flat layout showed only shortLabel — it never
-    // surfaced the request reference. This asserts the id is now visible.
     expect(find.text('Request reference'), findsOneWidget);
     expect(find.text('REQ-001'), findsOneWidget);
   });
@@ -98,7 +86,6 @@ void main() {
   });
 
   // ── G1 (sprint-009 P0) — the FULL description is what the jeeber agrees to
-  //    buy/deliver, so it renders first, complete and untruncated. ───────────
 
   const g1Request = FeedRequest(
     id: 'REQ-001',

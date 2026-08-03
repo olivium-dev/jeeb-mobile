@@ -65,8 +65,6 @@ Widget _host(
 
 /// Host that also provides the app-root [RoleAvailabilityCubit] above the
 /// wizard, so the JEBV4-271 round-3 role-arrived listener is wired (production
-/// shell parity). The returned cubit lets the test publish a late `jeeber`
-/// grant — the exact out-of-band `/v1/users/me` signal from the rev2 repro.
 Widget _hostWithRoles(
   KycWizardCubit cubit,
   RoleAvailabilityCubit availability, {
@@ -154,16 +152,12 @@ void main() {
       await tester.pumpWidget(_host(cubit));
       await tester.pumpAndSettle();
 
-      // kyc_wizard_root wraps the whole body.
       expect(_byIdentifier('kyc_wizard_root'), findsOneWidget);
 
-      // AC2: gov-ID front/back + selfie present.
       expect(_byIdentifier('kyc_id_front_upload'), findsOneWidget);
       expect(_byIdentifier('kyc_id_back_upload'), findsOneWidget);
       expect(_byIdentifier('kyc_selfie_upload'), findsOneWidget);
 
-      // E3/JEBV4-197: the ID-type picker (all 3 ratified variants) and the
-      // ID-number field are part of the identity screen.
       expect(_byIdentifier('kyc_id_type_picker'), findsOneWidget);
       expect(_byIdentifier('kyc_id_type_national_id'), findsOneWidget);
       expect(_byIdentifier('kyc_id_type_passport'), findsOneWidget);
@@ -171,11 +165,9 @@ void main() {
       expect(_byIdentifier('kyc_id_number_input'), findsOneWidget);
       expect(find.byKey(KycIdentityStep.idNumberFieldKey), findsOneWidget);
 
-      // kyc_submit_cta present from the first frame of the identity screen.
       expect(_byIdentifier('kyc_submit_cta'), findsOneWidget);
       expect(find.byKey(KycIdentityStep.submitButtonKey), findsOneWidget);
 
-      // AC1: NO vehicle step anywhere.
       expect(_byIdentifier('kyc_vehicle_step'), findsNothing);
       expect(find.text('LB-12345'), findsNothing);
     },
@@ -218,9 +210,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // The screen fired the funding-navigation hook exactly once...
       expect(fundingNav, 1);
-      // ...and consumed the one-shot flag so it cannot re-fire.
       expect(cubit.state.justSubmitted, isFalse);
       expect(cubit.state.submission.status, KycStatus.pending);
     },
@@ -251,15 +241,10 @@ void main() {
       await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
       await tester.pumpAndSettle();
 
-      // The funding chain must NOT fire for an auto-approved submit — it stays
-      // in-wizard so the jeeber role activates (no re-login).
       expect(fundingNav, 0,
           reason: 'auto-approve must not navigate away to onboarding-funding');
       expect(cubit.state.justSubmitted, isFalse);
       expect(cubit.state.submission.status, KycStatus.approved);
-      // The approved status view renders in-wizard. Its _ApprovedBody is what
-      // fires JeeberRoleActivator on the real app shell (a no-op in this bare
-      // widget harness with no role cubits / DI, so the view still renders).
       expect(find.byKey(KycStatusView.approvedTitleKey), findsOneWidget);
     },
   );
@@ -285,7 +270,6 @@ void main() {
       await tester.pump();
 
       // Submit → the wizard shows the submitting spinner and STAYS there (the
-      // gateway submit future never resolves — the on-device ~98s hang).
       await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
       await tester.pump();
       expect(find.byKey(KycSubmittingView.rootKey), findsOneWidget);
@@ -293,8 +277,6 @@ void main() {
           reason: 'still stuck before the grace window elapses');
 
       // Advance past the safety-net grace window (12s). The poller re-reads the
-      // status, sees the server already recorded Verified, and advances the
-      // wizard off the spinner — no force-stop, no re-login.
       await tester.pump(const Duration(seconds: 13));
       await tester.pump(); // apply the emitted status transition
       await tester.pumpAndSettle();
@@ -339,8 +321,6 @@ void main() {
       expect(find.byKey(KycStatusView.approvedTitleKey), findsNothing);
 
       // The jeeber role lands out-of-band via /v1/users/me (RoleSync publishes
-      // it) — WITHOUT the submit future ever resolving and WITHOUT any
-      // /kyc/status poll. The listener must drive the approved transition.
       availability.setAvailableRoles(const ['client', 'jeeber']);
       await tester.pump();
       await tester.pumpAndSettle();
@@ -360,14 +340,6 @@ void main() {
     'client gates)',
     (tester) async {
       // Mirrors the JM-040 Maestro flow for the gov-ID photos: it cannot
-      // drive the OS camera for the front/back ID tiles, so it leaves them
-      // uncaptured and relies on the ID number (text input IS Maestro-
-      // drivable) plus the selfie tile — ID front/back completeness stays
-      // back-office validated (JM-051 convention). JEBV4-295: the selfie is
-      // now a hard client gate too (submitting without one always 400'd
-      // server-side), so this test captures it directly via the cubit,
-      // exactly as a Maestro flow does by driving the selfie tile's stub
-      // camera picker.
       var fundingNav = 0;
       final cubit = _newCubit(
         gateway: FakeKycGateway(decision: KycStatus.pending),
@@ -448,8 +420,6 @@ void main() {
         expect(cubit.state.submission.hasValidIdNumber, isTrue);
 
         // A valid ID number alone must NOT enable the CTA — the selfie is a
-        // hard gate too (the client previously let this fire a POST that
-        // always 400'd server-side on selfie_with_liveness_url: null).
         await tester.tap(find.byKey(KycIdentityStep.submitButtonKey));
         await tester.pump();
         await tester.pump();
@@ -509,15 +479,10 @@ void main() {
         await tester.pumpWidget(_host(cubit));
         await tester.pumpAndSettle();
 
-        // The selfie tile is off-screen (below the fold) — present in the
-        // element tree (it's a plain Column, not a lazy list) but not
-        // hit-testable at its actual (off-viewport) paint position.
         expect(find.byKey(KycIdentityStep.selfieTileKey).hitTestable(),
             findsNothing);
 
         // The cue itself sits at the ID/selfie fold boundary and may also
-        // start below the fold — bring it into view (a minimal scroll, as a
-        // real user's first swipe would) before tapping it.
         await tester.ensureVisible(
           find.byKey(KycIdentityStep.scrollHintKey),
         );
@@ -787,7 +752,6 @@ void main() {
     're-entry on a rejected KYC shows the view-rejection CTA and no resubmit (D52/D87)',
     (tester) async {
       // Preserves the JM-042/043 coverage: the rejected status branch exposes
-      // `kyc_status_view_rejection` and NEVER a resubmit CTA (rejection is final).
       final shared = FakeKycGateway(
         decision: KycStatus.rejected,
         rejectionReason: KycRejectionReason.idUnreadable,
@@ -816,15 +780,10 @@ void main() {
 
       expect(find.byKey(KycStatusView.rejectedTitleKey), findsOneWidget);
       expect(_byIdentifier('kyc_status_view_rejection'), findsOneWidget);
-      // No resubmit affordance (the old key was removed under D52/D87).
       expect(_byIdentifier('kyc_status_resubmit_cta'), findsNothing);
     },
   );
 
-  // E19 / Q-040 tri-state (JEBV4-214): a `ResubmitRequested` re-entry renders
-  // the resubmit branch — its reason, the per-slot "what to fix" list, and a
-  // resubmit CTA — and is DISTINCT from the final rejected branch (no
-  // view-rejection hand-off; the rejected title/CTA are absent).
   testWidgets(
     're-entry on a resubmit-requested KYC shows the resubmit CTA + steps, '
     'distinct from the final rejected branch',
@@ -848,7 +807,6 @@ void main() {
       expect(find.byKey(KycStatusView.resubmitTitleKey), findsOneWidget);
       expect(_byIdentifier('kyc_status_resubmit_cta'), findsOneWidget);
       expect(_byIdentifier('kyc_status_resubmit_steps'), findsOneWidget);
-      // NOT the final rejected branch: no rejected title, no appeal hand-off.
       expect(find.byKey(KycStatusView.rejectedTitleKey), findsNothing);
       expect(_byIdentifier('kyc_status_view_rejection'), findsNothing);
     },
@@ -877,7 +835,6 @@ void main() {
       await tester.tap(_byIdentifier('kyc_status_resubmit_cta'));
       await tester.pumpAndSettle();
 
-      // resubmit() reset the draft and re-loaded the schema → identity capture.
       expect(find.byKey(KycStatusView.resubmitTitleKey), findsNothing);
       expect(_byIdentifier('kyc_submit_cta'), findsOneWidget);
       expect(_byIdentifier('kyc_id_front_upload'), findsOneWidget);

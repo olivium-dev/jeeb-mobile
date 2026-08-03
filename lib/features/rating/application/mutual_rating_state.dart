@@ -3,31 +3,19 @@ import 'package:equatable/equatable.dart';
 import '../domain/entities/rating_status.dart';
 
 enum MutualRatingPhase {
-  /// Awaiting user to pick stars and submit.
   inputting,
-
-  /// Submit call in-flight.
   submitting,
 
-  /// JM-034 mandatory terminal: the rating persisted and the screen must
-  /// navigate away (customer → customer-orders-home, jeeber → Dashboard tab).
-  /// This is the canonical end of the mandatory rating path (AC2/AC3, D56).
-  /// The blind-reveal phases below remain for the T-MOB-020 standalone flow.
+  /// Mandatory terminal: rating persisted, screen must navigate away.
   submitted,
 
-  /// Submitted; waiting for counterpart to rate.
   awaitingOther,
-
-  /// Polling for status in-progress.
   polling,
-
-  /// Both sides rated — reveal state.
   revealed,
 
-  /// Auto-revealed after 7 days without counterpart rating.
+  /// Auto-revealed after 7 days.
   autoRevealed,
 
-  /// Error state.
   error,
 }
 

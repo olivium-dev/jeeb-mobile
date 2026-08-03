@@ -1,44 +1,4 @@
 // ignore_for_file: avoid_dynamic_calls
-//
-// `ChatDetailScreen`'s State class is PRIVATE (`_ChatDetailScreenState`), so
-// `tester.state(find.byType(ChatDetailScreen))` can only be typed as `dynamic`
-// from a test. The alternative — widening the State class or adding a public
-// accessor to production code purely so a test can name it — is worse than the
-// lint. Scoped to this file, and only for that one call.
-
-// b02 wave D — the measured resume fan-out, pinned.
-//
-// A device capture of ONE foreground resume on the customer order-chat produced
-// 4x `GET /v1/deliveries/{id}` + 2x `GET /v1/offers`, against
-// `ChatDetailScreen._refreshSummary`'s own documented claim of "ONE summary
-// re-read". The arithmetic decomposes exactly:
-//
-//   * `ChatDetailScreen` fired `_refreshSummary` TWICE — once from
-//     `didChangeAppLifecycleState(resumed)`, once from the `delivery` push the
-//     OS delivered on the way back to the foreground. Each call is a
-//     `fetchSummary`, and on the owner-scoped (customer) leg that is THREE
-//     gateway reads: deliveries + requests + offers. → 2 deliveries, 2 offers.
-//   * `DeliveryDetailScreen`, sitting BELOW the chat route in the stack for the
-//     whole conversation, fired `_loadStatus` twice for the same two reasons.
-//     Its repository is participant-scoped, so one read each. → 2 deliveries.
-//
-//   4 deliveries, 2 offers. No timer involved: three individually-correct
-//   one-shot triggers, none of which knew about the others.
-//
-// Two independent fixes, both asserted here:
-//   1. SINGLE FLIGHT on each screen — a trigger that lands while a read is on
-//      the wire is DROPPED, not stacked. Beyond the wasted reads, the stacked
-//      calls could complete out of order and repaint the chip from the OLDER
-//      snapshot.
-//   2. TOPIC ROUTING — neither screen subscribes to `chat` any more, so an
-//      inbound message stops contributing to this at all. Covered in
-//      `test/core/notifications/push_refresh_topic_routing_test.dart`.
-//
-// The counters are deliberately a PAIR: `debugSummaryRefetchCount` counts
-// ATTEMPTS and `debugSummaryFetchCount` counts reads that reached the wire. A
-// test that saw only "one read" could not tell a working latch from a
-// subscription that never fired.
-
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -58,9 +18,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
 
-/// Recording Dio whose DELIVERY read can be held open, so a second trigger
-/// lands while the first read is genuinely in flight — which is the only state
-/// in which a single-flight latch means anything.
 class _GatedDio {
   _GatedDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -139,9 +96,6 @@ Widget _chatHost(RoleCubit role, Stream<void> refreshSignals) => MaterialApp(
   ),
 );
 
-/// `DeliveryDetailScreen` wraps its body in `RootAwareBackScope`, which needs a
-/// real `Router` above it, so this host is `MaterialApp.router` rather than a
-/// bare `home:`.
 Widget _deliveryHost(Stream<void> refreshSignals) {
   final router = GoRouter(
     initialLocation: '/orders/${_GatedDio.requestId}',
@@ -178,9 +132,6 @@ dynamic _chatState(WidgetTester tester) =>
 
 void main() {
   // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
-  // floor. Without a per-test reset the floor bleeds across cases in this file
-  // (they run milliseconds apart) and a genuine resume in test N is silently
-  // folded into test N-1's window.
   setUp(() async => AppResumeSignals.debugReset());
 
   late _GatedDio rec;
@@ -214,14 +165,10 @@ void main() {
       final offersAtMount = rec.offerReads;
 
       // Hold the next delivery read open so the second trigger is guaranteed to
-      // land mid-flight. Without the gate the first read completes inside the
-      // same microtask drain and the test proves nothing.
       final gate = Completer<void>();
       rec.hold = gate;
 
       // Trigger 1: the app returns to the foreground.
-      // b02 P0: `paused`, not `inactive` — a bare focus loss is no longer a
-      // resume, so this must model a real background trip to fire the hook.
       for (final s in const <AppLifecycleState>[
         AppLifecycleState.inactive,
         AppLifecycleState.hidden,
@@ -309,7 +256,6 @@ void main() {
       rec.hold = gate;
 
       // b02 P0: `paused`, not `inactive` — a bare focus loss is no longer a
-      // resume, so this must model a real background trip to fire the hook.
       for (final s in const <AppLifecycleState>[
         AppLifecycleState.inactive,
         AppLifecycleState.hidden,

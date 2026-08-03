@@ -73,9 +73,6 @@ void main() {
     test('bootstrap registers the FCM token with the gateway for ANY transport',
         () async {
       // A non-Firebase transport that yields a token — exactly the case the
-      // mock-gateway dev build and integration harness hit. Before iter7 the
-      // registrar was only attached for FirebaseMessagingTransport, so this
-      // token was never forwarded to the backend.
       final transport = FakePushTransport(token: 'fcm-real-token');
       final dio = _RecordingDio();
       final registrar =
@@ -148,7 +145,6 @@ void main() {
           localizationsDelegateOverride: const SyncAppLocalizationsDelegate(),
           sessionGate: const AlwaysAuthenticatedSessionGate(),
           // Non-Firebase transport with a token — proves the iter7 wiring
-          // attaches a registrar regardless of the concrete transport class.
           pushTransport: FakePushTransport(token: 'fcm-app-token'),
           pushDeviceRegistrar: registrar,
         ),

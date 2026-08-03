@@ -12,9 +12,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:record/record.dart';
 
 // ---------------------------------------------------------------------------
-// Mocks: stand in for the platform plugins so the wrappers are exercised in
-// pure Dart (no method-channel, no real mic / audio session).
-// ---------------------------------------------------------------------------
 class _MockAudioRecorder extends Mock implements AudioRecorder {}
 
 class _MockAudioPlayer extends Mock implements AudioPlayer {}
@@ -28,8 +25,6 @@ void main() {
     registerFallbackValue(Duration.zero);
   });
 
-  // -------------------------------------------------------------------------
-  // RecordVoiceRecorder — wraps the `record` package behind VoiceRecorder.
   // -------------------------------------------------------------------------
   group('RecordVoiceRecorder (T-MOB-011)', () {
     late _MockAudioRecorder platform;
@@ -159,7 +154,6 @@ void main() {
       when(() => platform.stop()).thenAnswer((_) async => null);
 
       // bytesReader returns data, but with no path nor active path the clip
-      // can't be resolved — fresh recorder, never started.
       final recorder = RecordVoiceRecorder(
         recorder: platform,
         tempDirResolver: () async => tempDir,
@@ -191,7 +185,6 @@ void main() {
         when(() => platform.cancel()).thenAnswer((_) async {});
 
         // Force the active path to be the file we created by stubbing the
-        // resolver to return our temp dir and pre-seeding via start().
         final recorder = RecordVoiceRecorder(
           recorder: platform,
           tempDirResolver: () async => tempDir,
@@ -261,8 +254,6 @@ void main() {
     );
   });
 
-  // -------------------------------------------------------------------------
-  // AudioPlayersVoicePlayer — wraps `audioplayers` behind VoicePlayer.
   // -------------------------------------------------------------------------
   group('AudioPlayersVoicePlayer (T-MOB-011)', () {
     late _MockAudioPlayer platform;

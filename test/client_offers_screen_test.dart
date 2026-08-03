@@ -18,8 +18,6 @@ import 'support/sync_app_localizations.dart';
 
 /// A [Dio] whose interceptor resolves every request with [body] (status 200) so
 /// a test can drive the REAL [DioOffersRepository] off a canned wire payload —
-/// no mock-server, no network. Used to reproduce the exact LIVE gateway
-/// `GET /v1/offers?requestId=` envelope on the on-device path.
 Dio _dioRespond(
   Object? offersBody, {
   Object? requestBody = const {'status': 'pending'},
@@ -510,8 +508,6 @@ void main() {
 
     expect(find.text('Rana'), findsOneWidget);
     // Lane item 3: one MoneyFormat everywhere - the pill renders "$17.50",
-    // not a bare "17.50" with a separate currency-code line.
-    // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
     expect(find.text('\u2066\$17.50\u2069'), findsOneWidget);
     expect(find.text('22 min ETA'), findsOneWidget);
     expect(find.text('Bicycle'), findsOneWidget);
@@ -523,10 +519,6 @@ void main() {
     '(iter6 offer-card render gap, STATE/iter6-FINAL-PROOF.md STEP-3)',
     (tester) async {
       // The EXACT live gateway `GET /v1/offers?requestId=` body the on-device app
-      // received in logcat: the flat OfferDto inside { items: [...] } with the
-      // gateway-collapsed `status: "pending"` (offer-service submitted/edited/
-      // pending → gateway pending). Drives the REAL DioOffersRepository → cubit →
-      // screen so this is the genuine on-device parse+render path, not a fixture.
       final repo = DioOffersRepository(
         _dioRespond({
           'items': [
@@ -553,7 +545,6 @@ void main() {
         ),
       );
       // The real DioOffersRepository resolves its GET asynchronously through the
-      // Dio interceptor microtask chain, so let the load() future settle.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump();
@@ -579,7 +570,6 @@ void main() {
       );
       expect(accept.isEnabled, isTrue);
       // The parsed fee surfaces on the card via the unified MoneyFormat
-      // (6.5 USD -> "$6.50", lane item 3).
       expect(find.text('\u2066\$6.50\u2069'), findsWidgets);
     },
   );

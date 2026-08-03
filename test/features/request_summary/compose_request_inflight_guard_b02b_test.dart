@@ -1,6 +1,4 @@
 // B-02b — the create-request submit must fire exactly once even under a
-// re-entrant call (the footer's own `_submitting` guard is lost across a
-// back-nav re-entry, so the guard has to live on the shared controller too).
 
 import 'dart:async';
 
@@ -29,7 +27,6 @@ class _GatedSubmission implements RequestSubmissionService {
 }
 
 // JEBV4-176: a current-location choice now carries a REAL resolved GPS fix
-// (non-Beirut) — the controller refuses to create without a real coordinate.
 const _loaded = LocationSelectState(
   status: LocationSelectStatus.loaded,
   currentGpsStatus: CurrentGpsStatus.resolved,

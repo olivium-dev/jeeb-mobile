@@ -1,28 +1,4 @@
 // S11 Defect-A LIVE regression — DioClientHomeRepository In-Progress merge.
-//
-// The S10 fix added a `GET /v1/requests?role=client` merge so a freshly-matched
-// order surfaces in the client "In Progress" tab even when the deliveries-only
-// source omits it. Its unit test PASSED but the live tab still dropped the new
-// order. Root cause: the S10 test stubbed `/v1/requests` with
-// `any(named: 'queryParameters')`, so it returned the matched row no matter
-// which filter the repo sent — it could never catch a param mismatch. On the
-// live gateway the in-flight (`matched`) request is surfaced ONLY through the
-// `status=active` filter (the same param the order-history Active tab uses,
-// dio_order_repository.dart:77, and the one the field logcat showed). The S10
-// merge queried `role=client`, so when the deliveries source lagged the merge
-// hit the wrong filter and the order was dropped.
-//
-// These fixtures are the ACTUAL row shapes captured from the running mock
-// (:4010) for the reproduced create→offer(fee 8)→accept flow:
-//   - `/v1/requests` row: `status:"matched"`, amount.minorUnits 800, NO
-//     `deliveryId` field, plus displayId/pickup/dropoff/offersCount/jeeberId.
-//   - `/v1/deliveries?stage=active` row: `id == deliveryId == delivery-<offerId>`,
-//     `requestId` = the parent request, `status:"Ordered"`, `currentStage`.
-//
-// The `/v1/requests` stub here is PARAM-SENSITIVE: it returns the matched row
-// only when the repo sends `status=active`. A regression to the S10
-// `role=client`-only query makes the matched row vanish and these tests fail —
-// which is precisely the live bug the param-agnostic S10 test could not catch.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,7 +21,6 @@ const _freshRequestId = 'request-1b9c9153';
 const _freshDeliveryId = 'delivery-1b9c9153-acc';
 
 // ACTUAL `/v1/requests` row shape for the freshly-matched order (captured from
-// :4010). Note: status="matched", amount.minorUnits=800, and NO deliveryId.
 final _freshMatchedRequestRow = <String, dynamic>{
   'id': _freshRequestId,
   'displayId': 'ORD-234812',
@@ -67,7 +42,6 @@ final _freshMatchedRequestRow = <String, dynamic>{
 };
 
 // Seeded request rows the gateway returns under `status=active` (non-terminal),
-// mirroring the captured shape (delivery-00x request projections + pendings).
 final _seededActiveRequestRows = <Map<String, dynamic>>[
   {
     'id': 'request-pending-001',
@@ -93,7 +67,6 @@ final _seededActiveRequestRows = <Map<String, dynamic>>[
 ];
 
 // `/v1/requests?status=active` envelope — the live-proven filter that DOES
-// carry the freshly-matched order.
 Map<String, dynamic> _activeRequestsBody() => <String, dynamic>{
       'items': <Map<String, dynamic>>[
         ..._seededActiveRequestRows,
@@ -105,9 +78,6 @@ Map<String, dynamic> _activeRequestsBody() => <String, dynamic>{
     };
 
 // `/v1/requests` WITHOUT `status=active` (role-only) — simulates the live
-// gateway NOT surfacing the matched in-flight request through that query. If
-// the repo regresses to the S10 `role=client`-only call it lands here and the
-// matched order disappears.
 Map<String, dynamic> _roleOnlyRequestsBody() => <String, dynamic>{
       'items': <Map<String, dynamic>>[..._seededActiveRequestRows],
       'page': 1,
@@ -116,7 +86,6 @@ Map<String, dynamic> _roleOnlyRequestsBody() => <String, dynamic>{
     };
 
 // ACTUAL `/v1/deliveries?stage=active` row shape: id == deliveryId == the
-// server delivery id, requestId = parent, status/currentStage = Ordered.
 Map<String, dynamic> _seededDeliveryRow(String id, String requestId,
         String title, String stage) =>
     <String, dynamic>{
@@ -135,7 +104,6 @@ Map<String, dynamic> _seededDeliveryRow(String id, String requestId,
     };
 
 // Deliveries source that has minted the new order's row (steady state) — the
-// row carries the real server delivery id for the Track CTA.
 Map<String, dynamic> _deliveriesWithFreshRow() => <String, dynamic>{
       'items': <Map<String, dynamic>>[
         _seededDeliveryRow('delivery-001', 'delivery-001',
@@ -152,7 +120,6 @@ Map<String, dynamic> _deliveriesWithFreshRow() => <String, dynamic>{
     };
 
 // Deliveries source that has NOT yet minted the new order's delivery row (the
-// live lag that the S10 merge was meant to cover) — only seeded rows.
 Map<String, dynamic> _deliveriesWithoutFreshRow() => <String, dynamic>{
       'items': <Map<String, dynamic>>[
         _seededDeliveryRow('delivery-001', 'delivery-001',
@@ -175,11 +142,6 @@ void main() {
   });
 
   // PARAM-SENSITIVE requests stub: the matched row is surfaced ONLY when the
-  // repo sends `status=active`. This is the safeguard the S10 `any(named:)`
-  // stub lacked. Call shape mirrors the repository exactly: `get<dynamic>` on
-  // the un-versioned gateway path `/requests` (a `get<Map<String, dynamic>>`
-  // stub would NOT match the repo's `get<dynamic>` invocation under mocktail —
-  // the generic is part of the match — and would fail as a Null-return).
   void stubRequestsBySurface() {
     when(() => dio.get<dynamic>(
           '/requests',
@@ -200,8 +162,6 @@ void main() {
   }
 
   // BUG-3 offer probes (`GET /v1/offers?requestId=`) run for every
-  // non-accepted candidate on the home load. Return no live offers so the
-  // probe is inert here — offer bucketing is not what this suite guards.
   void stubOfferProbes() {
     when(() => dio.get<dynamic>(
           '/v1/offers',
@@ -219,7 +179,6 @@ void main() {
     await repo.loadSnapshot();
 
     // At least one /requests call must carry status=active (the active
-    // merge). A regression to role-only would fail this.
     final activeCalls = verify(() => dio.get<dynamic>(
           '/requests',
           queryParameters: captureAny(named: 'queryParameters'),
@@ -274,7 +233,6 @@ void main() {
     final card =
         snapshot.inProgress.firstWhere((r) => r.id == _freshDeliveryId);
     // Track CTA: the card exposes the server delivery id (GET /v1/delivery/<id>
-    // resolves), reusing the same deliveryId-routing the chat CTA relies on.
     expect(card.deliveryId, _freshDeliveryId);
     expect(card.trackingId, _freshDeliveryId);
 

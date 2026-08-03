@@ -8,27 +8,12 @@ import '../domain/voice_player.dart';
 import '../domain/voice_recorder.dart';
 import 'voice_recording_state.dart';
 
-/// Factory producing a 1-tick-per-period stream while the recording / playback
-/// is in flight. Pulled out as a typedef so tests can inject a manual
-/// [StreamController] and drive elapsed time deterministically.
 typedef VoiceRecordingTickerFactory = Stream<Duration> Function(Duration step);
 
 Stream<Duration> _defaultTickerFactory(Duration step) {
   return Stream<Duration>.periodic(step, (i) => step * (i + 1));
 }
 
-/// Drives the press-and-hold voice request flow (JEEB-60).
-///
-/// Lifecycle:
-///   idle → (startRecording) → recording → (stopRecording) → recorded
-///         → (togglePlayback) ↔ playing
-///         → (send) → sending → sent  (terminal until [reset])
-///         → (discardClip) → idle
-///
-/// The cubit owns the recording-elapsed timer and the playback-position timer
-/// via the injected [VoiceRecordingTickerFactory] so views never have to drive
-/// their own clocks. The same factory is used by the unit tests to step time
-/// without `Future.delayed` waits.
 class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   VoiceRecordingCubit({
     required VoiceRecorder recorder,
@@ -49,8 +34,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   final VoiceRecordingTickerFactory _tickerFactory;
   final Duration _tickInterval;
 
-  // Cleared in [_stopRecordTicker], which every terminal recording path calls
-  // (stop, cancel, auto-stop at the duration cap, and the cubit's `close`).
   StreamSubscription<Duration>? _recordTickSub; // ignore: cancel_subscriptions
 
   Future<void> startRecording() async {
@@ -95,11 +78,11 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     final elapsed = state.elapsed;
     await _stopRecordTicker();
     if (elapsed < VoiceRecordingState.minSendableDuration) {
-      // Mis-tap. Abort the recorder, discard, and surface the hint.
+
       try {
         await _recorder.cancel();
       } catch (_) {
-        // Best-effort cleanup — don't mask the underlying too-short signal.
+
       }
       emit(
         state.copyWith(
@@ -114,16 +97,13 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     await _finalizeRecording(elapsed);
   }
 
-  /// Discards an in-flight recording without raising the too-short error.
-  /// Used by the explicit "cancel" gesture (swipe-to-cancel on the mic
-  /// button).
   Future<void> cancelRecording() async {
     if (state.phase != VoiceRecordingPhase.recording) return;
     await _stopRecordTicker();
     try {
       await _recorder.cancel();
     } catch (_) {
-      // Ignore — we're tearing down anyway.
+
     }
     emit(
       state.copyWith(
@@ -135,7 +115,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     );
   }
 
-  /// Drops the captured clip and returns to idle so the user can re-record.
   Future<void> discardClip() async {
     if (!state.hasClip && state.phase != VoiceRecordingPhase.playing) return;
     if (state.phase == VoiceRecordingPhase.playing) {
@@ -144,7 +123,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     emit(const VoiceRecordingState());
   }
 
-  /// Toggles between playing and paused/recorded for the captured clip.
   Future<void> togglePlayback() async {
     if (state.phase == VoiceRecordingPhase.playing) {
       await _player.pause();
@@ -157,7 +135,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     emit(
       state.copyWith(
         phase: VoiceRecordingPhase.playing,
-        // If playback reached the end last time, restart from zero.
+
         playbackPosition: state.playbackPosition >= clip.duration
             ? Duration.zero
             : state.playbackPosition,
@@ -171,9 +149,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     );
   }
 
-  /// Moves the review playhead. While audio is playing the platform player is
-  /// updated immediately; while paused the retained position is used as the
-  /// starting point on the next [togglePlayback].
   Future<void> seekPlayback(Duration position) async {
     if (state.phase != VoiceRecordingPhase.recorded &&
         state.phase != VoiceRecordingPhase.playing) {
@@ -191,8 +166,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     }
   }
 
-  /// Submits the captured clip to the gateway. No-op if there is no clip or
-  /// if the clip is below [VoiceRecordingState.minSendableDuration].
   Future<void> send() async {
     if (!state.canSend) return;
     if (state.phase == VoiceRecordingPhase.playing) {
@@ -225,8 +198,6 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     emit(state.copyWith(clearError: true));
   }
 
-  /// Resets state back to idle. Used by the screen after the user dismisses
-  /// the "sent" confirmation and wants to record another request.
   Future<void> reset() async {
     await _stopRecordTicker();
     if (state.phase == VoiceRecordingPhase.playing) {
@@ -238,7 +209,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   @override
   Future<void> close() async {
     await _stopRecordTicker();
-    // Best-effort teardown — swallow errors so close() can't throw.
+
     try {
       await _recorder.cancel();
     } catch (_) {}
@@ -291,7 +262,7 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
   void _onRecordTick(Duration elapsed) {
     if (state.phase != VoiceRecordingPhase.recording) return;
     if (elapsed >= VoiceRecordingState.maxDuration) {
-      // Auto-stop: emit one final elapsed at the cap and finalize.
+
       emit(state.copyWith(elapsed: VoiceRecordingState.maxDuration));
       unawaited(_autoStopAtCap());
       return;

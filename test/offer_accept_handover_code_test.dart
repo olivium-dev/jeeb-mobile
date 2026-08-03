@@ -1,14 +1,4 @@
 // G4 (sprint-009 P0) — "the regular user is not receiving the OTP code".
-//
-// ROOT CAUSE #1 pinned here: the accept response carries `handoverCode` (mock
-// `POST /v1/offers/:offerId/accept` → `{ offer, handoverCode, conversationId,
-// conversationPhase }`) and the pre-fix `_parseAcceptResult` DISCARDED it —
-// `OfferAcceptResult` had no field for it, so the one wire moment the customer
-// was given their code threw it away. These tests prove BOTH accept paths
-// (offer-review sheet → DioOffersRepository, chat Accept → DioChatGateway):
-//   1. retain `handoverCode` on the returned OfferAcceptResult, and
-//   2. persist it into the HandoverCodeStore keyed by deliveryId, and
-//   3. never leak the raw code through the diag event stream.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -166,14 +156,6 @@ void main() {
   });
 
   // P0 (2026-07-31, ship-p0 run g5): every test above scripts a body carrying
-  // `deliveryId` / `delivery_id`. The LIVE gateway never sends either. It
-  // answers POST /v1/offers/{offerId}/accept with a DeliveryRequestDto whose
-  // id member is plain `id` (JeebOffersController.ToRequestDto → `Id = r.Id`;
-  // RequestsDtos.cs has no deliveryId member at all), so on every real device
-  // the parsed delivery id was null and the handoverCode in the SAME body was
-  // discarded. The suite passed throughout, because it only ever fed the shape
-  // the parser already handled. These bodies are copied from the recorder
-  // capture (a33.db, 2026-07-31T19:31:08.436Z, delivery 0f0e20d8-…).
   group('accept — the LIVE gateway body shape (P0 regression)', () {
     // Trimmed to the fields that matter; key set and casing are verbatim.
     Map<String, dynamic> liveAcceptBody() => <String, dynamic>{
@@ -224,9 +206,6 @@ void main() {
     test('an envelope WITHOUT clientId never yields `id` as the delivery id',
         () async {
       // The `:4010` mock returns `{ offer, handoverCode, conversationId, … }`.
-      // A top-level `id` on such an envelope would be the OFFER id; reading it
-      // as a delivery id would key the code to the wrong row — worse than the
-      // bug being fixed. The clientId guard is what forbids it.
       final store = _MemoryStore();
       final dio = _RecordingDio()
         ..nextPostData = {

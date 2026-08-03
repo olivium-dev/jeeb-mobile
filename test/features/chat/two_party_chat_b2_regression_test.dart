@@ -1,27 +1,4 @@
 // REAL two-party chat regression guard for B-2 (jeeber-not-seated).
-//
-// B-2 (sprint-8 D1, CHAT-COMPLETION-PLAN): after a client accepts an offer, the
-// winning jeeber must be a participant of the order conversation so they can
-// read history, pass the realtime membership pre-check, and RECEIVE the
-// client's messages. The original accept saga only *promoted* an
-// already-seated participant; it never *added* the winner. So the outcome was
-// TIMING-DEPENDENT:
-//   • customer-opens-chat-first → jeeber seated when they offer (conv exists)
-//     → jeeber receives.            ✅
-//   • jeeber-offers-first        → no conversation yet → jeeber never seated;
-//     the accept saga didn't self-heal → jeeber 403s on history + realtime and
-//     RECEIVES NOTHING.             ❌ B-2
-//
-// This test drives the full create → jeeber-offer → accept → send flow through
-// two real `ChatCubit`s (customer + jeeber) over a shared in-memory backend
-// that models the EXACT seating contract, for BOTH orderings, and asserts the
-// jeeber (the second participant) receives the customer's message.
-//
-// TEST-INTEGRITY: a guard that only ever passes is worthless. The backend is
-// parameterized by `seatWinnerOnAccept`; the final test flips it OFF to
-// reproduce the B-2 bug and proves the guard goes RED (the jeeber-offers-first
-// jeeber then receives nothing). So the green cases above are meaningful — they
-// would fail if the seat-the-winner fix regressed.
 
 import 'dart:async';
 
@@ -77,8 +54,6 @@ class _ChatBackend {
 
   /// The B-2 fix (T-BE-1): the accept saga creates-or-gets the conversation
   /// AND ensures the winning jeeber is a participant. When `false`, the saga
-  /// only promotes an already-seated participant (the original B-2 bug) — the
-  /// winner is never *added*.
   final bool seatWinnerOnAccept;
 
   bool _conversationExists = false;
@@ -105,14 +80,12 @@ class _ChatBackend {
 
   /// Jeeber submits an offer. Mirrors offer-service.seatJeeberOnConversation:
   /// the jeeber is seated ONLY if a conversation already exists for the
-  /// request. Otherwise the seating silently never happens.
   void jeeberSubmitsOffer() {
     if (_conversationExists) _participants.add(_jeeberId);
   }
 
   /// Customer accepts the winning offer. The order conversation now exists and
   /// the client is seated regardless (the client opens the order chat). The
-  /// B-2-relevant behavior is whether the WINNER gets added.
   void customerAcceptsOffer() {
     phase = ConversationPhase.accepted;
     _conversationExists = true;
@@ -202,7 +175,6 @@ void main() {
       addTearDown(backend.dispose);
 
       // Lifecycle: customer opens chat → jeeber offers (conv exists → seated)
-      // → customer accepts.
       backend.customerOpensChat();
       backend.jeeberSubmitsOffer();
       backend.customerAcceptsOffer();
@@ -238,7 +210,6 @@ void main() {
       addTearDown(backend.dispose);
 
       // Lifecycle: jeeber offers BEFORE any conversation exists (not seated at
-      // offer time) → customer accepts (create-or-get + seat winner).
       backend.jeeberSubmitsOffer();
       expect(backend.isMember(_jeeberId), isFalse,
           reason: 'precondition: jeeber not seated at offer time (no conv)');
@@ -269,7 +240,6 @@ void main() {
         '(accept does NOT seat the winner), the jeeber-offers-first jeeber '
         'receives NOTHING — proving the guard above is real', () async {
       // seatWinnerOnAccept:false reproduces the original accept saga that only
-      // promotes an existing participant.
       final backend = _ChatBackend(seatWinnerOnAccept: false);
       addTearDown(backend.dispose);
 
@@ -284,7 +254,6 @@ void main() {
       addTearDown(jeeber.close);
 
       // The jeeber's history read 403s → load() degrades to an empty,
-      // never-subscribed chat (the real "jeeber sees an empty chat").
       await jeeber.load();
       await customer.load();
 

@@ -8,7 +8,6 @@ import 'package:jeeb_mobile/core/notifications/data/push_device_registrar.dart';
 /// Stub Dio that records the last PUT and returns a canned response/error.
 /// The registrar uses `PUT /api/PushNotification/register` (the gateway
 /// controller is `[HttpPut]`), so we override `put` — overriding `post` would
-/// no longer be exercised and the un-stubbed `put` would throw on the Fake.
 class _FakeDio extends Fake implements Dio {
   String? lastPath;
   Map<String, dynamic>? lastData;
@@ -68,9 +67,6 @@ class _FakeSecureStorage extends Fake implements FlutterSecureStorage {
 
 /// The REAL `push-notification` register route answers `204 No Content` with
 /// an EMPTY body (verified in the backend's `push-e2e.test.ts` and the service
-/// handler). The prior fixture invented `201 {'message':'registered'}` — a
-/// response the backend never sends (TEST-INTEGRITY-AUDIT #3). The registrar
-/// only cares that the status is 2xx, so 204/empty is the faithful fixture.
 Response<dynamic> _ok() => Response<dynamic>(
       requestOptions: RequestOptions(path: ''),
       statusCode: 204,
@@ -79,7 +75,6 @@ Response<dynamic> _ok() => Response<dynamic>(
 
 /// Stable per-install device id shape emitted by `PushDeviceRegistrar`:
 /// a UUID-v4-style `8-4-4-4-12` hex string with the version nibble pinned to
-/// `4` and the variant nibble pinned to `a` (see `_generateId`).
 final _deviceIdPattern = RegExp(
   r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$',
 );
@@ -102,7 +97,6 @@ void main() {
     await sut.register('fcm-token-abc');
 
     // The live gateway BFF route (sprint-05 push-proof §1f): the prior
-    // `/v1/devices/register` 404s on :10090 and silently dropped every token.
     expect(dio.lastPath, '/api/PushNotification/register');
     expect(dio.lastData?['fcmToken'], 'fcm-token-abc');
     // Platform discriminator present (android/ios/unknown on the test VM).
@@ -112,8 +106,6 @@ void main() {
       anyOf('android', 'ios', 'unknown'),
     );
     // A stable per-install deviceId is sent — assert its exact UUID-v4 shape,
-    // not merely that it is non-empty (the weak prior assertion would pass for
-    // any junk string).
     final deviceId = dio.lastData?['deviceId'] as String?;
     expect(deviceId, isNotNull);
     expect(deviceId, matches(_deviceIdPattern));
@@ -174,7 +166,6 @@ void main() {
     expect(dio.calls, 1);
 
     // Because it was not recorded as registered, a later attempt with the SAME
-    // token retries (the refresh/bootstrap re-register path).
     dio.nextError = null;
     dio.nextResponse = _ok();
     await sut.register('token-x');
@@ -183,9 +174,6 @@ void main() {
 
   group('identity-keyed dedup (S0-PUSH-03 / S0-PUSH-04)', () {
     // The body NEVER carries a userId — the gateway derives the owner from the
-    // bearer. These tests prove the CLIENT-SIDE dedup is keyed by the real
-    // session UUID so a token is (re)registered under the authenticated user,
-    // never skipped because a *different* identity already sent it.
 
     test(
         'the register body never carries a userId — identity is server-derived '
@@ -219,7 +207,6 @@ void main() {
       dio.nextResponse = _ok();
 
       // Pre-auth bootstrap: no session UUID yet. Registers under the anonymous
-      // (null) identity key.
       await sut.register('fcm-stable');
       expect(dio.calls, 1);
 
@@ -227,8 +214,6 @@ void main() {
       await storage.write(key: 'auth.userId', value: 'uuid-after-login');
 
       // Re-bootstrap offers the UNCHANGED token. Token-only dedup would skip
-      // this — the identity flipped null -> uuid, so it MUST re-register so the
-      // server-side row is keyed by the authenticated UUID.
       await sut.register('fcm-stable');
       expect(dio.calls, 2);
       expect(dio.lastData!['fcmToken'], 'fcm-stable');
@@ -254,7 +239,6 @@ void main() {
       expect(dio.calls, 1);
 
       // User B signs in on the same device (same stable FCM token). Must
-      // re-register so pushes for B target B's row, not A's.
       await storage.write(key: 'auth.userId', value: 'uuid-B');
       await sut.register('shared-fcm');
       expect(dio.calls, 2);

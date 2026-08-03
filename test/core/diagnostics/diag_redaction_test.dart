@@ -32,8 +32,6 @@ void main() {
     });
 
     // G4 diag-redaction rule: for SHORT secrets (a 4-digit handover OTP, a
-    // 6-digit PIN) "the last 4 chars" is effectively the whole secret — the
-    // handle must be hash-only, leaking not a single digit.
     test('short secrets (OTP/PIN) redact to hash-only — no tail digits', () {
       const otp = '1234';
       final handle = DiagRedaction.redactToken(otp);
@@ -78,8 +76,6 @@ void main() {
     });
 
     // G4: the delivery handover code must never reach a diag line — in any
-    // casing, nesting, or snake_case spelling. For a 4-digit code the handle
-    // must not contain the digits at all (hash-only short-secret rule).
     test('handoverCode-shaped keys are masked, raw digits never leak', () {
       final out = DiagRedaction.scrubMap(<String, Object?>{
         'handoverCode': '1234',
@@ -100,9 +96,6 @@ void main() {
     });
 
     // JEBV4-113: the KYC submit body carries the government-ID number
-    // (`id_number`). The debug/QA RedactingLogInterceptor logs request
-    // bodies, so the raw digits must never survive scrubMap — in any casing
-    // or spelling (`idNumber`, `id_number`, `national_id`).
     test('KYC id_number / national_id never leak raw digits', () {
       final out = DiagRedaction.scrubMap(<String, Object?>{
         'id_number': '123456789012',
@@ -122,8 +115,6 @@ void main() {
     });
 
     // Super-login hardening: the demo-users roster is a LIST of maps, each
-    // carrying `passcode`. scrubMap must recurse into list elements so no row
-    // passcode ever prints in cleartext.
     test('recurses into list elements so nested passcodes are redacted', () {
       final out = DiagRedaction.scrubMap(<String, Object?>{
         'users': <Object?>[

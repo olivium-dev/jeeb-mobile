@@ -1,29 +1,4 @@
 // Regression guard for the dev-seam route-pin defect (screens 10 & 13).
-//
-// The dev seam pins an INITIAL dev route so a single debug APK can capture any
-// authenticated screen deterministically. The pre-fix redirect forced EVERY
-// navigation back to the pinned route:
-//
-//   if (_devRoute.isNotEmpty) {
-//     final devPath = Uri.parse(_devRoute).path;
-//     return state.matchedLocation == devPath ? null : _devRoute;  // always bounce
-//   }
-//
-// so any user-initiated push to a different screen (screen 10: "New Location"
-// → /capture-location; screen 13: pending item → /chat/:id) was bounced back
-// before the target could mount.
-//
-// The fix makes the pin INITIAL-LANDING-ONLY (a per-router latch): force the
-// redirect only while landing from the default root `/`, then release so
-// user-pushed routes stick. Production (no dev route) is untouched.
-//
-// These tests assert:
-//   (a) initial landing on a pinned dev route still works;
-//   (b) a subsequent push to a DIFFERENT route is NOT bounced back;
-//   (c) with no dev route pinned, production redirect behaviour is unchanged.
-//
-// kDebugMode is true under `flutter test`, so the `_devRoute` getter reads the
-// injected DevSeam config (the same path production debug builds take).
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -118,7 +93,6 @@ void main() {
 
   setUp(() {
     // JEBV4-176: the /client-location screen resolves a device-GPS fix; provide
-    // a fake (no real geolocator in the headless harness) so it renders normally.
     sl.registerLazySingleton<CurrentLocationResolver>(
       FakeCurrentLocationResolver.new,
     );
@@ -130,11 +104,6 @@ void main() {
   });
 
   // We assert on the MOUNTED screen widget rather than
-  // `router.currentConfiguration.uri`, because go_router's imperative `push`
-  // keeps the RouteMatchList's reported URI at the base location while the
-  // pushed page renders on top — so `currentConfiguration` reads `/` even
-  // though e.g. CaptureLocationScreen is on screen. The rendered screen type is
-  // the ground truth for "did the target mount and stay".
 
   group('dev-seam route pin (screens 10 & 13)', () {
     testWidgets(
@@ -172,7 +141,6 @@ void main() {
         expect(find.byType(ClientLocationScreen), findsOneWidget);
 
         // User taps "New Location" → pushes the capture screen. Pre-fix this
-        // was bounced straight back to /client-location and never mounted.
         built.router.push('/capture-location');
         await tester.pumpAndSettle();
 
@@ -189,7 +157,6 @@ void main() {
       '(b2) screen 13: from a `/` pin, pushing /chat/:id sticks',
       (tester) async {
         // Screen 13 pins the shell home (root) then taps a pending item which
-        // pushes the chat-detail deep-link target.
         DevSeam.debugOverride(const DevSeamConfig(route: '/'));
         final built = await _buildRouter();
         await tester.pumpWidget(_harness(built));
@@ -220,9 +187,6 @@ void main() {
         expect(find.byType(DevChatPreviewScreen), findsOneWidget);
 
         // The chat fixture is another initial capture pin. Before JEBV4-321 its
-        // top-level redirect remained active forever, so go_router accepted
-        // this push (and DiagNavObserver logged it) but redirected the match
-        // straight back to /dev-chat before the destination could paint.
         built.router.push('/capture-location');
         await tester.pumpAndSettle();
 
@@ -242,8 +206,6 @@ void main() {
       'dev-seam pin',
       (tester) async {
         // No DevSeam override → _devRoute is empty → seam branch is inert and
-        // standard onboarding/biometric routing applies (onboarding completed
-        // in prefs, biometrics unavailable → no lock).
         final built = await _buildRouter();
         await tester.pumpWidget(_harness(built));
         await tester.pumpAndSettle();
@@ -252,12 +214,6 @@ void main() {
         expect(find.byType(ShellScreen), findsOneWidget);
 
         // A push to a normal route is honoured (no dev-seam interference). We
-        // push /capture-location: a self-contained authenticated route that
-        // mounts without the full DI graph, so this router-pin guard stays
-        // focused on redirect behaviour rather than coupling to a screen's
-        // service dependencies (e.g. SettingsScreen now resolves
-        // ProfileRepository/AccountService from GetIt, which an isolated router
-        // test deliberately does not wire).
         built.router.push('/capture-location');
         await tester.pumpAndSettle();
         expect(

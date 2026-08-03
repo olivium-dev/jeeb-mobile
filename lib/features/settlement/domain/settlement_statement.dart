@@ -1,6 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-/// Status of a weekly settlement statement.
 enum SettlementStatus { pending, paid }
 
 extension SettlementStatusX on SettlementStatus {
@@ -10,7 +9,6 @@ extension SettlementStatusX on SettlementStatus {
   }
 }
 
-/// A per-delivery breakdown line inside a settlement statement.
 class SettlementDeliveryLine extends Equatable {
   const SettlementDeliveryLine({
     required this.deliveryId,
@@ -47,7 +45,6 @@ class SettlementDeliveryLine extends Equatable {
       [deliveryId, date, tier, fare, commission, net, currency];
 }
 
-/// A weekly settlement statement for a Jeeber.
 class SettlementStatement extends Equatable {
   const SettlementStatement({
     required this.id,

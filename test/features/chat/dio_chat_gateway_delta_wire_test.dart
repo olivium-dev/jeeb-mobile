@@ -158,12 +158,6 @@ void main() {
   });
 
   // D-d / D-e — INVERTED (bilateral empty-thread fix).
-  //
-  // These two tests used to assert `_expectOneMalformed`, i.e. that a row with
-  // no usable timestamp is DROPPED. That assertion encoded the bug: the live
-  // gateway's message projection carries no timestamp at all, so the rule
-  // rejected 100% of rows and a full thread rendered as the empty state for both
-  // participants. A timestamp is not identity — the row must decode.
   test(
     'D-d absence of all four timestamp aliases still DECODES the message, '
     'anchored on its server position rather than dropped',

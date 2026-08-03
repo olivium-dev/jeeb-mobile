@@ -1,12 +1,4 @@
 // Widget tests for DisplayNameSetupScreen (profile-name lane, post-OTP
-// display-name onboarding step). Proves:
-//   - the step renders localized copy with the CTA gated on a non-empty name;
-//   - the SKIP path resolves the step WITHOUT any PUT (optional-but-encouraged
-//     — registration is never hard-blocked);
-//   - the SUBMIT path PUTs the trimmed name and then resolves the step;
-//   - a failed PUT keeps the user on the step (retry) with skip still live —
-//     fail-soft, never a block;
-//   - the Arabic locale renders the step RTL with the ar copy.
 
 import 'dart:io';
 
@@ -150,7 +142,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // Still on the step (not resolved), the error copy is surfaced, and the
-      // skip exit still works.
       expect(done, 0);
       expect(
         find.text('We couldn’t save your name. Try again, or skip for now.'),

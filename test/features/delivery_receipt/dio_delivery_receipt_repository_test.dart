@@ -9,13 +9,6 @@ import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt_re
 
 /// COD-COMPLETE FIX (fix/cod-complete): confirm-receipt is a SINGLE idempotent
 /// SM-1 status PATCH. The customer never records COD — the old
-/// `POST /v1/payments/cod_jeeb/record` (a route the gateway 404s) and
-/// `POST /v1/delivery/status/transition` (also 404) both dead-ended the customer
-/// at "Something went wrong" before they could rate. This suite proves:
-///
-///   * the confirm→settlement path SUCCEEDS on complete (the reported bug), and
-///   * the ONLY write is `PATCH /v1/deliveries/{id}/status` — the real, shipped
-///     gateway route — never the fictional COD/transition routes.
 void main() {
   group('DioDeliveryReceiptRepository.confirmReceipt — COD-complete fix', () {
     late _RecordingAdapter adapter;
@@ -51,7 +44,6 @@ void main() {
       expect(adapter.statusPatchMethod, 'PATCH');
       expect(adapter.statusPatchPath, '/v1/deliveries/d-1/status');
       // The fictional COD-record route is NEVER touched (it was the 404 that
-      // hard-failed and blocked rating with "Something went wrong").
       expect(adapter.codHit, isFalse);
       // The fictional POST /v1/delivery/status/transition is gone too.
       expect(adapter.legacyTransitionHit, isFalse);

@@ -6,11 +6,6 @@ import 'package:path_provider/path_provider.dart';
 import '../domain/settlement_repository.dart';
 import '../domain/settlement_statement.dart';
 
-/// Dio-backed [SettlementRepository] (T-MOB-032).
-///
-/// Endpoints (Mockoon :3055, useMockPrefixes=false):
-///   GET  /v1/wallet/jeeb/earnings/statements
-///   GET  /v1/wallet/jeeb/earnings/statements/{id}/pdf
 class DioSettlementRepository implements SettlementRepository {
   const DioSettlementRepository(this._dio);
 

@@ -2,11 +2,6 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/address_form_repository.dart';
 
-/// Lifecycle of the JM-050 address-detail-form save action.
-///
-/// The form itself is local (controllers own the text); the only async surface
-/// is the save, so the state machine tracks the SAVE, not a fetch:
-///   [editing] → [saving] → [saved] (terminal, nav fires) | [failed] (banner).
 enum AddressFormStatus { editing, saving, saved, failed }
 
 class AddressFormState extends Equatable {

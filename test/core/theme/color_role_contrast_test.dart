@@ -6,16 +6,7 @@ import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 
 /// Automated WCAG 2.2 AA contrast gate for the Jeeb color-role system.
-///
 /// This is the "audit harness the UX plan calls for" (UX-AUDIT sprint-009
-/// §7.1): every `on<Role>` text color MUST reach ≥ 4.5:1 against its paired
-/// `<Role>` background, in BOTH the light and dark themes. It runs against the
-/// real [AppTheme] output — the same `ColorScheme` + [JeebColorRoles] the app
-/// ships — so a regression in either the M3 scheme or the semantic role layer
-/// fails CI before it reaches a screen.
-///
-/// Reference: WCAG 2.2 SC 1.4.3 Contrast (Minimum),
-/// https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
 void main() {
   /// WCAG relative-luminance contrast ratio in [1, 21].
   /// `Color.computeLuminance()` implements the WCAG relative-luminance formula.
@@ -128,9 +119,6 @@ void main() {
 
     test('the OLD periwinkle-on-white pairing was genuinely failing', () {
       // Documents WHY the migration was needed: onSecondaryContainer over the
-      // white surface (the old code) is below AA — this is the ~2.2–3.8:1
-      // periwinkle-on-white the owner reported. Guards against anyone reverting
-      // the label roles back to onSecondaryContainer on a light surface.
       expect(
         contrast(cs.onSecondaryContainer, cs.surface),
         lessThan(aaText),

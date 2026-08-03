@@ -1,9 +1,4 @@
 // Unit tests for SupportCubit (JM-063).
-//
-// Verifies the form-field setters, the canSubmit gate (category + non-empty
-// body, mirroring the S1 400 contract), the attachment cap (≤5), the
-// submit → success transition (with the draft it builds), and the typed
-// error → retry path.
 
 import 'package:flutter_test/flutter_test.dart';
 

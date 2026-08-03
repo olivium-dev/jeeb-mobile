@@ -1,16 +1,3 @@
-// FIX-B02 — double-submit guard on the create-request Confirm CTA.
-//
-// The location-confirm footer is the ONLY `POST /requests` submit surface in
-// the app and had no re-entrancy guard: a double-tap (or a tap while the create
-// call was in flight) fired `POST /requests` twice, creating two requests. The
-// fix drives the CTA through OmdsLoadingButton with an `_submitting` in-flight
-// flag (disable + spinner) plus an `if (_submitting) return;` guard, mirroring
-// the goods_cost_cubit inFlight guard.
-//
-// This test holds the create call in flight (a gated submission service),
-// double-taps the Confirm CTA, and proves submit() is invoked EXACTLY ONCE and
-// the button reports its loading state while the POST is outstanding.
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -45,8 +32,6 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import '../../support/fake_current_location_resolver.dart';
 import '../../support/sync_app_localizations.dart';
 
-/// A submission service whose [submit] blocks on a gate the test releases, so
-/// the create call can be held in flight while a second tap is attempted.
 class _GatedSubmissionService implements RequestSubmissionService {
   final Completer<void> _gate = Completer<void>();
   int submitCount = 0;
@@ -200,7 +185,6 @@ void main() {
         );
 
         // The CTA reports its loading state (disabled + spinner) while in
-        // flight — the visible half of the double-submit guard.
         final button = tester.widget<OmdsLoadingButton>(
           find.byType(OmdsLoadingButton),
         );
@@ -222,10 +206,6 @@ void main() {
         );
 
         // Release the gate so the create completes and nav proceeds. Use
-        // explicit pumps (NOT pumpAndSettle): the in-flight spinner is an
-        // infinite animation, so settling while it is still mounted would spin
-        // out the pump budget. Two frames complete the submit future + build
-        // the post-create waiting screen (which unmounts the footer/spinner).
         submission.release();
         await tester.pump();
         await tester.pump();

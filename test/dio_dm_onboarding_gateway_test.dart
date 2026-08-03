@@ -5,9 +5,6 @@ import 'package:jeeb_mobile/features/jeeber_onboarding/domain/dm_onboarding_gate
 
 /// JEBV4-111 regression — the JM-038 coverage probe endpoint
 /// `/v1/matching/find-jeebers` is not served by any deployed gateway, so a
-/// route-level 404 must be treated as "coverage unknown, non-blocking" (the
-/// wizard chains on to KYC) while genuine rejections/outages still throw so
-/// the cubit surfaces `submitFailed`.
 
 const _submission = DmOnboardingSubmission(
   state: 'Mount Lebanon',

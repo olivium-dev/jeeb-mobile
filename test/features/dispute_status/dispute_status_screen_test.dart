@@ -1,17 +1,4 @@
 // Widget tests for DisputeStatusScreen (JM-065). Proves:
-//   - the EXACT Semantics identifiers render off an injected repository
-//     (dispute_status_root, dispute_status_state, dispute_status_outcome,
-//      dispute_status_evidence, dispute_status_support, dispute_status_back) —
-//     30_BACKLOG JM-065;
-//   - the 4-state machine (loading → failed → loaded, §3) + D30 ids
-//     (dispute_status_loading / dispute_status_error / dispute_status_retry_cta);
-//   - Open vs Resolved state label, the typed outcome line (refund / penalty,
-//     D2), and the auto-attached evidence summary (D53);
-//   - the support edge → support-ticket (D76) and the back edge → order-chat
-//     (chat ref when present, safe pop otherwise — AP-9 honesty).
-//
-// A minimal GoRouter with stub destination screens backs the edge assertions,
-// since context.goNamed needs a router.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -134,10 +121,6 @@ void main() {
     expect(find.bySemanticsIdentifier('dispute_status_root'), findsOneWidget);
     expect(find.bySemanticsIdentifier('dispute_status_state'), findsOneWidget);
     // JM-065 AC1 (W3/W4 restructure): the outcome note ALWAYS renders — an OPEN
-    // dispute shows the pending-outcome body (the on-device flow asserts
-    // `dispute_status_outcome_note` on the open dispute it seeds), a resolved one
-    // shows the refund/penalty line. Assert the open state via its label, not by
-    // the (now always-present) card's absence.
     expect(find.bySemanticsIdentifier('dispute_status_outcome_note'),
         findsOneWidget);
     expect(find.text('Open — under review'), findsOneWidget); // open-state label
@@ -196,7 +179,6 @@ void main() {
     expect(find.bySemanticsIdentifier('dispute_status_evidence_summary'),
         findsOneWidget);
     // The auto-attached detail lines surface (D53) — proves the summary is
-    // populated, not just the empty container.
     expect(find.text('Damaged item'), findsOneWidget);
     expect(find.textContaining('3 photos attached'), findsOneWidget);
     expect(find.text('Voice note attached'), findsOneWidget);
@@ -206,9 +188,6 @@ void main() {
       'no evidence → the summary card shows the heading but no detail lines',
       (tester) async {
     // W3/W4 restructure: the evidence summary card ALWAYS renders (the screen
-    // owner made it unconditional — see DisputeStatusScreen._LoadedBody). With
-    // empty evidence it renders the heading container but NO per-item detail
-    // line is fabricated (AP-9 honesty).
     await pump(tester, _ScriptedRepository(dispute: _open()));
     expect(find.bySemanticsIdentifier('dispute_status_evidence_summary'),
         findsOneWidget);

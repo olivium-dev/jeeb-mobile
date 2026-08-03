@@ -169,7 +169,6 @@ void main() {
         ..interceptors.add(const DiagDioInterceptor());
       final call = dio.get<dynamic>('/v1/pay');
       // Wait until the request has genuinely FIRED (onRequest ran, the
-      // adapter was reached), then navigate away while it is in flight.
       await adapter.started.future;
       Diag.currentScreen = '/home';
       adapter.release.complete();

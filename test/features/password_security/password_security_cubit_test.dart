@@ -1,9 +1,4 @@
 // B-33 — the change-password submit must NEVER fake success.
-//
-// There is no change-password endpoint in the client's data layer (the gateway
-// exposes only the social-only set-password leg), so a valid form must reach
-// the honest `unavailable` terminal state — it must NOT emit a success that the
-// screen would read as "password changed" and navigate away on.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/password_security/application/password_security_cubit.dart';

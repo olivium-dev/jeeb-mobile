@@ -6,10 +6,9 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/transcription_cubit.dart';
 import '../transcription_screen.dart';
 
-/// Inline banner shown above the text panel when the transcription is not the
-/// happy-path `ready` text: either `queued` (audio saved, transcription
-/// pending) or `failed` (the call errored). Both nudge the user to type their
-/// request; the failed banner additionally surfaces a Retry affordance.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+
 class TranscriptionStatusBanner extends StatelessWidget {
   const TranscriptionStatusBanner({
     super.key,
@@ -19,8 +18,6 @@ class TranscriptionStatusBanner extends StatelessWidget {
 
   final TranscriptionState state;
 
-  /// Optional retry handler (failed state). When null no retry button shows —
-  /// the manual-entry fallback is always available regardless.
   final VoidCallback? onRetry;
 
   @override
@@ -67,8 +64,6 @@ class _BannerSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // Queued/processing is informational -> semantic info role pair (WCAG-AA
-    // gated), replacing the old navy secondaryContainer + onPrimary contrast
     // workaround. Failed keeps the M3 error pair.
     final roles = context.jeebRoles;
     final container =
@@ -155,3 +150,121 @@ class _RetryButton extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// Canvas box for a banner with no Retry button: phone width, three body lines,
+/// with room for the 200%-text rendering to grow into.
+const Size _transcriptionStatusBannerBox = Size(390, 240);
+
+/// Canvas box for the failed states that DO render Retry. The button adds
+/// `Spacing.small` + a 48dp tap target below an already three-line body, and
+const Size _transcriptionStatusBannerWithRetryBox = Size(390, 320);
+
+/// Post-upload, pre-transcript: exactly what `seedFromClip` emits for a clip
+/// whose `transcript` is null/empty, and what `confirmEdit('')` falls back to.
+const TranscriptionState _transcriptionStatusBannerQueuedState =
+    TranscriptionState(
+  status: TranscriptionStatus.queued,
+  audioPath: 'audio-1',
+  audioDuration: Duration(seconds: 3),
+);
+
+/// The state `markFailed(failure)` leaves behind. Note it KEEPS the audio: the
+/// user can still replay the recording and type a manual description, which is
+TranscriptionState _transcriptionStatusBannerFailedState(
+  TranscriptionFailure failure,
+) =>
+    TranscriptionState(
+      status: TranscriptionStatus.failed,
+      failure: failure,
+      audioPath: 'audio-1',
+      audioDuration: const Duration(seconds: 4),
+    );
+
+/// Mirrors the production surround: `TranscriptionScreen` renders the banner as
+/// a `ListView` child under `EdgeInsets.all(Spacing.medium)`. Padding the
+Widget _transcriptionStatusBannerHosted(
+  TranscriptionState state, {
+  VoidCallback? onRetry,
+}) =>
+    Padding(
+      padding: const EdgeInsets.all(Spacing.medium),
+      child: TranscriptionStatusBanner(state: state, onRetry: onRetry),
+    );
+
+/// The common non-happy path: the upload landed but the transcript has not.
+/// This is the only state that uses the semantic **info** role pair
+@JeebPreview(
+  group: 'transcription',
+  name: 'Queued',
+  size: _transcriptionStatusBannerBox,
+)
+Widget transcriptionStatusBannerQueued() =>
+    _transcriptionStatusBannerHosted(_transcriptionStatusBannerQueuedState);
+
+/// Contract guard, made visible: a retry handler on a QUEUED state must not
+/// produce a Retry button.
+@JeebPreview(
+  group: 'transcription',
+  name: 'Queued · retry ignored',
+  size: _transcriptionStatusBannerBox,
+)
+Widget transcriptionStatusBannerQueuedRetryIgnored() =>
+    _transcriptionStatusBannerHosted(
+      _transcriptionStatusBannerQueuedState,
+      onRetry: () {},
+    );
+
+/// `markFailed(TranscriptionFailure.network)` — the reason
+/// `test/transcription_screen_test.dart` pins, and the one a user on a weak
+@JeebPreview(
+  group: 'transcription',
+  name: 'Failed · network',
+  size: _transcriptionStatusBannerWithRetryBox,
+)
+Widget transcriptionStatusBannerFailedNetwork() =>
+    _transcriptionStatusBannerHosted(
+      _transcriptionStatusBannerFailedState(TranscriptionFailure.network),
+      onRetry: () {},
+    );
+
+/// Layout ceiling: the longest copy the banner can hold, plus a button — and
+/// the state that already exposes a live overflow.
+@JeebPreview(
+  group: 'transcription',
+  name: 'Failed · payload too large',
+  size: _transcriptionStatusBannerWithRetryBox,
+)
+Widget transcriptionStatusBannerFailedPayloadTooLarge() =>
+    _transcriptionStatusBannerHosted(
+      _transcriptionStatusBannerFailedState(
+        TranscriptionFailure.payloadTooLarge,
+      ),
+      onRetry: () {},
+    );
+
+/// How the SCREEN actually builds it today: `TranscriptionStatusBanner(state:
+/// state)` with no `onRetry` (`transcription_screen.dart:141`), so the Retry
+@JeebPreview(
+  group: 'transcription',
+  name: 'Failed · generic, no retry',
+  size: _transcriptionStatusBannerBox,
+)
+Widget transcriptionStatusBannerFailedGenericNoRetry() =>
+    _transcriptionStatusBannerHosted(
+      _transcriptionStatusBannerFailedState(TranscriptionFailure.generic),
+    );
+
+/// The defensive fall-through: `status == failed` while `failure` is still
+/// `none`.
+@JeebPreview(
+  group: 'transcription',
+  name: 'Failed · unclassified',
+  size: _transcriptionStatusBannerWithRetryBox,
+)
+Widget transcriptionStatusBannerFailedUnclassified() =>
+    _transcriptionStatusBannerHosted(
+      _transcriptionStatusBannerFailedState(TranscriptionFailure.none),
+      onRetry: () {},
+    );

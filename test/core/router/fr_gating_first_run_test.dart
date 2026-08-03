@@ -1,18 +1,4 @@
 // FR-GATING regression suite: prove the first-run routing is DETERMINISTIC and
-// cannot be silently bypassed.
-//
-// Covers FR-P0-1 (DevSeam route pin must NOT skip onboarding without the
-// explicit skipOnboarding flag) and FR-P0-3 (an onboarded-but-tokenless user is
-// forced to /register, not Home).
-//
-// These tests are written as the ground-truth proof the orchestrator wants:
-//   * the bypass (bare jeeb.route=/ on a fresh install) is CLOSED;
-//   * empty prefs + no token + no skip flag → splash→walkthrough→login path;
-//   * the explicit opt-in (skipOnboarding) still works for deep capture;
-//   * the prior deep-capture-of-authenticated-screens behaviour is intact.
-//
-// kDebugMode is true under `flutter test`, so the `_devRoute`/`_devSkipOnboarding`
-// getters read the injected DevSeam config — the same code path a debug APK runs.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -142,16 +128,11 @@ void main() {
 
   setUp(() async {
     // The /register redirect mounts RegistrationScreen, which resolves
-    // `sl<OtpService>()` at build. Register the existing in-repo fake so the
-    // login destination renders without the real auth-service client (the
-    // social cubit already self-builds against MockGatewayClient). This keeps
-    // the redirect tests honest: we assert the screen actually mounts.
     await sl.reset();
     sl.registerLazySingleton<OtpService>(
       () => const FakeOtpService(latency: Duration.zero),
     );
     // JEBV4-176: current-location resolves a REAL device fix (no geolocator in
-    // the headless harness) so the location-select screen renders normally.
     sl.registerLazySingleton<CurrentLocationResolver>(
       FakeCurrentLocationResolver.new,
     );
@@ -189,7 +170,6 @@ void main() {
       'lands on onboarding (no skip flag)',
       (tester) async {
         // Even a device-file shaped pin to a deep authenticated route must not
-        // skip onboarding on a fresh install.
         DevSeam.debugOverride(const DevSeamConfig(route: '/client-location'));
         final built = await _buildRouter(onboardingCompleted: false);
         _addCleanup(built);
@@ -248,7 +228,6 @@ void main() {
       '(prior behaviour preserved)',
       (tester) async {
         // This is the original capture use case: onboarding already complete,
-        // so the route pin lands on the authenticated screen with no skip flag.
         DevSeam.debugOverride(const DevSeamConfig(route: '/client-location'));
         final built = await _buildRouter(onboardingCompleted: true);
         _addCleanup(built);
@@ -273,9 +252,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // JEBV4-199 (Q-044): the logged-out destination is `/register`, the
-        // phone-OTP entry (Apple/Google social is offered on it). The hidden
-        // email/password `/login` funnel was removed, so `/register` is now the
-        // sole auth entry.
         expect(
           _location(built),
           '/register',
@@ -308,7 +284,6 @@ void main() {
       'until evaluation resolves (no /register flash)',
       (tester) async {
         // The default AlwaysAuthenticatedSessionGate stands in for the inert
-        // unknown phase: isUnauthenticated == false → gate is a no-op.
         final built = await _buildRouter(onboardingCompleted: true);
         _addCleanup(built);
         await tester.pumpWidget(_harness(built));
@@ -358,7 +333,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // `/register` (phone-OTP + social) is the logged-out destination; the
-        // email/password `/login` funnel was removed in JEBV4-199.
         expect(
           _location(built),
           '/register',

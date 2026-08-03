@@ -1,18 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../../features/cancel_request/application/cancel_request_state.dart';
 import '../../../features/cancel_request/data/fake_cancel_request_repository.dart';
 import '../../../features/cancel_request/domain/cancel_request_repository.dart';
 import '../../../features/cancel_request/presentation/cancel_request_sheet.dart';
-import '../../../features/cancellation/domain/cancellation_repository.dart';
 import '../../../features/cancellation/domain/cancellation_result.dart';
 import '../../../features/cancellation/presentation/cancellation_screen.dart';
-import '../../../features/cancellation/presentation/cubit/cancellation_state.dart';
 import '../../../features/cancellation/presentation/widgets/cancellation_success_sheet.dart';
-import '../../../features/chat/presentation/dev_chat_preview_screen.dart';
-import '../../../features/client_offers/application/client_offers_cubit.dart';
 import '../../../features/client_offers/application/offer_accept_state.dart';
 import '../../../features/client_offers/data/fake_offers_repository.dart';
 import '../../../features/client_offers/domain/jeeber_vehicle.dart';
@@ -21,19 +15,15 @@ import '../../../features/client_offers/domain/offers_repository.dart';
 import '../../../features/client_offers/presentation/client_offers_screen.dart';
 import '../../../features/client_offers/presentation/widgets/offer_accept_sheet.dart';
 import '../../../features/client_unreachable/presentation/client_unreachable_screen.dart';
-import '../../../features/customer_profile/data/dev_customer_profile_fixtures.dart';
-import '../../../features/customer_profile/domain/customer_profile_repository.dart';
-import '../../../features/customer_profile/domain/customer_profile_view_data.dart';
 import '../../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../catalog_models.dart';
+import '../fixtures/cancellation_screen_fixtures.dart';
+import '../fixtures/chat_screen_fixtures.dart';
+import '../fixtures/client_offers_screen_fixtures.dart';
+import '../fixtures/client_unreachable_screen_fixtures.dart';
+import '../fixtures/customer_profile_screen_fixtures.dart';
 
-/// Batch 02 — cancel_request, cancellation, chat, client_offers,
-/// client_unreachable, customer_profile (DT-04 screen-catalog rework).
-///
-/// Every builder renders the REAL screen/sheet with an explicit LOCAL fake
-/// repository/gateway — never the DI-resolved production one, since the Dev
-/// Tool shares the app's real GetIt graph (`Bootstrap.minimal`, see
-/// `devtool_shell.dart`) and would otherwise hit the live gateway.
+// Batch 02: cancel_request, cancellation, chat, client_offers, etc — uses LOCAL fakes, never hit live gateway.
 List<CatalogEntry> get batch02Entries => <CatalogEntry>[
   _cancelRequestSheetEntry,
   _cancellationScreenEntry,
@@ -45,12 +35,7 @@ List<CatalogEntry> get batch02Entries => <CatalogEntry>[
   _customerProfileScreenEntry,
 ];
 
-/// Bottom-sheet previews (`CancelRequestSheet` / `OfferAcceptSheet` /
-/// `CancellationSuccessSheet`) are not routes — they render a bare column, not
-/// a `Scaffold`. Wrapping in a surface-colored `Scaffold` with the sheet
-/// pinned to the bottom mirrors how `showModalBottomSheet` actually presents
-/// them, without depending on a `Navigator`/`showModalBottomSheet` call (the
-/// catalog previews a plain widget, not a modal route).
+// Wrap sheets in Scaffold to match showModalBottomSheet presentation.
 Widget _sheetHost(Widget sheet) {
   return Builder(
     builder: (context) => Scaffold(
@@ -59,8 +44,6 @@ Widget _sheetHost(Widget sheet) {
     ),
   );
 }
-
-// ─────────────────────────── cancel_request ────────────────────────────
 
 final CatalogEntry _cancelRequestSheetEntry = CatalogEntry(
   feature: 'cancel_request',
@@ -103,54 +86,25 @@ final CatalogEntry _cancelRequestSheetEntry = CatalogEntry(
   ],
 );
 
-// ──────────────────────────── cancellation ─────────────────────────────
-
-/// Never resolves onto the live gateway (constructor test/catalog seam —
-/// same shape as `FakeCancelRequestRepository`). Returns a plausible result if
-/// a reviewer actually taps Confirm in the interactive preview, instead of
-/// throwing, so poking at the live screen doesn't crash the catalog.
-class _CatalogCancellationRepository implements CancellationRepository {
-  const _CatalogCancellationRepository();
-
-  @override
-  Future<CancellationResult> cancel({
-    required String deliveryId,
-    required String reason,
-    String? otherDetails,
-  }) async {
-    return CancellationResult(deliveryId: deliveryId, weeklyCount: 1);
-  }
+CatalogState _cancellationScreenState(CancellationScreenDesignedState state) {
+  return CatalogState(
+    state.label,
+    (_) => CancellationScreen(
+      deliveryId: state.deliveryId,
+      isJeeber: state.isJeeber,
+      repository: state.repository,
+      initialState: state.initialState,
+    ),
+  );
 }
 
 final CatalogEntry _cancellationScreenEntry = CatalogEntry(
   feature: 'cancellation',
   screen: 'cancellation_screen',
   states: [
-    CatalogState(
-      'Client — reason picker',
-      (_) => const CancellationScreen(
-        deliveryId: 'delivery-demo-1',
-        isJeeber: false,
-        repository: _CatalogCancellationRepository(),
-      ),
-    ),
-    CatalogState(
-      'Jeeber — reason picker',
-      (_) => const CancellationScreen(
-        deliveryId: 'delivery-demo-1',
-        isJeeber: true,
-        repository: _CatalogCancellationRepository(),
-      ),
-    ),
-    CatalogState(
-      'Submitting',
-      (_) => const CancellationScreen(
-        deliveryId: 'delivery-demo-1',
-        isJeeber: false,
-        repository: _CatalogCancellationRepository(),
-        initialState: CancellationLoading(),
-      ),
-    ),
+    _cancellationScreenState(cancellationScreenClientPickerState),
+    _cancellationScreenState(cancellationScreenJeeberPickerState),
+    _cancellationScreenState(cancellationScreenSubmittingState),
   ],
 );
 
@@ -173,79 +127,48 @@ final CatalogEntry _cancellationSuccessSheetEntry = CatalogEntry(
   ],
 );
 
-// ──────────────────────────────── chat ─────────────────────────────────
-
-/// Reuses the shipped `DevChatPreviewScreen` — the app's own debug-only host
-/// that renders the real `ChatScreen` against `DevChatFixtureGateway` (a
-/// deterministic in-memory gateway, no network) for exactly these designed
-/// states (see its doc comment for the Figma node each selector matches).
 final CatalogEntry _chatScreenEntry = CatalogEntry(
   feature: 'chat',
   screen: 'chat_screen',
   states: [
     CatalogState(
       'Client — sending initial request',
-      (_) => const DevChatPreviewScreen(selector: 'sending'),
+      (_) => ChatScreenPreviewFixtures.clientSending(),
     ),
     CatalogState(
       'Client — broadcasting (offer cards)',
-      (_) => const DevChatPreviewScreen(selector: 'broadcasting'),
+      (_) => ChatScreenPreviewFixtures.clientBroadcasting(),
     ),
     CatalogState(
       'Client — accepted 1:1 thread',
-      (_) => const DevChatPreviewScreen(selector: 'accepted'),
+      (_) => ChatScreenPreviewFixtures.clientAccepted(),
     ),
     CatalogState(
       'Jeeber — accepted thread',
-      (_) => const DevChatPreviewScreen(selector: 'dm'),
+      (_) => ChatScreenPreviewFixtures.jeeberAccepted(),
     ),
     CatalogState(
       'Jeeber — order picked banner',
-      (_) => const DevChatPreviewScreen(selector: 'dm-order-picked'),
+      (_) => ChatScreenPreviewFixtures.jeeberOrderPicked(),
     ),
     CatalogState(
       'Jeeber — confirm picking sheet',
-      (_) => const DevChatPreviewScreen(selector: 'dm-confirm-picking'),
+      (_) => ChatScreenPreviewFixtures.jeeberConfirmPicking(),
     ),
     CatalogState(
       'Jeeber — confirm heading-off sheet',
-      (_) => const DevChatPreviewScreen(selector: 'dm-confirm-heading-off'),
+      (_) => ChatScreenPreviewFixtures.jeeberConfirmHeadingOff(),
     ),
   ],
 );
 
-// ────────────────────────────── client_offers ──────────────────────────
-
-/// Always fails (network) — demonstrates the offer-review-list `failed`
-/// status without depending on the live gateway.
-class _FailingOffersRepository implements OffersRepository {
-  const _FailingOffersRepository();
-
-  @override
-  Future<OffersSnapshot> fetchOffers(String requestId) async {
-    throw const OffersRepositoryException(OffersFailure.network);
-  }
-
-  @override
-  Future<OfferAcceptResult> acceptOffer({
-    required String requestId,
-    required String offerId,
-  }) async {
-    throw const OffersRepositoryException(OffersFailure.network);
-  }
-}
-
-ClientOffersCubit _catalogOffersCubit(
-  OffersRepository repository,
-  String requestId,
-) {
-  return ClientOffersCubit(
-    repository: repository,
-    requestId: requestId,
-    refreshSignals: const Stream<void>.empty(),
-    clockTicks: const Stream<void>.empty(),
-  );
-}
+Widget _clientOffersScreen(OffersRepository repository) => ClientOffersScreen(
+  requestId: ClientOffersScreenPreviewFixtures.requestId,
+  repository: repository,
+  cancelRepositoryOverride:
+      ClientOffersScreenPreviewFixtures.cancelRepository(),
+  cubitFactory: ClientOffersScreenPreviewFixtures.inertCubit,
+);
 
 final CatalogEntry _clientOffersScreenEntry = CatalogEntry(
   feature: 'client_offers',
@@ -253,50 +176,30 @@ final CatalogEntry _clientOffersScreenEntry = CatalogEntry(
   states: [
     CatalogState(
       'Loaded — 3 offers',
-      (_) => ClientOffersScreen(
-        requestId: 'req-demo-1',
-        repository: FakeOffersRepository(),
-        cancelRepositoryOverride: FakeCancelRequestRepository(),
-        cubitFactory: _catalogOffersCubit,
+      (_) => _clientOffersScreen(
+        ClientOffersScreenPreviewFixtures.freshWindow(),
       ),
     ),
     CatalogState(
       'Empty — no offers yet',
-      (_) => ClientOffersScreen(
-        requestId: 'req-demo-1',
-        repository: FakeOffersRepository(seed: const []),
-        cancelRepositoryOverride: FakeCancelRequestRepository(),
-        cubitFactory: _catalogOffersCubit,
-      ),
+      (_) => _clientOffersScreen(ClientOffersScreenPreviewFixtures.noBidsYet()),
     ),
     CatalogState(
       'Offer window expired',
-      (_) => ClientOffersScreen(
-        requestId: 'req-demo-1',
-        repository: FakeOffersRepository(
-          windowExpiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
-        ),
-        cancelRepositoryOverride: FakeCancelRequestRepository(),
-        cubitFactory: _catalogOffersCubit,
+      (_) => _clientOffersScreen(
+        ClientOffersScreenPreviewFixtures.elapsedWindow(),
       ),
     ),
     CatalogState(
       'Request closed',
-      (_) => ClientOffersScreen(
-        requestId: 'req-demo-1',
-        repository: FakeOffersRepository()..closeRequest(),
-        cancelRepositoryOverride: FakeCancelRequestRepository(),
-        cubitFactory: _catalogOffersCubit,
+      (_) => _clientOffersScreen(
+        ClientOffersScreenPreviewFixtures.closedRequest(),
       ),
     ),
     CatalogState(
       'Error — network',
-      (_) => ClientOffersScreen(
-        requestId: 'req-demo-1',
-        repository: const _FailingOffersRepository(),
-        cancelRepositoryOverride: FakeCancelRequestRepository(),
-        cubitFactory: _catalogOffersCubit,
-      ),
+      (_) =>
+          _clientOffersScreen(ClientOffersScreenPreviewFixtures.failingLoad()),
     ),
   ],
 );
@@ -358,42 +261,21 @@ final CatalogEntry _offerAcceptSheetEntry = CatalogEntry(
   ],
 );
 
-// ───────────────────────────── client_unreachable ──────────────────────
-
-/// Static screen — no `*_state.dart`, no repository/cubit, no network. Its
-/// three buttons are inert stubs (`onTap: () {}`) or a local `Navigator.pop`
-/// in the shipped source itself, so there is nothing to fake.
+// Static screen — no network, buttons are inert.
 final CatalogEntry _clientUnreachableScreenEntry = CatalogEntry(
   feature: 'client_unreachable',
   screen: 'client_unreachable_screen',
   states: [
     CatalogState(
-      'Default',
-      (_) => const ClientUnreachableScreen(deliveryId: 'delivery-demo-1'),
+      ClientUnreachableScreenFixtures.catalogDefault.label,
+      (_) => ClientUnreachableScreenPreviewHost(
+        fixture: ClientUnreachableScreenFixtures.catalogDefault,
+        screen: ClientUnreachableScreen(
+          deliveryId: ClientUnreachableScreenFixtures.catalogDefault.deliveryId,
+        ),
+      ),
     ),
   ],
-);
-
-// ───────────────────────────── customer_profile ────────────────────────
-
-/// Constructor test/catalog seam — returns the seeded read model unchanged so
-/// the cubit's `load()` refresh is a same-data no-op instead of a live
-/// `GET /user-management/users/me` call.
-class _CatalogCustomerProfileRepository implements CustomerProfileRepository {
-  const _CatalogCustomerProfileRepository(this._data);
-
-  final CustomerProfileViewData _data;
-
-  @override
-  Future<CustomerProfileViewData> fetchProfile() async => _data;
-}
-
-const CustomerProfileViewData _jeeberProfileData = CustomerProfileViewData(
-  name: 'Kamal Hajj',
-  email: 'kamal.hajj@jeeb.dev',
-  isVerified: false,
-  isJeeber: true,
-  availableRoles: ['client', 'jeeber'],
 );
 
 final CatalogEntry _customerProfileScreenEntry = CatalogEntry(
@@ -403,17 +285,21 @@ final CatalogEntry _customerProfileScreenEntry = CatalogEntry(
     CatalogState(
       'Client — verified, rated',
       (_) => const CustomerProfileScreen(
-        data: DevCustomerProfileFixtures.sample,
-        repository: _CatalogCustomerProfileRepository(
-          DevCustomerProfileFixtures.sample,
+        data: CustomerProfileScreenPreviewFixtures.ratedClient,
+        repository: CustomerProfileScreenStaticRepository(
+          CustomerProfileScreenPreviewFixtures.ratedClient,
         ),
+        reviewLauncher: CustomerProfileScreenInertReviewLauncher(),
       ),
     ),
     CatalogState(
       'Jeeber — no ratings yet',
       (_) => const CustomerProfileScreen(
-        data: _jeeberProfileData,
-        repository: _CatalogCustomerProfileRepository(_jeeberProfileData),
+        data: CustomerProfileScreenPreviewFixtures.jeeber,
+        repository: CustomerProfileScreenStaticRepository(
+          CustomerProfileScreenPreviewFixtures.jeeber,
+        ),
+        reviewLauncher: CustomerProfileScreenInertReviewLauncher(),
       ),
     ),
   ],

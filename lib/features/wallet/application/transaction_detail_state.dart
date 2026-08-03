@@ -2,11 +2,6 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/wallet_transaction_repository.dart';
 
-/// Canonical 4-state lifecycle (40_GUARDRAILS_ARCH §2/§3) for the
-/// transaction-detail screen (JM-056). `loaded` + a non-null [transaction] is
-/// the content state; the per-type copy + the two outbound edges
-/// (`txn_detail_order_link` / `txn_detail_dispute_link`) are derived off
-/// [WalletTransaction.type] in the view.
 enum TransactionDetailStatus { initial, loading, loaded, failed }
 
 class TransactionDetailState extends Equatable {

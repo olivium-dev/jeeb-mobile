@@ -1,7 +1,4 @@
 // G3: the inbox must UNION the durable local push store with the server inbox,
-// so a `new_request` the server never sources (dismissed while backgrounded)
-// still shows a tappable row. The cycle-4 dio test fed a FAKE server row the
-// real server never emits — this proves the real merge.
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -263,7 +260,6 @@ void main() {
       );
 
       // Cold restart: discard the repository and both adapters. Rehydrate fresh
-      // instances only from the two stores' persisted snapshots.
       final restartedRepository = LocalMergingNotificationsRepository(
         remote: _StubRemote(items: serverBackedRemote.items),
         localInbox: _FakeLocalInbox(

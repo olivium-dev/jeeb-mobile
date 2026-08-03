@@ -1,12 +1,5 @@
 /// Batch B — additional QA-authored tests covering ACs not exercised by the
 /// shipped test files.
-///
-/// Tickets covered:
-///   T-MOB-003 AC2 — cold-restart skips onboarding when flag is already set
-///   T-MOB-004 AC3 — invalid OTP shows inline error text (OtpVerificationScreen)
-///   T-MOB-004 AC4 — 5-wrong-attempt lockout (cubit-level; screen shows banner)
-///   T-MOB-004 AC1 / mock-route — sendCode submits phone in E.164 with +961 prefix
-///   T-MOB-004 — 429 on verifyCode maps to invalidCode (rate-limited path)
 library;
 
 import 'dart:async';
@@ -29,8 +22,6 @@ import '../support/sync_app_localizations.dart';
 
 class _MockOtpService extends Mock implements OtpService {}
 
-// ---------------------------------------------------------------------------
-// T-MOB-003 AC2 — skip-if-seen
 // ---------------------------------------------------------------------------
 
 void main() {
@@ -57,7 +48,6 @@ void main() {
       final cubit = OnboardingCubit(prefs: prefs);
       addTearDown(cubit.close);
       // The onboarding screen now hosts an EN/AR language toggle bound to the
-      // LocaleCubit (FR-P1-2), so it must be in scope.
       final localeCubit = LocaleCubit(
         prefs: prefs,
         deviceLocaleProvider: () => const Locale('en'),
@@ -93,13 +83,10 @@ void main() {
           reason: 'completing onboarding must persist the flag');
 
       // Verify the key in SharedPreferences so the router gate will fire on
-      // the next cold start.
       expect(prefs.getBool('app.onboarding.completed'), isTrue);
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // T-MOB-004 AC3 — invalid OTP shows inline error
   // ---------------------------------------------------------------------------
 
   group('T-MOB-004 AC3 — invalid OTP inline error', () {
@@ -154,11 +141,6 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // T-MOB-004 AC4 — lockout after 5 wrong attempts
-  // Note: the default RegistrationAttemptPolicy.maxAttempts is 3 (not 5).
-  // AC4 says 5 — this test exercises the cubit with a policy of maxAttempts: 5
-  // to confirm the lock fires at the configured threshold.
-  // ---------------------------------------------------------------------------
 
   group('T-MOB-004 AC4 — lockout banner appears at maxAttempts threshold', () {
     late _MockOtpService otp;
@@ -212,8 +194,6 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // T-MOB-004 AC1 — E.164 phone formatting before sendCode
-  // ---------------------------------------------------------------------------
 
   group('T-MOB-004 AC1 — phone submitted in E.164 format', () {
     test('RegistrationCubit normalises national digits to +961XXXXXXXX', () async {
@@ -237,10 +217,6 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // T-MOB-004 — 429 on verifyCode maps to invalidCode
-  // (covers the rate-limited → invalidCode mapping in DioOtpService, distinct
-  //  from the 429 on sendCode which maps to rateLimited)
   // ---------------------------------------------------------------------------
 
   group('T-MOB-004 — verifyCode 429 rate-limited maps to invalidCode', () {

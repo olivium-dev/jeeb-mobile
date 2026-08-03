@@ -1,9 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Persists JWT tokens in the platform keychain/keystore.
-///
-/// The mock backend issues `mock-jwt-access-<userId>` tokens. In production
-/// this same store holds real JWTs from the auth-service.
 class AuthTokenStore {
   AuthTokenStore({FlutterSecureStorage? storage})
       : _storage = storage ?? const FlutterSecureStorage();

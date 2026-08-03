@@ -29,9 +29,6 @@ class EarningsCubit extends Cubit<EarningsState> {
   final EarningsRepository _repository;
   final WalletRepository? _walletRepository;
 
-  /// DEFECT-B: optional. The live gateway scopes earnings to the authenticated
-  /// token and ignores `?jeeberId=`, so production leaves this empty; the mock
-  /// seam / tests may supply a fixture id.
   final String jeeberId;
 
   Future<void> loadEarnings({EarningsPeriod? period}) async {

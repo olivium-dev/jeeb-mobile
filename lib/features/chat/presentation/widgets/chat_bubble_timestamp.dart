@@ -4,12 +4,11 @@ import 'package:omds/omds.dart';
 
 import '../../domain/delivery_chat_message.dart';
 
-/// Locale-aware "HH:mm" timestamp rendered inside a chat bubble's meta row.
-///
-/// Shared by the offer card (state 02) and the message-bubble footer (state
-/// 03) so the time format is identical across both chat states. Uses
-/// [DateFormat.Hm] keyed to the active locale — never a string-built clock —
-/// and is laid out start-aligned so the parent decides placement.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import 'dart:ui' as ui show TextDirection;
+import '../../../../core/previews/jeeb_preview.dart';
+
+/// Locale-aware "HH:mm" timestamp in chat bubble meta row via DateFormat.Hm.
 class ChatBubbleTimestamp extends StatelessWidget {
   const ChatBubbleTimestamp({
     super.key,
@@ -18,25 +17,16 @@ class ChatBubbleTimestamp extends StatelessWidget {
     this.color,
   });
 
-  /// When the message was sent — meaningless unless [hasServerTimestamp].
   final DateTime sentAt;
 
-  /// [DeliveryChatMessage.hasServerTimestamp] of the message being rendered.
-  /// False → [sentAt] is an ordering anchor and no clock is drawn.
-  ///
-  /// This used to be re-derived here from the VALUE of [sentAt] (an anchor was
-  /// "any instant inside 1970"). The message now carries the fact explicitly, so
-  /// an anchor that happens to look like a plausible instant can never be
-  /// mistaken for a send time.
+  // Was re-derived from sentAt value (anchor was "any instant inside 1970"). Message now
   final bool hasServerTimestamp;
 
-  /// Optional override colour; defaults to a muted on-surface variant.
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    // A message the server returned with no timestamp carries an ordering
-    // anchor, not a send time. Render nothing rather than a fabricated clock.
+    // Server-returned message with no timestamp carries ordering anchor, not send time.
     if (!hasServerTimestamp) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
@@ -53,3 +43,172 @@ class ChatBubbleTimestamp extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+// Widget previews for [ChatBubbleTimestamp] — run with
+
+/// Canvas box for one bubble plus its meta row.
+const Size _chatBubbleTimestampBubbleBox = Size(390, 160);
+
+/// Taller box for the two matrix states: at 200% the body copy wraps to three
+/// lines and the caption to three more, so the card needs the headroom or the
+const Size _chatBubbleTimestampMatrixBox = Size(390, 300);
+
+/// Bubbles in the thread are capped at ~70% of a 390 pt phone (design-spec §4).
+const double _chatBubbleTimestampBubbleWidth = 260;
+
+/// A stand-in for the chat bubble the timestamp always lives inside.
+/// [filled] picks the sender's `primary` bubble over the grey offer card;
+/// [caption] labels a state whose whole point is that nothing renders.
+class _ChatBubbleTimestampBubble extends StatelessWidget {
+  const _ChatBubbleTimestampBubble({required this.child, this.filled = false, this.caption});
+
+  final Widget child;
+  final bool filled;
+  final String? caption;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: _chatBubbleTimestampBubbleWidth,
+            padding: const EdgeInsets.all(Spacing.small),
+            decoration: BoxDecoration(
+              color:
+                  filled ? scheme.primary : scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(Spacing.small),
+            ),
+            child: child,
+          ),
+          if (caption != null) ...<Widget>[
+            const SizedBox(height: Spacing.twoXSmall),
+            SizedBox(
+              width: _chatBubbleTimestampBubbleWidth,
+              child: Text(
+                caption!,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The offer-card footer: body copy over a start-aligned column, the clock
+/// aligning itself to the trailing edge.
+Widget _chatBubbleTimestampOfferFooter({
+  required DateTime sentAt,
+  bool hasServerTimestamp = true,
+  String? caption,
+}) =>
+    _ChatBubbleTimestampBubble(
+      caption: caption,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const Text('Fast delivery guaranteed'),
+          const SizedBox(height: Spacing.twoXSmall),
+          ChatBubbleTimestamp(
+            sentAt: sentAt,
+            hasServerTimestamp: hasServerTimestamp,
+          ),
+        ],
+      ),
+    );
+
+/// The sender's bubble footer, built the way `chat_message_bubble.dart:563`
+/// builds it: a min-width Row of clock → status tick, force-wrapped in
+Widget _chatBubbleTimestampSenderFooter({
+  required String body,
+  required DateTime sentAt,
+  bool overrideColour = true,
+  String? caption,
+}) =>
+    _ChatBubbleTimestampBubble(
+      filled: true,
+      caption: caption,
+      child: Builder(
+        builder: (BuildContext context) {
+          final ColorScheme scheme = Theme.of(context).colorScheme;
+          final Color ink =
+              scheme.onPrimary.withValues(alpha: UIConstants.opacityHigh);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(body, style: TextStyle(color: scheme.onPrimary)),
+              const SizedBox(height: Spacing.twoXSmall),
+              Directionality(
+                textDirection: ui.TextDirection.ltr,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    ChatBubbleTimestamp(
+                      sentAt: sentAt,
+                      color: overrideColour ? ink : null,
+                    ),
+                    const SizedBox(width: Spacing.twoXSmall),
+                    Icon(Icons.done_all, size: Sizes.medium, color: ink),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+/// The reference rendering: an offer that arrived at 12:34, drawn with the
+/// widget's default ink on the grey card it was designed for.
+@JeebPreview(group: 'chat', name: 'Offer card footer · 12:34', size: _chatBubbleTimestampMatrixBox, matrix: true)
+Widget chatBubbleTimestampOfferFooter() =>
+    _chatBubbleTimestampOfferFooter(sentAt: DateTime(2026, 6, 1, 12, 34));
+
+/// The other production caller, done correctly: the sender's navy bubble with
+/// the caller's `color:` override.
+@JeebPreview(group: 'chat', name: 'Sender bubble · caller colour', size: _chatBubbleTimestampBubbleBox)
+Widget chatBubbleTimestampSenderBubble() => _chatBubbleTimestampSenderFooter(
+      body: 'The blue box, please',
+      sentAt: DateTime(2026, 6, 11, 9, 41),
+    );
+
+/// The same bubble with the `color:` argument dropped — i.e. what any NEW
+/// caller gets by default on a filled bubble.
+@JeebPreview(group: 'chat', name: 'Sender bubble · default colour', size: _chatBubbleTimestampMatrixBox, matrix: true)
+Widget chatBubbleTimestampDefaultInkOnBubble() => _chatBubbleTimestampSenderFooter(
+      body: 'Coming down now, one minute',
+      sentAt: DateTime(2026, 6, 11, 23, 58),
+      overrideColour: false,
+      caption: 'no colour override — default surface ink',
+    );
+
+/// A history row the gateway returned with no usable `created_at`.
+/// `sentAt` here is the epoch ordering anchor `ChatMessageCodec` substitutes,
+@JeebPreview(group: 'chat', name: 'Ordering anchor · no clock', size: _chatBubbleTimestampBubbleBox)
+Widget chatBubbleTimestampOrderingAnchor() => _chatBubbleTimestampOfferFooter(
+      sentAt: DateTime(1970),
+      hasServerTimestamp: false,
+      caption: 'anchor only — no clock is drawn',
+    );
+
+/// The SAME epoch instant with the flag left at its default `true` — the
+/// regression this widget's `hasServerTimestamp` parameter exists to prevent.
+@JeebPreview(group: 'chat', name: 'Epoch anchor drawn as 00:00', size: _chatBubbleTimestampBubbleBox)
+Widget chatBubbleTimestampEpochDrawn() => _chatBubbleTimestampOfferFooter(sentAt: DateTime(1970));
+
+/// A send time that reached the widget as UTC instead of local time.
+/// [DateFormat] formats the fields the [DateTime] carries and converts nothing,
+@JeebPreview(group: 'chat', name: 'UTC instant, not localized', size: _chatBubbleTimestampBubbleBox)
+Widget chatBubbleTimestampUtcInstant() =>
+    _chatBubbleTimestampOfferFooter(sentAt: DateTime.utc(2026, 6, 11, 21, 5));

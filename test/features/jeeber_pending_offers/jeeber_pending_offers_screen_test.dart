@@ -1,12 +1,4 @@
 // Widget tests for JeeberPendingOffersScreen (JM-047, D15) — the STANDALONE
-// surface. It reuses JM-048's SubmittedOffersCubit + PendingOfferRow, so these
-// tests prove the standalone chrome (root + back) and that the reused rows
-// expose the EXACT Semantics identifiers from 65_W2_TEST_PLAN §2 JM-047:
-//   AC1: pending_offer_0_price + pending_offer_0_eta + pending_offer_awaiting_label
-//   AC2: pending_offer_0_withdraw_cta present
-//   AC3: tapping the withdraw CTA removes pending_offer_0 (optimistic)
-//   AC4: pending_offers_back present (the back edge to delivery-requests)
-//   + the empty-state and error-state render under the root.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -131,8 +123,6 @@ void main() {
     expect(find.bySemanticsIdentifier('jeeber_pending_offers_root'),
         findsOneWidget);
     // OmdsErrorState renders a FilledButton.icon retry control. The `.icon`
-    // factory yields a private _FilledButtonWithIcon subclass, so match on the
-    // FilledButton supertype rather than the exact runtime type.
     expect(
       find.byWidgetPredicate((w) => w is FilledButton),
       findsOneWidget,

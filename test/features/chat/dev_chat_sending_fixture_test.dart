@@ -1,20 +1,4 @@
 // Screen-12 "sending my initial request" (Figma 56535:6469) fixture guard.
-//
-// The pre-offers `sending` state is the client's just-sent initial request
-// BEFORE any offer arrives: a single outgoing read bubble over an empty scroll
-// area, with the composer. This is distinct from the `broadcasting` state
-// (Figma 56535:6659), which is this state PLUS the stacked offer cards.
-//
-// These tests pin the contract that:
-//   1. DevChatFixtureGateway(sending: true) seeds EXACTLY ONE outgoing, read
-//      message and ZERO offer cards (the frame's subject).
-//   2. The plain `broadcasting` fixture is UNCHANGED — still 1 outgoing bubble
-//      + 2 offer cards (no regression to flows 02/13).
-//   3. DevChatPreviewScreen(selector: 'sending') mounts the populated list +
-//      the read double-tick, with NO offer card and NO "Accept only one offer"
-//      footer — and the `broadcasting` selector still shows that footer.
-//
-// kDebugMode is true under `flutter test`, so the dev-seam fixtures are live.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,7 +105,6 @@ void main() {
       expect(find.byKey(ChatScreen.emptyStateKey), findsNothing);
 
       // The outgoing read double-tick is present (the "sent into broadcast"
-      // signal the frame draws).
       expect(
         find.bySemanticsIdentifier('chat_detail_message_read'),
         findsOneWidget,
@@ -134,7 +117,6 @@ void main() {
       );
 
       // No offers yet: neither an offer card nor the "Accept only one offer"
-      // footer renders.
       expect(
         find.bySemanticsIdentifier('chat_detail_offer_only_one_note'),
         findsNothing,

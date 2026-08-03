@@ -6,7 +6,6 @@ import '../../core/di/injection_container.dart';
 import '../../core/network/auth_token_store.dart';
 import '../../core/onboarding/onboarding_cubit.dart';
 
-/// One row of the full super-login roster (`GET /api/User/super-login/users`).
 class RosterUser {
   const RosterUser({
     required this.userId,
@@ -33,15 +32,6 @@ class RosterUser {
   final List<String> roles;
 }
 
-/// DT-03 (JEBV4-8) — Super Login Plus, full roster + credential-less login.
-///
-/// Lists ALL live users from `/api/User/super-login/users` (no passcodes) and,
-/// on pick, logs in via the gateway's credential-less mint
-/// (`POST /auth/tokens { userId, roles }`, gated by `SuperLogin:OpenMode`), then
-/// persists the minted session in the shared [AuthTokenStore] — so switching to
-/// the Jeeb app icon boots authenticated as that user. This is the flow that
-/// works against the current MSI gateway (the old demo-users passcode flow is
-/// rejected with "Invalid super admin passcode").
 class FullRosterLoginPage extends StatefulWidget {
   const FullRosterLoginPage({super.key});
 
@@ -90,9 +80,6 @@ class _FullRosterLoginPageState extends State<FullRosterLoginPage> {
         refreshToken: refresh ?? access,
         userId: user.userId,
       );
-      // Mark onboarding complete so the session gate applies on next launch
-      // (a fresh install otherwise runs walkthrough→register and ignores the
-      // session — matching what the old super-login flow did).
       await sl<SharedPreferences>().setBool(OnboardingCubit.completedKey, true);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

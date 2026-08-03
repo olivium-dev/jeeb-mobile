@@ -5,12 +5,9 @@ import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_chat_message.dart';
 import 'chat_bubble_timestamp.dart';
 
-/// Offer card landing in the broadcasting chat (Figma node 56535:6659).
-///
-/// Mirrors the Figma layout: a grey incoming-style card carrying the Jeeber's
-/// name + inline star rating on the header row, the offer note as the body,
-/// and a footer with the timestamp, a navy "Accept Offer" pill, and a Decline
-/// button. The screen hands [onAccept]/[onDecline] to the cubit.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+
 class OfferCardBubble extends StatelessWidget {
   const OfferCardBubble({
     super.key,
@@ -65,7 +62,6 @@ class OfferCardBubble extends StatelessWidget {
   }
 }
 
-/// Accept + Decline row in the offer card footer.
 class _OfferActions extends StatelessWidget {
   const _OfferActions({
     required this.payload,
@@ -101,7 +97,6 @@ class _OfferActions extends StatelessWidget {
   }
 }
 
-/// Navy "Accept Offer" pill in the offer card footer.
 class _AcceptButton extends StatelessWidget {
   const _AcceptButton({
     required this.payload,
@@ -137,7 +132,6 @@ class _AcceptButton extends StatelessWidget {
   }
 }
 
-/// Outlined "Decline" button in the offer card footer.
 class _DeclineButton extends StatelessWidget {
   const _DeclineButton({
     required this.payload,
@@ -165,7 +159,6 @@ class _DeclineButton extends StatelessWidget {
   }
 }
 
-/// Small circular counterpart avatar pinned outside the card, leading edge.
 class _OfferAvatar extends StatelessWidget {
   const _OfferAvatar({required this.payload});
 
@@ -184,7 +177,6 @@ class _OfferAvatar extends StatelessWidget {
   }
 }
 
-/// Grey card body: header (name + stars), note, then footer (time + CTA).
 class _OfferCardBody extends StatelessWidget {
   const _OfferCardBody({required this.message, required this.child});
 
@@ -225,7 +217,6 @@ class _OfferCardBody extends StatelessWidget {
   }
 }
 
-/// Header row: Jeeber name (start) + inline star rating (end).
 class _OfferHeader extends StatelessWidget {
   const _OfferHeader({required this.payload});
 
@@ -249,9 +240,6 @@ class _OfferHeader extends StatelessWidget {
           ),
         ),
         if (payload.rating > 0)
-          // a11y (JEBV4-98 / F13): the display suppresses the numeric value and
-          // review count, so — unlike offer_card.dart — the bare stars announce
-          // nothing to a screen reader. A Semantics label carries the rating.
           Semantics(
             label: l10n.chatOfferRatingA11y(payload.rating.toStringAsFixed(1)),
             child: ExcludeSemantics(
@@ -269,7 +257,6 @@ class _OfferHeader extends StatelessWidget {
   }
 }
 
-/// The free-text offer note (Figma copy carries the price inline).
 class _OfferNote extends StatelessWidget {
   const _OfferNote({required this.payload});
 
@@ -290,3 +277,129 @@ class _OfferNote extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+// Widget previews for [OfferCardBubble] — run with
+
+/// A phone-width card box. Height covers header + note + clock + CTA row.
+const Size _offerCardBubbleCardBox = Size(390, 220);
+
+/// Builds the card exactly the way `chat_screen.dart` `_MessageRow` does.
+/// [declined] collapses the three things production changes at once when the
+Widget _offerCardBubbleHosted({
+  required String offerId,
+  required String jeeberName,
+  String note = 'Fast delivery guaranteed',
+  double fee = 35.0,
+  String currency = 'USD',
+  int etaMinutes = 20,
+  double rating = 4.8,
+  bool isAccepting = false,
+  bool acceptDisabled = false,
+  bool declined = false,
+  bool hasServerTimestamp = true,
+}) {
+  final Widget card = OfferCardBubble(
+    message: DeliveryChatMessage.offerCard(
+      id: 'msg-$offerId',
+      author: ChatAuthor.them,
+      sentAt: DateTime(2026, 6, 1, 12, 34),
+      status: MessageStatus.delivered,
+      hasServerTimestamp: hasServerTimestamp,
+      payload: OfferCardPayload(
+        offerId: offerId,
+        jeeberId: 'j-$offerId',
+        jeeberName: jeeberName,
+        fee: fee,
+        currency: currency,
+        etaMinutes: etaMinutes,
+        note: note,
+        rating: rating,
+      ),
+    ),
+    onAccept: (_) {},
+    onDecline: declined ? null : (_) {},
+    isAccepting: isAccepting,
+    acceptDisabled: acceptDisabled || declined,
+  );
+  return declined ? Opacity(opacity: 0.4, child: card) : card;
+}
+
+/// The happy path: a live offer in a broadcasting chat, both actions armed.
+/// This is the reference rendering every other state is read against — and the
+@JeebPreview(group: 'chat', name: 'Live offer', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleLiveOffer() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-live',
+      jeeberName: 'Kamal Hajj',
+    );
+
+/// Accept tapped, saga in flight (`state.acceptingOfferId == offerId`).
+/// Two things to check. The label swaps to "Accepting…" — a *shorter* string in
+@JeebPreview(group: 'chat', name: 'Accept in flight', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleAccepting() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-accepting',
+      jeeberName: 'Rami Aoun',
+      isAccepting: true,
+    );
+
+/// A rival offer is being accepted, so THIS card's Accept is locked
+/// (`acceptingOfferId != null && !isAccepting`).
+@JeebPreview(group: 'chat', name: 'Accept locked (rival winning)', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleAcceptLocked() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-locked',
+      jeeberName: 'Nour Haddad',
+      fee: 42.0,
+      etaMinutes: 35,
+      acceptDisabled: true,
+    );
+
+/// Declined: the 40%-opacity, Accept-only card the timeline keeps in place
+/// after the client turns the offer down.
+@JeebPreview(group: 'chat', name: 'Declined', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleDeclined() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-declined',
+      jeeberName: 'Layla Nasr',
+      note: 'I can be there in 15 minutes.',
+      fee: 28.0,
+      etaMinutes: 15,
+      rating: 4.9,
+      declined: true,
+    );
+
+/// The bare payload a brand-new jeeber sends: no note, no rating yet.
+/// Two fallbacks fire at once and both are load-bearing:
+@JeebPreview(group: 'chat', name: 'No note, no rating', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleBarePayload() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-bare',
+      jeeberName: 'Nadine Khoury',
+      note: '',
+      fee: 12.0,
+      etaMinutes: 12,
+      rating: 0,
+    );
+
+/// Longest plausible content: a full tripartite Arabic-transliterated name and
+/// a two-sentence note.
+@JeebPreview(group: 'chat', name: 'Long name + long note', size: Size(390, 320))
+Widget offerCardBubbleLongContent() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-long',
+      jeeberName: 'Abdulrahman Al-Muhandis Al-Trabulsi',
+      note: 'I am two streets away and can take the parcel right now, but the '
+          'building has no lift so please meet me at the door.',
+      fee: 120.0,
+      etaMinutes: 90,
+      rating: 5.0,
+    );
+
+/// A history row the server returned with no usable timestamp
+/// (`hasServerTimestamp: false`).
+@JeebPreview(group: 'chat', name: 'Undated row (no clock)', size: Size(390, 200))
+Widget offerCardBubbleUndated() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-undated',
+      jeeberName: 'Ziad Sfeir',
+      note: 'Still available if you need it.',
+      etaMinutes: 25,
+      rating: 4.2,
+      hasServerTimestamp: false,
+    );

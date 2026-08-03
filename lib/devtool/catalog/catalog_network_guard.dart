@@ -3,20 +3,9 @@ import 'package:flutter/widgets.dart';
 
 import '../../core/di/injection_container.dart';
 
-/// Runs one catalog preview with a fail-closed mutation interceptor installed
-/// on the app's shared gateway client.
-///
-/// The Dev Tool shares the production GetIt graph. Individual catalog entries
-/// still inject local repositories so their designed states are deterministic,
-/// but this guard is the final safety net: any missed repository seam can read
-/// data, while POST/PUT/PATCH/DELETE (and unknown verbs) are rejected locally
-/// before Dio reaches its HTTP adapter.
 class CatalogNetworkGuard extends StatefulWidget {
   const CatalogNetworkGuard({required this.builder, super.key});
 
-  /// Deliberately a builder rather than an already-built child. The interceptor
-  /// is installed in [State.initState] before fixture construction can resolve
-  /// a repository or start work.
   final WidgetBuilder builder;
 
   @override
@@ -47,10 +36,6 @@ class _CatalogNetworkGuardState extends State<CatalogNetworkGuard> {
   Widget build(BuildContext context) => widget.builder(context);
 }
 
-/// Dio interceptor used by [CatalogNetworkGuard].
-///
-/// Only explicitly read-only verbs pass. Treating every other method as a
-/// mutation is intentional: a new or misspelled verb fails closed.
 class CatalogMutationInterceptor extends Interceptor {
   const CatalogMutationInterceptor();
 
@@ -78,8 +63,6 @@ class CatalogMutationInterceptor extends Interceptor {
   }
 }
 
-/// Diagnostic carried by the local Dio rejection when a preview tries to
-/// mutate the gateway.
 class CatalogMutationBlockedException implements Exception {
   const CatalogMutationBlockedException(this.method, this.uri);
 

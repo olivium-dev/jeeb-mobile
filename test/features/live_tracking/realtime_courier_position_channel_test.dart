@@ -5,20 +5,7 @@ import 'package:jeeb_mobile/features/live_tracking/data/realtime_courier_positio
 import '../../support/fake_web_socket_channel.dart';
 
 /// `GET /v1/realtime/jeeb:delivery:{id}` → subscribe, or degrade.
-///
 /// ## The claim under test is the DEGRADATION, not the happy path
-///
-/// The happy path is one line. What has to be right is that every way this can
-/// fail produces the same, harmless answer: `null`, no socket, and a tracking
-/// screen that behaves exactly as it did before the feature existed. Each case
-/// below therefore asserts BOTH that `open()` returned null AND that no socket
-/// was dialled — because "returned null" alone is also satisfied by a client
-/// that opened a socket and then dropped it on the floor, which is a leak.
-///
-/// The `socketUrl == null` case is first among equals: the gateway ships
-/// `Services:Realtime:PublicSocketUrl` UNSET by default and deliberately
-/// answers `null` rather than deriving a loopback guess, so it is the state
-/// every deployment is in until someone configures one.
 void main() {
   const deliveryId = 'DLV-42';
   const topic = 'jeeb:delivery:$deliveryId';
@@ -47,7 +34,6 @@ void main() {
 
   /// A Dio whose adapter is replaced by a scripted responder — no server, but
   /// the shipped `RealtimeCourierPositionChannel` code path in full, including
-  /// its own `DioException` handling.
   Dio dioAnswering({
     int status = 200,
     Map<String, dynamic>? body,
@@ -211,7 +197,6 @@ void main() {
 
       expect(positions, isNull);
       // Here the dial IS expected — that is what threw. The claim is that the
-      // throw was contained.
       expect(dialled, hasLength(1));
     });
   });

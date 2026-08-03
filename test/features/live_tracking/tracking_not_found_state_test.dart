@@ -1,9 +1,5 @@
 import 'dart:async';
 // S9 live-tracking defect fix (T-S9-APP-TRACK).
-//
-// PROVES a genuine 404 ("Delivery not found") renders a distinct OMDS
-// error/empty state with a retry — NOT a crash and NOT the generic
-// "Server error" the live defect showed.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

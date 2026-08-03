@@ -2,19 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/local_push_inbox.dart';
 
-/// SharedPreferences-backed [LocalPushInbox].
-///
-/// One row per push: `jeeb.push_inbox.<messageId>` → the JSON-encoded
-/// [LocalPushRecord]. Per-key (not a single JSON blob) so a background-isolate
-/// append and a main-isolate append never clobber each other in a read-modify-
 /// write race — mirrors the persistence class of the other on-device stores
-/// (`SharedPrefsHandoverCodeStore`, `SharedPrefsPinRepository`): plain prefs,
-/// bounded, cleared with an uninstall.
-///
-/// CROSS-ISOLATE: the FCM background handler runs in a SEPARATE isolate with a
-/// SEPARATE SharedPreferences cache but the SAME on-disk file. Every read here
-/// calls [SharedPreferences.reload] first so the main isolate observes a write
-/// the background isolate made while the app was backgrounded/terminated.
 class SharedPrefsLocalPushInbox implements LocalPushInbox {
   SharedPrefsLocalPushInbox({required SharedPreferences prefs}) : _prefs = prefs;
 
@@ -22,8 +10,6 @@ class SharedPrefsLocalPushInbox implements LocalPushInbox {
 
   static const String _keyPrefix = 'jeeb.push_inbox.';
 
-  /// Bound the store so a runaway server can't fill the device. Newest-first;
-  /// the oldest rows are evicted on append past the cap.
   static const int _maxRows = 50;
 
   static String _keyFor(String id) => '$_keyPrefix$id';
@@ -35,13 +21,10 @@ class SharedPrefsLocalPushInbox implements LocalPushInbox {
   Future<void> append(LocalPushRecord record) async {
     if (record.id.isEmpty) return;
     await _prefs.reload();
-    // Dedup: a message delivered to both isolates (or re-delivered) writes the
-    // same key, so it collapses to one row.
     await _prefs.setString(_keyFor(record.id), record.encode());
     await _evictOverflow();
   }
 
-  /// Keep at most [_maxRows], dropping the oldest by timestamp.
   Future<void> _evictOverflow() async {
     final records = await _readAllUnsorted();
     if (records.length <= _maxRows) return;
@@ -71,8 +54,6 @@ class SharedPrefsLocalPushInbox implements LocalPushInbox {
     return List<LocalPushRecord>.unmodifiable(records);
   }
 
-  /// Newest-first when used as `_compareTs(b, a)`. A row with an unparseable /
-  /// empty timestamp sorts last (never jumps to the top).
   static int _compareTs(String a, String b) {
     final ta = DateTime.tryParse(a);
     final tb = DateTime.tryParse(b);

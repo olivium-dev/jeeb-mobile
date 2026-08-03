@@ -46,7 +46,6 @@ void main() {
       await tester.pump();
 
       // JEBV4-300: no fallback catalog is served — no tier cards render, so no
-      // serverId-less tier can ever be confirmed onto the wire.
       expect(
         find.byKey(TierSelectionScreen.cardKey(TierId.flash)),
         findsNothing,
@@ -153,8 +152,6 @@ void main() {
       );
 
       // Tapping Retry re-runs GET /tiers; the second fetch succeeds → loaded.
-      // OmdsErrorState renders its retry as a FilledButton.icon (see
-      // jeeber_pending_offers_screen_test): match the FilledButton supertype.
       await tester.tap(find.byWidgetPredicate((w) => w is FilledButton));
       await tester.pump();
       await tester.pump();

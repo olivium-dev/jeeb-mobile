@@ -7,10 +7,6 @@ import 'package:jeeb_mobile/core/observability/session_trace/observability_confi
 
 /// Requires `flutter test --dart-define=JEEB_DEVTOOL_ENABLED=true …` to
 /// exercise the `skip:`-guarded group below — [kObsCompiledIn] is a hard
-/// compile-time const (frozen, no test override by design, mirroring
-/// `kDevToolEnabled`), so a normal `flutter test` run cannot flip it. The
-/// unconditional top-level tests still give meaningful coverage of the
-/// "compiled out ⇒ zero-cost no-op" guarantee in a plain run.
 String get _needsDevtoolDefine =>
     'requires --dart-define=JEEB_DEVTOOL_ENABLED=true';
 

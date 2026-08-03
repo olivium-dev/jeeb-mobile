@@ -10,33 +10,14 @@ import '../domain/connection_status.dart';
 import 'chat_connection_state.dart';
 import 'reconnect_policy.dart';
 
-/// Factory the cubit calls to build a fresh transport per attempt. Each
-/// reconnect must construct a brand-new [ChatSocket] — re-using a torn-down
-/// socket is unsafe.
 typedef ChatSocketFactory = ChatSocket Function();
 
-/// Wall-clock provider injected so tests can fake `createdAt` timestamps.
 typedef ChatClock = DateTime Function();
 
-/// Random-id generator for new outbound messages. Tests inject a counter.
 typedef ChatIdGenerator = String Function();
 
-/// Schedules the reconnect backoff. Defaults to the real [Timer] constructor;
-/// tests inject `fakeAsync`'s clock (or a manual fake) so the backoff schedule
-/// is driven by virtual time instead of wall-clock sleeps. Keeping this a seam
-/// means production behavior is byte-for-byte identical to a bare `Timer(...)`.
 typedef ChatTimerFactory = Timer Function(Duration duration, void Function() callback);
 
-/// Owns the chat WebSocket connection, the offline outbox, and reconnect
-/// scheduling. Surfaces a single [ChatConnectionState] to the UI.
-///
-/// Key invariants:
-///   - Only one active [ChatSocket] subscription at a time. Reconnect
-///     always tears down the previous socket before opening a new one.
-///   - Outbox state is the source of truth for `pending`; the in-memory
-///     state.pending mirrors what's on disk after every write.
-///   - Reconnect attempts grow with [ReconnectPolicy.delayFor]; cancelling
-///     the cubit's `close()` stops the loop.
 class ChatConnectionCubit extends Cubit<ChatConnectionState> {
   ChatConnectionCubit({
     required ChatSocketFactory socketFactory,
@@ -67,15 +48,10 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
   StreamSubscription<Map<String, Object?>>? _eventsSub;
   StreamSubscription<Object>? _errorsSub;
 
-  /// True once `close()` has run — prevents reconnect timers from firing
-  /// after disposal.
   bool _disposed = false;
 
   Timer? _reconnectTimer;
 
-  /// Hydrate the outbox from disk and open the first connection. Idempotent;
-  /// calling it again after the first connect is a no-op while the cubit is
-  /// already connected or connecting.
   Future<void> start() async {
     if (_disposed) return;
     if (state.status == ConnectionStatus.connecting ||
@@ -87,8 +63,6 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     await _connect();
   }
 
-  /// Enqueue a new outbound message. If connected, flushes immediately;
-  /// otherwise leaves it on disk until the next successful connect.
   Future<String> sendMessage({
     required String conversationId,
     required String body,
@@ -108,7 +82,6 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     return message.clientId;
   }
 
-  /// Emit a typing event for the local user. Throttled by the caller (UI).
   void notifyTyping({
     required String conversationId,
     required bool isTyping,
@@ -124,13 +97,9 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
       });
     } catch (_) {
       // Typing events are best-effort; a transient send failure must not
-      // tear down the cubit. The connection error handler will pick up
-      // anything worth surfacing.
     }
   }
 
-  /// Manual retry hook the UI calls when the user taps "Try again" on a
-  /// failed message banner.
   Future<void> retry(String clientId) async {
     final hit = state.pending
         .where((m) => m.clientId == clientId)
@@ -146,7 +115,6 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     if (state.isConnected) await _flushOutbox();
   }
 
-  /// Force a reconnect cycle (UI: pull-to-refresh on the banner).
   Future<void> reconnectNow() async {
     if (_disposed) return;
     _reconnectTimer?.cancel();
@@ -215,9 +183,6 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
       case ServerErrorEvent(:final code, :final message):
         emit(state.copyWith(lastError: '$code: $message'));
       case UnknownEvent():
-        // Unknown event types are forward-compat — log nothing, drop nothing
-        // else. The gateway can roll new event types without breaking older
-        // clients.
         break;
     }
   }
@@ -236,8 +201,6 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     if (status == ChatMessageStatus.sent ||
         status == ChatMessageStatus.delivered ||
         status == ChatMessageStatus.read) {
-      // Successful delivery → drop from the outbox; the inbox doesn't track
-      // outbound messages, that's the conversation cubit's job.
       _outbox.remove(clientId);
       final next = [...state.pending]..removeAt(idx);
       emit(state.copyWith(pending: List.unmodifiable(next)));
@@ -270,8 +233,6 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
   Future<void> _flushOutbox() async {
     final socket = _socket;
     if (socket == null || !state.isConnected) return;
-    // Only flush messages still in pending state — `failed` entries stay
-    // put until the user explicitly retries.
     final toSend = state.pending
         .where((m) => m.status == ChatMessageStatus.pending)
         .toList();
@@ -289,7 +250,6 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
         await _outbox.update(bumped);
         emit(state.copyWith(pending: _replace(state.pending, bumped)));
       } catch (_) {
-        // Send failed mid-flush — let the connection-lost handler reconnect.
         return;
       }
     }
@@ -334,7 +294,6 @@ class ChatConnectionCubit extends Cubit<ChatConnectionState> {
     try {
       await _socket?.close();
     } catch (_) {
-      // Closing an already-closed socket is fine.
     }
     _socket = null;
   }

@@ -49,16 +49,7 @@ DeliverySnapshot _snapshot({
 }
 
 /// Mounts [DeliveryStatusScreen] with the screen owning its cubit lifecycle.
-///
 /// We deliberately pass the [gateway] (the `BlocProvider.create` path) rather
-/// than a pre-built cubit (`BlocProvider.value`). An externally-created cubit
-/// subscribes to its gateway stream in the test body — outside the binding's
-/// frame loop — and the combination of that pending subscription with the
-/// `OmdsLoadingState` `CircularProgressIndicator` (an infinite ticker that
-/// mounts on the first frame) deadlocks `pumpWidget` under the FakeAsync test
-/// binding, so the test never completes. Letting the provider create + dispose
-/// the cubit inside the tree keeps the subscription inside the pumped frame and
-/// the screen settles deterministically. (Fixes the long-standing hang.)
 Future<void> _pumpScreen(
   WidgetTester tester, {
   required DeliveryStatusGateway gateway,
@@ -82,7 +73,6 @@ Future<void> _pumpScreen(
     ),
   );
   // The active-stage pulsing dot uses a repeating AnimationController, so
-  // pumpAndSettle never returns. Pump a single frame instead.
   await tester.pump();
 }
 
@@ -144,14 +134,11 @@ void main() {
       onContactJeeber: (n) => captured = n,
     );
     // The CTA sits at the bottom of a scrolling column; on the default
-    // 800×600 test surface it lands off-screen, so scroll it into the
-    // viewport before tapping (otherwise tap() hit-test-misses).
     final contactCta = find.text('Contact Jeeber');
     await tester.ensureVisible(contactCta);
     await tester.pump();
     await tester.tap(contactCta);
     // The contact handler is synchronous; the screen has a live pulsing-dot
-    // ticker so pumpAndSettle would never return — pump a single frame.
     await tester.pump();
     expect(captured, '+96171000000');
   });
@@ -177,7 +164,6 @@ void main() {
   testWidgets('renders the error view with retry when the stream errors',
       (tester) async {
     // A gateway that throws on subscribe pushes the stream into the error
-    // state immediately; the screen creates + disposes its own cubit.
     await _pumpScreen(tester, gateway: _BrokenGateway());
     expect(find.text('Connection lost'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);

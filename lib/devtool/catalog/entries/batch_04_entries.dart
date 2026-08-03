@@ -1,58 +1,33 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../catalog_models.dart';
 
-// ── escalate (dispute-open-evidence) ─────────────────────────────────────────
 import '../../../features/escalate/application/escalate_cubit.dart';
 import '../../../features/escalate/domain/escalate_repository.dart';
 import '../../../features/escalate/presentation/escalate_screen.dart';
-
-// ── goods_cost ────────────────────────────────────────────────────────────────
-import '../../../features/goods_cost/data/fake_goods_cost_repository.dart';
-import '../../../features/goods_cost/domain/goods_cost_repository.dart';
+import '../fixtures/escalate_screen_fixtures.dart';
 import '../../../features/goods_cost/presentation/goods_cost_screen.dart';
-
-// ── home_client ───────────────────────────────────────────────────────────────
+import '../fixtures/goods_cost_screen_fixtures.dart';
 import '../../../features/home_client/application/client_home_cubit.dart';
 import '../../../features/home_client/application/client_home_state.dart';
-import '../../../features/home_client/data/dev_client_home_fixtures.dart';
-import '../../../features/home_client/data/in_memory_client_home_repository.dart';
 import '../../../features/home_client/domain/client_home_repository.dart';
 import '../../../features/home_client/presentation/client_home_screen.dart';
-
-// ── jeeber_active_deliveries ──────────────────────────────────────────────────
+import '../fixtures/client_home_screen_fixtures.dart';
 import '../../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../../../features/jeeber_active_deliveries/application/active_deliveries_cubit.dart';
 import '../../../features/jeeber_active_deliveries/domain/active_deliveries_repository.dart';
 import '../../../features/jeeber_active_deliveries/domain/active_delivery_summary.dart';
 import '../../../features/jeeber_active_deliveries/presentation/active_deliveries_banner.dart';
-
-// ── jeeber_home ───────────────────────────────────────────────────────────────
 import '../../../features/jeeber_home/application/availability_cubit.dart';
-import '../../../features/jeeber_home/domain/entities/availability_status.dart';
-import '../../../features/jeeber_home/domain/services/availability_gateway.dart';
 import '../../../features/jeeber_home/presentation/jeeber_home_screen.dart';
 import '../../../features/jeeber_request_feed/cubit/request_feed_cubit.dart';
-import '../../../features/jeeber_request_feed/cubit/submitted_offers_cubit.dart';
-import '../../../features/jeeber_request_feed/data/dev_jeeber_feed_fixtures.dart';
-import '../../../features/jeeber_request_feed/data/request_feed_repository.dart';
-import '../../../features/jeeber_request_feed/domain/submitted_offers_repository.dart';
-import '../../../features/jeeber_request_feed/domain/submitted_offer.dart';
-
-// ── jeeber_onboarding ─────────────────────────────────────────────────────────
-import '../../../features/jeeber_onboarding/application/dm_onboarding_state.dart';
+import '../fixtures/jeeber_home_screen_fixtures.dart';
 import '../../../features/jeeber_onboarding/presentation/dm_onboarding_screen.dart';
+import '../fixtures/dm_onboarding_screen_fixtures.dart';
 
-/// Batch 04 catalog entries — DT-04 / F2 Screen Catalog.
-///
-/// Covers: escalate, goods_cost, home_client, jeeber_active_deliveries,
-/// jeeber_home, jeeber_onboarding — verified against the REBASED v2 source
-/// under `lib/features/<feature>/` (constructors, cubit/repository contracts,
-/// `*_state.dart`). Every state renders the REAL screen with an explicit local
-/// fake/stub collaborator — no GetIt, no network.
+/// Batch 04: escalate, goods_cost, home_client, jeeber_active_deliveries,
+/// jeeber_home, jeeber_onboarding — each state renders the real screen with
 List<CatalogEntry> get batch04Entries => <CatalogEntry>[
   _escalateEntry,
   _goodsCostEntry,
@@ -62,91 +37,14 @@ List<CatalogEntry> get batch04Entries => <CatalogEntry>[
   _jeeberOnboardingEntry,
 ];
 
-// ═════════════════════════════════════════════════════════════════════════
-// escalate — dispute-open-evidence (JM-060)
-// ═════════════════════════════════════════════════════════════════════════
-
-/// Behaviour switch for [_CatalogEscalateRepository] — each catalog state
-/// scripts a different collaborator response so the real [EscalateScreen] /
-/// [EscalateCubit] land in a distinct designed state with no network.
-enum _EscalateFixture {
-  evidenceLoaded,
-  evidenceDegraded,
-  submitting,
-  submitError,
-}
-
-/// Local fake `EscalateRepository` — never hits `compliment-service`.
-/// [_EscalateFixture.submitting] returns a Future that never completes (a
-/// live `Completer` that is never resolved) so the submitting spinner state
-/// renders indefinitely for design review, with zero network involved.
-class _CatalogEscalateRepository implements EscalateRepository {
-  _CatalogEscalateRepository(this.fixture);
-
-  final _EscalateFixture fixture;
-
-  @override
-  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async {
-    if (fixture == _EscalateFixture.evidenceDegraded) {
-      // Never actually thrown to the caller in production (loadEvidence
-      // degrades to empty on any failure) — exercises that degraded path.
-      throw const EscalateException(EscalateErrorKind.network);
-    }
-    return const EscalateEvidence(
-      chatSnapshotUrl: 'https://cdn.example.com/dispute/snapshot.png',
-      chatMessageCount: 12,
-      timeline: [
-        EscalateTimelineEntry(status: 'Ordered'),
-        EscalateTimelineEntry(status: 'Picked'),
-        EscalateTimelineEntry(status: 'InTransit'),
-      ],
-    );
-  }
-
-  @override
-  Future<EscalateResult> submitEscalation({
-    required String deliveryId,
-    required EscalateReason reason,
-    String? comment,
-    List<String> photoPaths = const [],
-    String? voicePath,
-    EscalateEvidence evidence = EscalateEvidence.empty,
-  }) {
-    switch (fixture) {
-      case _EscalateFixture.submitting:
-        // Never resolves — freezes the cubit on EscalatePhase.submitting so
-        // the loading view is a stable design target.
-        return Completer<EscalateResult>().future;
-      case _EscalateFixture.submitError:
-        throw const EscalateException(EscalateErrorKind.network);
-      case _EscalateFixture.evidenceLoaded:
-      case _EscalateFixture.evidenceDegraded:
-        return Future<EscalateResult>.value(
-          const EscalateResult(caseId: 'DSP-1001', status: 'open'),
-        );
-    }
-  }
-}
-
-/// Builds the real [EscalateScreen] wired to a [_CatalogEscalateRepository].
-/// [preReason]+[preSubmit] pre-drive the cubit (setReason → submit) so the
-/// submitting/error states render without any tap — `submit()` is
-/// fire-and-forget here; its synchronous `emit(...submitting)` runs before
-/// the first `await`, so the phase is already correct by the first frame.
-Widget _escalateScreen(_EscalateFixture fixture, {bool preSubmit = false}) {
+/// [preSubmit] fires setReason → submit before first frame to drive submitting/error states.
+Widget _escalateScreen(EscalateRepository repository, {bool preSubmit = false}) {
   return BlocProvider<EscalateCubit>(
-    create: (_) {
-      final cubit = EscalateCubit(
-        repository: _CatalogEscalateRepository(fixture),
-        deliveryId: 'DEL-1001',
-      );
-      if (preSubmit) {
-        cubit
-          ..setReason(EscalateReason.damaged)
-          ..submit();
-      }
-      return cubit;
-    },
+    create: (_) => EscalateScreenPreviewFixtures.cubit(
+      repository,
+      reason: preSubmit ? EscalateReason.damaged : null,
+      submit: preSubmit,
+    ),
     child: const EscalateScreen(),
   );
 }
@@ -157,27 +55,30 @@ final CatalogEntry _escalateEntry = CatalogEntry(
   states: [
     CatalogState(
       'Reason picker (evidence loaded)',
-      (_) => _escalateScreen(_EscalateFixture.evidenceLoaded),
+      (_) => _escalateScreen(EscalateScreenPreviewFixtures.evidenceLoaded()),
     ),
     CatalogState(
       'Evidence degraded (chat/timeline unavailable)',
-      (_) => _escalateScreen(_EscalateFixture.evidenceDegraded),
+      (_) => _escalateScreen(EscalateScreenPreviewFixtures.evidenceDegraded()),
     ),
     CatalogState(
       'Submitting',
-      (_) => _escalateScreen(_EscalateFixture.submitting, preSubmit: true),
+      (_) => _escalateScreen(
+        EscalateScreenPreviewFixtures.stalledSubmit(),
+        preSubmit: true,
+      ),
     ),
     CatalogState(
       'Error (network)',
-      (_) => _escalateScreen(_EscalateFixture.submitError, preSubmit: true),
+      (_) => _escalateScreen(
+        EscalateScreenPreviewFixtures.failingSubmit(),
+        preSubmit: true,
+      ),
     ),
   ],
 );
 
-// ═════════════════════════════════════════════════════════════════════════
-// goods_cost — "Enter Goods Cost"
-// ═════════════════════════════════════════════════════════════════════════
-
+/// `repository` is the only seam; it builds its own cubit and calls loadCurrency() at mount.
 final CatalogEntry _goodsCostEntry = CatalogEntry(
   feature: 'goods_cost',
   screen: 'Enter Goods Cost',
@@ -185,56 +86,38 @@ final CatalogEntry _goodsCostEntry = CatalogEntry(
     CatalogState(
       'Currency loaded (USD)',
       (_) => GoodsCostScreen(
-        deliveryId: 'DEL-2001',
-        repository: FakeGoodsCostRepository(currency: 'USD'),
+        deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
+        repository: GoodsCostScreenPreviewFixtures.usd(),
       ),
     ),
     CatalogState(
       'Currency loaded (LBP)',
       (_) => GoodsCostScreen(
-        deliveryId: 'DEL-2002',
-        repository: FakeGoodsCostRepository(currency: 'LBP'),
+        deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
+        repository: GoodsCostScreenPreviewFixtures.lbp(),
       ),
     ),
     CatalogState(
       'Currency read degraded (label falls back neutral)',
       (_) => GoodsCostScreen(
-        deliveryId: 'DEL-2003',
-        repository: FakeGoodsCostRepository(
-          fetchFailure: GoodsCostFailure.network,
-        ),
+        deliveryId: GoodsCostScreenPreviewFixtures.deliveryId,
+        repository: GoodsCostScreenPreviewFixtures.currencyUnavailable(),
       ),
     ),
   ],
 );
 
-// ═════════════════════════════════════════════════════════════════════════
-// home_client — Client Home (Requests tab: In Progress / Pending / Replies)
-// ═════════════════════════════════════════════════════════════════════════
-
-/// Repository that always fails the load — drives [ClientHomeScreen]'s
-/// `failed` status (retry CTA) with no network involved.
-class _FailingClientHomeRepository implements ClientHomeRepository {
-  @override
-  Future<ClientHomeSnapshot> loadSnapshot() async {
-    throw StateError('catalog: simulated load failure');
-  }
-}
-
-/// Wraps [ClientHomeScreen] in the [BlocProvider] + [Scaffold] it expects
-/// from its host shell. The
-/// screen's own `initState` calls `cubit.load()`, so no manual trigger is
-/// needed here.
+/// Wraps ClientHomeScreen in BlocProvider + Scaffold. initState calls cubit.load().
 Widget _clientHome({
   required ClientHomeRepository repository,
   required ClientHomeTab initialTab,
-  String? name = 'Layla',
+  String? name = ClientHomeScreenPreviewFixtures.greetingName,
 }) {
   return Scaffold(
     body: BlocProvider<ClientHomeCubit>(
-      create: (_) => ClientHomeCubit(
-        repository: repository,
-        greetingNameProvider: () => name,
+      create: (_) => ClientHomeScreenPreviewFixtures.cubit(
+        repository,
+        name: name,
       ),
       child: ClientHomeScreen(
         initialTab: initialTab,
@@ -245,12 +128,6 @@ Widget _clientHome({
   );
 }
 
-ClientHomeRepository _populatedClientHomeRepo() =>
-    InMemoryClientHomeRepository.fromSnapshot(
-      DevClientHomeFixtures.snapshot(),
-      latency: Duration.zero,
-    );
-
 final CatalogEntry _clientHomeEntry = CatalogEntry(
   feature: 'home_client',
   screen: 'Client Home (Requests tab)',
@@ -258,44 +135,40 @@ final CatalogEntry _clientHomeEntry = CatalogEntry(
     CatalogState(
       'In Progress (populated)',
       (_) => _clientHome(
-        repository: _populatedClientHomeRepo(),
+        repository: ClientHomeScreenPreviewFixtures.populated(),
         initialTab: ClientHomeTab.inProgress,
       ),
     ),
     CatalogState(
       'Pending Requests (populated)',
       (_) => _clientHome(
-        repository: _populatedClientHomeRepo(),
+        repository: ClientHomeScreenPreviewFixtures.populated(),
         initialTab: ClientHomeTab.pendingRequests,
       ),
     ),
     CatalogState(
       'Replies (populated)',
       (_) => _clientHome(
-        repository: _populatedClientHomeRepo(),
+        repository: ClientHomeScreenPreviewFixtures.populated(),
         initialTab: ClientHomeTab.replies,
       ),
     ),
     CatalogState(
       'Empty (no requests)',
       (_) => _clientHome(
-        repository: InMemoryClientHomeRepository(latency: Duration.zero),
+        repository: ClientHomeScreenPreviewFixtures.empty(),
         initialTab: ClientHomeTab.pendingRequests,
       ),
     ),
     CatalogState(
       'Load failed (retry)',
       (_) => _clientHome(
-        repository: _FailingClientHomeRepository(),
+        repository: ClientHomeScreenPreviewFixtures.failing(),
         initialTab: ClientHomeTab.inProgress,
       ),
     ),
   ],
 );
-
-// ═════════════════════════════════════════════════════════════════════════
-// jeeber_active_deliveries — the jeeber Dashboard's "active deliveries" banner
-// ═════════════════════════════════════════════════════════════════════════
 
 class _CatalogActiveDeliveriesRepository implements ActiveDeliveriesRepository {
   _CatalogActiveDeliveriesRepository(this._deliveries);
@@ -306,11 +179,7 @@ class _CatalogActiveDeliveriesRepository implements ActiveDeliveriesRepository {
   Future<List<ActiveDeliverySummary>> listActive() async => _deliveries;
 }
 
-/// The million-day `pollInterval` this used to pass — the long-lived
-/// preview-cubit convention for keeping a `Timer.periodic` from firing during a
-/// preview session — is gone with the poll itself (N2). `start()` is now a
-/// single mount read against the in-memory catalog repository and schedules
-/// nothing.
+/// start() is a single mount read against the in-memory catalog repository (polls are gone per N2).
 Widget _activeDeliveriesBanner(List<ActiveDeliverySummary> deliveries) {
   final cubit = ActiveDeliveriesCubit(
     repository: _CatalogActiveDeliveriesRepository(deliveries),
@@ -358,46 +227,21 @@ final CatalogEntry _jeeberActiveDeliveriesEntry = CatalogEntry(
   ],
 );
 
-// ═════════════════════════════════════════════════════════════════════════
-// jeeber_home — the jeeber Dashboard tab (unregistered / available / feed)
-// ═════════════════════════════════════════════════════════════════════════
-
-/// A submitted-offers fake that never lists anything — [SubmittedOffersCubit]
-/// only calls `load()` lazily when the Pending-Response sub-tab is first
-/// selected, so this keeps that path fake-backed with zero network
-/// regardless of whether GetIt happens to be configured in the host app.
-class _EmptySubmittedOffersRepository implements SubmittedOffersRepository {
-  @override
-  Future<List<SubmittedOffer>> listSubmitted() async => const [];
-
-  @override
-  Future<bool> withdraw(String offerId) async => true;
-}
-
-SubmittedOffersCubit _catalogSubmittedOffersCubit() =>
-    SubmittedOffersCubit(repository: _EmptySubmittedOffersRepository());
-
-/// Registered-path wrapper: provides the [AvailabilityCubit] the screen reads
-/// from `didChangeDependencies` (which calls `.load()`). The empty
-/// `tickerFactory` stream means the 8h-inactivity ticker never actually
-/// schedules a timer in this preview.
+/// Provides AvailabilityCubit the screen reads from didChangeDependencies (calls load()).
+/// Feed cubit seeded in constructor (no subscriptions or timers).
 Widget _jeeberHomeRegistered({
-  required AvailabilityGateway gateway,
+  required AvailabilityCubit availability,
   RequestFeedCubit? feedCubit,
 }) {
-  final availability = AvailabilityCubit(
-    gateway: gateway,
-    tickerFactory: () => const Stream<DateTime>.empty(),
-  );
-  final body = BlocProvider<AvailabilityCubit>.value(
+  return BlocProvider<AvailabilityCubit>.value(
     value: availability,
     child: JeeberHomeScreen(
-      profileName: 'Kamal',
+      profileName: JeeberHomeScreenPreviewFixtures.profileName,
       requestFeedCubit: feedCubit,
-      submittedOffersCubitFactory: _catalogSubmittedOffersCubit,
+      submittedOffersCubitFactory:
+          JeeberHomeScreenPreviewFixtures.submittedOffersCubit,
     ),
   );
-  return body;
 }
 
 final CatalogEntry _jeeberHomeEntry = CatalogEntry(
@@ -406,68 +250,63 @@ final CatalogEntry _jeeberHomeEntry = CatalogEntry(
   states: [
     CatalogState(
       'State 1 — Unregistered upsell',
-      (_) => const JeeberHomeScreen(isRegistered: false, profileName: 'Kamal'),
+      (_) => const JeeberHomeScreen(
+        isRegistered: false,
+        profileName: JeeberHomeScreenPreviewFixtures.profileName,
+      ),
     ),
     CatalogState(
       'State 2 — Registered, offline, no requests',
-      (_) => _jeeberHomeRegistered(gateway: InMemoryAvailabilityGateway()),
+      (_) => _jeeberHomeRegistered(
+        availability: JeeberHomeScreenPreviewFixtures.offlineAvailability(),
+      ),
     ),
     CatalogState(
       'State 2 — Registered, online, no requests',
       (_) => _jeeberHomeRegistered(
-        gateway: InMemoryAvailabilityGateway(
-          initial: const AvailabilityStatus(
-            state: AvailabilityState.online,
-            activeDeliveryCount: 0,
-          ),
-        ),
+        availability: JeeberHomeScreenPreviewFixtures.onlineAvailability(),
       ),
     ),
     CatalogState(
       'State 3 — Registered, online, live feed',
       (_) => _jeeberHomeRegistered(
-        gateway: InMemoryAvailabilityGateway(
-          initial: const AvailabilityStatus(
-            state: AvailabilityState.online,
-            activeDeliveryCount: 0,
-          ),
+        availability: JeeberHomeScreenPreviewFixtures.onlineAvailability(),
+        feedCubit: JeeberHomeScreenPreviewFixtures.feed(
+          JeeberHomeScreenPreviewFixtures.incomingFeed(),
         ),
-        feedCubit: RequestFeedCubit(
-          repository: SeededRequestFeedRepository(
-            DevJeeberFeedFixtures.incoming(),
-          ),
-        )..start(),
       ),
     ),
     CatalogState(
       'Load error (retry)',
       (_) => _jeeberHomeRegistered(
-        gateway: InMemoryAvailabilityGateway(respondWithError: true),
+        availability: JeeberHomeScreenPreviewFixtures.failingAvailability(),
       ),
     ),
   ],
 );
 
-// ═════════════════════════════════════════════════════════════════════════
-// jeeber_onboarding — delivery-man onboarding wizard (photo → address → area)
-// ═════════════════════════════════════════════════════════════════════════
-
+/// Each step seated on a cubit from fixtures to keep the catalog inert (avoids GetIt).
 final CatalogEntry _jeeberOnboardingEntry = CatalogEntry(
   feature: 'jeeber_onboarding',
   screen: 'Delivery-Man Onboarding Wizard',
   states: [
     CatalogState(
       'Step 1 — Photo',
-      (_) => const DmOnboardingScreen(initialStep: DmOnboardingStep.photo),
+      (_) => DmOnboardingScreen(
+        cubit: DmOnboardingScreenPreviewFixtures.photoStep(),
+      ),
     ),
     CatalogState(
       'Step 2 — Address',
-      (_) => const DmOnboardingScreen(initialStep: DmOnboardingStep.address),
+      (_) => DmOnboardingScreen(
+        cubit: DmOnboardingScreenPreviewFixtures.addressStep(),
+      ),
     ),
     CatalogState(
       'Step 3 — Service area',
-      (_) =>
-          const DmOnboardingScreen(initialStep: DmOnboardingStep.serviceArea),
+      (_) => DmOnboardingScreen(
+        cubit: DmOnboardingScreenPreviewFixtures.serviceAreaStep(),
+      ),
     ),
   ],
 );

@@ -8,10 +8,8 @@ import '../domain/prohibited_item.dart';
 const _kAckKey = 'app.acknowledged_prohibited';
 
 /// Dio-backed implementation.
-///
 /// Endpoint contract verified against Mockoon :3055 (s05-order-prohibited-items):
 ///   GET  /prohibited-items → { items: [...], version, acknowledged }
-///   POST /prohibited-items/acknowledge → { userId, version, acknowledgedAt }
 class DioProhibitedAcknowledgmentRepository
     implements ProhibitedAcknowledgmentRepository {
   DioProhibitedAcknowledgmentRepository({

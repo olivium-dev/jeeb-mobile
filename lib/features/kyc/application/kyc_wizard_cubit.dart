@@ -9,17 +9,7 @@ import '../domain/kyc_gateway.dart';
 import '../domain/kyc_submission.dart';
 import 'kyc_wizard_state.dart';
 
-/// Drives the KYC identity wizard: schema load → identity capture → submit.
-///
-/// On construction the cubit starts in [KycWizardStep.schema] and immediately
-/// kicks off [loadSchema] (via [loadStatus]). If the schema load fails the user
-/// is shown an error with a retry button.
-///
-/// JM-040 (D20): the Vehicle step was removed. The single [KycWizardStep.identity]
-/// screen now collects gov-ID front/back + selfie + ToS acceptance, and a single
-/// [submit] signs the ToS and POSTs the KYC submission. On a FRESH success the
-/// state carries [KycWizardState.justSubmitted] so the screen can chain to
-/// `onboarding-funding` (JM-041) rather than render the standalone status view.
+/// KYC identity wizard: schema load → capture → submit.
 class KycWizardCubit extends Cubit<KycWizardState> {
   KycWizardCubit({
     required PhotoPickerService pickerService,
@@ -36,26 +26,8 @@ class KycWizardCubit extends Cubit<KycWizardState> {
 
   int _nextId = 0;
 
-  // ── Schema load ──────────────────────────────────────────────────────────
-
+  /// Must clear loadingStatus; fresh jeeber entering identity wizard.
   Future<void> loadSchema() async {
-    // JEBV4-271 (round 6) ROOT CAUSE FIX: entering the interactive schema/
-    // identity flow MUST clear the [loadStatus] loading flag. A FRESH jeeber
-    // enters via `KycWizardScreen(..loadStatus())`; `loadStatus()` emits
-    // `isLoadingStatus: true`, then `GET /v1/kyc/status` 404s → notSubmitted →
-    // it hands off to [loadSchema] and returns WITHOUT ever resetting the flag.
-    // Every subsequent `copyWith` (capture, submit) then preserves
-    // `isLoadingStatus: true` untouched. When submit later succeeds with a 201
-    // `state: Verified`, [submit] correctly emits `step: status` + an approved
-    // submission — but [KycStatusView.build] short-circuits on
-    // `if (state.isLoadingStatus)` to a BARE centred spinner and never builds
-    // `_ApprovedBody`, so [JeeberRoleActivator] never fires: the on-device
-    // spinner-forever, "jeeber only online after a restart" defect (the diag
-    // stream goes silent right after the 201 — no role/switch, no nav — because
-    // the status-view poller sees `approved`, not `pending`, and cancels at
-    // once). The schema step renders its own step-based loading UI
-    // (`_SchemaLoadingView` keys off `step == schema`, not this flag), so
-    // clearing it here removes no needed spinner.
     emit(state.copyWith(
       step: KycWizardStep.schema,
       isLoadingStatus: false,
@@ -69,14 +41,9 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     }
   }
 
-  // ── Status (cold-start re-read) ──────────────────────────────────────────
-
   Future<void> loadStatus() async {
     emit(state.copyWith(isLoadingStatus: true, clearError: true));
     final snapshot = await _gateway.fetchStatus();
-    // JEBV4-271 (round 6) breadcrumb: makes the cold-start routing decision
-    // visible in the diag stream so a future stuck-flag/masked-view regression
-    // is diagnosable from logs instead of silent.
     Diag.event('kyc_load_status', {'status': snapshot.status.name});
     if (snapshot.status == KycStatus.notSubmitted) {
       await loadSchema();
@@ -89,27 +56,6 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
-  // ── Status refresh (poll while pending) ───────────────────────────────────
-
-  /// JEBV4-271 / JEBV4-279: quietly re-reads KYC status so a `pending → approved`
-  /// flip is picked up with NO re-login and NO dependence on an FCM push (the
-  /// gateway push path is unreliable, bug JEBV4-281).
-  ///
-  /// On MSI the gateway auto-approves INLINE — the `POST /v1/kyc/submit` RESPONSE
-  /// already carries `state: "Verified"`, so the wizard normally lands straight on
-  /// the approved body (which fires [JeeberRoleActivator]). But auto-approve is
-  /// best-effort server-side (`KycSubmissionBffController.TryAutoApproveAsync`
-  /// swallows any upstream blip and returns the still-`Submitted` state), and an
-  /// idempotent replay or a slower admin approval can likewise leave the caller on
-  /// `pending`. [KycStatusView] therefore polls this on a timer + on app-resume;
-  /// the moment the status turns `approved` the cubit emits it, the approved body
-  /// renders, and the jeeber goes online via `POST /v1/users/me/role/switch`.
-  ///
-  /// Fail-soft and quiet: a transient fetch error is swallowed (the poller just
-  /// retries) and — unlike [loadStatus] — it never toggles
-  /// [KycWizardState.isLoadingStatus], so the pending body never flickers. It
-  /// emits only on a real status change, and a `notSubmitted` read never regresses
-  /// an already-shown submission.
   Future<void> refreshStatus() async {
     if (state.step == KycWizardStep.submitting) return;
     final KycSubmission snapshot;
@@ -126,31 +72,7 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
-  // ── Submit safety-net (poll while STUCK on the submitting spinner) ─────────
-
-  /// JEBV4-259/271 safety-net for a STALLED [submit]: when the in-flight
-  /// `submit()` future never completes — a half-open CDN-upload socket, or a
-  /// `POST /v1/kyc/submit` whose 201 response the client never receives even
-  /// though the gateway already auto-approved it (`Verified`) — the wizard is
-  /// stranded on [KycWizardStep.submitting] with nothing polling ([refreshStatus]
-  /// deliberately no-ops while submitting, and [KycStatusView]'s poller only
-  /// mounts once we reach [KycWizardStep.status]). [KycSubmittingView] drives
-  /// this out-of-band once the spinner outlives a short grace window.
-  ///
-  /// It re-reads `GET /v1/kyc/status`; if the SERVER already recorded the
-  /// submission (anything but [KycStatus.notSubmitted]) the local future is hung,
-  /// so it advances the wizard off the spinner onto the [status] step. On an
-  /// auto-approved `Verified` that renders [KycStatusView]'s approved body, which
-  /// fires [JeeberRoleActivator] (`POST /v1/users/me/role/switch`) and brings the
-  /// jeeber online — the SAME self-heal a force-stop+relaunch achieves via
-  /// [loadStatus], but with NO force-stop and NO re-login.
-  ///
-  /// Fail-soft: a transient fetch error is swallowed (the poller retries) and a
-  /// `notSubmitted` read (submit hasn't reached the server yet) never advances.
-  /// The step is re-checked after the await so a `submit()` that completed
-  /// meanwhile wins the race. [justSubmitted] stays false so a recovered submit
-  /// lands on the in-wizard status view (whose own poller tracks a later
-  /// approval) instead of silently chaining to `onboarding-funding`.
+  /// JEBV4-259/271: safety-net for stalled submit (half-open socket, etc).
   Future<void> refreshWhileSubmitting() async {
     if (state.step != KycWizardStep.submitting) return;
     final KycSubmission snapshot;
@@ -168,32 +90,7 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
-  // ── Role-arrived signal (JEBV4-271 round 3) ───────────────────────────────
-
-  /// An authoritative "jeeber role granted" signal arrived OUT-OF-BAND — the
-  /// `GET /v1/users/me` projection now lists `jeeber` in `available_roles`
-  /// (surfaced app-wide via [RoleAvailabilityCubit], populated by the login /
-  /// resume [RoleSync]), or the live KYC gate flipped to approved. That grant
-  /// only exists because the back-office approved this jeeber's KYC, so it is the
-  /// SAME server-confirmed decision a force-stop+relaunch reads back through
-  /// [loadStatus] — honour it in-session instead of forcing the restart.
-  ///
-  /// Round 1 (#110) reconciled off a FAILED submit and round 2 (#107) gated the
-  /// jeeber surface, but a SUCCESS-path submit whose future hangs — or a
-  /// best-effort auto-approve that returned `Submitted` and only granted the role
-  /// on a later `/me` poll (the on-device rev2 repro: `/me` returned `jeeber` at
-  /// 19:38 yet the spinner never moved) — left the wizard stranded with nothing
-  /// driving the approved transition. This is the reactive entry point for that
-  /// signal: while the wizard is still on the submit spinner ([submitting]) or a
-  /// non-terminal [status] view, advance straight onto the approved status view.
-  /// That renders [KycStatusView]'s approved body, which fires
-  /// [JeeberRoleActivator] (`POST /v1/users/me/role/switch`) and brings the
-  /// jeeber online with NO restart and NO re-login.
-  ///
-  /// Guarded and idempotent: it never fires off the submit/status steps (so it
-  /// can't yank the user out of capture), and it never overrides a terminal
-  /// decision already on screen — an approved view stays approved, and a
-  /// server `rejected` is never masked as approved by a stray role signal.
+  /// OUT-OF-BAND signal: jeeber role granted (GET /v1/users/me shows jeeber).
   void onJeeberRoleGranted() {
     final step = state.step;
     if (step != KycWizardStep.submitting && step != KycWizardStep.status) {
@@ -208,19 +105,10 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
-  // ── Capture ──────────────────────────────────────────────────────────────
-
   Future<void> captureIdFront() => _capture(KycCaptureSlot.idFront);
   Future<void> captureIdBack() => _capture(KycCaptureSlot.idBack);
   Future<void> captureSelfie() => _capture(KycCaptureSlot.selfie);
 
-  // ── Identity fields (inline on the identity screen) ───────────────────────
-
-  /// Records the identity-document type picked on the identity screen. Sent
-  /// as the REQUIRED `id_type` on submit (E3/JEBV4-197 — ratified set
-  /// {national_id, passport, residency}). Switching type keeps the typed
-  /// number (validation re-evaluates against the new type) and clears any
-  /// inline field error.
   void setIdType(KycIdType type) {
     if (type == state.submission.idType) return;
     emit(state.copyWith(
@@ -230,12 +118,6 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
-  /// Records the identity-document number typed on the identity screen. Sent
-  /// as the REQUIRED `id_number` on submit (E3/JEBV4-197); the live BFF
-  /// enforces `^\d{12}$` for `national_id`. Eastern Arabic-Indic digits from
-  /// Arabic keyboards are normalized to ASCII defensively (the input field
-  /// already normalizes as-you-type; this keeps the domain value canonical no
-  /// matter how it arrives).
   void setIdNumber(String value) {
     final trimmed = normalizeArabicIndicDigits(value).trim();
     if (trimmed == (state.submission.idNumber ?? '')) return;
@@ -246,29 +128,12 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     ));
   }
 
-  // ── ToS acceptance (inline on the identity screen) ────────────────────────
-
   void setTosAccepted(bool accepted) {
     if (accepted == state.tosAccepted) return;
     emit(state.copyWith(tosAccepted: accepted, clearError: true));
   }
 
-  // ── Submit (sign ToS + POST submission) ───────────────────────────────────
-
-  /// Signs the ToS then POSTs the KYC submission. Loads the contract template
-  /// lazily if it hasn't been fetched yet. On success the state flips to
-  /// [KycWizardStep.status] AND sets [KycWizardState.justSubmitted] so a fresh
-  /// submit chains to `onboarding-funding`. Re-renders the identity screen with
-  /// a [KycWizardError.submitFailed] on failure (draft preserved).
-  ///
-  /// The photo captures are NOT a hard client gate — the back-office is the
-  /// source of truth for KYC completeness and will reject an incomplete
-  /// submission (this mirrors the JM-051 mark-delivered convention where the
-  /// camera evidence is optional client-side). The ID NUMBER, however, IS a
-  /// hard client gate (E3/JEBV4-197 makes it contract-required for every id
-  /// type): a blank/invalid `id_number` never reaches the network — the gate
-  /// re-renders the identity screen with the failure inline on the field.
-  /// An in-flight submit is also guarded to prevent double-posting.
+  /// Sign ToS, POST KYC submission. Fetches contract template lazily if needed.
   Future<void> submit() async {
     if (state.step == KycWizardStep.submitting) return;
     if (!state.submission.hasValidIdNumber) {
@@ -292,22 +157,12 @@ class KycWizardCubit extends Cubit<KycWizardState> {
         tosVersion: template.tosVersion,
         signatureBlob: _tosAcceptanceBlob,
       );
-      // Thread the freshly-signed ToS version onto the draft so the gateway
-      // can carry `tos_accepted_version` in the submit body (JEBV4-113).
       final updated = await _gateway.submit(
         state.submission.copyWith(
           status: KycStatus.notSubmitted,
           tosAcceptedVersion: stamp.tosAcceptedVersion,
         ),
       );
-      // JEBV4-271 (round 6) breadcrumb: the submit round-trip resolved and was
-      // parsed. Emitted BEFORE the state emit so the diag stream proves the
-      // success continuation ran and what status it carries — the exact signal
-      // missing from the round-5 device trace (where the stream went silent
-      // after the 201 and it was impossible to tell, from logs, whether the
-      // cubit emitted approved or died). If a future run shows this breadcrumb
-      // with status=approved yet the jeeber never goes online, the fault is
-      // downstream of the cubit (the view), not in parsing.
       Diag.event('kyc_submit_success', {
         'status': updated.status.name,
         'isLoadingStatus': state.isLoadingStatus,
@@ -317,27 +172,10 @@ class KycWizardCubit extends Cubit<KycWizardState> {
         submission: updated,
         contractTemplate: template,
         tosAcceptedVersion: stamp.tosAcceptedVersion,
-        // JEBV4-271: an AUTO-APPROVED submit (gateway returns state:Verified →
-        // KycStatus.approved) must NOT chain to `onboarding-funding`; it stays
-        // on the in-wizard status step so KycStatusView renders the approved
-        // body, which fires JeeberRoleActivator (POST /v1/users/me/role/switch,
-        // re-mints the jeeber-capable token) and the jeeber goes online with NO
-        // re-login. Only a still-pending submit chains to funding.
+        // approved must NOT chain to onboarding-funding; stays in status.
         justSubmitted: updated.status != KycStatus.approved,
       ));
     } on KycSubmitFieldException catch (e) {
-      // The BFF rejected a specific field (RFC-7807 `field` extension).
-      // Surface it INLINE on the offending field — not the generic snackbar.
-      // Unknown field names fall back to a generic surface so the failure is
-      // never silent, but JEBV4-295: this is a VALIDATION rejection (the BFF
-      // parsed the request and 400'd on its content — e.g. a missing-doc
-      // field this client build has no inline slot for yet), never a
-      // connectivity failure. Mapping it to [KycWizardError.submitFailed]
-      // (whose copy reads "check your connection and try again") mislabelled
-      // a validation 400 as a network error — surface
-      // [KycWizardError.submitValidationFailed] instead so the toast matches
-      // what actually happened. (state.error is already null here — cleared
-      // at submit start — so the known-field branch adds no snackbar.)
       final fieldError = _mapFieldError(e.field);
       emit(state.copyWith(
         step: KycWizardStep.identity,
@@ -347,24 +185,6 @@ class KycWizardCubit extends Cubit<KycWizardState> {
             : null,
       ));
     } catch (_) {
-      // JEBV4-271: the submit round-trip failed or timed out — but the gateway
-      // auto-approves INLINE and may already have RECORDED (and `Verified`) the
-      // submission before the response reached us: a slow inline-approve that
-      // outran the receive-timeout, or a 201 the client never received. Bouncing
-      // straight back to the identity form here (or, as users perceived it,
-      // leaving the fresh jeeber staring at the submit spinner until they
-      // force-restart) DISCARDS that server-side approval — the exact "role only
-      // lands after a full app restart" defect. So reconcile against
-      // GET /v1/kyc/status FIRST; if the server already holds a terminal/
-      // submitted decision, advance onto the in-wizard status view (an
-      // auto-approved `Verified` renders [KycStatusView]'s approved body, which
-      // fires [JeeberRoleActivator] and brings the jeeber online) with NO
-      // re-login and NO restart. Only a genuinely un-recorded submit falls
-      // through to the retryable submit-failed error.
-      //
-      // JEBV4-271 (round 6) breadcrumb: a caught submit exception is otherwise
-      // invisible (the generic `catch (_)` swallows the object). Record that we
-      // entered the reconcile path so a future silent hang/throw is greppable.
       Diag.event('kyc_submit_error');
       if (await _reconcileTerminalStatus()) return;
       emit(state.copyWith(
@@ -374,18 +194,7 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     }
   }
 
-  /// Re-reads `GET /v1/kyc/status` after a failed/stalled [submit] and, when the
-  /// server already recorded the submission (anything but
-  /// [KycStatus.notSubmitted]), advances the wizard off [KycWizardStep.submitting]
-  /// onto the [KycWizardStep.status] step so a terminal server decision is never
-  /// lost to a dropped/slow response (JEBV4-271). Returns whether it advanced.
-  ///
-  /// Fail-soft: a fetch error — or a still-[KycStatus.notSubmitted] read (the
-  /// submit never reached the server) — returns false so the caller surfaces the
-  /// retryable submit error. Like [refreshWhileSubmitting] it keeps
-  /// [KycWizardState.justSubmitted] false, so a recovered submit lands on the
-  /// in-wizard status view (whose poller tracks any later approval) rather than
-  /// silently chaining to `onboarding-funding`.
+  /// Re-read status after failed submit; if server recorded it, reconcile state.
   Future<bool> _reconcileTerminalStatus() async {
     final KycSubmission snapshot;
     try {
@@ -402,7 +211,6 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     return true;
   }
 
-  /// Maps the BFF's snake_case `field` extension to the inline-error surface.
   static KycSubmitFieldError? _mapFieldError(String field) {
     switch (field) {
       case 'id_number':
@@ -414,18 +222,10 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     }
   }
 
-  /// Acknowledges that the presentation layer has consumed the one-shot
-  /// [KycWizardState.justSubmitted] navigation signal so it does not re-fire.
   void acknowledgeNavigation() {
     if (!state.justSubmitted) return;
     emit(state.copyWith(justSubmitted: false));
   }
-
-  // ── Resubmit after rejection ─────────────────────────────────────────────
-  //
-  // Kept for the standalone status view's appeal path; the rejected screen
-  // (JM-043) is appeal-only (D52/D87), but tests + the in-wizard status view
-  // still exercise a reset-to-capture.
 
   void resubmit() {
     emit(state.copyWith(
@@ -446,11 +246,6 @@ class KycWizardCubit extends Cubit<KycWizardState> {
     emit(state.copyWith(clearError: true));
   }
 
-  // ── Private helpers ──────────────────────────────────────────────────────
-
-  // The signature pad was replaced by a single ToS-acceptance checkbox on the
-  // identity screen (JM-040). The mock K1 `sign` endpoint still wants a
-  // non-empty signature_blob, so we send a deterministic acceptance marker.
   static const String _tosAcceptanceBlob = 'tos-accepted';
 
   Future<void> _capture(KycCaptureSlot slot) async {

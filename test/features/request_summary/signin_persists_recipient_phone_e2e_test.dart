@@ -16,29 +16,11 @@ import 'package:jeeb_mobile/features/settings/data/shared_prefs_profile_reposito
 
 /// BUG-7 regression (physical-run6): prove the FULL runtime path — NOT a mock
 /// that hides the gap.
-///
 /// physical-run6 showed unit tests passing while the wire still omitted
-/// `recipientPhone`, because the tests stubbed the resolver. Here we exercise
-/// the REAL chain end-to-end:
-///   1. A phone-OTP sign-in ([DioOtpService.verifyCode]) with the live-gateway
-///      response shape (its `user` object carries NO phone).
-///   2. The DEFAULT resolver DI actually wires
-///      (SharedPrefs → live `GET /v1/users/me`), with the "profile phone
-///      unavailable" condition simulated exactly as prod: an EMPTY
-///      SharedPreferences AND a `/v1/users/me` body with NO `phone` field
-///      (verified live against `:10090` — it exposes only
-///      {userId, active_role, available_roles, name, email, avatarUrl}).
-///   3. The real [DioRequestSubmissionService] building the create body.
-///
-/// The pre-fix behaviour (sign-in persisting only the JWT) made this chain
-/// return null and drop `recipientPhone`. The fix persists the sign-in phone to
-/// `settings.profile.v1`, so the chain now returns the signed-in E.164 number
-/// and the create body carries it — even though the server profile has no phone.
 class _MockAuthTokenStore extends Mock implements AuthTokenStore {}
 
 /// A [Dio] that resolves POST `/v1/auth/otp/verify` with the LIVE-gateway
 /// response shape (no `phone` on `user`) so the sign-in path is exercised for
-/// real without a network.
 Dio _otpVerifyDio() {
   final dio = Dio(BaseOptions(baseUrl: 'http://test'));
   dio.interceptors.add(
@@ -66,7 +48,6 @@ Dio _otpVerifyDio() {
 
 /// A [Dio] whose GET `/v1/users/me` returns the EXACT live-gateway body (verified
 /// against `:10090`): it exposes NO `phone` field, so the
-/// [DioRecipientPhoneResolver] leg genuinely misses (profile phone unavailable).
 Dio _usersMeNoPhoneDio() {
   final dio = Dio(BaseOptions(baseUrl: 'http://test'));
   dio.interceptors.add(
@@ -117,8 +98,6 @@ void main() {
 
   setUp(() {
     // Start with EMPTY prefs → the profile phone is genuinely unavailable, as
-    // it was for the seeded run-6 customer (the key is written by no one until
-    // sign-in now writes it).
     SharedPreferences.setMockInitialValues(<String, Object>{});
     tokenStore = _MockAuthTokenStore();
     when(() => tokenStore.save(
@@ -154,8 +133,6 @@ void main() {
     expect(outcome, OtpVerifyOutcome.verified);
 
     // 2) The DEFAULT resolver DI wires: SharedPrefs (now populated by sign-in)
-    //    → live GET /v1/users/me (NO phone). Simulate "profile phone
-    //    unavailable" on the Dio leg via the no-phone users/me body.
     final RecipientPhoneResolver resolver =
         ChainedRecipientPhoneResolver(<RecipientPhoneResolver>[
       SharedPrefsRecipientPhoneResolver(profileRepository: profileRepo),
@@ -163,7 +140,6 @@ void main() {
     ]);
 
     // The Dio (users/me) leg alone STILL misses — proving the guarantee comes
-    // from the persisted sign-in phone, not from the server profile.
     expect(
       await DioRecipientPhoneResolver(_usersMeNoPhoneDio()).resolve(),
       isNull,
@@ -196,7 +172,6 @@ void main() {
   test('sign-in phone MERGES over an existing profile (name/photo survive)',
       () async {
     // A user who had edited their profile before (name set, no phone) signs in;
-    // the phone must be added without clobbering the name.
     SharedPreferences.setMockInitialValues(<String, Object>{
       'settings.profile.v1':
           '{"phoneE164":"","name":"Layla","photoUrl":"https://cdn/a.jpg"}',

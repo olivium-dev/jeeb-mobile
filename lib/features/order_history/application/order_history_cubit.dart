@@ -4,12 +4,6 @@ import '../domain/order_repository.dart';
 import '../domain/order_summary.dart';
 import 'order_history_state.dart';
 
-/// Owns the three-tabbed order history list.
-///
-/// Pagination model: each tab keeps its own page counter + accumulated
-/// items. The date-range filter is global (it applies to whichever tab the
-/// user is currently looking at and resets all three tabs on change),
-/// matching the brief: "Filter by date range" is screen-level, not per-tab.
 class OrderHistoryCubit extends Cubit<OrderHistoryState> {
   OrderHistoryCubit({
     required OrderRepository repository,
@@ -20,9 +14,6 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
   final OrderRepository _repository;
   final int pageSize;
 
-  /// Switches tab. Triggers a first-page load if this tab has never been
-  /// loaded; otherwise reuses the cached list (so a tap-tap-tap doesn't
-  /// burn requests).
   Future<void> selectTab(OrderHistoryTab tab) async {
     if (tab == state.activeTab) return;
     emit(state.copyWith(activeTab: tab));
@@ -31,41 +22,21 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
     }
   }
 
-  /// Called by the screen's `initState`. Idempotent — re-entry is a no-op
-  /// if the active tab already has data or a load is in flight.
   Future<void> initialLoad() async {
     final current = state.currentTab;
     if (current.status != OrderTabStatus.initial) return;
     await _loadFirstPage(state.activeTab);
   }
 
-  /// Pull-to-refresh handler. Resets the current tab's page counter and
-  /// reloads page 1. Leaves the other tabs alone.
   Future<void> refresh() => _loadFirstPage(state.activeTab, isRefresh: true);
 
   /// SILENT re-pull for an automatic trigger (shell-tab refocus, app resume,
   /// an `order` push). Distinct from [refresh] in exactly two ways, and both
-  /// matter for a trigger the user did not ask for:
-  ///
-  ///  * it NO-OPS on a tab that has never loaded — [initialLoad] owns the first
-  ///    read, and letting an automatic trigger race it would fire two page-1
-  ///    requests for one screen open;
-  ///  * it is single-flighted (see [_firstPageInFlight]) — the three triggers
-  ///    can and do coincide (a resume that also re-selects this tab, with the
-  ///    push that woke the user still arriving), and without the latch that is
-  ///    three concurrent reads whose emits race, the oldest possibly landing
-  ///    last and re-installing the very snapshot the refresh was meant to
-  ///    replace.
-  ///
-  /// It goes through `isRefresh: true`, so the current list stays on screen and
-  /// a failure leaves the old rows visible instead of blanking the tab.
   Future<void> refreshSilently() async {
     if (state.currentTab.status == OrderTabStatus.initial) return;
     await _loadFirstPage(state.activeTab, isRefresh: true);
   }
 
-  /// Infinite-scroll trigger. No-op when we're already loading or when the
-  /// server has signalled there's nothing more.
   Future<void> loadMore() async {
     final tab = state.activeTab;
     final tabState = state.tabs[tab]!;
@@ -101,9 +72,6 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
         ),
       ));
     } on OrderRepositoryException catch (e) {
-      // Failing a next-page load keeps the already-loaded items visible;
-      // we go back to `ready` and the screen surfaces a transient snackbar
-      // via the listener rather than blowing up the whole list.
       emit(state.withTabState(
         tab,
         tabState.copyWith(
@@ -116,7 +84,6 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
 
   /// Applies a new date-range filter. Wipes all three tabs because the
   /// gateway applies the date filter per-tab and we don't want a stale
-  /// mix of pre- and post-filter rows.
   Future<void> applyDateRange(OrderDateRange range) async {
     if (range == state.dateRange) return;
     final reset = {
@@ -126,15 +93,8 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
     await _loadFirstPage(state.activeTab);
   }
 
-  /// Convenience for the filter sheet's "Clear" button.
   Future<void> clearDateRange() => applyDateRange(const OrderDateRange());
 
-  /// Single-flight latch over [_loadFirstPage]. The screen used to have exactly
-  /// ONE first-page trigger (`initState`), so overlap was impossible and no
-  /// latch was needed. It now has four (mount, tab refocus, app resume, `order`
-  /// push) and they genuinely coincide, so the latch is load-bearing: without
-  /// it two page-1 reads can be in flight at once and the SLOWER one wins the
-  /// emit, which is how a "refresh" reinstalls a stale list.
   bool _firstPageInFlight = false;
 
   Future<void> _loadFirstPage(
@@ -181,8 +141,6 @@ class OrderHistoryCubit extends Cubit<OrderHistoryState> {
         ),
       ));
     } on OrderRepositoryException catch (e) {
-      // On a refresh, the previous list stays visible and we just surface
-      // an error indicator — first-time loads flip to the full error state.
       emit(state.withTabState(
         tab,
         isRefresh

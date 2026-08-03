@@ -1,9 +1,4 @@
 // JM-024 — location-select screen contract (63_W1_TEST_PLAN §2.3): the three
-// Semantics identifiers, the seeded saved-address cards, and the nav-callback
-// seams (confirm → order-chat, saved-row → saved-addresses, new → map-pin).
-//
-// Isolated (no router): the screen self-provides its cubit over the injected
-// FakeLocationSelectRepository.
 
 import 'dart:io';
 
@@ -85,8 +80,6 @@ void main() {
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
     // JEBV4-176: the "Current Location" option resolves a REAL device fix so
-    // Confirm can enable and no GPS-recovery panel pushes the affordances
-    // off-screen (a real geolocator is unavailable in the headless harness).
     sl.registerLazySingleton<CurrentLocationResolver>(
       FakeCurrentLocationResolver.new,
     );
@@ -101,7 +94,6 @@ void main() {
     await tester.pumpWidget(
       _harness(const ClientLocationScreen(
         // DEFECT A: inject the user id so the screen uses the test seam instead
-        // of resolving from AuthTokenStore (secure storage, unavailable here).
         userId: 'user-client-001',
         repository: FakeLocationSelectRepository(),
       )),
@@ -255,8 +247,6 @@ void main() {
     const micKey = Key('clientLocation.descriptionMic');
 
     // B-02: the Confirm CTA is an OmdsLoadingButton (disable + spinner while
-    // the create POST is in flight); it still exposes `isEnabled`, so the G1
-    // gating assertions below are unchanged.
     OmdsLoadingButton confirmButton(WidgetTester tester) {
       final cta = find.bySemanticsIdentifier('location_select_confirm_cta');
       expect(cta, findsOneWidget);

@@ -1,16 +1,4 @@
 // Widget tests for WalletHubScreen (JM-053). Proves the screen renders the
-// EXACT Semantics identifiers from 65_W2_TEST_PLAN §2 JM-053 off an injected
-// fake WalletRepository (no DI, no network), that the affordability card is
-// STATE copy (D43 — title/body change per WalletAffordability, never a capacity
-// number), that the gift badge gates on giftCredit > 0 (D42), and that the
-// KYC-pending banner gates on the injected JeeberKycStatusGate (AC7).
-//
-//   AC1: wallet_available_balance + wallet_gift_badge + wallet_affordability_card
-//        + wallet_reserved_now + wallet_topup_cta render.
-//   AC3: wallet_how_fees_work → wallet_how_fees_explainer (bottom sheet).
-//   AC4/AC5: wallet_earnings_row + wallet_see_all_activity present (guarded).
-//   AC6: affordability copy differs healthy vs low (state copy, D43).
-//   AC7: wallet_kyc_pending_banner visible iff KYC pending.
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';

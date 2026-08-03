@@ -105,7 +105,6 @@ void main() {
       expect(find.text('113 Reviews'), findsOneWidget);
       expect(find.text('View all'), findsOneWidget);
       // D58: cards attribute by first name only (the seed reviewer is "Karl
-      // Assaf" → "Karl").
       expect(find.text('Karl'), findsNWidgets(2));
       expect(find.text('Karl Assaf'), findsNothing);
     });
@@ -182,7 +181,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The OmdsReviewCard action row (Helpful/Reply) is suppressed
-      // (showActions: false) — assert by their action icons + localized labels.
       expect(find.byIcon(Icons.thumb_up_outlined), findsNothing);
       expect(find.byIcon(Icons.chat_bubble_outline), findsNothing);
       expect(find.text('Helpful (24)'), findsNothing);

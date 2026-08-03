@@ -2,9 +2,6 @@ import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
 
 /// Scriptable in-memory [RequestSubmissionService] for unit + widget tests.
-///
-/// - Records the last [RequestDraft] passed to [submit].
-/// - Returns [requestId] on success, or throws [error] when set.
 class FakeRequestSubmissionService implements RequestSubmissionService {
   FakeRequestSubmissionService({
     this.requestId = 'fake-request-id',

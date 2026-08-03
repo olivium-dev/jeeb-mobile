@@ -1,18 +1,4 @@
 // F3 (offers-polling storm — fan-out bound + 429 tolerance).
-//
-// The customer HOME used to brick on New Order because a customer with N active
-// requests fanned out N DISTINCT `GET /v1/offers?requestId` reads in one
-// unbounded burst, tripping the gateway's per-subscription 429, and the home
-// path then treated that 429 as a fatal "Couldn't reach Jeeb."
-//
-// These two tests pin the fix at the REPOSITORY seam:
-//   1. the per-request offer fan-out is drained through a BOUNDED worker pool —
-//      at most K (=2) `GET /v1/offers` are ever in flight at once, no matter how
-//      many active requests the customer has;
-//   2. a 429 on those probes NEVER throws out of `loadSnapshot` — it degrades to
-//      a snapshot that still carries the requests AND flags `rateLimited` (with
-//      the advertised `Retry-After`), so the cubit can keep data + back off
-//      instead of failing the whole home tab.
 
 import 'dart:async';
 
@@ -41,7 +27,6 @@ void main() {
 
   /// Builds N distinct offer-less pending requests, forcing N distinct
   /// `/v1/offers?requestId` probes (no payload `offersCount`, so each row is an
-  /// unknown that must be probed).
   List<Map<String, dynamic>> pendingRequests(int n) => [
         for (var i = 0; i < n; i++)
           {'id': 'r-$i', 'status': 'pending', 'title': 'Req $i'},
@@ -54,7 +39,6 @@ void main() {
     var inFlight = 0;
     var peakInFlight = 0;
     // Gate the probes open only once all that CAN start have started, so the
-    // peak is observed under maximum contention.
     final release = Completer<void>();
 
     when(() => dio.get<dynamic>(any(),
@@ -84,7 +68,6 @@ void main() {
     }
 
     // The bound holds: never more than K probes concurrently, even though the
-    // customer has 8 offer-less requests to resolve.
     expect(
       peakInFlight,
       lessThanOrEqualTo(_kMaxConcurrentOfferProbes),

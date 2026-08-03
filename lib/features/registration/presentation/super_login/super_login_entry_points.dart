@@ -9,31 +9,13 @@ import '../../../../l10n/app_localizations.dart';
 import 'super_login_picker.dart';
 import 'super_login_sheet.dart';
 
-/// Debug-only super-login entry points, RELOCATED from the registration screen
-/// to the LOGIN screen (P1 owner request: surface super-login on the login
-/// screen as the way in, instead of the OTP/credential funnel).
-///
-/// This file only LIFTS the two link affordances + their open/guard logic out
-/// of `registration_screen.dart` so the login screen (the new home) shares one
-/// implementation. The actual auth is unchanged — [openSuperLogin] /
-/// [openSuperLoginPlus] reuse the existing [showSuperLoginSheet] +
-/// [showSuperLoginPicker] (passcode-gated user list → tap → user-id-login).
-///
-/// SECURITY: every surface here is `kDebugMode`-gated by the host AND by
-/// [SuperLoginEntryPoints] itself, so it is dead-code-eliminated from release
-/// builds (mirrors the original registration placement, FR-P0-4 / defect D2).
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
 
-/// Fail-loud guard. The dev super-login surfaces are unusable without a
-/// SuperAdmin passcode. With the [AppConfig] debug fallback this is effectively
-/// never empty in a dev build — but if a build somehow ships with neither the
-/// `--dart-define` nor the fallback, surface an EXPLICIT misconfiguration
-/// message instead of letting the user hit a generic gateway "Invalid user id
-/// or passcode". Returns `true` when the action was blocked (caller aborts).
+/// Debug-only entry points; kDebugMode-gated, dead-code-eliminated from release.
 bool superLoginBlockedByMissingPasscode(BuildContext context) {
   if (!kDebugMode || AppConfig.superAdminPassCode.isNotEmpty) return false;
-  // EXEMPT: OMDS exports no standalone snackbar/toast widget; ScaffoldMessenger
-  // is the approved fleet pattern for transient feedback. kDebugMode-only path
-  // (never ships).
+  // EXEMPT: OMDS exports no standalone snackbar; ScaffoldMessenger is approved pattern.
   final colorScheme = Theme.of(context).colorScheme;
   ScaffoldMessenger.of(context)
     ..clearSnackBars()
@@ -51,20 +33,11 @@ bool superLoginBlockedByMissingPasscode(BuildContext context) {
   return true;
 }
 
-/// Opens the FR-P0-4 credential sheet, PRE-FILLED with the dev SuperAdmin
-/// passcode (+ the Nour Demo userId) so the surface is usable without typing.
-/// On a server-validated success the sheet pops `true`; the host's
-/// [onAuthenticated] then runs (onboarding complete → session refresh → home)
-/// using the REAL tokens the sheet persisted, never a client mint.
 Future<void> openSuperLogin(
   BuildContext context, {
   required Future<void> Function() onAuthenticated,
 }) async {
   if (superLoginBlockedByMissingPasscode(context)) return;
-  // Capture the owned SessionCubit from the CALLER's context (the login screen
-  // — a modal sheet can't inherit providers above the navigator) so the sheet
-  // can drive the shared real-login establishment (refresh → session emits
-  // `authenticated` → notifyLogin) on success.
   final session = context.read<SessionCubit?>();
   final signedIn = await showSuperLoginSheet(
     context,
@@ -76,11 +49,6 @@ Future<void> openSuperLogin(
   await onAuthenticated();
 }
 
-/// "Super user login plus": first opens the demo-user picker, then opens the
-/// SAME credential sheet pre-filled with the chosen user's userId + the single
-/// real SuperAdmin passcode. The sheet POSTs this + the tapped userId to the
-/// existing user-id-login path for real server validation; the post-success
-/// path is identical to [openSuperLogin].
 Future<void> openSuperLoginPlus(
   BuildContext context, {
   required Future<void> Function() onAuthenticated,
@@ -99,9 +67,6 @@ Future<void> openSuperLoginPlus(
   await onAuthenticated();
 }
 
-/// The two debug-only super-login affordances, stacked. The host gates with
-/// `if (kDebugMode)`; this widget additionally renders nothing in release so the
-/// surface can never reach a production user.
 class SuperLoginEntryPoints extends StatelessWidget {
   const SuperLoginEntryPoints({
     super.key,
@@ -126,7 +91,6 @@ class SuperLoginEntryPoints extends StatelessWidget {
   }
 }
 
-/// Debug-only "Super User Login" text link that opens the credential sheet.
 class _SuperLoginLink extends StatelessWidget {
   const _SuperLoginLink({required this.onTap});
 
@@ -158,8 +122,6 @@ class _SuperLoginLink extends StatelessWidget {
   }
 }
 
-/// Debug-only "Super user login plus" text link. Opens a demo-user picker that
-/// pre-fills the credential sheet. Rendered next to [_SuperLoginLink].
 class _SuperLoginPlusLink extends StatelessWidget {
   const _SuperLoginPlusLink({required this.onTap});
 
@@ -190,3 +152,190 @@ class _SuperLoginPlusLink extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// ===========================================================================
+
+/// A 390pt phone column minus the `Spacing.medium` gutters a form screen leaves
+const double _superLoginEntryPointsColumnWidth = 358;
+
+/// The narrow end: a small device, or an auth form that is already indented.
+/// The English labels still fit on one line here; the Arabic ones do not.
+const double _superLoginEntryPointsNarrowWidth = 160;
+
+/// Column width for the tap-target probe, sized so the 48pt reference square
+/// and the links sit side by side on a phone.
+const double _superLoginEntryPointsProbeWidth = 200;
+
+/// WCAG 2.5.5 (AAA) / Material's minimum interactive size, in logical pixels.
+const double _superLoginEntryPointsMinTapTarget = 48;
+
+/// Canvas box for the production placement. Tall enough that the 200% rendering
+/// of the matrix still fits — a box that clipped it would report a fixture
+const Size _superLoginEntryPointsFooterBox = Size(390, 340);
+
+/// Canvas box for the narrow column: narrow, and tall because the Arabic labels
+/// wrap several times inside 160pt at 200%.
+const Size _superLoginEntryPointsNarrowBox = Size(240, 460);
+
+/// Canvas box for the pinned-200% state.
+const Size _superLoginEntryPointsScaledBox = Size(390, 260);
+
+/// Canvas box for the tap-target probe and the bare widget.
+const Size _superLoginEntryPointsProbeBox = Size(390, 180);
+
+/// Renders [child] above a caption naming the state under review.
+Widget _superLoginEntryPointsHosted(String caption, Widget child) => Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          child,
+          const SizedBox(height: Spacing.medium),
+          Text(
+            caption,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+
+/// The widget under review in a column [width] wide, wired to no-op callbacks.
+Widget _superLoginEntryPointsSubject({required double width}) => SizedBox(
+      width: width,
+      child: SuperLoginEntryPoints(
+        onSuperLogin: () {},
+        onSuperLoginPlus: () {},
+      ),
+    );
+
+/// Stand-in for the login screen's primary CTA, so the links are reviewed where
+class _SuperLoginEntryPointsCtaPlaceholder extends StatelessWidget {
+  const _SuperLoginEntryPointsCtaPlaceholder();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: _superLoginEntryPointsMinTapTarget,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary,
+          borderRadius: OmdsBorderRadius.large,
+        ),
+      );
+}
+
+/// A 48 × 48 reference square: the minimum interactive size a touch target is
+/// supposed to have, drawn to scale next to targets that do not have it.
+class _SuperLoginEntryPointsMinTargetSquare extends StatelessWidget {
+  const _SuperLoginEntryPointsMinTargetSquare();
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      key: const Key('superLoginEntryPoints.minTargetSquare'),
+      width: _superLoginEntryPointsMinTapTarget,
+      height: _superLoginEntryPointsMinTapTarget,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: colorScheme.tertiary),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Center(
+          child: Text(
+            '48',
+            style: TextStyle(fontSize: 10, color: colorScheme.tertiary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The production placement: both links stacked directly under the login CTA,
+@JeebPreview(
+  group: 'registration',
+  name: 'Login footer (production placement)',
+  size: _superLoginEntryPointsFooterBox,
+  matrix: true,
+)
+Widget superLoginEntryPointsLoginFooter() => _superLoginEntryPointsHosted(
+      'Login screen footer · under the CTA',
+      SizedBox(
+        width: _superLoginEntryPointsColumnWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const _SuperLoginEntryPointsCtaPlaceholder(),
+            const SizedBox(height: Spacing.medium),
+            SuperLoginEntryPoints(
+              onSuperLogin: () {},
+              onSuperLoginPlus: () {},
+            ),
+          ],
+        ),
+      ),
+    );
+
+/// The narrow ceiling: 160pt of column, which is what is left on a small device
+@JeebPreview(
+  group: 'registration',
+  name: 'Narrow column (160pt)',
+  size: _superLoginEntryPointsNarrowBox,
+  matrix: true,
+)
+Widget superLoginEntryPointsNarrowColumn() => _superLoginEntryPointsHosted(
+      'Narrow column · 160pt',
+      _superLoginEntryPointsSubject(
+        width: _superLoginEntryPointsNarrowWidth,
+      ),
+    );
+
+/// The accessibility ceiling, pinned into the fixture so it is reviewable
+@JeebPreview(
+  group: 'registration',
+  name: 'Text scale 200%',
+  size: _superLoginEntryPointsScaledBox,
+)
+Widget superLoginEntryPointsLargeText() => _superLoginEntryPointsHosted(
+      'Text scale 200% · gap stays 16pt',
+      MediaQuery.withClampedTextScaling(
+        minScaleFactor: 2,
+        maxScaleFactor: 2,
+        child: _superLoginEntryPointsSubject(
+          width: _superLoginEntryPointsColumnWidth,
+        ),
+      ),
+    );
+
+/// The state that breaks for the users this widget has: the hit areas, drawn
+@JeebPreview(
+  group: 'registration',
+  name: 'Hit area vs the 48dp minimum',
+  size: _superLoginEntryPointsProbeBox,
+)
+Widget superLoginEntryPointsTapTargets() => _superLoginEntryPointsHosted(
+      'Hit area vs the 48dp minimum',
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          const _SuperLoginEntryPointsMinTargetSquare(),
+          const SizedBox(width: Spacing.medium),
+          _superLoginEntryPointsSubject(
+            width: _superLoginEntryPointsProbeWidth,
+          ),
+        ],
+      ),
+    );
+
+/// The widget alone on the plain surface, at the width the login screen gives
+@JeebPreview(
+  group: 'registration',
+  name: 'Bare on surface (baseline)',
+  size: _superLoginEntryPointsProbeBox,
+)
+Widget superLoginEntryPointsBare() => _superLoginEntryPointsHosted(
+      'Bare widget on surface · baseline',
+      _superLoginEntryPointsSubject(
+        width: _superLoginEntryPointsColumnWidth,
+      ),
+    );

@@ -92,8 +92,6 @@ void main() {
 
       await tester.pumpWidget(_screen(cubit, isClient: true));
       // Let the cubit's constructor-triggered fetch resolve. A bare
-      // `Future.delayed(Duration.zero)` never fires under the widget-test
-      // fake clock until a frame is pumped, so we pump instead.
       await tester.pump();
 
       // redesign-2026-08 screen 13: the code is four navy tiles, so the digits
@@ -132,10 +130,6 @@ void main() {
     });
 
     // G4 (sprint-009 P0): the live gateway's GET /otp is an SMS trigger with
-    // no `code`. The customer must see the HONEST "sent by SMS" fallback with
-    // a resend affordance — and NEVER a code-entry grid (that is the Jeeber's
-    // surface; the pre-fix screen flipped the customer into entry, a dead end
-    // for a code they were never shown).
     testWidgets(
         'G4 fallback: no code → SMS-sent message + resend, NO entry grid',
         (tester) async {

@@ -1,15 +1,4 @@
 // End-to-end deep-link resolution gate (Sprint 3 — stream "deeplink").
-//
-// Proves the full chain a platform deep link travels:
-//   1. DeepLinkRouteInformationParser folds the custom-scheme host back into
-//      the path: `jeeb://orders/d-1` (host `orders`, path `/d-1`) → `/orders/d-1`.
-//   2. go_router resolves that location to the intended GoRoute target
-//      (DeliveryDetailScreen) when the user is authenticated.
-//   3. GUARDRAIL — the SAME user-data deep link, while UNAUTHENTICATED, is
-//      bounced by the router's first-run auth gate to the auth entry
-//      (`/register`), never blind-opening the order.
-//   4. In-app rooted `/...` navigations and malformed `jeeb://` links pass
-//      through the parser unchanged (no accidental rewrite / no crash).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -94,7 +83,6 @@ Widget _harness(_Built built) {
     ],
     child: MaterialApp.router(
       // Wrap the router's parser exactly as app.dart does, so the test
-      // exercises the production deep-link entry path.
       routeInformationParser: DeepLinkRouteInformationParser(
         inner: built.router.routeInformationParser,
       ),
@@ -171,7 +159,6 @@ void main() {
 
     test('passes a malformed jeeb:// link through unchanged (no crash)', () {
       // Disallowed-charset id (a space) → resolver returns null → the original
-      // is forwarded unchanged so go_router applies its own error handling.
       expect(parser.rewrite(info('jeeb://orders/d%201')).uri.toString(),
           'jeeb://orders/d%201');
     });
@@ -183,7 +170,6 @@ void main() {
       await pump(tester, session: const AlwaysAuthenticatedSessionGate());
 
       // Fold the platform link exactly as the parser would, then drive the
-      // router (proving go_router resolves the folded path to its target).
       final location0 = const DeepLinkResolver()
           .resolveLocation(Uri.parse('jeeb://orders/d-1'));
       expect(location0, '/orders/d-1');
@@ -210,8 +196,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The auth gate refused to open the order; the deep link landed on the
-      // auth entry instead — `/register` (phone-OTP + Apple/Google social; the
-      // email/password `/login` funnel was removed in JEBV4-199).
       expect(location(), '/register');
       expect(find.byType(DeliveryDetailScreen), findsNothing);
     });

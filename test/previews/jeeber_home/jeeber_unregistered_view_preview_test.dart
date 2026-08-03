@@ -1,0 +1,145 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:jeeb_mobile/features/jeeber_home/presentation/widgets/jeeber_unregistered_view.dart';
+
+import '../preview_test_harness.dart';
+
+void main() {
+  setUpAll(loadPreviewArbs);
+
+  testPreviewsRender(
+    'JeeberUnregisteredView',
+    const <String, Widget Function()>{
+      'Cold start · no name': jeeberUnregisteredViewColdStart,
+      'Named jeeber': jeeberUnregisteredViewNamed,
+      'JM-036 gate CTA id': jeeberUnregisteredViewGateCta,
+      'Long name · 320pt phone': jeeberUnregisteredViewLongNameCompact,
+      'Short body (420pt)': jeeberUnregisteredViewShortBody,
+    },
+    expectedText: const <String, String>{
+      'Cold start · no name': 'Welcome back',
+      'Named jeeber': 'Hello, Kamal',
+      'JM-036 gate CTA id': 'Hello, Zeina',
+      'Long name · 320pt phone': 'Hello, Abdulrahman',
+      'Short body (420pt)': 'Hello, Nour',
+    },
+  );
+
+  group('JeeberUnregisteredView preview specifics', () {
+    testWidgets('every state carries the localized upsell copy, not literals', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberUnregisteredViewNamed);
+
+      expect(find.text('Register as a delivery man'), findsOneWidget);
+      expect(find.text('Start earning money'), findsOneWidget);
+      expect(find.text('Register now'), findsOneWidget);
+    });
+
+    testWidgets('the same state renders Arabic copy under RTL', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(
+        tester,
+        jeeberUnregisteredViewNamed,
+        locale: const Locale('ar'),
+      );
+
+      expect(
+        Directionality.of(
+          tester.element(find.text('سجّل كموصِّل')),
+        ),
+        TextDirection.rtl,
+      );
+      expect(find.text('سجّل الآن'), findsOneWidget);
+      // JEEB-66: no English literal may survive the locale switch.
+      expect(find.text('Register as a delivery man'), findsNothing);
+      expect(find.text('Register now'), findsNothing);
+    });
+
+    // CAP-3, from the preview side. The gate preview passes the JM-036
+    testWidgets('gate preview keeps BOTH CTA identifiers queryable', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pumpPreview(tester, jeeberUnregisteredViewGateCta);
+
+      expect(
+        find.bySemanticsIdentifier('jeeber_unregistered_root'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('delivery_register_now_cta'),
+        findsOneWidget,
+        reason: 'The JM-036 gate flow taps the CTA by its coined screen id.',
+      );
+      expect(
+        find.bySemanticsIdentifier('jeeber_unregistered_register_button'),
+        findsOneWidget,
+        reason: 'Maestro flow 19 taps the same CTA by the W0 widget id; the '
+            'extra JM-036 wrapper must not swallow it.',
+      );
+
+      handle.dispose();
+    });
+
+    // The non-gate previews are how `JeeberHomeScreen` builds the view (no
+    testWidgets('non-gate previews carry only the W0 CTA id', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pumpPreview(tester, jeeberUnregisteredViewNamed);
+
+      expect(
+        find.bySemanticsIdentifier('jeeber_unregistered_register_button'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('delivery_register_now_cta'),
+        findsNothing,
+      );
+
+      handle.dispose();
+    });
+
+    testWidgets('the CTA is wired in every state', (WidgetTester tester) async {
+      for (final Widget Function() preview in <Widget Function()>[
+        jeeberUnregisteredViewColdStart,
+        jeeberUnregisteredViewNamed,
+        jeeberUnregisteredViewGateCta,
+        jeeberUnregisteredViewLongNameCompact,
+        jeeberUnregisteredViewShortBody,
+      ]) {
+        await pumpPreview(tester, preview);
+        await tester.tap(
+          find.byKey(JeeberUnregisteredView.registerButtonKey),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+    });
+
+    // The long-name state is the only one that is genuinely narrow: the width
+    testWidgets('the compact state really is 320pt wide', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberUnregisteredViewLongNameCompact);
+
+      expect(
+        tester.getSize(find.byKey(JeeberUnregisteredView.rootKey)).width,
+        320.0,
+      );
+    });
+
+    // Greeting the first name only is what keeps this state readable at 320pt;
+    testWidgets('greets the first name only, even at 320pt', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberUnregisteredViewLongNameCompact);
+
+      expect(find.text('Hello, Abdulrahman'), findsOneWidget);
+      expect(find.textContaining('Trabulsi'), findsNothing);
+    });
+  });
+}

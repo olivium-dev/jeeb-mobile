@@ -1,19 +1,4 @@
 // W3+W4-INT route-resolution gate (the FINAL-WAVE integrator's exit gate).
-//
-// Proves the Wave-3 wallet-ledger batch + the Wave-4 shared batch (21_NAV_PLAN
-// §B batch W3/W4; 50_EXECUTION_PLAN §"WAVE 3/4 (1) S1") are REGISTERED and that
-// each new route resolves to its target widget — "every new route reaches its
-// target". These are nav-honesty pins (CTO brief §6.7): before the per-screen
-// engineers wire any W3/W4 call site, the targets must exist.
-//
-//   /wallet/activity                 → WalletActivityListScreen (JM-055)
-//   /wallet/transactions/:id         → TransactionDetailScreen  (JM-056)
-//   /notifications                   → NotificationsListScreen  (JM-057)
-//   /support                         → SupportTicketScreen      (JM-063)
-//   /disputes/:id                    → DisputeStatusScreen      (JM-065)
-//   /profile/delivery-man/reviews    → ReviewsListScreen        (JM-068)
-//   /settings/language               → LanguageSettingsScreen   (JM-059)
-//   /settings/password               → PasswordSecurityScreen   (JM-061)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -94,7 +79,6 @@ Widget _harness(_Built built) {
       BlocProvider<RoleCubit>.value(value: built.role),
       BlocProvider<RoleEligibilityCubit>.value(value: built.roleEligibility),
       // LanguageSettingsScreen reads LocaleCubit from context (provided globally
-      // above the router in app.dart) — mirror that here so the route resolves.
       BlocProvider<LocaleCubit>.value(value: built.locale),
     ],
     child: MaterialApp.router(

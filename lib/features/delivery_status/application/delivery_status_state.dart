@@ -2,14 +2,8 @@ import 'package:equatable/equatable.dart';
 
 import '../domain/delivery_snapshot.dart';
 
-/// High-level UI mode the screen renders for. `loading` is the cold-load
-/// state before the first snapshot lands; `ready` is the normal pipeline;
-/// `error` is the stream-closed/transport-failed catch-all.
 enum DeliveryStatusViewMode { loading, ready, error }
 
-/// One-shot transient surfaces — toasts, banner errors. The view renders the
-/// corresponding copy then calls [DeliveryStatusCubit.acknowledgeError] so
-/// the same surface isn't replayed on the next rebuild.
 enum DeliveryStatusError {
   cancelTooLate,
   cancelNetwork,
@@ -29,12 +23,8 @@ class DeliveryStatusState extends Equatable {
   /// without coupling those branches to a null [snapshot] check.
   final DeliveryStatusViewMode mode;
 
-  /// Latest snapshot from the gateway. Null while [mode] is `loading` and
-  /// possibly stale once [mode] flips to `error`.
   final DeliverySnapshot? snapshot;
 
-  /// True between the user tapping Cancel and the gateway response landing.
-  /// Surfaced so the button can show a spinner and ignore duplicate taps.
   final bool isCancelling;
 
   /// One-shot UI surface — see [DeliveryStatusError].

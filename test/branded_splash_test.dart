@@ -9,8 +9,6 @@ import 'package:jeeb_mobile/app/branded_splash.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-/// Loads the real ARB files synchronously so the splash sees the same strings
-/// it ships with (mirrors the pattern in client_home_screen_test.dart).
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
   final Map<String, String> _arbByTag;
@@ -64,18 +62,6 @@ void main() {
   });
 
   // Regression guard for the "plain navy square" splash. The widget being
-  // present (the assertion above) is NOT enough — the splash bug was a navy
-  // square where the white/orange wordmark should be. This inspects the EXACT
-  // logo asset BrandedSplash draws and proves it is non-empty path geometry
-  // filled in white + orange (i.e. brand-contrasting on the navy splash
-  // background) — so a regression to an empty / navy-fill logo fails here.
-  //
-  // Pure file inspection: no RepaintBoundary.toImage (which hangs under this
-  // host's software-rendered test binding) and no async asset decode. Fast and
-  // deterministic in the shared suite binding. Pixel-level rendering of this
-  // exact asset on navy was verified separately during diagnosis (white +
-  // orange pixels painted on the navy field); this guards the source of those
-  // pixels so the painted result cannot silently regress.
   test('splash logo is non-empty white + orange artwork (not a navy square)', () {
     final svg = File('assets/brand/jeeb_logo.svg').readAsStringSync();
 
@@ -105,7 +91,6 @@ void main() {
     );
 
     // The logo must NOT be filled the same navy as the splash background —
-    // that is the invisible navy-on-navy failure mode.
     final navyVariants = {'#0b1351', '#0b1351ff'};
     expect(
       fills.intersection(navyVariants),
@@ -115,7 +100,6 @@ void main() {
   });
 
   // Confirms the splash actually draws the wordmark asset on the navy field,
-  // tying the geometry guard above to the live widget composition.
   testWidgets('BrandedSplash draws the wordmark asset over the navy background',
       (tester) async {
     await tester.pumpWidget(_harness());

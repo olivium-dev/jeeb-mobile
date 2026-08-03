@@ -326,7 +326,6 @@ void main() {
       final writer = makeWriter();
       await writer.start();
       // Simulates a capturer MISTAKE: a raw Authorization header handed to
-      // the model directly instead of through SecretRedactor first.
       writer.add(apiEvent(
         requestHeaders: {'authorization': 'Bearer $_fakeJwt'},
         responseBody: {'fcmToken': _fakeJwt},
@@ -356,9 +355,6 @@ void main() {
         expect(obsDir().existsSync(), isFalse);
       } else {
         // This test invocation was run WITH the devtool define — the
-        // "compiled in" group below covers that path instead. Settle the
-        // writer's async IO chain before tearDown tears down tempBase, or
-        // the recursive delete can race the in-flight header write.
         expect(result, isNotNull);
         await result!.flush();
       }

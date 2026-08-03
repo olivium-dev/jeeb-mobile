@@ -1,14 +1,4 @@
 // cycle-4 integration-style proof: a successfully cancelled request
-// DISAPPEARS from the customer's pending list.
-//
-// Chain under test (all real app pieces, only the transports faked):
-//   CancelRequestSheet confirm
-//     → CancelRequestCubit.confirmCancel → repository (server releases req)
-//     → sheet success listener fires PushRefreshSignals.signalStatusChange()
-//       (the app-wide status-change bus registered in DI)
-//     → ClientHomeCubit (subscribed to the same bus, exactly as home_tab
-//       wires it) re-pulls its snapshot
-//     → the cancelled request is gone from `state.pending`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -88,7 +78,6 @@ Widget _harness(Widget child) {
 void main() {
   setUp(() {
     // Tall surface so the whole sheet renders un-culled (mirrors
-    // cancel_request_sheet_test.dart).
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     final view = binding.platformDispatcher.views.first;
     view.physicalSize = const Size(1080, 2400);

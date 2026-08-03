@@ -1,14 +1,9 @@
 import '../domain/address_form_repository.dart';
 import '../domain/saved_location.dart';
 
-/// In-memory [AddressFormRepository] — a constructor test seam ONLY
-/// (40_GUARDRAILS_ARCH §6 / DO-NOT: never registered in DI). Lets widget tests
-/// + the `address-detail` route render the form end-to-end without a backend
-/// (e.g. `w1_routes_resolve_test` mounts with no Dio registered).
 class FakeAddressFormRepository implements AddressFormRepository {
   const FakeAddressFormRepository({this.failWith});
 
-  /// When non-null, both ops throw — exercises the cubit's error branch.
   final AddressFormFailure? failWith;
 
   SavedLocation _echo(String id, AddressFormDraft draft) {

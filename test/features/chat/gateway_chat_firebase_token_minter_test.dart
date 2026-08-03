@@ -75,10 +75,6 @@ void main() {
 
     test('sends NO body — the uid can only be server-derived', () async {
       // THE security assertion. The gateway derives the uid from the bearer's
-      // own claims; a client that could name a uid could mint an identity for
-      // any Jeeb user, and the Firestore rule authorises a conversation read
-      // purely on `request.auth.uid == Participants[].UserId`. So this client
-      // must supply no identity input at all — not an empty map, nothing.
       final wire = _MintDio(body: <String, dynamic>{'token': 't'});
 
       await GatewayChatFirebaseTokenMinter(dio: wire.dio).mintCustomToken();
@@ -88,8 +84,6 @@ void main() {
 
     test('401 degrades to null rather than throwing', () async {
       // An expired session, OR a gateway that predates the route: the live
-      // gateway 401s unauthenticated requests BEFORE routing, so a 401 does not
-      // even prove the route is absent. Either way: no realtime, keep HTTP.
       final wire = _MintDio(body: <String, dynamic>{}, statusCode: 401);
 
       expect(
@@ -100,9 +94,6 @@ void main() {
 
     test('503 (server-side kill switch) degrades to null', () async {
       // `Firebase:Chat:ServiceAccountKeyPath` unset on the gateway. This is the
-      // primary rollback lever: one env line turns the feature off for APKs
-      // that are already installed, and it MUST land as "no realtime", never as
-      // a crash.
       final wire = _MintDio(body: <String, dynamic>{}, statusCode: 503);
 
       expect(
@@ -122,7 +113,6 @@ void main() {
 
     test('a 200 with no usable token is null, not an empty token', () async {
       // An empty string would sail into `signInWithCustomToken('')` and surface
-      // as a plugin error instead of as the designed degrade.
       for (final body in <Object?>[
         <String, dynamic>{},
         <String, dynamic>{'token': ''},
@@ -140,12 +130,6 @@ void main() {
 
     test('a raw throw in the transport is also contained', () async {
       // A non-DioException thrown mid-request. Observed behaviour, not assumed:
-      // Dio WRAPS it into `DioException(type: unknown, response: null)`, so this
-      // lands on the DioException arm with a null status — the same shape an
-      // offline device produces. (The minter's bare `catch` is therefore a
-      // belt-and-braces guard that this seam cannot reach; it is kept because a
-      // null-safety or JSON-shape error on the decode side would not be a
-      // DioException at all.)
       final wire = _MintDio(body: null, throwPlain: true);
 
       expect(

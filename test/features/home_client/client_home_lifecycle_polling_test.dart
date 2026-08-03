@@ -1,18 +1,4 @@
 // N3 (b02 polling→push). F3's original claim was "the 10s home poll must PAUSE
-// while backgrounded and RESUME with one immediate refresh". Half of that
-// survives and half is obsolete:
-//
-//   * PAUSE is now trivially true and is asserted the strong way — the home
-//     summary issues zero reads across a five-minute FOREGROUND window too,
-//     not merely while hidden. A poll that only stopped when hidden would pass
-//     the old case and fail this one.
-//   * RESUME is the half that still matters, and it matters MORE now: with the
-//     clock gone, the resume one-shot is one of only three things that can
-//     refresh this surface, and it is the backstop for a dropped push. It is
-//     kept verbatim.
-//
-// `_CountingRepo` counts /requests + /deliveries + /v1/offers snapshots — the
-// seven-read fan-out F3 was written about.
 
 import 'dart:io';
 
@@ -82,9 +68,6 @@ Widget _harness({required _CountingRepo repo}) {
           greetingNameProvider: () => 'Sami',
         ),
         // JEBV4-298: the 10s live-refresh poll is a property of the
-        // In-Progress live-tracking surface, which was relocated off the
-        // default Requests view (now Pending/Replies). Pin the In-Progress
-        // tab so this test still exercises the poll lifecycle machinery.
         child: const TabVisibility(
           isVisible: true,
           child: ClientHomeScreen(initialTab: ClientHomeTab.inProgress),
@@ -110,7 +93,6 @@ void main() {
     final afterMount = repo.calls;
 
     // FOREGROUND + VISIBLE + In-Progress selected: every condition the retired
-    // 10 s poll needed, held for thirty of its intervals. Pre-fix this adds ~30.
     await tester.pump(const Duration(minutes: 5));
     await tester.pump();
     expect(repo.calls, afterMount,
@@ -125,9 +107,6 @@ void main() {
     expect(repo.calls, atPause, reason: 'a backgrounded app must not read');
 
     // Foreground again → EXACTLY ONE refresh. This is the backstop for a
-    // dropped push and is also this file's positive control: without it, the
-    // two zeros above would be indistinguishable from a screen that was never
-    // mounted or a repository nobody holds.
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle(const Duration(milliseconds: 10));
     expect(repo.calls, atPause + 1,

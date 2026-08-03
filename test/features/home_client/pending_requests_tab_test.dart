@@ -1,9 +1,3 @@
-// Tests for the server-truth PendingRequestsTab status contract.
-//
-// The gateway list does not include an expiry instant. A request returned in
-// the pending bucket must remain "Searching" until a refreshed server snapshot
-// moves or removes it; no local duration may manufacture an "Expired" label.
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -293,9 +287,6 @@ void main() {
     });
   });
 
-  // M2 behaviour 1: an offer-bearing pending row surfaces the offers count
-  // prominently instead of the flat "Searching…" line, emphasised when the
-  // offers are new/unseen.
   group('PendingRequestsTab — M2 offers badge', () {
     testWidgets(
       'offers badge replaces the searching line when offerCount > 0',
@@ -371,8 +362,6 @@ void main() {
     });
   });
 
-  // M2 behaviour 2: a truthful "created N ago" line from the real server
-  // timestamp — shown only when present, never fabricated.
   group('PendingRequestsTab — M2 age line', () {
     testWidgets('shows "created N ago" derived from a real createdAt', (
       tester,
@@ -402,7 +391,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('pending-created-age')), findsNothing);
-      // The honest server-owned searching state still renders.
       expect(find.byKey(const Key('pending-server-status')), findsOneWidget);
     });
 
@@ -435,8 +423,6 @@ void main() {
     });
   });
 
-  // M2 behaviour 3: the age is a PAST "ago" fact, never a countdown/expiry.
-  // Exhaustive, deterministic coverage of the pure label function.
   group('pendingCreatedAgeLabel — honest "ago", never a countdown', () {
     late AppLocalizations en;
     setUpAll(() {

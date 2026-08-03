@@ -13,19 +13,10 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../chat/data/dio_accepted_conversations_repository.dart';
 import '../../../chat/domain/accepted_conversation.dart';
 
-/// S007-P1B — Jeeber in-app re-entry to ACCEPTED (won) order chats.
-///
-/// The jeeber's request feed only lists OPEN requests; once an offer is
-/// accepted the order drops off the feed and was reachable only by tapping a
-/// push. This banner surfaces the jeeber's accepted orders at the top of the
-/// Dashboard's no-requests state and routes each into the order chat
-/// (`/chat/:id`, role-aware → "Start delivery").
-///
-/// Self-contained + DI-safe: it resolves an [AcceptedConversationsRepository]
-/// from the injected seam or `sl<Dio>()`; when neither is available (bare
-/// widget tests) it fetches nothing and renders [SizedBox.shrink]. It also
-/// renders nothing while loading, on error, or when there are no accepted
-/// orders — so it is purely additive and never disturbs the existing layout.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import 'dart:async';
+import '../../../../core/previews/jeeb_preview.dart';
+
 class JeeberActiveDeliveriesBanner extends StatefulWidget {
   const JeeberActiveDeliveriesBanner({
     super.key,
@@ -33,10 +24,8 @@ class JeeberActiveDeliveriesBanner extends StatefulWidget {
     this.onOpenChat,
   });
 
-  /// Test seam — when null, resolved from `sl<Dio>()` (or no-op without DI).
   final AcceptedConversationsRepository? repository;
 
-  /// Tap handler for a row; defaults to a `chat-detail` GoRouter push.
   final void Function(String routeId)? onOpenChat;
 
   @override
@@ -72,8 +61,6 @@ class _JeeberActiveDeliveriesBannerState
   AcceptedConversationsRepository? _resolveRepository() {
     if (widget.repository != null) return widget.repository;
     if (sl.isRegistered<Dio>()) {
-      // Jeeber-scoped: GET /requests?role=jeeber returns the jeeber's won
-      // (accepted) orders, each with the conversationId for chat re-entry.
       return DioAcceptedConversationsRepository(sl<Dio>(), role: 'jeeber');
     }
     return null;
@@ -260,3 +247,148 @@ class _OpenChatPill extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// Phone width; the height varies per state because a self-hidden banner and a
+/// three-row banner differ by ~150 logical pixels.
+const double _jeeberActiveDeliveriesBannerPhoneWidth = 390;
+
+/// Answers one canned snapshot. Nothing else — no latency, no second read.
+class _JeeberActiveDeliveriesBannerCannedRepository
+    implements AcceptedConversationsRepository {
+  const _JeeberActiveDeliveriesBannerCannedRepository(this.accepted);
+
+  final List<AcceptedConversation> accepted;
+
+  @override
+  Future<List<AcceptedConversation>> fetchAccepted() async => accepted;
+}
+
+/// Never answers, so the banner stays in its pre-load state forever.
+/// A pending [Completer] is the whole implementation: no timer to leak and no
+/// socket to open.
+class _JeeberActiveDeliveriesBannerStalledRepository
+    implements AcceptedConversationsRepository {
+  const _JeeberActiveDeliveriesBannerStalledRepository();
+
+  @override
+  Future<List<AcceptedConversation>> fetchAccepted() =>
+      Completer<List<AcceptedConversation>>().future;
+}
+
+Widget _jeeberActiveDeliveriesBannerHosted(
+  AcceptedConversationsRepository repository,
+) {
+  return SingleChildScrollView(
+    child: JeeberActiveDeliveriesBanner(
+      repository: repository,
+      // Production pushes the `chat-detail` route; a preview has no router.
+      onOpenChat: (_) {},
+    ),
+  );
+}
+
+Widget _jeeberActiveDeliveriesBannerWithAccepted(
+  List<AcceptedConversation> accepted,
+) =>
+    _jeeberActiveDeliveriesBannerHosted(
+      _JeeberActiveDeliveriesBannerCannedRepository(accepted),
+    );
+
+/// One won order, the shape the gateway returns it in: a request id (the
+/// `chat-detail` route key), a conversation id, a title and the customer's
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'One accepted order',
+  size: Size(_jeeberActiveDeliveriesBannerPhoneWidth, 120),
+)
+Widget jeeberActiveDeliveriesBannerSingle() =>
+    _jeeberActiveDeliveriesBannerWithAccepted(const <AcceptedConversation>[
+      AcceptedConversation(
+        conversationId: 'c1',
+        requestId: 'r1',
+        title: 'Pharmacy run',
+        counterpartName: 'Rami Haddad',
+      ),
+    ]);
+
+/// Three won orders, each resolving its title from a DIFFERENT branch of the
+/// row's fallback chain: counterpart name, then order title, then order ref.
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Three accepted orders',
+  size: Size(_jeeberActiveDeliveriesBannerPhoneWidth, 220),
+)
+Widget jeeberActiveDeliveriesBannerThree() =>
+    _jeeberActiveDeliveriesBannerWithAccepted(const <AcceptedConversation>[
+      AcceptedConversation(
+        conversationId: 'c-201',
+        requestId: 'r-201',
+        title: 'Grocery run',
+        counterpartName: 'Nadia Khoury',
+      ),
+      AcceptedConversation(
+        conversationId: 'c-202',
+        requestId: 'r-202',
+        title: 'Pharmacy run',
+      ),
+      AcceptedConversation(
+        conversationId: 'c-203',
+        requestId: 'r-203',
+        displayId: 'ORD-23748',
+      ),
+    ]);
+
+/// Layout ceiling: the longest plausible counterpart name. **This preview
+/// currently shows a defect — read the note before "fixing" the fixture.**
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Longest counterpart name',
+  size: Size(_jeeberActiveDeliveriesBannerPhoneWidth, 120),
+)
+Widget jeeberActiveDeliveriesBannerLongName() =>
+    _jeeberActiveDeliveriesBannerWithAccepted(const <AcceptedConversation>[
+      AcceptedConversation(
+        conversationId: 'c-long',
+        requestId: 'r-long',
+        counterpartName: 'Abdulrahman Al-Muhandis Al-Trabulsi',
+      ),
+    ]);
+
+/// The last link of the fallback chain: a row carrying NO human label at all.
+/// The live `GET /requests?role=jeeber` envelope pinned in
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Untitled order · id fallback',
+  size: Size(_jeeberActiveDeliveriesBannerPhoneWidth, 120),
+)
+Widget jeeberActiveDeliveriesBannerUntitled() =>
+    _jeeberActiveDeliveriesBannerWithAccepted(const <AcceptedConversation>[
+      AcceptedConversation(
+        conversationId: 'c-77',
+        requestId: 'f2244baa-ff25-4316-b723-c08a80cd3da9',
+      ),
+    ]);
+
+/// No accepted orders — the state EVERY jeeber is in most of the time.
+/// Renders `SizedBox.shrink`, deliberately: the banner is additive to the
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Empty · self-hidden',
+  size: Size(_jeeberActiveDeliveriesBannerPhoneWidth, 80),
+)
+Widget jeeberActiveDeliveriesBannerEmpty() =>
+    _jeeberActiveDeliveriesBannerWithAccepted(const <AcceptedConversation>[]);
+
+/// The read is still in flight — same `SizedBox.shrink`, different reason.
+/// Worth its own preview because the two indistinguishable states have very
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Loading · self-hidden',
+  size: Size(_jeeberActiveDeliveriesBannerPhoneWidth, 80),
+)
+Widget jeeberActiveDeliveriesBannerLoading() =>
+    _jeeberActiveDeliveriesBannerHosted(
+      const _JeeberActiveDeliveriesBannerStalledRepository(),
+    );

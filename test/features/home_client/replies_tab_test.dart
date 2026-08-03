@@ -1,8 +1,4 @@
 // Tests for T-MOB-008: RepliesTab with stacked avatars and Check Offers CTA.
-//
-// Verifies AC1 (3 avatars + overflow for 5-offer request), AC3 (tap navigates
-// to chat), AC4 (a11y label on avatar stack), AC5 (empty state), AC6 (avatar
-// caching via OmdsProfileAvatar).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

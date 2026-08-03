@@ -1,13 +1,4 @@
 // S10 Defect A — DioClientHomeRepository In-Progress merge.
-//
-// A freshly-accepted order whose parent REQUEST flips to `matched` must surface
-// in the client home "In Progress" tab even when the deliveries-only source
-// (`GET /v1/deliveries?stage=active`) omits it (e.g. Mockoon :3055 has no
-// `/v1/deliveries` route → 404 → empty; a gateway can flip the request status
-// without surfacing a delivery row yet). The repository now merges the
-// client-scoped `GET /v1/requests?role=client` in-flight requests, additively
-// (seeded delivery rows still render) and deduped by the delivery rows'
-// `requestId` (no double-rendering of an order already shown as a delivery row).
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,11 +26,6 @@ void main() {
   });
 
   // Stub paths/type-args trued up to the CURRENT repository architecture
-  // (same pattern as 90e093a's s11 stub true-up): the repository now calls
-  // `dio.get<dynamic>('/deliveries')` / `get<dynamic>('/requests')` and relies
-  // on the MockGatewayClient interceptor to add the service prefix, instead of
-  // the S10-era `get<Map<String, dynamic>>('/v1/…')` calls these stubs were
-  // written against. The behavior under test is unchanged.
   void stubDeliveries(Map<String, dynamic> body) {
     when(() => dio.get<dynamic>(
           '/deliveries',
@@ -69,7 +55,6 @@ void main() {
   }
 
   // BUG-3 offer probes (`GET /v1/offers?requestId=`) run for every
-  // non-accepted candidate row; keep them deterministic (no live offers).
   void stubOffers() {
     when(() => dio.get<dynamic>(
           '/v1/offers',
@@ -80,8 +65,6 @@ void main() {
   }
 
   // A seeded active delivery row + an accept-minted delivery row (covers
-  // `request-covered`). Mirrors the Express-mock `/v1/deliveries?stage=active`
-  // envelope: `{ items, totalCount, ... }` with `requestId` per row.
   final deliveriesBody = <String, dynamic>{
     'items': <Map<String, dynamic>>[
       {
@@ -103,8 +86,6 @@ void main() {
   };
 
   // The client-scoped requests list: a FRESH matched request (not covered by a
-  // delivery row), the already-covered request (must dedupe), and pre/terminal
-  // requests that must NOT leak into In-Progress.
   final requestsBody = <String, dynamic>{
     'items': <Map<String, dynamic>>[
       {
@@ -167,7 +148,6 @@ void main() {
     final ids = snapshot.inProgress.map((r) => r.id).toList();
 
     // `request-covered` is the parent of `delivery-acc` → it must appear ONLY
-    // as the delivery row, never as a second (request-id) row.
     expect(ids, isNot(contains('request-covered')));
     expect(ids.where((id) => id == 'delivery-acc').length, 1);
   });
@@ -203,16 +183,6 @@ void main() {
     expect(fresh.status, ClientRequestStatus.accepted);
   });
 
-  // ---------------------------------------------------------------------------
-  // S12 — a brand-new order's delivery row in the `Ordered` state must surface
-  // as a TRACKABLE (accepted) In-Progress row, NOT a non-trackable `searching`
-  // row. A delivery row only exists once a Jeeber is assigned / the order is
-  // placed, so its coarse status is `accepted` (the Track / Open-chat CTA gate
-  // opens) while `progressStep` keeps the stepper visually at step 0 "Ordered".
-  // This fixture is REAL-SHAPED: the `{items, totalCount}` envelope with a
-  // per-row `requestId` / `status:'Ordered'` / `progressStep` matches the live
-  // `JeebOrdersListController.ListDeliveries` `OrderListItem` contract the
-  // parser reads (`currentStage ?? status`, `progressStep`).
   // ---------------------------------------------------------------------------
   final orderedDeliveryBody = <String, dynamic>{
     'items': <Map<String, dynamic>>[
@@ -254,11 +224,8 @@ void main() {
     final row = snapshot.inProgress.firstWhere((r) => r.id == 'delivery-x');
 
     // THE FIX: `Ordered` → accepted so the "Track my order" / "Open chat" CTA
-    // gate (ActiveOrderCard._canTrack) opens. Pre-fix this was `searching`,
-    // which the gate rejects → no CTA → a brand-new order can't be tracked.
     expect(row.status, ClientRequestStatus.accepted);
     // The visual stage is read independently from `progressStep`, so the
-    // stepper stays at step 0 "Ordered" even though the CTA now appears.
     expect(row.progressStep, 0);
   });
 
@@ -276,7 +243,6 @@ void main() {
         .toList();
 
     // Exactly one row, and it's the delivery-backed (tracking-id-bearing) row —
-    // the request-path row (`req-x`) was deduped out via `coveredRequestIds`.
     expect(forOrder.length, 1);
     expect(forOrder.single.id, 'delivery-x');
   });

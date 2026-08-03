@@ -1,0 +1,26 @@
+# Widgets deliberately excluded from preview coverage.
+#
+# Format: <WidgetClassName>  # reason
+#
+# Only for widgets with NO visual output of their own — behavioural wrappers
+# that render `child` unchanged and exist for lifecycle, logging, or routing.
+# A preview of one shows the child, not the widget, so it would be theatre.
+#
+# This is NOT an escape hatch for "hard to preview". A widget that renders
+# anything, or that changes how its child renders, belongs in the queue — if it
+# lacks an injectable seam, that is a real finding to fix, not to exclude.
+#
+# Both `tool/preview_coverage.dart` and
+# `test/previews/preview_structure_test.dart` honour this file, so an entry
+# lowers the denominator rather than hiding debt in the floor.
+
+RouteResumeRefetch      # re-fetches on route resume; renders child verbatim
+RouteVisibilityScope    # publishes route visibility; renders child verbatim
+PollingVisibilityGate   # gates a poll on visibility; renders child verbatim
+GestureLogListener      # diagnostics-only pointer listener; no visual output
+RootAwareBackScope      # back-navigation policy wrapper; renders child verbatim
+CaptureLocationRoute    # /capture-location route host; renders CaptureLocationScreen verbatim (Screens are Screen-Catalog scope), sole behaviour is a GoRouter pop
+GoogleMapCaptureView    # GoogleMap platform view + one FAB; renders ZERO Text in any state and shows a plugin error string on desktop. The repo already routes around it — see the "does not paint headless" note in test/capture_location_map_injection_test.dart:13. Needs a placeholder seam like TrackingMapSurface(useLiveMap:false) to become previewable.
+FeedResumeRefetcher     # G3 resume/refocus refetch + badge clear; build does side effects then `return widget.child` — no wrapper, no visual output. Behaviour covered by test/feed_resume_refetcher_test.dart (4 tests) + shell_tab_badge_test.dart.
+OrdersResumeRefetcher   # same category, `build => widget.child` verbatim (orders_resume_refetcher.dart:150). Excluded in the same pass so it does not burn another agent.
+VoiceRequestScreen      # `build => VoiceRecordingScreen(onSent: onSent)`, the whole 28-line class (voice_request_screen.dart:26). Same category as CaptureLocationRoute and thinner: it is the /voice-request + /compose-dictation route host and does not even own the navigation — app_router.dart:1070 and :1184 pass the `onSent` closure in. It declares no state, renders no pixel of its own, and every designed state belongs to VoiceRecordingScreen, which IS previewed (voice_recording_screen.dart:698) and IS the Screen Catalog entry (batch_11_entries.dart:398). A preview here would be a second copy of those states under a different name — the drift the fixture-extraction rule exists to prevent.

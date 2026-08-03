@@ -1,18 +1,4 @@
 // Regression proof for the "jeeber sees an empty feed while the gateway is
-// returning pending requests" bug (found live on SM-S908B, 2026-07-21).
-//
-// The gateway feed returned 2 pending requests every 10s poll and the cubit
-// held both (verified on-device), yet the Requests tab looked empty. Cause: the
-// "Your active deliveries" banner rode as row 0 of the feed's ListView, which
-// lives inside a `SliverFillRemaining` whose viewport is only ~209dp once the
-// greeting + availability card + search bar + tab/tier strips are laid out. The
-// banner filled that viewport, so the request rows below it were never built
-// and — with the outer CustomScrollView having nothing to scroll — were
-// unreachable. The banner is now its own sliver above the list.
-//
-// This test pins the user-visible contract: with an active-deliveries banner
-// AND pending requests, a card is on screen at device geometry, and on an even
-// shorter viewport the cards are at least reachable by scrolling.
 
 import 'dart:async';
 
@@ -121,8 +107,6 @@ class _FeedHarness {
 
   Future<void> dispose(WidgetTester tester) async {
     // BlocProvider.value does not own these cubits. Unmount their listeners
-    // first, then cancel every cubit-owned timer/subscription before the widget
-    // test binding checks for leaked fake-async timers.
     await tester.pumpWidget(const SizedBox.shrink());
     await deliveries.close();
     await feed.close();
@@ -180,7 +164,6 @@ void main() {
       try {
         expect(find.byType(ActiveDeliveriesBanner), findsOneWidget);
         // The rows used to be built inside a nested viewport barely taller than
-        // the banner, so they never made it into the tree at all.
         expect(
           find.byType(JeeberFeedCard, skipOffstage: false),
           findsNWidgets(2),
@@ -200,7 +183,6 @@ void main() {
     final harness = await pumpFeed(tester, const Size(360, 800));
     try {
       // Before the fix this drag moved nothing: the rows lived in an inner
-      // viewport that could not scroll and the outer view had no overflow.
       await tester.drag(
         find.byKey(JeeberFeedTabView.rootKey),
         const Offset(0, -600),

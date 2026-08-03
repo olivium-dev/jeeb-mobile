@@ -94,8 +94,6 @@ void main() {
     });
 
     // G4 fallback: the LIVE gateway GET /otp is an SMS trigger — it returns
-    // `{triggered: true}` and no code. The customer must see the honest
-    // "sent by SMS" state, and must NEVER be flipped into a code-entry grid.
     test('live SMS-trigger shape → ready + smsSent, no code, no error',
         () async {
       when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))

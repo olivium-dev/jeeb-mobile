@@ -1,7 +1,4 @@
 // BUG / Core Flow step 7: a delivery that reached V3 `Done` must surface as the
-// delivered/completed TERMINAL status — never collapse back into "accepted"
-// (in-progress) where it would linger forever. Also pins the
-// accepted-order-status-bucketing lesson: `accepted` stays In Progress.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,7 +48,6 @@ void main() {
     final snapshot = await repo.loadSnapshot();
 
     // The completed delivery is NOT in the active "In Progress" list (it has
-    // reached its terminal state and is nothing to track).
     expect(
       snapshot.inProgress.where((r) => r.id == 'dlv-done'),
       isEmpty,

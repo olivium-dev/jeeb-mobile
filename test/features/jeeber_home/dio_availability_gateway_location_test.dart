@@ -41,7 +41,6 @@ GpsSample _sample(double lat, double lng) => GpsSample(
 
 void main() {
   // Coordinates only ride the LIVE-lane PATCH. In mock-prefix builds toggle()
-  // POSTs {userId, available} with no geo, so these assertions don't apply.
   const Object skipReason = MockGatewayClient.useMockPrefixes
       ? 'coordinates are only sent in the live lane'
       : false;

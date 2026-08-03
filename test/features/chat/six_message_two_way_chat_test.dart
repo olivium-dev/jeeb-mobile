@@ -1,22 +1,4 @@
 // CHAT-01/03 (Sprint-2 Leg-3) — the >=6-message TWO-WAY chat acceptance leg.
-//
-// Definition of Done for this leg (TEAM-CHARTER / Sprint-2 contract §6):
-//   client SENDS request -> jeeber ACCEPTS -> >=6 two-way CHAT messages, both
-//   participants SEATED, every counterpart message RECEIVED, sorted by the
-//   server clock (S0-CHAT-04). This file drives a full >=6-message exchange in
-//   BOTH directions through two REAL `ChatCubit`s talking to one shared
-//   in-memory backend that models the canonical seating + fan-out + per-viewer
-//   contract the real chat-service implements, and asserts both timelines end
-//   up complete and chronologically ordered.
-//
-// It is disjoint from the offer/accept (Leg-2) and phase (NEW-BUG-01, Leg-1)
-// lanes: the conversation is pre-seated in `accepted` and the test exercises
-// ONLY the messaging path.
-//
-// TEST-INTEGRITY (lessons §6 — a guard that can only pass is worthless): the
-// final group lands counterpart messages whose server timestamps arrive OUT OF
-// ORDER and proves the cubit re-sorts them chronologically; a negative control
-// shows that without the server-time ordering the timeline would be wrong.
 
 import 'dart:async';
 
@@ -72,17 +54,11 @@ class _TwoWayBackend {
 
   /// When false, fan-out delivers each inbound message immediately in send
   /// order. When true, the backend HOLDS messages and releases them to the
-  /// recipient out of chronological order (later-stamped first) to exercise the
-  /// client-side ordering guarantee (S0-CHAT-04).
   bool deliverOutOfOrder = false;
   final List<_StoredMessage> _held = [];
 
   /// Monotonic server-id source. A real chat-service stamps its OWN id on each
   /// persisted message (distinct from the sender's optimistic client id), so the
-  /// recipient sees `srv-N`, never the sender's local `msg-...` id. Modelling
-  /// this is required: two cubits sharing one deliveryId mint colliding client
-  /// ids, and an id-collision would (wrongly) make the recipient's dedup drop a
-  /// genuine counterpart message.
   int _serverSeq = 0;
 
   StreamController<ChatEvent> _streamFor(String userId) => _streams.putIfAbsent(
@@ -118,7 +94,6 @@ class _TwoWayBackend {
 
   /// Release every held message to its recipients in REVERSE chronological order
   /// (newest first) — the worst case for a naive append, so a green assertion
-  /// proves the cubit sorts by server time rather than arrival order.
   void flushHeldNewestFirst() {
     _held.sort((a, b) => b.sentAt.compareTo(a.sentAt));
     for (final m in _held) {
@@ -191,7 +166,6 @@ void main() {
       addTearDown(backend.dispose);
 
       // Deterministic, strictly-increasing per-message clocks so the canonical
-      // chronological order is well-defined and the assertion is unambiguous.
       final base = DateTime.utc(2026, 6, 27, 9, 0, 0);
       var clientTick = 0;
       var jeeberTick = 0;
@@ -263,8 +237,6 @@ void main() {
       final base = DateTime.utc(2026, 6, 27, 9, 0, 0);
       var jeeberTick = 0;
       // The client is a passive reader here; the jeeber posts three messages
-      // whose server timestamps strictly increase, but the backend HOLDS them
-      // and releases them to the client newest-first.
       final client = _cubitFor(backend, _clientId, () => base);
       final jeeber = _cubitFor(
         backend,
@@ -302,9 +274,6 @@ void main() {
         'against ARRIVAL order, is reverse-chronological — proving the ordering '
         'guarantee above is load-bearing, not incidental', () async {
       // This mirrors the test above but checks what a NAIVE append (arrival
-      // order) would have produced. If the cubit ever stops sorting by server
-      // time, the previous test goes RED and this one would go GREEN — making
-      // the regression impossible to miss.
       final backend = _TwoWayBackend()..deliverOutOfOrder = true;
       addTearDown(backend.dispose);
 
@@ -331,7 +300,6 @@ void main() {
       await pumpEventQueue();
 
       // The ARRIVAL order was reverse-chronological; the cubit's timeline must
-      // NOT equal it (it must be chronological instead).
       const arrivalOrder = [
         'third (09:03)',
         'second (09:02)',

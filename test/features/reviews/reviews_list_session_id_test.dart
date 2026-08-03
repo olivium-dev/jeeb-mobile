@@ -1,12 +1,3 @@
-// S0-OAD-03 identity-cleanup regression: on a cold deep-link with NO `?jeeberId=`
-// the reviews-list must resolve the REAL AUTHENTICATED SESSION user's own id
-// from AuthTokenStore — NEVER the hardcoded `user-jeeber-002` fixture default.
-//
-// Failing-first proof: before the fix `_defaultJeeberId = 'user-jeeber-002'` was
-// fed straight into ReviewsCubit, so a cold deep-link always queried the mock
-// fixture jeeber. This test captures the jeeberId the cubit hands the repository
-// and pins it to the session id.
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';

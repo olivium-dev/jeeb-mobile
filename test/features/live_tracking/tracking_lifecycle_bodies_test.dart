@@ -1,17 +1,5 @@
 import 'dart:async';
 // P6 (UT-12) — the customer tracking screen's lifecycle bodies.
-//
-// PROVES:
-//  a. A CANCELLED row renders `tracking_cancelled_state` and no live stepper.
-//  b. An EXPIRED row renders its OWN `tracking_expired_state` body — different
-//     copy from cancelled (P6/A3: cancel and expire carry different fee/strike
-//     semantics) — with its own home CTA.
-//  c. A `FailedNeedsEscalation` row renders `tracking_under_review_state` and
-//     NOT the active layout with a stepper rewound to step 1 (the pre-fix
-//     symptom, P6/A1). No home CTA — the row is still live.
-//  d. At the door the third step RELABELS to "At Door" while its Semantics
-//     identifier stays `tracking_step_in_transit` (P6/A5 id stability).
-//  e. In transit the same node reads the in-transit label.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

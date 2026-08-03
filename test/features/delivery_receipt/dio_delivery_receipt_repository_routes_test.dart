@@ -1,16 +1,4 @@
 // BUG-8 (sprint-008 run-7) regression guard — delivery-receipt delivery read
-// route (belt-and-suspenders; same latent singular-read class).
-//
-// `fetchReceipt` read the SINGULAR `GET /v1/delivery/{id}`, which the live
-// origin gateway (`:10090`) 404s — the delivery aggregate lives at the PLURAL
-// `GET /v1/deliveries/{id}` (Contract 8c). This pins the READ to the plural
-// route on the origin base and keeps the legacy `:4010` mock singular alias.
-//
-// COD-COMPLETE FIX (fix/cod-complete): confirm-receipt now issues a single
-// `PATCH /v1/deliveries/{id}/status` — the real, shipped gateway route — and no
-// longer POSTs the fictional `/v1/payments/cod_jeeb/record` or
-// `/v1/delivery/status/transition` (both 404). Asserted here so the write path
-// pins to the shipped plural route.
 
 import 'dart:convert';
 import 'dart:typed_data';

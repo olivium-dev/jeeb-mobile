@@ -133,10 +133,6 @@ void main() {
           'renders a LIVE gateway offer whose status is "pending" '
           '(iter6 offer-card render gap)', () async {
         // The LIVE gateway BFF collapses offer-service submitted/edited/pending
-        // → "pending" and emits the flat OfferDto shape inside { items: [...] }.
-        // Before the fix the repo's live-status set was {submitted, edited}, so
-        // this real on-device offer was silently dropped → the Choose-a-Jeeber
-        // screen showed "Waiting for offers" even though the body had the offer.
         const submittedAt = '2026-07-04T23:05:45.994303Z';
         final repo = DioOffersRepository(
           _dioRespond({
@@ -158,7 +154,6 @@ void main() {
         final snapshot = await repo.fetchOffers('7299b700-real-request');
 
         // The pending offer survives the filter and surfaces as a card-ready
-        // Offer with the jeeber's fee / ETA / note parsed.
         expect(snapshot.offers, hasLength(1));
         expect(snapshot.offers.first.id, 'a7e85c0b-real-offer');
         expect(snapshot.offers.first.jeeberId,
@@ -176,9 +171,6 @@ void main() {
           'un-enriched row defaults to an HONEST 0.0 rating / 0 count — never '
           'a fabricated 4.5 (SW-08)', () async {
         // The live offer-list endpoint does NOT enrich rows with the Jeeber's
-        // display name or rating (O-list-enrich gap). The pre-fix parser
-        // defaulted a missing rating to 4.5, which — paired with a 0 count —
-        // produced the "4.5 (0)" fabrication the offer card used to render.
         final now = DateTime.now().toUtc().toIso8601String();
         final repo = DioOffersRepository(
           _dioRespond({
@@ -204,7 +196,6 @@ void main() {
         expect(offer.rating, 0.0);
         expect(offer.ratingCount, 0);
         // With no name on the row, jeeberName falls back to the id — which the
-        // presentation layer (OfferCard) suppresses via displayNameOrNull.
         expect(offer.jeeberName, 'd1000000-0000-4000-8000-000000000002');
       });
 
@@ -234,7 +225,6 @@ void main() {
       test('still parses a bare top-level array (legacy / tolerant path)',
           () async {
         // Use a recent timestamp so the derived 5-min deadline is always in the
-        // future regardless of when this test runs (blocker fix 2026-06-13).
         final now = DateTime.now().toUtc();
         final t1 = now.subtract(const Duration(minutes: 1)).toIso8601String();
         final t2 = now.subtract(const Duration(seconds: 30)).toIso8601String();

@@ -9,33 +9,9 @@ import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_sta
 import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
 
-/// MB1 W1.1b — the V-2 instrument.
-///
-/// ## Why this file exists at all
-///
-/// MB1's device contract counts three things inside ONE foreground dwell:
-/// exactly one screen entry, at least three position reads, at least one of
-/// them caused by a push. Before this instrument the feature emitted **zero**
-/// diag breadcrumbs — the only file under `lib/features/live_tracking/` that
-/// ever called `Diag.event` was the SSE stream PR #204 deleted — so V-2 was
-/// being asked to count three things out of silence.
-///
-/// ## What this file can and cannot prove
-///
-/// It proves the RECORDS ARE EMITTED, with the right names, the right causes,
-/// and the right `applied` verdict, over a fake repository. That is a `suite`
-/// claim.
-///
-/// It proves NOTHING about the wire. No Firestore path is exercised here
-/// (`Firebase.apps` is empty under `flutter_test`, so nothing realtime is ever
-/// constructed), no HTTP is issued, and no marker is rendered. Whether the
-/// gateway answers `GET /deliveries/{id}/tracking` with a real fix is a
-/// `device`/`capture` claim and belongs to R1. Read `GATE.md` §7 before
-/// treating a green run here as evidence of anything on a phone.
 class _FakePositionRepo implements LiveTrackingRepository, LivePositionSource {
   /// Served on the next read. `null` models the case the gateway actually
   /// produced through two whole device rounds: HTTP 200 with `"position":null`
-  /// because the jeeber's last fix aged past the 5-minute TTL.
   DeliveryLivePosition? nextPosition;
 
   /// When set, `fetchLivePosition` THROWS instead of answering — the seam the
@@ -207,11 +183,6 @@ void main() {
     test(
       'a null read is STILL recorded, with applied:false and null lat/lng',
       () async {
-        // This is the exact shape of attempt 1's and attempt 2's captures: the
-        // gateway answered 200 with "position":null because the jeeber's last
-        // fix had aged past the 5-minute TTL. If the instrument only recorded
-        // successes, that capture would be indistinguishable from a screen
-        // nobody opened.
         final cubit = LiveTrackingCubit(
           repository: _FakePositionRepo()..nextPosition = null,
           deliveryId: 'DLV-NULL',
@@ -295,7 +266,6 @@ void main() {
             'in V-2 denominator for every devtool seam and demo repo.',
       );
       // Positive control: the screen-open record still fired, so the absence
-      // above is about the position axis and not about a dead capture.
       expect(diag.named(kTrackingScreenOpenEvent), hasLength(1));
       await cubit.close();
     });
@@ -401,11 +371,6 @@ void main() {
     );
 
     test('coordinates are NOT redacted on the way through Diag', () async {
-      // Load-bearing. `Diag.event` runs its payload through
-      // `DiagRedaction.scrubMap`, which replaces the value of every key in
-      // `kSensitiveDataKeys` with a one-way `tok:` handle. A redacted `lat`
-      // would leave MB1's MARKER leg permanently unprovable while every other
-      // assertion in this file still went green.
       final cubit = LiveTrackingCubit(
         repository: _FakePositionRepo()..nextPosition = _fix(),
         deliveryId: 'DLV-REDACT',
@@ -427,12 +392,6 @@ void main() {
 
   group('the non-claim, stated explicitly', () {
     test('this file issues NO network and constructs NO Firestore path', () {
-      // GATE.md §7: `Firebase.apps` is empty in every widget test, so a chat /
-      // realtime wrap is never constructed under test and a green suite proves
-      // nothing about transport. The fakes above are the only repositories in
-      // play; nothing here reaches Dio, the gateway, or Firestore. Recorded as
-      // an assertion rather than a comment so it cannot quietly stop being
-      // true.
       expect(_FakePositionRepo(), isA<LivePositionSource>());
       expect(_StatusOnlyRepo(), isNot(isA<LivePositionSource>()));
     });

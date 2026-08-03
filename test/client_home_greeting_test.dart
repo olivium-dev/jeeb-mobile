@@ -1,10 +1,3 @@
-// Widget tests for ClientHomeGreeting (P0-X06). Proves the personalized
-// greeting:
-//   - falls back to "Welcome back" + a "?" initials avatar with no ambient
-//     GreetingProfileCubit and no name (preserving the prior contract);
-//   - renders "Hello, {first name}" + the real avatar URL when an ambient
-//     GreetingProfileCubit carries a live profile.
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -107,7 +100,6 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // First name only, and the real avatar URL (not "?").
       expect(find.text('Hello, Sami'), findsOneWidget);
       expect(find.text('Welcome back'), findsNothing);
       expect(_avatar(tester).initial, 'S');
@@ -139,8 +131,6 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // The raw account handle must NOT appear anywhere on the header, and the
-        // greeting degrades to the generic fallback + "?" avatar.
         expect(find.textContaining('jeeb-e1a35ea8a520'), findsNothing);
         expect(find.text('Welcome back'), findsOneWidget);
         expect(_avatar(tester).initial, '?');
@@ -168,10 +158,6 @@ void main() {
       'saved display name from the getMe re-pull greets "Hello, Ahmad" '
       '(profile-name lane: displayNameOrNull accepts a real name)',
       (tester) async {
-        // The post-save state: the gateway mirrored PUT /api/User/profile
-        // `username` into the projection, getMe returned "Ahmad", and the
-        // greeting cubit re-pulled it. The suppression predicate must let a
-        // real human name through — it only suppresses synthetic handles.
         await tester.pumpWidget(
           _harness(profile: const GreetingProfileState(name: 'Ahmad')),
         );

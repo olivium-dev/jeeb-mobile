@@ -3,22 +3,10 @@ import 'package:omds/omds.dart';
 
 import '../../../l10n/app_localizations.dart';
 
-/// `social-collision-prompt` (D22, JM-019) — the block-second-method sheet.
-///
-/// The gateway returns `409 email_collision` when the email behind a social
-/// identity is already registered another way (phone-OTP, email/password, or a
-/// different provider). Per D22 (Q-045 STANDS) a *second* sign-in method on an
-/// existing identity is **blocked**, NOT silently merged — identity linking is
-/// owned by the untouchable user-management service (GR-2) and is out of scope
-/// for the client. This sheet is the user-facing outcome of that block: it
-/// explains that the account already exists and asks the user to sign in the
-/// way they did before.
-///
-/// It is a **sheet, not a route** (40_GUARDRAILS_ARCH §5 — transient prompts
-/// use `showModalBottomSheet`, not `GoRoute`s; mirrors `OfferAcceptSheet`). The
-/// caller (`SocialSignInSection`) awaits it and then calls
-/// [SocialAuthCubit.acknowledgeCollision] so the buttons are tappable again and
-/// the listener does not re-fire on the next rebuild.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../core/previews/jeeb_preview.dart';
+
+/// 409 email_collision: second method BLOCKED. Sheet explains account exists.
 Future<void> showSocialCollisionSheet(BuildContext context) {
   final scrim = Theme.of(context).colorScheme.onSecondaryContainer.withValues(
         alpha: UIConstants.opacityHigh,
@@ -35,9 +23,6 @@ Future<void> showSocialCollisionSheet(BuildContext context) {
   );
 }
 
-/// The block-second-method (D22) prompt body. Provider-agnostic copy — the
-/// block is identical whichever social provider triggered the 409, so no ICU
-/// placeholder is needed.
 class SocialCollisionSheet extends StatelessWidget {
   const SocialCollisionSheet({super.key});
 
@@ -91,3 +76,159 @@ class SocialCollisionSheet extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// Canvas box for the body at phone width. The measured body is 332dp tall in
+/// both EN and AR, and it is bottom-anchored, so the slack sits above it and
+const Size _socialCollisionSheetBox = Size(390, 420);
+
+/// Canvas box for the 320dp rendering — 380dp of measured content.
+const Size _socialCollisionSheetNarrowBox = Size(320, 440);
+
+/// Canvas box for a whole phone screen: the presented preview and the 200%
+/// window are both read against a device, not against a card.
+const Size _socialCollisionSheetScreenBox = Size(
+  390,
+  socialCollisionSheetPhoneWindow,
+);
+
+/// Usable height of a 390×844 phone once the status bar is gone — i.e. the
+/// tallest a `showModalBottomSheet(isScrollControlled: true)` can ever be on a
+const double socialCollisionSheetPhoneWindow = 780;
+
+/// Label on the stand-in page the sheet is presented over.
+/// Public because the render test pins it: it is the one string that tells the
+const String socialCollisionSheetHostLabel = 'Registration screen';
+
+/// Bottom inset of a phone with a home indicator. The presented preview injects
+/// it so the sheet's own [SafeArea] has something to clear.
+const double _socialCollisionSheetHomeIndicator = 34;
+
+/// The sheet body alone, squeezed to [width].
+/// Applied through a bottom-anchored [Align] so the preview reads the way the
+Widget _socialCollisionSheetHosted({required double width}) => Align(
+      alignment: Alignment.bottomCenter,
+      child: SizedBox(width: width, child: const SocialCollisionSheet()),
+    );
+
+/// The body at [textScale], laid out at its NATURAL height inside a
+/// phone-sized window that clips it.
+Widget _socialCollisionSheetInPhoneWindow(double textScale) {
+  return Builder(
+    builder: (BuildContext context) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: TextScaler.linear(textScale),
+      ),
+      child: const ClipRect(
+        child: SizedBox(
+          width: 390,
+          height: socialCollisionSheetPhoneWindow,
+          child: OverflowBox(
+            alignment: Alignment.topCenter,
+            minHeight: 0,
+            maxHeight: double.infinity,
+            child: SocialCollisionSheet(),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Stand-in for the registration screen, which shows the sheet on its first
+/// frame the way `SocialSignInSection`'s listener does on a 409.
+class _SocialCollisionSheetPresenter extends StatefulWidget {
+  const _SocialCollisionSheetPresenter();
+
+  @override
+  State<_SocialCollisionSheetPresenter> createState() =>
+      _SocialCollisionSheetPresenterState();
+}
+
+class _SocialCollisionSheetPresenterState
+    extends State<_SocialCollisionSheetPresenter> {
+  @override
+  void initState() {
+    super.initState();
+    // Post-frame, because `showSocialCollisionSheet` pushes a route and needs a
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showSocialCollisionSheet(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Text(
+          socialCollisionSheetHostLabel,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
+    );
+  }
+}
+
+/// The production presentation path, self-contained.
+/// The local [Navigator] is what makes it safe in a canvas: the sheet is a
+Widget _socialCollisionSheetInModalRoute() {
+  return Builder(
+    builder: (BuildContext context) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        padding: const EdgeInsets.only(
+          bottom: _socialCollisionSheetHomeIndicator,
+        ),
+        viewPadding: const EdgeInsets.only(
+          bottom: _socialCollisionSheetHomeIndicator,
+        ),
+      ),
+      child: Navigator(
+        onGenerateRoute: (RouteSettings settings) => MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => const _SocialCollisionSheetPresenter(),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The block prompt as designed: phone width, English, light.
+/// The baseline every other state is read against, and the only state with
+@JeebPreview(
+  group: 'auth',
+  name: 'Block prompt · phone width',
+  size: _socialCollisionSheetBox,
+  matrix: true,
+)
+Widget socialCollisionSheetDefault() =>
+    _socialCollisionSheetHosted(width: 390);
+
+/// The narrowest phone the app supports (320dp — iPhone SE 1st gen and the
+/// small Android bucket).
+@JeebPreview(
+  group: 'auth',
+  name: 'Narrowest phone · 320dp',
+  size: _socialCollisionSheetNarrowBox,
+)
+Widget socialCollisionSheetNarrowPhone() =>
+    _socialCollisionSheetHosted(width: 320);
+
+/// The accessibility ceiling, shown inside a phone-sized window: 200% text.
+/// The measured sheet is 840dp tall here — 60dp MORE than the 780dp a 390×844
+@JeebPreview(
+  group: 'auth',
+  name: 'Text at 200% · phone window',
+  size: _socialCollisionSheetScreenBox,
+)
+Widget socialCollisionSheetLargeText() => _socialCollisionSheetInPhoneWindow(2);
+
+/// The sheet as users actually meet it: pushed by `showSocialCollisionSheet`
+/// over the registration screen, under the scrim, with a home-indicator inset
+@JeebPreview(
+  group: 'auth',
+  name: 'Presented over the sign-in screen',
+  size: _socialCollisionSheetScreenBox,
+)
+Widget socialCollisionSheetPresented() => _socialCollisionSheetInModalRoute();

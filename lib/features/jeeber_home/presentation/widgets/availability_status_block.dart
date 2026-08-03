@@ -5,13 +5,9 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_state.dart';
 import '../../domain/entities/availability_status.dart';
 
-/// Supporting-text block of the availability card: the status line
-/// ("You're online — receiving requests" / "You're offline"), the
-/// active-deliveries count while online, and the auto-offline idle hint.
-///
-/// Start-aligned body copy (it sits beside the M3 switch inside
-/// `AvailabilityCard`), never a headline — the card's title row owns the
-/// heading.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+
 class AvailabilityStatusBlock extends StatelessWidget {
   const AvailabilityStatusBlock({super.key, required this.view});
 
@@ -89,9 +85,6 @@ class _ActiveDeliveriesLine extends StatelessWidget {
   }
 }
 
-/// "Auto-offline after 8 h idle" — surfaces the inactivity policy alongside
-/// the switch so the system flipping the Jeeber offline later is never a
-/// surprise (§G2 fix spec).
 class _IdleHintLine extends StatelessWidget {
   const _IdleHintLine();
 
@@ -107,3 +100,118 @@ class _IdleHintLine extends StatelessWidget {
     );
   }
 }
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, not shipped. Previews are tree-shaken out of release builds.
+
+/// Reference phone width, matching the rest of the preview folder.
+const double _availabilityStatusBlockPhoneWidth = 390;
+
+const double availabilityStatusBlockSlotWidth = 290;
+
+/// Breathing room so the canvas shows the block's leading edge rather than the
+/// viewport's. Directional-neutral, so it does not mask an RTL defect.
+const EdgeInsets _availabilityStatusBlockHostPadding =
+    EdgeInsets.all(Spacing.medium);
+
+const Size _availabilityStatusBlockHeadlineBox =
+    Size(_availabilityStatusBlockPhoneWidth, 150);
+
+const Size _availabilityStatusBlockFullStackBox =
+    Size(_availabilityStatusBlockPhoneWidth, 400);
+
+AvailabilityViewState _availabilityStatusBlockView(
+  AvailabilityState state, {
+  int activeDeliveryCount = 0,
+  bool isToggleInFlight = false,
+}) {
+  return AvailabilityViewState(
+    loadPhase: AvailabilityLoadPhase.ready,
+    status: AvailabilityStatus(
+      state: state,
+      activeDeliveryCount: activeDeliveryCount,
+    ),
+    isToggleInFlight: isToggleInFlight,
+  );
+}
+
+Widget _availabilityStatusBlockHosted(AvailabilityViewState view) {
+  return Align(
+    alignment: AlignmentDirectional.topStart,
+    child: Padding(
+      padding: _availabilityStatusBlockHostPadding,
+      child: SizedBox(
+        width: availabilityStatusBlockSlotWidth,
+        child: AvailabilityStatusBlock(view: view),
+      ),
+    ),
+  );
+}
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Offline · headline only',
+  size: _availabilityStatusBlockHeadlineBox,
+)
+Widget availabilityStatusBlockOffline() => _availabilityStatusBlockHosted(
+      _availabilityStatusBlockView(AvailabilityState.offline),
+    );
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Auto-offline · 2 deliveries dropped',
+  size: _availabilityStatusBlockHeadlineBox,
+)
+Widget availabilityStatusBlockAutoOfflineHoldingWork() =>
+    _availabilityStatusBlockHosted(
+      _availabilityStatusBlockView(
+        AvailabilityState.autoOffline,
+        activeDeliveryCount: 2,
+      ),
+    );
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Online · empty queue',
+  size: _availabilityStatusBlockFullStackBox,
+)
+Widget availabilityStatusBlockOnlineEmpty() => _availabilityStatusBlockHosted(
+      _availabilityStatusBlockView(AvailabilityState.online),
+    );
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Online · 2 deliveries',
+  size: _availabilityStatusBlockFullStackBox,
+)
+Widget availabilityStatusBlockOnlineTwo() => _availabilityStatusBlockHosted(
+      _availabilityStatusBlockView(
+        AvailabilityState.online,
+        activeDeliveryCount: 2,
+      ),
+    );
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Going online · in flight',
+  size: _availabilityStatusBlockHeadlineBox,
+)
+Widget availabilityStatusBlockGoingOnline() => _availabilityStatusBlockHosted(
+      _availabilityStatusBlockView(
+        AvailabilityState.offline,
+        isToggleInFlight: true,
+      ),
+    );
+
+@JeebPreview(
+  group: 'jeeber_home',
+  name: 'Going offline · in flight, 3 deliveries',
+  size: _availabilityStatusBlockFullStackBox,
+)
+Widget availabilityStatusBlockGoingOffline() => _availabilityStatusBlockHosted(
+      _availabilityStatusBlockView(
+        AvailabilityState.online,
+        activeDeliveryCount: 3,
+        isToggleInFlight: true,
+      ),
+    );

@@ -1,27 +1,4 @@
 // A FIREBASE SESSION IS PER-INSTALL. THE JEEB SESSION IS PER-USER.
-//
-// The bug this pins: `FirebaseCustomTokenIdentity.ensureSignedIn` opened with
-//
-//     if (_auth.currentUser != null) return true;
-//
-// which answers "does this DEVICE hold a Firebase session", not "is the CURRENT
-// Jeeb user signed in to Firebase". Those are the same question only until
-// someone logs out or switches accounts. `signInWithCustomToken` installs a
-// session the SDK then refreshes on its own, indefinitely, with no further
-// gateway call — so it survives a Jeeb logout, and the next user to sign in on
-// that install inherited it wholesale.
-//
-// What that inheritance buys an attacker is not theoretical. The released
-// Firestore ruleset authorises a read of `Conversations/{cid}/Messages` when
-// `request.auth.uid` appears in `Participants[].UserId` with `RemovedAt` null.
-// Running as user A's uid therefore reads every conversation A is still a
-// participant of — while the app believes it is user B, and while the Jeeb
-// bearer, the only credential anyone audits, is B's.
-//
-// These tests drive the identity DIRECTLY over a scripted FirebaseAuth double.
-// No `Firebase.initializeApp`, no widget, no ambiguity about what ran — which
-// matters here more than usual, because `Firebase.apps` is empty in every widget
-// test in this repo and a screen-level test of this code path would be vacuous.
 library;
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -92,8 +69,6 @@ void main() {
       () {
     test('a session for the SAME uid is reused with no round trip', () async {
       // The fast path this whole class is built around must survive the fix —
-      // otherwise every chat open pays a mint and the "costs no round trip at
-      // all" claim in the doc becomes false.
       final auth = _FakeAuth(initial: _FakeUser(_userA));
       final minter = _StubMinter('tok');
       final sut = FirebaseCustomTokenIdentity(
@@ -108,8 +83,6 @@ void main() {
     });
 
     // THE BUG. A leftover session belonging to user A, while the Jeeb session is
-    // now user B. The old code returned true here and handed A's uid to every
-    // subsequent Firestore read.
     test('a session for ANOTHER uid is discarded and re-minted', () async {
       final auth = _FakeAuth(initial: _FakeUser(_userA), mintedUid: _userB);
       final minter = _StubMinter('tok-for-b');
@@ -131,9 +104,6 @@ void main() {
     });
 
     // The half that matters most: when the re-mint FAILS, the inherited session
-    // must be gone anyway. Signing out only after a successful mint would leave
-    // A's uid live on exactly the path where the mint is expected to fail today
-    // (the route is not deployed — `POST /v1/chat/firebase-token` 404s).
     test('a foreign session is dropped even when the re-mint FAILS', () async {
       final auth = _FakeAuth(initial: _FakeUser(_userA));
       final minter = _StubMinter(null); // no mint endpoint — today's live state
@@ -155,8 +125,6 @@ void main() {
     test('a mint whose uid is NOT the Jeeb subject is refused and signed out',
         () async {
       // Should be unreachable — the gateway derives the uid from the validated
-      // bearer's own claims. If it ever is reachable it is a wrong-user read,
-      // so it fails closed and leaves nothing behind.
       final auth = _FakeAuth(mintedUid: _userA);
       final minter = _StubMinter('tok-claiming-a');
       final sut = FirebaseCustomTokenIdentity(
@@ -172,7 +140,6 @@ void main() {
 
     test('an unknown Jeeb subject signs in to nothing', () async {
       // Fail closed: with no subject there is nothing to compare a session
-      // against, and "reuse whatever this install holds" is the bug itself.
       final auth = _FakeAuth(initial: _FakeUser(_userA));
       final minter = _StubMinter('tok');
       final sut = FirebaseCustomTokenIdentity(
@@ -186,8 +153,6 @@ void main() {
     });
 
     // CONTROL. Without a clean cold start passing, every assertion above is
-    // satisfiable by an identity that simply never signs in — the feature dead,
-    // which is the other way this branch has been wrong before.
     test('CONTROL: a cold install DOES sign in', () async {
       final auth = _FakeAuth(mintedUid: _userB);
       final minter = _StubMinter('tok-for-b');

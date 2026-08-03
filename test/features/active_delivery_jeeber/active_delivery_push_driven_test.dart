@@ -11,18 +11,6 @@ import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delive
 
 /// b02 wave C — N6. The jeeber's active-delivery screen ran a 5s
 /// `GET /v1/deliveries/{id}` poll whose OWN rationale (the pre-change comment at
-/// `active_delivery_cubit.dart:194-200`) said it existed BECAUSE a backend-side
-/// transition would otherwise never surface — i.e. it was a push substitute by
-/// the author's own admission.
-///
-/// The push it was substituting for is now real and reaches THIS user. The
-/// gateway's `NotifyOtherPartyAsync` (`Controllers/DeliveriesController.cs:1296-1300`)
-/// puts BOTH `req.ClientId` AND `req.JeeberId` in the recipient list, then
-/// `Notifications/DeliveryStatusPushNotifier.cs:211` stamps `type=delivery`
-/// together with a snake_case `delivery_id` — the exact discriminator+id pair
-/// `PushNotificationHandler._maybeSignalStatusChange` needs to clear its
-/// `orderish` id guard. So the jeeber receives a push on every status flip, not
-/// just the customer.
 const _deliveryId = 'DLV-N6';
 const _dropOff = DropOffAddress(label: 'Verdun', lat: 33.88, lng: 35.49);
 

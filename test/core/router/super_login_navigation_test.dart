@@ -1,19 +1,4 @@
 // DEF-1 regression: a successful super-login must land on Home immediately.
-//
-// QA evidence (qa-evidence/fr3-superlogin): the backend returned 200 + a token
-// and the app PERSISTED it (a later relaunch loaded Home), but on submit the app
-// stayed on the login screen and never reached Home. Root cause: the super-login
-// flow saved the token to AuthTokenStore but never told the router's SessionCubit
-// gate to re-read it, so `refreshListenable` never fired and the redirect bounced
-// `/` back to `/register`. Only a cold restart (which re-reads the keystore at
-// boot) surfaced Home.
-//
-// This test reproduces the gate mechanism end-to-end with the REAL router and a
-// REAL SessionCubit over a controllable token store: an onboarded-but-tokenless
-// user is forced to /register; after the token is persisted AND the session is
-// refreshed (exactly what registration_screen._openSuperLogin now does), a
-// `go('/')` lands on Home. With the bug present (no refresh) the redirect would
-// keep the user on /register.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -105,7 +90,6 @@ void main() {
           BlocProvider<RoleEligibilityCubit>.value(value: roleEligibility),
           BlocProvider<LocaleCubit>.value(value: locale),
           // Mirror the production tree (app.dart): the SessionCubit is in scope
-          // so the login screen can refresh it after a successful sign-in.
           BlocProvider<SessionCubit>.value(value: session),
         ],
         child: MaterialApp.router(
@@ -130,8 +114,6 @@ void main() {
       'onboarded + no token starts on /register; persisting a token and '
       'refreshing the session promotes go("/") to Home (DEF-1)', (tester) async {
     // Cold start: no token yet → gate forces /register (the phone-OTP + social
-    // auth entry; the email/password /login funnel was removed in JEBV4-199)
-    // once the first refresh resolves.
     when(() => store.accessToken).thenAnswer((_) async => null);
 
     final built = await buildHome(tester);
@@ -143,8 +125,6 @@ void main() {
     expect(location(built.router), '/register');
 
     // Simulate a successful super-login: the sheet persists the real token, the
-    // screen refreshes the session, THEN navigates. (registration_screen now
-    // calls SessionCubit.refresh() before context.go('/').)
     when(() => store.accessToken).thenAnswer((_) async => 'real-access-token');
     await session.refresh();
     built.router.go('/');
@@ -171,8 +151,6 @@ void main() {
     expect(location(built.router), '/register');
 
     // Token persisted to the keystore but the SessionCubit is NOT refreshed
-    // (the pre-fix behaviour). The gate still reads unauthenticated, so the
-    // redirect keeps the user on /register exactly like the QA capture.
     when(() => store.accessToken).thenAnswer((_) async => 'real-access-token');
     built.router.go('/');
     await tester.pumpAndSettle();

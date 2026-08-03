@@ -1,14 +1,4 @@
 // BUG-8 (sprint-008 run-7) regression guard — standalone order-summary delivery
-// read route.
-//
-// The order-summary detail (JM-031, reached from the delivery-detail hub / chat
-// "view summary" on the customer Core Flow) read the SINGULAR
-// `GET /v1/delivery/{id}` as its HARD dependency, which the live origin gateway
-// (`:10090`) answers with 404 — aborting the whole summary (matches the lone
-// abort-on-404 delivery read in run-7 `wire-step6-customer-tracking.txt`). The
-// materialized aggregate is served ONLY at the PLURAL `GET /v1/deliveries/{id}`
-// (Contract 8c). This pins the read to the plural route on the origin base and
-// preserves the legacy `:4010` mock singular alias, at the WIRE level.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -82,7 +72,6 @@ class _RecordingAdapter implements HttpClientAdapter {
       return _json(const {'items': <Object?>[]});
     }
     // The hard delivery dep must return a body so fetchSummary reaches its
-    // best-effort enrichment reads (which we also record).
     return _json({'id': _deliveryId, 'requestId': _deliveryId});
   }
 }

@@ -1,14 +1,5 @@
 /// T-MOB-014 — Chat M1+ visibility, structured offer cards, voice notes.
-///
 /// Tests cover:
-///   - SendButton disabled in broadcasting phase (AC1)
-///   - OfferCard renders with Accept + Decline buttons (AC2)
-///   - acceptOffer transitions phase to accepted (AC2)
-///   - declineOffer greyed-out card (AC4 client-side)
-///   - 409 on acceptOffer reverts optimistic state (T-MOB-015 AC3)
-///   - declinedOfferIds tracks declined set (AC4)
-///   - BroadcastTtlIndicator shown in broadcasting phase (AC1)
-///   - OfferAcceptedBanner shown after accept
 library;
 
 import 'dart:async';
@@ -22,8 +13,6 @@ import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart
     show OfferAcceptResult;
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 
-// ---------------------------------------------------------------------------
-// Test double
 // ---------------------------------------------------------------------------
 
 class _TestGateway extends ChatGateway {
@@ -73,8 +62,6 @@ class _TestGateway extends ChatGateway {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 ChatCubit _cubit({_TestGateway? gateway}) {
   final gw = gateway ?? _TestGateway();
@@ -104,15 +91,11 @@ DeliveryChatMessage _offerCard(String offerId) =>
     );
 
 // ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 void main() {
   group('ChatCubit — broadcasting phase (T-MOB-014 AC1)', () {
     test('initial load in broadcasting phase shows composer (client may still message)', () async {
       // AC1: The SendButton itself is disabled when composerText is empty,
-      // but the composer bar is visible so the client can type during broadcasting.
-      // The "disabled" state is enforced at the send-button level, not by hiding the composer.
       final gw = _TestGateway(phase: ConversationPhase.broadcasting);
       final cubit = _cubit(gateway: gw);
       await cubit.load();

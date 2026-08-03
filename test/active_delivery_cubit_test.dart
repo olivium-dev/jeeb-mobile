@@ -1,12 +1,6 @@
 import 'dart:async';
 
 // Tests for ActiveDeliveryCubit (T-MOB-031).
-//
-// Verifies:
-//   - loadDelivery emits loading → ready.
-//   - advanceStatus optimistically updates status, confirms on success (AC2).
-//   - advanceStatus reverts and sets transitionError on 422 (AC3).
-//   - Network failure on load emits error mode.
 
 import 'dart:typed_data';
 
@@ -59,7 +53,6 @@ class _FakeRepo implements ActiveDeliveryRepository {
 
   /// P6/B1: every (from, to) pair the cubit actually PATCHed. The regression
   /// guard for the 2026-07-25 incident asserts this never contains
-  /// `(atDoor, done)`.
   final List<(JeeberDeliveryStatus, JeeberDeliveryStatus)> transitionCalls =
       <(JeeberDeliveryStatus, JeeberDeliveryStatus)>[];
 
@@ -317,7 +310,6 @@ void main() {
           (s) =>
               s.proofPhotoStatus == ProofPhotoStatus.uploading &&
               // JEBV4-200: the captured bytes are retained for the local
-              // thumbnail — proof the upload carries REAL image data.
               (s.proofPhotoBytes?.isNotEmpty ?? false),
           'uploading with captured bytes',
         ),
@@ -355,7 +347,6 @@ void main() {
         await cubit.captureProofPhoto();
 
         // The bytes handed to the repository are the actual captured image
-        // payload — never a filename/path string.
         expect(repo.lastUploadedBytes, isNotNull);
         expect(repo.lastUploadedBytes, equals(payload));
         expect(repo.lastUploadedBytes!.isNotEmpty, isTrue);
@@ -497,9 +488,6 @@ void main() {
 
   group('ActiveDeliveryCubit — door OTP (iter6 close-tail)', () {
     // P6/B1: from AtDoor the cubit never PATCHes at all (see the B1 cases
-    // above). This pins the OTHER door into the OTP surface — an EARLY step
-    // answering `otp_required` — which must still hold the row at its last
-    // confirmed stage and prompt for the code, never "transition not allowed".
     blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
       'markDelivered on 422 otp_required surfaces the OTP entry '
       '(NOT "transition not allowed")',
@@ -652,10 +640,6 @@ void main() {
     });
 
     // b02 wave C / N6: the 5s poll became a `type=delivery` push subscription,
-    // so "stays armed" is now asserted against the BUS rather than a timer —
-    // and it is the stronger claim: an unarmed subscription means an admin
-    // resolution (SM edge 12/13) never reaches the jeeber's screen at all,
-    // where before it merely arrived one tick late.
     test('P6/A2: the jeeber push subscription stays armed on disputed',
         () async {
       var calls = 0;

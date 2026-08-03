@@ -8,8 +8,6 @@ import 'package:jeeb_mobile/features/goods_cost/domain/goods_cost_repository.dar
 
 /// Proves the REAL Dio impl for goods-cost: currency is read from the gateway
 /// VERBATIM (no hardcode), the record POST sends the typed amount and echoes
-/// the gateway-confirmed `{ amount, currency }`, and transport errors map to
-/// the canonical failure surface.
 void main() {
   late _RecordingAdapter adapter;
   late Dio dio;
@@ -124,8 +122,6 @@ class _RecordingAdapter implements HttpClientAdapter {
       return _json(recordBody, status: recordStatus);
     }
     // BUG-8: the currency read now defaults to the plural `/v1/deliveries/{id}`
-    // aggregate route on the origin gateway (the goods-cost POST above is caught
-    // first, so this matches both the singular alias and the plural route).
     if (path.contains('/v1/deliver')) {
       deliveryHit = true;
       return _json(deliveryBody, status: deliveryStatus);

@@ -1,16 +1,4 @@
 // fix/push-tap-routing (run-23 CHECK B): tap-time edges of the
-// `offer_accepted` push landing.
-//
-// The push-tap now routes the winning jeeber to
-// `/jeeber/deliveries/:id/active` (see notification_deep_link.dart). By tap
-// time the delivery may have moved on, so this pins the two edge landings the
-// fix relies on — neither may regress into a blank/empty surface:
-//
-//   1. TERMINAL: the delivery already reached `Done` → the screen renders its
-//      explicit `delivery_completed_state` panel (a sensible receipt-style
-//      landing), NOT a stale "advance" affordance and NOT an empty list.
-//   2. MISSING: the by-id fetch fails (expired/404/network) → the screen
-//      renders the retryable OMDS error state, NOT a blank surface.
 
 import 'dart:async';
 import 'dart:typed_data';
@@ -270,7 +258,6 @@ void main() {
     );
 
     // Optimistic AtDoor→Done: tapping flips status→done AND mode→transitioning
-    // while the (blocked) server transition is in flight.
     await tester.ensureVisible(
       find.bySemanticsIdentifier('mark_delivered_cta'),
     );
@@ -281,7 +268,6 @@ void main() {
     // Status is now optimistically `done` (the mark surface is gone)…
     expect(find.bySemanticsIdentifier('mark_delivered_cta'), findsNothing);
     // …but the fix keeps the completed panel hidden until the transition is
-    // server-confirmed (!isTransitioning) — no premature Delivered banner.
     expect(
       find.bySemanticsIdentifier('delivery_completed_state'),
       findsNothing,

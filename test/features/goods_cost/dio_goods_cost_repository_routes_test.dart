@@ -1,13 +1,4 @@
 // BUG-8 (sprint-008 run-7) regression guard — goods-cost currency delivery read
-// route (belt-and-suspenders; same latent singular-read class).
-//
-// `fetchCurrency` read the SINGULAR `GET /v1/delivery/{id}`, which the live
-// origin gateway (`:10090`) 404s — the delivery aggregate lives at the PLURAL
-// `GET /v1/deliveries/{id}` (Contract 8c). This pins the READ to the plural
-// route on the origin base and preserves the legacy `:4010` mock singular alias.
-//
-// The `POST /v1/delivery/{id}/goods-cost` command is a GENUINELY different
-// endpoint and MUST stay singular — asserted here so the rewrite never leaks.
 
 import 'dart:convert';
 import 'dart:typed_data';

@@ -217,9 +217,6 @@ void main() {
   });
 
   // LANDING-FIX regression (64 jm-027/028/029): a stalled/unresponsive mock
-  // must NOT hold `seed()` (and therefore `Bootstrap.minimal()` → the splash →
-  // the shell tab bar) for the full Dio window. The seam's bounded timeout has
-  // to unblock boot well within the QA window so `shell_tab_requests` renders.
   test('a hung mock POST is bounded — seed() completes fast, never blocks boot',
       () async {
     if (!kDebugMode) return;
@@ -240,9 +237,6 @@ void main() {
     sw.stop();
 
     // Ceiling: the seam's internal `_journeySeedTimeout` is 10s, so the bound
-    // must sit just ABOVE it (10s + measurement overhead) yet well BELOW the 30s
-    // raw Dio connect+receive default it guards against. `< 15s` catches a
-    // regression to that 30s default while never racing the 10s `.timeout`.
     expect(sw.elapsed, lessThan(const Duration(seconds: 15)),
         reason: 'journey-seed POST must be timeout-bounded so it cannot hold '
             'the first frame for the full Dio connect+receive window');

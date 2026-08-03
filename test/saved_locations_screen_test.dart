@@ -221,7 +221,6 @@ void main() {
     });
 
     // Sprint-6 Stream-B polish: empty/error states use the OMDS feedback
-    // widgets (was hand-rolled Icon+Text columns) for fleet consistency.
     testWidgets('empty state uses OmdsEmptyState with honest zero-state copy',
         (tester) async {
       await tester.pumpWidget(_harness(_router(_FakeRepo(const []))));

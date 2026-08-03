@@ -4,19 +4,6 @@ import '../../../core/network/mock_gateway_client.dart';
 import '../domain/location_select_repository.dart';
 import '../domain/saved_location.dart';
 
-/// Dio-backed [LocationSelectRepository] for the JM-024 location-select step.
-///
-/// Resolves the saved-locations base path via
-/// [MockGatewayClient.savedLocationsPath]: the live gateway serves it me-keyed
-/// under `/api` (`GET /api/users/me/saved-locations`, VERIFIED 200 on :10090),
-/// while the `:4010` Express mock serves the `:userId`-keyed `/users/…` shape
-/// via the `/users` → `/user-management/users` rewrite. Never hardcodes a
-/// `:4010` host or service prefix (40_GUARDRAILS_ARCH §4/§11).
-///
-/// Parses defensively (40_GUARDRAILS_ARCH §4): tolerates a bare list or
-/// `{ items: [...] }`, both the seeded nested `geo:{lat,lng}` shape AND a
-/// top-level `latitude/longitude`, and `isDefault`/`is_default`. A malformed
-/// row degrades to its best-effort fields rather than crashing on a cast.
 class DioLocationSelectRepository implements LocationSelectRepository {
   const DioLocationSelectRepository(this._dio);
 
@@ -69,8 +56,6 @@ class DioLocationSelectRepository implements LocationSelectRepository {
     );
   }
 
-  /// Best-effort category. The seed carries no `category`, so fall back to the
-  /// label hint (Home/Work) — purely cosmetic (drives the leading glyph).
   SavedLocationCategory _parseCategory(String? raw, Object? label) {
     switch (raw) {
       case 'home':

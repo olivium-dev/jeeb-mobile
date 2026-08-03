@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-// ORPHAN (JEBV4-227, verified 2026-07-12): superseded by SavedLocationsScreen (T-MOB-025) — see docs/project-understanding/reconciliation/orphans.md
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+import '../../../../devtool/catalog/fixtures/saved_addresses_screen_fixtures.dart';
+
 class SavedAddressesScreen extends StatefulWidget {
   const SavedAddressesScreen({super.key});
 
@@ -34,3 +35,38 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// The single designed state, hosted for the canvas.
+/// `const SavedAddressesScreen()` is written out here rather than delegating to
+Widget _savedAddressesScreenHosted() => const SavedAddressesScreen();
+
+/// The reference rendering: a 390x844 phone.
+/// `matrix: true` because the AR card is the whole point. The screen renders
+@JeebPreview(
+  group: 'settings',
+  name: 'Placeholder · phone',
+  size: SavedAddressesScreenFixtures.phoneBox,
+  matrix: true,
+)
+Widget savedAddressesScreenPlaceholder() => _savedAddressesScreenHosted();
+
+/// The narrowest viewport the app supports (320x568).
+/// 272pt of usable width after the 24pt padding, which is where the headline
+@JeebPreview(
+  group: 'settings',
+  name: 'Compact device',
+  size: SavedAddressesScreenFixtures.compactBox,
+)
+Widget savedAddressesScreenCompact() => _savedAddressesScreenHosted();
+
+/// Landscape / split-screen (844x390) — the height ceiling.
+/// The icon alone is 100pt and the gaps around it another 48pt before a word
+@JeebPreview(
+  group: 'settings',
+  name: 'Landscape · short viewport',
+  size: SavedAddressesScreenFixtures.landscapeBox,
+  matrix: true,
+)
+Widget savedAddressesScreenLandscape() => _savedAddressesScreenHosted();

@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Jeeb-specific tier color tokens.
-///
-/// Lives as a `ThemeExtension` so call sites read from
-/// `Theme.of(context).extension<JeebTierColors>()` rather than hard-coding hex.
-/// Documented in `docs/design/03-color-token-mapping.md` §3.
 @immutable
 class JeebTierColors extends ThemeExtension<JeebTierColors> {
   const JeebTierColors({

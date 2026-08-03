@@ -1,30 +1,4 @@
 // Super-login ⇄ real-login (OTP) post-auth PARITY.
-//
-// Owner mandate (2026-07-04): super-login MUST follow the EXACT approach of a
-// real login so it produces the IDENTICAL post-auth effects — most critically
-// FCM device-token registration (PUT /api/PushNotification/register).
-//
-// A real login establishes the session by refreshing the owned [SessionCubit];
-// that `authenticated` emission is what JeebApp's owned-stream listener
-// (app.dart `_wireSessionRoleSync`) turns into role-sync + notifyLogin(). This
-// suite proves super-login success now drives that SAME chain — it is NOT a
-// notifyLogin bolt-on, it is the shared session gate. The chain is verified as
-// two composed links (kept as separate tests so neither mixes a live modal
-// route with an out-of-tree async await, which deadlocks flutter_test):
-//
-//   Link 1 (widget): super-login SUCCESS through the real sheet refreshes the
-//     owned SessionCubit → the gate stream emits unauthenticated → authenticated
-//     (the exact transition the owned listener fires on). Proves the sheet is
-//     what establishes the session — the source change.
-//
-//   Link 2 (unit): the SAME authenticated emission, wired to a REAL
-//     DeviceTokenRegistrar exactly like app.dart `_wireSessionRoleSync`, fires
-//     notifyLogin() → PUT /api/PushNotification/register once — with the REAL
-//     gateway tokens a real SuperLoginCubit persisted (never a client mint).
-//
-// Below the sheet everything is REAL: SessionCubit, DeviceTokenRegistrar,
-// AuthTokenStore, SuperLoginCubit. Only Dio, the push transport, and secure
-// storage are fakes (mirroring test/device_token_registrar_login_test.dart).
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -183,16 +157,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // Pre-filled sheet opens submit-ready; tap the CTA. Fixed pumps only —
-      // OmdsLoadingButton's live AnimatedSwitcher never settles, so the existing
-      // sheet tests avoid pumpAndSettle for the same reason.
       await tester.tap(find.byKey(const Key('superLogin.submit')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
 
       // The owned session-gate stream went unauthenticated → authenticated,
-      // exactly as an OTP login drives it via SessionCubit.refresh(). This is
-      // the emission JeebApp's owned-stream listener turns into notifyLogin().
       expect(
         emitted,
         containsAllInOrder(<SessionStatus>[
@@ -258,8 +228,6 @@ void main() {
     });
 
     // Mirror app.dart `_wireSessionRoleSync`: on every transition INTO the
-    // authenticated session state, re-arm device registration. This is the
-    // production wiring under test — the SAME listener a real OTP login trips.
     Future<void>? pendingRegistration;
     final sub = session.stream.listen((state) {
       if (state.isAuthenticated) {
@@ -289,7 +257,6 @@ void main() {
     expect(dio.bodies.single['fcmToken'], 'fcm-parity-token');
     expect(dio.bodies.single['deviceId'], isNotEmpty);
     // Identity is server-derived from the bearer; the body carries no userId,
-    // and the persisted token is the REAL gateway access token.
     expect(dio.bodies.single.containsKey('userId'), isFalse);
     expect(await tokenStore.accessToken, 'real-access-token');
     expect(await tokenStore.userId, 'super-user-001');

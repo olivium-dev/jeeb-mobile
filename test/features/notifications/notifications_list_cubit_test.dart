@@ -1,11 +1,4 @@
 // Unit tests for NotificationsListCubit (JM-057). Proves the 4-state machine
-// (40_GUARDRAILS_ARCH §2.2/§3) off a scripted NotificationsRepository (no DI,
-// no network):
-//   - load(): initial → loading → loaded, items newest-first by timestamp.
-//   - load() failure maps the typed NotificationsFailure (network / unknown).
-//   - load() guards re-entry (a second call is a no-op).
-//   - refresh(): re-fetches without flipping status to loading.
-//   - markRead(): optimistic local flip + swallows a PATCH failure (non-blocking).
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/notifications/application/notifications_list_cubit.dart';

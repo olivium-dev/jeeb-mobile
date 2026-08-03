@@ -3,15 +3,6 @@ import 'dart:async';
 import '../domain/chat_gateway.dart';
 import '../domain/delivery_chat_message.dart';
 
-/// MVP gateway with no backend.
-///
-/// `send` succeeds after a short artificial delay (so the optimistic
-/// `sending → sent → delivered → read` transitions are observable in the
-/// UI). It also emits a canned echo from the counterpart on the
-/// [subscribe] stream so the conversation feels two-sided in demo builds
-/// and in widget tests that want to exercise the receiver path.
-///
-/// Tests inject their own gateway via the cubit's constructor.
 class InMemoryChatGateway extends ChatGateway {
   InMemoryChatGateway({
     this.sendDelay = const Duration(milliseconds: 80),
@@ -21,22 +12,14 @@ class InMemoryChatGateway extends ChatGateway {
     this.echoEnabled = true,
   });
 
-  /// Latency before [send] resolves with [MessageStatus.sent]. Kept small so
-  /// the UI flow feels responsive while still exercising the optimistic path.
   final Duration sendDelay;
 
-  /// Additional latency before the gateway emits a delivered receipt for the
-  /// most-recently-sent message.
   final Duration deliveryDelay;
 
-  /// Additional latency before the gateway emits a read receipt.
   final Duration readDelay;
 
-  /// Latency before the canned echo arrives from the counterpart.
   final Duration echoDelay;
 
-  /// When false, the gateway only handles sends — no inbound echo. Tests use
-  /// this when asserting outgoing behaviour without racing the receiver path.
   final bool echoEnabled;
 
   final _controller = StreamController<ChatEvent>.broadcast();
@@ -45,17 +28,9 @@ class InMemoryChatGateway extends ChatGateway {
 
   @override
   Future<List<DeliveryChatMessage>> loadHistory(String deliveryId) async {
-    // No persistence in the MVP — the cubit starts each session with an empty
-    // thread, exactly like a freshly created delivery.
     return const <DeliveryChatMessage>[];
   }
 
-  /// The in-memory echo demo models a genuine 1:1 thread (it is the legacy
-  /// photo-chat / no-backend MVP surface, not a broadcasting auction), so it
-  /// keeps the `accepted` 1:1 behaviour explicitly. NEW-BUG-01 moved the
-  /// ABSTRACT default to `broadcasting` to stop the network path falsely
-  /// claiming accepted; this controlled in-memory fixture opts back in to the
-  /// 1:1 shell on purpose — it can never produce a real-backend false positive.
   @override
   Future<ConversationPhase> loadPhase(String deliveryId) async =>
       ConversationPhase.accepted;
@@ -67,8 +42,6 @@ class InMemoryChatGateway extends ChatGateway {
   ) async {
     await Future<void>.delayed(sendDelay);
     final sent = message.copyWith(status: MessageStatus.sent);
-    // Schedule the delivered / read transitions independently so the
-    // double-tick render happens after the single-tick.
     Future<void>.delayed(deliveryDelay, () {
       if (_controller.isClosed) return;
       _controller.add(DeliveryReceipt(message.id));

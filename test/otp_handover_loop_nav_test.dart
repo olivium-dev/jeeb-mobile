@@ -14,13 +14,8 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'support/sync_app_localizations.dart';
 
 /// JEEBER-LOOP F1 + F2 — close the two-party delivery loop.
-///
 /// These are navigation tests, so they need a real [GoRouter] (not a bare
 /// [MaterialApp]) — `context.go` is a no-op without one. Each test routes from
-/// the OTP screen and then asserts the *resolved location*, which is the
-/// router's contract surface (`isClient = mode != 'jeeber'`). They fail on the
-/// pre-fix source: F1 because `_DoneBody` went to `/feedback` with no `mode`,
-/// F2 because the client display had no CTA at all.
 class _MockRepo extends Mock implements OtpHandoverRepository {}
 
 GoRouter _router(OtpHandoverCubit cubit, {required bool isClient}) {
@@ -35,7 +30,6 @@ GoRouter _router(OtpHandoverCubit cubit, {required bool isClient}) {
         ),
       ),
       // Stub destinations — we assert on the landed URI, not their contents,
-      // so they render nothing and pull in no DI.
       GoRoute(
         path: '/orders/:id/mutual-rate',
         builder: (context, state) =>
@@ -121,8 +115,6 @@ void main() {
     testWidgets('Client done → /orders/DLV-770001/mutual-rate (no mode param)',
         (tester) async {
       // Client done state is exercised directly by toggling the cubit; the
-      // client constructor would otherwise load a display code, but the done
-      // body is identical regardless of role except for the route suffix.
       when(() =>
               repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
           .thenAnswer((_) async => const OtpFetchResult(code: '1234'));

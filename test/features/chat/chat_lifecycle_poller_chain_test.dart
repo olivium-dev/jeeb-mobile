@@ -1,20 +1,4 @@
 // N4 (b02 polling→push). This file used to walk the real
-// `WidgetsBindingAppLifecycleGate` chain — resumed → inactive → hidden → paused
-// and back — and assert EXACT tick counts on the 60 s chat history poller
-// either side of it (`tickOnResume: false` must not fetch on the resume edge,
-// a backgrounded poller must be disarmed, and so on).
-//
-// That poller is DELETED, so every one of those assertions is about a thing
-// that no longer exists. What survives — and is the sharper property — is that
-// the SAME binding chain now produces ZERO reads in both directions, and that
-// the cubit registers no lifecycle listener at all, because it has nothing to
-// gate.
-//
-// The `AppLifecycleGate.debugListenerCount` assertions are kept and INVERTED.
-// They are the load-bearing ones: a `LifecyclePoller` subscribes to the gate,
-// so `debugListenerCount == 0` on a live cubit is direct, structural evidence
-// that no poller was constructed — evidence a read-count assertion alone
-// cannot give (a poll whose reads all happened to fail would look identical).
 
 import 'dart:async';
 
@@ -114,10 +98,6 @@ void main() {
       final bus = StreamController<void>.broadcast();
       final cubit = _buildCubit(gateway, bus.stream);
       // NOT `await cubit.load()`. Under `testWidgets` the binding owns the
-      // clock, and awaiting a cubit future directly in the test body can park
-      // forever when nothing pumps a frame to drain it — this test hung for the
-      // full 10-minute timeout that way. Drive it with pumps instead, which is
-      // what every other widget-level case here does.
       unawaited(cubit.load());
       await tester.pump();
       await tester.pump();
@@ -146,7 +126,6 @@ void main() {
       );
 
       // POSITIVE CONTROL. Without this the run above is indistinguishable from
-      // a cubit that was never loaded and a gateway nobody holds.
       bus.add(null);
       await tester.pump();
       expect(gateway.loadHistoryCalls, 2, reason: 'push drives one re-pull');

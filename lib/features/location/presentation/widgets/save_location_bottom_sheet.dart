@@ -4,7 +4,6 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/saved_location.dart';
 
-/// Result returned by [showSaveLocationBottomSheet].
 class SaveLocationResult {
   const SaveLocationResult({
     required this.category,
@@ -15,19 +14,11 @@ class SaveLocationResult {
   final String label;
 }
 
-/// Shows a bottom sheet offering to save the given lat/lng as
-/// Home, Work, or Other (T-MOB-012 AC2).
-///
-/// Returns [SaveLocationResult] when the user taps Save, or `null` when
-/// they tap Skip or dismiss the sheet.
 Future<SaveLocationResult?> showSaveLocationBottomSheet(
   BuildContext context,
 ) {
   return showModalBottomSheet<SaveLocationResult>(
     context: context,
-    // EXEMPT: OmdsBottomSheet does not expose the form-field content
-    // pattern required here (radio group + text input). The sheet is
-    // styled with OMDS tokens throughout (T-MOB-012).
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.only(

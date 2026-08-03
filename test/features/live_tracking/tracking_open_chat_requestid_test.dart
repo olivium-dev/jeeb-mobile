@@ -1,16 +1,5 @@
 import 'dart:async';
 // BUG-17 fix (a2) — the tracking screen's pinned-summary "Open chat" routes by
-// the REQUEST id (== correlationKey), NEVER a conversationId.
-//
-// `ChatDetailScreen` resolves the order thread via
-// `GET /v1/conversations?correlationKey={requestId}`, so routing
-// `order_summary_open_chat` with `info.conversationId` 404s that first lookup
-// (the physical-run14 chat-load 404). The header must prefer `info.requestId`
-// (falling back to the delivery id), never the conversationId.
-//
-// Drives the real LiveTrackingScreen + LiveTrackingCubit to a ready state with
-// a summary-bearing delivery row over a real GoRouter, taps the open-chat CTA,
-// and asserts the resolved `chat-detail` id.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -75,8 +64,6 @@ void main() {
     '— NEVER the conversationId that 404s the resolve (BUG-17)',
     (tester) async {
       // A summary-bearing delivery row (price + jeeberName ⇒ hasSummary) that
-      // carries BOTH a requestId and a phantom conversationId. `picked` avoids
-      // the "on the way" snackbar / delivered auto-advance.
       const info = DeliveryTrackingInfo(
         deliveryId: 'delivery-777',
         currentStage: TrackingStage.picked,

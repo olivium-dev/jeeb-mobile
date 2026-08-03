@@ -29,9 +29,6 @@ void main() {
 
     expect(find.text('Hadi'), findsOneWidget);
     // MoneyFormat renders USD as "$42.50" (currency-unification lane), carried
-    // verbatim in the fee pill. Pre-existing stale assertion (was "42.50" + a
-    // separate "USD") repaired here so the offers suite stays green.
-    // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
     expect(find.text('\u2066\$42.50\u2069'), findsOneWidget);
     expect(find.text('18 min ETA'), findsOneWidget);
     expect(find.text('Motorcycle'), findsOneWidget);
@@ -59,10 +56,6 @@ void main() {
 
     expect(find.text('Accepting…'), findsOneWidget);
     // OfferCard uses `OmdsButtonLoading` as the in-flight icon (OMDS sweep
-    // replaced the raw `CircularProgressIndicator`). `OmdsButtonLoading`
-    // still wraps a `CircularProgressIndicator` internally, but assert on
-    // the OMDS type so the test fails loudly if the design system swaps
-    // implementations.
     expect(find.byType(OmdsButtonLoading), findsOneWidget);
   });
 
@@ -188,8 +181,6 @@ void main() {
     expect(find.text('دراجة هوائية'), findsOneWidget);
   });
 
-  // ---------------------------------------------------------------------------
-  // W6 "People, not UUIDs" (sprint-009 SW-08): identity + honest ratings.
   // ---------------------------------------------------------------------------
 
   testWidgets(

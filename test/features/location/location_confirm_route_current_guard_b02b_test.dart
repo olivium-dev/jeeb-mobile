@@ -1,21 +1,4 @@
 // B-02b — the create-success navigation must be gated on route-CURRENTNESS,
-// not merely on `mounted`.
-//
-// The Confirm CTA's `POST /requests` can outlive the location-select route. The
-// original guard only disabled the Confirm CTA and only re-checked `mounted`
-// before navigating — but a PUSH (capture-location / saved-addresses /
-// dictation) leaves this footer MOUNTED yet no longer the top route. On
-// completion the `mounted`-only gate still passed, so `goNamed('waiting…')`
-// fired the waiting surface out from underneath the newly-pushed route (a rogue
-// navigation).
-//
-// The fix has two halves, both proven here against the REAL production
-// `AppRouter`:
-//   1. the body's nav rows (add-location, saved-addresses) are LOCKED while a
-//      create is in flight, so the user cannot push them mid-POST; and
-//   2. the success nav additionally requires `ModalRoute.isCurrent`, so any
-//      residual push path (dictation mic, deep link, back-then-forward) cannot
-//      let the create yank the user to the waiting surface.
 
 import 'dart:async';
 
@@ -135,8 +118,6 @@ void main() {
 
     setUp(() async {
       // A tall viewport so the whole location-select body (including the
-      // below-the-fold add-location row) is laid out without scrolling — the
-      // lazy ListView otherwise builds no element for off-screen rows.
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       final view = binding.platformDispatcher.views.first;
       view.physicalSize = const Size(1080, 3200);
@@ -159,8 +140,6 @@ void main() {
       );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // If the guard regressed and the waiting surface DID mount, a failing
-      // waiting repo keeps it timer-free (so the assertion, not a leaked timer,
-      // is what fails).
       sl.registerLazySingleton<WaitingRepository>(
         () => FakeWaitingRepository(
           failure: const WaitingException(WaitingFailure.network),
@@ -207,9 +186,6 @@ void main() {
         await pumpToInFlight(tester);
 
         // The add-location row is now wrapped by a locking IgnorePointer
-        // (`_SubmitLock`). Found by widget type — IgnorePointer strips the
-        // subtree's semantics while active, so a semantics-id finder can't see
-        // the row, which is itself proof it is locked out.
         final addRow = find.byType(ClientLocationAddRow);
         expect(addRow, findsOneWidget);
         final lock = find.ancestor(
@@ -225,7 +201,6 @@ void main() {
         );
 
         // Tapping the add-location row while in flight must NOT push
-        // capture-location — the lock swallows the tap.
         await tester.tap(addRow, warnIfMissed: false);
         await tester.pump();
         expect(
@@ -253,10 +228,6 @@ void main() {
         final router = await pumpToInFlight(tester);
 
         // Residual push path: the user opens the capture route while the POST is
-        // in flight (via go_router). This is the end-to-end no-rogue-nav check;
-        // whichever mechanism applies (here go_router disposes the covered page,
-        // so `mounted` alone catches it), the create must NOT land the user on
-        // the waiting surface from underneath the pushed route.
         router.pushNamed('capture-location');
         await tester.pumpAndSettle();
         expect(
@@ -265,9 +236,6 @@ void main() {
         );
 
         // Complete the create. The success nav is suppressed: we stay on the
-        // pushed capture route (its Pin CTA is still shown). A rogue `goNamed`
-        // would REPLACE the stack and unmount this screen, so the Pin CTA would
-        // vanish and this assertion would fail.
         submission.release();
         await tester.pump();
         await tester.pump();
@@ -286,13 +254,6 @@ void main() {
   });
 
   // Direct, harness-free proof that the route-currentness RULE is load-bearing.
-  // The widget tests above prove the observable no-rogue-nav behavior, but in
-  // the go_router harness a page push disposes the covered footer (mounted →
-  // false), so `mounted` alone already suppresses those paths and a widget test
-  // cannot isolate the `isCurrent` term. This unit group exercises the guard
-  // predicate directly: dropping the `isRouteCurrent` term (a `mounted`-only
-  // regression) flips the mounted-but-not-current case and fails here — the
-  // mutation-catch the reviewer asked for, at the rule level.
   group('B-02b — shouldRouteAfterCreate (route-currentness predicate)', () {
     test('navigates only when mounted AND the route is current', () {
       expect(

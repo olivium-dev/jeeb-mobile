@@ -1,29 +1,4 @@
 // b02 wave D — the refresh bus routes by TOPIC.
-//
-// Why this file exists. By the end of wave C the payload-less, category-less
-// `PushRefreshSignals` had twelve subscription sites, and every push woke all
-// of them. That was survivable while a clock drove those surfaces: the clock
-// bounded the rate. Wave A.2 (#183) put `chat` on the bus and the bound went
-// away — the trigger became the MESSAGE rate, so one inbound chat message fanned
-// out into the open thread's re-pull (wanted) plus `ChatDetailScreen`'s summary
-// (three gateway reads), the delivery-detail hub, the customer home summary,
-// the jeeber active-deliveries card and the jeeber request feed (all unwanted,
-// because a message changes none of them). A busy conversation could out-read
-// the 10s poll the conversion was supposed to retire.
-//
-// Two things are asserted here, and BOTH are needed:
-//
-//   * NEGATIVE — a `chat` push must not wake an order/offer/feed subscriber.
-//     This is the fan-out fix.
-//   * POSITIVE — every push that genuinely concerns a subscriber still wakes
-//     it. Routing is the one change in this batch that can make a surface go
-//     silently stale, which is invisible on the device and in a screenshot, so
-//     each negative below is paired with the positive that rules out "the
-//     subscriber is simply dead".
-//
-// The handler's category→topic map is exercised through the REAL
-// `PushNotificationHandler`, not by calling `signal()` directly, so a mistake
-// in the mapping is caught here rather than only on a phone.
 
 import 'dart:async';
 
@@ -200,11 +175,6 @@ void main() {
   });
 
   // Scope note, so this file does not read as claiming more than it proves:
-  // `rating` / `kyc` / `settings` / `offerLost` / `other` never reached the
-  // refresh bus at all, before wave D or after — `_maybeSignalStatusChange`
-  // returns early for anything outside its `idless` and `orderish` sets. Wave D
-  // did not change that, and pinning it here is what stops a future reader from
-  // assuming the topic map widened the set of categories that publish.
   test('a category outside the publishing sets still publishes NOTHING — '
       'wave D changed the routing, not which categories reach the bus',
       () async {

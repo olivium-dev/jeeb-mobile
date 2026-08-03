@@ -3,14 +3,8 @@ import 'package:equatable/equatable.dart';
 import '../domain/delivery_receipt.dart';
 import '../domain/delivery_receipt_repository.dart';
 
-/// Screen-level read lifecycle (40_GUARDRAILS_ARCH §2): cold-load the receipt
-/// view (cash amount + Jeeber name + proof photo) before the prompt renders.
 enum DeliveryReceiptStatus { initial, loading, loaded, failed }
 
-/// The confirm-receipt action sub-status, kept separate from the screen
-/// `status` so the in-row spinner / failure banner don't tear down the loaded
-/// body. `succeeded` is the one-shot the screen listens for to navigate to the
-/// rating screen (JM-034).
 enum ReceiptConfirmStatus { idle, inFlight, succeeded, failed }
 
 class DeliveryReceiptState extends Equatable {

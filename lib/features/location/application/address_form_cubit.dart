@@ -3,8 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../domain/address_form_repository.dart';
 import 'address_form_state.dart';
 
-/// Drives the JM-050 address-detail-form save (create when [editId] is null,
-/// update otherwise). Imports `domain/` only (40_GUARDRAILS_ARCH §1).
 class AddressFormCubit extends Cubit<AddressFormState> {
   AddressFormCubit({
     required AddressFormRepository repository,
@@ -19,8 +17,6 @@ class AddressFormCubit extends Cubit<AddressFormState> {
   final String _userId;
   final String? _editId;
 
-  /// Persists [draft]. On success emits [AddressFormStatus.saved] (the screen's
-  /// `listener` fires the one-shot nav to `saved-addresses`).
   Future<void> save(AddressFormDraft draft) async {
     if (state.isSaving) return;
     emit(state.copyWith(status: AddressFormStatus.saving, clearError: true));
@@ -42,7 +38,6 @@ class AddressFormCubit extends Cubit<AddressFormState> {
     }
   }
 
-  /// One-shot error acknowledgement so a banner/snackbar replay doesn't loop.
   void acknowledgeError() {
     emit(state.copyWith(status: AddressFormStatus.editing, clearError: true));
   }

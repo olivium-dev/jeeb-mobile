@@ -57,7 +57,6 @@ void main() {
   setUpAll(_loadArbs);
 
   // Pin a realistic phone window so the list-empty content is exercised at a
-  // representative mobile width.
   setUp(() {
     final view =
         TestWidgetsFlutterBinding.instance.platformDispatcher.implicitView!;

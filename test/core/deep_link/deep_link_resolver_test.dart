@@ -1,12 +1,4 @@
 // Unit tests for the pure deep-link resolution plumbing (Sprint 3 — stream
-// "deeplink"). Mirrors the `notification_deep_link_test.dart` style: a pure
-// function/class, no Flutter binding required.
-//
-// Proves: (1) custom-scheme `jeeb://` links fold the host back into the path so
-// they resolve to the intended GoRoute; (2) query strings survive; (3) https
-// universal links drop the domain; (4) the auth-required classification; and
-// (5) malformed / traversal / hostile ids are rejected (return null) so a
-// crafted link can never blind-open a screen.
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -93,8 +85,6 @@ void main() {
   group('DeepLinkResolver — hostile / malformed ids rejected', () {
     test('path traversal is neutralised, never escapes (no .. in output)', () {
       // Dart `Uri.parse` RFC-normalises dot-segments before we see them, so a
-      // `..` can never escape the route tree — it collapses to a harmless
-      // in-app location that still passes the auth gate.
       final a = resolver.resolveLocation(u('jeeb://orders/..'));
       expect(a, '/orders');
       expect(a, isNot(contains('..')));

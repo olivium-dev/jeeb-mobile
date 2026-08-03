@@ -1,20 +1,4 @@
 // BUG-17 fix (a1) — In-Progress "Open chat" routes by the REQUEST/correlation
-// id, NEVER a conversationId.
-//
-// The order-chat surface (`/chat/:id`, `chat-detail`) resolves the thread via
-// `GET /v1/conversations?correlationKey={requestId}` — correlationKey == the
-// request id. Routing "Open chat" with a (possibly phantom) conversationId
-// therefore 404s that first lookup and drops the customer into a wrong/empty
-// thread — the physical-run14 chat-load 404 storm. This pins the DEFAULT
-// `InProgressTab._navigateToChat` behavior over a real GoRouter:
-//   * the path id is `ClientHomeRequest.chatThreadId` (the parent
-//     request/correlation id — `chatCorrelationId` when the delivery row
-//     diverges, else `id`), NEVER `conversationId`;
-//   * the delivery id rides along as `?deliveryId=` so the in-chat "Track
-//     order" CTA still resolves.
-//
-// Uses `InMemoryClientHomeRepository` (not the Dio mock harness) so the rows
-// are deterministic and the test exercises the real widget → GoRouter path.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -123,7 +107,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // THE FIX: chat opens on the REQUEST/correlation id, never the phantom
-        // conversationId (which would 404 the correlationKey resolve).
         expect(_navigatedId, 'req-123');
         expect(_navigatedId, isNot('conv-should-not-be-used'));
         // ...and the delivery id rides along for the in-chat Track CTA.

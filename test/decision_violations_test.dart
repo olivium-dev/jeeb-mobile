@@ -1,18 +1,4 @@
 // Regression locks for the live decision-violation fixes carried on
-// `temp-overall-run-1` (catalog FEATURE_CATALOG.md §F.4 + iter3-dispatch-plan
-// mobile-1 items P5/P7/P8/P9). Each test pins one decision so a future edit
-// cannot silently reintroduce the violation:
-//
-//   * D56  — the mandatory rating offers NO close/skip/dismiss affordance and
-//            the system back gesture is suppressed (PopScope canPop:false).
-//   * D52  — a FINAL KYC rejection offers NO resubmit CTA (appeal via support
-//            only); `kyc_rejected_resubmit_cta` must never surface.
-//   * D20  — the personal-details + KYC contract no longer carries any
-//            "Vehicle number" string (the stale per-screen contract strings
-//            were removed to align with the removed field).
-//   * Earnings framing — the per-delivery settlement line is framed fee-only
-//            ("Platform fee", D41/D44), never the misleading "Commission"
-//            (platform-takes-a-cut) framing.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -157,7 +143,6 @@ void main() {
       final en = File('lib/l10n/app_en.arb').readAsStringSync();
       final ar = File('lib/l10n/app_ar.arb').readAsStringSync();
       // The stale per-screen contract keys were removed to align with the
-      // already-removed field (catalog line 53).
       for (final key in const [
         'dmOnboardingAddressVehicleNumberLabel',
         'dmOnboardingAddressVehicleNumberHint',
@@ -201,7 +186,6 @@ void main() {
       await tester.pump();
 
       // Fee-only framing (D41/D44): the line reads "Platform fee", and the
-      // misleading "Commission" framing must not appear.
       expect(find.textContaining('Platform fee'), findsOneWidget);
       expect(find.textContaining('Commission'), findsNothing);
       expect(find.text('Total cash kept'), findsOneWidget);

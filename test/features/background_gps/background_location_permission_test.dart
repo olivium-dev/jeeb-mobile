@@ -1,37 +1,4 @@
 // P0 — the jeeber GPS uploader was DEAD on Android 10+, and dead SILENTLY.
-//
-// Root cause (re-derived first-hand from `geolocator_android-5.0.3`, not from a
-// prior report):
-//
-//   PermissionManager.java:71-76   checkPermissionStatus()
-//     boolean wantsBackgroundLocation =
-//         PermissionUtils.hasPermissionInManifest(
-//             context, Manifest.permission.ACCESS_BACKGROUND_LOCATION);
-//     if (!wantsBackgroundLocation) return LocationPermission.whileInUse;
-//
-//   PermissionManager.java:104-111 requestPermission()
-//     if (SDK_INT >= Q && hasPermissionInManifest(ACCESS_BACKGROUND_LOCATION)) {
-//       if (checkPermissionStatus(activity) == whileInUse) {
-//         permissionsToRequest.add(ACCESS_BACKGROUND_LOCATION);
-//       }
-//     }
-//
-// Both gates read the MANIFEST. With only FINE + COARSE declared, geolocator
-// could not return `always` on any API >= 29 no matter what the user tapped, so
-// `BackgroundGpsCubit.start()` — which demands `always` — parked in
-// `permissionDenied` on every delivery and `POST /location/update` was never
-// called once. `adb shell pm grant … ACCESS_BACKGROUND_LOCATION` exits 0 and
-// does nothing while the app does not declare it, which is why hand-testing
-// never caught it.
-//
-// This suite pins BOTH halves of the fix:
-//   §1 the manifest declaration (the cause), as an invariant;
-//   §2 the Android 10+ INCREMENTAL runtime flow, including the denial and the
-//      permanently-denied paths — a request that succeeds is not the interesting
-//      case here;
-//   §3 the `[jeeb-diag]` breadcrumb (the failure is now LOUD in logcat);
-//   §4 the OMDS banner on the Active Delivery screen (the failure is now loud
-//      to the jeeber, who is the only person who can fix it).
 
 import 'dart:convert';
 import 'dart:io';
@@ -167,8 +134,6 @@ void main() {
 
     test('the foreground permissions it escalates FROM are still declared', () {
       // getLocationPermissionsFromManifest (PermissionManager.java:209-219)
-      // THROWS PermissionUndefinedException when neither is present — which
-      // would break the one-shot pickup-location flow too, not just this one.
       expect(manifest.contains('android.permission.ACCESS_FINE_LOCATION'),
           isTrue);
       expect(manifest.contains('android.permission.ACCESS_COARSE_LOCATION'),
@@ -176,12 +141,6 @@ void main() {
     });
 
     // P1, 2026-08-01. `always` makes the permission REACHABLE; it does not keep
-    // the stream alive once the app is no longer visible. A plain position
-    // stream belongs to the activity, so Android's background-location
-    // throttling (API 26+) starves it while the cubit still reports
-    // `phase:"tracking"`. The gateway now asks geolocator for a foreground
-    // service (`AndroidSettings.foregroundNotificationConfig`), and these two
-    // permissions are what make that service legal to start.
     test('the foreground-service permissions backing background streaming are '
         'declared', () {
       expect(
@@ -204,7 +163,6 @@ void main() {
     test('a cold start asks for FOREGROUND first, then background — never '
         'both in one request', () async {
       // Android 11+ IGNORES a combined foreground+background request and
-      // grants neither, so the order here is the whole fix.
       final gateway = FakeGeocaptureGateway(
         permissionScript: <LocationPermission>[
           LocationPermission.notDetermined, // currentPermission
@@ -256,9 +214,6 @@ void main() {
     test('DENIAL PATH: the escalation coming back whileInUse parks the '
         'uploader — it does NOT start streaming', () async {
       // The Android 11+ FIRST-RUN outcome: the platform does not grant
-      // "Allow all the time" from a dialog at all. Uploading on a whileInUse
-      // grant is exactly the "pretend it worked" behaviour that produced a
-      // customer map full of nothing.
       final gateway = FakeGeocaptureGateway(
         permissionScript: <LocationPermission>[
           LocationPermission.whileInUse, // current
@@ -375,7 +330,6 @@ void main() {
       expect(parked['deliveryId'], _deliveryId);
 
       // …and a `_failure`-suffixed record, which `Diag._isFailureRecord`
-      // matches to flush the persistence buffer promptly.
       final failures = events('bg_gps_permission_failure');
       expect(failures, hasLength(1));
       expect(
@@ -400,7 +354,6 @@ void main() {
       expect(events('bg_gps_permission_failure'), isEmpty);
 
       // The point of the whole breadcrumb: the two runs are TELLABLE APART
-      // from logcat alone. Before this change both emitted nothing.
       expect(parkedOrTracking, isNot(contains('permissionDenied')));
     });
 
@@ -474,9 +427,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The uploader parks on its OWN — nothing here forces the state, so this
-      // exercises the real path: gateway → cubit → mirror → screen.
-      // `runAsync` because the cubit's teardown/permission awaits resolve on
-      // microtasks the fake-async test zone only drains while pumping.
       await tester.runAsync(() => gps.start(_deliveryId));
       await tester.pumpAndSettle();
       expect(find.byKey(GpsPermissionBanner.bannerKey), findsOneWidget,

@@ -1,22 +1,4 @@
-// Regression guards for the Semantics auto-merge defects
-// (screens 09/12/14/15 — original CAP-1 set; 16/17/22/26/27 — this batch).
-//
-// Each of the four cards below wraps an OUTER `Semantics(identifier:)` (or a
-// Row/Column) around a NESTED `Semantics(identifier:)` for an interactive
-// element. Without an explicit Semantics *boundary* the ambient auto-merge
-// folds the inner node into the outer one, so only the OUTER identifier
-// survives and the INNER (test- and accessibility-facing) identifier is
-// swallowed — Maestro and screen readers can no longer address it.
-//
-// The fix adds `explicitChildNodes: true` (and `container: true` where the
-// boundary is itself an identified wrapper) so BOTH identifiers surface as
-// their own queryable `SemanticsNode`. These tests assert exactly that: each
-// pair is independently findable via `find.bySemanticsIdentifier`. They FAIL
-// on the pre-fix source (inner id swallowed → `findsNothing`) and PASS after.
-//
-// The repo's canonical Semantics-identifier finder is Flutter's built-in
-// `find.bySemanticsIdentifier(...)` (see test/delivery_create_screens_test.dart
-// and test/client_home_screen_test.dart).
+// Regression guards for Semantics auto-merge defects.
 
 import 'dart:io';
 import 'dart:typed_data';
@@ -42,7 +24,6 @@ import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-// --- This-batch defects (screens 16/17/22/26/27) ---
 import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/delivery_tracking_panel.dart';
 import 'package:jeeb_mobile/features/rating/presentation/rating_screen.dart';
@@ -55,7 +36,6 @@ import 'package:jeeb_mobile/features/jeeber_request_feed/data/request_feed_model
 import 'package:jeeb_mobile/features/jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import 'package:jeeb_mobile/features/delivery_man_profile/presentation/widgets/delivery_man_meta_row.dart';
 
-// --- Sprint-6 a11y sweep (JM-049 class) additions ---
 import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/order_summary_pinned_header.dart';
 import 'package:jeeb_mobile/features/reviews/domain/reviews_repository.dart';
 import 'package:jeeb_mobile/features/reviews/presentation/reviews_l10n.dart';
@@ -101,14 +81,11 @@ Widget _harness(Widget child) {
 }
 
 void main() {
-  // b02: the pinned header's expand choice is SESSION state and widget
-  // tests share one process — reset it so a test that expands cannot make
-  // the next test's collapsed-by-default assertion pass (or fail) for the
-  // wrong reason.
+  // Reset header expansion state between tests.
   setUp(ChatHeaderExpansionStore.instance.reset);
   setUpAll(_loadArbs);
 
-  // A tall, wide surface so nothing is laid out off-screen / culled.
+  // Large viewport to prevent culling.
   setUp(() {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
     final view = binding.platformDispatcher.views.first;
@@ -134,13 +111,11 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Outer id preserved.
         expect(
           find.bySemanticsIdentifier('request_type_current_location_label'),
           findsOneWidget,
           reason: 'The current-location label identifier must remain queryable.',
         );
-        // Previously-swallowed inner button id now surfaces.
         expect(
           find.bySemanticsIdentifier('request_type_change_location_button'),
           findsOneWidget,
@@ -156,8 +131,6 @@ void main() {
       'surfaces BOTH the per-message id and the read double-tick id as '
       'distinct nodes',
       (tester) async {
-        // `author: me` + `status: read` → routes through `_TextBubble`, whose
-        // sender footer renders the read double-tick carrying the inner id.
         final message = DeliveryChatMessage.text(
           id: 'm-42',
           author: ChatAuthor.me,
@@ -168,13 +141,11 @@ void main() {
         await tester.pumpWidget(_harness(ChatMessageBubble(message: message)));
         await tester.pumpAndSettle();
 
-        // Outer per-message id preserved.
         expect(
           find.bySemanticsIdentifier('chat_detail_message_m-42'),
           findsOneWidget,
           reason: 'The per-message identifier must remain queryable.',
         );
-        // Previously-swallowed read double-tick id now surfaces.
         expect(
           find.bySemanticsIdentifier('chat_detail_message_read'),
           findsOneWidget,
@@ -211,20 +182,17 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Avatar-stack id (the one that previously survived the auto-merge).
         expect(
           find.bySemanticsIdentifier('orders_replies_avatar_stack_rep-7'),
           findsOneWidget,
           reason: 'The avatar-stack identifier must remain queryable.',
         );
-        // JM-027 AC1: Check Offers CTA surfaces as its own node.
         expect(
           find.bySemanticsIdentifier('replies_check_offers_cta'),
           findsOneWidget,
           reason: 'JM-027 replies_check_offers_cta must surface as its own '
               'node (explicitChildNodes boundary keeps it un-merged).',
         );
-        // JM-027 AC2: Accept CTA surfaces as its own node.
         expect(
           find.bySemanticsIdentifier('replies_accept_cta'),
           findsOneWidget,
@@ -253,14 +221,11 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Outer card id preserved.
         expect(
           find.bySemanticsIdentifier('orders_active_card_act-3'),
           findsOneWidget,
           reason: 'The active-card identifier must remain queryable.',
         );
-        // Previously-swallowed track-order button id now surfaces. The Track
-        // CTA renders only for accepted/atPickup/enRoute — enRoute above.
         expect(
           find.bySemanticsIdentifier('orders_track_order_button_act-3'),
           findsOneWidget,
@@ -271,11 +236,6 @@ void main() {
     );
   });
 
-  // SCREEN-LEVEL guards. The Maestro flows exercise these cards inside their
-  // host screens (RequestTypeScreen, ClientHomeScreen) — not in isolation — so
-  // these tests render the real screen and assert the previously-swallowed
-  // inner identifiers surface there too. They also localize the A1/A3
-  // reproduction to the exact context the live flow addresses.
   group('A1 screen-level (RequestTypeScreen Location section)', () {
     testWidgets(
       'change-location button id is queryable within the full screen',
@@ -329,11 +289,6 @@ void main() {
     );
   });
 
-  // B1 (screen 16) — REPRODUCING swallow. On the pre-fix source the
-  // `_TrackingStepper` Semantics has no `container: true`, so the multi-child
-  // OMDSLabeledStepperProgress labels fold the `tracking_progress_stepper`
-  // identifier up into the `tracking_status_panel` node and it is swallowed.
-  // (Verified: `findsNothing` pre-fix → `findsOneWidget` post-fix.)
   group('B1 DeliveryTrackingPanel stepper (screen 16 / Figma 56560:1772)', () {
     testWidgets(
       'surfaces BOTH the panel-root id and the progress-stepper id as '
@@ -352,13 +307,11 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Outer panel id preserved (already had container: true).
         expect(
           find.bySemanticsIdentifier('tracking_status_panel'),
           findsOneWidget,
           reason: 'The panel-root identifier must remain queryable.',
         );
-        // Previously-swallowed stepper id now surfaces.
         expect(
           find.bySemanticsIdentifier('tracking_progress_stepper'),
           findsOneWidget,
@@ -369,11 +322,6 @@ void main() {
     );
   });
 
-  // B2 (screen 17) — JM-034: the legacy `/feedback` RatingScreen is now the
-  // mandatory-compliant variant. It surfaces the W1 contract ids `rating_root`
-  // + `rating_submit_cta` as distinct boundary nodes (the footer Semantics is
-  // an explicit boundary so the submit id does not fold into `rating_root`),
-  // and per D56 it exposes NO skip/close control (`rating_skip_cta` absent).
   group('B2 RatingScreen footer (screen 17 / Figma 56614:20132)', () {
     testWidgets(
       'surfaces rating_root + rating_submit_cta and no skip control',
@@ -397,7 +345,6 @@ void main() {
           reason: 'The submit-button identifier must surface as its own node '
               '(explicit Semantics boundary, not folded into rating_root).',
         );
-        // AC1/D56: mandatory path exposes no skip/dismiss control.
         expect(
           find.bySemanticsIdentifier('rating_skip_cta'),
           findsNothing,
@@ -412,11 +359,6 @@ void main() {
     );
   });
 
-  // B3 (screen 22 / JM-038) — surfacing lock on the service-area step. The
-  // `_SelectLocationRow` Semantics (button + label) is a merge boundary; the
-  // `container + explicitChildNodes` guard keeps the nested
-  // `dm_onboarding_location_value` node from being folded in, and the required
-  // home-base `service_area_map_pin` must surface as its own node (JM-038 AC2).
   group('B3 DmOnboardingServiceAreaStep (screen 22 / Figma 56591:5337)', () {
     testWidgets(
       'surfaces the select-location row, location-value, and map-pin as '
@@ -439,25 +381,21 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Select-location row id surfaces.
         expect(
           find.bySemanticsIdentifier('service_area_select_location'),
           findsOneWidget,
           reason: 'The select-location row identifier must remain queryable.',
         );
-        // Nested value id is not swallowed by the button-row merge boundary.
         expect(
           find.bySemanticsIdentifier('dm_onboarding_location_value'),
           findsOneWidget,
           reason: 'The location-value identifier must surface as its own node.',
         );
-        // The required home-base pin surfaces (JM-038 AC2).
         expect(
           find.bySemanticsIdentifier('service_area_map_pin'),
           findsOneWidget,
           reason: 'The home-base map pin must surface as its own node.',
         );
-        // D51: the distance slider is gone.
         expect(
           find.bySemanticsIdentifier('dm_onboarding_distance_slider'),
           findsNothing,
@@ -467,16 +405,6 @@ void main() {
     );
   });
 
-  // B4 (screen 26) — HARDENING LOCK (not a reproducing failure).
-  //
-  // HONESTY NOTE: in a Flutter widget test BOTH ids are ALREADY distinct nodes
-  // on the pre-fix source — `Semantics(button: true)` does NOT imply
-  // `mergeAllDescendantsIntoThisNode`, so the action node stays a separate
-  // child of the card node and `find.bySemanticsIdentifier` finds both
-  // before AND after the fix. This test therefore does NOT fail pre-fix; it
-  // LOCKS IN the independent-addressability the `explicitChildNodes: true`
-  // hardening guarantees, guarding against a future change that turns the
-  // card into a real merge boundary (e.g. wrapping it in MergeSemantics).
   group('B4 JeeberFeedCard card + accepted action (screen 26 — lock)', () {
     testWidgets(
       'card id and accepted-action id are both independently queryable',
@@ -522,15 +450,6 @@ void main() {
     );
   });
 
-  // B5 (screen 27) — HARDENING LOCK (not a reproducing failure).
-  //
-  // HONESTY NOTE: in a Flutter widget test BOTH meta-row ids are ALREADY
-  // distinct nodes on the pre-fix source — the wrapper `label: text` does not
-  // fold the identifier because the row Semantics is not a merge boundary, so
-  // `find.bySemanticsIdentifier` finds both before AND after. The fix aligns
-  // `DeliveryManMetaRow` with the proven identifier-only `_NameText` pattern
-  // (drops the duplicate wrapper label, adds container: true). This test LOCKS
-  // IN the independent addressability rather than reproducing a failure.
   group('B5 DeliveryManMetaRow rating + availability (screen 27 — lock)', () {
     testWidgets(
       'rating-summary id and availability id are both independently queryable',
@@ -571,19 +490,6 @@ void main() {
     );
   });
 
-  // ── Sprint-6 a11y sweep (JM-049 class) ─────────────────────────────────
-  //
-  // C1 (screen 32 live-tracking / JM-031+JM-032) — REPRODUCING swallow.
-  // `OrderSummaryPinnedHeader` wraps a `container: true` root
-  // (`order_summary_pinned`) around DISPLAY-LEAF `Semantics(identifier:)`
-  // nodes (`order_summary_price` / `_eta` / `_tier` / `_jeeber_name` /
-  // `_cash_label`) that have NO `container: true` of their own. On the
-  // pre-fix source the root container (lacking `explicitChildNodes`) folds
-  // every leaf id up into the `order_summary_pinned` node, so each leaf id
-  // is swallowed (`findsNothing`). The Sprint-6 fix adds
-  // `explicitChildNodes: true` to the root so each leaf surfaces as its own
-  // queryable node. (Verified: `findsNothing` pre-fix → `findsOneWidget`
-  // post-fix for the display leaves.)
   group('C1 OrderSummaryPinnedHeader leaves (screen 32 / JM-031)', () {
     testWidgets(
       'surfaces the root id AND every display-leaf field id as distinct nodes',
@@ -607,14 +513,11 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Root container id preserved.
         expect(
           find.bySemanticsIdentifier('order_summary_pinned'),
           findsOneWidget,
           reason: 'The pinned-summary root id must remain queryable.',
         );
-        // Previously-swallowed display-leaf ids now surface (no container of
-        // their own; recovered only by the root explicitChildNodes boundary).
         for (final id in const [
           'order_summary_jeeber_name',
           'order_summary_price',
@@ -633,13 +536,6 @@ void main() {
     );
   });
 
-  // C2 (JM-068 reviews) — REPRODUCING swallow. The per-row `container: true`
-  // root (`review_<id>`) wraps a DISPLAY-LEAF attribution node
-  // (`review_<id>_reviewer_name`, a bare `Semantics` over `Text`). Pre-fix the
-  // row container folds it in (`findsNothing`); the Sprint-6
-  // `explicitChildNodes: true` boundary keeps it queryable. The report CTA
-  // (`review_<id>_report_cta`) wraps a real button, so it survives either way —
-  // asserted here as a co-located lock.
   group('C2 ReviewRow attribution leaf (JM-068)', () {
     testWidgets(
       'surfaces the row id, the display-leaf reviewer-name id, and the '
@@ -669,7 +565,6 @@ void main() {
           findsOneWidget,
           reason: 'The per-row id must remain queryable.',
         );
-        // Previously-swallowed display-leaf attribution id now surfaces.
         expect(
           find.bySemanticsIdentifier('review_rev-9_reviewer_name'),
           findsOneWidget,
@@ -686,8 +581,7 @@ void main() {
   });
 }
 
-/// Builds a `ClientHomeScreen` on the requested tab over a snapshot that
-/// populates the Replies tab (rep-1, +9 offers) so the Replies card renders.
+/// Builds a ClientHomeScreen with Replies populated.
 Widget _clientHome({required ClientHomeTab initialTab}) {
   final ClientHomeRepository repo =
       InMemoryClientHomeRepository.fromSnapshot(

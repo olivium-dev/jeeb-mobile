@@ -1,10 +1,5 @@
 /// T-MOB-015 — Offer-card Accept / Decline with optimistic UI.
-///
 /// Tests:
-///   - Accept shows loading state optimistically (AC1)
-///   - Decline adds to declinedOfferIds optimistically (AC4)
-///   - 409 response reverts accept and sets error (AC3)
-///   - Multiple accepts blocked while one is in flight
 library;
 
 import 'dart:async';

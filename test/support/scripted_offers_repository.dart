@@ -5,7 +5,6 @@ import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart
 /// Test-only repository that lets each test queue the exact snapshots the
 /// cubit will see across fetch calls. Once the queue is exhausted the most
 /// recent snapshot is replayed — so the cubit polling forever doesn't blow
-/// up the test.
 class ScriptedOffersRepository implements OffersRepository {
   ScriptedOffersRepository({
     required List<OffersSnapshot> snapshots,
@@ -56,7 +55,6 @@ class ScriptedOffersRepository implements OffersRepository {
 
   /// Conversation id the next successful accept returns (the order-chat the
   /// JM-029 confirm navigates to). Null mirrors a gateway that does not surface
-  /// one, exercising the requestId fallback.
   String? acceptConversationId;
 
   @override

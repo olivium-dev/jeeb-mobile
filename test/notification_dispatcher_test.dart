@@ -309,7 +309,6 @@ void main() {
   }
 
   // C1 — the reported bug: a backgrounded new-offer tap must open the
-  // offer-review list, never the phantom `/orders/:requestId` hub.
   testWidgets('routes an opened newOffer tap to the offer-review list',
       (tester) async {
     await _pumpRouter(tester, router);
@@ -361,7 +360,6 @@ void main() {
   });
 
   // C4 — F3: the expiry nudge lands on the waiting surface, the same target
-  // the inbox row already uses.
   testWidgets('routes an opened requestExpired tap to the waiting screen',
       (tester) async {
     await _pumpRouter(tester, router);
@@ -383,7 +381,6 @@ void main() {
   });
 
   // C5 — F5: a CLIENT must never be routed to `/jeeber/requests/:id`
-  // (its recovery path calls the jeeber-only feed → 403, FIX-REQUESTS.md:35).
   testWidgets('a CLIENT role refuses a new_request tap to the shell',
       (tester) async {
     await _pumpRouter(tester, router);
@@ -431,7 +428,6 @@ void main() {
   });
 
   // C7 — back-compat: the pre-P2 constructor call (no roleResolver) is
-  // unchanged and role-blind.
   testWidgets('no roleResolver keeps the legacy role-blind routing',
       (tester) async {
     await _pumpRouter(tester, router);

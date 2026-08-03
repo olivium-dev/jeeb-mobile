@@ -1,19 +1,4 @@
 // Integration wiring tests (INTEGRATION-3).
-//
-// Pins the two coordinated wirings applied while merging
-// feat/qa-keys-batch + feat/request-submission + feat/voice-transcription-result
-// onto integration/first-run:
-//
-//   A. onSent transcript widening — the voice composer's `onSent` now forwards
-//      both the upload id AND the optional machine transcript, and the router
-//      bridges it into the transcription route's `VoiceClip.transcript`. We pin
-//      the consumer end: the transcription route, handed a clip WITH a
-//      transcript, lands on the happy path and shows that transcript (proving
-//      the widened payload is honoured end-to-end through the router).
-//
-//   B. B-3 rating redirect — `/orders/:id/rate` (the frozen `RatingPromptScreen`
-//      placeholder) now redirects to `/orders/:id/mutual-rate` (the real
-//      `MutualRatingScreen`), carrying the delivery id through.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -190,8 +175,6 @@ void main() {
         await tester.pump();
 
         // The screen reads clip.transcript and seeds it into the editable
-        // display — proving the widened onSent payload (id + transcript) is
-        // honoured by the downstream consumer.
         expect(
           find.text(transcript),
           findsOneWidget,

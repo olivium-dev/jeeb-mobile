@@ -17,18 +17,12 @@ Future<void> loadInterTestFont() async {
     await (FontLoader('Inter')..addFont(Future.value(bytes))).load();
   }
 
-  // Flutter's golden test binding does not register Material Icons. Load the
-  // font from the active SDK cache, matching Flutter's own icon golden tests,
-  // so icon glyphs render deterministically rather than as tofu squares.
   final materialIcons = _flutterMaterialIconsFont();
   final materialIconBytes = await materialIcons.readAsBytes();
   await (FontLoader(
     'MaterialIcons',
   )..addFont(Future.value(ByteData.sublistView(materialIconBytes)))).load();
 
-  // Deterministic SIL-OFL Noto Sans Arabic subset containing only glyphs used
-  // by these goldens. It is a distinct fallback family because Inter's regular
-  // face wins weight matching before glyph fallback within the same family.
   final encoded = File(
     'test/support/fonts/noto_sans_arabic_golden.b64',
   ).readAsStringSync().trim();
@@ -38,8 +32,7 @@ Future<void> loadInterTestFont() async {
   )..addFont(Future.value(ByteData.sublistView(arabicBytes)))).load();
 }
 
-/// Adds the deterministic Arabic family to every Material text role used by
-/// the golden harness while preserving the production Inter primary family.
+/// Adds the deterministic Arabic family to every Material text 
 ThemeData withGoldenTestFonts(ThemeData theme) {
   const fallback = <String>[_arabicGoldenFontFamily];
   return theme.copyWith(

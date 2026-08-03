@@ -1,18 +1,3 @@
-// Widget tests for TransactionDetailScreen (JM-056). Proves the screen renders
-// the EXACT Semantics identifiers from 30_BACKLOG JM-056 off an injected
-// WalletTransactionRepository (no DI, no network), that the fee_won variant
-// surfaces the exact 10% rate + the pinned accepted price (D37), that the
-// refund/penalty variant surfaces the dispute link (D2), and that the order link
-// shows only when the row carries a resolved order id.
-//
-//   AC: txn_detail_root host renders.
-//   D37: fee_won → txn_detail_fee_rate ("10%") + txn_detail_pinned_price +
-//        txn_detail_order_link (order present).
-//   D2:  refund/penalty → txn_detail_dispute_link (NO order link).
-//   reserve/released → txn_detail_order_link (NO dispute link).
-//   topup/gift → neither link.
-//   failed load → error state, root survives.
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/wallet/domain/wallet_ledger_repository.dart';
@@ -111,9 +96,7 @@ void main() {
     expect(find.bySemanticsIdentifier('txn_detail_fee_rate'), findsOneWidget);
     expect(
         find.bySemanticsIdentifier('txn_detail_pinned_price'), findsOneWidget);
-    // Exact 10% (D37) — derived from feeRate 0.1.
     expect(find.text('10%'), findsOneWidget);
-    // fee_won carries an order → order link present, dispute link absent.
     expect(find.bySemanticsIdentifier('txn_detail_order_link'), findsOneWidget);
     expect(find.bySemanticsIdentifier('txn_detail_dispute_link'), findsNothing);
   });
@@ -135,7 +118,6 @@ void main() {
     expect(
         find.bySemanticsIdentifier('txn_detail_dispute_link'), findsOneWidget);
     expect(find.bySemanticsIdentifier('txn_detail_order_link'), findsNothing);
-    // refund is not a fee row → no fee breakdown.
     expect(find.bySemanticsIdentifier('txn_detail_fee_rate'), findsNothing);
     expect(find.bySemanticsIdentifier('txn_detail_pinned_price'), findsNothing);
   });

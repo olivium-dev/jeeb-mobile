@@ -1,7 +1,4 @@
 // G3 recovery-trigger tests: the jeeber feed refetches on app RESUME and on
-// shell-tab REFOCUS (mirroring the customer home's TabVisibility re-pull),
-// so a request whose push was dismissed is findable the moment the jeeber
-// looks — without waiting for a WS event or a manual pull-to-refresh.
 
 import 'dart:async';
 
@@ -21,9 +18,6 @@ class _MockRepo extends Mock implements RequestFeedRepository {}
 
 void main() {
   // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
-  // floor. Without a per-test reset the floor bleeds across cases in this file
-  // (they run milliseconds apart) and a genuine resume in test N is silently
-  // folded into test N-1's window.
   setUp(() async => AppResumeSignals.debugReset());
 
   late _MockRepo repo;

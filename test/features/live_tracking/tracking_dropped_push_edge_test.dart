@@ -8,32 +8,12 @@ import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
 
 /// MB1 — THE TRAILING-EDGE DROPPED PUSH.
-///
-/// Ported from `b05/mb1@0ad2752` onto the current main line. The commit could
-/// not be cherry-picked: the drop it repaired sat on a latch
-/// (`_positionReadInFlight`) that only ever existed on `b05/mb1`. On this line
-/// the SAME defect lives one layer up, on `_statusReadInFlight` in
-/// `_refreshFromPush`, which returned outright when a push landed inside another
-/// push's round trip.
-///
-/// Why that is a correctness bug rather than a throttle: this transport has NO
-/// cadence. With a poll, a dropped edge is repaired by the next tick. Here
-/// nothing repairs it — the row and the courier marker stay at the pre-push
-/// snapshot until some later, unrelated event happens to arrive, and the
-/// `cause:"push"` breadcrumb that MB1's V-2 contract counts disappears with it,
-/// so the capture reads as "no push arrived".
-///
-/// Both legs below are POSITIVE controls for the coalesce. Their matching
-/// NEGATIVE control is `tool/mb1/neg-control-dropped-edge.sh`, which strips the
-/// coalesce out of the source and re-runs this file expecting RED.
 class _GatedTrackingRepository
     implements LiveTrackingRepository, LivePositionSource {
   /// One gate per status read, opened by the test. A status read that has no
-  /// gate yet creates one, so the test can always reach in and hold it.
   final List<Completer<void>> statusGates = [];
 
   /// Consumed one per position read; the courier is at a NEW place each time,
-  /// which is what makes a dropped edge visible as a frozen marker.
   final List<GpsPoint> positions = const [
     GpsPoint(lat: 1.0, lng: 1.0),
     GpsPoint(lat: 2.0, lng: 2.0),
@@ -102,7 +82,6 @@ void main() {
       );
       addTearDown(cubit.close);
 
-      // --- screen open: status read 0, position read 0 -> marker at (1,1).
       repo.gate(0).complete();
       await _settle();
       expect(repo.statusReads, 1, reason: 'screen open reads the row once');
@@ -110,29 +89,22 @@ void main() {
       expect(cubit.state.trackingInfo?.jeeberPosition,
           const GpsPoint(lat: 1.0, lng: 1.0));
 
-      // --- push A: enters _refreshFromPush, takes the single-flight latch and
-      //     blocks on gate 1.
       bus.add(null);
       await _settle();
       expect(repo.statusReads, 2, reason: 'push A started a read');
       expect(repo.positionReads, 1,
           reason: 'push A is still inside its status round trip');
 
-      // --- push B lands INSIDE push A's round trip. This is the edge that the
-      //     pre-fix code dropped on the floor.
       bus.add(null);
       await _settle();
       expect(repo.statusReads, 2,
           reason: 'still single-flighted: B must not start a second read now');
 
-      // --- release push A. Its position read consumes (2,2).
       repo.gate(1).complete();
       await _settle();
       expect(cubit.state.trackingInfo?.jeeberPosition,
           const GpsPoint(lat: 2.0, lng: 2.0));
 
-      // --- and now the coalesced trailing edge for push B must drain, all by
-      //     itself, with no clock and no further external event.
       repo.gate(2).complete();
       await _settle();
 
@@ -163,18 +135,12 @@ void main() {
       );
       addTearDown(cubit.close);
 
-      // Screen open completes first, which is what ARMS the push bus.
       repo.gate(0).complete();
       await _settle();
       expect(repo.statusReads, 1);
       expect(repo.positionReads, 1);
       expect(cubit.debugPushRefreshWired, isTrue);
 
-      // `retry()` is NOT covered by `_statusReadInFlight` — deliberately, it is
-      // a user action. So a push landing inside a retry round trip really does
-      // produce two concurrent `_readLivePosition` calls. Without the latch the
-      // two network reads race and the OLDER snapshot can emit last, walking the
-      // marker backwards.
       cubit.retry();
       await _settle();
       bus.add(null);

@@ -151,13 +151,6 @@ void main() {
     });
 
     // b02 polling→push (chat push drives the open thread). This assertion USED
-    // to read `does NOT signal` — and that was the whole bug. `ChatCubit` took
-    // no push input, so on the deployed build a chat push landed and drove
-    // nothing while `GET /v1/conversations/{id}/messages` ticked on a fixed 60s
-    // phase. Now `chat` sits on the id-less branch alongside `offer_accepted` /
-    // `new_request`, and `ChatCubit._refreshFromPush` re-pulls the ONE
-    // conversation it renders (see
-    // `test/features/chat/chat_push_drives_thread_test.dart`).
     test('a foreground chat push signals a refetch (drives the open thread)',
         () async {
       expect(
@@ -169,8 +162,6 @@ void main() {
     });
 
     // …and it does so with NO id in the payload, deliberately: the bus is
-    // payload-less and the chat notifier's keys are `conversationId` /
-    // `requestId`, none of which the id guard below reads first.
     test('a chat push with no ids at all still signals', () async {
       final bare = NotificationMessage(
         id: 's2b',
@@ -195,10 +186,6 @@ void main() {
     });
 
     // PUSH-UI-REACTION (2026-07-05): a foreground `offer_accepted` push means
-    // this jeeber just won a delivery — the "Your active deliveries" card
-    // (ActiveDeliveriesCubit) subscribes to this same bus and must re-pull. The
-    // on-device gap was that nothing signalled a refetch off this push, so the
-    // card only surfaced after a force-restart.
     test('an offer_accepted push signals a status change (active-deliveries '
         'refetch)', () async {
       final accepted = NotificationMessage(
@@ -225,12 +212,6 @@ void main() {
     });
 
     // ---- P2 (b01-20260725), plan change C4 -------------------------------
-    // `offer` and the expiry events used to arrive here inside the `delivery`
-    // bucket. Splitting them into their own categories MUST preserve the
-    // refresh signal, or the customer's Home/Replies surface stops re-pulling
-    // on a foreground new-offer push and falls back to the slow wall-clock
-    // poll. `dart analyze` is BLIND to this regression (the guard is an
-    // `if`, not an exhaustive switch) — these two tests are the only fence.
 
     // B1
     test('a foreground newOffer push carrying a requestId still signals a '
@@ -361,9 +342,6 @@ void main() {
     });
 
     // B6 (P2): the offer-LIFECYCLE bus is jeeber-side only (offer_accepted /
-    // offer_lost — a decision on a jeeber's OWN submitted offer). A customer's
-    // inbound new bid carries an `offerId` too, but it must never flip a
-    // jeeber's pending-offers row.
     test('a newOffer push with an offerId does NOT signal the (jeeber-side) '
         'offer-lifecycle bus', () async {
       final events = await eventsFor(
@@ -374,7 +352,6 @@ void main() {
   });
 
   // B7 (P2): a new-offer push is customer-side inbox noise — it bumps the
-  // inbox total but must NOT touch the jeeber Dashboard-tab new-request badge.
   test('a newOffer push increments the inbox total but not the new-request '
       'badge', () async {
     transport.emitForeground(NotificationMessage(

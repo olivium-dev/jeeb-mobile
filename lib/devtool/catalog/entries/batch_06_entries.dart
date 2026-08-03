@@ -1,56 +1,40 @@
-// DT-04 / F2 — Screen Catalog entries, batch 06.
-//
-// Features covered: language, live_tracking, location, masked_call,
-// mixed_direction, no_offer_timeout.
-//
-// Every builder below renders the REAL feature screen/widget seeded with a
-// LOCAL fake/stub (or a shipped in-memory double) — no network, no GetIt
-// gateway resolution. Repositories that already ship an injectable seam
-// (constructor `repository:`/`cubit:` params) are used as-is; two features
-// (masked_call, and reusing the existing `repository`/`userId`/`cubitFactory`
-// seams elsewhere) needed no new code at all. `masked_call_button.dart` picked
-// up one minimal additive seam (see `seamsAdded` in the batch manifest).
+// DT-04 / F2 — Screen Catalog entries, batch 06 (language, live_tracking,
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:jeeb_mobile/core/di/injection_container.dart';
-import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 
 import 'package:jeeb_mobile/features/language/presentation/screens/language_settings_screen.dart';
 
-import 'package:jeeb_mobile/features/delivery_status/domain/jeeber_summary.dart';
+import '../fixtures/language_settings_screen_fixtures.dart';
+
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_cubit.dart';
-import 'package:jeeb_mobile/features/live_tracking/data/demo_live_tracking_repository.dart';
-import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_screen.dart';
 
+import '../fixtures/live_tracking_screen_fixtures.dart';
+
 import 'package:jeeb_mobile/features/location/cubit/location_picker_cubit.dart';
-import 'package:jeeb_mobile/features/location/data/location_repository.dart';
-import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
-import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
-import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
-import 'package:jeeb_mobile/features/location/domain/saved_location_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/location_picker_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/saved_locations_screen.dart';
+
+import '../fixtures/client_location_screen_fixtures.dart';
+import '../fixtures/location_picker_screen_fixtures.dart';
 
 import 'package:jeeb_mobile/features/masked_call/application/masked_call_cubit.dart';
 import 'package:jeeb_mobile/features/masked_call/presentation/masked_call_button.dart';
 
 import 'package:jeeb_mobile/features/mixed_direction/presentation/mixed_direction_text.dart';
 
-import 'package:jeeb_mobile/features/no_offer_timeout/application/waiting_cubit.dart';
-import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
-import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_request.dart';
 import 'package:jeeb_mobile/features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 
+import '../fixtures/no_offer_timeout_screen_fixtures.dart';
+
 import '../catalog_models.dart';
+import '../fixtures/saved_locations_screen_fixtures.dart';
 
 List<CatalogEntry> get batch06Entries => <CatalogEntry>[
       _languageEntry,
@@ -63,25 +47,12 @@ List<CatalogEntry> get batch06Entries => <CatalogEntry>[
       _noOfferTimeoutEntry,
     ];
 
-// ─────────────────────────────────────────────────────────────────────────
-// language — LanguageSettingsScreen
-// ─────────────────────────────────────────────────────────────────────────
-
-/// Builds a real [LocaleCubit] over the app's actual (already-bootstrapped)
-/// [SharedPreferences] instance — read-only local prefs, no network — with a
-/// [deviceLocaleProvider] override so the two designed rows (English /
-/// Arabic selected) render deterministically regardless of any persisted
-/// choice on this device.
-Widget _languageSettingsPreview(Locale deviceLocale) {
-  final cubit = LocaleCubit(
-    prefs: sl<SharedPreferences>(),
-    deviceLocaleProvider: () => deviceLocale,
-  );
-  return BlocProvider<LocaleCubit>.value(
-    value: cubit,
-    child: const LanguageSettingsScreen(),
-  );
-}
+/// Uses IN-MEMORY prefs (not persisted device storage) to render designed states.
+Widget _languageSettingsPreview(LanguageSettingsScreenCubitFactory create) =>
+    LanguageSettingsScreenPreviewHost(
+      create: create,
+      child: const LanguageSettingsScreen(),
+    );
 
 final CatalogEntry _languageEntry = CatalogEntry(
   feature: 'language',
@@ -89,79 +60,26 @@ final CatalogEntry _languageEntry = CatalogEntry(
   states: [
     CatalogState(
       'English selected',
-      (_) => _languageSettingsPreview(const Locale('en')),
+      (_) => _languageSettingsPreview(
+        LanguageSettingsScreenPreviewFixtures.englishSaved,
+      ),
     ),
     CatalogState(
       'Arabic selected',
-      (_) => _languageSettingsPreview(const Locale('ar')),
+      (_) => _languageSettingsPreview(
+        LanguageSettingsScreenPreviewFixtures.arabicSaved,
+      ),
     ),
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// live_tracking — LiveTrackingScreen
-// ─────────────────────────────────────────────────────────────────────────
-
-const String _trackingDeliveryId = 'DLV-990001';
-
-/// Static repository serving one fixed snapshot (no network, no ticks).
-class _StaticTrackingRepository implements LiveTrackingRepository {
-  const _StaticTrackingRepository(this._info);
-  final DeliveryTrackingInfo _info;
-
-  @override
-  Future<DeliveryTrackingInfo> fetchDeliveryStatus({
-    required String deliveryId,
-  }) async =>
-      _info;
-}
-
-/// Repository that always fails — drives the screen's error state.
-class _FailingTrackingRepository implements LiveTrackingRepository {
-  const _FailingTrackingRepository(this._kind);
-  final LiveTrackingErrorKind _kind;
-
-  @override
-  Future<DeliveryTrackingInfo> fetchDeliveryStatus({
-    required String deliveryId,
-  }) async =>
-      throw LiveTrackingException(_kind);
-}
-
-DeliveryTrackingInfo _atDoorInfo() => const DeliveryTrackingInfo(
-      deliveryId: _trackingDeliveryId,
-      currentStage: TrackingStage.atDoor,
-      stageTimestamps: {},
-      distanceLabel: '0.0 km',
-      etaMinutes: 0,
-      jeeber: JeeberSummary(displayName: 'Rami K.', vehicleLabel: 'Scooter'),
-      requestId: 'REQ-9001',
-      price: 8.5,
-      currency: 'USD',
-      jeeberName: 'Rami K.',
-      tier: 'standard',
-      itemSummary: 'Pharmacy pickup',
-    );
-
-DeliveryTrackingInfo _cancelledInfo() => const DeliveryTrackingInfo(
-      deliveryId: _trackingDeliveryId,
-      currentStage: TrackingStage.ordered,
-      stageTimestamps: {},
-      lifecycle: TrackingLifecycle.cancelled,
-      requestId: 'REQ-9002',
-    );
-
-/// Builds the screen with NO refresh source wired (b02 wave C / N7 removed the
-/// poll entirely), so a catalog preview reads once and leaks no timers.
+/// No refresh source wired (eliminates timer leaks in preview).
 Widget _liveTrackingPreview(LiveTrackingRepository repository) {
-  final cubit = LiveTrackingCubit(
-    repository: repository,
-    deliveryId: _trackingDeliveryId,
-    refreshSignals: const Stream<void>.empty(),
-  );
   return BlocProvider<LiveTrackingCubit>.value(
-    value: cubit,
-    child: const LiveTrackingScreen(deliveryId: _trackingDeliveryId),
+    value: LiveTrackingScreenFixtures.cubit(repository),
+    child: const LiveTrackingScreen(
+      deliveryId: LiveTrackingScreenFixtures.deliveryId,
+    ),
   );
 }
 
@@ -171,62 +89,43 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
   states: [
     CatalogState(
       'In transit',
-      // Reuses the shipped debug-only DemoLiveTrackingRepository double.
-      (_) => _liveTrackingPreview(const DemoLiveTrackingRepository()),
+      (_) => _liveTrackingPreview(
+        const LiveTrackingScreenStaticRepository(
+          LiveTrackingScreenFixtures.inTransitInfo,
+        ),
+      ),
     ),
     CatalogState(
       'At the door (OTP)',
-      (_) => _liveTrackingPreview(_StaticTrackingRepository(_atDoorInfo())),
+      (_) => _liveTrackingPreview(
+        const LiveTrackingScreenStaticRepository(
+          LiveTrackingScreenFixtures.atDoorInfo,
+        ),
+      ),
     ),
     CatalogState(
       'Cancelled (terminal)',
-      (_) => _liveTrackingPreview(_StaticTrackingRepository(_cancelledInfo())),
+      (_) => _liveTrackingPreview(
+        const LiveTrackingScreenStaticRepository(
+          LiveTrackingScreenFixtures.cancelledInfo,
+        ),
+      ),
     ),
     CatalogState(
       'Error (not found)',
       (_) => _liveTrackingPreview(
-        const _FailingTrackingRepository(LiveTrackingErrorKind.notFound),
+        const LiveTrackingScreenFailingRepository(
+          LiveTrackingErrorKind.notFound,
+        ),
       ),
     ),
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// location — LocationPickerScreen (pickup → dropoff → done)
-// ─────────────────────────────────────────────────────────────────────────
-
-/// Drives the REAL [LocationPickerCubit] through its own public methods over
-/// the shipped [InMemoryLocationRepository] (already the DI default until the
-/// gateway endpoints land — no network, fixed in-process catalogue) to reach
-/// each designed step. Fire-and-forget: the short in-memory delays (60-150ms)
-/// settle well before a reviewer looks at the preview.
-LocationPickerCubit _seededLocationPickerCubit({
-  required bool advanceToDropoff,
-  required bool advanceToDone,
-}) {
-  final cubit = LocationPickerCubit(repository: InMemoryLocationRepository());
-  if (advanceToDropoff || advanceToDone) {
-    unawaited(() async {
-      await cubit.detectCurrentLocation();
-      await cubit.confirmAndContinue(); // pickup -> dropoff
-      if (advanceToDone) {
-        await cubit.detectCurrentLocation();
-        await cubit.confirmAndContinue(); // dropoff -> done (saved)
-      }
-    }());
-  }
-  return cubit;
-}
-
-Widget _locationPickerPreview({
-  required bool advanceToDropoff,
-  required bool advanceToDone,
-}) {
+/// mapPickerLauncher null intentionally (two-button Row overflows phone).
+Widget _locationPickerPreview(LocationPickerCubit cubit) {
   return LocationPickerScreen(
-    cubit: _seededLocationPickerCubit(
-      advanceToDropoff: advanceToDropoff,
-      advanceToDone: advanceToDone,
-    ),
+    cubit: cubit,
     onCompleted: (_) {}, // safe no-op — never pops the catalog preview route.
   );
 }
@@ -238,103 +137,23 @@ final CatalogEntry _locationPickerEntry = CatalogEntry(
     CatalogState(
       'Pickup — no selection',
       (_) => _locationPickerPreview(
-        advanceToDropoff: false,
-        advanceToDone: false,
+        LocationPickerScreenFixtures.pickupNoSelection(),
       ),
     ),
     CatalogState(
       'Dropoff — pickup confirmed',
       (_) => _locationPickerPreview(
-        advanceToDropoff: true,
-        advanceToDone: false,
+        LocationPickerScreenFixtures.dropoffPickupConfirmed(),
       ),
     ),
     CatalogState(
       'Confirmed (done)',
       (_) => _locationPickerPreview(
-        advanceToDropoff: true,
-        advanceToDone: true,
+        LocationPickerScreenFixtures.confirmedPair(),
       ),
     ),
   ],
 );
-
-// ─────────────────────────────────────────────────────────────────────────
-// location — SavedLocationsScreen (saved-address manager)
-// ─────────────────────────────────────────────────────────────────────────
-
-/// Local, canned [SavedLocationRepository] — no network. Reused across the
-/// loaded/empty/error designed states via its constructor flags.
-class _StaticSavedLocationRepository implements SavedLocationRepository {
-  const _StaticSavedLocationRepository(this._locations, {this.failFetch = false});
-
-  final List<SavedLocation> _locations;
-  final bool failFetch;
-
-  static const List<SavedLocation> seeded = [
-    SavedLocation(
-      id: 'addr-home',
-      label: 'Home',
-      latitude: 33.8886,
-      longitude: 35.4955,
-      category: SavedLocationCategory.home,
-      address: 'Sassine Square, Ashrafieh',
-      isDefault: true,
-    ),
-    SavedLocation(
-      id: 'addr-office',
-      label: 'Office',
-      latitude: 33.8938,
-      longitude: 35.5018,
-      category: SavedLocationCategory.work,
-      address: 'Beirut Tower, Downtown',
-    ),
-  ];
-
-  @override
-  Future<List<SavedLocation>> fetchSavedLocations() async {
-    if (failFetch) throw const SavedLocationException('fetch_failed');
-    return _locations;
-  }
-
-  @override
-  Future<SavedLocation> saveLocation({
-    required double latitude,
-    required double longitude,
-    required String label,
-    required SavedLocationCategory category,
-    String? address,
-  }) async =>
-      SavedLocation(
-        id: 'new-$label',
-        label: label,
-        latitude: latitude,
-        longitude: longitude,
-        category: category,
-        address: address,
-      );
-
-  @override
-  Future<SavedLocation> updateLocation({
-    required String id,
-    required double latitude,
-    required double longitude,
-    required String label,
-    required SavedLocationCategory category,
-    String? address,
-  }) async =>
-      SavedLocation(
-        id: id,
-        label: label,
-        latitude: latitude,
-        longitude: longitude,
-        category: category,
-        address: address,
-      );
-
-  @override
-  Future<void> deleteLocation(String id) async {}
-}
 
 final CatalogEntry _savedLocationsEntry = CatalogEntry(
   feature: 'location',
@@ -343,32 +162,27 @@ final CatalogEntry _savedLocationsEntry = CatalogEntry(
     CatalogState(
       'Loaded (Home + Office)',
       (_) => const SavedLocationsScreen(
-        repository: _StaticSavedLocationRepository(
-          _StaticSavedLocationRepository.seeded,
+        repository: SavedLocationsScreenFakeRepository(
+          savedLocationsScreenHomeAndOffice,
         ),
       ),
     ),
     CatalogState(
       'Empty',
       (_) => const SavedLocationsScreen(
-        repository: _StaticSavedLocationRepository([]),
+        repository: SavedLocationsScreenFakeRepository([]),
       ),
     ),
     CatalogState(
       'Error',
       (_) => const SavedLocationsScreen(
-        repository: _StaticSavedLocationRepository([], failFetch: true),
+        repository: SavedLocationsScreenFakeRepository([], failFetch: true),
       ),
     ),
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// location — ClientLocationScreen (location-select create step)
-// ─────────────────────────────────────────────────────────────────────────
-
-const String _clientLocationPreviewUserId = 'preview-user-001';
-
+/// currentLocationResolver scripted to avoid live permission prompts.
 final CatalogEntry _clientLocationEntry = CatalogEntry(
   feature: 'location',
   screen: 'Location Select (create flow)',
@@ -376,31 +190,23 @@ final CatalogEntry _clientLocationEntry = CatalogEntry(
     CatalogState(
       'Current location + saved addresses',
       (_) => const ClientLocationScreen(
-        userId: _clientLocationPreviewUserId,
-        repository: FakeLocationSelectRepository(),
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddresses,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
       ),
     ),
     CatalogState(
       'Saved-addresses load error',
       (_) => const ClientLocationScreen(
-        userId: _clientLocationPreviewUserId,
-        repository: FakeLocationSelectRepository(
-          failWith: LocationSelectFailure.network,
-        ),
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddressesUnavailable,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
       ),
     ),
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// masked_call — MaskedCallButton
-// ─────────────────────────────────────────────────────────────────────────
-
-/// A [MaskedCallCubit] that emits [seed] one microtask after construction
-/// (after `BlocProvider`/`BlocConsumer` have mounted and started listening),
-/// so a "calling" designed state renders the same loading affordance the real
-/// [MaskedCallCubit.initiateCall] produces — without touching the (nonexistent
-/// for this cubit) network path at all.
+/// Emits [seed] on microtask (after mount) to avoid network calls.
 class _SeededMaskedCallCubit extends MaskedCallCubit {
   _SeededMaskedCallCubit(MaskedCallState seed) {
     scheduleMicrotask(() {
@@ -440,10 +246,6 @@ final CatalogEntry _maskedCallEntry = CatalogEntry(
     ),
   ],
 );
-
-// ─────────────────────────────────────────────────────────────────────────
-// mixed_direction — MixedDirectionText
-// ─────────────────────────────────────────────────────────────────────────
 
 Widget _mixedDirectionHost(String label, String text) => Scaffold(
       appBar: AppBar(title: const Text('Mixed Direction Text')),
@@ -491,25 +293,11 @@ final CatalogEntry _mixedDirectionEntry = CatalogEntry(
   ],
 );
 
-// ─────────────────────────────────────────────────────────────────────────
-// no_offer_timeout — NoOfferTimeoutScreen (waiting / no-coverage)
-// ─────────────────────────────────────────────────────────────────────────
-
-const String _waitingPreviewRequestId = 'REQ-WAIT-001';
-
-/// Disables the cubit's poll + clock tick streams (empty streams never emit)
-/// so no runaway timers leak from the catalog preview.
-WaitingCubit _staticWaitingCubit(WaitingRepository repository) => WaitingCubit(
-      repository: repository,
-      requestId: _waitingPreviewRequestId,
-      refreshSignals: const Stream<void>.empty(),
-      clockTicks: const Stream<void>.empty(),
-    );
-
+/// Frozen clock (countdown reads exactly 4:30, not variable).
 Widget _waitingPreview(WaitingRepository repository) => NoOfferTimeoutScreen(
-      requestId: _waitingPreviewRequestId,
+      requestId: NoOfferTimeoutScreenPreviewFixtures.requestId,
       repository: repository,
-      cubitFactory: (repo, id) => _staticWaitingCubit(repo),
+      cubitFactory: NoOfferTimeoutScreenPreviewFixtures.inertCubit,
     );
 
 final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
@@ -518,71 +306,32 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
   states: [
     CatalogState(
       'Broadcasting (counting down)',
-      (_) => _waitingPreview(FakeWaitingRepository(
-        seed: WaitingRequest(
-          requestId: _waitingPreviewRequestId,
-          phase: WaitingRequestPhase.broadcasting,
-          notifiedCount: 6,
-          offerCount: 0,
-          receivedAt: DateTime.now(),
-          remainingAtReceipt: const Duration(minutes: 4),
-          displayId: 'ORD-5001',
-          tier: 'express',
-          title: '2 grocery bags from Spinneys',
-        ),
-      )),
+      (_) => _waitingPreview(
+        NoOfferTimeoutScreenPreviewFixtures.broadcasting(),
+      ),
     ),
     CatalogState(
       'Offers arrived',
-      (_) => _waitingPreview(FakeWaitingRepository(
-        seed: WaitingRequest(
-          requestId: _waitingPreviewRequestId,
-          phase: WaitingRequestPhase.offersArrived,
-          notifiedCount: 6,
-          offerCount: 3,
-          receivedAt: DateTime.now(),
-          remainingAtReceipt: const Duration(minutes: 2),
-          displayId: 'ORD-5001',
-          tier: 'express',
-          title: '2 grocery bags from Spinneys',
-        ),
-      )),
+      (_) => _waitingPreview(
+        NoOfferTimeoutScreenPreviewFixtures.offersArrived(),
+      ),
     ),
     CatalogState(
       'No offers yet (window elapsed)',
-      (_) => _waitingPreview(FakeWaitingRepository(
-        seed: WaitingRequest(
-          requestId: _waitingPreviewRequestId,
-          phase: WaitingRequestPhase.broadcasting,
-          notifiedCount: 0,
-          offerCount: 0,
-          receivedAt: DateTime.now(),
-          remainingAtReceipt: Duration.zero,
-          displayId: 'ORD-5002',
-          tier: 'standard',
-        ),
-      )),
+      (_) => _waitingPreview(
+        NoOfferTimeoutScreenPreviewFixtures.noOffersYet(),
+      ),
     ),
     CatalogState(
       'Error',
       (_) => _waitingPreview(
-        FakeWaitingRepository(
-          failure: const WaitingException(WaitingFailure.network),
-        ),
+        NoOfferTimeoutScreenPreviewFixtures.failingLoad(),
       ),
     ),
-    // P7 — the clean-break failure mode: the gateway answered 200 but omitted
-    // `offerDeadlineInSeconds` on a live row. Seeded here so the distinct
-    // contract-break copy is visually inspectable without a backend.
     CatalogState(
       'Contract violation',
       (_) => _waitingPreview(
-        FakeWaitingRepository(
-          failure: const WaitingException(
-            WaitingFailure.contractViolation,
-            'offerDeadlineInSeconds absent on a live broadcasting row',
-          ),
-        ),
+        NoOfferTimeoutScreenPreviewFixtures.contractViolation(),
       ),
     ),
   ],

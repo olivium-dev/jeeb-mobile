@@ -1,14 +1,3 @@
-// Edge-case guard for `DeepLinkResolver` (Sprint-3 deeplink; coverage extended
-// Sprint-6 Stream D). Complements `deep_link_resolver_test.dart` with the URI
-// shapes a hostile or sloppy platform link can actually carry — scheme casing,
-// fragments, empty/duplicate path separators, percent-encoded traversal, and
-// the FULL auth-prefix matrix — so the auth-gate classification and the bad-id
-// rejection are pinned for every user-scoped route, not just a sampled one.
-//
-// All expected values were verified against the live `Uri.parse` semantics on
-// the project's Flutter toolchain before being asserted (Uri lower-cases the
-// scheme and host, strips the fragment from `query`, and drops empty segments).
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/deep_link/deep_link_resolver.dart';
@@ -78,7 +67,6 @@ void main() {
   group('hostile id rejection', () {
     test('percent-encoded slash + traversal (orders/d%2f..) is rejected', () {
       // %2f decodes to a separator that would smuggle a '..' segment; the
-      // resolver must refuse the whole link rather than route a crafted id.
       expect(resolve('jeeb://orders/d%2f..'), isNull);
     });
 
@@ -89,7 +77,6 @@ void main() {
     test('an encoded ../admin id smuggled via %2f neutralises the whole link',
         () {
       // %2e%2e%2fadmin decodes to the single segment "../admin" — the embedded
-      // slash fails the unreserved-charset id pattern, so the link is refused.
       expect(resolve('jeeb://chat/%2e%2e%2fadmin'), isNull);
     });
 
@@ -97,8 +84,6 @@ void main() {
         'a trailing dot-segment can never ESCAPE: Uri normalises it away, so '
         'jeeb://orders/.. lands on the bare parent (/orders), not above it', () {
       // Defence-in-depth note: dot-segments are removed by Uri.pathSegments
-      // before the resolver runs, so a "../" can never climb out of the route
-      // namespace. The resolved location stays within /orders.
       final res = resolve('jeeb://orders/..');
       expect(res, isNotNull);
       expect(res!.location, '/orders');
@@ -107,8 +92,6 @@ void main() {
 
   group('auth-gate classification — full user-scoped prefix matrix', () {
     // Every prefix the resolver flags as user-scoped MUST classify as
-    // requiresAuth so the router's first-run redirect gates it. A regression
-    // that drops one of these would silently expose user data via deep link.
     const authPrefixes = <String>[
       'orders',
       'chat',

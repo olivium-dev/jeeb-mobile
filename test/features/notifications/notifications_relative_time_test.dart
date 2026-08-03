@@ -1,18 +1,9 @@
-// SW-03/G3 device-local timestamp correctness for the inbox rows.
-//
-// notification-service timestamps are UTC instants. A zone-less ISO string
-// used to be parsed as device-LOCAL, skewing a fresh row's age by the
-// device's UTC offset (the audit's "2h stale" rows). relativeTime now
-// re-interprets zone-less strings as UTC; zoned strings were always exact.
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/notifications/presentation/notifications_l10n.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 void main() {
-  // relativeTime never reads ARB strings (EN/AR copy is feature-local), so
-  // an empty-map AppLocalizations is sufficient and keeps the test hermetic.
   final en = NotificationsL10n(
     AppLocalizations(const Locale('en'), const {}),
     false,
@@ -33,8 +24,6 @@ void main() {
 
     test('zone-less timestamp is treated as UTC — never device-local '
         '(the "2h stale" leak)', () {
-      // Pre-fix, on a UTC+2 device this string parsed as local 10:00
-      // (= 08:00Z) and a 10:05Z now yielded "2h ago" for a 5-minute-old row.
       expect(
         en.relativeTime('2026-07-03T10:00:00',
             now: DateTime.utc(2026, 7, 3, 10, 5)),

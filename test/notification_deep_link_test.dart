@@ -50,10 +50,6 @@ void main() {
     test('delivery (not offer) with ONLY requestId still routes to '
         '/orders/<requestId> (delivery id == request id)', () {
       // A real `type=delivery` push can carry ONLY `requestId` — no
-      // delivery_id/order_id. Before that fallback existed this produced NO
-      // route (tap = silent no-op). P2 note: `type=offer` no longer reaches
-      // this branch (it is [NotificationCategory.newOffer] now) — this case is
-      // purely the delivery fence.
       final path = deepLinkForMessage(
         _msg(
           category: NotificationCategory.delivery,
@@ -285,8 +281,6 @@ void main() {
     // ---- P2 (b01-20260725) ------------------------------------------------
 
     // A4: the reported bug. A jeeber's BID on a customer's still-open request
-    // is auction-phase — it must land on the offer-review list where the
-    // Accept CTA lives, NEVER on the phantom `/orders/:requestId` hub.
     test('newOffer routes to /requests/<requestId>/offers (P2: the '
         'offer-review list, not the phantom order hub)', () {
       final path = deepLinkForMessage(
@@ -351,9 +345,6 @@ void main() {
   });
 
   // F5 role guard (FIX-REQUESTS.md:35): a jeeber-scoped destination handed to a
-  // CLIENT token is a guaranteed 403 dead end — `/jeeber/requests/:id`'s
-  // recovery path calls the jeeber-only `GET /v1/jeebers/me/feed`. The gateway
-  // stamps no audience, so the client is the only place this can be enforced.
   group('deepLinkForMessage role guard (F5)', () {
     // A11
     test('a CLIENT tapping a new_request is refused to the shell (never '
@@ -416,7 +407,6 @@ void main() {
     });
 
     // A13b — legacy role-blind behaviour for callers with no role context
-    // (background isolate, unit callers).
     test('role: null (the default) keeps the legacy role-blind behaviour', () {
       expect(
         deepLinkForMessage(
@@ -562,7 +552,6 @@ void main() {
     });
 
     // A3 (P2/F3): both expiry events carry a legacy `category: "delivery"`;
-    // without an explicit case they would re-bucket as delivery via fromData.
     test('request_expired and try_expand_tier map to requestExpired', () {
       expect(
         NotificationCategory.fromKey('request_expired'),
@@ -577,11 +566,6 @@ void main() {
 
   group('NotificationCategory.fromData (type-wins-over-legacy-category)', () {
     // The run-19 push-D gap: NewRequestPushNotifier fans out to the
-    // jeeb_jeebers topic with `type=new_request` AND a legacy
-    // `category=delivery` (stamped so pre-sprint-009 APKs — which only read
-    // `category` — still bucket it as a delivery). On a current APK the KNOWN
-    // `type` must win, or the jeeber's tap lands on `/orders/<id>` instead of
-    // the request screen `/jeeber/requests/<id>`.
     test('EXACT run-19 dual-stamped payload → newRequest, deep-links to the '
         'request screen (a KNOWN type wins over the legacy category)', () {
       const data = <String, String>{
@@ -663,10 +647,6 @@ void main() {
         'category=delivery + flat requestId/offerId/deepLink) → the winner '
         'lands on the ACTIVE delivery, not the empty pending-offers list', () {
       // Mirrors the gateway's OfferPushNotifier.SendLifecycleAsync payload and
-      // the run-23 on-device push_received event ({"type":"offer_accepted",
-      // "category":"delivery"}). The known `type` must win over the legacy
-      // `category` (else this bucket as `delivery` → /orders/:id), and the
-      // route must be the jeeber active-delivery screen (run-23 CHECK B).
       const data = <String, String>{
         'type': 'offer_accepted',
         'category': 'delivery',
@@ -702,7 +682,6 @@ void main() {
     });
 
     // A7 — the EXACT live gateway byte-shape of the new-offer push
-    // (`OfferPushNotifier.cs:112-123`, sent ONLY to `request.ClientId`).
     test('EXACT gateway new-offer payload (type=offer + legacy '
         'category=delivery + requestId/request_id/offerId) → newOffer, lands '
         'on the offer-review list', () {
@@ -724,7 +703,6 @@ void main() {
     });
 
     // A8 — the EXACT expiry byte-shape
-    // (`DispatchingRequestExpiryNotifier.cs:94-103`, legacy category=delivery).
     test('EXACT gateway request_expired payload → requestExpired, lands on '
         'the waiting screen (never the phantom order hub)', () {
       const data = <String, String>{
@@ -768,9 +746,6 @@ void main() {
   group('push-type → route mapping table (regression pins, all 5 wire types '
       '+ unknown fallback)', () {
     // One assertion per LIVE gateway push type, resolving category from the
-    // full data map exactly like the transport does — so a future edit to
-    // either `fromData` or `deepLinkForMessage` that re-routes a proven-working
-    // type fails loudly here.
     String? routeFor(Map<String, String> data) {
       final category = NotificationCategory.fromData(data);
       return deepLinkForMessage(_msg(category: category, data: data));
@@ -844,11 +819,6 @@ void main() {
   });
 
   // A15 (P2) — the assertion that would have caught the original bug, and the
-  // one that kills the legacy-`category` fallback path F3 closes. Every wire
-  // `type` the gateway emits, each stamped with the legacy `category:
-  // 'delivery'` + a bare `requestId` and NO `delivery_id`/`order_id`: the ONLY
-  // types allowed to resolve onto the order surface are `delivery`/`accept`.
-  // A request id laundered into `/orders/:id` is the whole defect class.
   group('negative fence: no non-delivery type may resolve onto /orders/', () {
     const orderSurfaceTypes = <String>{'delivery', 'accept'};
     const wireTypes = <String>[
@@ -878,11 +848,6 @@ void main() {
           expect(path, '/orders/R', reason: '$type IS an order-surface event');
         } else if (type == 'promo_v9') {
           // An UNKNOWN type is not a gateway event — `fromData` deliberately
-          // falls back to the legacy `category` so a pre-sprint-009 payload
-          // shape keeps working (plan §4 fence: the type-beats-category
-          // precedence is unchanged). The defect class this group fences is a
-          // KNOWN gateway type laundering a request id, so the unknown-type
-          // fallback is asserted explicitly rather than swept in.
           expect(path, '/orders/R');
         } else {
           expect(

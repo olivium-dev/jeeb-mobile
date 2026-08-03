@@ -307,7 +307,6 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // First fetch from load() — the poll after accept never reaches the
-      // repository because the subscription was cancelled.
       expect(repo.fetchCalls, 1);
     });
 

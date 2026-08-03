@@ -1,11 +1,4 @@
 // b02 fg-suppression — the IN-APP half.
-//
-// The OS shade is not the only way a foreground push interrupts: `PushBannerHost`
-// (wired at `app/app.dart:606`) renders `PushNotificationState.banner` as an
-// in-app overlay. Suppressing the shade entry while that still popped would
-// satisfy the letter of "silent" and none of its intent, so the same predicate
-// gates both. These tests pin that, AND pin that the refresh signal — the whole
-// reason a silent push exists — still fires for a suppressed push.
 
 import 'package:flutter_test/flutter_test.dart';
 

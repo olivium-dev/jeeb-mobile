@@ -4,21 +4,6 @@ import '../../../core/network/mock_gateway_client.dart';
 import '../domain/address_form_repository.dart';
 import '../domain/saved_location.dart';
 
-/// Dio-backed [AddressFormRepository] (JM-050).
-///
-/// Resolves the base path via [MockGatewayClient.savedLocationsPath]: the live
-/// gateway serves create/update me-keyed under `/api`
-/// (`POST /api/users/me/saved-locations`, `PUT …/:id`) — the create path is
-/// VERIFIED 201 on `:10090` (2026-06-30); the `:userId`-keyed `/users/…` shape
-/// is emitted only in mock mode (reached via the `/users` →
-/// `/user-management/users` rewrite). Never hardcodes a `:4010` host or a
-/// service prefix (40_GUARDRAILS_ARCH §4/§11).
-///
-/// The POST body carries the full address-detail field set; field names mirror
-/// the `has_saved_addresses` seed (`building`, `floorApt`, `deliveryNotes`,
-/// `codPhone`, `isDefault`/`is_default`). Parses the response defensively
-/// (40_GUARDRAILS_ARCH §4): nested `geo:{lat,lng}` OR flat `latitude/longitude`,
-/// `isDefault`/`is_default`, null-coalesced everywhere.
 class DioAddressFormRepository implements AddressFormRepository {
   const DioAddressFormRepository(this._dio);
 
@@ -66,8 +51,6 @@ class DioAddressFormRepository implements AddressFormRepository {
       'category': draft.category.name,
       'latitude': draft.latitude,
       'longitude': draft.longitude,
-      // Mirror the seeded nested geo shape too, so a `geo`-reading consumer
-      // (JM-024 parse) sees the new pin even before a list refetch.
       'geo': {'lat': draft.latitude, 'lng': draft.longitude},
       'isDefault': draft.isDefault,
       'is_default': draft.isDefault,
@@ -124,7 +107,6 @@ class DioAddressFormRepository implements AddressFormRepository {
     return null;
   }
 
-  /// Normalises empty/whitespace strings to null.
   String? _nn(String? raw) {
     final t = raw?.trim();
     return (t == null || t.isEmpty) ? null : t;

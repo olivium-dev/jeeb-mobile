@@ -3,17 +3,9 @@ import 'package:omds/omds.dart';
 
 import '../../../../l10n/app_localizations.dart';
 
-/// T-MOB-027: Entry-point card surfaced on the Profile/Settings screen for
-/// Client users who want to take on the Jeeber role.
-///
-/// Visibility rule: hidden once [isAlreadyJeeber] is true (i.e. the user's
-/// `available_roles` already includes Jeeber).
-///
-/// Tapping the card or its CTA calls [onTap], which the host wires to the
-/// KYC flow (`/profile/kyc`).
-///
-/// AC4: the card is announced as 'Become a Jeeber, double tap to start' via
-/// [l10n.becomeJeeberCardSemantic].
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+
 class BecomeJeeberCard extends StatelessWidget {
   const BecomeJeeberCard({
     super.key,
@@ -24,12 +16,8 @@ class BecomeJeeberCard extends StatelessWidget {
   static const Key rootKey = Key('become-jeeber-card-root');
   static const Key ctaKey = Key('become-jeeber-card-cta');
 
-  /// Whether the user already has the Jeeber role. When true, the card is
-  /// hidden entirely per AC2.
   final bool isAlreadyJeeber;
 
-  /// Invoked when the user taps the card or its CTA. The host navigates to
-  /// the KYC flow (T-MOB-013).
   final VoidCallback onTap;
 
   @override
@@ -179,3 +167,131 @@ class _CardText extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// A typical phone — the width the card is designed against.
+const double _becomeJeeberCardPhoneWidth = 390;
+
+/// The narrowest width the app still has to survive (iPhone SE 1st gen and the
+/// small Android estate). This is the card's squeeze point.
+const double _becomeJeeberCardNarrowPhoneWidth = 320;
+
+/// Tablet / landscape: the only width at which the card's single [Row] has room
+/// for the layout its design implies.
+const double _becomeJeeberCardWideWidth = 700;
+
+/// 390 pt wide, tall enough for the measured 204 pt card plus breathing room.
+const Size _becomeJeeberCardPhoneBox = Size(_becomeJeeberCardPhoneWidth, 240);
+
+/// 320 pt wide. Deliberately 440 pt tall: the card really is 412 pt here, and a
+/// box that hid that would hide the bug.
+const Size _becomeJeeberCardNarrowBox = Size(
+  _becomeJeeberCardNarrowPhoneWidth,
+  440,
+);
+
+/// 700 pt wide, and only 140 pt tall — because at this width the card finally
+/// collapses to 96 pt.
+const Size _becomeJeeberCardWideBox = Size(_becomeJeeberCardWideWidth, 140);
+
+/// Phone width, sized for two neighbour rows and no card.
+const Size _becomeJeeberCardHiddenBox = Size(_becomeJeeberCardPhoneWidth, 180);
+
+/// Pins the width the card is laid out against, so the canvas and the render
+/// tests see the same line breaks. Top-aligned so the card keeps its natural
+/// height instead of being centred in whatever box it is given.
+class _BecomeJeeberCardViewport extends StatelessWidget {
+  const _BecomeJeeberCardViewport({required this.width, required this.child});
+
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.topStart,
+      child: SizedBox(width: width, child: child),
+    );
+  }
+}
+
+/// Preview-only stand-in for the settings rows that sit under the card in
+/// `ProfileTab`.
+/// It exists for one state — [becomeJeeberCardAlreadyJeeber] — where the card
+class _BecomeJeeberCardNeighbourRow extends StatelessWidget {
+  const _BecomeJeeberCardNeighbourRow(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Text(label, style: Theme.of(context).textTheme.titleSmall),
+    );
+  }
+}
+
+Widget _becomeJeeberCardHosted({
+  required double width,
+  bool isAlreadyJeeber = false,
+}) {
+  return _BecomeJeeberCardViewport(
+    width: width,
+    child: BecomeJeeberCard(
+      isAlreadyJeeber: isAlreadyJeeber,
+      onTap: () {},
+    ),
+  );
+}
+
+/// The shipping state: a client on a normal phone.
+/// This is the default reading, and it is already wrong. The text column is
+@JeebPreview(
+  group: 'settings',
+  name: 'Client · 390',
+  size: _becomeJeeberCardPhoneBox,
+)
+Widget becomeJeeberCardPhone() =>
+    _becomeJeeberCardHosted(width: _becomeJeeberCardPhoneWidth);
+
+/// The squeeze point: the same card at 320 pt.
+/// 70 pt narrower than [becomeJeeberCardPhone], and every one of those pixels
+@JeebPreview(
+  group: 'settings',
+  name: 'Narrow 320',
+  size: _becomeJeeberCardNarrowBox,
+)
+Widget becomeJeeberCardNarrowPhone() =>
+    _becomeJeeberCardHosted(width: _becomeJeeberCardNarrowPhoneWidth);
+
+/// The control: the same widget, same copy, at tablet width.
+/// Title on one line, card 96 pt tall — the design as drawn. Keeping this state
+@JeebPreview(
+  group: 'settings',
+  name: 'Wide 700',
+  size: _becomeJeeberCardWideBox,
+)
+Widget becomeJeeberCardWide() =>
+    _becomeJeeberCardHosted(width: _becomeJeeberCardWideWidth);
+
+/// T-MOB-027 AC2, made visible: once the user's `available_roles` already
+/// include Jeeber, the card must disappear ENTIRELY — not grey out, not say
+@JeebPreview(
+  group: 'settings',
+  name: 'Already a Jeeber · hidden',
+  size: _becomeJeeberCardHiddenBox,
+)
+Widget becomeJeeberCardAlreadyJeeber() => _BecomeJeeberCardViewport(
+      width: _becomeJeeberCardPhoneWidth,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const _BecomeJeeberCardNeighbourRow('Settings row above the card'),
+          BecomeJeeberCard(isAlreadyJeeber: true, onTap: () {}),
+          const _BecomeJeeberCardNeighbourRow('Settings row below the card'),
+        ],
+      ),
+    );

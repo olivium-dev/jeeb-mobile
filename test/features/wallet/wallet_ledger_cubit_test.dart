@@ -1,14 +1,4 @@
 // Unit tests for WalletLedgerCubit (JM-055). Proves the 4-state machine
-// (40_GUARDRAILS_ARCH §2.2/§3) + the infinite-scroll pagination off a scripted
-// WalletLedgerRepository (no DI, no network):
-//   - load(): initial → loading → loaded, page 1 entries + hasMore mirrored.
-//   - load() failure maps the typed WalletLedgerFailure (network / unknown).
-//   - load() guards re-entry (a second call is a no-op).
-//   - loadMore(): appends the next page, advances the cursor, de-dupes by id,
-//     single-flights, and clears hasMore at the last page.
-//   - loadMore() failure → soft loadMoreError footer (loaded rows intact),
-//     retryLoadMore() recovers.
-//   - refresh(): re-fetches page 1, replaces the list, resets paging.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/wallet/application/wallet_ledger_cubit.dart';
@@ -171,7 +161,6 @@ void main() {
 
     test('de-dupes a boundary row re-emitted on the next page', () async {
       // 21 rows, pageSize 20 → page 2 = [led-20]; manually re-seed a repo whose
-      // page 2 also re-includes led-19 to prove the merge de-dupe.
       final repo = _PagedRepository(all: _rows(21));
       final cubit = WalletLedgerCubit(repository: repo, pageSize: 20);
       await cubit.load();

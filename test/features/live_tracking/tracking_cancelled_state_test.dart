@@ -1,16 +1,5 @@
 import 'dart:async';
 // sprint-009 scenario matrix #9/#10 (feat/request-scenarios).
-//
-// PROVES:
-//  1. DeliveryTrackingInfo parses the terminal/side lifecycle axis from every
-//     canonical + legacy status token (DeliveryStatusAlias table, ADR-002 §3),
-//     and the previously-dropped aliases heading_off ⇒ InTransit and
-//     rated ⇒ Done now land on the right stage.
-//  2. LiveTrackingCubit stops polling once the row is terminal cancelled.
-//  3. LiveTrackingScreen renders the graceful `tracking_cancelled_state`
-//     (OmdsEmptyState + "Delivery cancelled" + back-home CTA) instead of a
-//     live "Ordered" stepper for a cancelled/expired delivery — the pre-fix
-//     dead-end.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -115,11 +104,6 @@ void main() {
   });
 
   // b02 wave C / N7: the 5s poll became a `type=delivery` push subscription, so
-  // "stops polling" is now "retires the subscription and takes no read on a
-  // later push". That is the STRONGER claim: the bus is app-wide, so an
-  // unretired subscription would keep re-reading a cancelled row on every
-  // unrelated push for the rest of the session — where before it merely kept a
-  // timer alive on one screen.
   group('LiveTrackingCubit terminal cancelled (scenario matrix #9)', () {
     test('stops reading once the row is cancelled', () async {
       final repo = _MockRepo();

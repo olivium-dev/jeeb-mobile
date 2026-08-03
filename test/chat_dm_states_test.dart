@@ -175,7 +175,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The CTA must expose its OWN button semantics node carrying the stable
-      // id and a tap action — not be merged into the sheet container node.
       final ctaFinder = find.bySemanticsIdentifier(
         'confirm_delivery_confirm_button',
       );
@@ -190,7 +189,6 @@ void main() {
       );
 
       // Driving the SEMANTICS tap action (what Maestro/TalkBack does) fires
-      // onConfirm — proving the node is genuinely actionable, not decorative.
       await tester.tap(ctaFinder, warnIfMissed: false);
       expect(confirmed, isTrue);
       handle.dispose();
@@ -206,7 +204,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The drag handle, title, subtitle, and CTA stay independently
-      // addressable instead of collapsing into confirm_delivery_action_sheet.
       for (final id in const [
         'confirm_delivery_drag_handle',
         'confirm_delivery_title',

@@ -1,9 +1,4 @@
 // QA-PRE for JEB-1423 (T-MOB-FIX-005). Binds the wire-shape `ChatMessage`
-// ctor contract per the LEAD pin (comment #14900): every call to the ctor in
-// this file uses the named params `clientId`, `conversationId`, `senderId`,
-// `body`, `createdAt`, (optional `status`, `attempts`, `serverId`). The LEAD
-// pin marks this file as part of the binding contract — ENG (JEB-1425) must
-// make the ctor green, not edit these call sites.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -86,10 +81,6 @@ void main() {
     test('markFailed default impl flips status without removing entry',
         () async {
       // Sanity-check that the default `markFailed` (declared on the abstract
-      // ChatOutbox, inherited by SharedPrefsChatOutbox) preserves the entry
-      // and only toggles status. Full state-machine coverage lives in
-      // test/chat_message_status_test.dart; this is the persistence-layer
-      // smoke that the inherited impl works against the real store.
       final prefs = await SharedPreferences.getInstance();
       final outbox = SharedPrefsChatOutbox(prefs: prefs);
       await outbox.enqueue(_msg('a'));

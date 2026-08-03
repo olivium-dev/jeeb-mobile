@@ -3,8 +3,6 @@ import 'package:equatable/equatable.dart';
 import '../data/tier_repository.dart';
 import '../domain/tier.dart';
 
-/// Lifecycle the screen renders against. `initial` is the pre-fetch state so
-/// the view doesn't have to special-case "empty list + not loading".
 enum TierSelectionStatus { initial, loading, loaded, error }
 
 class TierSelectionState extends Equatable {
@@ -20,20 +18,12 @@ class TierSelectionState extends Equatable {
   final TierSelectionStatus status;
   final List<Tier> tiers;
 
-  /// Id of the tier the user has tapped in the list. The confirm button is
-  /// disabled until this is set.
   final TierId? selectedTierId;
 
-  /// Non-null when [status] is [TierSelectionStatus.error] so the retry banner
-  /// can render the right copy.
   final TierLoadFailure? failure;
 
-  /// Set by [TierSelectionCubit.confirm] once the user commits a choice. The
-  /// host listens for this and navigates to the request-summary step.
   final TierId? confirmedTierId;
 
-  /// True when the network failed and the screen is showing bundled defaults
-  /// (AC3 — 'showing cached options' soft warning).
   final bool usingCachedFallback;
 
   Tier? get selectedTier {

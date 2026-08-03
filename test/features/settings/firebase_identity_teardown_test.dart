@@ -1,31 +1,4 @@
 // THE SECOND IDENTITY MUST NOT OUTLIVE THE FIRST.
-//
-// The bug this pins: `grep -rn "FirebaseAuth.instance.signOut" lib/` returned
-// ZERO hits on this branch, while `DioAccountService.signOut` and
-// `DioAccountSessionTerminator.logout` cleared only the Jeeb keystore. Jeeb
-// signs in to Firebase with a CUSTOM TOKEN minted from the Jeeb JWT, and what
-// `signInWithCustomToken` returns is a session the SDK refreshes on its own,
-// indefinitely, with no further gateway call. So logging out of Jeeb left a live
-// Firebase identity on the install — still `request.auth.uid` == the departed
-// user, still authorised by the released membership rule for every conversation
-// that user was a non-removed participant of, and inherited wholesale by the
-// next person to sign in on that device (`FirebaseCustomTokenIdentity` used to
-// short-circuit on `currentUser != null`).
-//
-// WHAT THIS FILE CAN AND CANNOT PROVE — stated up front, because the default
-// implementation is untestable in-suite and pretending otherwise is how a false
-// green happens. `Firebase.apps` is EMPTY in every widget test in this repo, so
-// `signOutFirebaseIdentity()` returns at its first line here and
-// `FirebaseAuth.instance` is never constructed. Therefore:
-//
-//   * the CALL SITES are asserted for real, through an injected seam: "the
-//     logout path invoked the Firebase teardown" is a genuine, falsifiable
-//     claim, and deleting the call turns these red.
-//   * the DEFAULT is asserted only for what is true of it here: that it
-//     completes without throwing when no Firebase app exists, i.e. that it can
-//     never be the thing that strands a user in a signed-in shell. That the
-//     real `FirebaseAuth.instance.signOut()` ends a real session is NOT claimed
-//     by any test in this file and cannot be, on a host with no Firebase app.
 library;
 
 import 'package:dio/dio.dart';
@@ -192,7 +165,6 @@ void main() {
 
     test('a THROWING Firebase sign-out still reports success', () async {
       // Fail-safe, same rule as the gateway logout: a user trapped in a
-      // signed-in shell is worse than a plugin error nobody sees.
       firebase.error = StateError('firebase plugin exploded');
       final sut = DioAccountService(
         _ScriptedDio(),
@@ -232,9 +204,6 @@ void main() {
     });
 
     // CONTROL. Without this the assertions above are satisfiable by a service
-    // that tears the Firebase session down on every call — which would silently
-    // kill realtime chat for a user who merely lost signal on the settings
-    // screen and is still perfectly signed in.
     test('CONTROL: a FAILED deletion request does NOT touch Firebase',
         () async {
       await storage.write(key: 'auth.userId', value: 'u-1');
@@ -292,14 +261,6 @@ void main() {
 
   group('signOutFirebaseIdentity — the production default', () {
     // The ONLY claim this suite can make about the real implementation, and it
-    // is made explicitly rather than left implied by a green run elsewhere:
-    // with no Firebase app initialised (the state of every widget test, and a
-    // legitimate device state — `Firebase.initializeApp` runs deferred behind a
-    // timeout and may fail), it returns quietly instead of throwing
-    // `[core/no-app]` out of the middle of a logout.
-    //
-    // It does NOT prove a session was ended. Nothing in this repo's test suite
-    // can: `FirebaseAuth.instance` is unreachable without an app.
     test('with no Firebase app it completes silently, never throws', () async {
       await expectLater(signOutFirebaseIdentity(), completes);
     });

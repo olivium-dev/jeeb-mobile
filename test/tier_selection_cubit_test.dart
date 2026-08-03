@@ -42,10 +42,6 @@ void main() {
         predicate<TierSelectionState>(
           (s) => s.status == TierSelectionStatus.loading,
         ),
-        // JEBV4-300: the fallback catalog's tiers carry serverId == null, so
-        // confirming one would post a client-side enum slug the gateway never
-        // minted. On failure the cubit lands on error (blocking Continue and
-        // showing a retry) rather than silently serving the bundled catalog.
         predicate<TierSelectionState>(
           (s) =>
               s.status == TierSelectionStatus.error &&
@@ -62,7 +58,6 @@ void main() {
       final cubit = TierSelectionCubit(repository: const FakeTierRepository());
       addTearDown(cubit.close);
       final first = cubit.load();
-      // The second call should not double-emit loading nor double-resolve.
       final second = cubit.load();
       await Future.wait([first, second]);
       expect(cubit.state.status, TierSelectionStatus.loaded);
@@ -78,8 +73,6 @@ void main() {
         );
         addTearDown(cubit.close);
         await cubit.load();
-        // JEBV4-300: the first load fails the network and surfaces the error
-        // rather than serving the bundled catalog — Continue stays blocked.
         expect(cubit.state.status, TierSelectionStatus.error);
         expect(cubit.state.failure, TierLoadFailure.network);
         expect(cubit.state.usingCachedFallback, isFalse);
@@ -87,8 +80,6 @@ void main() {
 
         shouldFail = false;
         await cubit.load();
-        // Retry succeeds against the live repository: now loaded with real tiers
-        // (each carrying its gateway serverId) and the failure cleared.
         expect(cubit.state.status, TierSelectionStatus.loaded);
         expect(cubit.state.usingCachedFallback, isFalse);
         expect(cubit.state.failure, isNull);
@@ -115,7 +106,6 @@ void main() {
       addTearDown(cubit.close);
       await cubit.load();
       cubit.selectTier(TierId.standard);
-      // Standard is the only tier; selecting onTheWay should be ignored.
       cubit.selectTier(TierId.onTheWay);
       expect(cubit.state.selectedTierId, TierId.standard);
     });

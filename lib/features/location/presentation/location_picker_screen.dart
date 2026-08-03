@@ -9,10 +9,9 @@ import '../data/location_repository.dart';
 import '../data/map_picker_launcher.dart';
 import 'location_search_bar.dart';
 
-/// Entry-point for the pickup → dropoff selection flow. The host wires the
-/// cubit through DI; if [cubit] is left null the screen reads it off the
-/// surrounding [BlocProvider] (matches the kyc / registration patterns).
-// ORPHAN (JEBV4-227, verified 2026-07-12): real cubit-based picker, unwired — /location route mounts a placeholder instead — see docs/project-understanding/reconciliation/orphans.md
+import '../../../core/previews/jeeb_preview.dart';
+import '../../../devtool/catalog/fixtures/location_picker_screen_fixtures.dart';
+
 class LocationPickerScreen extends StatelessWidget {
   const LocationPickerScreen({
     super.key,
@@ -21,18 +20,10 @@ class LocationPickerScreen extends StatelessWidget {
     this.onCompleted,
   });
 
-  /// Explicit cubit override — used by tests and the request-creation flow
-  /// where the host already owns the lifecycle.
   final LocationPickerCubit? cubit;
 
-  /// Adapter that opens the interactive map picker (production: a thin
-  /// wrapper around `ofl_geo_capture`'s `GeoCaptureScreen`). Optional — when
-  /// null the "Pin on map" button is hidden and the user picks via GPS or
-  /// search alone.
   final MapPickerLauncher? mapPickerLauncher;
 
-  /// Notified once the cubit reaches [LocationPickerStep.done] so the host
-  /// can pop / route. Optional — when null the screen pops itself.
   final ValueChanged<DeliveryLocations>? onCompleted;
 
   @override
@@ -459,3 +450,177 @@ class _PairRow extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+const Size _locationPickerScreenPhoneBox = Size(390, 844);
+
+/// Assembles the real screen from one seeded cubit, in the configuration the
+Widget _locationPickerScreenHosted(LocationPickerCubit cubit) =>
+    LocationPickerScreen(cubit: cubit, onCompleted: (_) {});
+
+/// The same screen with the map seam installed — the production wiring, and the
+Widget _locationPickerScreenHostedWithMap(LocationPickerCubit cubit) =>
+    LocationPickerScreen(
+      cubit: cubit,
+      mapPickerLauncher: LocationPickerScreenFixtures.mapPicker,
+      onCompleted: (_) {},
+    );
+
+/// Runs [act] against [cubit] once the first frame is on screen.
+class _LocationPickerScreenAfterFirstFrame extends StatefulWidget {
+  const _LocationPickerScreenAfterFirstFrame({
+    required this.cubit,
+    required this.act,
+  });
+
+  final LocationPickerCubit cubit;
+  final void Function(LocationPickerCubit cubit) act;
+
+  @override
+  State<_LocationPickerScreenAfterFirstFrame> createState() =>
+      _LocationPickerScreenAfterFirstFrameState();
+}
+
+class _LocationPickerScreenAfterFirstFrameState
+    extends State<_LocationPickerScreenAfterFirstFrame> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+      if (mounted) widget.act(widget.cubit);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _locationPickerScreenHosted(widget.cubit);
+}
+
+/// Post-frame action for [locationPickerScreenSaveFailed].
+void _locationPickerScreenConfirm(LocationPickerCubit cubit) {
+  cubit.confirmAndContinue();
+}
+
+/// Post-frame action for [locationPickerScreenGpsDenied].
+void _locationPickerScreenDetectGps(LocationPickerCubit cubit) {
+  cubit.detectCurrentLocation();
+}
+
+/// Cold open on step 1 — the empty state, and the one every request starts in.
+@JeebPreview(
+  group: 'location',
+  name: 'Pickup · nothing selected',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenPickupEmpty() =>
+    _locationPickerScreenHosted(LocationPickerScreenFixtures.pickupNoSelection());
+
+/// `detectCurrentLocation()` in flight and never landing.
+@JeebPreview(
+  group: 'location',
+  name: 'Pickup · finding GPS',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenLocatingGps() =>
+    _locationPickerScreenHosted(LocationPickerScreenFixtures.pickupLocatingGps());
+
+/// A pin dropped, the reverse geocode still out.
+@JeebPreview(
+  group: 'location',
+  name: 'Pickup · resolving dragged pin',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenResolvingAddress() => _locationPickerScreenHosted(
+      LocationPickerScreenFixtures.pickupResolvingAddress(),
+    );
+
+/// The suggestion dropdown open under the search bar.
+@JeebPreview(
+  group: 'location',
+  name: 'Pickup · suggestions open',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenSearchResults() =>
+    _locationPickerScreenHosted(LocationPickerScreenFixtures.pickupSearchResults());
+
+/// One frame after the user tapped "Hamra Street, Beirut" — and a bug you can
+@JeebPreview(
+  group: 'location',
+  name: 'Pickup · just tapped a suggestion',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenSuggestionSelected() => _locationPickerScreenHosted(
+      LocationPickerScreenFixtures.pickupSuggestionSelected(),
+    );
+
+/// Step 2, the pickup locked in.
+@JeebPreview(
+  group: 'location',
+  name: 'Dropoff · pickup confirmed',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenDropoff() => _locationPickerScreenHosted(
+      LocationPickerScreenFixtures.dropoffPickupConfirmed(),
+    );
+
+/// The layout ceiling: the longest pickup AND the longest dropoff at once.
+@JeebPreview(
+  group: 'location',
+  name: 'Dropoff · longest addresses',
+  size: _locationPickerScreenPhoneBox,
+  matrix: true,
+)
+Widget locationPickerScreenLongestAddresses() => _locationPickerScreenHosted(
+      LocationPickerScreenFixtures.dropoffLongestAddresses(),
+    );
+
+/// The save in flight and never landing.
+@JeebPreview(
+  group: 'location',
+  name: 'Dropoff · saving',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenSaving() =>
+    _locationPickerScreenHosted(LocationPickerScreenFixtures.dropoffSaving());
+
+/// The save failed — the ONLY error affordance this screen has.
+@JeebPreview(
+  group: 'location',
+  name: 'Dropoff · save failed',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenSaveFailed() =>
+    _LocationPickerScreenAfterFirstFrame(
+      cubit: LocationPickerScreenFixtures.dropoffSaveFails(),
+      act: _locationPickerScreenConfirm,
+    );
+
+/// GPS refused at the OS level — the most common failure on a real first run.
+@JeebPreview(
+  group: 'location',
+  name: 'Pickup · GPS permission denied',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenGpsDenied() => _LocationPickerScreenAfterFirstFrame(
+      cubit: LocationPickerScreenFixtures.pickupGpsPermissionDenied(),
+      act: _locationPickerScreenDetectGps,
+    );
+
+/// Both legs committed and saved — the terminal state the host pops on.
+@JeebPreview(
+  group: 'location',
+  name: 'Confirmed · both legs saved',
+  size: _locationPickerScreenPhoneBox,
+)
+Widget locationPickerScreenConfirmed() =>
+    _locationPickerScreenHosted(LocationPickerScreenFixtures.confirmedPair());
+
+/// The production wiring: `mapPickerLauncher` supplied, so "Use current GPS" and
+@JeebPreview(
+  group: 'location',
+  name: 'Pickup · GPS + Pin on map row',
+  size: _locationPickerScreenPhoneBox,
+  matrix: true,
+)
+Widget locationPickerScreenMapPinRow() => _locationPickerScreenHostedWithMap(
+      LocationPickerScreenFixtures.pickupNoSelection(),
+    );

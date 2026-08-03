@@ -2,20 +2,6 @@ import 'package:dio/dio.dart';
 
 import '../domain/dispute_status_repository.dart';
 
-/// Dio-backed [DisputeStatusRepository] (JM-065) — `GET /v1/disputes/:disputeId`
-/// on the compliment-service, LIVE on `:4010` (42_GUARDRAILS_MOCK §4).
-///
-/// This IS the DI default (the endpoint exists; the `/v1/disputes` rewrite key
-/// is already in the gateway map). DO NOT hardcode the service prefix here
-/// (40_GUARDRAILS_ARCH §4 / DO-NOT).
-///
-/// The compliment-service stores the dispute as the flat object the
-/// dispute-open-evidence screen POSTed (`reason`, `comment`, `photos`,
-/// `voiceUrl`, `evidence:{chatSnapshotUrl,chatMessageCount,timeline}`,
-/// `deliveryId`/`requestId`, `createdAt`, `updatedAt`) plus the back-office
-/// fields a PATCH adds on resolve (`status`, `resolution`, `refundAmount`,
-/// `note`). Parsing tolerates camelCase + snake_case and null-coalesces every
-/// field (40_GUARDRAILS_ARCH §4 "parse defensively").
 class DioDisputeStatusRepository implements DisputeStatusRepository {
   const DioDisputeStatusRepository(this._dio);
 
@@ -77,9 +63,6 @@ class DioDisputeStatusRepository implements DisputeStatusRepository {
     }
   }
 
-  /// Map the back-office [resolution] string onto the typed [DisputeOutcome]
-  /// (D2). Only meaningful once the dispute is resolved; an open dispute has no
-  /// outcome.
   DisputeOutcome _outcome(DisputeState state, String? resolution) {
     if (state != DisputeState.resolved) return DisputeOutcome.none;
     final r = resolution?.toLowerCase().trim();
@@ -94,8 +77,6 @@ class DioDisputeStatusRepository implements DisputeStatusRepository {
     return DisputeOutcome.other;
   }
 
-  /// Build the D53 evidence summary from the auto-attached payload. Tolerates a
-  /// missing `evidence` object and either a list or a count for photos.
   DisputeEvidenceSummary _evidence(Map<String, dynamic> json) {
     final ev = json['evidence'];
     final evMap = ev is Map<String, dynamic> ? ev : const <String, dynamic>{};

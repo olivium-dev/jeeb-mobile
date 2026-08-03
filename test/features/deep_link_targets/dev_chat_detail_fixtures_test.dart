@@ -1,28 +1,3 @@
-// Screen-13 fixture-data gap guard.
-//
-// Under the dev seam, tapping a Pending Requests row pushes `/chat/pen-1`.
-// The committed Maestro flow (.maestro/flows/13-request-pending-requests-
-// screen-user.yaml) then asserts `chat_detail_message_list` is visible —
-// proving the pending item routes to a real, populated chat thread.
-//
-// Before the fix, ChatDetailScreen always resolved a DioChatGateway for that
-// id; the mock returns 404 (no seeded conversation for `pen-1`), so the chat
-// screen rendered _ChatEmptyState and the flow's terminal assertion was
-// (correctly) false. The fix routes seeded dev-seam ids through the offline
-// DevChatFixtureGateway — the SAME in-memory mechanism flows 02–07 use — so a
-// populated thread mounts honestly offline.
-//
-// These tests assert the gap is closed at the unit + widget level (on-device
-// re-verify is a separate later step):
-//   1. DevChatDetailFixtures.resolveGateway returns an offline fixture gateway
-//      for every reachable seeded id when the seam drives a home tab, and null
-//      otherwise (no seam, unseeded id).
-//   2. ChatDetailScreen for `pen-1` under the seam mounts the populated
-//      message list (chat_detail_message_list), NOT the empty state.
-//
-// kDebugMode is true under `flutter test`, so the kDebugMode-gated resolver is
-// live here exactly as it is in a debug capture build.
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -102,7 +77,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // The terminal Maestro assertion target: the populated message list,
-        // addressed exactly as the flow does (by its semantics identifier).
         expect(
           find.byKey(ChatScreen.messageListKey),
           findsOneWidget,

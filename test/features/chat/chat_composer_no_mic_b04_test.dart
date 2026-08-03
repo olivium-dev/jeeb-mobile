@@ -1,10 +1,4 @@
 // FIX-B04 — the chat mic affordance is hidden.
-//
-// The composer used to render a mic IconButton whose press-to-record gesture
-// (ChatComposerVoiceControl, T-MOB-016) was never built, so it was a permanent
-// no-op on the highest-traffic coordination surface. This test pins its
-// ABSENCE (no mic icon, no `chat_detail_voice_button` semantics) while proving
-// the composer's real affordances (attach + send + input) still render.
 
 import 'dart:async';
 import 'dart:io';
@@ -89,7 +83,6 @@ void main() {
             value: cubit,
             child: const ChatComposer(
               // The real chat screen passes a voice callback here; even so the
-              // mic must not render (B-04) until real capture lands.
               onVoiceRecordingComplete: _noop,
             ),
           ),

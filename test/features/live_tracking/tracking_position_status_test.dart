@@ -1,54 +1,3 @@
-// The phantom courier pin — the CLIENT half.
-//
-// ## The defect
-//
-// A customer watching a delivery saw the courier marker rendered as LIVE at a
-// location the courier had left minutes earlier. Hardware capture: 76 s of a
-// stale pin with no staleness affordance.
-//
-// The server half is fixed and merged: `jeeb-gateway` #342 (`d430706f`) stopped
-// the store destroying an aged fix on read, made `stale` monotonic in the fix's
-// age, and added an EXPLICIT four-state verdict, `positionStatus` ∈
-// `awaitingFirstFix | live | stale | lost`
-// (`src/JeebGateway/Tracking/TrackingDtos.cs:143`,
-//  `src/JeebGateway/Tracking/PositionFreshness.cs`), serialized camelCase by
-// `JsonSerializerDefaults.Web` (`Controllers/LocationController.cs:47`).
-//
-// ## The client half, which is what this file pins
-//
-// Mobile ignored `positionStatus` entirely, and — worse — could not have used
-// it if it had read it. The `lost` snapshot is
-//
-//     {position: null, polyline: [], stale: true, secondsSinceUpdate: <age>,
-//      positionStatus: "lost"}
-//
-// which is EMPTY by coordinates, and `_applyLivePosition` dropped on emptiness.
-// So `withLivePosition` never ran, `positionStale` stayed `false` on the row,
-// and `markerIsLive` stayed `true` over a marker merged minutes earlier. The
-// server's clearest possible sentence — "I had this courier and I have lost
-// them" — was the one the client was structurally unable to hear.
-//
-// ## Why this does NOT need the owner ruling the obvious fix would
-//
-// `tracking_diag_instrument_test.dart:238` pins "an EMPTY overlay is recorded
-// with applied:false" and is DELIBERATE. But read what it constructs:
-// `const DeliveryLivePosition()` — `stale:false`, `secondsSinceUpdate:null`,
-// no coordinates. That is the `awaitingFirstFix` wire state, NOT `lost`. The
-// two differ on the wire by exactly the discriminator #342 built for the
-// purpose: an AGE beside a null position.
-//
-// So the drop moved from `isEmpty` to `isNothingToSay`, which is
-// `isEmpty && !lost`. `awaitingFirstFix` is still dropped — the pinned
-// invariant holds byte-for-byte, and this file re-asserts it directly rather
-// than taking that on trust.
-//
-// ## Realness
-//
-// Every test below drives the SHIPPED `DioLiveTrackingRepository` over a
-// recording `HttpClientAdapter` with literal gateway JSON, through the SHIPPED
-// `LiveTrackingCubit`. Nothing about the parse, the drop, or the merge is
-// stubbed; the only fake is the socket, which never opens.
-
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -70,8 +19,6 @@ import '../../support/sync_app_localizations.dart';
 
 const String _deliveryId = 'DLV-PHANTOM';
 
-/// The delivery row `GET /v1/deliveries/{id}` answers. Constant across every
-/// test here — the position axis is what varies.
 const Map<String, Object?> _deliveryRow = {
   'id': _deliveryId,
   'status': 'InTransit',
@@ -79,8 +26,6 @@ const Map<String, Object?> _deliveryRow = {
   'jeeberName': 'Sami',
 };
 
-/// `GET /deliveries/{id}/tracking` — the LIVE snapshot. Byte-shape taken from
-/// `TrackingPolylineDto` with `PositionStatus = freshness.ToWireValue()`.
 Map<String, Object?> _liveSnapshot({double lat = 33.5, double lng = 35.5}) => {
       'deliveryId': _deliveryId,
       'jeeberId': 'JBR-1',
@@ -96,8 +41,6 @@ Map<String, Object?> _liveSnapshot({double lat = 33.5, double lng = 35.5}) => {
       'serverTimestamp': '2026-08-01T10:00:04Z',
     };
 
-/// The `lost` snapshot, exactly as #342 serializes it: NO coordinates, NO
-/// polyline, `stale:true`, and — the whole signal — a non-null age.
 Map<String, Object?> _lostSnapshot({double ageSeconds = 312.5}) => {
       'deliveryId': _deliveryId,
       'jeeberId': 'JBR-1',
@@ -110,8 +53,6 @@ Map<String, Object?> _lostSnapshot({double ageSeconds = 312.5}) => {
       'serverTimestamp': '2026-08-01T10:05:12Z',
     };
 
-/// The `awaitingFirstFix` snapshot — indistinguishable from `lost` by
-/// coordinates, and distinguished from it by the ABSENCE of an age.
 const Map<String, Object?> _awaitingSnapshot = {
   'deliveryId': _deliveryId,
   'jeeberId': 'JBR-1',
@@ -205,7 +146,6 @@ void main() {
         'secondsSinceUpdate': 900.0,
       });
       // Falls through to the derivation, which reads the age. The one thing it
-      // must never do is default to a confident state.
       expect(info.positionStatus, isNot(PositionFreshness.live));
       expect(info.positionStatus, PositionFreshness.lost);
     });
@@ -226,8 +166,6 @@ void main() {
         await pumpEventQueue();
 
         // POSITIVE CONTROL. If this is not live, the rest proves nothing —
-        // "the marker went away" is trivially true of a marker that never
-        // arrived.
         final before = cubit.state.trackingInfo!;
         expect(before.markerIsLive, isTrue);
         expect(before.jeeberPosition, isNotNull);
@@ -235,7 +173,6 @@ void main() {
         expect(trackingMarkers(before), hasLength(1));
 
         // 2. The courier goes quiet past PositionTtl. The gateway publishes no
-        //    coordinates — only an age.
         adapter.trackingSnapshot = _lostSnapshot();
         cubit.retry();
         await pumpEventQueue();
@@ -253,19 +190,6 @@ void main() {
         );
 
         // THE THREE ASSERTIONS THE DEFECT VIOLATED, all measured on
-        // origin/main before this change and all found wrong there:
-        //
-        //   PROBE-AFTER markerIsLive=false pos=null stale=false age=null
-        //
-        // Note `markerIsLive` was ALREADY false pre-fix — but for the wrong
-        // reason, and that matters. `_fetch` replaces `trackingInfo` wholesale
-        // with a row parsed from the delivery aggregate, which carries no
-        // position (`live_tracking_cubit.dart` `_fetch`), so the pin vanished
-        // because the row had been blanked, not because anything had been
-        // understood. The `lost` overlay was then DROPPED, taking the verdict
-        // and the age with it, and the screen reverted to a state
-        // byte-identical to "awaiting the first fix". The customer was shown an
-        // empty map and told nothing.
         expect(
           after.positionStatus,
           PositionFreshness.lost,
@@ -288,14 +212,6 @@ void main() {
 
     test('THE PHANTOM ITSELF — a row already holding a live marker, receiving '
         'a lost snapshot with no intervening status read', () async {
-      // This is the socket leg's shape: `_onStreamedPosition` merges a fix onto
-      // the CURRENT row without a status refetch, so the row accumulates a
-      // position that a later merge has to degrade rather than replace. Here
-      // the drop was not merely lossy, it was the phantom: measured on
-      // origin/main,
-      //
-      //   PROBE-OVERLAY isEmpty=true => _applyLivePosition returns false
-      //                => row UNCHANGED, markerIsLive stays true
       final live = DeliveryTrackingInfo.fromTrackingJson(
         _deliveryId,
         _liveSnapshot(),
@@ -309,7 +225,6 @@ void main() {
         status: PositionFreshness.lost,
       );
       // Pre-fix this overlay was discarded on `isEmpty` and the row below was
-      // never produced at all.
       expect(lostOverlay.isNothingToSay, isFalse);
 
       final degraded = live.withLivePosition(
@@ -323,8 +238,6 @@ void main() {
       expect(degraded.markerIsLive, isFalse);
       expect(trackingMarkers(degraded), isEmpty);
       // The last known coordinate is RETAINED on this path — the merge
-      // coalesces (`jeeberPosition ?? this.jeeberPosition`) — which is what
-      // lets the screen say "last seen here". It is simply no longer live.
       expect(degraded.jeeberPosition, isNotNull);
       expect(degraded.positionAgeSeconds, 312.5);
       expect(CourierPositionNotice.shows(degraded), isTrue);
@@ -332,15 +245,6 @@ void main() {
 
     test('the verdict OUTRANKS the legacy boolean when the two disagree',
         () {
-      // Today `TrackingFreshness.IsStale` returns true for BOTH `stale` and
-      // `lost`, so `positionStale` alone happens to answer correctly and the
-      // verdict clause in `markerIsLive` is belt-and-braces. That is a property
-      // of one server's current arithmetic, not a contract — a partial deploy,
-      // a proxy that rewrites a field, or a future rung could separate them.
-      //
-      // This is the case that tells the two clauses apart, and without it the
-      // verdict clause is untested: removing it leaves every other test in this
-      // file green (executed, observed).
       final incoherent = DeliveryTrackingInfo.fromTrackingJson(_deliveryId, {
         ..._liveSnapshot(),
         'stale': false, // the legacy boolean says "fine"…
@@ -413,10 +317,6 @@ void main() {
 
       final after = cubit.state.trackingInfo!;
       // DROPPED — nothing from the snapshot reached the row. The row is the
-      // bare delivery aggregate `_fetch` just wrote, so every position-axis
-      // field is at its default. This is the behaviour
-      // `tracking_diag_instrument_test.dart:238` pins, asserted here at the
-      // level the pin actually protects.
       expect(after.jeeberPosition, isNull);
       expect(after.markerIsLive, isFalse);
       expect(
@@ -440,7 +340,6 @@ void main() {
     test('the drop predicate itself: isNothingToSay is TRUE for the exact '
         'value the pinned test constructs, and FALSE for lost', () {
       // `const DeliveryLivePosition()` is the literal expression at
-      // tracking_diag_instrument_test.dart:241.
       const pinned = DeliveryLivePosition();
       expect(pinned.isEmpty, isTrue);
       expect(
@@ -551,7 +450,6 @@ void main() {
       expect(CourierPositionNotice.shows(rowWith(_awaitingSnapshot)), isFalse);
       expect(CourierPositionNotice.shows(rowWith(_lostSnapshot())), isTrue);
       // A hand-built row with NO verdict says nothing — inventing one
-      // client-side is the second source of truth this change exists to avoid.
       expect(
         CourierPositionNotice.shows(const DeliveryTrackingInfo(
           deliveryId: _deliveryId,
@@ -574,7 +472,6 @@ ResponseBody _json(Object? body, {int status = 200}) =>
       },
     );
 
-/// Answers the two GETs the tracking screen makes, by path. No socket opens.
 class _TrackingAdapter implements HttpClientAdapter {
   Map<String, Object?> deliveryRow = _deliveryRow;
   Map<String, Object?>? trackingSnapshot;

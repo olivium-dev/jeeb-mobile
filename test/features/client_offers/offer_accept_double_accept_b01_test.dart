@@ -1,15 +1,4 @@
 // FIX-B01 — close the double-accept hole (accept exactly ONE offer).
-//
-// Three guards, all regression-pinned here:
-//   1. The OfferAcceptSheet is NON-DISMISSIBLE while the accept POST is in
-//      flight (PopScope canPop:false) — the scrim/drag/system-back dismissal
-//      vectors are blocked so the user can't bail mid-POST and go accept a
-//      second offer.
-//   2. The offer-review list wires the previously-DEAD `acceptingOfferId`
-//      guard into the real (sheet-based) accept path: while any accept-confirm
-//      sheet is open, EVERY card's Accept CTA disables.
-//   3. The second call site (home Replies tab) guards against a double-tap
-//      stacking two accept sheets.
 
 import 'dart:async';
 import 'dart:io';
@@ -234,11 +223,6 @@ void main() {
     '(enableDrag:false; the vector PopScope can not guard)',
     (tester) async {
       // Drives the PRODUCTION OfferAcceptSheet.show() path (not a raw
-      // showModalBottomSheet) because the drag guard lives on that call. The
-      // BottomSheet drag-to-close calls Navigator.pop DIRECTLY, bypassing the
-      // PopScope pop disposition — so canPop:false alone can NOT stop it; the
-      // sheet must be opened with enableDrag:false. This test flings the sheet
-      // down while the accept POST is gated in flight and asserts it survives.
       final repo = _GatedOffersRepository()..acceptGate = Completer<void>();
       late BuildContext host;
 
@@ -289,9 +273,6 @@ void main() {
             'in flight (enableDrag:false)',
       );
       // Leave the accept POST suspended (gate uncompleted): the production
-      // show() path wires its own goNamed('chat-detail') success navigation,
-      // which has no GoRouter in this harness — completing it is out of scope.
-      // The suspended future is disposed with the widget tree at teardown.
     },
   );
 
@@ -334,7 +315,6 @@ void main() {
       expect(find.bySemanticsIdentifier('offer_accept_sheet'), findsOneWidget);
 
       // Now BOTH cards behind the sheet are disabled — a second offer cannot be
-      // accepted while one accept is open (the double-accept guard).
       expect(acceptButton('a').isEnabled, isFalse);
       expect(
         acceptButton('b').isEnabled,
@@ -348,12 +328,7 @@ void main() {
     'P0-3 — a same-frame double-tap on ONE offer card Accept CTA opens '
     'exactly ONE accept sheet and fires the accept submit once',
     (tester) async {
-      // Regression pin for the offer-list call-site re-entrancy guard
-      // (`_openAcceptSheet` early-returns when acceptStatus == inFlight). Two
-      // taps land in the SAME frame — before the `acceptingOfferId` rebuild can
-      // disable the CTA. Without the guard the second tap would call
-      // OfferAcceptSheet.show() again and STACK a second accept sheet, letting
-      // the user drive two concurrent accept flows (double-accept, B-01).
+        // (`_openAcceptSheet` early-returns when acceptStatus == inFlight). Two
       final repo = _ScriptedFetchRepository(
         OffersSnapshot(
           offers: [
@@ -378,10 +353,6 @@ void main() {
       await tester.pump();
 
       // Fire card A's onAccept TWICE synchronously — the exact "two rapid taps
-      // / two semantics actions before the disable rebuild" double-activation.
-      // Both invocations hit `_openAcceptSheet` in the SAME frame: the first
-      // sets acceptStatus=inFlight + show()s the sheet; the second must be
-      // swallowed by the call-site guard (else it stacks a second sheet).
       final cardA = tester.widget<OfferCard>(
         find.ancestor(
           of: find.byKey(const Key('offer-card-accept-a')),
@@ -393,9 +364,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // Exactly ONE accept sheet ROUTE is mounted — not two stacked. Counted by
-      // widget type, NOT by semantics identifier: a second stacked sheet route
-      // sits offstage below the top one and is excluded from the semantics tree,
-      // so a semantics finder would vacuously report one even when two exist.
       expect(
         find.byType(OfferAcceptSheet),
         findsOneWidget,
@@ -439,14 +407,12 @@ void main() {
 
       final acceptCta = find.bySemanticsIdentifier('replies_accept_cta');
       // Seeded home data may render 0..n reply rows; only assert the guard when
-      // an Accept CTA is present.
       if (acceptCta.evaluate().isEmpty) {
         gated.fetchGate!.complete();
         return;
       }
 
       // First tap: begins resolving offers (held by the fetch gate). Second tap
-      // while that is still resolving must be swallowed by the re-entrancy guard.
       await tester.tap(acceptCta.first);
       await tester.pump();
       await tester.tap(acceptCta.first, warnIfMissed: false);

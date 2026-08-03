@@ -1,12 +1,4 @@
 // JM-058 — Notification Preferences (blueprint `notification-prefs`).
-//
-// Proves every exact Semantics(identifier:) named in the JM-058 AC surfaces as
-// its OWN queryable SemanticsNode via Flutter's built-in
-// `find.bySemanticsIdentifier`, and that a category toggle drives a debounced
-// PUT (offers/order-status/wallet/marketing; transactional locked).
-//
-// Harness mirrors test/qa_keys_batch_test.dart: real ARBs via a synchronous
-// LocalizationsDelegate + a tall/wide surface so nothing is culled off-screen.
 
 import 'dart:io';
 
@@ -133,8 +125,6 @@ void main() {
           'notif_prefs_wallet_toggle',
           'notif_prefs_marketing_toggle',
           // The locked always-on transactional row (D64). Coined id per
-          // 67_W34_TEST_PLAN — renamed from `_transactional_locked` to
-          // `_transactional_lock_icon`; the on-device jm-058 flow asserts this.
           'notif_prefs_transactional_lock_icon',
         ]) {
           expect(
@@ -152,7 +142,6 @@ void main() {
         await _pumpLoaded(tester);
 
         // Wallet row: dedicated wallet-notification subtitle, not the
-        // page-header "Manage what you get notified about" copy.
         expect(
           find.text('Top-ups, refunds, and balance updates'),
           findsOneWidget,
@@ -165,7 +154,6 @@ void main() {
         );
 
         // The offers subtitle must now appear exactly once (the offers row
-        // only) — it is no longer duplicated onto the rating-reminders row.
         expect(find.text('Discounts and seasonal promotions'), findsOneWidget);
       },
     );

@@ -1,15 +1,4 @@
 // P4 + P5 (b01-20260725) — TC-C19: l10n parity for the attachment copy.
-//
-// `AppLocalizations` is HAND-AUTHORED here (no `l10n.yaml`, no `gen-l10n`), so
-// nothing mechanically guarantees that a key added to `app_en.arb` also lands
-// in `app_ar.arb` and gains a getter. An Arabic user would then see a raw key
-// (or the fallback) at exactly the moment an upload fails. These tests pin all
-// three sides for the P4/P5 keys, and assert the Arabic strings are real
-// Arabic — not an English placeholder copy-paste.
-//
-// The `ChatError` → copy switch in `chat_screen.dart` is compile-enforced
-// exhaustive, so a new enum value cannot ship without copy; that half of TC-C19
-// needs no runtime assertion.
 
 import 'dart:convert';
 import 'dart:io';
@@ -87,7 +76,6 @@ void main() {
     );
 
     // A missing getter is a compile error; a missing ARB entry would surface as
-    // the raw key echoing back, which these assertions catch.
     expect(enL10n.chatErrorAttachmentUploadFailed,
         en['chatErrorAttachmentUploadFailed']);
     expect(arL10n.chatErrorAttachmentUploadFailed,

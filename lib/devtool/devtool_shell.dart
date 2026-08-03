@@ -16,9 +16,6 @@ import '../features/registration/presentation/super_login/super_login_sheet.dart
 import 'super_login/full_roster_login.dart';
 import '../l10n/app_localizations.dart';
 
-/// The six top-level sections of the Jeeber Dev Tool. Each maps to a feature
-/// from the Dev Tool spec (see docs/devtool/DESIGN.md). DT-02+ wire real routes;
-/// DT-03 wires Super Login to the real (shared-session) super-login sheet.
 enum DevToolSection {
   superLogin('Super Login', 'Log in as any user (moved out of the app)', Icons.login),
   screenCatalog('Screen Catalog', 'Every screen + its mocked UI states', Icons.grid_view),
@@ -35,10 +32,6 @@ enum DevToolSection {
 
 /// Root widget for the Jeeber Dev Tool (`/devtool` route via the `.DevToolLauncher`
 /// launcher icon). It runs the SAME [Bootstrap.minimal] the real app runs, so the
-/// Dev Tool shares the app's DI graph, SharedPreferences and secure session — a
-/// super-login performed here writes the real `AuthTokenStore` (full access,
-/// no bridge). Uses the production OMDS theme + l10n delegates so reused app
-/// widgets (e.g. the super-login sheet) render correctly.
 class DevToolApp extends StatefulWidget {
   const DevToolApp({super.key});
 
@@ -65,12 +58,6 @@ class _DevToolAppState extends State<DevToolApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       // Session-trace observability tool (devtool-only): mounts the SAME
-      // floating overlay `lib/app/app.dart` mounts over the product app, so
-      // the Dev Tool shell (reached via its own launcher icon OR
-      // `main_devtool.dart`) also carries a start/stop/export affordance.
-      // Additive only; `kObsCompiledIn` is compile-time `false` in a
-      // production build, so this builder (and `ObsOverlayHost`) is
-      // tree-shaken out and `child` is returned unchanged.
       builder: (context, child) {
         final content = child ?? const SizedBox.shrink();
         return kObsCompiledIn ? ObsOverlayHost(child: content) : content;
@@ -93,7 +80,6 @@ class _DevToolAppState extends State<DevToolApp> {
   }
 }
 
-/// Home menu listing the six Dev Tool sections.
 class DevToolShell extends StatelessWidget {
   const DevToolShell({super.key});
 
@@ -135,31 +121,24 @@ class DevToolShell extends StatelessWidget {
   void _openSection(BuildContext context, DevToolSection section) {
     switch (section) {
       case DevToolSection.superLogin:
-        // DT-03: both super-login variants, backed by the app's DI. On success
-        // each writes the shared AuthTokenStore → the Jeeb app is authenticated.
         Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const SuperLoginPage()),
         );
       case DevToolSection.serverUrl:
-        // DT-08 / F4 — change gateway base URL at runtime.
         Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const ServerUrlPage()),
         );
       case DevToolSection.clearData:
-        // DT-08 / F5 — factory-reset local data on this device.
         showClearLocalDataDialog(context);
       case DevToolSection.screenCatalog:
-        // DT-04 / F2 — designer screen catalog with mocked UI states.
         Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const CatalogMenuScreen()),
         );
       case DevToolSection.actions:
-        // DT-06 / F3 — pick a seeded user and run a product action as them.
         Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const ActionsPage()),
         );
       case DevToolSection.users:
-        // DT-07 — seed users into a named lifecycle scenario.
         Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const ScenarioUsersPage()),
         );
@@ -167,12 +146,6 @@ class DevToolShell extends StatelessWidget {
   }
 }
 
-/// Live on/off for the GESTURE-LOG hook. Flips [GestureLog.enabled] instantly
-/// (no restart) and reflects the current state — records taps/gestures (incl.
-/// adb/Maestro-injected) onto the `[jeeb-diag]` stream. Default OFF; a test
-/// build can start it ON via `--dart-define=JEEB_GESTURE_LOG_DEFAULT=true`.
-/// OMDS component + design tokens; carries an accessibility key so the toggle
-/// itself is targetable by automated flows.
 class _GestureLoggingSwitch extends StatelessWidget {
   const _GestureLoggingSwitch();
 
@@ -193,11 +166,6 @@ class _GestureLoggingSwitch extends StatelessWidget {
   }
 }
 
-/// DT-03 — Super Login section. Offers both variants (both write the shared
-/// `AuthTokenStore`, so signing in here authenticates the Jeeb app):
-///  • Super Login       — the credential sheet directly.
-///  • Super Login Plus  — a demo-user picker, then the sheet pre-filled with the
-///    chosen user's id + passcode (the "super login plus" flow).
 class SuperLoginPage extends StatelessWidget {
   const SuperLoginPage({super.key});
 
@@ -208,9 +176,6 @@ class SuperLoginPage extends StatelessWidget {
   }
 
   void _superLoginPlus(BuildContext context) {
-    // JEBV4-8: full live-user roster + credential-less mint login (the flow that
-    // works against the current gateway; the old demo-user passcode flow is
-    // rejected with "Invalid super admin passcode").
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const FullRosterLoginPage()),
     );
@@ -251,9 +216,6 @@ class SuperLoginPage extends StatelessWidget {
   }
 }
 
-/// Placeholder destination for a not-yet-implemented Dev Tool section. Each real
-/// section (catalog DT-04, actions DT-06, users DT-07, settings DT-08) replaces
-/// this with its screen.
 class DevToolSectionPage extends StatelessWidget {
   const DevToolSectionPage({required this.section, super.key});
 
