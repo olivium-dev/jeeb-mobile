@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/map/jeeb_map_style.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../background_gps/data/geolocator_geocapture_gateway.dart';
@@ -49,7 +50,24 @@ class GoogleMapCaptureView extends StatefulWidget {
 class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
   GoogleMapController? _map;
 
+  /// MIDNIGHT M0-6 — the dark map style JSON (null until the bundle read
+  /// lands, and null forever if it fails; `GoogleMap.style` accepts null).
+  /// Seeded from the process cache so a second mount never flashes the light
+  /// default map.
+  String? _mapStyle = JeebMapStyle.cached;
+
   LocationPoint get _initial => widget.controller.center;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_mapStyle == null) {
+      JeebMapStyle.load().then((String? style) {
+        if (!mounted || style == null) return;
+        setState(() => _mapStyle = style);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -85,6 +103,7 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
             target: LatLng(_initial.latitude, _initial.longitude),
             zoom: widget.initialZoom,
           ),
+          style: _mapStyle,
           onMapCreated: (controller) => _map = controller,
           onCameraMove: _onCameraMove,
           myLocationButtonEnabled: false,

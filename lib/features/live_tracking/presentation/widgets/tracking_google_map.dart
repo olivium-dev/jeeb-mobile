@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../core/map/jeeb_map_style.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../domain/delivery_tracking_info.dart';
 
@@ -54,6 +55,23 @@ class _TrackingGoogleMapState extends State<TrackingGoogleMap> {
 
   /// Latched so a failed generation is not retried on every frame.
   bool _courierIconRequested = false;
+
+  /// MIDNIGHT M0-6 — the dark map style JSON (null until the bundle read
+  /// lands, and null forever if it fails; `GoogleMap.style` accepts null).
+  /// Seeded from the process cache so a second mount never flashes the light
+  /// default map.
+  String? _mapStyle = JeebMapStyle.cached;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_mapStyle == null) {
+      JeebMapStyle.load().then((String? style) {
+        if (!mounted || style == null) return;
+        setState(() => _mapStyle = style);
+      });
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -154,6 +172,7 @@ class _TrackingGoogleMapState extends State<TrackingGoogleMap> {
   Widget build(BuildContext context) {
     return GoogleMap(
       initialCameraPosition: trackingCamera(widget.info),
+      style: _mapStyle,
       onMapCreated: (controller) => _map = controller,
       markers: {
         ...trackingMarkers(widget.info, courierIcon: _courierIcon),

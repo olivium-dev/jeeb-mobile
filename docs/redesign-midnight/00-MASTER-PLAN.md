@@ -295,7 +295,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [ ] M0-3 `JeebMidnightField` + variants (hero/content/map/sheet)
 - [ ] M0-4 Motion module `lib/core/motion/jeeb_motion.dart` (8 primitives §2.6 + reduced-motion)
 - [ ] M0-5 Fonts: Inter w800 + Arabic brand face (confirm exact face from board pkg) + `fontFamilyFallback`
-- [ ] M0-6 Dark map style JSON + applied to all `GoogleMap`s
+- [x] M0-6 Dark map style JSON (`assets/map_styles/midnight.json`, measured from R3/R11: land=wash, roads land+0x0F, labels periwinkle ON by ruling, POI/transit off) + `JeebMapStyle` helper + both live `GoogleMap` sites styled via `style:` param @2026-08-03
 - [x] M0-7 Board assets imported → `assets/brand/jeeb_wordmark.svg`, `assets/illustrations/delivery_3d.png` (repo snake_case convention; delivery art flagged navy-hostile for M5) @2026-08-03
 - [ ] M0-8 AA contrast tests re-cut for navy pairs (retire brown-on-white guard)
 - [ ] M0-9 Capture-harness fixes (R12 `standInRouter`, star token provider, harness emoji/Arabic fonts)
