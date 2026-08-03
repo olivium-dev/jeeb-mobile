@@ -54,6 +54,13 @@ void main() {
         bg: cs.surfaceContainerHigh
       ),
       'onError / error': (fg: cs.onError, bg: cs.error),
+      // Added in redesign-2026-08 Wave 0: the container pair used to fall
+      // through to `error`/`onError` (a solid #B00020 slab). Now explicit in
+      // light, so gate it like every other text pair.
+      'onErrorContainer / errorContainer': (
+        fg: cs.onErrorContainer,
+        bg: cs.errorContainer
+      ),
       // ── Jeeb semantic roles (source of truth: JeebColorRoles) ─────────────
       'onSuccess / success': (fg: roles.onSuccess, bg: roles.success),
       'onSuccessContainer / successContainer': (
@@ -69,6 +76,15 @@ void main() {
       'onInfoContainer / infoContainer': (
         fg: roles.onInfoContainer,
         bg: roles.infoContainer
+      ),
+      // Brand orange as a role (redesign-2026-08 §4.1). `onAccent / accent`
+      // clears AA by only 0.15 — that is the whole reason this pair is gated:
+      // if anyone re-tones the brand orange, this fails before a screen ships.
+      // Never fade `onAccent`; there is no headroom for it.
+      'onAccent / accent': (fg: roles.onAccent, bg: roles.accent),
+      'onAccentContainer / accentContainer': (
+        fg: roles.onAccentContainer,
+        bg: roles.accentContainer
       ),
     };
   }

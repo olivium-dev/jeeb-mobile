@@ -17,6 +17,12 @@ import 'package:flutter/material.dart';
 /// tonal `*Container` / `on*Container` pair, generated for BOTH light and dark
 /// from the same intent.
 ///
+/// The redesign (redesign-2026-08 §4.1) adds one more: `accent`, the brand
+/// orange as a *named role*. The 18 files behind
+/// `no_raw_semantic_colors_test.dart` may not touch `colorScheme.tertiary`, so
+/// `accent` is the only sanctioned way for them to paint brand orange —
+/// rationed to state and emphasis, never chrome.
+///
 /// Every text pair here is WCAG 2.2 AA verified (≥ 4.5:1) by
 /// `test/core/theme/color_role_contrast_test.dart`, the automated audit harness
 /// the UX plan (§7.1) calls for. Do not add a role without adding it to that
@@ -39,6 +45,10 @@ class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
     required this.onInfo,
     required this.infoContainer,
     required this.onInfoContainer,
+    required this.accent,
+    required this.onAccent,
+    required this.accentContainer,
+    required this.onAccentContainer,
   });
 
   /// Light-mode semantic roles. Solid roles carry white text; containers are a
@@ -56,6 +66,14 @@ class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
         onInfo: Color(0xFFFFFFFF),
         infoContainer: Color(0xFFDBEAFE),
         onInfoContainer: Color(0xFF1E3A8A),
+        // The brand orange (`colorScheme.tertiary`) under white ink — 4.65:1,
+        // AA by 0.15, so never fade `onAccent` (same trap as the old
+        // `primaryContainer`; see the tone-pair note in app_theme.dart). The
+        // container pair is the M3 tone-90/tone-10 pair for the same seed.
+        accent: Color(0xFFD73B00),
+        onAccent: Color(0xFFFFFFFF),
+        accentContainer: Color(0xFFFFDBD1),
+        onAccentContainer: Color(0xFF3A0B01),
       );
 
   /// Dark-mode semantic roles. Solid roles are lifted (brighter) to read on
@@ -74,6 +92,14 @@ class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
         onInfo: Color(0xFF0A1B3D),
         infoContainer: Color(0xFF1E3A8A),
         onInfoContainer: Color(0xFFBFDBFE),
+        // Accent is NOT lifted for dark: the redesign is light-only
+        // (redesign-2026-08 §9.4) and inventing a dark brand orange would be
+        // design fabrication. The light quartet already clears AA on dark
+        // surfaces, so it is reused verbatim until a dark pass exists.
+        accent: Color(0xFFD73B00),
+        onAccent: Color(0xFFFFFFFF),
+        accentContainer: Color(0xFFFFDBD1),
+        onAccentContainer: Color(0xFF3A0B01),
       );
 
   /// Positive / completed / online (e.g. "On the way", delivered success).
@@ -94,6 +120,15 @@ class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
   final Color infoContainer;
   final Color onInfoContainer;
 
+  /// Brand orange as a role — emphasis and live state only (Edit/Change links,
+  /// broadcasting, active stepper node, "Best value"), never chrome and never
+  /// a large fill except the at-door arrival banner. Same value as
+  /// `colorScheme.tertiary`; this is the accessor the contrast-gated files use.
+  final Color accent;
+  final Color onAccent;
+  final Color accentContainer;
+  final Color onAccentContainer;
+
   @override
   JeebColorRoles copyWith({
     Color? success,
@@ -108,6 +143,10 @@ class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
     Color? onInfo,
     Color? infoContainer,
     Color? onInfoContainer,
+    Color? accent,
+    Color? onAccent,
+    Color? accentContainer,
+    Color? onAccentContainer,
   }) {
     return JeebColorRoles(
       success: success ?? this.success,
@@ -122,6 +161,10 @@ class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
       onInfo: onInfo ?? this.onInfo,
       infoContainer: infoContainer ?? this.infoContainer,
       onInfoContainer: onInfoContainer ?? this.onInfoContainer,
+      accent: accent ?? this.accent,
+      onAccent: onAccent ?? this.onAccent,
+      accentContainer: accentContainer ?? this.accentContainer,
+      onAccentContainer: onAccentContainer ?? this.onAccentContainer,
     );
   }
 
@@ -143,6 +186,11 @@ class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
       onInfo: Color.lerp(onInfo, other.onInfo, t)!,
       infoContainer: Color.lerp(infoContainer, other.infoContainer, t)!,
       onInfoContainer: Color.lerp(onInfoContainer, other.onInfoContainer, t)!,
+      accent: Color.lerp(accent, other.accent, t)!,
+      onAccent: Color.lerp(onAccent, other.onAccent, t)!,
+      accentContainer: Color.lerp(accentContainer, other.accentContainer, t)!,
+      onAccentContainer:
+          Color.lerp(onAccentContainer, other.onAccentContainer, t)!,
     );
   }
 }
@@ -197,6 +245,13 @@ class JeebRoles {
   Color get onInfo => _semantic.onInfo;
   Color get infoContainer => _semantic.infoContainer;
   Color get onInfoContainer => _semantic.onInfoContainer;
+
+  /// Brand orange. The ONLY sanctioned orange in the contrast-gated files —
+  /// `.tertiary` is banned there by `no_raw_semantic_colors_test.dart`.
+  Color get accent => _semantic.accent;
+  Color get onAccent => _semantic.onAccent;
+  Color get accentContainer => _semantic.accentContainer;
+  Color get onAccentContainer => _semantic.onAccentContainer;
 }
 
 /// Resolves the unified [JeebRoles] facade from the active theme.

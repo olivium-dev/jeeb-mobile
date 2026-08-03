@@ -609,12 +609,19 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       child: BlocBuilder<LocaleCubit, Locale>(
         builder: (context, locale) {
           // OmdsColorTokensProvider exposes `context.omdsColorTokens` to the
-          // entire widget tree below MaterialApp. We use the default token
-          // set — Jeeb has no brand-specific overrides for grey-scale,
-          // shimmer, or semantic success/warning/info today. If that
-          // changes, override here, not per-feature.
+          // entire widget tree below MaterialApp. Overrides belong HERE, not
+          // per-feature; grey-scale, shimmer and semantic success/warning/info
+          // still take the OMDS defaults.
+          //
+          // `starRatingColor`: OMDS defaults stars to #D73B00, the Jeeb brand
+          // orange — but the redesign rations orange to state/emphasis, and a
+          // rating star is neither. Amber #FFC107 per redesign-2026-08 §4.1
+          // (`--jeeb-star`). Hand-rolled stars must read
+          // `context.omdsColorTokens.starRatingColor`, never a literal.
           return OmdsColorTokensProvider(
-            tokens: const OmdsColorTokens(),
+            tokens: const OmdsColorTokens(
+              starRatingColor: Color(0xFFFFC107),
+            ),
             child: MaterialApp.router(
               title: 'Jeeb',
               debugShowCheckedModeBanner: false,

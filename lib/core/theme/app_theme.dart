@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import 'jeeb_color_roles.dart';
 import 'jeeb_semantic_colors.dart';
+import 'jeeb_text_styles.dart';
 import 'jeeb_tier_colors.dart';
 
 /// Jeeb app theme derived from the Figma design (ZOi3kKtw7sd42ssSVX3Kn4).
@@ -105,6 +106,22 @@ class AppTheme {
   /// to read against the warm white surface; not the same as `_jeebNavy`.
   static const Color _jeebOnSurface = Color(0xFF0B0E53);
 
+  // ── The error family ───────────────────────────────────────────────────────
+  //
+  // redesign-2026-08 §4.1. `error` / `onError` were previously left unset and
+  // so resolved to the `ColorScheme.light` defaults — the SAME two values now
+  // written here, so the 47 `.error` call sites do not change by one pixel.
+  //
+  // The container pair is the real change. `ColorScheme` implements
+  // `errorContainer => _errorContainer ?? error`, so leaving it unset made
+  // "recoverable attention" states render as a solid #B00020 slab under white
+  // ink at 12+18 call sites — a red emergency block where the design wants a
+  // soft tint. These are the M3 tone-90 / tone-10 pair for the same error seed
+  // (13.26:1), matching how the orange pair was corrected above.
+  static const Color _jeebError = Color(0xFFB00020);
+  static const Color _jeebErrorContainer = Color(0xFFFFDAD6);
+  static const Color _jeebOnErrorContainer = Color(0xFF410002);
+
   static ThemeData light() => _build(Brightness.light);
   static ThemeData dark() => _build(Brightness.dark);
 
@@ -130,6 +147,10 @@ class AppTheme {
             // changes meaning.
             tertiaryContainer: _jeebOrangeContainer,
             onTertiaryContainer: _jeebOnOrangeContainer,
+            error: _jeebError,
+            onError: Colors.white,
+            errorContainer: _jeebErrorContainer,
+            onErrorContainer: _jeebOnErrorContainer,
             surface: Colors.white,
             onSurface: _jeebOnSurface,
             onSurfaceVariant: _jeebSubtitle,
@@ -162,6 +183,10 @@ class AppTheme {
       // stay in `colorScheme`; this only adds the roles M3 omits. Read via
       // `context.jeebRoles`. Contrast-gated in color_role_contrast_test.dart.
       isLight ? JeebColorRoles.light() : JeebColorRoles.dark(),
+      // The redesign type ramp. Rides ALONGSIDE the M3 `TextTheme` (which is
+      // untouched, so existing consumers see zero drift); redesigned screens
+      // opt in via `context.jeebText`.
+      isLight ? JeebTextStyles.light() : JeebTextStyles.dark(),
       ...base.extensions.values,
     ].cast<ThemeExtension<dynamic>>();
 
@@ -196,9 +221,27 @@ class AppTheme {
         labelStyle: baseTextTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w500,
         ),
-        shape: const RoundedRectangleBorder(
-          borderRadius: OmdsBorderRadius.xSmall,
-        ),
+        // redesign-2026-08 §4.4: pill, not an 8px rect. This ends a real
+        // disagreement — `OmdsChip` already draws itself as a pill, so the
+        // two chip families rendered different shapes side by side.
+        shape: const StadiumBorder(),
+      ),
+      // redesign-2026-08 §5: navy on / neutral off with a white knob. The
+      // selected values match the M3 defaults; the change is the unselected
+      // knob (M3 paints it `outline` brown, which read as "disabled").
+      // Deliberately leaves `trackOutlineColor` alone so the off state keeps
+      // its outline — the design language is outline-over-shadow.
+      //
+      // Widget-level `activeColor` / `activeTrackColor` resolve BEFORE this
+      // theme, so `OmdsSwitchTile`'s green online toggle (jeeber availability)
+      // and `OmdsSettingsSwitchRow` keep their explicit colors.
+      switchTheme: SwitchThemeData(
+        thumbColor: const WidgetStatePropertyAll<Color>(Colors.white),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest;
+        }),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: colorScheme.primary,
