@@ -52,6 +52,7 @@ import '../core/session/session_cubit.dart';
 import '../core/session/session_gate.dart';
 import '../core/session/session_state.dart';
 import '../core/theme/app_theme.dart';
+import '../core/theme/jeeb_midnight_palette.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/dev_biometric_gateway.dart';
 import '../features/biometric_auth/data/local_auth_biometric_gateway.dart';
@@ -608,26 +609,46 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       ],
       child: BlocBuilder<LocaleCubit, Locale>(
         builder: (context, locale) {
-          // OmdsColorTokensProvider exposes `context.omdsColorTokens` to the
-          // entire widget tree below MaterialApp. Overrides belong HERE, not
-          // per-feature; grey-scale, shimmer and semantic success/warning/info
-          // still take the OMDS defaults.
-          //
-          // `starRatingColor`: OMDS defaults stars to #D73B00, the Jeeb brand
-          // orange — but the redesign rations orange to state/emphasis, and a
-          // rating star is neither. Amber #FFC107 per redesign-2026-08 §4.1
-          // (`--jeeb-star`). Hand-rolled stars must read
-          // `context.omdsColorTokens.starRatingColor`, never a literal.
+          // omds widgets read `OmdsColorTokens.defaultTokens` (a light set)
+          // DIRECTLY, so the theme override alone cannot reach them.
           return OmdsColorTokensProvider(
             tokens: const OmdsColorTokens(
-              starRatingColor: Color(0xFFFFC107),
+              textLight: JeebMidnight.ink,
+              textMedium: JeebMidnight.inkMuted,
+              textDisabled: Color(0x61FFFFFF),
+              bodyTextColor: JeebMidnight.ink,
+              secondaryTextColor: JeebMidnight.inkMuted,
+              dividerColor: JeebMidnight.divider,
+              surfaceGreyScale: JeebMidnight.surfaceHigh,
+              greyScale700: JeebMidnight.surfaceLow,
+              greyScale600: JeebMidnight.surface,
+              greyScale500: JeebMidnight.surfaceHigh,
+              greyScale400: JeebMidnight.surfaceHighest,
+              greyScale300: JeebMidnight.glassBorderStrong,
+              greyScale200: JeebMidnight.glassBorder,
+              greyScale100: JeebMidnight.glassFillEmphasis,
+              greyScale50: JeebMidnight.glassFill,
+              shimmerBase: JeebMidnight.glassFill,
+              shimmerHighlight: JeebMidnight.glassFillPressed,
+              // Mirrors AppTheme's frosted field.
+              inputFillColor: JeebMidnight.glassFill,
+              inputBorderColor: JeebMidnight.glassBorder,
+              inputLabelColor: JeebMidnight.inkMuted,
+              successColor: JeebMidnight.success,
+              warningColor: JeebMidnight.amber,
+              infoColor: JeebMidnight.inkMuted,
+              semanticErrorColor: JeebMidnight.danger,
+              favoriteActiveColor: JeebMidnight.danger,
+              favoriteInactiveColor: JeebMidnight.inkMuted,
+              starRatingColor: JeebMidnight.amber,
+              starInactiveColor: JeebMidnight.glassBorderStrong,
             ),
             child: MaterialApp.router(
               title: 'Jeeb',
               debugShowCheckedModeBanner: false,
-              theme: AppTheme.light(),
-              darkTheme: AppTheme.dark(),
-              themeMode: ThemeMode.system,
+              theme: AppTheme.midnight(),
+              darkTheme: AppTheme.midnight(),
+              themeMode: ThemeMode.dark,
               locale: locale,
               supportedLocales: AppLocalizations.supportedLocales,
               localizationsDelegates: [

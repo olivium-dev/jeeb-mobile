@@ -115,9 +115,11 @@ class _SplashApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      // Pinned: the splash is the first painted surface, so `system` here is
+      // where a light-mode device flashes white.
+      theme: AppTheme.midnight(),
+      darkTheme: AppTheme.midnight(),
+      themeMode: ThemeMode.dark,
       locale: _initialLocale(),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
@@ -140,6 +142,10 @@ class _BootstrapErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      // An unthemed MaterialApp renders stock Material white.
+      theme: AppTheme.midnight(),
+      darkTheme: AppTheme.midnight(),
+      themeMode: ThemeMode.dark,
       home: Scaffold(
         body: Center(
           child: Padding(

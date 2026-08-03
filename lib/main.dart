@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'app/jeeb_bootstrap.dart';
 import 'core/dev_flags.dart';
+import 'core/theme/app_theme.dart';
 import 'devtool/devtool_shell.dart' as devtool;
 
 // ignore: unused_element
@@ -15,15 +16,9 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarDividerColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-    ),
-  );
+  // Also set in `appBarTheme`; this one covers the first frame, before any
+  // AppBar exists.
+  SystemChrome.setSystemUIOverlayStyle(AppTheme.systemOverlayStyle);
   if (kDevToolEnabled &&
       ui.PlatformDispatcher.instance.defaultRouteName == '/devtool') {
     runApp(const devtool.DevToolApp());

@@ -1,27 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// App-specific semantic color tokens that don't map onto the Material 3
-/// `ColorScheme` and aren't covered by `OmdsColorTokens`.
-///
-/// Lives as a `ThemeExtension` so call sites read from
-/// `Theme.of(context).extension<JeebSemanticColors>()!.<role>` rather than
-/// reaching for hex literals. Documented in
-/// `docs/design/03-color-token-mapping.md` §4 (semantic roles).
-///
-/// NOTE (sprint-009 §G2): the `availableNow` / `availableNowRing` raw greens
-/// (#22C55E family) that used to live here were deleted with the legacy
-/// availability disc. Online/offline styling now resolves through the
-/// semantic role layer — `context.jeebRoles.success*` (`JeebColorRoles`) —
-/// never through ad-hoc greens.
-///
-/// Light/dark variants are provided via [JeebSemanticColors.light] and
-/// [JeebSemanticColors.dark]; the active variant is wired in
-/// `AppTheme._build` based on the requested [Brightness].
-///
-/// NOTE (redesign-2026-08 §4.1): everything added here beyond [mutedText] is
-/// **decorative and NOT contrast-gated** — fills, rings, tints and an icon ink.
-/// None of them may carry body text. Text ink comes from [ColorScheme] or
-/// `context.jeebRoles`, both of which the WCAG gate covers.
+import 'jeeb_midnight_palette.dart';
+
+/// App-specific tokens with no Material 3 `ColorScheme` slot (token sheet §3).
+/// Only [mutedText] and [inkSoft] are contrast-gated; the rest are decorative.
 @immutable
 class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
   const JeebSemanticColors({
@@ -30,49 +12,87 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
     required this.readTick,
     required this.accentTint,
     required this.accentRing,
+    required this.inkSoft,
+    required this.amber,
+    required this.orangeBright,
+    required this.orangeSoft,
+    required this.orangePressed,
+    required this.glassFill,
+    required this.glassFillEmphasis,
+    required this.glassFillPressed,
+    required this.glassBorder,
+    required this.glassBorderStrong,
   });
 
-  /// Light-mode variant.
-  factory JeebSemanticColors.light() => const JeebSemanticColors(
-        mutedText: Color(0xFF777FC0),
-        mutedSurface: Color(0xFFF4F4F6),
-        readTick: _readTick,
-        accentTint: _accentTint,
-        accentRing: _accentRing,
+  /// Named `.light()` for API stability only.
+  factory JeebSemanticColors.light() => JeebSemanticColors.midnight();
+
+  /// Named `.dark()` for API stability only.
+  factory JeebSemanticColors.dark() => JeebSemanticColors.midnight();
+
+  /// Token sheet §3.
+  factory JeebSemanticColors.midnight() => const JeebSemanticColors(
+        mutedText: JeebMidnight.inkMuted,
+        mutedSurface: JeebMidnight.surfaceHigh,
+        readTick: JeebMidnight.readTick,
+        accentTint: JeebMidnight.accentTint,
+        accentRing: JeebMidnight.accentRing,
+        inkSoft: JeebMidnight.inkSoft,
+        amber: JeebMidnight.amber,
+        orangeBright: JeebMidnight.orangeBright,
+        orangeSoft: JeebMidnight.orangeSoft,
+        orangePressed: JeebMidnight.orangePressed,
+        glassFill: JeebMidnight.glassFill,
+        glassFillEmphasis: JeebMidnight.glassFillEmphasis,
+        glassFillPressed: JeebMidnight.glassFillPressed,
+        glassBorder: JeebMidnight.glassBorder,
+        glassBorderStrong: JeebMidnight.glassBorderStrong,
       );
 
-  /// Dark-mode variant. Muted text shifts toward the brand's lighter purple;
-  /// the muted surface becomes the dark scheme's own `surfaceContainerHigh`
-  /// (`ColorScheme.fromSeed(navy, dark)`) so it stays a real step above the
-  /// dark background instead of a near-white slab.
-  factory JeebSemanticColors.dark() => const JeebSemanticColors(
-        mutedText: Color(0xFF9DA3E0),
-        mutedSurface: Color(0xFF29292F),
-        readTick: _readTick,
-        accentTint: _accentTint,
-        accentRing: _accentRing,
-      );
-
-  /// Secondary/muted body text where `onSurfaceVariant` is too strong.
+  /// `#8A93D8`, AA as body text on every navy. Supersedes `#777FC0`/`#9DA3E0`.
   final Color mutedText;
 
-  /// The light-grey card fill behind offer / message rows (`#F4F4F6`). A fill
-  /// only — pair it with `onSurface` ink, never with [mutedText].
+  /// `#10175E` raised navy. A fill only — pair with `onSurface` or [inkSoft].
   final Color mutedSurface;
 
-  /// Cyan read-receipt double-tick, on navy outgoing chat bubbles only. A
-  /// decorative icon ink at ~16px; it is not AA as text and must not be used
-  /// as one.
+  /// Read-receipt tick, outgoing bubbles only. Icon ink; not AA as text.
   final Color readTick;
 
-  /// Brand orange at 12% — badge and pill backgrounds ("Most picked", "Best
-  /// value"). Translucent, so it composites over whatever surface it sits on;
-  /// the badge label on top is `jeebRoles.accent` at w800.
+  /// Orange 12% — badge / pill backgrounds.
   final Color accentTint;
 
-  /// Brand orange at 30% — the decorative stroked circles on navy hero cards.
-  /// Stroke only, never a fill behind content.
+  /// Orange 30% — stroke only, never a fill behind content.
   final Color accentRing;
+
+  /// `#B9C0F0` — brighter muted ink; the ink of choice on [mutedSurface].
+  final Color inkSoft;
+
+  /// `#FFC107` — stars and ratings. Kept off the accent so it costs no orange.
+  final Color amber;
+
+  /// `#FF6A2B` — gradient ends and glow cores.
+  final Color orangeBright;
+
+  /// `#FFB27A` — waveform bars and soft accents.
+  final Color orangeSoft;
+
+  /// `#C23300` — pressed CTA fill.
+  final Color orangePressed;
+
+  /// White 7% — rest glass card fill. No blur: translucency is pre-baked (§4).
+  final Color glassFill;
+
+  /// White 10% — capsule / raised glass fill.
+  final Color glassFillEmphasis;
+
+  /// White 14% — pressed / active glass fill.
+  final Color glassFillPressed;
+
+  /// White 12% — the 1px border every glass surface carries.
+  final Color glassBorder;
+
+  /// White 16% — hero capsule border.
+  final Color glassBorderStrong;
 
   @override
   JeebSemanticColors copyWith({
@@ -81,6 +101,16 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
     Color? readTick,
     Color? accentTint,
     Color? accentRing,
+    Color? inkSoft,
+    Color? amber,
+    Color? orangeBright,
+    Color? orangeSoft,
+    Color? orangePressed,
+    Color? glassFill,
+    Color? glassFillEmphasis,
+    Color? glassFillPressed,
+    Color? glassBorder,
+    Color? glassBorderStrong,
   }) {
     return JeebSemanticColors(
       mutedText: mutedText ?? this.mutedText,
@@ -88,6 +118,16 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
       readTick: readTick ?? this.readTick,
       accentTint: accentTint ?? this.accentTint,
       accentRing: accentRing ?? this.accentRing,
+      inkSoft: inkSoft ?? this.inkSoft,
+      amber: amber ?? this.amber,
+      orangeBright: orangeBright ?? this.orangeBright,
+      orangeSoft: orangeSoft ?? this.orangeSoft,
+      orangePressed: orangePressed ?? this.orangePressed,
+      glassFill: glassFill ?? this.glassFill,
+      glassFillEmphasis: glassFillEmphasis ?? this.glassFillEmphasis,
+      glassFillPressed: glassFillPressed ?? this.glassFillPressed,
+      glassBorder: glassBorder ?? this.glassBorder,
+      glassBorderStrong: glassBorderStrong ?? this.glassBorderStrong,
     );
   }
 
@@ -100,13 +140,19 @@ class JeebSemanticColors extends ThemeExtension<JeebSemanticColors> {
       readTick: Color.lerp(readTick, other.readTick, t)!,
       accentTint: Color.lerp(accentTint, other.accentTint, t)!,
       accentRing: Color.lerp(accentRing, other.accentRing, t)!,
+      inkSoft: Color.lerp(inkSoft, other.inkSoft, t)!,
+      amber: Color.lerp(amber, other.amber, t)!,
+      orangeBright: Color.lerp(orangeBright, other.orangeBright, t)!,
+      orangeSoft: Color.lerp(orangeSoft, other.orangeSoft, t)!,
+      orangePressed: Color.lerp(orangePressed, other.orangePressed, t)!,
+      glassFill: Color.lerp(glassFill, other.glassFill, t)!,
+      glassFillEmphasis:
+          Color.lerp(glassFillEmphasis, other.glassFillEmphasis, t)!,
+      glassFillPressed:
+          Color.lerp(glassFillPressed, other.glassFillPressed, t)!,
+      glassBorder: Color.lerp(glassBorder, other.glassBorder, t)!,
+      glassBorderStrong:
+          Color.lerp(glassBorderStrong, other.glassBorderStrong, t)!,
     );
   }
 }
-
-// Brightness-independent decorative values. The two accent tints are
-// alpha-based (`rgba(215,59,0,…)` in `_ds/tokens`), so they composite
-// correctly on either background and are deliberately NOT re-toned for dark.
-const Color _readTick = Color(0xFF20F0FF);
-const Color _accentTint = Color.fromRGBO(215, 59, 0, 0.12);
-const Color _accentRing = Color.fromRGBO(215, 59, 0, 0.30);

@@ -57,6 +57,23 @@ do their own STEP-0 tile read.
   reduce motion. **Catalog captures run with `disableAnimations: true`** so every capture is
   the deterministic rest frame (M0-9 harness must set this).
 
+## Theme rulings (M0-2/M0-8, ratified 2026-08-03)
+
+1. **Shadow migration map RATIFIED** — legacy navy-tinted `JeebShadows` entries survive M0
+   (29 consumers) and DIE at M1-5 kit re-freeze via: `card/raised/sheet/heroNavy/bubbleOut`
+   → none; `fab/ctaNavy/accentBanner` → `ctaOrange`; `floatPill` → `floatNav`/`overlay`;
+   `stepGlow` → `glowRest`/`micActive`; `focusRing` → `glassBorderStrong` border.
+2. **Radii ladder gets a public home**: `lib/core/theme/jeeb_radii.dart` (`JeebRadii.sm 9 /
+   md 14 / lg 18 / xl 22 / sheet 26 / hero 34 / capsule 40 / pill 999`) — created by M0-3,
+   consumed by M1's 32 widgets; app_theme's private consts re-point to it.
+3. **Bare Material FilledButton/FAB = periwinkle** stands ("when in doubt: not orange").
+   Orange CTAs come only from the kit accent button where a tile draws them.
+4. **Cursor/selection periwinkle** stands app-wide; R2's transcript caret color decided at
+   M2-03 from the live board (may be orange — tile-sanctioned if so).
+5. Unaudited scheme-derived sub-themes (drawer, rail, search, dropdown, segmentedButton,
+   expansionTile, scrollbar, badge, banner) → M6 sweep list.
+6. `test/app_shell_test.dart` brightness test rewritten: both factories assert Midnight.
+
 ## Map rulings (M0-6, ratified 2026-08-03)
 
 - R3/R11 tiles draw ZERO map labels/POIs. Ruling: **labels stay**, styled periwinkle

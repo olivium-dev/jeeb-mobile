@@ -77,13 +77,12 @@ void main() {
       offenders,
       isEmpty,
       reason:
-          'A *Container role is a FILL and is illegible on a surface in dark '
-          'mode. Use the matching on-colour (`onSecondaryContainer`) when '
-          'painting ON that container, or a foreground role (`primary`, '
-          '`onSurface`, `onSurfaceVariant`) when painting on a surface.\n\n'
-          'Note `AppTheme.light()` pins primary/secondary/secondaryContainer to '
-          'the same navy, so swapping `secondaryContainer` -> `primary` for ink '
-          'is a no-op in light and a fix in dark.\n\n'
+          'A *Container role is a FILL and is illegible as ink. Use the '
+          'matching on-colour (`onSecondaryContainer`) when painting ON that '
+          'container, or a foreground role (`onSurface`, `onSurfaceVariant`) '
+          'when painting on a surface.\n\n'
+          'MIDNIGHT: `secondaryContainer` was navy in the light theme (dark '
+          'ink on white); it is now #10175E, invisible on the navy field.\n\n'
           '${offenders.join('\n')}',
     );
   });

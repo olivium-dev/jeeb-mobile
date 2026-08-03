@@ -106,14 +106,14 @@ void main() {
       expect(dark.useMaterial3, isTrue);
     });
 
-    testWidgets('light and dark themes produce distinct brightness',
+    testWidgets('light and dark both resolve to the one Midnight theme',
         (_) async {
       final light = AppTheme.light();
       final dark = AppTheme.dark();
 
-      expect(light.brightness, Brightness.light);
+      expect(light.brightness, Brightness.dark);
       expect(dark.brightness, Brightness.dark);
-      expect(light.colorScheme.surface, isNot(dark.colorScheme.surface));
+      expect(light.colorScheme.surface, dark.colorScheme.surface);
     });
 
     testWidgets('supported locales include English and Arabic', (_) async {

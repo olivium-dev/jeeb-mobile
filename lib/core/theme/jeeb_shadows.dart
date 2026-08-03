@@ -1,24 +1,87 @@
 import 'package:flutter/material.dart';
 
-/// The Jeeb redesign elevation set (redesign-2026-08 §4.5).
-///
-/// Static consts rather than a `ThemeExtension`: the redesign is light-only
-/// (§9.4), so every value here is brightness-independent and there is nothing
-/// for a per-brightness variant to hold. Read them directly —
-/// `boxShadow: JeebShadows.ctaNavy`.
-///
-/// The design is **outline-over-shadow**: an outlined card carries NO shadow,
-/// ever. Shadows exist only on promoted navy / orange surfaces. If a surface
-/// needs a border it uses `colorScheme.outline` at 1.5px instead of a lift.
-///
-/// Values are the realized screen values from the redesign board, which win
-/// over `_ds/tokens/elevation.css` where the two disagree. Each entry maps
-/// 1:1 onto its CSS source: `x y blur [spread] rgba(...)`.
+/// The MIDNIGHT elevation / glow set (token sheet §7). On navy, depth is a
+/// black drop shadow or a colored glow — never the light-era navy tint.
 class JeebShadows {
   JeebShadows._();
 
-  /// `0 1px 3px rgba(11,19,81,.06)` + `0 1px 2px rgba(11,19,81,.04)` — the
-  /// barely-there lift on the few resting cards that are not outlined.
+  /// `0 14px 32px rgba(215,59,0,.45)` — the mic disc and orange CTAs.
+  static const List<BoxShadow> ctaOrange = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(215, 59, 0, 0.45),
+      offset: Offset(0, 14),
+      blurRadius: 32,
+    ),
+  ];
+
+  /// `0 8px 20px rgba(215,59,0,.40)` — small orange pills (5×).
+  static const List<BoxShadow> ctaOrangeSmall = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(215, 59, 0, 0.40),
+      offset: Offset(0, 8),
+      blurRadius: 20,
+    ),
+  ];
+
+  /// `0 0 30px rgba(215,59,0,.18)` — halos at rest; the `jBreathe` target.
+  static const List<BoxShadow> glowRest = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(215, 59, 0, 0.18),
+      blurRadius: 30,
+    ),
+  ];
+
+  /// `0 0 10px rgba(215,59,0,.85)` — live / "Broadcasting" dots.
+  static const List<BoxShadow> glowDot = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(215, 59, 0, 0.85),
+      blurRadius: 10,
+    ),
+  ];
+
+  /// `0 0 14px rgba(59,178,115,.9)` — online / success dots.
+  static const List<BoxShadow> glowDotSuccess = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(59, 178, 115, 0.90),
+      blurRadius: 14,
+    ),
+  ];
+
+  /// Recording mic: entry 0 is the spread-only ring, entry 1 is the lift.
+  static const List<BoxShadow> micActive = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(215, 59, 0, 0.20),
+      spreadRadius: 10,
+    ),
+    BoxShadow(
+      color: Color.fromRGBO(215, 59, 0, 0.55),
+      offset: Offset(0, 20),
+      blurRadius: 46,
+    ),
+  ];
+
+  /// `0 20px 46px rgba(0,0,0,.4)` — floating pill nav and sheets.
+  static const List<BoxShadow> floatNav = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(0, 0, 0, 0.40),
+      offset: Offset(0, 20),
+      blurRadius: 46,
+    ),
+  ];
+
+  /// `0 2px 8px rgba(0,0,0,.4)` — small floating chips.
+  static const List<BoxShadow> overlay = <BoxShadow>[
+    BoxShadow(
+      color: Color.fromRGBO(0, 0, 0, 0.40),
+      offset: Offset(0, 2),
+      blurRadius: 8,
+    ),
+  ];
+
+  // LEGACY (§7/§10): navy-tinted, invisible on the field. Kept only because 29
+  // kit/feature files still read them; M1 migrates and deletes each.
+
+  /// LEGACY. `0 1px 3px rgba(11,19,81,.06)` + `0 1px 2px rgba(11,19,81,.04)`.
   static const List<BoxShadow> card = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(11, 19, 81, 0.06),
@@ -32,7 +95,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 4px 16px rgba(11,19,81,.10)` — sheet-adjacent raised bits.
+  /// LEGACY. `0 4px 16px rgba(11,19,81,.10)`.
   static const List<BoxShadow> raised = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(11, 19, 81, 0.10),
@@ -41,7 +104,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 -4px 24px rgba(11,19,81,.08)` — bottom sheets (lifts upward).
+  /// LEGACY. `0 -4px 24px rgba(11,19,81,.08)`.
   static const List<BoxShadow> sheet = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(11, 19, 81, 0.08),
@@ -50,7 +113,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 6px 20px rgba(11,19,81,.28)` — floating actions.
+  /// LEGACY. `0 6px 20px rgba(11,19,81,.28)`.
   static const List<BoxShadow> fab = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(11, 19, 81, 0.28),
@@ -59,8 +122,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 10px 24px rgba(11,19,81,.28)` — the primary CTA pill and promoted
-  /// navy cards.
+  /// LEGACY. `0 10px 24px rgba(11,19,81,.28)`.
   static const List<BoxShadow> ctaNavy = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(11, 19, 81, 0.28),
@@ -69,7 +131,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 12px 28px rgba(11,19,81,.30)` — stat hero cards and code display tiles.
+  /// LEGACY. `0 12px 28px rgba(11,19,81,.30)`.
   static const List<BoxShadow> heroNavy = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(11, 19, 81, 0.30),
@@ -78,7 +140,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 6px 16px rgba(11,19,81,.20)` — the outgoing chat bubble only.
+  /// LEGACY. `0 6px 16px rgba(11,19,81,.20)`.
   static const List<BoxShadow> bubbleOut = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(11, 19, 81, 0.20),
@@ -87,7 +149,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 6px 16px rgba(11,19,81,.18)` — the floating ETA pill over the map.
+  /// LEGACY. `0 6px 16px rgba(11,19,81,.18)`.
   static const List<BoxShadow> floatPill = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(11, 19, 81, 0.18),
@@ -96,8 +158,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 10px 24px rgba(215,59,0,.35)` — the at-door arrival banner, the one
-  /// large orange fill the design allows.
+  /// LEGACY. `0 10px 24px rgba(215,59,0,.35)`.
   static const List<BoxShadow> accentBanner = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(215, 59, 0, 0.35),
@@ -106,8 +167,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 0 0 5px rgba(215,59,0,.18)` — the halo around an active stepper node.
-  /// Spread-only, so it reads as a ring rather than a drop shadow.
+  /// LEGACY. `0 0 0 5px rgba(215,59,0,.18)` — spread-only ring.
   static const List<BoxShadow> stepGlow = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(215, 59, 0, 0.18),
@@ -115,7 +175,7 @@ class JeebShadows {
     ),
   ];
 
-  /// `0 0 0 3px rgba(119,127,192,.35)` — focused inputs. Spread-only ring.
+  /// LEGACY. `0 0 0 3px rgba(119,127,192,.35)` — the retired periwinkle.
   static const List<BoxShadow> focusRing = <BoxShadow>[
     BoxShadow(
       color: Color.fromRGBO(119, 127, 192, 0.35),

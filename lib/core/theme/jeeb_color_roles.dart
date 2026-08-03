@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'jeeb_midnight_palette.dart';
+
 /// The single semantic color-role layer for Jeeb.
 ///
 /// UX-AUDIT sprint-009 §3/T1 ("No color-role system") found 7+ ad-hoc accent
@@ -30,6 +32,7 @@ import 'package:flutter/material.dart';
 ///
 /// Read these via `context.jeebRoles.<role>` ([JeebRoles]), never by reaching
 /// for a hex literal — see `flutter-no-magic-values-design-tokens`.
+/// MIDNIGHT (M0-2): `.light()`/`.dark()` both return [JeebColorRoles.midnight].
 @immutable
 class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
   const JeebColorRoles({
@@ -51,55 +54,32 @@ class JeebColorRoles extends ThemeExtension<JeebColorRoles> {
     required this.onAccentContainer,
   });
 
-  /// Light-mode semantic roles. Solid roles carry white text; containers are a
-  /// light tint carrying dark ink. Tuned against the warm-white Jeeb surface.
-  factory JeebColorRoles.light() => const JeebColorRoles(
-        success: Color(0xFF1B7A3D),
-        onSuccess: Color(0xFFFFFFFF),
-        successContainer: Color(0xFFDCFCE7),
-        onSuccessContainer: Color(0xFF14532D),
-        warning: Color(0xFF8A5A00),
-        onWarning: Color(0xFFFFFFFF),
-        warningContainer: Color(0xFFFEF3C7),
-        onWarningContainer: Color(0xFF713F12),
-        info: Color(0xFF1D4ED8),
-        onInfo: Color(0xFFFFFFFF),
-        infoContainer: Color(0xFFDBEAFE),
-        onInfoContainer: Color(0xFF1E3A8A),
-        // The brand orange (`colorScheme.tertiary`) under white ink — 4.65:1,
-        // AA by 0.15, so never fade `onAccent` (same trap as the old
-        // `primaryContainer`; see the tone-pair note in app_theme.dart). The
-        // container pair is the M3 tone-90/tone-10 pair for the same seed.
-        accent: Color(0xFFD73B00),
-        onAccent: Color(0xFFFFFFFF),
-        accentContainer: Color(0xFFFFDBD1),
-        onAccentContainer: Color(0xFF3A0B01),
-      );
+  /// Named `.light()` for API stability only; returns [JeebColorRoles.midnight].
+  factory JeebColorRoles.light() => JeebColorRoles.midnight();
 
-  /// Dark-mode semantic roles. Solid roles are lifted (brighter) to read on
-  /// dark surfaces and carry dark ink; containers are a deep tint carrying
-  /// light ink. Mirrors the light intent, generated for dark.
-  factory JeebColorRoles.dark() => const JeebColorRoles(
-        success: Color(0xFF4ADE80),
-        onSuccess: Color(0xFF052E16),
-        successContainer: Color(0xFF14532D),
-        onSuccessContainer: Color(0xFFBBF7D0),
-        warning: Color(0xFFFBBF24),
-        onWarning: Color(0xFF3B2600),
-        warningContainer: Color(0xFF78350F),
-        onWarningContainer: Color(0xFFFDE68A),
-        info: Color(0xFF7AA5FF),
-        onInfo: Color(0xFF0A1B3D),
-        infoContainer: Color(0xFF1E3A8A),
-        onInfoContainer: Color(0xFFBFDBFE),
-        // Accent is NOT lifted for dark: the redesign is light-only
-        // (redesign-2026-08 §9.4) and inventing a dark brand orange would be
-        // design fabrication. The light quartet already clears AA on dark
-        // surfaces, so it is reused verbatim until a dark pass exists.
-        accent: Color(0xFFD73B00),
+  /// Named `.dark()` for API stability only; returns [JeebColorRoles.midnight].
+  factory JeebColorRoles.dark() => JeebColorRoles.midnight();
+
+  /// Token sheet §2. `onSuccess`/`onInfo` are page-navy, NOT white: white on
+  /// `#3BB273` is 2.2:1 and on `#8A93D8` is 2.4:1 — both fail AA.
+  factory JeebColorRoles.midnight() => const JeebColorRoles(
+        success: JeebMidnight.success,
+        onSuccess: JeebMidnight.page,
+        successContainer: JeebMidnight.successContainer,
+        onSuccessContainer: JeebMidnight.successSoft,
+        warning: JeebMidnight.amber,
+        onWarning: JeebMidnight.onAmber,
+        warningContainer: JeebMidnight.amberContainer,
+        onWarningContainer: JeebMidnight.amberSoft,
+        info: JeebMidnight.inkMuted,
+        onInfo: JeebMidnight.page,
+        infoContainer: JeebMidnight.surfaceHigh,
+        onInfoContainer: JeebMidnight.inkSoft,
+        // 4.65:1 — AA by 0.15, so `onAccent` has no headroom to be faded.
+        accent: JeebMidnight.orange,
         onAccent: Color(0xFFFFFFFF),
-        accentContainer: Color(0xFFFFDBD1),
-        onAccentContainer: Color(0xFF3A0B01),
+        accentContainer: JeebMidnight.orangeContainer,
+        onAccentContainer: JeebMidnight.orangeTint,
       );
 
   /// Positive / completed / online (e.g. "On the way", delivered success).
