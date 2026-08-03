@@ -10,11 +10,19 @@ class VoiceClip {
     required this.durationMs,
     this.transcript,
     this.localAudioPath,
+    this.language,
   });
 
   final String audioPath;
   final int durationMs;
   final String? transcript;
+
+  /// The gateway's documented `TranscribeResponse.language` (e.g. `ar-LB`),
+  /// which drives 06's detected-language chip. Null until the voice_request
+  /// lane parses it and the router threads it through (see
+  /// `docs/redesign-2026-08/wiring/06-transcription-review.md`); the chip
+  /// deliberately renders nothing rather than guessing from the UI locale.
+  final String? language;
 
   /// JEBV4-13 (dead transcription-play CTA): absolute path of the ON-DEVICE
   /// file the recorder wrote, when the handoff came from the in-app voice

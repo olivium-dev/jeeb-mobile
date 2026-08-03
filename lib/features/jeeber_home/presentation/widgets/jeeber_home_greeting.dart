@@ -4,20 +4,21 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/session/greeting_profile_cubit.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_profile_header.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// The Jeeber dashboard's single page title.
+/// The Jeeber dashboard's header band (redesign-2026-08 §5 #23).
 ///
-/// The personalized "Hello, {name}" line replaces the former generic
-/// "Jeeber Home" app-bar title and the marketing subtitle. Keeping one compact
-/// title prevents three peer headings from competing above the request feed.
+/// `[Ø46 avatar] [eyebrow "Jeeber dashboard" / "Ahlan, {name}"] [trailing]` —
+/// the board has no top bar on this screen, this row IS the top bar.
 ///
 /// P0-X06: when an ambient [GreetingProfileCubit] is provided above this widget
 /// (the DashboardTab shell wires it from the live `GET /users/me`), its real
 /// name + avatar take precedence over the threaded [name]/[avatarUrl] so the
-/// header shows "Hello, {name}" + the real avatar instead of "Welcome back" +
-/// a "?" placeholder. With no ambient cubit (bare widget tests, the
-/// unregistered upsell path) the threaded values apply unchanged.
+/// header shows the real person instead of "Welcome back" + a "?" placeholder.
+/// With no ambient cubit (bare widget tests, the unregistered upsell path) the
+/// threaded values apply unchanged.
 class JeeberHomeGreeting extends StatelessWidget {
   const JeeberHomeGreeting({super.key, this.name, this.avatarUrl});
 
@@ -26,9 +27,8 @@ class JeeberHomeGreeting extends StatelessWidget {
   /// Profile display name. `null` shows the generic "Welcome back" fallback.
   final String? name;
 
-  /// Optional profile avatar (cdn-service URL) shown leading the greeting
-  /// line, matching the Figma deliveryman home header (screens 23-26). When
-  /// `null` the greeting renders without an avatar (existing call sites).
+  /// Optional profile avatar (cdn-service URL). The disc renders either way —
+  /// a `null` URL is the initial-letter case, not an absent avatar.
   final String? avatarUrl;
 
   @override
@@ -43,15 +43,30 @@ class JeeberHomeGreeting extends StatelessWidget {
     final resolvedAvatar = (profile?.avatarUrl?.trim().isNotEmpty ?? false)
         ? profile!.avatarUrl
         : avatarUrl;
+    final l10n = AppLocalizations.of(context);
     return Padding(
       key: rootKey,
       padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
         Spacing.medium,
-        Spacing.medium,
-        Spacing.medium,
-        Spacing.twoXSmall,
+        Spacing.xLarge,
+        0,
       ),
-      child: _GreetingRow(name: resolvedName, avatarUrl: resolvedAvatar),
+      child: JeebProfileHeader(
+        eyebrow: l10n.jeeberDashboardEyebrow,
+        name: _resolveGreeting(l10n, resolvedName),
+        avatar: JeebAvatar.header(
+          initial: resolvedName ?? '',
+          imageUrl: resolvedAvatar,
+        ),
+        avatarIdentifier: 'jeeber_home_avatar',
+        // TODO(redesign-24): rating pill blocked on shell header overlay +
+        // GreetingProfileState.rating — both are out of this lane.
+        // The shell overlays `delivery_tab_wallet_chip` + `delivery_tab_bell`
+        // on this exact top-end corner (`shell_screen.dart` `_HeaderedTab`),
+        // so the name line reserves their width instead of running under them.
+        trailingReserve: Spacing.fourXLarge * 2,
+      ),
     );
   }
 
@@ -64,73 +79,9 @@ class JeeberHomeGreeting extends StatelessWidget {
       return null;
     }
   }
-}
 
-class _GreetingRow extends StatelessWidget {
-  const _GreetingRow({required this.name, required this.avatarUrl});
-
-  final String? name;
-  final String? avatarUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    if (avatarUrl == null) return _GreetingLine(name: name);
-    return Row(
-      children: [
-        _GreetingAvatar(name: name, avatarUrl: avatarUrl),
-        const SizedBox(width: Spacing.xSmall),
-        Flexible(child: _GreetingLine(name: name)),
-      ],
-    );
-  }
-}
-
-class _GreetingAvatar extends StatelessWidget {
-  const _GreetingAvatar({required this.name, required this.avatarUrl});
-
-  final String? name;
-  final String? avatarUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final trimmed = name?.trim() ?? '';
-    return Semantics(
-      identifier: 'jeeber_home_avatar',
-      child: OmdsProfileAvatar(
-        initial: trimmed.isEmpty ? '?' : trimmed[0].toUpperCase(),
-        profilePicUrl: avatarUrl,
-        size: Sizes.twoXLarge,
-        backgroundColor: colorScheme.surfaceContainerHigh,
-        initialColor: colorScheme.primary,
-      ),
-    );
-  }
-}
-
-class _GreetingLine extends StatelessWidget {
-  const _GreetingLine({required this.name});
-
-  final String? name;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final greeting = _resolveGreeting(context);
-    return Text(
-      greeting,
-      style: theme.textTheme.titleLarge?.copyWith(
-        color: theme.colorScheme.primary,
-        fontWeight: FontWeight.w400,
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  String _resolveGreeting(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final trimmed = name?.trim();
+  String _resolveGreeting(AppLocalizations l10n, String? resolvedName) {
+    final trimmed = resolvedName?.trim();
     if (trimmed == null || trimmed.isEmpty) return l10n.homeGreetingFallback;
     // Greet with the first name only ("Hello, Sami", not "Hello, Sami Fawaz").
     final firstName = trimmed.split(RegExp(r'\s+')).first;

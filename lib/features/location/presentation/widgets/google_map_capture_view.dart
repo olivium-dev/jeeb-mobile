@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../data/location_repository.dart';
@@ -23,6 +24,7 @@ class GoogleMapCaptureView extends StatefulWidget {
     required this.controller,
     this.gateway,
     this.initialZoom = 16,
+    this.bottomInset = Spacing.large,
   });
 
   /// Two-way seam for the centre coordinate. The launcher owns it.
@@ -33,6 +35,12 @@ class GoogleMapCaptureView extends StatefulWidget {
   final GeolocatorGeocaptureGateway? gateway;
 
   final double initialZoom;
+
+  /// How far above the bottom edge the floating "centre on me" control sits.
+  /// The redesign docks a sheet over the bottom of this map, so the control
+  /// has to clear it; the default keeps the pre-redesign placement for any
+  /// caller that renders the map full-height.
+  final double bottomInset;
 
   @override
   State<GoogleMapCaptureView> createState() => _GoogleMapCaptureViewState();
@@ -84,7 +92,10 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
           mapToolbarEnabled: false,
         ),
         if (widget.gateway != null)
-          _CentreOnMeButton(onPressed: _centreOnMe),
+          _CentreOnMeButton(
+            onPressed: _centreOnMe,
+            bottomInset: widget.bottomInset,
+          ),
       ],
     );
   }
@@ -93,25 +104,59 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
 /// "Centre on my current location" affordance. Carries a Semantics identifier
 /// so uiautomator/Maestro can target it; sits in the bottom-end corner clear of
 /// the centre pin.
+///
+/// Redesign 09 (tpl 534/535): a plain Ø48 white disc with the `floatPill`
+/// shadow — not a Material FAB. The board has no FAB shape anywhere, and the
+/// FAB's own surface tint / 16px radius fought the map.
 class _CentreOnMeButton extends StatelessWidget {
-  const _CentreOnMeButton({required this.onPressed});
+  const _CentreOnMeButton({
+    required this.onPressed,
+    required this.bottomInset,
+  });
+
+  /// tpl 535 — 22px sits between `Sizes.large` (20) and `Sizes.xLarge` (24).
+  static const double _glyphSize = 22;
 
   final Future<void> Function() onPressed;
+
+  /// Clearance for whatever is docked over the bottom of the map.
+  final double bottomInset;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
     return PositionedDirectional(
-      bottom: Spacing.large,
+      // The docked sheet ends at the safe-area edge, so the inset the caller
+      // quotes is measured from there, not from the raw screen bottom.
+      bottom: bottomInset + MediaQuery.viewPaddingOf(context).bottom,
       end: Spacing.large,
       child: Semantics(
         identifier: 'capture_location_my_location',
         button: true,
         label: l10n.captureLocationMyLocation,
-        child: FloatingActionButton.small(
-          heroTag: 'capture_location_my_location',
-          onPressed: onPressed,
-          child: const Icon(Icons.my_location),
+        child: Container(
+          width: Sizes.fourXLarge,
+          height: Sizes.fourXLarge,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: scheme.surface,
+            boxShadow: JeebShadows.floatPill,
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onPressed,
+              child: Center(
+                child: Icon(
+                  Icons.my_location,
+                  size: _glyphSize,
+                  color: scheme.primary,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

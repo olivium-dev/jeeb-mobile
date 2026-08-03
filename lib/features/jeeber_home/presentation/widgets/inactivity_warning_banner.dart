@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Banner shown 30 minutes before the 8h auto-offline kicks in.
+/// The pre-auto-offline warning, as the availability strip's subtitle row.
 ///
-/// Tapping the CTA fires [onExtend] which resets the idle timer in the
-/// cubit; dismissing it does NOT extend (the warning re-appears next tick).
+/// It used to be a standalone warning-container banner below the card. The
+/// board has no second banner here: the warning is one muted line on the navy
+/// strip with `Extend` as its last, tappable word.
+///
+/// The CTA is a real widget (not a `TextSpan`) precisely because it carries a
+/// frozen Key and a frozen Semantics identifier, and because a trailing span
+/// inside an ellipsizing line would be truncated away on a narrow phone —
+/// an invisible, untappable CTA. Being the row's LAST child is also what makes
+/// it mirror correctly under RTL.
 class InactivityWarningBanner extends StatelessWidget {
   const InactivityWarningBanner({super.key, required this.onExtend});
 
@@ -18,105 +26,48 @@ class InactivityWarningBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Pre-auto-offline countdown is a warning state -> semantic warning role
-    // (was the brand tertiary orange doing state duty).
-    final roles = context.jeebRoles;
-    return Container(
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final mutedInk =
+        (Theme.of(context).extension<JeebSemanticColors>() ??
+                JeebSemanticColors.light())
+            .mutedText;
+    return Row(
       key: rootKey,
-      margin: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-      padding: const EdgeInsets.all(Spacing.medium),
-      decoration: BoxDecoration(
-        color: roles.warningContainer,
-        borderRadius: OmdsBorderRadius.medium,
-        border: Border.all(color: roles.warning),
-      ),
-      child: _BannerBody(onExtend: onExtend),
-    );
-  }
-}
-
-class _BannerBody extends StatelessWidget {
-  const _BannerBody({required this.onExtend});
-
-  final VoidCallback onExtend;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const _BannerHeader(),
-        const SizedBox(height: Spacing.xSmall),
-        const _BannerDescription(),
-        const SizedBox(height: Spacing.small),
-        _BannerCta(onExtend: onExtend),
-      ],
-    );
-  }
-}
-
-class _BannerHeader extends StatelessWidget {
-  const _BannerHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Row(
-      children: [
-        Icon(Icons.access_time, color: context.jeebRoles.onWarningContainer),
-        const SizedBox(width: Spacing.small),
-        Expanded(
+        Flexible(
           child: Text(
-            l10n.availabilityInactivityWarningTitle,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: context.jeebRoles.onWarningContainer,
-              fontWeight: FontWeight.w700,
+            l10n.availabilityInactivityInlineWarning,
+            style: context.jeebText.bodySmall.copyWith(color: mutedInk),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: Spacing.twoXSmall),
+        Semantics(
+          identifier: 'availability_inactivity_extend_cta',
+          container: true,
+          button: true,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              key: ctaKey,
+              onTap: onExtend,
+              child: Padding(
+                padding: const EdgeInsets.all(Spacing.twoXSmall),
+                child: Text(
+                  l10n.availabilityExtendAction,
+                  style: context.jeebText.bodySmall.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onPrimary,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _BannerDescription extends StatelessWidget {
-  const _BannerDescription();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Text(
-      l10n.availabilityInactivityWarningBody,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: context.jeebRoles.onWarningContainer,
-      ),
-    );
-  }
-}
-
-class _BannerCta extends StatelessWidget {
-  const _BannerCta({required this.onExtend});
-
-  final VoidCallback onExtend;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Align(
-      alignment: AlignmentDirectional.centerEnd,
-      child: Semantics(
-        identifier: 'availability_inactivity_extend_cta',
-        container: true,
-        button: true,
-        child: OmdsPrimaryButton(
-          key: InactivityWarningBanner.ctaKey,
-          text: l10n.availabilityInactivityWarningCta,
-          onTap: onExtend,
-        ),
-      ),
     );
   }
 }

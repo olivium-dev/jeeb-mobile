@@ -1,26 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../../request_type/presentation/selectable_radio_glyph.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 
 /// Selectable location option card on the Client Location screen
-/// (Figma 56539:1444).
+/// (redesign-2026-08 screen 09, HTML tpl 549).
 ///
-/// Selected: navy fill (`colorScheme.primary`), white label, filled radio.
-/// Unselected: white surface, navy outline + navy label, empty radio. The
-/// whole card is one tap target with merged radio semantics. The radio glyph
-/// is the shared [SelectableRadioGlyph] (no OMDS radio primitive exists).
+/// The board's address card: a red location pin, a navy title, and an optional
+/// meta line beneath it. Unselected is white with a `1.5px colorScheme.outline`
+/// stroke; selected swaps the FILL to navy (R8 — selection is a fill swap,
+/// never a border swap) and inverts the ink. The radio glyph is gone: the
+/// redesign has no radio anywhere.
+///
+/// [subtitle] is a SLOT, not a string, because the current-location card feeds
+/// its live GPS state through it and that widget carries its own Semantics
+/// identifiers. The outer node is therefore `explicitChildNodes` so those ids
+/// survive (the canonical idiom, see `active_request_card.dart`).
 class ClientLocationOptionCard extends StatelessWidget {
   const ClientLocationOptionCard({
     super.key,
     required this.label,
     required this.selected,
     required this.onTap,
+    this.subtitle,
   });
+
+  /// tpl 550 — the pin glyph, 19px, between `Sizes.medium` and `Sizes.large`.
+  static const double _pinSize = 19;
+
+  /// The redesign's outline weight (§5 #3).
+  static const double _borderWidth = 1.5;
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Optional meta line rendered under [label] — keeps its own semantics.
+  final Widget? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -31,59 +47,69 @@ class ClientLocationOptionCard extends StatelessWidget {
       checked: selected,
       button: true,
       label: label,
-      child: ExcludeSemantics(
-        child: Material(
-          color: selected ? scheme.primary : scheme.surface,
-          borderRadius: OmdsBorderRadius.uiLarge,
-          child: InkWell(
-            borderRadius: OmdsBorderRadius.uiLarge,
-            onTap: onTap,
-            child: _body(scheme),
-          ),
+      container: true,
+      explicitChildNodes: true,
+      child: Material(
+        color: selected ? scheme.primary : scheme.surface,
+        borderRadius: OmdsBorderRadius.medium,
+        child: InkWell(
+          borderRadius: OmdsBorderRadius.medium,
+          onTap: onTap,
+          child: _body(context, scheme),
         ),
       ),
     );
   }
 
-  Widget _body(ColorScheme scheme) {
+  Widget _body(BuildContext context, ColorScheme scheme) {
     final foreground = selected ? scheme.onPrimary : scheme.primary;
+    final detail = subtitle;
     return Container(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.medium,
-        vertical: Spacing.large,
+        vertical: Spacing.small,
       ),
       decoration: BoxDecoration(
-        borderRadius: OmdsBorderRadius.uiLarge,
+        borderRadius: OmdsBorderRadius.medium,
         border: Border.all(
-          color: selected ? scheme.primary : scheme.outlineVariant,
+          // Corrected rule: a brown ring on the navy fill reads as a defect,
+          // so only the UNSELECTED branch moves to `outline`.
+          color: selected ? scheme.primary : scheme.outline,
+          width: _borderWidth,
         ),
       ),
       child: Row(
         children: [
-          Expanded(child: _Label(label: label, color: foreground)),
-          const SizedBox(width: Spacing.medium),
-          SelectableRadioGlyph(selected: selected, ring: foreground),
+          ExcludeSemantics(
+            child: Icon(
+              Icons.location_on,
+              size: _pinSize,
+              color: selected ? scheme.onPrimary : scheme.error,
+            ),
+          ),
+          const SizedBox(width: Spacing.small),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ExcludeSemantics(
+                  child: Text(
+                    label,
+                    style: context.jeebText.cardTitle
+                        .copyWith(color: foreground),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (detail != null) ...[
+                  const SizedBox(height: Spacing.twoXSmall),
+                  detail,
+                ],
+              ],
+            ),
+          ),
         ],
       ),
-    );
-  }
-}
-
-class _Label extends StatelessWidget {
-  const _Label({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w700,
-          ),
-      overflow: TextOverflow.ellipsis,
     );
   }
 }

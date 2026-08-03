@@ -94,6 +94,16 @@ void main() {
       // produces on SM-S921B (run-26: "BOTTOM OVERFLOWED BY 100 PIXELS").
       await _pumpSqueezed(tester, 220);
 
+      // C8 (redesign-2026-08): the search field is collapsed behind the
+      // magnifier at rest, so the keyboard-open state this test reproduces is
+      // reachable only after the toggle — expanding it restores the exact
+      // header stack the repro is about (greeting + strip + search + chips).
+      await tester.tap(
+        find.bySemanticsIdentifier('jeeber_feed_search_toggle'),
+        warnIfMissed: false,
+      );
+      await tester.pumpAndSettle();
+
       // No RenderFlex overflow reported.
       expect(tester.takeException(), isNull);
       // The search bar is still mounted (built, no error) even though it may

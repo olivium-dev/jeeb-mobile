@@ -57,11 +57,11 @@ void main() {
 
       expect(find.byType(VoiceRecordingScreen), findsOneWidget);
       // In idle state the waveform widget is NOT shown.
-      expect(find.byType(OmdsRecordingInput), findsNothing);
+      expect(find.byKey(VoiceRecordingKeys.recordingWaveform), findsNothing);
     });
 
     testWidgets(
-      'shows OmdsRecordingInput waveform bar when cubit is in recording phase (AC1)',
+      'shows the live waveform mark when cubit is in recording phase (AC1)',
       (tester) async {
         final cubit = _buildCubit();
         addTearDown(cubit.close);
@@ -73,8 +73,11 @@ void main() {
         await cubit.startRecording();
         await tester.pump();
 
-        // While recording, OmdsRecordingInput (with animated waveform) is shown.
-        expect(find.byType(OmdsRecordingInput), findsOneWidget);
+        // While recording, the JeebWaveform.live mark is shown.
+        expect(
+          find.byKey(VoiceRecordingKeys.recordingWaveform),
+          findsOneWidget,
+        );
       },
     );
 

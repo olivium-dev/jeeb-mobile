@@ -4,17 +4,18 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../tier_selection/cubit/tier_selection_cubit.dart';
 import '../../tier_selection/cubit/tier_selection_state.dart';
 import '../../tier_selection/data/tier_repository.dart';
 import '../../tier_selection/domain/tier.dart';
-import '../../location/presentation/widgets/delivery_create_layout.dart';
 import '../../request_summary/application/compose_request_controller.dart';
 import '../../request_summary/domain/request_draft.dart';
-import 'request_type_radio_id.dart';
-import 'request_tier_card.dart';
 import 'request_location_row.dart';
+import 'widgets/tier_catalog_section.dart';
 
 /// `request-type-selection` (blueprint) — the first step of the customer
 /// delivery-create flow (JM-024). The client picks one of the **5 delivery
@@ -30,6 +31,12 @@ import 'request_location_row.dart';
 ///
 /// Reuses the existing [TierSelectionCubit] + [TierRepository] (the tier-catalog
 /// source of truth, fed by `GET /v1/tiers` → T1's 5-tier mock catalog).
+///
+/// redesign-2026-08 · screen 08 ("Tier catalog") lands here too: the board
+/// draws it standalone, but `/tier-selection` was deliberately deleted and the
+/// create flow standardized on `/request-type`, so the enhanced catalog is a
+/// SECTION of this screen ([TierCatalogSection]) rather than a resurrected
+/// route.
 class RequestTypeScreen extends StatelessWidget {
   const RequestTypeScreen({
     super.key,
@@ -85,6 +92,23 @@ class RequestTypeScreen extends StatelessWidget {
   }
 }
 
+// Design gutter is 24 (HTML `padding … 24px`); DeliveryCreateLayout.pagePadding
+// (20/16/20/32) is owned by location/ and shared with the 09 lane — not edited.
+// Top inset is the board's 14 between the top bar and the catalog subtitle
+// (08 `tpl 417`), rounded to the 12 token.
+const _bodyPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.small,
+  Spacing.xLarge,
+  0,
+);
+const _footerPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  0,
+  Spacing.xLarge,
+  Spacing.twoXLarge,
+);
+
 class _Scaffold extends StatelessWidget {
   const _Scaffold({this.onChangeLocation});
 
@@ -95,17 +119,25 @@ class _Scaffold extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: OMDSAppBar(
-        title: l10n.requestTypeTitle,
-        showBackButton: true,
-        onBackPressed: () => Navigator.of(context).maybePop(),
-      ),
+      // The redesign header is an in-body row, not a Material app bar — no
+      // elevation, no surface tint, title start-aligned next to a Ø40 circle.
       body: SafeArea(
-        child: BlocBuilder<TierSelectionCubit, TierSelectionState>(
-          builder: (context, state) => _Body(
-            state: state,
-            onChangeLocation: onChangeLocation,
-          ),
+        child: Column(
+          children: [
+            JeebTopBar.back(
+              title: l10n.requestTypeChooseHeading,
+              identifier: 'request_type_back',
+              onLeadingPressed: () => Navigator.of(context).maybePop(),
+            ),
+            Expanded(
+              child: BlocBuilder<TierSelectionCubit, TierSelectionState>(
+                builder: (context, state) => _Body(
+                  state: state,
+                  onChangeLocation: onChangeLocation,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: BlocBuilder<TierSelectionCubit, TierSelectionState>(
@@ -135,13 +167,13 @@ class _ContinueFooter extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: DeliveryCreateLayout.pagePadding,
+        padding: _footerPadding,
         child: Semantics(
           identifier: 'request_type_continue_cta',
           button: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.primary(
             key: const Key('request-type-continue'),
-            text: l10n.requestTypeContinue,
+            label: l10n.requestTypeContinue,
             isEnabled: hasSelection,
             onTap: () => _onContinue(context, hasSelection),
           ),
@@ -215,16 +247,40 @@ class _LoadedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return ListView(
-      padding: DeliveryCreateLayout.pagePadding,
-      children: [
-        _SectionHeading(text: l10n.requestTypeChooseHeading),
-        const SizedBox(height: Spacing.medium),
-        _TierList(state: state),
-        const SizedBox(height: Spacing.twoXLarge),
-        _SectionHeading(text: l10n.requestTypeLocationHeading),
-        const SizedBox(height: Spacing.medium),
-        _LocationSection(onChangeLocation: onChangeLocation),
+    // `SliverFillRemaining(hasScrollBody: false)` reproduces the board's
+    // `flex:1` spacer — the tail of a tall viewport stays real emptiness
+    // (~15% at 440x956 now that the catalog rows are two lines) — while still
+    // scrolling at 200% text scale instead of overflowing.
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: _bodyPadding,
+          sliver: SliverFillRemaining(
+            hasScrollBody: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TierCatalogSection(
+                  tiers: state.tiers,
+                  selectedTierId: state.selectedTierId,
+                  onTierSelected: (id) =>
+                      context.read<TierSelectionCubit>().selectTier(id),
+                ),
+                const SizedBox(height: Spacing.large),
+                // NOT `JeebSectionLabel`: the board draws this 14/w700 navy
+                // (HTML tpl-391), not the uppercase periwinkle eyebrow.
+                Text(
+                  l10n.requestTypeLocationHeading,
+                  style: context.jeebText.cardTitle
+                      .copyWith(color: Theme.of(context).colorScheme.primary),
+                ),
+                const SizedBox(height: Spacing.small),
+                _LocationSection(onChangeLocation: onChangeLocation),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -238,9 +294,13 @@ class _LocationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // TODO(redesign-24): needs a resolved destination label at this step; the
+    // flow picks the destination on the NEXT screen. Omitted, not faked
+    // (JEBV4-176).
     return RequestLocationRow(
       currentLabel: l10n.requestTypeCurrentLocation,
       changeLabel: l10n.requestTypeChangeLocation,
+      changeCtaLabel: l10n.requestTypeChangeCta,
       onChange: () => _onChange(context),
     );
   }
@@ -270,122 +330,7 @@ class _LocationSection extends StatelessWidget {
   }
 }
 
-class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      text,
-      style: theme.textTheme.headlineSmall?.copyWith(
-        color: theme.colorScheme.primary,
-        fontWeight: FontWeight.w800,
-      ),
-    );
-  }
-}
-
-class _TierList extends StatelessWidget {
-  const _TierList({required this.state});
-
-  final TierSelectionState state;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final tier in state.tiers) ...[
-          _TierEntry(
-            tier: tier,
-            selected: state.selectedTierId == tier.id,
-          ),
-          if (tier != state.tiers.last)
-            const SizedBox(height: Spacing.small),
-        ],
-      ],
-    );
-  }
-}
-
-class _TierEntry extends StatelessWidget {
-  const _TierEntry({
-    required this.tier,
-    required this.selected,
-  });
-
-  final Tier tier;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final copy = _RequestTierCopy.of(l10n, tier.id);
-    return RequestTierCard(
-      icon: _tierIcon(tier.id),
-      title: copy.title,
-      speed: copy.speed,
-      value: copy.value,
-      selected: selected,
-      // JM-024 / 63_W1_TEST_PLAN §2.2: each tier radio carries the EXACT
-      // `request_type_<tier>_radio` id (e.g. on-the-way → on_the_way), the
-      // i18n-safe target the create-flow Maestro flow asserts.
-      semanticIdentifier: requestTypeRadioId(tier.id),
-      semanticLabel: l10n.requestTypeTierSemanticLabel(
-        title: copy.title,
-        speed: copy.speed,
-        value: copy.value,
-      ),
-      selectedHint: l10n.requestTypeTierSelectedHint,
-      onTap: () => _onTap(context),
-    );
-  }
-
-  void _onTap(BuildContext context) {
-    // Selection only — the tier-card tap NO LONGER navigates (JM-024 supersedes
-    // the W0-era `→ /request-summary` edge). Advancing to location-select is the
-    // Continue CTA's job (AC1).
-    context.read<TierSelectionCubit>().selectTier(tier.id);
-  }
-
-  /// OMDS-style vector glyph per tier — replaces the legacy emoji prefix that
-  /// used to live in the localized title (⚡🚀⚖️🤝🌿). Material `IconData` is
-  /// the design-system iconography idiom used across the app (see
-  /// `client_offers/.../offer_card.dart`); OMDS exports no standalone icon
-  /// component.
-  static IconData _tierIcon(TierId id) => switch (id) {
-        TierId.flash => Icons.bolt_outlined,
-        TierId.express => Icons.rocket_launch_outlined,
-        TierId.standard => Icons.balance_outlined,
-        TierId.onTheWay => Icons.handshake_outlined,
-        TierId.eco => Icons.eco_outlined,
-      };
-}
-
-/// Resolves the title + two description lines for a [TierId] from the localized
-/// Request-type strings (Figma 56535:2392 copy).
-class _RequestTierCopy {
-  const _RequestTierCopy(this.title, this.speed, this.value);
-
-  final String title;
-  final String speed;
-  final String value;
-
-  /// Exhaustive sealed-class switch returning a small record per tier — the
-  /// documented `flutter-function-20-line-limit` exemption #1 (bounded by the
-  /// 5 tier cases, not arbitrary growth).
-  static _RequestTierCopy of(AppLocalizations l10n, TierId id) => switch (id) {
-        TierId.flash => _RequestTierCopy(
-            l10n.tierFlashTitle, l10n.tierFlashSpeed, l10n.tierFlashValue),
-        TierId.express => _RequestTierCopy(
-            l10n.tierExpressTitle, l10n.tierExpressSpeed, l10n.tierExpressValue),
-        TierId.standard => _RequestTierCopy(l10n.tierStandardTitle,
-            l10n.tierStandardSpeed, l10n.tierStandardValue),
-        TierId.onTheWay => _RequestTierCopy(l10n.tierOnTheWayTitle,
-            l10n.tierOnTheWaySpeed, l10n.tierOnTheWayValue),
-        TierId.eco => _RequestTierCopy(
-            l10n.tierEcoTitle, l10n.tierEcoSpeed, l10n.tierEcoValue),
-      };
-}
+// The tier rows themselves live in `widgets/tier_catalog_section.dart`
+// (redesign-2026-08 · 08): the picker is now the enhanced catalog — SLA chip,
+// vehicle line and relative price meter per tier — so its copy resolution and
+// its display lexicon sit with the section, not in this shell.

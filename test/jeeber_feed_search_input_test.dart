@@ -90,6 +90,12 @@ Future<Finder> _pumpFeed(WidgetTester tester) async {
   await feedCubit.refresh();
   await tester.pumpAndSettle();
 
+  // C8 (redesign-2026-08): the search field is collapsed behind the magnifier
+  // at rest. Reveal it before the input contract is exercised — the field, its
+  // key and its `jeeber_feed_search_field` identifier are unchanged.
+  await tester.tap(find.bySemanticsIdentifier('jeeber_feed_search_toggle'));
+  await tester.pumpAndSettle();
+
   return find.descendant(
     of: find.byKey(JeeberFeedTabView.searchBarKey),
     matching: find.byType(EditableText),

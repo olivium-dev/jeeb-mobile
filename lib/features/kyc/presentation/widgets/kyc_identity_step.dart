@@ -3,13 +3,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/jeeb_commission.dart';
 import '../../../../core/text/digit_normalization.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/kyc_wizard_cubit.dart';
 import '../../application/kyc_wizard_state.dart';
 import '../../domain/kyc_submission.dart';
 import 'kyc_capture_tile.dart';
-import 'kyc_id_alignment_guide.dart';
 import 'kyc_liveness_prompt_card.dart';
 
 /// JM-040 `kyc-identity` — the single identity-capture screen of the KYC
@@ -35,10 +41,14 @@ import 'kyc_liveness_prompt_card.dart';
 /// [KycSubmission.hasSelfie] hold (JEBV4-295 — submitting without a captured
 /// selfie always 400'd server-side on `selfie_with_liveness_url: null`).
 ///
-/// The selfie tile sits below the fold on this single-scroll screen behind a
-/// static "ID | Selfie" progress header with no tap behaviour of its own; a
-/// `kyc_scroll_hint` affordance (JEBV4-295) nudges the user to scroll and can
-/// drive the scroll itself, so the selfie section is never silently missed.
+/// redesign-2026-08 (screen 22): the three 140px capture squares, the two
+/// headline/subtitle pairs and the ID alignment guide were replaced by three
+/// compact outlined rows, so ID and selfie now read as one checklist. The
+/// selfie row stays visually locked until both ID sides exist
+/// ([KycWizardState.isSelfieUnlocked]) — a PRESENTATION lock only; the cubit
+/// path stays open because neither Maestro nor the widget tests can drive the
+/// OS camera. A `kyc_scroll_hint` affordance (JEBV4-295) still marks the fold
+/// boundary and can drive the scroll itself.
 class KycIdentityStep extends StatefulWidget {
   const KycIdentityStep({super.key});
 
@@ -56,6 +66,10 @@ class KycIdentityStep extends StatefulWidget {
   /// JEBV4-295: tappable "scroll for selfie" affordance shown while the
   /// selfie section is still below the fold and not yet captured.
   static const Key scrollHintKey = Key('kyc-scroll-hint');
+
+  /// Card corner radius of the ID-type / ID-number group — matches the capture
+  /// rows so the Step-1 block reads as one family (`22 tpl 1308`).
+  static const double groupCardRadius = 18;
 
   static const int _nationalIdLength = 12;
 
@@ -96,6 +110,12 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
   /// "scroll for selfie" affordance (`kyc_scroll_hint`) can drive it.
   late final ScrollController _scrollController;
 
+  /// Anchor the scroll hint aims at. The selfie row is no longer the last
+  /// thing on the page (the review note and the terms sit below it), so
+  /// scrolling to `maxScrollExtent` would push the row the hint is advertising
+  /// almost off the top.
+  final GlobalKey _selfieAnchorKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -106,10 +126,21 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
   }
 
   void _scrollToSelfie() {
+    const duration = Duration(milliseconds: 400);
+    final anchor = _selfieAnchorKey.currentContext;
+    if (anchor != null) {
+      Scrollable.ensureVisible(
+        anchor,
+        alignment: 0.12,
+        duration: duration,
+        curve: Curves.easeOut,
+      );
+      return;
+    }
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 400),
+      duration: duration,
       curve: Curves.easeOut,
     );
   }
@@ -186,6 +217,45 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
         l10n.kycIdNumberRejected;
   }
 
+  /// The signed contract must stay readable BEFORE the user signs it
+  /// (`kyc_wizard_cubit.dart` signs on submit), so the terms line carries a
+  /// text CTA onto this sheet.
+  ///
+  // TODO(redesign-24): render contractTemplate.documentUrl once the template
+  // is fetched eagerly — today it loads lazily at submit
+  // (kyc_wizard_cubit.dart:288-289), so the bundled body is all we can show.
+  Future<void> _openTosSheet(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => Semantics(
+        identifier: 'kyc_tos_document_sheet',
+        container: true,
+        explicitChildNodes: true,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(l10n.kycTosStepTitle, style: sheetContext.jeebText.h2),
+                  const SizedBox(height: Spacing.small),
+                  Text(
+                    l10n.kycTosDocumentBody,
+                    style: sheetContext.jeebText.body,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -196,182 +266,198 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
       listener: _syncIdNumber,
       builder: (context, state) {
         final cubit = context.read<KycWizardCubit>();
-        final idType = state.submission.idType;
+        final submission = state.submission;
+        final idType = submission.idType;
         final isNationalId = idType == KycIdType.nationalId;
-        return Padding(
-          padding: const EdgeInsets.all(Spacing.large),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // ── Gov-ID section ──────────────────────────────────
-                      Text(
-                        l10n.kycIdStepTitle,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+        // Presentation-only: the cubit path stays open (see the class doc).
+        final isSelfieLocked = !state.isSelfieUnlocked && !submission.hasSelfie;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: Spacing.xLarge,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: Spacing.large),
+                    // ── Gov-ID rows ─────────────────────────────────────────
+                    Semantics(
+                      identifier: 'kyc_id_front_upload',
+                      button: true,
+                      container: true,
+                      child: KycCaptureTile(
+                        tileKey: KycIdentityStep.frontTileKey,
+                        label: l10n.kycIdFrontLabel,
+                        photo: submission.idFront,
+                        hint: l10n.kycIdCaptureHint,
+                        trailingLabel: submission.hasIdFront
+                            ? l10n.kycIdRetake
+                            : l10n.kycIdCaptureCta,
+                        isProcessing:
+                            state.capturing == KycCaptureSlot.idFront,
+                        captureCtaSemantic: submission.hasIdFront
+                            ? l10n.kycIdRetake
+                            : l10n.kycIdCaptureCta,
+                        onTap: cubit.captureIdFront,
                       ),
-                      const SizedBox(height: Spacing.small),
-                      Text(
-                        l10n.kycIdStepSubtitle,
-                        style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: Spacing.small),
+                    Semantics(
+                      identifier: 'kyc_id_back_upload',
+                      button: true,
+                      container: true,
+                      child: KycCaptureTile(
+                        tileKey: KycIdentityStep.backTileKey,
+                        label: l10n.kycIdBackLabel,
+                        photo: submission.idBack,
+                        hint: l10n.kycIdCaptureHint,
+                        trailingLabel: submission.hasIdBack
+                            ? l10n.kycIdRetake
+                            : l10n.kycIdCaptureCta,
+                        isProcessing: state.capturing == KycCaptureSlot.idBack,
+                        captureCtaSemantic: submission.hasIdBack
+                            ? l10n.kycIdRetake
+                            : l10n.kycIdCaptureCta,
+                        onTap: cubit.captureIdBack,
                       ),
-                      const SizedBox(height: Spacing.medium),
-                      KycIdAlignmentGuide(
-                        title: l10n.kycIdAlignmentGuideTitle,
-                        caption: l10n.kycIdAlignmentGuideCaption,
-                      ),
-                      const SizedBox(height: Spacing.large),
-                      Semantics(
-                        identifier: 'kyc_id_front_upload',
-                        button: true,
-                        container: true,
-                        child: KycCaptureTile(
-                          tileKey: KycIdentityStep.frontTileKey,
-                          label: l10n.kycIdFrontLabel,
-                          photo: state.submission.idFront,
-                          isProcessing:
-                              state.capturing == KycCaptureSlot.idFront,
-                          captureCtaSemantic: state.submission.hasIdFront
-                              ? l10n.kycIdRetake
-                              : l10n.kycIdCaptureCta,
-                          onTap: cubit.captureIdFront,
-                        ),
-                      ),
-                      const SizedBox(height: Spacing.medium),
-                      Semantics(
-                        identifier: 'kyc_id_back_upload',
-                        button: true,
-                        container: true,
-                        child: KycCaptureTile(
-                          tileKey: KycIdentityStep.backTileKey,
-                          label: l10n.kycIdBackLabel,
-                          photo: state.submission.idBack,
-                          isProcessing:
-                              state.capturing == KycCaptureSlot.idBack,
-                          captureCtaSemantic: state.submission.hasIdBack
-                              ? l10n.kycIdRetake
-                              : l10n.kycIdCaptureCta,
-                          onTap: cubit.captureIdBack,
-                        ),
-                      ),
-                      const SizedBox(height: Spacing.large),
-                      // ── ID type (E3/Q-042: national_id | passport |
-                      //    residency — exactly the ratified pilot set) ─────
-                      Text(
-                        l10n.kycIdTypeLabel,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: Spacing.xSmall),
-                      Semantics(
-                        identifier: 'kyc_id_type_picker',
-                        container: true,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final type in KycIdType.values)
-                              Semantics(
-                                identifier: 'kyc_id_type_${type.wire}',
-                                child: OmdsRadioTile<KycIdType>(
-                                  key: _idTypeKey(type),
-                                  title: _idTypeLabel(l10n, type),
-                                  value: type,
-                                  groupValue: idType,
-                                  onChanged: (t) {
-                                    if (t != null) cubit.setIdType(t);
-                                  },
-                                  contentPadding: EdgeInsets.zero,
-                                  dense: true,
-                                ),
+                    ),
+                    const SizedBox(height: Spacing.large),
+                    // ── ID type + number (E3/Q-042: national_id | passport |
+                    //    residency — exactly the ratified pilot set). The
+                    //    board drew neither control; both are CONTRACT
+                    //    REQUIRED (`id_number` 400s when absent), so they stay
+                    //    and are grouped into one card inside "Step 1". ─────
+                    JeebSectionLabel(l10n.kycIdTypeLabel),
+                    const SizedBox(height: Spacing.xSmall),
+                    JeebOutlinedCard(
+                      radius: KycIdentityStep.groupCardRadius,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Semantics(
+                            identifier: 'kyc_id_type_picker',
+                            container: true,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                for (final type in KycIdType.values)
+                                  Semantics(
+                                    identifier: 'kyc_id_type_${type.wire}',
+                                    child: OmdsRadioTile<KycIdType>(
+                                      key: _idTypeKey(type),
+                                      title: _idTypeLabel(l10n, type),
+                                      value: type,
+                                      groupValue: idType,
+                                      onChanged: (t) {
+                                        if (t != null) cubit.setIdType(t);
+                                      },
+                                      contentPadding: EdgeInsets.zero,
+                                      dense: true,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (state.submitFieldError ==
+                              KycSubmitFieldError.idType) ...[
+                            const SizedBox(height: Spacing.xSmall),
+                            Text(
+                              l10n.kycIdTypeInvalid,
+                              style: context.jeebText.caption.copyWith(
+                                color: theme.colorScheme.error,
                               ),
+                            ),
                           ],
-                        ),
-                      ),
-                      if (state.submitFieldError ==
-                          KycSubmitFieldError.idType) ...[
-                        const SizedBox(height: Spacing.xSmall),
-                        Text(
-                          l10n.kycIdTypeInvalid,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.error,
+                          const SizedBox(height: Spacing.small),
+                          // ── ID number (E3/JEBV4-197: REQUIRED for every
+                          //    type; ^\d{12}$ for national_id only) ─────────
+                          Semantics(
+                            identifier: 'kyc_id_number_input',
+                            textField: true,
+                            child: OmdsTextField(
+                              key: KycIdentityStep.idNumberFieldKey,
+                              controller: _idNumberController,
+                              labelText: _idNumberLabel(l10n, idType),
+                              hintText: _idNumberHint(l10n, idType),
+                              isRequired: true,
+                              errorText:
+                                  _submitScopedIdNumberError(l10n, state),
+                              keyboardType: isNationalId
+                                  ? TextInputType.number
+                                  : TextInputType.text,
+                              maxLength: isNationalId
+                                  ? KycIdentityStep._nationalIdLength
+                                  : KycIdentityStep._documentNumberMaxLength,
+                              inputFormatters: [
+                                // Map Eastern Arabic-Indic digits to ASCII
+                                // BEFORE any digit filter, so Arabic-keyboard
+                                // keystrokes are normalized, not swallowed.
+                                const ArabicIndicDigitsFormatter(),
+                                if (isNationalId)
+                                  FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              onChanged: cubit.setIdNumber,
+                              validator: (value) =>
+                                  KycIdentityStep._idNumberError(
+                                l10n,
+                                idType,
+                                value,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
-                      const SizedBox(height: Spacing.medium),
-                      // ── ID number (E3/JEBV4-197: REQUIRED for every type;
-                      //    ^\d{12}$ for national_id only) ──────────────────
-                      Semantics(
-                        identifier: 'kyc_id_number_input',
-                        textField: true,
-                        child: OmdsTextField(
-                          key: KycIdentityStep.idNumberFieldKey,
-                          controller: _idNumberController,
-                          labelText: _idNumberLabel(l10n, idType),
-                          hintText: _idNumberHint(l10n, idType),
-                          isRequired: true,
-                          errorText: _submitScopedIdNumberError(l10n, state),
-                          keyboardType: isNationalId
-                              ? TextInputType.number
-                              : TextInputType.text,
-                          maxLength: isNationalId
-                              ? KycIdentityStep._nationalIdLength
-                              : KycIdentityStep._documentNumberMaxLength,
-                          inputFormatters: [
-                            // Map Eastern Arabic-Indic digits to ASCII BEFORE
-                            // any digit filter, so Arabic-keyboard keystrokes
-                            // are normalized rather than swallowed.
-                            const ArabicIndicDigitsFormatter(),
-                            if (isNationalId)
-                              FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          onChanged: cubit.setIdNumber,
-                          validator: (value) => KycIdentityStep._idNumberError(
-                            l10n,
-                            idType,
-                            value,
-                          ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: Spacing.xLarge),
+                    ),
+                    const SizedBox(height: Spacing.large),
 
-                      // JEBV4-295: the selfie tile sits below the fold on
-                      // this single-scroll screen behind a static
-                      // "ID | Selfie" header that has no tap/scroll
-                      // behaviour of its own — an automated driver and a
-                      // first-time user can both miss it. Show a tappable
-                      // "scroll for selfie" cue right at this fold boundary
-                      // until the selfie is captured; tapping it animates
-                      // the scroll the rest of the way for the user.
-                      if (!state.submission.hasSelfie) ...[
-                        Center(
-                          child: _ScrollForSelfieHint(
-                            label: l10n.kycScrollForSelfieHint,
-                            onTap: _scrollToSelfie,
-                          ),
-                        ),
-                        const SizedBox(height: Spacing.large),
-                      ],
-
-                      // ── Selfie section ──────────────────────────────────
-                      Text(
-                        l10n.kycSelfieStepTitle,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                    // JEBV4-295: the selfie row sits below the fold on this
+                    // single-scroll screen — an automated driver and a
+                    // first-time user can both miss it. Show a tappable
+                    // "scroll for selfie" cue right at this fold boundary
+                    // until the selfie is captured; tapping it animates the
+                    // scroll the rest of the way for the user.
+                    if (!submission.hasSelfie) ...[
+                      Center(
+                        child: _ScrollForSelfieHint(
+                          label: l10n.kycScrollForSelfieHint,
+                          onTap: _scrollToSelfie,
                         ),
                       ),
+                      const SizedBox(height: Spacing.large),
+                    ],
+
+                    // ── Selfie row (step 2) ─────────────────────────────────
+                    Semantics(
+                      key: _selfieAnchorKey,
+                      identifier: 'kyc_selfie_upload',
+                      button: true,
+                      container: true,
+                      child: KycCaptureTile(
+                        tileKey: KycIdentityStep.selfieTileKey,
+                        label: l10n.kycSelfieStepTitle,
+                        photo: submission.selfie,
+                        isSelfie: true,
+                        isLocked: isSelfieLocked,
+                        hint: isSelfieLocked ? l10n.kycSelfieLockedHint : null,
+                        trailingLabel: submission.hasSelfie
+                            ? l10n.kycSelfieRetake
+                            : (isSelfieLocked
+                                ? null
+                                : l10n.kycSelfieCaptureCta),
+                        isProcessing: state.capturing == KycCaptureSlot.selfie,
+                        captureCtaSemantic: submission.hasSelfie
+                            ? l10n.kycSelfieRetake
+                            : l10n.kycSelfieCaptureCta,
+                        onTap: cubit.captureSelfie,
+                      ),
+                    ),
+                    // Coaching arrives at the moment step 2 actually opens.
+                    if (state.isSelfieUnlocked && !submission.hasSelfie) ...[
                       const SizedBox(height: Spacing.small),
-                      Text(
-                        l10n.kycSelfieStepSubtitle,
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: Spacing.medium),
                       KycLivenessPromptCard(
                         cardKey: KycIdentityStep.livenessPromptKey,
                         title: l10n.kycSelfieLivenessPrompt,
@@ -386,44 +472,38 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: Spacing.large),
-                      Semantics(
-                        identifier: 'kyc_selfie_upload',
-                        button: true,
-                        container: true,
-                        child: KycCaptureTile(
-                          tileKey: KycIdentityStep.selfieTileKey,
-                          label: l10n.kycSelfieStepTitle,
-                          photo: state.submission.selfie,
-                          isProcessing:
-                              state.capturing == KycCaptureSlot.selfie,
-                          captureCtaSemantic: state.submission.hasSelfie
-                              ? l10n.kycSelfieRetake
-                              : l10n.kycSelfieCaptureCta,
-                          onTap: cubit.captureSelfie,
-                        ),
-                      ),
-                      const SizedBox(height: Spacing.xLarge),
-
-                      // ── ToS acceptance ──────────────────────────────────
-                      _TosAcceptanceCard(
-                        l10n: l10n,
-                        accepted: state.tosAccepted,
-                        documentBody: l10n.kycTosDocumentBody,
-                        onChanged: (v) => cubit.setTosAccepted(v ?? false),
-                      ),
                     ],
-                  ),
+                    const SizedBox(height: Spacing.medium),
+                    // C4 hold: the board also promised "encrypted at rest".
+                    // The app can verify the read-audience claim, not storage
+                    // encryption — an unverified security promise inside a
+                    // signed-terms flow is a legal risk, so it is omitted
+                    // until legal ratifies it.
+                    JeebInfoNote.muted(
+                      identifier: 'kyc_review_note',
+                      icon: Icons.access_time_filled,
+                      title: l10n.kycReviewTimeTitle,
+                      text: l10n.kycReviewPrivacyNote,
+                    ),
+                    const SizedBox(height: Spacing.medium),
+                    _TosAgreementRow(
+                      accepted: state.tosAccepted,
+                      onChanged: (v) => cubit.setTosAccepted(v ?? false),
+                      onReadTerms: () => _openTosSheet(context),
+                    ),
+                    const SizedBox(height: Spacing.medium),
+                  ],
                 ),
               ),
-              const SizedBox(height: Spacing.medium),
-              Semantics(
+            ),
+            JeebCtaFooter.single(
+              child: Semantics(
                 identifier: 'kyc_submit_cta',
                 button: true,
                 container: true,
-                child: OmdsPrimaryButton(
+                child: JeebCtaButton.primary(
                   key: KycIdentityStep.submitButtonKey,
-                  text: state.step == KycWizardStep.submitting
+                  label: state.step == KycWizardStep.submitting
                       ? l10n.kycWizardSubmitting
                       : l10n.kycWizardSubmit,
                   // JEBV4-295: the selfie IS now a hard client gate
@@ -437,22 +517,26 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                   // and the ID number block the tap so it can never reach
                   // the network (the cubit guard is the backstop).
                   isEnabled: state.step != KycWizardStep.submitting &&
-                      state.submission.hasSelfie &&
-                      state.submission.hasValidIdNumber,
+                      submission.hasSelfie &&
+                      submission.hasValidIdNumber,
                   onTap: () => cubit.submit(),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
   }
 }
 
-/// JEBV4-295: a tappable pill cueing that more content (the selfie section)
-/// sits below the fold, and driving the scroll there on tap. Purely a visual
+/// JEBV4-295: a tappable pill cueing that more content (the selfie row) sits
+/// below the fold, and driving the scroll there on tap. Purely a visual
 /// affordance — it never blocks or replaces manual scrolling.
+///
+/// R5: it is deliberately NOT orange. `primaryContainer` became the brand
+/// orange `#FFDBD1` in the redesign, and orange marks decay/urgency on this
+/// product, never navigation.
 class _ScrollForSelfieHint extends StatelessWidget {
   const _ScrollForSelfieHint({required this.label, required this.onTap});
 
@@ -462,20 +546,19 @@ class _ScrollForSelfieHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     return Semantics(
       identifier: 'kyc_scroll_hint',
       button: true,
       label: label,
       child: Material(
-        color: colorScheme.primaryContainer,
+        color: colorScheme.surfaceContainerHigh,
         borderRadius: OmdsBorderRadius.pill,
         child: InkWell(
           key: KycIdentityStep.scrollHintKey,
           borderRadius: OmdsBorderRadius.pill,
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(
+            padding: const EdgeInsetsDirectional.symmetric(
               horizontal: Spacing.medium,
               vertical: Spacing.xSmall,
             ),
@@ -484,15 +567,15 @@ class _ScrollForSelfieHint extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: textTheme.labelMedium?.copyWith(
-                    color: colorScheme.onPrimaryContainer,
+                  style: context.jeebText.bodySmall.copyWith(
+                    color: colorScheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(width: Spacing.xSmall),
                 Icon(
                   Icons.keyboard_arrow_down_rounded,
-                  color: colorScheme.onPrimaryContainer,
+                  color: colorScheme.primary,
                 ),
               ],
             ),
@@ -503,45 +586,47 @@ class _ScrollForSelfieHint extends StatelessWidget {
   }
 }
 
-class _TosAcceptanceCard extends StatelessWidget {
-  const _TosAcceptanceCard({
-    required this.l10n,
+/// The plain-words terms line the user signs on submit, plus the way into the
+/// full document. The fee ALWAYS interpolates [kJeebCommissionPercent] — a
+/// literal `10` here or in the ARB is the second-copy class
+/// `jeeb_commission_test.dart` exists to prevent, and the framing stays
+/// "fee", never "commission".
+class _TosAgreementRow extends StatelessWidget {
+  const _TosAgreementRow({
     required this.accepted,
-    required this.documentBody,
     required this.onChanged,
+    required this.onReadTerms,
   });
 
-  final AppLocalizations l10n;
   final bool accepted;
-  final String documentBody;
   final ValueChanged<bool?> onChanged;
+  final VoidCallback onReadTerms;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return OMDSSectionCard(
-      title: l10n.kycTosStepTitle,
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            documentBody,
-            style: theme.textTheme.bodySmall,
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          identifier: 'kyc_tos_accept',
+          child: OmdsCheckboxTile(
+            key: KycIdentityStep.tosCheckboxKey,
+            title: l10n.kycTosAgreeLine(percent: kJeebCommissionPercent),
+            value: accepted,
+            onChanged: onChanged,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
           ),
-          const SizedBox(height: Spacing.small),
-          Semantics(
-            identifier: 'kyc_tos_accept',
-            child: OmdsCheckboxTile(
-              key: KycIdentityStep.tosCheckboxKey,
-              title: l10n.kycTosSignAndSubmit,
-              value: accepted,
-              onChanged: onChanged,
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-            ),
-          ),
-        ],
-      ),
+        ),
+        JeebCtaButton.text(
+          label: l10n.kycTosReadFullCta,
+          identifier: 'kyc_tos_read_cta',
+          expand: false,
+          contentPadding: EdgeInsetsDirectional.zero,
+          onTap: onReadTerms,
+        ),
+      ],
     );
   }
 }

@@ -189,7 +189,19 @@ class DioOffersRepository implements OffersRepository {
       windowExpiresAt: deadline,
       requestIsOpen: open,
       requestIsExpired: ServerRequestStatus.isExpired(requestStatus),
+      requestTitle: _requestTitle(requestData),
     );
+  }
+
+  /// The request's item title off the already-fetched `/v1/requests/:id` row.
+  /// No extra call — `fetchOffers` reads that row anyway. Blank/absent → null so
+  /// the offer-review top bar renders one line instead of an empty subtitle.
+  String? _requestTitle(dynamic requestData) {
+    if (requestData is! Map) return null;
+    final raw = requestData['title'];
+    if (raw is! String) return null;
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   bool? _explicitOpen(dynamic data) {

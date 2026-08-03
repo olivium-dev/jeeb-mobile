@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_stepper.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/presentation/widgets/delivery_status_stepper.dart';
-import 'package:omds/omds.dart';
 
 import '../../support/sync_app_localizations.dart';
 
@@ -13,14 +13,6 @@ const _labels = <JeeberDeliveryStatus, String>{
   JeeberDeliveryStatus.inTransit: 'In Transit',
   JeeberDeliveryStatus.atDoor: 'At Door',
   JeeberDeliveryStatus.done: 'Done',
-};
-
-const _icons = <JeeberDeliveryStatus, IconData>{
-  JeeberDeliveryStatus.ordered: Icons.receipt_long_outlined,
-  JeeberDeliveryStatus.picked: Icons.inventory_2_outlined,
-  JeeberDeliveryStatus.inTransit: Icons.local_shipping_outlined,
-  JeeberDeliveryStatus.atDoor: Icons.home_outlined,
-  JeeberDeliveryStatus.done: Icons.check_circle_outline,
 };
 
 void main() {
@@ -49,7 +41,7 @@ void main() {
           ),
         );
 
-        expect(find.byType(OmdsStepIndicator), findsOneWidget);
+        expect(find.byType(JeebStepper), findsOneWidget);
         for (final stage in jeeberDeliveryProgressStages) {
           final index = stage.index;
           final state = index < current.index
@@ -66,7 +58,6 @@ void main() {
               'active_delivery_stage_${stage.name.toLowerCase()}';
 
           expect(find.text(_labels[stage]!), findsOneWidget);
-          expect(find.byIcon(_icons[stage]!), findsOneWidget);
           expect(find.bySemanticsIdentifier(identifier), findsOneWidget);
           expect(
             find.bySemanticsLabel('${_labels[stage]}, $stateLabel'),
@@ -120,7 +111,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(OmdsStepIndicator), findsNothing);
+      expect(find.byType(JeebStepper), findsNothing);
       expect(
         find.bySemanticsIdentifier('active_delivery_stage_done'),
         findsNothing,

@@ -1,17 +1,21 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_mic_hero.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_state.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
+import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_request_hero.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -158,11 +162,29 @@ void main() {
 
       expect(find.text('Hello, Layla'), findsOneWidget);
       expect(find.text('Everything, One Place'), findsNothing);
+      // The create surface is the mic hero's body now (the "+" icon button is
+      // gone), but the frozen id — and a live tap handler on it — survive.
       expect(
         find.bySemanticsIdentifier('orders_create_request_button'),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('client-home-greeting-add')), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(
+              find.bySemanticsIdentifier('orders_create_request_button'),
+            )
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+        reason:
+            'the create surface must be tappable, not a decorative pane — a '
+            'null host callback is the defect this guards',
+      );
+      // And the mic itself is its own, newly coined target.
+      expect(
+        find.bySemanticsIdentifier('client_home_mic_cta'),
+        findsOneWidget,
+      );
       expect(
         find.bySemanticsIdentifier('orders_filter_pendingRequests'),
         findsOneWidget,
@@ -634,11 +656,15 @@ void main() {
       );
 
       // End-aligned: right edge sits at the trailing gutter, flush with the
-      // card's right edge minus the horizontal padding.
+      // card's inner edge. `replies-card-<id>` keys the full-bleed row, so the
+      // budget is the redesign's screen gutter (24) + the outlined card's own
+      // padding + stroke (16 + 1.5) = 41.5. A centered or start-aligned CTA
+      // lands ~300px away, which is what this still catches.
+      const trailingGutterBudget = 42.0;
       final btnRight = tester.getTopRight(btn).dx;
       final cardRight = tester.getTopRight(card).dx;
       expect(
-        (cardRight - btnRight) < 24,
+        (cardRight - btnRight) < trailingGutterBudget,
         isTrue,
         reason:
             'Check Offers right edge should sit at the trailing gutter; '
@@ -677,14 +703,13 @@ void main() {
       );
     });
 
-    // DEFECT 1 — the create-request top plus must be the filled-navy CTA with a
-    // WHITE icon (Figma 56535:1783), NOT a low-emphasis gray circle. The button
-    // is correct-as-is: it derives fill from colorScheme.primary (navy #0B1351)
-    // and the icon from colorScheme.onPrimary (white) via
-    // OmdsButtonStyles.iconButtonFilled. This locks that role choice so a future
-    // edit to secondaryContainer/onSecondaryContainer (which would render a
-    // muted-purple icon) is caught.
-    testWidgets('top create-request plus uses primary fill + onPrimary icon', (
+    // DEFECT 1 (carried onto the redesign's mic hero) — the create surface must
+    // be the filled-navy card with the ORANGE mic, never a low-emphasis gray
+    // slab. The "+" IconButton is gone; the roles it guarded are not. The card
+    // derives its fill from colorScheme.primary (navy #0B1351) and the mic disc
+    // from jeebRoles.accent (#D73B00), so an edit to secondaryContainer /
+    // a disabled-gray regression is still caught.
+    testWidgets('create-request hero uses primary card fill + accent mic', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -692,24 +717,52 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final context = tester.element(
-        find.byKey(const Key('client-home-greeting-add')),
-      );
+      final heroFinder = find.byType(ClientHomeRequestHero);
+      expect(heroFinder, findsOneWidget);
+      final context = tester.element(heroFinder);
       final scheme = Theme.of(context).colorScheme;
+      final accent = context.jeebRoles.accent;
 
-      final iconButton = tester.widget<IconButton>(
-        find.byKey(const Key('client-home-greeting-add')),
+      // The navy surface: the hero's own JeebNavySurfaceCard paints
+      // colorScheme.primary. Assert on a DecoratedBox carrying exactly that.
+      final navyFills = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: heroFinder,
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .map((decoration) => decoration.color)
+          .toList();
+      expect(
+        navyFills,
+        contains(scheme.primary),
+        reason: 'the create hero must render on the navy primary surface',
       );
-      final style = iconButton.style!;
-      const lightStates = <WidgetState>{};
-      final bg = style.backgroundColor!.resolve(lightStates);
-      final fg = style.foregroundColor!.resolve(lightStates);
+      // And NOT the muted-purple container role the reviewer once proposed.
+      expect(navyFills, isNot(contains(scheme.onSecondaryContainer)));
 
-      // Navy fill from primary, white icon from onPrimary — matches Figma.
-      expect(bg, scheme.primary);
-      expect(fg, scheme.onPrimary);
-      // And NOT the muted-purple onSecondaryContainer the reviewer proposed.
-      expect(fg, isNot(scheme.onSecondaryContainer));
+      // The mic disc is the one rationed orange on this screen.
+      // `DecoratedBox`, not `Container`: the kit's JeebMicHero paints the disc
+      // with a bare DecoratedBox. Same assertion, current paint node.
+      final micFills = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: find.byType(JeebMicHero),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .map((decoration) => decoration.color)
+          .toList();
+      expect(
+        micFills,
+        contains(accent),
+        reason: 'the mic disc must be jeebRoles.accent, not a disabled gray',
+      );
     });
   });
 }

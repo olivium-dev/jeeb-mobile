@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_state.dart';
 import 'availability_card.dart';
-import 'inactivity_warning_banner.dart';
 import 'jeeber_home_greeting.dart';
 
-/// State 2 of the Jeeber home: registered, availability card visible, no
+/// State 2 of the Jeeber home: registered, availability strip visible, no
 /// active requests on the feed yet.
 ///
-/// Composes the state-aware `AvailabilityCard`, an optional compact active-work
-/// disclosure, and `InactivityWarningBanner` with an `OmdsEmptyState` underneath
-/// so the Jeeber always knows the feed is live but empty rather than
-/// broken. The single-line `JeeberHomeGreeting` sits above availability so the
-/// transition into State 3 only changes the band beneath the greeting.
+/// Composes the profile header, the state-aware `AvailabilityCard` (which now
+/// hosts the inactivity warning inline) and an optional compact active-work
+/// disclosure, with a quiet start-aligned empty block underneath so the Jeeber
+/// always knows the feed is live but empty rather than broken.
 class JeeberNoRequestsView extends StatelessWidget {
   const JeeberNoRequestsView({
     super.key,
@@ -33,7 +33,7 @@ class JeeberNoRequestsView extends StatelessWidget {
   /// Tap handler for the big online/offline toggle.
   final VoidCallback onToggle;
 
-  /// CTA tap handler for the inactivity warning banner.
+  /// Tap handler for the strip's inline `Extend` word (resets the idle timer).
   final VoidCallback onExtendActivity;
 
   /// Optional profile display name for the greeting.
@@ -82,19 +82,23 @@ class _NoRequestsColumn extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         JeeberHomeGreeting(name: profileName),
-        AvailabilityCard(view: view, onToggle: onToggle),
+        AvailabilityCard(
+          view: view,
+          onToggle: onToggle,
+          onExtendActivity: onExtendActivity,
+        ),
         ?activeDeliveriesBanner,
-        if (view.warningVisible) ...[
-          const SizedBox(height: Spacing.large),
-          InactivityWarningBanner(onExtend: onExtendActivity),
-        ],
-        const SizedBox(height: Spacing.large),
+        // No extra gap: the empty block owns its own top inset, so the band
+        // rhythm below the strip stays the board's 16/24 — not 44.
         const _NoRequestsEmpty(),
       ],
     );
   }
 }
 
+/// The empty feed is not an error, so it gets no centred icon slab: two
+/// start-aligned lines at the top of the white body, exactly where the first
+/// request card would appear (R1 — the page stays white below the strip).
 class _NoRequestsEmpty extends StatelessWidget {
   const _NoRequestsEmpty();
 
@@ -103,11 +107,36 @@ class _NoRequestsEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsEmptyState(
+    final colorScheme = Theme.of(context).colorScheme;
+    final mutedInk =
+        (Theme.of(context).extension<JeebSemanticColors>() ??
+                JeebSemanticColors.light())
+            .mutedText;
+    return Padding(
       key: rootKey,
-      icon: Icons.inbox_outlined,
-      title: l10n.requestFeedEmptyTitle,
-      subtitle: l10n.requestFeedEmptySubtitle,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.xLarge,
+        Spacing.xLarge,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            l10n.requestFeedEmptyTitle,
+            style: context.jeebText.titleProminent.copyWith(
+              color: colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: Spacing.xSmall),
+          Text(
+            l10n.requestFeedEmptySubtitle,
+            style: context.jeebText.bodySmall.copyWith(color: mutedInk),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -99,7 +99,7 @@ void main() {
 
       // Retry cleared the block and entered the recording surface.
       expect(find.byKey(VoiceRecordingKeys.blockedState), findsNothing);
-      expect(find.byType(OmdsRecordingInput), findsOneWidget);
+      expect(find.byKey(VoiceRecordingKeys.recordingWaveform), findsOneWidget);
     });
   });
 }

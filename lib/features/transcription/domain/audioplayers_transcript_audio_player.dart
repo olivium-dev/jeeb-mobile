@@ -46,6 +46,13 @@ class AudioPlayersTranscriptAudioPlayer implements TranscriptAudioPlayer {
   }
 
   @override
+  Future<void> seek(Duration position) async {
+    // Deliberately `_player?`, not `_resolved`: dragging the knob before any
+    // play must not construct a source-less platform player.
+    await _player?.seek(position);
+  }
+
+  @override
   Future<void> stop() async {
     await _cancelSubscriptions();
     await _player?.stop();

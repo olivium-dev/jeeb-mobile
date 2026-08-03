@@ -38,11 +38,10 @@ const Color _facebookBrandBlue = Color(0xFF1877F2);
 /// Pure white "f" glyph on the Facebook-blue button — Facebook Brand Guidelines.
 const Color _facebookGlyphForeground = Color(0xFFFFFFFF);
 
-/// Pure black for the Apple glyph when it sits on a white button.
+/// Pure black for the Apple glyph. OMDS's brand-neutral skin renders every
+/// social button as a white pill in BOTH brightnesses, so there is no black
+/// button variant and therefore no white-glyph case (wiring request 02).
 const Color _appleBrandBlack = Color(0xFF000000);
-
-/// Pure white for the Apple glyph when it sits on a black button.
-const Color _appleBrandWhite = Color(0xFFFFFFFF);
 
 /// Apple HIG specifies a 17pt glyph in a 44pt button; we ship a 22dp
 /// raster glyph which keeps the visual weight inside the OMDS 48dp
@@ -131,12 +130,16 @@ class SocialSignInButton extends StatelessWidget {
           enabled: isEnabled && !isBusy,
           label: l10n.registrationContinueWithApple,
           child: OmdsSocialButtons.apple(
-            // Apple HIG mandates a black glyph on the light "Sign in with
-            // Apple" button and a white glyph on the dark variant — see
-            // the brand-color EXEMPT block at the top of this file.
-            icon: _AppleGlyph(
-              color: isDark ? _appleBrandBlack : _appleBrandWhite,
-            ),
+            // VISIBILITY FIX (wiring request 02): OMDS's brand-neutral skin
+            // paints EVERY social button as a white pill and ignores `isDark`
+            // (`omds_social_button.dart` `_branded`), so the old
+            // `isDark ? black : white` ternary painted a white glyph on a white
+            // button in light mode — invisible on every light iOS build. The
+            // glyph is therefore unconditionally black; Apple's HIG
+            // black-on-light / white-on-dark rule only applies while the button
+            // itself flips, which it no longer does. See the brand-color EXEMPT
+            // block at the top of this file.
+            icon: const _AppleGlyph(color: _appleBrandBlack),
             text: isBusy ? '…' : l10n.registrationContinueWithApple,
             onTap: effectiveOnTap,
             isDark: isDark,

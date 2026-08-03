@@ -27,13 +27,25 @@ enum CurrentLocationOutcome {
 /// The result of [CurrentLocationResolver.resolve]. Coordinates are non-null
 /// ONLY when [outcome] is [CurrentLocationOutcome.resolved].
 class CurrentLocationResult extends Equatable {
-  const CurrentLocationResult._(this.outcome, {this.latitude, this.longitude});
+  const CurrentLocationResult._(
+    this.outcome, {
+    this.latitude,
+    this.longitude,
+    this.accuracyMeters,
+  });
 
-  const CurrentLocationResult.resolved(double latitude, double longitude)
-      : this._(
+  /// [latitude]/[longitude] stay POSITIONAL: existing call sites (and
+  /// `location_select_cubit_test.dart:57`) construct this form positionally,
+  /// so the accuracy radius joins as an optional named parameter.
+  const CurrentLocationResult.resolved(
+    double latitude,
+    double longitude, {
+    double? accuracyMeters,
+  }) : this._(
           CurrentLocationOutcome.resolved,
           latitude: latitude,
           longitude: longitude,
+          accuracyMeters: accuracyMeters,
         );
 
   const CurrentLocationResult.permissionDenied()
@@ -49,8 +61,14 @@ class CurrentLocationResult extends Equatable {
   final double? latitude;
   final double? longitude;
 
+  /// Horizontal accuracy radius of the fix in metres, as reported by the OS
+  /// sensor. Null when the platform did not supply one (or the outcome is not
+  /// [CurrentLocationOutcome.resolved]). It is a DEVICE value — there is no
+  /// backend field and no endpoint behind it.
+  final double? accuracyMeters;
+
   @override
-  List<Object?> get props => [outcome, latitude, longitude];
+  List<Object?> get props => [outcome, latitude, longitude, accuracyMeters];
 }
 
 /// Acquires the device's current GPS coordinate for the location-select

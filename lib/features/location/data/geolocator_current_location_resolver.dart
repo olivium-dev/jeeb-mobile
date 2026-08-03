@@ -29,7 +29,14 @@ class GeolocatorCurrentLocationResolver implements CurrentLocationResolver {
         return const CurrentLocationResult.permissionDenied();
       }
       final fix = await _gateway.currentFix();
-      return CurrentLocationResult.resolved(fix.latitude, fix.longitude);
+      // The gateway already carries the OS accuracy radius on every sample; it
+      // used to be dropped here. Threading it lets the card tell the customer
+      // how precise the fix actually is instead of a flat "using your location".
+      return CurrentLocationResult.resolved(
+        fix.latitude,
+        fix.longitude,
+        accuracyMeters: fix.accuracyMeters,
+      );
     } catch (_) {
       // A platform channel error / timeout is a genuine acquisition failure —
       // surfaced as a retryable state, never a silent fake fix.

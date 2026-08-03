@@ -23,15 +23,28 @@ Widget _harness({
   required LocaleCubit localeCubit,
   VoidCallback? onComplete,
   Locale locale = const Locale('en'),
+  double textScale = 1.0,
 }) {
+  final screen = MultiBlocProvider(
+    providers: [
+      BlocProvider<OnboardingCubit>.value(value: cubit),
+      BlocProvider<LocaleCubit>.value(value: localeCubit),
+    ],
+    child: OnboardingScreen(onComplete: onComplete),
+  );
   return wrapForTest(
-    MultiBlocProvider(
-      providers: [
-        BlocProvider<OnboardingCubit>.value(value: cubit),
-        BlocProvider<LocaleCubit>.value(value: localeCubit),
-      ],
-      child: OnboardingScreen(onComplete: onComplete),
-    ),
+    textScale == 1.0
+        ? screen
+        // Copy the ambient MediaQuery so the sheet's viewport-height cap keeps
+        // a real height; only the text scale is overridden.
+        : Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(textScale),
+              ),
+              child: screen,
+            ),
+          ),
     locale: locale,
   );
 }
@@ -99,9 +112,10 @@ void main() {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
-    // Slide copy is rendered by OmdsWalkthroughStep via OmdsWalkthroughSwitcher
-    // (was hand-rolled Text), matching the fleet reference walkthrough layout.
-    expect(find.byType(OmdsWalkthroughSwitcher), findsOneWidget);
+    // Slide copy is rendered by OmdsWalkthroughStep inside the redesign's own
+    // `_SlideCopy` block (the fixed-height OmdsWalkthroughSwitcher box was
+    // dropped so the docked sheet keeps a constant height across slides).
+    expect(find.byKey(const Key('onboarding.slideCopy')), findsOneWidget);
     expect(find.byType(OmdsWalkthroughStep), findsWidgets);
     // Full-bleed swipeable illustration carousel is the back layer.
     expect(find.byKey(const Key('onboarding.pager')), findsOneWidget);
@@ -180,22 +194,34 @@ void main() {
 
   // ---- FR-P1-1: real slide illustrations wired ----
 
+  /// The asset behind the *illustration slot* specifically — the redesign's
+  /// top bar renders a second [SvgPicture] (the wordmark), so an unscoped
+  /// `find.byType(SvgPicture)` no longer identifies the slide artwork.
   String? svgAssetName(WidgetTester tester) {
-    final svg = tester.widget<SvgPicture>(find.byType(SvgPicture));
+    final svg = tester.widget<SvgPicture>(
+      find.descendant(
+        of: find.byKey(const Key('onboarding.illustration')),
+        matching: find.byType(SvgPicture),
+      ),
+    );
     final loader = svg.bytesLoader;
     return loader is SvgAssetLoader ? loader.assetName : null;
   }
 
-  testWidgets('slide 1 renders the real voice-first SVG illustration',
+  testWidgets('slide 1 renders the decorative marketplace-preview collage',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
-    // Slide 1 is showing on first frame; its artwork is the exported SVG.
-    expect(find.byType(SvgPicture), findsOneWidget);
+    // Redesign 01: slide 1's artwork is the static marketplace collage (voice
+    // note → request → offer), not an exported illustration SVG.
+    expect(find.byKey(const Key('onboarding.preview')), findsOneWidget);
     expect(
-      svgAssetName(tester),
-      'assets/illustrations/onboarding_voice_first.svg',
+      find.descendant(
+        of: find.byKey(const Key('onboarding.illustration')),
+        matching: find.byType(SvgPicture),
+      ),
+      findsNothing,
     );
     // The illustration is announced to screen readers as an image.
     final semantics = tester.widget<Semantics>(
@@ -243,7 +269,13 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.next')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SvgPicture), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('onboarding.illustration')),
+        matching: find.byType(SvgPicture),
+      ),
+      findsOneWidget,
+    );
     expect(
       svgAssetName(tester),
       'assets/illustrations/onboarding_live_tracking.svg',
@@ -289,11 +321,11 @@ void main() {
     expect(toggle, findsOneWidget);
     expect(
       tester.widget(toggle),
-      isA<OmdsFilterChips<String>>(),
+      isA<OnboardingLanguageToggle>(),
     );
-    // Both options are present (native Arabic script + English).
-    expect(find.text('English'), findsOneWidget);
-    expect(find.text('العربية'), findsOneWidget);
+    // Both segments are present (short labels on the navy top bar).
+    expect(find.text('EN'), findsOneWidget);
+    expect(find.text('عربي'), findsOneWidget);
   });
 
   testWidgets(
@@ -304,8 +336,8 @@ void main() {
 
     expect(localeCubit.state.languageCode, 'en');
 
-    // Tap the Arabic chip.
-    await tester.tap(find.text('العربية'));
+    // Tap the Arabic segment.
+    await tester.tap(find.text('عربي'));
     await tester.pumpAndSettle();
 
     // The toggle's contract: it flips the LocaleCubit + persists the choice.
@@ -333,10 +365,107 @@ void main() {
     );
     await tester.pump();
 
-    final toggle = tester.widget<OmdsFilterChips<String>>(
+    final toggle = tester.widget<OnboardingLanguageToggle>(
       find.byKey(const Key('onboarding.languageToggle')),
     );
-    // The chip bound to the active locale is the selected one.
+    // The segment bound to the active locale is the selected one.
     expect(toggle.selectedValue, 'ar');
+  });
+
+  // ---- Redesign 01: the rebuilt three-band layout ----
+
+  testWidgets('emits the redesign Semantics identifiers for the new chrome',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+    await tester.pump();
+
+    // Top bar: the wordmark is an image node; the toggle is a labelled
+    // container over two selectable segments.
+    expect(find.bySemanticsIdentifier('onboarding_wordmark'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('onboarding_language_toggle'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsIdentifier('onboarding_language_en'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('onboarding_language_ar'), findsOneWidget);
+    // The dots carry the only "step N of M" announcement on the screen.
+    expect(find.bySemanticsIdentifier('onboarding_page_dots'), findsOneWidget);
+    // The screen root is unchanged by the rebuild. (The CTA/headline/skip ids
+    // are asserted through their own merge-shape contracts in
+    // `gesture_log_test.dart` and the Maestro flows — they are deliberately
+    // NOT re-asserted here, because the outer/inner CTA pair merges into a
+    // single node and this finder would read only one of the two ids.)
+    expect(find.bySemanticsIdentifier('onboarding_root'), findsOneWidget);
+
+    handle.dispose();
+  });
+
+  testWidgets(
+      'slide 2 swaps the collage for its SVG (collage is slide 1 only)',
+      (tester) async {
+    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+    await tester.pump();
+
+    expect(find.byKey(const Key('onboarding.preview')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('onboarding.next')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('onboarding.preview')), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('onboarding.illustration')),
+        matching: find.byType(SvgPicture),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('mirrors the CTA arrow and keeps the toggle live under RTL',
+      (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        cubit: cubit,
+        localeCubit: localeCubit,
+        locale: const Locale('ar'),
+      ),
+    );
+    await tester.pump();
+
+    // `Icon` never auto-mirrors, so the advance arrow must be resolved
+    // directionally — it points to the reading-end (left) in Arabic.
+    final arrow = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const Key('onboarding.next')),
+        matching: find.byType(Icon),
+      ),
+    );
+    expect(arrow.icon, Icons.arrow_back);
+
+    // The mirrored top bar still drives the locale.
+    await tester.tap(find.text('EN'));
+    await tester.pumpAndSettle();
+    expect(localeCubit.state.languageCode, 'en');
+  });
+
+  testWidgets('survives a 200% text scale with the CTA still tappable',
+      (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        cubit: cubit,
+        localeCubit: localeCubit,
+        textScale: 2.0,
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    // The sheet scrolls internally rather than squeezing the stage away, so
+    // the primary CTA stays hit-testable at the largest supported scale.
+    expect(
+      find.byKey(const Key('onboarding.next')).hitTestable(),
+      findsOneWidget,
+    );
   });
 }

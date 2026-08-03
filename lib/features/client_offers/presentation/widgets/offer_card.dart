@@ -3,17 +3,28 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/formatting/money_format.dart';
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_select_chip.dart' show jeebPillRadius;
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/jeeber_vehicle.dart';
 import '../../domain/offer.dart';
 
 /// One offer card in the client offer-review list (JM-028).
 ///
-/// Renders the Jeeber's identity, the price + ETA + vehicle facts, the rating,
-/// the "Pay $X cash on delivery" line (D11), and the Accept CTA. The card is
-/// intentionally dumb — it takes the offer payload + two flags from the cubit
-/// and emits two callbacks ([onAccept], [onTapName]); no cubit / `sl` /
-/// navigation here so it stays golden-testable with fixture data
+/// Two rows, per the redesign board (screen 11):
+///   1. avatar · name (+ optional `Fastest` pill) · rating/vehicle meta ·
+///      end-aligned price over ETA;
+///   2. the "Pay $X cash on delivery" line (D11) and the Accept pill.
+///
+/// The top-ranked card ([isBestValue]) is outlined in navy and wears an
+/// overhanging orange `Best value` badge. **Every other card keeps a full
+/// action row** — plan §7.2-C4: every offer must stay acceptable, so there is
+/// no dimmed / actionless card state here.
+///
+/// The card is intentionally dumb — it takes the offer payload plus four flags
+/// from the cubit and emits two callbacks ([onAccept], [onTapName]); no cubit /
+/// `sl` / navigation here so it stays golden-testable with fixture data
 /// (40_GUARDRAILS_ARCH §1).
 ///
 /// Semantics identifiers exposed (EXACT, 63_W1_TEST_PLAN §2.8). [index] keys the
@@ -26,6 +37,8 @@ import '../../domain/offer.dart';
 ///   - `offer_card_<index>_cash_on_delivery_label` / `…_<jeeberId>_cash_on_delivery_label`
 ///   - `offer_card_<index>_name`                   / `…_<jeeberId>_name`  (→ jeeber-profile-reviews)
 ///   - `offer_card_<index>_accept_cta`             / `…_<jeeberId>_accept_cta` (→ offer-accept-confirm)
+///   - `offer_card_<index>_best_value_badge`       / `…_<jeeberId>_best_value_badge`
+///   - `offer_card_<index>_fastest_badge`          / `…_<jeeberId>_fastest_badge`
 class OfferCard extends StatelessWidget {
   const OfferCard({
     super.key,
@@ -35,6 +48,8 @@ class OfferCard extends StatelessWidget {
     required this.onTapName,
     this.isAccepting = false,
     this.acceptDisabled = false,
+    this.isBestValue = false,
+    this.isFastest = false,
   });
 
   final Offer offer;
@@ -59,11 +74,19 @@ class OfferCard extends StatelessWidget {
   /// doesn't jump.
   final bool acceptDisabled;
 
+  /// This offer tops the composite ranking (`offer_ranking.dart`): navy border,
+  /// orange badge, filled Accept pill. Never set for a single-offer list.
+  final bool isBestValue;
+
+  /// This offer has the unique lowest ETA and is not the best-value card.
+  final bool isFastest;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final text = context.jeebText;
     // Lane item 3 (currency unification): one formatter across receipt,
     // offers, tiers — "$12.00" for USD, "LBP 15,000.00" otherwise. No more
     // mixed "17.50 / USD" pill vs "$12.00" receipt.
@@ -108,12 +131,188 @@ class OfferCard extends StatelessWidget {
             currency: offer.currency,
             minutes: offer.etaMinutes,
           );
-    // Append the note to the screen-reader label so it is announced with the
-    // rest of the card facts (the visible node is also independently addressable
-    // by `offer_card_<index>_note`).
-    final semanticLabel = hasNote
-        ? '$baseSemanticLabel. $note'
-        : baseSemanticLabel;
+    // Append the note and the ranking badges to the screen-reader label so they
+    // are announced with the rest of the card facts (each visible node is also
+    // independently addressable by its own identifier).
+    final labelParts = <String>[
+      baseSemanticLabel,
+      if (isBestValue) l10n.offersCardBestValueBadge,
+      if (isFastest) l10n.offersCardFastestBadge,
+      if (hasNote) note,
+    ];
+    final semanticLabel = labelParts.join('. ');
+
+    final card = Card(
+      key: Key('offer-card-${offer.id}'),
+      // R12 — lists breathe at 9–12px between cards, not above AND below.
+      margin: const EdgeInsetsDirectional.only(bottom: Spacing.small),
+      elevation: UIConstants.elevationNone,
+      shape: RoundedRectangleBorder(
+        borderRadius: OmdsBorderRadius.large,
+        side: BorderSide(
+          // `outline` is the board's brown card stroke; `outlineVariant` (the
+          // old value) is the divider role and reads a full step too light.
+          color: isBestValue ? colors.primary : colors.outline,
+          width: isBestValue
+              ? UIConstants.strokeWidthNormal
+              : UIConstants.strokeWidthThin,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.medium,
+          vertical: Spacing.small,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                OmdsProfileAvatar(
+                  initial: _initial(displayName),
+                  profilePicUrl: offer.avatarUrl,
+                  size: Sizes.fourXLarge,
+                  // Render vocabulary only: the palette rotates by position so
+                  // a list of unphotographed Jeebers is scannable, and the
+                  // "unknown" grey is bound to a FACT the app holds (no
+                  // ratings), never to a guess about the person.
+                  backgroundColor: hasRatings
+                      ? (index.isEven
+                          ? colors.primary
+                          : colors.onSecondaryContainer)
+                      : colors.surfaceContainerHighest,
+                  initialColor: hasRatings
+                      ? colors.onPrimary
+                      : colors.onSecondaryContainer,
+                ),
+                const SizedBox(width: Spacing.small),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: _NameTapTarget(
+                              indexId: 'offer_card_${index}_name',
+                              patternId: 'offer_card_${offer.jeeberId}_name',
+                              name: displayName,
+                              onTap: onTapName,
+                            ),
+                          ),
+                          if (isFastest) ...[
+                            const SizedBox(width: Spacing.xSmall),
+                            _IdWrap(
+                              indexId: 'offer_card_${index}_fastest_badge',
+                              patternId:
+                                  'offer_card_${offer.jeeberId}_fastest_badge',
+                              child: _FastestPill(
+                                label: l10n.offersCardFastestBadge,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      _MetaLine(
+                        hasRatings: hasRatings,
+                        averageRating: offer.rating,
+                        ratingCount: offer.ratingCount,
+                        noRatingsLabel: l10n.offersCardNoRatingsYet,
+                        vehicleLabel: vehicleLabel,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: Spacing.small),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _IdWrap(
+                        indexId: 'offer_card_${index}_price',
+                        patternId: 'offer_card_${offer.jeeberId}_price',
+                        child: Text(
+                          feeFormatted,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: text.price.copyWith(color: colors.onSurface),
+                        ),
+                      ),
+                      _IdWrap(
+                        indexId: 'offer_card_${index}_eta',
+                        patternId: 'offer_card_${offer.jeeberId}_eta',
+                        child: Text(
+                          l10n.offersCardEtaMinutes(offer.etaMinutes),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: text.caption.copyWith(
+                            color: colors.onSecondaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            // Optional Jeeber note — rendered below the identity row when
+            // present, hidden entirely otherwise.
+            if (hasNote) ...[
+              const SizedBox(height: Spacing.small),
+              _IdWrap(
+                indexId: 'offer_card_${index}_note',
+                patternId: 'offer_card_${offer.jeeberId}_note',
+                child: _OfferNoteLine(note: note),
+              ),
+            ],
+            const SizedBox(height: Spacing.small),
+            Row(
+              children: [
+                // "Pay $X cash on delivery" (D11) — the load-bearing
+                // comprehension line: payment is cash to the Jeeber on
+                // delivery, not in-app.
+                Expanded(
+                  child: _IdWrap(
+                    indexId: 'offer_card_${index}_cash_on_delivery_label',
+                    patternId:
+                        'offer_card_${offer.jeeberId}_cash_on_delivery_label',
+                    child: Text(
+                      l10n.offerCardCashOnDelivery(feeFormatted, offer.currency),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.caption.copyWith(
+                        color: colors.onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: Spacing.small),
+                // Accept CTA → opens the JM-029 offer-accept-confirm sheet.
+                _AcceptCta(
+                  indexId: 'offer_card_${index}_accept_cta',
+                  patternId: 'offer_card_${offer.jeeberId}_accept_cta',
+                  label: isAccepting
+                      ? l10n.offersCardAccepting
+                      : l10n.offersCardAccept,
+                  offerId: offer.id,
+                  enabled: !acceptDisabled && !isAccepting,
+                  loading: isAccepting,
+                  // Only the recommended card carries the navy fill — one
+                  // filled CTA per screen keeps the hierarchy readable.
+                  variant: isBestValue
+                      ? OmdsButtonVariant.primary
+                      : OmdsButtonVariant.outlined,
+                  onTap: onAccept,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
 
     // The card is addressable both by index (the asserted Maestro id) and by
     // Jeeber id (the full `offer_card_<id>` AC pattern). The merged root node
@@ -122,109 +321,28 @@ class OfferCard extends StatelessWidget {
       indexId: 'offer_card_$index',
       patternId: 'offer_card_${offer.jeeberId}',
       label: semanticLabel,
-      child: Card(
-        key: Key('offer-card-${offer.id}'),
-        margin: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
-        elevation: UIConstants.elevationNone,
-        shape: RoundedRectangleBorder(
-          borderRadius: OmdsBorderRadius.medium,
-          side: BorderSide(color: colors.outlineVariant),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.medium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _OfferCardHeader(
-                displayName: displayName,
-                avatarUrl: offer.avatarUrl,
-                averageRating: offer.rating,
-                ratingCount: offer.ratingCount,
-                hasRatings: hasRatings,
-                noRatingsLabel: l10n.offersCardNoRatingsYet,
-                feeFormatted: feeFormatted,
-                nameIndexId: 'offer_card_${index}_name',
-                namePatternId: 'offer_card_${offer.jeeberId}_name',
-                priceIndexId: 'offer_card_${index}_price',
-                pricePatternId: 'offer_card_${offer.jeeberId}_price',
-                onTapName: onTapName,
-              ),
-              const SizedBox(height: Spacing.small),
-              Wrap(
-                spacing: Spacing.xSmall,
-                runSpacing: Spacing.xSmall,
-                children: [
-                  // ETA chip.
-                  _IdWrap(
-                    indexId: 'offer_card_${index}_eta',
-                    patternId: 'offer_card_${offer.jeeberId}_eta',
-                    child: _MetaChip(
-                      icon: Icons.access_time,
-                      label: l10n.offersCardEtaMinutes(offer.etaMinutes),
+      child: isBestValue
+          ? Stack(
+              // The badge straddles the card's top edge (board `top: -9`), so
+              // the stack must not clip it — and the host list carries the
+              // matching top padding.
+              clipBehavior: Clip.none,
+              children: [
+                card,
+                PositionedDirectional(
+                  end: Spacing.medium,
+                  top: -_kBestValueBadgeOverhang,
+                  child: _IdWrap(
+                    indexId: 'offer_card_${index}_best_value_badge',
+                    patternId: 'offer_card_${offer.jeeberId}_best_value_badge',
+                    child: _BestValuePill(
+                      label: l10n.offersCardBestValueBadge,
                     ),
                   ),
-                  _MetaChip(
-                    icon: _vehicleIcon(offer.vehicle),
-                    label: vehicleLabel,
-                  ),
-                ],
-              ),
-              // Optional Jeeber note — rendered below the ETA/vehicle chips
-              // when present, hidden entirely otherwise.
-              if (hasNote) ...[
-                const SizedBox(height: Spacing.small),
-                _IdWrap(
-                  indexId: 'offer_card_${index}_note',
-                  patternId: 'offer_card_${offer.jeeberId}_note',
-                  child: _OfferNoteLine(note: note),
                 ),
               ],
-              const SizedBox(height: Spacing.small),
-              // "Pay $X cash on delivery" (D11) — the load-bearing comprehension
-              // line: payment is cash to the Jeeber on delivery, not in-app.
-              _IdWrap(
-                indexId: 'offer_card_${index}_cash_on_delivery_label',
-                patternId:
-                    'offer_card_${offer.jeeberId}_cash_on_delivery_label',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.payments_outlined,
-                      size: Sizes.medium,
-                      color: colors.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: Spacing.xSmall),
-                    Expanded(
-                      child: Text(
-                        l10n.offerCardCashOnDelivery(
-                          feeFormatted,
-                          offer.currency,
-                        ),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: Spacing.medium),
-              // Accept CTA → opens the JM-029 offer-accept-confirm sheet.
-              _AcceptCta(
-                indexId: 'offer_card_${index}_accept_cta',
-                patternId: 'offer_card_${offer.jeeberId}_accept_cta',
-                label: isAccepting
-                    ? l10n.offersCardAccepting
-                    : l10n.offersCardAccept,
-                offerId: offer.id,
-                enabled: !acceptDisabled && !isAccepting,
-                loading: isAccepting,
-                onTap: onAccept,
-              ),
-            ],
-          ),
-        ),
-      ),
+            )
+          : card,
     );
   }
 
@@ -232,23 +350,6 @@ class OfferCard extends StatelessWidget {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return '?';
     return trimmed.substring(0, 1).toUpperCase();
-  }
-
-  static IconData _vehicleIcon(JeeberVehicle vehicle) {
-    switch (vehicle) {
-      case JeeberVehicle.car:
-        return Icons.directions_car_outlined;
-      case JeeberVehicle.motorcycle:
-        return Icons.two_wheeler_outlined;
-      case JeeberVehicle.bicycle:
-        return Icons.pedal_bike_outlined;
-      case JeeberVehicle.scooter:
-        return Icons.electric_scooter_outlined;
-      case JeeberVehicle.walker:
-        return Icons.directions_walk_outlined;
-      case JeeberVehicle.van:
-        return Icons.local_shipping_outlined;
-    }
   }
 
   static String _vehicleLabel(AppLocalizations l10n, JeeberVehicle vehicle) {
@@ -269,120 +370,76 @@ class OfferCard extends StatelessWidget {
   }
 }
 
-/// Responsive identity/rating/price header.
+/// How far the `Best value` badge stands proud of the card's top edge
+/// (board `top: -9px`).
+const double _kBestValueBadgeOverhang = Spacing.xSmall + 1;
+
+/// The `★ 4.9 (127) · Motorcycle` line under the name.
 ///
-/// The avatar and name have their own row so the identity never competes with
-/// localized money or rating text. The rating and fee then wrap independently:
-/// they stay together at normal scale and split across runs when either needs
-/// more room at large text sizes.
-class _OfferCardHeader extends StatelessWidget {
-  const _OfferCardHeader({
-    required this.displayName,
-    required this.avatarUrl,
-    required this.averageRating,
-    required this.ratingCount,
+/// A `Wrap`, not a `Row`: at 200% text the rating and the vehicle have to be
+/// able to split across runs instead of overflowing (`offer_card_overflow_test`
+/// pins 411dp). The vehicle stays its OWN `Text` so `find.text('Motorcycle')`
+/// keeps resolving.
+///
+/// TODO(redesign-24): the board's third fact in this line is "3 km away". No
+/// distance field exists on `Offer`, on the offers wire row, or on the request
+/// row — omitted, not faked. Restore it when the gateway sends `distanceKm`.
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({
     required this.hasRatings,
-    required this.noRatingsLabel,
-    required this.feeFormatted,
-    required this.nameIndexId,
-    required this.namePatternId,
-    required this.priceIndexId,
-    required this.pricePatternId,
-    required this.onTapName,
-  });
-
-  final String displayName;
-  final String? avatarUrl;
-  final double averageRating;
-  final int ratingCount;
-  final bool hasRatings;
-  final String noRatingsLabel;
-  final String feeFormatted;
-  final String nameIndexId;
-  final String namePatternId;
-  final String priceIndexId;
-  final String pricePatternId;
-  final VoidCallback onTapName;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            OmdsProfileAvatar(
-              initial: OfferCard._initial(displayName),
-              profilePicUrl: avatarUrl,
-              size: Sizes.fourXLarge,
-            ),
-            const SizedBox(width: Spacing.small),
-            Expanded(
-              child: _NameTapTarget(
-                indexId: nameIndexId,
-                patternId: namePatternId,
-                name: displayName,
-                onTap: onTapName,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: Spacing.twoXSmall),
-        Wrap(
-          spacing: Spacing.small,
-          runSpacing: Spacing.twoXSmall,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            if (hasRatings)
-              _RatingSummary(
-                averageRating: averageRating,
-                ratingCount: ratingCount,
-              )
-            else
-              _NoRatingsYet(label: noRatingsLabel),
-            _IdWrap(
-              indexId: priceIndexId,
-              patternId: pricePatternId,
-              child: _FeePill(amount: feeFormatted),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _RatingSummary extends StatelessWidget {
-  const _RatingSummary({
     required this.averageRating,
     required this.ratingCount,
+    required this.noRatingsLabel,
+    required this.vehicleLabel,
   });
 
+  final bool hasRatings;
   final double averageRating;
   final int ratingCount;
+  final String noRatingsLabel;
+  final String vehicleLabel;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    final colors = Theme.of(context).colorScheme;
+    final metaStyle = context.jeebText.bodySmall.copyWith(
+      color: colors.onSecondaryContainer,
+    );
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: Spacing.twoXSmall,
       children: [
-        OmdsStarRatingDisplay(
-          averageRating: averageRating,
-          starSize: Sizes.medium,
-          showReviewCount: false,
-        ),
-        const SizedBox(width: Spacing.twoXSmall),
-        Flexible(
-          child: Text(
+        if (hasRatings) ...[
+          OmdsStarRatingDisplay(
+            averageRating: averageRating,
+            // The board draws ONE star followed by the score — a five-star
+            // strip would out-weigh the price at this size.
+            starCount: 1,
+            starSize: Sizes.medium,
+            spacing: Spacing.twoXSmall,
+            // The count is rendered as its OWN Wrap child rather than through
+            // `totalReviews` + `reviewsLabelBuilder`: OMDS lays the count
+            // inside its own unbreakable `Row`, and a seven-figure review count
+            // at 200% text overflows that Row by ~230px
+            // (`offer_card_overflow_test` pins 411dp). As a sibling it can
+            // ellipsize and wrap.
+            showReviewCount: false,
+            ratingTextStyle: metaStyle,
+          ),
+          Text(
             '($ratingCount)',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: metaStyle,
           ),
+        ] else
+          _NoRatingsYet(label: noRatingsLabel),
+        Text('·', style: metaStyle),
+        Text(
+          vehicleLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: metaStyle,
         ),
       ],
     );
@@ -393,8 +450,8 @@ class _RatingSummary extends StatelessWidget {
 const int _kOfferNoteMaxLines = 3;
 
 /// Optional free-text note the Jeeber attached to the bid (`offer.note`).
-/// Rendered as an icon + up-to-3-line ellipsized secondary line below the
-/// ETA/vehicle chips. Only mounted when the offer carries a non-blank note.
+/// Rendered as an icon + up-to-3-line ellipsized secondary line. Only mounted
+/// when the offer carries a non-blank note.
 class _OfferNoteLine extends StatelessWidget {
   const _OfferNoteLine({required this.note});
 
@@ -402,15 +459,14 @@ class _OfferNoteLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(
           Icons.chat_bubble_outline,
           size: Sizes.medium,
-          color: colors.onSurfaceVariant,
+          color: colors.onSecondaryContainer,
         ),
         const SizedBox(width: Spacing.xSmall),
         Expanded(
@@ -418,8 +474,8 @@ class _OfferNoteLine extends StatelessWidget {
             note,
             maxLines: _kOfferNoteMaxLines,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.onSurfaceVariant,
+            style: context.jeebText.caption.copyWith(
+              color: colors.onSecondaryContainer,
             ),
           ),
         ),
@@ -440,8 +496,7 @@ class _NoRatingsYet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+    final colors = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'offer_card_no_ratings',
       container: true,
@@ -451,7 +506,7 @@ class _NoRatingsYet extends StatelessWidget {
           Icon(
             Icons.star_border,
             size: Sizes.medium,
-            color: colors.onSurfaceVariant,
+            color: colors.onSecondaryContainer,
           ),
           const SizedBox(width: Spacing.twoXSmall),
           Flexible(
@@ -459,8 +514,8 @@ class _NoRatingsYet extends StatelessWidget {
               label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
+              style: context.jeebText.bodySmall.copyWith(
+                color: colors.onSecondaryContainer,
               ),
             ),
           ),
@@ -540,7 +595,7 @@ class _NameTapTarget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = Theme.of(context).colorScheme;
     return Semantics(
       identifier: indexId,
       button: true,
@@ -564,10 +619,10 @@ class _NameTapTarget extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
-                    decorationColor: theme.colorScheme.primary,
+                  // No underline: the board's names are plain navy w700 and the
+                  // 48dp target already advertises the affordance.
+                  style: context.jeebText.cardTitle.copyWith(
+                    color: colors.onSurface,
                   ),
                 ),
               ),
@@ -579,7 +634,8 @@ class _NameTapTarget extends StatelessWidget {
   }
 }
 
-/// Full-width Accept CTA → offer-accept-confirm sheet.
+/// Accept CTA → offer-accept-confirm sheet. Hugs its label (the board's inline
+/// pill), so it must not be stretched to the card width.
 class _AcceptCta extends StatelessWidget {
   const _AcceptCta({
     required this.indexId,
@@ -588,6 +644,7 @@ class _AcceptCta extends StatelessWidget {
     required this.offerId,
     required this.enabled,
     required this.loading,
+    required this.variant,
     required this.onTap,
   });
 
@@ -597,6 +654,7 @@ class _AcceptCta extends StatelessWidget {
   final String offerId;
   final bool enabled;
   final bool loading;
+  final OmdsButtonVariant variant;
   final VoidCallback onTap;
 
   @override
@@ -610,15 +668,13 @@ class _AcceptCta extends StatelessWidget {
       child: Semantics(
         identifier: patternId,
         child: ExcludeSemantics(
-          child: SizedBox(
-            width: double.infinity,
-            child: OmdsPrimaryButton(
-              key: Key('offer-card-accept-$offerId'),
-              text: label,
-              isEnabled: enabled,
-              onTap: onTap,
-              icon: loading ? const OmdsButtonLoading() : null,
-            ),
+          child: OmdsPrimaryButton(
+            key: Key('offer-card-accept-$offerId'),
+            text: label,
+            variant: variant,
+            isEnabled: enabled,
+            onTap: onTap,
+            icon: loading ? const OmdsButtonLoading() : null,
           ),
         ),
       ),
@@ -626,75 +682,62 @@ class _AcceptCta extends StatelessWidget {
   }
 }
 
-class _FeePill extends StatelessWidget {
-  const _FeePill({required this.amount});
+/// Solid-orange `Best value` badge overhanging the recommended card's top edge.
+/// The ONE orange fill on this screen — §4.1 rations it to exactly this.
+class _BestValuePill extends StatelessWidget {
+  const _BestValuePill({required this.label});
 
-  /// The fully-formatted money string (currency included — lane item 3:
-  /// `MoneyFormat` output like `$12.00`), so the pill never renders a second
-  /// bare currency-code line.
-  final String amount;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.small,
-        vertical: Spacing.xSmall,
-      ),
-      decoration: BoxDecoration(
-        color: colors.primaryContainer,
-        borderRadius: OmdsBorderRadius.small,
-      ),
-      child: Text(
-        amount,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: colors.onPrimaryContainer,
-        ),
-      ),
-    );
-  }
-}
-
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.icon, required this.label});
-
-  final IconData icon;
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.small,
-        vertical: Spacing.xSmall,
-      ),
+    final roles = context.jeebRoles;
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-        borderRadius: OmdsBorderRadius.small,
+        color: roles.accent,
+        borderRadius: jeebPillRadius,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: Sizes.medium, color: colors.onSurfaceVariant),
-          const SizedBox(width: Spacing.xSmall),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: colors.onSurface,
-              ),
-            ),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.xSmall,
+          vertical: Sizes.threeXSmall,
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: context.jeebText.badge.copyWith(color: roles.onAccent),
+        ),
+      ),
+    );
+  }
+}
+
+/// Muted `Fastest` pill sitting inline after the Jeeber's name.
+class _FastestPill extends StatelessWidget {
+  const _FastestPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHigh,
+        borderRadius: jeebPillRadius,
+      ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.xSmall,
+          vertical: Sizes.threeXSmall,
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: context.jeebText.badge.copyWith(color: colors.onSurface),
+        ),
       ),
     );
   }

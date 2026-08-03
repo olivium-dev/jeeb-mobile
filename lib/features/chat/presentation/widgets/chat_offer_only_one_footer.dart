@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Centered helper note under the stacked offer cards in the broadcasting
@@ -26,7 +27,7 @@ class ChatOfferOnlyOneFooter extends StatelessWidget {
             AppLocalizations.of(context).chatOfferAcceptOnlyOne,
             textAlign: TextAlign.center,
             style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.tertiary,
+              color: context.jeebRoles.accent,
             ),
           ),
         ),

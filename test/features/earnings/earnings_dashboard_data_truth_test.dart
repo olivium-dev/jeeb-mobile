@@ -4,6 +4,7 @@
 //   * an empty period renders the honest OmdsEmptyState (no "0.00" anywhere);
 //   * a non-empty period renders amounts through the single MoneyFormat rule.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -49,13 +50,43 @@ const _funded = EarningsSummary(
   deliveryCount: 5,
 );
 
-Future<void> _pump(WidgetTester tester, EarningsSummary summary) async {
+const _fundedWithJoinDate = EarningsSummary(
+  totalCashEarned: 1000,
+  feesPaid: 100,
+  currency: 'USD',
+  deliveryCount: 5,
+  memberSince: '2025-03-04T00:00:00Z',
+);
+
+const _fundedWithRow = EarningsSummary(
+  totalCashEarned: 8,
+  feesPaid: 0.8,
+  currency: 'USD',
+  deliveryCount: 1,
+  memberSince: '2025-03-04T00:00:00Z',
+  deliveries: [
+    EarningsDeliveryItem(
+      deliveryId: 'd-1',
+      date: '2026-08-01T10:00:00Z',
+      cashCollected: 8,
+      feePaid: 0.8,
+      currency: 'USD',
+    ),
+  ],
+);
+
+Future<void> _pump(
+  WidgetTester tester,
+  EarningsSummary summary, {
+  Locale locale = const Locale('en'),
+}) async {
   await tester.pumpWidget(
     wrapForTest(
       BlocProvider<EarningsCubit>(
         create: (_) => EarningsCubit(repository: _FakeRepo(summary)),
         child: const EarningsDashboardScreen(),
       ),
+      locale: locale,
     ),
   );
   await tester.pumpAndSettle();
@@ -100,7 +131,8 @@ void main() {
     // The trust-breaker the audit caught: "0.00 USD · 0 Deliveries · 0.00 fees"
     // must NOT be rendered as if real.
     expect(find.textContaining('0.00'), findsNothing);
-    expect(find.text('Total cash earned'), findsNothing);
+    // The hero eyebrow is a JeebSectionLabel, which uppercases in EN.
+    expect(find.text('TOTAL CASH EARNED'), findsNothing);
   });
 
   testWidgets('funded period → MoneyFormat amounts, no empty state',
@@ -108,9 +140,65 @@ void main() {
     await _pump(tester, _funded);
 
     expect(find.text('No earnings yet this period'), findsNothing);
-    expect(find.text('Total cash earned'), findsOneWidget);
+    expect(find.text('TOTAL CASH EARNED'), findsOneWidget);
     // Rendered through the one money rule ($ for USD), not "1000.00 USD".
     // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
     expect(find.text('\u2066\$1,000.00\u2069'), findsOneWidget);
+  });
+
+  testWidgets('period pills stay mounted in every state', (tester) async {
+    await _pump(tester, _empty);
+
+    for (final period in EarningsPeriod.values) {
+      expect(
+        find.bySemanticsIdentifier('earnings_period_${period.name}'),
+        findsOneWidget,
+        reason: 'switching period is how a jeeber escapes an empty period',
+      );
+    }
+  });
+
+  testWidgets('member-since is withheld when the wire omits it',
+      (tester) async {
+    await _pump(tester, _funded);
+
+    expect(find.bySemanticsIdentifier('earnings_member_since'), findsNothing);
+  });
+
+  testWidgets('member-since renders when the wire carries it', (tester) async {
+    await _pump(tester, _fundedWithJoinDate);
+
+    expect(find.bySemanticsIdentifier('earnings_member_since'), findsOneWidget);
+  });
+
+  testWidgets('funded \u2192 footer + activity link docked, no scrolling needed',
+      (tester) async {
+    await _pump(tester, _funded);
+
+    expect(find.bySemanticsIdentifier('earnings_wallet_link'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('earnings_export_cta'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('earnings_activity_link'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('empty \u2192 no footer at all', (tester) async {
+    await _pump(tester, _empty);
+
+    // The empty body must stay money-free, and a wallet pill is a money
+    // affordance: both exits are withheld until the period is funded.
+    expect(find.bySemanticsIdentifier('earnings_wallet_link'), findsNothing);
+    expect(find.bySemanticsIdentifier('earnings_export_cta'), findsNothing);
+  });
+
+  testWidgets('ar funded body lays out without overflow', (tester) async {
+    await _pump(tester, _fundedWithRow, locale: const Locale('ar'));
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.bySemanticsIdentifier('earnings_delivery_row_d-1'),
+      findsOneWidget,
+    );
   });
 }

@@ -1,9 +1,10 @@
 // Jeeber Dashboard availability hierarchy regression proof.
 //
 // Proves:
-//   1. Offline state: a full OMDS section with Switch OFF + status copy.
-//   2. Online state: one compact OMDS switch row, with the semantic success role
-//      (`JeebColorRoles`) and no delivery-count/idle supporting lines.
+//   1. Offline state: the navy strip with Switch OFF + status copy.
+//   2. Online state: the SAME navy strip (redesign-2026-08: one shape for every
+//      state), with the semantic success role (`JeebColorRoles`) driving the
+//      on-track and no delivery-count/idle supporting lines.
 //   3. The compact copy says "You're online — receiving requests", en + ar.
 //   4. Toggling forwards to the cubit wiring (onToggle) and the in-flight
 //      frame swaps the switch for the legacy-keyed spinner (tap-blocked).
@@ -21,6 +22,7 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import 'package:jeeb_mobile/features/jeeber_home/application/availability_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_home/application/availability_state.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/entities/availability_status.dart';
@@ -137,7 +139,7 @@ void _expectOnlineCopyWithinTwoLineBudget(WidgetTester tester) {
 
 void main() {
   group('AvailabilityCard — state-aware density', () {
-    testWidgets('offline: full OMDS section, switch OFF, offline copy', (
+    testWidgets('offline: navy strip, switch OFF, offline copy', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -150,17 +152,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final switchWidget = tester.widget<OmdsSwitchTile>(
+      final switchWidget = tester.widget<Switch>(
         find.byKey(AvailabilityCard.toggleKey),
       );
       expect(switchWidget.value, isFalse);
-      expect(find.byType(OMDSSectionCard), findsOneWidget);
+      expect(find.byType(JeebNavySurfaceCard), findsOneWidget);
 
       expect(find.text("You're offline"), findsOneWidget);
       expect(find.text('Auto-offline after 8 h idle'), findsNothing);
     });
 
-    testWidgets('online: one compact OMDS row uses the success role and omits '
+    testWidgets('online: the navy strip uses the success role and omits '
         'supporting availability lines', (tester) async {
       await tester.pumpWidget(
         _host(
@@ -175,12 +177,12 @@ void main() {
       final context = tester.element(find.byKey(AvailabilityCard.rootKey));
       final roles = Theme.of(context).extension<JeebColorRoles>()!;
 
-      final switchWidget = tester.widget<OmdsSwitchTile>(
+      final switchWidget = tester.widget<Switch>(
         find.byKey(AvailabilityCard.toggleKey),
       );
       expect(switchWidget.value, isTrue);
       expect(
-        switchWidget.activeColor,
+        switchWidget.activeTrackColor,
         roles.success,
         reason:
             'Online track color must resolve from the semantic success '
@@ -191,9 +193,9 @@ void main() {
       expect(find.text('2 active deliveries'), findsNothing);
       expect(find.text('Auto-offline after 8 h idle'), findsNothing);
       expect(
-        find.byType(OMDSSectionCard),
-        findsNothing,
-        reason: 'The full section is reserved for offline/toggling states.',
+        find.byType(JeebNavySurfaceCard),
+        findsOneWidget,
+        reason: 'One navy strip carries every availability state.',
       );
       expect(
         tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,
@@ -217,7 +219,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('أنت متصل — تستقبل الطلبات'), findsOneWidget);
-      expect(find.byType(OMDSSectionCard), findsNothing);
+      expect(find.byType(JeebNavySurfaceCard), findsOneWidget);
       expect(
         tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,
         lessThanOrEqualTo(Sizes.sevenXLarge),
@@ -283,9 +285,9 @@ void main() {
       );
       expect(find.text('Updating…'), findsOneWidget);
       expect(
-        find.byType(OMDSSectionCard),
+        find.byType(JeebNavySurfaceCard),
         findsOneWidget,
-        reason: 'Toggling needs the full progress section.',
+        reason: 'The strip does not change shape while the PUT is in flight.',
       );
     });
 

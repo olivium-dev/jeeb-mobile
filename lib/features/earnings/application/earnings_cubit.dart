@@ -1,18 +1,33 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/di/injection_container.dart';
+import '../../wallet/domain/wallet_repository.dart';
 import '../domain/earnings_repository.dart';
 import 'earnings_state.dart';
 
 class EarningsCubit extends Cubit<EarningsState> {
   EarningsCubit({
     required EarningsRepository repository,
+    WalletRepository? walletRepository,
     this.jeeberId = '',
   })  : _repository = repository,
+        _walletRepository = walletRepository ?? _resolveWalletRepository(),
         super(const EarningsState()) {
     loadEarnings();
+    // Fire-and-forget, once per mount: the footer's wallet pill is a nicety,
+    // so it must never gate or delay the earnings load it sits under.
+    _loadWalletBalance();
   }
 
+  /// Same DI seam as `offer_submission_screen.dart` — a host (or a test) that
+  /// registers no wallet repository resolves null and never fetches, so every
+  /// existing `EarningsCubit(repository: …)` call site keeps its exact
+  /// emission sequence.
+  static WalletRepository? _resolveWalletRepository() =>
+      sl.isRegistered<WalletRepository>() ? sl<WalletRepository>() : null;
+
   final EarningsRepository _repository;
+  final WalletRepository? _walletRepository;
 
   /// DEFECT-B: optional. The live gateway scopes earnings to the authenticated
   /// token and ignores `?jeeberId=`, so production leaves this empty; the mock
@@ -59,6 +74,18 @@ class EarningsCubit extends Cubit<EarningsState> {
         exportMode: EarningsExportMode.error,
         exportError: _mapError(e.kind),
       ));
+    }
+  }
+
+  Future<void> _loadWalletBalance() async {
+    final repo = _walletRepository;
+    if (repo == null) return;
+    try {
+      final balance = await repo.fetchBalance();
+      if (!isClosed) emit(state.copyWith(walletBalance: balance));
+    } on WalletRepositoryException {
+      // A wallet read must never degrade the earnings screen: no error state,
+      // no retry — the footer pill simply renders without the balance suffix.
     }
   }
 

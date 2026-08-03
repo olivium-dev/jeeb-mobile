@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
+import 'package:jeeb_mobile/features/registration/application/registration_state.dart';
 import 'package:jeeb_mobile/features/registration/domain/lebanon_phone.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/registration/presentation/registration_screen.dart';
@@ -336,12 +337,97 @@ void main() {
     ));
     await tester.pump();
 
-    // Branded wordmark hero band (interim register hero, FR-P1-3).
+    // Branded wordmark hero band — now the full-bleed navy welcome band
+    // (redesign 02). `_register_hero` is Maestro-frozen (jm-009, jm-018).
+    expect(find.bySemanticsIdentifier('_register_hero'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Jeeb')), findsWidgets);
-    // Welcome heading promoted above the form.
+    // Welcome heading lives inside the band and keeps its key.
     expect(find.byKey(const Key('registration.welcome')), findsOneWidget);
-    // "social — or — phone" divider between social and the phone block.
+    // "phone — or — social" divider below the phone block.
     expect(find.byKey(const Key('registration.orDivider')), findsOneWidget);
+  });
+
+  testWidgets(
+      'the live-valid tick fades in at a parseable number and back out below '
+      'the 7-digit minimum', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    // The tick always occupies its slot (AnimatedOpacity, not a conditional
+    // insert) so the field row never reflows per keystroke.
+    expect(
+      find.bySemanticsIdentifier('register_phone_valid_check'),
+      findsOneWidget,
+    );
+    final tick = find.ancestor(
+      of: find.byIcon(Icons.check),
+      matching: find.byType(AnimatedOpacity),
+    );
+    expect(tester.widget<AnimatedOpacity>(tick).opacity, 0);
+
+    await tester.enterText(
+      find.byKey(const Key('registration.phoneField')),
+      '71123456',
+    );
+    await tester.pump();
+    expect(tester.widget<AnimatedOpacity>(tick).opacity, 1);
+
+    // Six digits is below `LebanonPhone.minNationalDigitCount` — the tick
+    // hides again, agreeing with the now-disabled CTA.
+    await tester.enterText(
+      find.byKey(const Key('registration.phoneField')),
+      '711234',
+    );
+    await tester.pump();
+    expect(tester.widget<AnimatedOpacity>(tick).opacity, 0);
+  });
+
+  testWidgets('the docked trust note renders below the form', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    expect(find.bySemanticsIdentifier('register_trust_note'), findsOneWidget);
+    // Cash-on-delivery honesty: no card, and the number is only shared with
+    // the Jeeber the client actually accepts.
+    expect(
+      find.text(
+        'No card needed. Your number is only shared with the Jeeber you '
+        'accept.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'the helper line carries the resting copy and swaps to the invalid-phone '
+      'error (the field no longer owns an InputDecoration errorText)',
+      (tester) async {
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: cubit),
+    ));
+    await tester.pump();
+
+    expect(find.bySemanticsIdentifier('register_phone_helper'), findsOneWidget);
+    expect(
+      find.text('8-digit Lebanese number — we text you a code.'),
+      findsOneWidget,
+    );
+
+    // Submitting with nothing typed is the cubit's invalid path.
+    await cubit.sendCode();
+    await tester.pump();
+
+    expect(cubit.state.phoneError, RegistrationPhoneError.invalid);
+    expect(find.text('Enter a valid Lebanese phone number.'), findsOneWidget);
+    expect(
+      find.text('8-digit Lebanese number — we text you a code.'),
+      findsNothing,
+    );
   });
 
   testWidgets(
@@ -389,7 +475,12 @@ void main() {
     );
     expect(dir, TextDirection.rtl);
     // The Arabic welcome copy renders (value != key, parity-test backed).
-    expect(find.text('مرحباً بك في جيب'), findsOneWidget);
+    // Redesign 02 replaces "مرحباً بك في جيب" with the board's neighbourly
+    // greeting.
+    expect(find.text('أهلاً بك يا جار'), findsOneWidget);
+    // The bilingual tagline under it leads with Arabic in the `ar` locale.
+    expect(find.text('جيب، مشوارك أسهل · Your errand, made easier'),
+        findsOneWidget);
   });
 
   // The "Super user login plus" picker→sheet placement tests moved with the

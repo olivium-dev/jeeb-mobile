@@ -227,15 +227,20 @@ class _RepliesList extends StatelessWidget {
     return Column(
       key: const Key('replies-tab-list'),
       children: [
-        for (final r in requests)
+        for (var i = 0; i < requests.length; i++) ...[
+          // Board gap 12 (02-PLAN R12). The cards used to end in a divider and
+          // carry their own vertical padding; outlined cards separate
+          // themselves, so the rhythm is an explicit gap now.
+          if (i > 0) const SizedBox(height: Spacing.small),
           Semantics(
-            label: _a11yLabel(context, r),
+            label: _a11yLabel(context, requests[i]),
             child: RepliesCard(
-              request: r,
-              onCheckOffers: () => onCheckOffers(r),
-              onAccept: () => onAccept(r),
+              request: requests[i],
+              onCheckOffers: () => onCheckOffers(requests[i]),
+              onAccept: () => onAccept(requests[i]),
             ),
           ),
+        ],
       ],
     );
   }

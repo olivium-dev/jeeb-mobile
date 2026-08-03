@@ -1,20 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../chat_redesign_l10n.dart';
 
-/// Chat header composed from OMDS primitives.
+/// Chat header — the redesign-2026-08 screen-21 identity bar.
 ///
-/// Lays the Figma cluster out **left-aligned** (node 56560:1605: chevron →
-/// circular peer avatar → name): a directional back affordance, an optional
-/// circular counterpart avatar, and the [title] (the counterpart name
-/// post-approval, or the order id during broadcasting — Figma 02 "ORD-23748",
-/// node 56535:6659). The avatar slot is omitted when no counterpart is
-/// resolved yet so the broadcasting header stays title-only.
+/// The cluster is the kit's [JeebTopBar.identity]: a Ø40 back circle, a Ø42
+/// counterpart avatar, the name (16/w700) over a `★ 4.9` line, and one trailing
+/// Ø40 circular action. It is still mounted as the Scaffold's `appBar` (the
+/// screen's bounded-header architecture depends on the AppBar having already
+/// consumed the top inset), so the bar is wrapped in a flat [Material] +
+/// [SafeArea] rather than being pushed into the body.
 ///
-/// RTL: the back chevron is chosen via [Directionality] so it always points
-/// "back" (left in LTR, right in RTL) and the whole cluster mirrors to the
-/// start edge — no stray forward-arrow leaks into the actions area.
+/// The avatar slot is omitted when no counterpart is resolved yet, so the
+/// broadcasting header stays title-only.
+///
+/// RTL: mirroring is kit-owned — the leading glyph resolves through
+/// `DirectionalIcons.back` and the whole row is directional. The only forced
+/// isolate is the rating NUMBER, so `4.9` never renders `9.4`.
+///
+/// Two board refusals, both re-stated here because they are load-bearing:
+///   * **no presence dot** — no counterpart-presence signal exists anywhere in
+///     the app (`ChatConnectionCubit` reports MY socket), and a dot that is
+///     always green is a lie;
+///   * **no call button** — no phone number reaches this surface, so the
+///     trailing circle carries the existing dispute affordance instead.
 class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   const ChatAppBar({
     super.key,
@@ -23,20 +37,22 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.avatarImage,
     this.showAvatar = false,
     this.onAvatarTap,
-    this.actions,
+    this.trailing,
+    this.rating = 0,
   });
 
   /// Header title — counterpart display name or order/request id.
   final String title;
 
   /// Counterpart avatar URL (CDN-hosted via cdn-service). Falls back to the
-  /// title initial inside a circular [OmdsProfileAvatar] when null.
+  /// title initial inside the kit's circular [JeebAvatar] when null.
   final String? avatarUrl;
 
   /// Pre-resolved avatar image provider. Lets a caller bind a non-network
   /// source (e.g. a bundled [AssetImage] in the dev capture seam) through the
   /// same circular treatment as the production CDN path; takes precedence over
-  /// [avatarUrl] when both are set.
+  /// [avatarUrl] when both are set. [JeebAvatar] takes a url only, so this
+  /// branch keeps its own ClipOval + Image.
   final ImageProvider? avatarImage;
 
   /// Whether to render the leading avatar (post-approval state only).
@@ -49,120 +65,61 @@ class ChatAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// extra. Null leaves the avatar non-interactive.
   final VoidCallback? onAvatarTap;
 
-  /// Trailing app-bar actions. JM-025 AC3 injects the `order_chat_open_dispute`
-  /// affordance here on the accepted/active order-chat; the legacy 1:1 chat
-  /// leaves it null (no actions). Additive — existing callers are unchanged.
-  final List<Widget>? actions;
+  /// The ONE trailing circular action. JM-025 AC3 passes the
+  /// `order_chat_open_dispute` affordance on the accepted/active order-chat;
+  /// the legacy 1:1 chat leaves it null. Replaces the old `actions:` list —
+  /// the kit's trailing slot is a single [JeebTopBarAction], by design.
+  final JeebTopBarAction? trailing;
 
-  /// Leading-slot width when the avatar cluster (back + avatar) is shown.
-  /// Back-button tap target + inter-gap + avatar, expressed in tokens.
-  static const double _avatarLeadingWidth = Sizes.fiveXLarge + Sizes.fourXLarge;
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-
-  @override
-  Widget build(BuildContext context) {
-    return OMDSAppBar(
-      title: title,
-      centerTitle: false,
-      showBackButton: !showAvatar,
-      leading: showAvatar
-          ? _ChatHeaderLeading(
-              title: title,
-              url: avatarUrl,
-              image: avatarImage,
-              onAvatarTap: onAvatarTap,
-            )
-          : null,
-      leadingWidth: showAvatar ? _avatarLeadingWidth : null,
-      actions: actions ?? const <Widget>[],
-    );
-  }
-}
-
-/// Directional back chevron + circular counterpart avatar packed into the
-/// app-bar leading slot. Mirrors to the start edge in RTL.
-class _ChatHeaderLeading extends StatelessWidget {
-  const _ChatHeaderLeading({
-    required this.title,
-    required this.url,
-    required this.image,
-    required this.onAvatarTap,
-  });
-
-  final String title;
-  final String? url;
-  final ImageProvider? image;
-  final VoidCallback? onAvatarTap;
+  /// Counterpart rating, rendered as the `★ 4.9` subtitle line. `0` (the
+  /// default, and every unresolved summary) hides the line entirely — a
+  /// fabricated 0.0 would read as a terrible courier.
+  final double rating;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const _ChatBackButton(),
-        _ChatHeaderAvatar(
-          title: title,
-          url: url,
-          image: image,
-          onTap: onAvatarTap,
-        ),
-      ],
-    );
-  }
-}
-
-/// Back affordance whose chevron points "back" in both reading directions.
-class _ChatBackButton extends StatelessWidget {
-  const _ChatBackButton();
+  Size get preferredSize => const Size.fromHeight(Sizes.sevenXLarge);
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
-    return Semantics(
-      identifier: 'chat_detail_back_button',
-      button: true,
-      label: l10n.chatBackA11y,
-      child: IconButton(
-        icon: Icon(isRtl ? Icons.arrow_forward_ios : Icons.arrow_back_ios),
-        iconSize: Sizes.large,
-        onPressed: () => Navigator.of(context).maybePop(),
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 0,
+      child: SafeArea(
+        bottom: false,
+        child: JeebTopBar.identity(
+          identifier: 'chat_detail_back_button',
+          leadingTooltip: l10n.chatBackA11y,
+          title: title,
+          // The board's subtitle reads `★ 4.9 · usually replies in 1 min`.
+          // TODO(redesign-24): needs gateway reply-latency — omitted, not faked.
+          subtitleSlot: rating > 0 ? _RatingLine(rating: rating) : null,
+          avatar: showAvatar ? _avatarCluster(context, l10n) : null,
+          // The `chat_detail_avatar` node is built here (it needs `button:` and
+          // a label the kit's wrapper does not take), so the kit must not add a
+          // second wrapper around it and split the node.
+          onAvatarPressed: null,
+          trailing: trailing,
+        ),
       ),
     );
   }
-}
 
-/// 44dp circular peer avatar. Renders, in priority order: a provided
-/// [image] (e.g. bundled asset in the dev seam), then the CDN [url] via
-/// [OmdsProfileAvatar]'s cached image, then an initial inside a visible
-/// circle — never a bare glyph (D1 fix).
-class _ChatHeaderAvatar extends StatelessWidget {
-  const _ChatHeaderAvatar({
-    required this.title,
-    required this.url,
-    required this.image,
-    required this.onTap,
-  });
-
-  final String title;
-  final String? url;
-  final ImageProvider? image;
-
-  /// When non-null, the avatar becomes a button that opens the counterpart's
-  /// public profile (D-P1). The role-branching + view-data construction lives
-  /// in the caller; this widget only exposes the tappable affordance.
-  final VoidCallback? onTap;
-
-  static const double _size = Sizes.fourXLarge;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final avatar = image != null
-        ? _CircularImageAvatar(image: image!, size: _size)
-        : _UrlOrInitialAvatar(title: title, url: url, size: _size);
+  /// Today's `chat_detail_avatar` node shape, verbatim: the identifier, the
+  /// button flag and the label all stay on ONE node, with the gesture inside
+  /// it.
+  Widget _avatarCluster(BuildContext context, AppLocalizations l10n) {
+    final Widget visual = avatarImage != null
+        ? _CircularImageAvatar(
+            image: avatarImage!,
+            size: JeebTopBar.identityAvatarDiameter,
+          )
+        : JeebAvatar(
+            initial: title,
+            imageUrl: avatarUrl,
+            diameter: JeebTopBar.identityAvatarDiameter,
+          );
+    final VoidCallback? onTap = onAvatarTap;
     return Semantics(
       identifier: 'chat_detail_avatar',
       button: onTap != null,
@@ -171,16 +128,59 @@ class _ChatHeaderAvatar extends StatelessWidget {
           ? GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: onTap,
-              child: avatar,
+              child: visual,
             )
-          : avatar,
+          : visual,
+    );
+  }
+}
+
+/// `★ 4.9` — the counterpart's rating, in the periwinkle subtitle ink.
+///
+/// The star deliberately INHERITS that ink rather than taking
+/// `starRatingColor`: the yellow star token belongs to screens 11/12/15
+/// (00-MIGRATION-PLAN §4.1), and the board draws this one periwinkle.
+class _RatingLine extends StatelessWidget {
+  const _RatingLine({required this.rating});
+
+  final double rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    final String value = rating.toStringAsFixed(1);
+    final TextStyle style = context.jeebText.caption.copyWith(
+      fontWeight: FontWeight.w600,
+      color: colors.onSecondaryContainer,
+    );
+    return Semantics(
+      label: ChatRedesignL10n.of(context).counterpartRatingA11y(value),
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.star_rounded,
+              size: Sizes.medium,
+              color: colors.onSecondaryContainer,
+            ),
+            const SizedBox(width: Spacing.twoXSmall),
+            // The one LTR island: `4.9` must never render as `9.4`.
+            Directionality(
+              textDirection: TextDirection.ltr,
+              child: Text(value, style: style),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 /// Circular avatar for a pre-resolved [ImageProvider] (e.g. a non-network
-/// source bound by a caller). OMDS's [OmdsProfileAvatar] only accepts a URL, so
-/// the image-provider case keeps a thin circular treatment of its own.
+/// source bound by a caller). [JeebAvatar] only accepts a URL, so the
+/// image-provider case keeps a thin circular treatment of its own — and
+/// `chat_dm_header_parity_test` D1 pins exactly this ClipOval + Image shape.
 class _CircularImageAvatar extends StatelessWidget {
   const _CircularImageAvatar({required this.image, required this.size});
 
@@ -196,32 +196,6 @@ class _CircularImageAvatar extends StatelessWidget {
         height: size,
         fit: BoxFit.cover,
       ),
-    );
-  }
-}
-
-/// CDN [url] via [OmdsProfileAvatar]'s cached image, falling back to an initial
-/// inside a visible circle — never a bare glyph (D1 fix).
-class _UrlOrInitialAvatar extends StatelessWidget {
-  const _UrlOrInitialAvatar({
-    required this.title,
-    required this.url,
-    required this.size,
-  });
-
-  final String title;
-  final String? url;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return OmdsProfileAvatar(
-      initial: title.isEmpty ? 'J' : title.characters.first,
-      profilePicUrl: url,
-      size: size,
-      backgroundColor: colorScheme.primaryContainer,
-      initialColor: colorScheme.onPrimaryContainer,
     );
   }
 }

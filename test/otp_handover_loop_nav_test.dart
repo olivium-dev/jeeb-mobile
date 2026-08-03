@@ -46,6 +46,13 @@ GoRouter _router(OtpHandoverCubit cubit, {required bool isClient}) {
         builder: (context, state) =>
             const Scaffold(body: Center(child: Text('FEEDBACK_STUB'))),
       ),
+      // redesign-2026-08 screen 13's docked exit. The real route exists in
+      // app_router.dart; this stub keeps the harness DI-free.
+      GoRoute(
+        path: '/orders/:id/escalate',
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('ESCALATE_STUB'))),
+      ),
     ],
   );
 }
@@ -169,8 +176,10 @@ void main() {
       await tester.pumpWidget(_app(router));
       await tester.pump(); // resolve the display-code fetch → ready
 
-      // The code display is up (the client is parked here pre-fix).
-      expect(find.text('1234'), findsOneWidget);
+      // The code display is up (the client is parked here pre-fix). Addressed
+      // by key: redesign-2026-08 renders the code as one tile per digit, so
+      // there is no single `'1234'` string any more.
+      expect(find.byKey(const Key('otpHandover.codeDisplay')), findsOneWidget);
 
       // The new addressable CTA exists by its accessibility identifier.
       final rateNow = find.byKey(const Key('otpHandover.clientRateNow'));
@@ -218,6 +227,43 @@ void main() {
         find.byKey(const Key('otpHandover.clientRateNow')),
       );
       expect(semantics.identifier, 'client_otp_rate_now');
+      await cubit.close();
+    });
+  });
+
+  group('13: the docked dispute exit', () {
+    testWidgets('otp_handover_dispute pushes /orders/:id/escalate',
+        (tester) async {
+      when(() =>
+              repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenAnswer((_) async => const OtpFetchResult(code: '1234'));
+
+      final cubit = OtpHandoverCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        isClient: true,
+      );
+      final router = _router(cubit, isClient: true);
+
+      await tester.pumpWidget(_app(router));
+      await tester.pump();
+
+      final dispute = find.bySemanticsIdentifier('otp_handover_dispute');
+      expect(dispute, findsOneWidget);
+
+      await tester.tap(dispute);
+      await tester.pumpAndSettle();
+
+      expect(find.text('ESCALATE_STUB'), findsOneWidget);
+
+      // `push`, not `go`: the handoff screen is still on the stack, so BACK
+      // returns the customer to the code they were reading at the door.
+      // (An imperative push deliberately leaves `currentConfiguration.uri` at
+      // the base location, so the stack — not the URI — is the assertion.)
+      expect(_location(router), '/otp');
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('otpHandover.codeDisplay')), findsOneWidget);
       await cubit.close();
     });
   });

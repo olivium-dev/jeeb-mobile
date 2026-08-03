@@ -496,6 +496,15 @@ void main() {
       'tapping kyc_scroll_hint scrolls the identity screen towards the '
       'selfie tile',
       (tester) async {
+        // The redesign (screen 22) shortened the column by ~340pt, so the
+        // "selfie is below the fold" precondition would otherwise depend on
+        // the harness's 800×600 luck. Pin a real phone viewport instead of
+        // weakening the assertions.
+        tester.view.physicalSize = const Size(1080, 1920); // 360×640 @3x
+        tester.view.devicePixelRatio = 3.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         final cubit = _newCubit();
         await tester.pumpWidget(_host(cubit));
         await tester.pumpAndSettle();
@@ -552,6 +561,97 @@ void main() {
         expect(find.text(message.kycErrorSubmitFailed), findsNothing,
             reason: 'the mislabeled "check your connection" toast must not '
                 'appear for a validation 400');
+      },
+    );
+  });
+
+  group('redesign-2026-08 (screen 22): the identity checklist', () {
+    testWidgets(
+      'the selfie row is locked until BOTH ID sides exist — and the lock is '
+      'presentation-only (the cubit path stays open for Maestro/tests)',
+      (tester) async {
+        final cubit = _newCubit();
+        await tester.pumpWidget(_host(cubit));
+        await tester.pumpAndSettle();
+
+        final locked =
+            tester.widget<Semantics>(find.byKey(KycIdentityStep.selfieTileKey));
+        expect(locked.properties.enabled, isFalse,
+            reason: 'step 2 has not opened yet');
+
+        await tester.ensureVisible(find.byKey(KycIdentityStep.selfieTileKey));
+        await tester.tap(
+          find.byKey(KycIdentityStep.selfieTileKey),
+          warnIfMissed: false,
+        );
+        await tester.pump();
+        expect(cubit.state.capturing, isNull,
+            reason: 'the locked row must not open the camera');
+        expect(cubit.state.submission.hasSelfie, isFalse);
+
+        // Both ID sides captured → the row unlocks.
+        await cubit.captureIdFront();
+        await cubit.captureIdBack();
+        await tester.pumpAndSettle();
+
+        final unlocked =
+            tester.widget<Semantics>(find.byKey(KycIdentityStep.selfieTileKey));
+        expect(unlocked.properties.enabled, isTrue);
+
+        // JEBV4-295 / JM-040: the cubit itself never enforces the gate.
+        expect(cubit.state.isSelfieUnlocked, isTrue);
+      },
+    );
+
+    testWidgets(
+      'a captured row reports its captured sub-line',
+      (tester) async {
+        final cubit = _newCubit();
+        await tester.pumpWidget(_host(cubit));
+        await tester.pumpAndSettle();
+
+        final message = await _syncDelegate.load(const Locale('en'));
+        expect(find.text(message.kycCaptureCaptured), findsNothing);
+
+        await cubit.captureIdFront();
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.text(message.kycCaptureCaptured), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'kyc_review_note states the review time on the identity step',
+      (tester) async {
+        final cubit = _newCubit();
+        await tester.pumpWidget(_host(cubit));
+        await tester.pumpAndSettle();
+
+        expect(_byIdentifier('kyc_review_note'), findsOneWidget);
+        final message = await _syncDelegate.load(const Locale('en'));
+        expect(find.text(message.kycReviewTimeTitle), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'kyc_tos_read_cta opens the terms document sheet (submit signs a '
+      'contract, so the document must stay reachable before signing)',
+      (tester) async {
+        final cubit = _newCubit();
+        await tester.pumpWidget(_host(cubit));
+        await tester.pumpAndSettle();
+
+        expect(_byIdentifier('kyc_tos_document_sheet'), findsNothing);
+
+        await tester.ensureVisible(_byIdentifier('kyc_tos_read_cta'));
+        await tester.pump();
+        await tester.tap(_byIdentifier('kyc_tos_read_cta'));
+        await tester.pumpAndSettle();
+
+        expect(_byIdentifier('kyc_tos_document_sheet'), findsOneWidget);
+        final message = await _syncDelegate.load(const Locale('en'));
+        expect(find.text(message.kycTosDocumentBody), findsOneWidget);
       },
     );
   });

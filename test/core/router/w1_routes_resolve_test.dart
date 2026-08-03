@@ -30,6 +30,7 @@ import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
 import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/core/session/session_gate.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_state.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
@@ -122,6 +123,10 @@ Widget _harness(_Built built) {
       BlocProvider<LocaleCubit>.value(value: built.locale),
     ],
     child: MaterialApp.router(
+      // The real app theme, as `app.dart` installs it: destination screens read
+      // `Theme.of(context).extension<JeebSemanticColors>()!`, which only the
+      // Jeeb theme registers. A bare default ThemeData makes them throw.
+      theme: AppTheme.light(),
       routerConfig: built.router,
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
         SyncAppLocalizationsDelegate(),

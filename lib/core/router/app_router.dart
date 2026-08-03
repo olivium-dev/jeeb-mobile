@@ -1083,6 +1083,13 @@ class AppRouter {
                 localAudioPath: localAudioPath,
               ),
             ),
+            // Redesign 05 "Type" satellite: the transcription route already
+            // renders a typeable field for an empty clip, so switching to
+            // typing is a push with a blank clip — never a fabricated one.
+            onSwitchToTyping: () => context.push(
+              '/voice-request/transcription',
+              extra: const VoiceClip(audioPath: '', durationMs: 0),
+            ),
           ),
         ),
         // The legacy `/tier-selection` route (TierSelectionScreen) was removed
@@ -1162,6 +1169,11 @@ class AppRouter {
                   description: text,
                   transcription: text,
                   audioUrl: audioPath.isEmpty ? null : audioPath,
+                  // Redesign 10: the summary's voice replay band plays the
+                  // ON-DEVICE file, not the gateway audioId. Both fields are
+                  // local-only and are never serialized onto the create body.
+                  audioLocalPath: clip.localAudioPath,
+                  audioDurationMs: clip.durationMs,
                 ),
               ),
               onReRecord: () {
@@ -1202,6 +1214,11 @@ class AppRouter {
                 context.pop(clip);
               }
             },
+            // Redesign 05 "Type" satellite on the dictation leg: the compose
+            // field the user dictates into is one pop away. Pushing the
+            // transcription review here would bypass the dictation return
+            // contract.
+            onSwitchToTyping: () => context.pop(),
           ),
         ),
         GoRoute(
@@ -1411,6 +1428,11 @@ class AppRouter {
                 repository: sl<OtpHandoverRepository>(),
                 deliveryId: deliveryId,
                 isClient: isClient,
+                // 13: best-effort arrival banner (name/vehicle/cash/stage),
+                // read from the delivery the app already fetches. Optional —
+                // every other call site renders no banner. No new endpoint,
+                // no new DI registration.
+                deliveryInfo: sl<LiveTrackingRepository>(),
                 // G4: local-first code sourcing — the accept-time persisted
                 // code renders instantly (and restart-safe) without hitting
                 // the SMS-trigger endpoint.
@@ -1457,7 +1479,12 @@ class AppRouter {
                 deliveryId: deliveryId,
                 isClient: isClient,
               ),
-              child: const MutualRatingScreen(),
+              // 15: optional `?name=` counterpart display name, mirroring the
+              // sibling `/orders/:id/feedback` route. Absent → the screen's
+              // role-aware fallback headline.
+              child: MutualRatingScreen(
+                rateeName: state.uri.queryParameters['name'] ?? '',
+              ),
             );
           },
         ),

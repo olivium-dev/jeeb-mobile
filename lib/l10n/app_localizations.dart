@@ -61,6 +61,7 @@ class AppLocalizations {
 
   String get appTitle => _get('appTitle');
 
+
   String get navHome => _get('navHome');
   String get navOrders => _get('navOrders');
   String get navChat => _get('navChat');
@@ -2502,4 +2503,360 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get customerWalletStubCodTitle => _get('customerWalletStubCodTitle');
   String get customerWalletStubCodBody => _get('customerWalletStubCodBody');
   String get customerWalletStubDoneCta => _get('customerWalletStubDoneCta');
+
+  // ───────────────────────────────────────────────────────────────────────
+  // redesign-2026-08 wiring batch (screens 01–24). Applied by the wiring
+  // integrator; see docs/redesign-2026-08/04-WIRING-REPORT.md for the
+  // request-by-request record. This class is hand-authored (no gen_l10n step),
+  // so every ARB key added above needs its getter here or the parity gate
+  // (qa/t-mob-fix-002/l10n_parity_check.sh, checks b/c) fails.
+  // ───────────────────────────────────────────────────────────────────────
+
+  // 01 · Onboarding
+  String get onboardingTagline => _get('onboardingTagline');
+  String get onboardingPreviewVoiceDuration =>
+      _get('onboardingPreviewVoiceDuration');
+  String get onboardingPreviewVoiceTranscript =>
+      _get('onboardingPreviewVoiceTranscript');
+  String get onboardingPreviewRequestTitle =>
+      _get('onboardingPreviewRequestTitle');
+  String get onboardingPreviewOfferQuote => _get('onboardingPreviewOfferQuote');
+  String get onboardingPreviewOfferMeta => _get('onboardingPreviewOfferMeta');
+  String get onboardingLanguageEnShort => _get('onboardingLanguageEnShort');
+  String get onboardingLanguageArShort => _get('onboardingLanguageArShort');
+  String onboardingPageIndicator(int current, int total) =>
+      _get('onboardingPageIndicator')
+          .replaceFirst('{current}', '$current')
+          .replaceFirst('{total}', '$total');
+
+  // 02 · Registration
+  String get registrationTagline => _get('registrationTagline');
+  String get registrationPhoneHelper => _get('registrationPhoneHelper');
+  String get registrationPhoneExample => _get('registrationPhoneExample');
+  String get registrationTrustNote => _get('registrationTrustNote');
+
+  // 03 · OTP verify
+  String get registrationOtpHeadline => _get('registrationOtpHeadline');
+  String get registrationOtpSentToLabel => _get('registrationOtpSentToLabel');
+  String get registrationOtpEditPhone => _get('registrationOtpEditPhone');
+  String get registrationOtpAutoVerifyHint =>
+      _get('registrationOtpAutoVerifyHint');
+  String get registrationOtpResendInLabel =>
+      _get('registrationOtpResendInLabel');
+  String get registrationOtpKeypadBackspaceA11y =>
+      _get('registrationOtpKeypadBackspaceA11y');
+
+  // 04 · Client home
+  String get homeGreetingEyebrowMorning => _get('homeGreetingEyebrowMorning');
+  String get homeGreetingEyebrowAfternoon =>
+      _get('homeGreetingEyebrowAfternoon');
+  String get homeGreetingEyebrowEvening => _get('homeGreetingEyebrowEvening');
+  String get homeHeroSubtitle => _get('homeHeroSubtitle');
+  String homeRepliesOffersFloor(String offers, String amount) =>
+      _get('homeRepliesOffersFloor')
+          .replaceFirst('{offers}', offers)
+          .replaceFirst('{amount}', amount);
+
+  // 05 · Voice recording
+  String get voiceRecordingNewRequestTitle =>
+      _get('voiceRecordingNewRequestTitle');
+  String get voiceRecordingStatusRecording =>
+      _get('voiceRecordingStatusRecording');
+  String get voiceRecordingSlideToCancel => _get('voiceRecordingSlideToCancel');
+  String get voiceRecordingTypeInstead => _get('voiceRecordingTypeInstead');
+
+  // 06 · Transcription review
+  String get transcriptionTapHint => _get('transcriptionTapHint');
+  String transcriptionLanguageDetected(String language) =>
+      _get('transcriptionLanguageDetected').replaceFirst('{language}', language);
+  String get transcriptionLanguageArabicLebanese =>
+      _get('transcriptionLanguageArabicLebanese');
+  String get transcriptionLanguageArabic => _get('transcriptionLanguageArabic');
+  String get transcriptionLanguageEnglish =>
+      _get('transcriptionLanguageEnglish');
+  String get transcriptionQuickAddQuantity =>
+      _get('transcriptionQuickAddQuantity');
+  String get transcriptionQuickAddBrand => _get('transcriptionQuickAddBrand');
+  String get transcriptionQuickAddBudget => _get('transcriptionQuickAddBudget');
+  String get transcriptionQuickAddFragmentQuantity =>
+      _get('transcriptionQuickAddFragmentQuantity');
+  String get transcriptionQuickAddFragmentBrand =>
+      _get('transcriptionQuickAddFragmentBrand');
+  String get transcriptionQuickAddFragmentBudget =>
+      _get('transcriptionQuickAddFragmentBudget');
+  String get transcriptionScrubberLabel => _get('transcriptionScrubberLabel');
+
+  // 07 · Request type
+  String get requestTypeMostPickedBadge => _get('requestTypeMostPickedBadge');
+  String get requestTypeChangeCta => _get('requestTypeChangeCta');
+
+  // 08 · Tier catalog (the enhanced picker section of /request-type)
+  String get tierCatalogSubtitle => _get('tierCatalogSubtitle');
+  String get tierCatalogSlaFlexible => _get('tierCatalogSlaFlexible');
+  String get tierCatalogPriceHighest => _get('tierCatalogPriceHighest');
+  String get tierCatalogPriceHigher => _get('tierCatalogPriceHigher');
+  String get tierCatalogPriceBalanced => _get('tierCatalogPriceBalanced');
+  String get tierCatalogPriceLower => _get('tierCatalogPriceLower');
+  String get tierCatalogPriceLowest => _get('tierCatalogPriceLowest');
+  String get tierCatalogMetaFlash => _get('tierCatalogMetaFlash');
+  String get tierCatalogMetaExpress => _get('tierCatalogMetaExpress');
+  String get tierCatalogMetaStandard => _get('tierCatalogMetaStandard');
+  String get tierCatalogMetaOnTheWay => _get('tierCatalogMetaOnTheWay');
+  String get tierCatalogMetaEco => _get('tierCatalogMetaEco');
+  String get tierCatalogPricingNote => _get('tierCatalogPricingNote');
+  String tierCatalogCardSemanticLabel({
+    required String name,
+    required String sla,
+    required String meta,
+    required String price,
+  }) => _get('tierCatalogCardSemanticLabel')
+      .replaceFirst('{name}', name)
+      .replaceFirst('{sla}', sla)
+      .replaceFirst('{meta}', meta)
+      .replaceFirst('{price}', price);
+
+  // 09 · Location picker
+  String clientLocationGpsAccuracy(int meters) =>
+      _get('clientLocationGpsAccuracy').replaceAll('{meters}', '$meters');
+  String get captureLocationPinCallout => _get('captureLocationPinCallout');
+
+  // 10 · Request summary
+  String get requestSummaryBroadcastCta => _get('requestSummaryBroadcastCta');
+  String get requestSummaryCancelNote => _get('requestSummaryCancelNote');
+  String get requestSummaryBadgeVoice => _get('requestSummaryBadgeVoice');
+  String get requestSummaryBadgeTyped => _get('requestSummaryBadgeTyped');
+  String get requestSummaryEdit => _get('requestSummaryEdit');
+  String get requestSummaryChange => _get('requestSummaryChange');
+
+  // 11 · Offers
+  String get offersSortByBest => _get('offersSortByBest');
+  String get offersCardBestValueBadge => _get('offersCardBestValueBadge');
+  String get offersCardFastestBadge => _get('offersCardFastestBadge');
+
+  /// Offer-review countdown strip. Six Arabic CLDR branches selected here
+  /// because this class has no ICU engine — the ARB stores one key per branch
+  /// (`offersWindowStrip{Zero,One,Two,Few,Many,Other}`) per the repo's
+  /// key-suffix plural convention (qa/t-mob-fix-002/ar_plurals_check.sh).
+  String offersWindowStrip(int count, String time) {
+    final String branch;
+    if (count == 0) {
+      branch = _get('offersWindowStripZero');
+    } else if (count == 1) {
+      branch = _get('offersWindowStripOne');
+    } else if (count == 2) {
+      branch = _get('offersWindowStripTwo');
+    } else {
+      final mod = count % 100;
+      if (mod >= 3 && mod <= 10) {
+        branch = _get('offersWindowStripFew');
+      } else if (mod >= 11 && mod <= 99) {
+        branch = _get('offersWindowStripMany');
+      } else {
+        branch = _get('offersWindowStripOther');
+      }
+    }
+    return branch
+        .replaceFirst('{count}', '$count')
+        .replaceFirst('{time}', time);
+  }
+
+  // 12 · Live tracking
+  String trackingArrivingIn(int minutes) =>
+      _get('trackingArrivingIn').replaceFirst('{minutes}', '$minutes');
+  String trackingCourierOnTheWay(String name) =>
+      _get('trackingCourierOnTheWay').replaceFirst('{name}', name);
+  String trackingCashOnDelivery(String amount) =>
+      _get('trackingCashOnDelivery').replaceFirst('{amount}', amount);
+  String get trackingDoorCodeNote => _get('trackingDoorCodeNote');
+  String get trackingCashShort => _get('trackingCashShort');
+  String get trackingNoShowCta => _get('trackingNoShowCta');
+  String get trackingDisputeCta => _get('trackingDisputeCta');
+
+  // 13 · OTP handover
+  String get otpClientShareSubtitle => _get('otpClientShareSubtitle');
+  String otpClientShareSubtitleNamed(String name) =>
+      _get('otpClientShareSubtitleNamed').replaceFirst('{name}', name);
+  String otpArrivalAtDoor(String name) =>
+      _get('otpArrivalAtDoor').replaceFirst('{name}', name);
+  String otpArrivalOnTheWay(String name) =>
+      _get('otpArrivalOnTheWay').replaceFirst('{name}', name);
+  String otpArrivalSubtitle(String vehicle, String amount) =>
+      _get('otpArrivalSubtitle')
+          .replaceFirst('{vehicle}', vehicle)
+          .replaceFirst('{amount}', amount);
+  String get otpClientResendSmsPrompt => _get('otpClientResendSmsPrompt');
+  String get otpClientResendSmsAction => _get('otpClientResendSmsAction');
+  String get otpDisputeCta => _get('otpDisputeCta');
+  String get otpResendFailed => _get('otpResendFailed');
+
+  // 14 · Receipt confirm
+  String get receiptCashNote => _get('receiptCashNote');
+  String get receiptProofBadge => _get('receiptProofBadge');
+  String get receiptProofZoomCta => _get('receiptProofZoomCta');
+  String get receiptProofViewerCloseLabel =>
+      _get('receiptProofViewerCloseLabel');
+
+  // 15 · Mutual rating
+  String mutualRatingHeadlineNamed(String name) =>
+      _get('mutualRatingHeadlineNamed').replaceFirst('{name}', name);
+  String get mutualRatingHeadlineJeeber => _get('mutualRatingHeadlineJeeber');
+  String get mutualRatingHeadlineClient => _get('mutualRatingHeadlineClient');
+  String get mutualRatingStarLabel1 => _get('mutualRatingStarLabel1');
+  String get mutualRatingStarLabel2 => _get('mutualRatingStarLabel2');
+  String get mutualRatingStarLabel3 => _get('mutualRatingStarLabel3');
+  String get mutualRatingStarLabel4 => _get('mutualRatingStarLabel4');
+  String get mutualRatingStarLabel5 => _get('mutualRatingStarLabel5');
+  String mutualRatingBlindNoteNamed(String name) =>
+      _get('mutualRatingBlindNoteNamed').replaceFirst('{name}', name);
+  String mutualRatingStarsA11yLabel(int stars) =>
+      _get('mutualRatingStarsA11yLabel').replaceFirst('{stars}', '$stars');
+
+  // 16 · Jeeber home
+  String get jeeberDashboardEyebrow => _get('jeeberDashboardEyebrow');
+  String jeeberFeedNearbyCount(int count) =>
+      _get('jeeberFeedNearbyCount').replaceFirst('{count}', '$count');
+  String jeeberFeedPendingCount(int count) =>
+      _get('jeeberFeedPendingCount').replaceFirst('{count}', '$count');
+  String jeeberFeedRepliesCount(int count) =>
+      _get('jeeberFeedRepliesCount').replaceFirst('{count}', '$count');
+  String get jeeberFeedSearchToggleLabel => _get('jeeberFeedSearchToggleLabel');
+  String get availabilityExtendAction => _get('availabilityExtendAction');
+  String get availabilityInactivityInlineWarning =>
+      _get('availabilityInactivityInlineWarning');
+  String get jeeberActiveLabel => _get('jeeberActiveLabel');
+
+  // 17 · Offer composer
+  String get offerComposerTitle => _get('offerComposerTitle');
+  String get offerComposerPriceSectionLabel =>
+      _get('offerComposerPriceSectionLabel');
+  String get offerComposerPricePlaceholder =>
+      _get('offerComposerPricePlaceholder');
+  String get offerComposerEtaSectionLabel =>
+      _get('offerComposerEtaSectionLabel');
+  String offerComposerEtaCeilingHint(String minutes) =>
+      _get('offerComposerEtaCeilingHint').replaceFirst('{minutes}', minutes);
+  String get offerComposerEtaOther => _get('offerComposerEtaOther');
+  String get offerComposerOfferRowLabel => _get('offerComposerOfferRowLabel');
+  String offerComposerFeeRowLabel(int percent) =>
+      _get('offerComposerFeeRowLabel').replaceFirst('{percent}', '$percent');
+  String get offerComposerKeepRowLabel => _get('offerComposerKeepRowLabel');
+  String offerComposerWalletStrip(String amount) =>
+      _get('offerComposerWalletStrip').replaceFirst('{amount}', amount);
+  String offerComposerSendKeep(String amount) =>
+      _get('offerComposerSendKeep').replaceFirst('{amount}', amount);
+  String get offerComposerNoteHint => _get('offerComposerNoteHint');
+  String get offerComposerPriceDecrement => _get('offerComposerPriceDecrement');
+  String get offerComposerPriceIncrement => _get('offerComposerPriceIncrement');
+
+  // 18 · Active delivery (Jeeber)
+  String get activeDeliveryHandoffTitle => _get('activeDeliveryHandoffTitle');
+  String get activeDeliveryProofPhotoTile =>
+      _get('activeDeliveryProofPhotoTile');
+  String get activeDeliveryDoorCodePrompt =>
+      _get('activeDeliveryDoorCodePrompt');
+  String activeDeliveryCollectCash(String amount) =>
+      _get('activeDeliveryCollectCash').replaceFirst('{amount}', amount);
+  String get activeDeliveryCollectCashNoAmount =>
+      _get('activeDeliveryCollectCashNoAmount');
+  String get activeDeliveryDirectionsCta => _get('activeDeliveryDirectionsCta');
+  String get activeDeliveryQuickActionMaps =>
+      _get('activeDeliveryQuickActionMaps');
+  String get activeDeliveryQuickActionChat =>
+      _get('activeDeliveryQuickActionChat');
+  String get activeDeliveryQuickActionCosts =>
+      _get('activeDeliveryQuickActionCosts');
+
+  // 19 · Earnings
+  String get earningsTotalCashHint => _get('earningsTotalCashHint');
+  String get earningsNetPerOfferLabel => _get('earningsNetPerOfferLabel');
+  String earningsFeesPaidHint(int percent) =>
+      _get('earningsFeesPaidHint').replaceFirst('{percent}', '$percent');
+  String get earningsWalletLink => _get('earningsWalletLink');
+  String get earningsActivityLink => _get('earningsActivityLink');
+  String earningsDeliveryRowTitleDated(String id, String weekday) =>
+      _get('earningsDeliveryRowTitleDated')
+          .replaceFirst('{id}', id)
+          .replaceFirst('{weekday}', weekday);
+
+  // 20 · Settings
+  String settingsIdentitySubtitle({
+    required String phone,
+    required String action,
+  }) => _get('settingsIdentitySubtitle')
+      .replaceFirst('{phone}', phone)
+      .replaceFirst('{action}', action);
+  String get settingsBecomeJeeberSubtitle =>
+      _get('settingsBecomeJeeberSubtitle');
+  String get settingsBecomeJeeberCta => _get('settingsBecomeJeeberCta');
+  String get settingsAlwaysOnQualifier => _get('settingsAlwaysOnQualifier');
+  String get settingsMoreSection => _get('settingsMoreSection');
+  String settingsVersionFooter(String version) =>
+      _get('settingsVersionFooter').replaceFirst('{version}', version);
+
+  // 21 · Order chat
+  String get chatMessageReadLabel => _get('chatMessageReadLabel');
+  String get chatQuickReplyImHome => _get('chatQuickReplyImHome');
+  String get chatQuickReplyCallAtDoor => _get('chatQuickReplyCallAtDoor');
+  String get chatQuickReplyThanks => _get('chatQuickReplyThanks');
+  String get chatQuickReplyRowA11y => _get('chatQuickReplyRowA11y');
+  String chatSystemChipWithTime(String event, String time) =>
+      _get('chatSystemChipWithTime')
+          .replaceFirst('{event}', event)
+          .replaceFirst('{time}', time);
+  String chatCounterpartRatingA11y(String value) =>
+      _get('chatCounterpartRatingA11y').replaceFirst('{value}', value);
+
+  // 22 · Become a Jeeber (KYC identity step)
+  String kycWizardProgressStepLabel({
+    required int current,
+    required int total,
+    required String stepName,
+  }) => _get('kycWizardProgressStepLabel')
+      .replaceFirst('{current}', '$current')
+      .replaceFirst('{total}', '$total')
+      .replaceFirst('{stepName}', stepName);
+  String kycWizardNextStepHint({required String stepName}) =>
+      _get('kycWizardNextStepHint').replaceFirst('{stepName}', stepName);
+  String get kycWizardStepIdTitle => _get('kycWizardStepIdTitle');
+  String get kycIdCaptureHint => _get('kycIdCaptureHint');
+  String get kycCaptureCaptured => _get('kycCaptureCaptured');
+  String get kycSelfieLockedHint => _get('kycSelfieLockedHint');
+  String get kycReviewTimeTitle => _get('kycReviewTimeTitle');
+  String get kycReviewPrivacyNote => _get('kycReviewPrivacyNote');
+  String kycTosAgreeLine({required int percent}) =>
+      _get('kycTosAgreeLine').replaceFirst('{percent}', '$percent');
+  String get kycTosReadFullCta => _get('kycTosReadFullCta');
+
+  // 23 · Wallet hub
+  String get walletTopUpWalletCta => _get('walletTopUpWalletCta');
+  String get walletBackLabel => _get('walletBackLabel');
+  String walletGiftBadge(String amount) =>
+      _get('walletGiftBadge').replaceFirst('{amount}', amount);
+  String get walletAffordabilityEnoughTitle =>
+      _get('walletAffordabilityEnoughTitle');
+  String walletAffordabilityEnoughBody(int rate) =>
+      _get('walletAffordabilityEnoughBody').replaceFirst('{rate}', '$rate');
+  String get walletReservedRightNowLabel => _get('walletReservedRightNowLabel');
+  String get walletReservedRightNowHint => _get('walletReservedRightNowHint');
+  String walletHowFeesWorkCta(int rate) =>
+      _get('walletHowFeesWorkCta').replaceFirst('{rate}', '$rate');
+  String get walletEarningsRowTitle => _get('walletEarningsRowTitle');
+  String get walletEarningsRowSubtitle => _get('walletEarningsRowSubtitle');
+  String get walletAllActivityTitle => _get('walletAllActivityTitle');
+  String get walletAllActivitySubtitle => _get('walletAllActivitySubtitle');
+  String get walletCashDisclaimer => _get('walletCashDisclaimer');
+  String walletFeesExplainerLine1(int rate) =>
+      _get('walletFeesExplainerLine1').replaceFirst('{rate}', '$rate');
+
+  // 24 · Order history
+  String orderHistoryFilterRange(String from, String to) =>
+      _get('orderHistoryFilterRange')
+          .replaceFirst('{from}', from)
+          .replaceFirst('{to}', to);
+  String orderHistoryFilterRangeFrom(String from) =>
+      _get('orderHistoryFilterRangeFrom').replaceFirst('{from}', from);
+  String orderHistoryFilterRangeTo(String to) =>
+      _get('orderHistoryFilterRangeTo').replaceFirst('{to}', to);
+  String get orderHistoryTrackCta => _get('orderHistoryTrackCta');
+  String get orderHistoryReorderCta => _get('orderHistoryReorderCta');
 }

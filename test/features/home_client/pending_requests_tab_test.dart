@@ -171,7 +171,13 @@ void main() {
 
       expect(find.byKey(const Key('pending-empty')), findsOneWidget);
       expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
-      expect(find.text('What do you need?'), findsOneWidget);
+      // "What do you need?" belongs to the mic hero on the full screen, not to
+      // the empty view — in this tab-only harness it must not appear at all.
+      expect(find.text('What do you need?'), findsNothing);
+      expect(
+        find.text('No pending requests — broadcast a new one to get offers.'),
+        findsOneWidget,
+      );
       expect(find.text('Create your first request'), findsOneWidget);
       expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
       final image = tester.widget<Image>(find.byType(Image));

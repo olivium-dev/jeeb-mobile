@@ -4,6 +4,9 @@ import 'package:get_it/get_it.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/voice_recording_cubit.dart';
 import '../cubit/voice_recording_state.dart';
@@ -12,7 +15,8 @@ import '../domain/audioplayers_voice_player.dart';
 import '../domain/record_voice_recorder.dart';
 import '../domain/voice_player.dart';
 import '../domain/voice_recorder.dart';
-import 'widgets/animated_mic_button.dart';
+import 'widgets/mic_cluster.dart';
+import 'widgets/recording_readout.dart';
 
 /// Stable widget keys for the voice-request controls. Exposed so Codex QA /
 /// integration tests can target the interactive elements deterministically
@@ -58,7 +62,12 @@ typedef VoiceSentCallback =
 /// via the [cubit] parameter so they can drive state transitions without the
 /// real platform recorder.
 class VoiceRecordingScreen extends StatelessWidget {
-  const VoiceRecordingScreen({super.key, this.cubit, this.onSent});
+  const VoiceRecordingScreen({
+    super.key,
+    this.cubit,
+    this.onSent,
+    this.onSwitchToTyping,
+  });
 
   /// Optional injected cubit. Tests pass a pre-wired one; production builds a
   /// default with the in-memory recorder/player and HTTP repository.
@@ -72,9 +81,17 @@ class VoiceRecordingScreen extends StatelessWidget {
   /// no-op so the screen can also be used as a standalone surface.
   final VoiceSentCallback? onSent;
 
+  /// Hands off to typed input from the keyboard satellite. Null hides the
+  /// satellite entirely — the screen stays router-agnostic and each mounting
+  /// route decides where "type instead" goes.
+  final VoidCallback? onSwitchToTyping;
+
   @override
   Widget build(BuildContext context) {
-    final view = _VoiceRecordingView(onSent: onSent);
+    final view = _VoiceRecordingView(
+      onSent: onSent,
+      onSwitchToTyping: onSwitchToTyping,
+    );
     if (cubit != null) {
       return BlocProvider<VoiceRecordingCubit>.value(
         value: cubit!,
@@ -113,15 +130,15 @@ class VoiceRecordingScreen extends StatelessWidget {
 }
 
 class _VoiceRecordingView extends StatelessWidget {
-  const _VoiceRecordingView({this.onSent});
+  const _VoiceRecordingView({this.onSent, this.onSwitchToTyping});
 
   final VoiceSentCallback? onSent;
+  final VoidCallback? onSwitchToTyping;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(title: l10n.voiceRecordingTitle, centerTitle: false),
       body: SafeArea(
         child: BlocConsumer<VoiceRecordingCubit, VoiceRecordingState>(
           listenWhen: (prev, curr) =>
@@ -154,27 +171,46 @@ class _VoiceRecordingView extends StatelessWidget {
             }
           },
           builder: (context, state) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
+            // The board docks the composer at the thumb and leaves the space
+            // above it genuinely empty (R1). Only the two designed phases get
+            // that treatment; the undesigned ones stay centred as before.
+            final bool docked = _isDockedPhase(state);
+            return Semantics(
+              identifier: 'voice_request_root',
+              container: true,
+              explicitChildNodes: true,
               child: Column(
                 children: [
-                  const SizedBox(height: Spacing.large),
-                  if (state.phase != VoiceRecordingPhase.sent) ...[
-                    Text(
-                      _isReviewPhase(state.phase)
-                          ? l10n.voiceRecordingReviewTitle
-                          : l10n.voiceRecordingSubtitle,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                  JeebTopBar.back(
+                    title: l10n.voiceRecordingNewRequestTitle,
+                    identifier: 'voice_request_back',
+                    onLeadingPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  // TODO(redesign-24): live transcript needs streaming STT. No
+                  // on-device recognizer (no new deps) and /transcribe is
+                  // post-upload only — omitted, not faked.
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.symmetric(
+                        horizontal: Spacing.xLarge,
+                      ),
+                      child: Column(
+                        children: [
+                          const Spacer(),
+                          _PhaseSurface(
+                            state: state,
+                            onSwitchToTyping: onSwitchToTyping,
+                          ),
+                          SizedBox(
+                            height: docked ? Spacing.twoXSmall : Spacing.large,
+                          ),
+                          _ActionRow(state: state),
+                          if (!docked) const Spacer(),
+                          const SizedBox(height: Spacing.medium),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: Spacing.large),
-                  ],
-                  _TimerLabel(state: state),
-                  const Spacer(),
-                  _PrimarySurface(state: state),
-                  const Spacer(),
-                  _ActionRow(state: state),
-                  const SizedBox(height: Spacing.large),
+                  ),
                 ],
               ),
             );
@@ -185,150 +221,65 @@ class _VoiceRecordingView extends StatelessWidget {
   }
 }
 
-class _TimerLabel extends StatelessWidget {
-  const _TimerLabel({required this.state});
+class _PhaseSurface extends StatelessWidget {
+  const _PhaseSurface({required this.state, this.onSwitchToTyping});
+
   final VoiceRecordingState state;
+  final VoidCallback? onSwitchToTyping;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    final duration = state.isRecording
-        ? state.elapsed
-        : (state.clip?.duration ?? Duration.zero);
-    final shouldShow =
-        state.isRecording ||
-        state.hasClip ||
-        state.phase == VoiceRecordingPhase.sending;
-    if (state.phase == VoiceRecordingPhase.sent) {
-      return const SizedBox.shrink();
-    }
-    if (!shouldShow) {
-      return Text(
-        '00:00',
-        style: textTheme.displaySmall?.copyWith(
-          fontFeatures: const [FontFeature.tabularFigures()],
-          color: Theme.of(context).colorScheme.outline,
-        ),
-      );
-    }
-    return Column(
-      children: [
-        Text(
-          _formatDuration(duration),
-          style: textTheme.displaySmall?.copyWith(
-            fontFeatures: const [FontFeature.tabularFigures()],
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        const SizedBox(height: Spacing.xSmall),
-        Text(
-          l10n.voiceRecordingTimerLabel(_formatDuration(duration)),
-          style: textTheme.labelMedium,
-        ),
-      ],
-    );
-  }
-}
-
-class _PrimarySurface extends StatelessWidget {
-  const _PrimarySurface({required this.state});
-  final VoiceRecordingState state;
-
-  @override
-  Widget build(BuildContext context) {
+    final cubit = context.read<VoiceRecordingCubit>();
     if (state.hasUploadFailure) {
       return _UploadFailureSurface(error: state.error!);
     }
     switch (state.phase) {
       case VoiceRecordingPhase.idle:
       case VoiceRecordingPhase.recording:
-        return _MicSurface(state: state);
+        if (_isBlocked(state)) {
+          return _BlockedSurface(
+            error: state.error!,
+            onRetry: cubit.startRecording,
+          );
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RecordingReadout(
+              state: state,
+              waveformKey: VoiceRecordingKeys.recordingWaveform,
+            ),
+            const SizedBox(height: Spacing.xSmall),
+            MicCluster(
+              micKey: VoiceRecordingKeys.micButton,
+              cancelKey: VoiceRecordingKeys.cancelButton,
+              isRecording: state.isRecording,
+              progress: state.isRecording ? _elapsedFraction(state) : null,
+              onPressStart: cubit.startRecording,
+              onPressEnd: cubit.stopRecording,
+              onCancel: cubit.cancelRecording,
+              onSwitchToTyping: onSwitchToTyping,
+            ),
+          ],
+        );
       case VoiceRecordingPhase.recorded:
       case VoiceRecordingPhase.playing:
       case VoiceRecordingPhase.sending:
-        return _PlaybackPreview(state: state);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              AppLocalizations.of(context).voiceRecordingReviewTitle,
+              textAlign: TextAlign.center,
+              style: context.jeebText.cardTitle,
+            ),
+            const SizedBox(height: Spacing.large),
+            _PlaybackPreview(state: state),
+          ],
+        );
       case VoiceRecordingPhase.sent:
         return _SentConfirmation();
     }
-  }
-}
-
-/// Mic surface: shows [OmdsRecordingInput] with waveform while recording (AC1)
-/// and [AnimatedMicButton] when idle.
-class _MicSurface extends StatelessWidget {
-  const _MicSurface({required this.state});
-
-  final VoiceRecordingState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cubit = context.read<VoiceRecordingCubit>();
-    if (state.isRecording) {
-      return _buildWaveformBar(context, cubit, l10n);
-    }
-    // Blocking pre-condition (mic permission denied / recorder unavailable):
-    // render a recoverable, OMDS-consistent error surface instead of the idle
-    // mic, so the user gets guidance + a retry rather than a silent no-op or a
-    // transient snackbar dead-end.
-    final error = state.error;
-    if (error != null && _isBlockingError(error)) {
-      return _BlockedSurface(error: error, onRetry: cubit.startRecording);
-    }
-    return _buildIdleMic(context, cubit, l10n);
-  }
-
-  Widget _buildWaveformBar(
-    BuildContext context,
-    VoiceRecordingCubit cubit,
-    AppLocalizations l10n,
-  ) {
-    return Semantics(
-      identifier: 'voice_request_recording_waveform',
-      container: true,
-      label: l10n.voiceRecordingReleaseToStop,
-      child: OmdsRecordingInput(
-        key: VoiceRecordingKeys.recordingWaveform,
-        duration: state.elapsed,
-        isRecording: true,
-        onSend: cubit.stopRecording,
-        onCancel: cubit.cancelRecording,
-      ),
-    );
-  }
-
-  Widget _buildIdleMic(
-    BuildContext context,
-    VoiceRecordingCubit cubit,
-    AppLocalizations l10n,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Semantics(identifier:) surfaces as the Android resource-id so
-        // uiautomator/Maestro can target the mic. The inner AnimatedMicButton
-        // owns the `button:true` + spoken label; container:true keeps this an
-        // addressable, merged node carrying the id (D2 / VoiceRecordingKeys).
-        Semantics(
-          identifier: 'voice_request_mic_button',
-          container: true,
-          child: AnimatedMicButton(
-            key: VoiceRecordingKeys.micButton,
-            isRecording: false,
-            enabled: true,
-            onPressStart: cubit.startRecording,
-            onPressEnd: cubit.stopRecording,
-            semanticLabel: l10n.voiceRecordingMicSemantic,
-          ),
-        ),
-        const SizedBox(height: Spacing.medium),
-        Text(
-          l10n.voiceRecordingHoldToRecord,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-      ],
-    );
   }
 }
 
@@ -539,18 +490,15 @@ class _ActionRow extends StatelessWidget {
     }
     switch (state.phase) {
       case VoiceRecordingPhase.idle:
-        return const SizedBox.shrink();
       case VoiceRecordingPhase.recording:
-        return SizedBox(
-          width: double.infinity,
-          child: Semantics(
-            identifier: 'voice_request_cancel_button',
-            container: true,
-            child: OMDSOutlinedButton(
-              key: VoiceRecordingKeys.cancelButton,
-              text: l10n.voiceRecordingCancel,
-              onTap: () => cubit.cancelRecording(),
-            ),
+        // Blocked pre-conditions replace the cluster, so its caption goes too.
+        if (_isBlocked(state)) return const SizedBox.shrink();
+        return Text(
+          l10n.voiceRecordingHoldToRecord,
+          textAlign: TextAlign.center,
+          style: context.jeebText.body.copyWith(
+            fontWeight: FontWeight.w600,
+            color: _semanticColors(context).mutedText,
           ),
         );
       case VoiceRecordingPhase.recorded:
@@ -658,10 +606,29 @@ bool _isUploadError(VoiceRecordingError error) =>
 bool _isTransientError(VoiceRecordingError error) =>
     !_isBlockingError(error) && !_isUploadError(error);
 
-bool _isReviewPhase(VoiceRecordingPhase phase) =>
-    phase == VoiceRecordingPhase.recorded ||
-    phase == VoiceRecordingPhase.playing ||
-    phase == VoiceRecordingPhase.sending;
+/// Whether the mic pre-conditions are failing, i.e. the composer is replaced by
+/// a recoverable error surface.
+bool _isBlocked(VoiceRecordingState state) {
+  if (state.isRecording || state.hasUploadFailure) return false;
+  final error = state.error;
+  return error != null && _isBlockingError(error);
+}
+
+/// The two phases the board actually draws — composer docked at the thumb with
+/// real emptiness above it. Everything else stays vertically centred.
+bool _isDockedPhase(VoiceRecordingState state) =>
+    !state.hasUploadFailure &&
+    !_isBlocked(state) &&
+    (state.phase == VoiceRecordingPhase.idle || state.isRecording);
+
+double _elapsedFraction(VoiceRecordingState state) =>
+    (state.elapsed.inMilliseconds /
+            VoiceRecordingState.maxDuration.inMilliseconds)
+        .clamp(0.0, 1.0);
+
+JeebSemanticColors _semanticColors(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.light();
 
 String _errorCopy(AppLocalizations l10n, VoiceRecordingError error) {
   switch (error) {
@@ -682,11 +649,4 @@ String _errorCopy(AppLocalizations l10n, VoiceRecordingError error) {
     case VoiceRecordingError.uploadUnknown:
       return l10n.voiceRecordingErrorUploadGeneric;
   }
-}
-
-String _formatDuration(Duration duration) {
-  final clamped = duration.isNegative ? Duration.zero : duration;
-  final minutes = clamped.inMinutes.remainder(60).toString().padLeft(2, '0');
-  final seconds = clamped.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return '$minutes:$seconds';
 }

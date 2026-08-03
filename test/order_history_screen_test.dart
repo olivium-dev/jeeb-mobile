@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/accessibility/accessibility.dart';
@@ -94,6 +95,7 @@ Widget _host(
   double textScaleFactor = 1,
   TextScaler? textScaler,
   int pageSize = 2,
+  Locale locale = const Locale('en'),
 }) {
   final cubit = OrderHistoryCubit(repository: repo, pageSize: pageSize);
   Widget screen = BlocProvider.value(
@@ -120,12 +122,19 @@ Widget _host(
         builder: (_, state) =>
             Scaffold(body: Text('jeeber-active-${state.pathParameters['id']}')),
       ),
+      // The create-flow entry every sibling surface uses; the redesigned
+      // "Jeeb it again" row CTA enters it unseeded.
+      GoRoute(
+        path: '/request-type',
+        name: 'request-type',
+        builder: (_, _) => const Scaffold(body: Text('request-type-screen')),
+      ),
     ],
   );
   return MaterialApp.router(
     routerConfig: router,
     theme: AppTheme.light(),
-    locale: const Locale('en'),
+    locale: locale,
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const [
       SyncAppLocalizationsDelegate(),
@@ -248,6 +257,182 @@ void main() {
       expect(find.text('detail-job7'), findsNothing);
     },
   );
+
+  group('redesign-24 header, tab pills and row CTAs', () {
+    testWidgets('the board title band renders above the tab pills', (
+      tester,
+    ) async {
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [_o('a1', OrderRequestStatus.enRoute)],
+      });
+      await tester.pumpWidget(_host(repo));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delivery'), findsOneWidget);
+      final titleY = tester.getTopLeft(find.text('Delivery')).dy;
+      final tabY = tester.getTopLeft(find.text('Active')).dy;
+      expect(titleY, lessThan(tabY));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a partially loaded tab shows NO count (hasMore is the gate)', (
+      tester,
+    ) async {
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [
+          _o('a1', OrderRequestStatus.enRoute),
+          _o('a2', OrderRequestStatus.enRoute),
+          _o('a3', OrderRequestStatus.enRoute),
+        ],
+      });
+      // pageSize 2 of 3 rows -> hasMore stays true.
+      await tester.pumpWidget(_host(repo));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Active'), findsOneWidget);
+      // A loaded-lower-bound count would be a lie, so no digit is drawn.
+      expect(find.text('2'), findsNothing);
+      expect(find.text('3'), findsNothing);
+    });
+
+    testWidgets('a fully loaded tab shows its true count', (tester) async {
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [_o('a1', OrderRequestStatus.enRoute)],
+      });
+      await tester.pumpWidget(_host(repo, pageSize: 20));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Active'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+    });
+
+    testWidgets('tapping a tab pill switches the list', (tester) async {
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [_o('a1', OrderRequestStatus.enRoute)],
+        OrderHistoryTab.completed: [_o('c1', OrderRequestStatus.delivered)],
+      });
+      await tester.pumpWidget(_host(repo, pageSize: 20));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('order_history_completed_tab'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('order-history-card-c1')), findsOneWidget);
+    });
+
+    testWidgets('Track lands on the customer detail surface', (tester) async {
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [_o('t1', OrderRequestStatus.enRoute)],
+      });
+      await tester.pumpWidget(_host(repo, pageSize: 20));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('order_history_track_cta_t1'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('detail-t1'), findsOneWidget);
+    });
+
+    testWidgets(
+      'BUG-A holds for Track too: a jeeber reaches the progression screen',
+      (tester) async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        final prefs = await SharedPreferences.getInstance();
+        final roleCubit = RoleCubit(prefs: prefs, initialRole: UserRole.jeeber);
+        addTearDown(roleCubit.close);
+
+        final repo = _FakeRepo({
+          OrderHistoryTab.active: [_o('job9', OrderRequestStatus.enRoute)],
+        });
+        await tester.pumpWidget(
+          _host(repo, roleCubit: roleCubit, pageSize: 20),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(
+          find.bySemanticsIdentifier('order_history_track_cta_job9'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('jeeber-active-job9'), findsOneWidget);
+        expect(find.text('detail-job9'), findsNothing);
+      },
+    );
+
+    testWidgets('"Jeeb it again" enters the create flow (request-type)', (
+      tester,
+    ) async {
+      final repo = _FakeRepo({
+        OrderHistoryTab.completed: [_o('c1', OrderRequestStatus.delivered)],
+      });
+      await tester.pumpWidget(_host(repo, pageSize: 20));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('order_history_completed_tab'),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('order_history_reorder_cta_c1'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('request-type-screen'), findsOneWidget);
+    });
+
+    testWidgets('the header survives 200% text without overflowing', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [_o('a1', OrderRequestStatus.enRoute)],
+      });
+      await tester.pumpWidget(_host(repo, textScaleFactor: 2, pageSize: 20));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delivery'), findsOneWidget);
+      expect(find.text('Active'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('renders mirrored under Arabic without overflowing', (
+      tester,
+    ) async {
+      // The card formats its date through `DateFormat.MMMd(locale)`, which
+      // needs the non-default locale's symbols loaded.
+      await initializeDateFormatting();
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [_o('ar1', OrderRequestStatus.enRoute)],
+      });
+      await tester.pumpWidget(
+        _host(repo, locale: const Locale('ar'), pageSize: 20),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('order-history-card-ar1')), findsOneWidget);
+      expect(
+        Directionality.of(
+          tester.element(find.byKey(const Key('order-history-card-ar1'))),
+        ),
+        TextDirection.rtl,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
 
   for (final textScaleFactor in <double>[1, 2]) {
     testWidgets(
@@ -394,7 +579,13 @@ Future<void> _pickDate(
   await tester.pumpAndSettle();
 
   expect(find.byType(DatePickerDialog), findsOneWidget);
-  final dayCell = find.text('$day');
+  // Scoped to the dialog: the screen behind it stays mounted under the
+  // non-opaque dialog route, and the redesigned tab pill now renders a bare
+  // count digit that would otherwise collide with a day-of-month cell.
+  final dayCell = find.descendant(
+    of: find.byType(DatePickerDialog),
+    matching: find.text('$day'),
+  );
   expect(dayCell, findsOneWidget);
   await tester.tap(dayCell);
   await tester.tap(find.text('OK'));

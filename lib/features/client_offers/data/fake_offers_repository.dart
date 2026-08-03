@@ -17,13 +17,19 @@ class FakeOffersRepository implements OffersRepository {
     List<Offer>? incoming,
     Duration incomingInterval = const Duration(seconds: 5),
     OffersFailure? acceptFailure,
+    String? requestTitle = 'Medicine',
   })  : _windowExpiresAt = windowExpiresAt,
         _offers = List<Offer>.of(seed ?? _defaultSeed()),
         _incoming = List<Offer>.of(incoming ?? const <Offer>[]),
         _incomingInterval = incomingInterval,
-        _acceptFailure = acceptFailure;
+        _acceptFailure = acceptFailure,
+        _requestTitle = requestTitle;
 
   final DateTime? _windowExpiresAt;
+
+  /// Demo item title the dev/offline build shows under the "Choose a Jeeber"
+  /// heading. Pass null to exercise the title-less top bar.
+  final String? _requestTitle;
   final List<Offer> _offers;
   final List<Offer> _incoming;
   final Duration _incomingInterval;
@@ -53,6 +59,7 @@ class FakeOffersRepository implements OffersRepository {
       offers: List.unmodifiable(_offers),
       windowExpiresAt: _windowExpiresAt,
       requestIsOpen: _requestOpen,
+      requestTitle: _requestTitle,
     );
   }
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:omds/omds.dart';
 
 import '../../background_gps/data/geolocator_geocapture_gateway.dart';
 import '../presentation/capture_location_screen.dart';
+import '../presentation/widgets/capture_picker_sheet.dart';
 import '../presentation/widgets/google_map_capture_view.dart';
 import '../presentation/widgets/map_capture_controller.dart';
 import 'location_repository.dart';
@@ -40,9 +42,15 @@ class GoogleMapPickerLauncher implements MapPickerLauncher {
       MaterialPageRoute<LocationPoint>(
         fullscreenDialog: true,
         builder: (routeContext) => CaptureLocationScreen(
+          // The sheet reads the same controller the map writes, so the pinned
+          // coordinate the CTA returns is the one the customer can see.
+          controller: controller,
           mapBuilder: (mapContext) => GoogleMapCaptureView(
             controller: controller,
             gateway: _gateway,
+            // Lift the recentre control clear of the docked picker sheet —
+            // the map runs full-bleed underneath it now.
+            bottomInset: CapturePickerSheet.dockedClearance + Spacing.large,
           ),
           onPinned: () =>
               Navigator.of(routeContext).pop<LocationPoint>(controller.center),

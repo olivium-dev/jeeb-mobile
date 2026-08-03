@@ -692,6 +692,17 @@ class ChatCubit extends Cubit<ChatState> {
     await _dispatch(draft);
   }
 
+  /// One-tap quick reply (redesign-2026-08 screen 21): stage [text] and send it
+  /// in one call so the canned string never round-trips through the composer
+  /// field — a user who taps "I'm home" must not find it sitting in the input.
+  ///
+  /// [sendText] already trims, appends optimistically and clears
+  /// `composerText`, so this adds no second send path to keep in sync.
+  Future<void> sendQuickReply(String text) async {
+    emit(state.copyWith(composerText: text));
+    await sendText();
+  }
+
   /// Record and upload a voice note. The bubble appears immediately with the
   /// audio URL placeholder; the transcription fills in once the upload resolves.
   /// [audioBytes] is the raw PCM/M4A from the recorder widget.

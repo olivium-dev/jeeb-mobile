@@ -40,7 +40,9 @@ class _PreviewContent extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.map_outlined, size: Sizes.fiveXLarge, color: iconColor),
+        // R10: the redesign's icon set is filled, single-colour — no outline
+        // variants anywhere on the board.
+        Icon(Icons.map, size: Sizes.fiveXLarge, color: iconColor),
         const SizedBox(height: Spacing.small),
         Text(l10n.captureLocationMapPreview, style: style),
       ],

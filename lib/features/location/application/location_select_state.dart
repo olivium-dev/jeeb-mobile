@@ -53,6 +53,7 @@ class LocationSelectState extends Equatable {
     this.currentGpsStatus = CurrentGpsStatus.idle,
     this.gpsLat,
     this.gpsLng,
+    this.gpsAccuracyMeters,
     this.error,
   });
 
@@ -80,6 +81,12 @@ class LocationSelectState extends Equatable {
   /// fallback: a null here keeps the current-location choice un-confirmable.
   final double? gpsLat;
   final double? gpsLng;
+
+  /// Horizontal accuracy radius (metres) of the device fix above, when the OS
+  /// reported one. Display-only — it tells the customer HOW precise the pin is
+  /// and never gates [canConfirm] (a coarse fix is still a real fix). Cleared
+  /// by `clearGps` alongside the coordinate.
+  final double? gpsAccuracyMeters;
 
   /// Non-null only when [status] is [LocationSelectStatus.failed].
   final LocationSelectFailure? error;
@@ -149,6 +156,7 @@ class LocationSelectState extends Equatable {
     CurrentGpsStatus? currentGpsStatus,
     double? gpsLat,
     double? gpsLng,
+    double? gpsAccuracyMeters,
     bool clearGps = false,
     LocationSelectFailure? error,
     bool clearError = false,
@@ -164,6 +172,8 @@ class LocationSelectState extends Equatable {
       currentGpsStatus: currentGpsStatus ?? this.currentGpsStatus,
       gpsLat: clearGps ? null : (gpsLat ?? this.gpsLat),
       gpsLng: clearGps ? null : (gpsLng ?? this.gpsLng),
+      gpsAccuracyMeters:
+          clearGps ? null : (gpsAccuracyMeters ?? this.gpsAccuracyMeters),
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -179,6 +189,7 @@ class LocationSelectState extends Equatable {
         currentGpsStatus,
         gpsLat,
         gpsLng,
+        gpsAccuracyMeters,
         error,
       ];
 }

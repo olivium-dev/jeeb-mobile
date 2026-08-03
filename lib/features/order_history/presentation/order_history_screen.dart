@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/layout/bottom_inset.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/role/user_role.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/order_history_cubit.dart';
 import '../application/order_history_state.dart';
@@ -16,9 +20,18 @@ import 'order_history_date_filter_sheet.dart';
 /// icon-free layout to preserve its accessible label without clipping.
 const double _kLargeFilterTextScaleThreshold = 1.5;
 
-/// The screen the user lands on from the "Orders" bottom tab. Owns the
-/// TabBar (Active / Completed / Cancelled), the date filter affordance,
-/// and the per-tab list with pull-to-refresh + infinite scroll.
+/// Board gutter for the header, the tab row and the list (`tpl 1417` / `1422` /
+/// `1426` all sit at 24px).
+const EdgeInsetsGeometry _kBandPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.medium,
+  Spacing.xLarge,
+  0,
+);
+
+/// The screen the user lands on from the "Delivery" bottom tab. Owns the
+/// title + date-range header, the three filter pills (Active / Completed /
+/// Cancelled), and the per-tab list with pull-to-refresh + infinite scroll.
 ///
 /// Navigation off this screen is via go_router — `/orders/:id` already
 /// exists and renders [DeliveryDetailScreen].
@@ -86,31 +99,31 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
           container: true,
           child: Column(
             children: [
-              _FilterBar(
+              _HistoryHeader(
                 range: state.dateRange,
                 onTap: () => _openFilter(state.dateRange),
               ),
-              TabBar(
-                controller: _tabController,
-                tabs: [
-                  Semantics(
-                    identifier: 'order_history_active_tab',
-                    container: true,
-                    button: true,
-                    child: Tab(text: l10n.orderHistoryTabActive),
-                  ),
-                  Semantics(
-                    identifier: 'order_history_completed_tab',
-                    container: true,
-                    button: true,
-                    child: Tab(text: l10n.orderHistoryTabCompleted),
-                  ),
-                  Semantics(
-                    identifier: 'order_history_cancelled_tab',
-                    container: true,
-                    button: true,
-                    child: Tab(text: l10n.orderHistoryTabCancelled),
-                  ),
+              // Free-standing content-width pills, not a Material TabBar: the
+              // board (tpl 1422) is a plain `flex; gap:8` with no indicator and
+              // no 48px row. The TabController/TabBarView stay — they carry
+              // swipe, keep-alive retention and `cubit.selectTab`.
+              JeebChipRow.scrollable(
+                padding: _kBandPadding,
+                children: [
+                  for (final (index, tab) in OrderHistoryTab.values.indexed)
+                    Semantics(
+                      // FROZEN: order_history_{active,completed,cancelled}_tab.
+                      identifier: 'order_history_${tab.name}_tab',
+                      container: true,
+                      button: true,
+                      child: JeebSelectChip(
+                        role: JeebChipRole.filter,
+                        label: _tabLabel(tab, l10n),
+                        selected: state.activeTab == tab,
+                        count: _tabCount(state, tab),
+                        onTap: () => _tabController.animateTo(index),
+                      ),
+                    ),
                 ],
               ),
               Expanded(
@@ -139,6 +152,28 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
     }
   }
 
+  /// A count is shown only once it is TRUE: the tab must be fully loaded
+  /// (`!hasMore`), or a loaded-lower-bound would read `Completed 20` for 340
+  /// orders. A never-selected tab is lazy, so it simply has no number.
+  static int? _tabCount(OrderHistoryState state, OrderHistoryTab tab) {
+    final tabState = state.tabs[tab]!;
+    final isSettled = tabState.status == OrderTabStatus.ready &&
+        !tabState.hasMore &&
+        tabState.orders.isNotEmpty;
+    return isSettled ? tabState.orders.length : null;
+  }
+
+  static String _tabLabel(OrderHistoryTab tab, AppLocalizations l10n) {
+    switch (tab) {
+      case OrderHistoryTab.active:
+        return l10n.orderHistoryTabActive;
+      case OrderHistoryTab.completed:
+        return l10n.orderHistoryTabCompleted;
+      case OrderHistoryTab.cancelled:
+        return l10n.orderHistoryTabCancelled;
+    }
+  }
+
   static String _errorMessage(OrderTabErrorKind kind, AppLocalizations l10n) {
     switch (kind) {
       case OrderTabErrorKind.network:
@@ -149,8 +184,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
   }
 }
 
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({required this.range, required this.onTap});
+/// The board's header band (`tpl 1417`): the screen title on the left, the
+/// date-range chip on the right.
+class _HistoryHeader extends StatelessWidget {
+  const _HistoryHeader({required this.range, required this.onTap});
 
   final OrderDateRange range;
   final VoidCallback onTap;
@@ -158,44 +195,90 @@ class _FilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final locale = Localizations.localeOf(context).toLanguageTag();
     final usesLargeText =
         MediaQuery.textScalerOf(context).scale(1) >
         _kLargeFilterTextScaleThreshold;
-    final label = range.isEmpty
-        ? l10n.orderHistoryFilterCta
-        : l10n.orderHistoryFilterActive;
+
     final chip = Semantics(
+      // FROZEN wrapper — the sheet is opened by this id in tests and Maestro.
       identifier: 'order_history_filter_chip',
       container: true,
       button: true,
-      child: OmdsChip(
+      child: JeebSelectChip(
         key: const Key('order-history-filter-chip'),
-        label: label,
-        icon: usesLargeText ? null : const Icon(Icons.tune, size: Sizes.medium),
-        isSelected: !range.isEmpty,
+        // The kit-normalized nearest scale to the board's 8/14 · 12.5/w600
+        // navy chip; `filter` would render it as large as the tab pills and
+        // invert the header's hierarchy.
+        role: JeebChipRole.quickReply,
+        label: _rangeLabel(l10n, locale),
+        leading: usesLargeText
+            ? null
+            : Icon(Icons.tune, size: Sizes.medium, color: scheme.primary),
         onTap: onTap,
       ),
     );
+
+    final title = Text(
+      // Existing key — the board's title IS the shell tab's own name.
+      l10n.navDelivery,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: context.jeebText.h2.copyWith(color: scheme.primary),
+    );
+
+    if (usesLargeText) {
+      // Above 1.5× the two bands cannot share a line: stack them and let the
+      // chip scroll, so its full label survives instead of clipping.
+      return Padding(
+        padding: _kBandPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            title,
+            const SizedBox(height: Spacing.small),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: chip,
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
-      padding: EdgeInsetsDirectional.fromSTEB(
-        usesLargeText ? 0 : Spacing.medium,
-        Spacing.small,
-        usesLargeText ? 0 : Spacing.medium,
-        Spacing.twoXSmall,
-      ),
+      padding: _kBandPadding,
       child: Row(
         children: [
-          Expanded(
-            child: usesLargeText
-                ? SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: chip,
-                  )
-                : chip,
-          ),
+          Expanded(child: title),
+          const SizedBox(width: Spacing.xSmall),
+          chip,
         ],
       ),
     );
+  }
+
+  /// `Jun 1 – 30` when both ends are set, an open-ended phrasing when only one
+  /// is, and the plain call-to-action when the filter is off.
+  String _rangeLabel(AppLocalizations l10n, String locale) {
+    final from = range.from;
+    // The *displayed* end day; `range.to` is the exclusive next midnight.
+    final to = range.inclusiveToDay;
+    final format = DateFormat.MMMd(locale);
+    if (from != null && to != null) {
+      return l10n.orderHistoryFilterRange(
+        format.format(from),
+        format.format(to),
+      );
+    }
+    if (from != null) {
+      return l10n.orderHistoryFilterRangeFrom(format.format(from));
+    }
+    if (to != null) {
+      return l10n.orderHistoryFilterRangeTo(format.format(to));
+    }
+    return l10n.orderHistoryFilterCta;
   }
 }
 
@@ -279,6 +362,7 @@ class _OrderTabViewState extends State<_OrderTabView>
           );
         }
         if (tabState.orders.isEmpty) {
+          // R1: the residual space stays white and top-aligned — no Center.
           return OmdsPullToRefresh(
             onRefresh: () => context.read<OrderHistoryCubit>().refresh(),
             child: ListView(
@@ -304,9 +388,16 @@ class _OrderTabViewState extends State<_OrderTabView>
           child: ListView.separated(
             key: Key('order-history-list-${widget.tab.name}'),
             controller: _scrollController,
-            padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
+            padding: EdgeInsetsDirectional.only(
+              start: Spacing.xLarge,
+              end: Spacing.xLarge,
+              top: Spacing.medium,
+              bottom: context.scrollBodyBottomInset + Spacing.xLarge,
+            ),
             itemCount: tabState.orders.length + (tabState.hasMore ? 1 : 0),
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            // R7/R12: the outlines are the separation — a divider between two
+            // outlined cards draws a third line nobody asked for.
+            separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
             itemBuilder: (context, index) {
               if (index >= tabState.orders.length) {
                 return Padding(
@@ -320,13 +411,22 @@ class _OrderTabViewState extends State<_OrderTabView>
                 );
               }
               final order = tabState.orders[index];
+              void openDetail() => context.push(
+                actingAsJeeber
+                    ? '/jeeber/deliveries/${order.id}/active'
+                    : '/orders/${order.id}',
+              );
               return OrderHistoryCard(
                 order: order,
-                onTap: () => context.push(
-                  actingAsJeeber
-                      ? '/jeeber/deliveries/${order.id}/active'
-                      : '/orders/${order.id}',
-                ),
+                onTap: openDetail,
+                // TODO(redesign-24): needs gateway trackingId on
+                // GET /v1/requests to deep-link `/orders/:id/tracking` —
+                // routed to the detail surface instead, not faked.
+                onTrack: openDetail,
+                // TODO(redesign-24): needs the request description/tier on
+                // GET /v1/requests to pre-fill the re-compose — entering the
+                // create flow unseeded, not faked.
+                onReorder: () => GoRouter.of(context).pushNamed('request-type'),
               );
             },
           ),

@@ -26,6 +26,11 @@ abstract class TranscriptAudioPlayer {
 
   Future<void> pause();
 
+  /// Moves the playhead to [position]. Called by the scrubber knob, which can
+  /// be dragged before playback has ever started — implementations must not
+  /// require an active source.
+  Future<void> seek(Duration position);
+
   Future<void> stop();
 
   Future<void> dispose();
@@ -49,6 +54,9 @@ class NoopTranscriptAudioPlayer implements TranscriptAudioPlayer {
   Future<void> pause() async {}
 
   @override
+  Future<void> seek(Duration position) async {}
+
+  @override
   Future<void> stop() async {}
 
   @override
@@ -62,7 +70,9 @@ class FakeTranscriptAudioPlayer implements TranscriptAudioPlayer {
   int playCalls = 0;
   int pauseCalls = 0;
   int stopCalls = 0;
+  int seekCalls = 0;
   String? lastPath;
+  Duration? lastSeek;
   void Function(Duration)? _onPosition;
   void Function()? _onCompleted;
 
@@ -81,6 +91,12 @@ class FakeTranscriptAudioPlayer implements TranscriptAudioPlayer {
   @override
   Future<void> pause() async {
     pauseCalls++;
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    seekCalls++;
+    lastSeek = position;
   }
 
   @override

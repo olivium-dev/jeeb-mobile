@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_stepper.dart';
 import '../live_tracking_l10n.dart';
 
 /// JM-032 AC1: the canonical 4-step order-tracking stepper — Ordered → Picked →
@@ -8,9 +8,14 @@ import '../live_tracking_l10n.dart';
 ///
 /// Carries the signature id `tracking_stepper` (root) and one assertable
 /// Semantics node per step (`tracking_step_ordered/_picked/_in_transit/
-/// _delivered`, all coined in 63_W1_TEST_PLAN §2.12). The OMDS stepper progress
-/// bar drives the visual fill; the per-step nodes carry the labels + a
-/// done/active/pending state for QA + a11y.
+/// _delivered`, all coined in 63_W1_TEST_PLAN §2.12).
+///
+/// redesign-2026-08 §C task 9: the node/connector/label visuals belong to
+/// [JeebStepper] now (Ø26 discs, 3px connectors, the orange glowing active
+/// node). This widget is the thin wrapper that supplies the labels, the frozen
+/// identifiers and the screen's own root Semantics node — deliberately NOT
+/// `JeebStepper.identifier`, so `tracking_stepper` keeps living here where the
+/// P6/A5 relabel is decided.
 class OrderTrackingStepper extends StatelessWidget {
   const OrderTrackingStepper({
     super.key,
@@ -30,6 +35,9 @@ class OrderTrackingStepper extends StatelessWidget {
   /// `trackingStepIndex4`'s collapse.
   final bool atDoor;
 
+  /// The terminal step index — the pulse rests once the row is delivered.
+  static const int _deliveredIndex = 3;
+
   static const _stepIds = <String>[
     'tracking_step_ordered',
     'tracking_step_picked',
@@ -47,90 +55,21 @@ class OrderTrackingStepper extends StatelessWidget {
       atDoor ? l10n.stepAtDoor : l10n.stepInTransit,
       l10n.stepDelivered,
     ];
-    final theme = Theme.of(context);
 
     return Semantics(
       identifier: 'tracking_stepper',
       container: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // OMDS progress bar (visual fill). `showStepNumbers: false` — the
-          // labels are rendered as the assertable per-step nodes below so each
-          // step id surfaces as its own Semantics node.
-          OMDSStepperProgress(
-            totalSteps: _stepIds.length,
-            completedSteps: currentStep + 1,
-            progressColor: theme.colorScheme.primary,
-          ),
-          const SizedBox(height: Spacing.medium),
-          Row(
-            children: [
-              for (var i = 0; i < _stepIds.length; i++)
-                Expanded(
-                  child: _StepNode(
-                    identifier: _stepIds[i],
-                    label: labels[i],
-                    isDone: i < currentStep,
-                    isActive: i == currentStep,
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepNode extends StatelessWidget {
-  const _StepNode({
-    required this.identifier,
-    required this.label,
-    required this.isDone,
-    required this.isActive,
-  });
-
-  final String identifier;
-  final String label;
-  final bool isDone;
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final reached = isDone || isActive;
-    final color =
-        reached ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant;
-    return Semantics(
-      identifier: identifier,
-      container: true,
-      selected: isActive,
-      value: label,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isDone
-                ? Icons.check_circle
-                : (isActive
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked),
-            size: Sizes.large,
-            color: color,
-          ),
-          const SizedBox(height: Spacing.xSmall),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: color,
-              fontWeight: reached ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-        ],
+      // Without this the four per-step nodes fold into the root and the frozen
+      // `tracking_step_*` identifiers stop being addressable.
+      explicitChildNodes: true,
+      child: JeebStepper(
+        currentIndex: currentStep,
+        labels: labels,
+        stepIdentifiers: _stepIds,
+        // Nothing is still in motion once the delivery is done, so the glow
+        // rests there. The kit's pulse is bounded (3 breaths) and skipped under
+        // reduce-motion, so `pumpAndSettle` stays safe either way.
+        pulseActive: currentStep < _deliveredIndex,
       ),
     );
   }

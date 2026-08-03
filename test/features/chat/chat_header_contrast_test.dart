@@ -25,6 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import 'package:jeeb_mobile/features/chat/domain/order_chat_summary.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/offer_accepted_banner.dart';
@@ -70,8 +71,13 @@ void main() {
       )));
       await tester.pump();
       final cs = AppTheme.light().colorScheme;
+      final roles = AppTheme.light().extension<JeebColorRoles>()!;
 
-      // Header surface + boundary.
+      // redesign-2026-08: the shell is the kit's NAVY card. The M3 argument
+      // that produced the previous tonal shell has not been reversed, it is
+      // satisfied differently — one accent (the Ø8 orange dot), no alpha-faded
+      // foreground, and the shadow (not a hairline) as the boundary, which a
+      // navy card on a white thread does not need help with.
       final box = tester.widget<DecoratedBox>(find
           .descendant(
             of: find.byType(OrderChatPinnedSummary),
@@ -79,40 +85,36 @@ void main() {
           )
           .first);
       final decoration = box.decoration as BoxDecoration;
-      expect(decoration.color, cs.surfaceContainerHigh,
-          reason: 'the header must be a tonal surface, not a chroma slab');
-      expect((decoration.border! as Border).bottom.color, cs.outline);
+      expect(decoration.color, cs.primary,
+          reason: 'the strip is the board navy card');
+      expect(decoration.border, isNull,
+          reason: 'R7 — on navy the shadow IS the boundary');
+      expect(decoration.boxShadow, JeebNavySurfaceCard.stripShadow);
 
-      // The reference heading.
-      expect(
-        tester.widget<Text>(find.text('ORD-23470')).style!.color,
-        cs.onSurface,
-      );
-
-      // The single accent: the status chip.
-      final statusDecoration = tester
-          .widget<Container>(find.ancestor(
-            of: find.text('In transit'),
-            matching: find.byType(Container),
-          ).first)
+      // The ONE accent, and it is a dot rather than a fill.
+      final dot = tester
+          .widget<Container>(find
+              .descendant(
+                of: find.byType(OrderChatPinnedSummary),
+                matching: find.byType(Container),
+              )
+              .first)
           .decoration! as BoxDecoration;
-      expect(statusDecoration.color, cs.primaryContainer);
-      expect(
-        (statusDecoration.border! as Border).top.color,
-        cs.onPrimaryContainer,
-      );
-      expect(
-        tester.widget<Text>(find.text('In transit')).style!.color,
-        cs.onPrimaryContainer,
-      );
+      expect(dot.color, roles.accent);
+      expect(dot.shape, BoxShape.circle);
 
-      // The amount is emphasis in the on-surface role, not a second accent.
-      expect(
-        tester.widget<Text>(find.text(r'$12.00')).style!.color,
-        cs.onSurface,
-      );
+      // The three collapsed FACTS are white — the fact ink on navy.
+      for (final label in const ['ORD-23470', 'In transit', r'$12.00']) {
+        expect(
+          tester.widget<Text>(find.text(label)).style!.color,
+          cs.onPrimary,
+          reason: '$label is a locked fact and reads at full strength',
+        );
+      }
 
-      // The disclosure control's icon.
+      // Every ink on the navy card is `onPrimary` — see the ink note at the
+      // top of `order_chat_pinned_summary.dart`. Hierarchy is type size and
+      // weight, never colour, because no muted role survives BOTH themes.
       expect(
         tester
             .widget<Icon>(find.descendant(
@@ -120,7 +122,7 @@ void main() {
               matching: find.byType(Icon),
             ))
             .color,
-        cs.onSurfaceVariant,
+        cs.onPrimary,
       );
 
       // Expanded content: the cash reminder — the element the owner reported
@@ -129,27 +131,29 @@ void main() {
       await tester.pump();
       expect(
         tester.widget<Text>(find.text('Pay cash on delivery')).style!.color,
-        cs.onSurfaceVariant,
+        cs.onPrimary,
       );
-      expect(
-        tester.widget<Text>(find.text('View summary')).style!.color,
-        cs.primary,
-      );
-      expect(
-        tester.widget<Text>(find.text('Kamal Hajj')).style!.color,
-        cs.onSurfaceVariant,
-      );
+      // The view-summary link is a FACT on navy — white, and still underlined
+      // so the affordance survives without a colour cue.
+      final link = tester.widget<Text>(find.text('View summary'));
+      expect(link.style!.color, cs.onPrimary);
+      expect(link.style!.decoration, TextDecoration.underline);
+      final party = tester.widget<Text>(find.text('Kamal Hajj'));
+      expect(party.style!.color, cs.onPrimary);
+      expect(party.style!.fontWeight, isNot(FontWeight.w700),
+          reason: 'a qualifier is separated from a fact by WEIGHT, not ink');
 
-      // A NEUTRAL chip (disclosed by the expand): surfaceContainerLowest under
-      // an `outline` hairline.
+      // A summary chip (disclosed by the expand): the fill comes from the navy
+      // card's OWN published tone, never a hand-mixed alpha, and it carries no
+      // border — a translucent white capsule on navy is already a boundary.
       final tierDecoration = tester
           .widget<Container>(find.ancestor(
             of: find.text('Pending'),
             matching: find.byType(Container),
           ).first)
           .decoration! as BoxDecoration;
-      expect(tierDecoration.color, cs.surfaceContainerLowest);
-      expect((tierDecoration.border! as Border).top.color, cs.outline);
+      expect(tierDecoration.color, cs.onPrimary.withValues(alpha: 0.14));
+      expect(tierDecoration.border, isNull);
     });
 
     testWidgets('no foreground in the pinned summary is alpha-faded',
@@ -236,47 +240,44 @@ void main() {
     List<_Row> rowsFor(ThemeData theme) {
       final cs = theme.colorScheme;
       final roles = theme.extension<JeebColorRoles>()!;
-      final header = cs.surfaceContainerHigh;
-      final chip = cs.surfaceContainerLowest;
-      final accentChip = cs.primaryContainer;
+      // redesign-2026-08: HEADER 1 is the navy strip. Its "chip fill" is the
+      // kit tone's `onPrimary @ .14` OVER the navy, so the measurement blends
+      // it — a translucent fill measured as if opaque is exactly the class of
+      // instrument error this file exists to prevent.
+      final header = cs.primary;
+      final chip = blend(cs.onPrimary, header, 0.14);
       final banner = roles.successContainer;
       final list = cs.surface;
       return <_Row>[
-        // ── HEADER 1 · pinned order summary ─────────────────────────────────
-        _Row('H1 order reference (titleSmall bold)', cs.onSurface, header,
+        // ── HEADER 1 · pinned order summary (navy) ──────────────────────────
+        _Row('H1 order reference (fact)', cs.onPrimary, header, kAaBodyText),
+        _Row('H1 status label (fact)', cs.onPrimary, header, kAaBodyText),
+        _Row('H1 price (fact)', cs.onPrimary, header, kAaBodyText),
+        _Row('H1 Track pill label', cs.primary, cs.onPrimary, kAaBodyText),
+        _Row('H1 Track pill fill vs strip (component boundary)', cs.onPrimary,
+            header, kAaLargeTextAndNonText),
+        _Row('H1 expand/collapse icon', cs.onPrimary, header,
+            kAaLargeTextAndNonText),
+        _Row('H1 party name (qualifier)', cs.onPrimary, header, kAaBodyText),
+        _Row('H1 view-summary link', cs.onPrimary, header, kAaBodyText),
+        _Row('H1 request description', cs.onPrimary, header, kAaBodyText),
+        _Row('H1 request icon', cs.onPrimary, header, kAaLargeTextAndNonText),
+        _Row('H1 ETA chip label', cs.onPrimary, chip, kAaBodyText),
+        _Row('H1 tier chip label (Pending placeholder)', cs.onPrimary, chip,
             kAaBodyText),
-        _Row('H1 status chip label', cs.onPrimaryContainer, accentChip,
-            kAaBodyText),
-        _Row('H1 status chip icon', cs.onPrimaryContainer, accentChip,
+        _Row('H1 cash-on-delivery label', cs.onPrimary, header, kAaBodyText),
+        _Row('H1 cash-on-delivery icon', cs.onPrimary, header,
             kAaLargeTextAndNonText),
-        _Row('H1 status chip border vs header', cs.onPrimaryContainer, header,
-            kAaLargeTextAndNonText),
-        _Row('H1 price chip label', cs.onSurface, chip, kAaBodyText),
-        _Row('H1 price chip icon', cs.onSurface, chip, kAaLargeTextAndNonText),
-        _Row('H1 neutral chip border vs header', cs.outline, header,
-            kAaLargeTextAndNonText),
-        _Row('H1 neutral chip border vs chip fill', cs.outline, chip,
-            kAaLargeTextAndNonText),
-        _Row('H1 expand/collapse icon', cs.onSurfaceVariant, header,
-            kAaLargeTextAndNonText),
-        _Row('H1 party name (bodyMedium)', cs.onSurfaceVariant, header,
-            kAaBodyText),
-        _Row('H1 view-summary link (labelLarge)', cs.primary, header,
-            kAaBodyText),
-        _Row('H1 request description (bodyMedium)', cs.onSurface, header,
-            kAaBodyText),
-        _Row('H1 request icon', cs.onSurfaceVariant, header,
-            kAaLargeTextAndNonText),
-        _Row('H1 ETA chip label', cs.onSurface, chip, kAaBodyText),
-        _Row('H1 tier chip label', cs.onSurface, chip, kAaBodyText),
-        _Row('H1 cash-on-delivery label (labelMedium)', cs.onSurfaceVariant,
-            header, kAaBodyText),
-        _Row('H1 cash-on-delivery icon', cs.onSurfaceVariant, header,
-            kAaLargeTextAndNonText),
-        _Row('H1 bottom divider vs message list', cs.outline, list,
-            kAaLargeTextAndNonText),
-        _Row('H1 bottom divider vs header', cs.outline, header,
-            kAaLargeTextAndNonText),
+        // The two-ink hierarchy the brief prescribed (qualifiers in
+        // `onSecondaryContainer`) is REFUSED and this is the measurement that
+        // refuses it: it is 4.55:1 in light and 1.32:1 in DARK, where the navy
+        // card inverts to a pale periwinkle. Asserted as a negative control
+        // below so the refusal cannot quietly be undone.
+        // NOT measured, deliberately: the Ø8 accent dot. It is decorative and
+        // conveys nothing the status text beside it does not already say, so
+        // SC 1.4.11 does not reach it. Adding it as a row would be inventing a
+        // requirement, and the only ways to pass it would be to lower the
+        // threshold or to recolour the board's one accent.
         // ── HEADER 2 · offer-accepted banner ────────────────────────────────
         _Row('H2 success icon', roles.onSuccessContainer, banner,
             kAaLargeTextAndNonText),
@@ -367,6 +368,20 @@ void main() {
       );
       expect(contrastRatio(faded, cs.primaryContainer),
           greaterThanOrEqualTo(kAaBodyText));
+    });
+
+    test('the REFUSED two-ink strip hierarchy really is below AA in dark', () {
+      // The brief asked for qualifiers in `onSecondaryContainer` on the navy
+      // card and quoted 4.59:1. That is the LIGHT reading only.
+      final light = AppTheme.light().colorScheme;
+      final dark = AppTheme.dark().colorScheme;
+      expect(contrastRatio(light.onSecondaryContainer, light.primary),
+          greaterThanOrEqualTo(kAaBodyText));
+      expect(contrastRatio(dark.onSecondaryContainer, dark.primary),
+          lessThan(kAaLargeTextAndNonText),
+          reason: 'if this ever passes, re-open the two-ink hierarchy — until '
+              'then a single onPrimary ink is the only pairing that holds in '
+              'both themes');
     });
 
     test('the ratio function is calibrated at both ends', () {

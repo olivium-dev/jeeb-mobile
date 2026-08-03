@@ -260,6 +260,10 @@ class ClientHomeTierBadge extends StatelessWidget {
         return tokens.express;
       case ClientRequestTier.standard:
         return tokens.standard;
+      case ClientRequestTier.onTheWay:
+        return tokens.onTheWay;
+      case ClientRequestTier.eco:
+        return tokens.eco;
       case ClientRequestTier.unknown:
         return null;
     }
@@ -273,6 +277,10 @@ class ClientHomeTierBadge extends StatelessWidget {
         return l10n.tierSelectionTierExpress;
       case ClientRequestTier.standard:
         return l10n.tierSelectionTierStandard;
+      case ClientRequestTier.onTheWay:
+        return l10n.tierSelectionTierOnTheWay;
+      case ClientRequestTier.eco:
+        return l10n.tierSelectionTierEco;
       case ClientRequestTier.unknown:
         return '';
     }

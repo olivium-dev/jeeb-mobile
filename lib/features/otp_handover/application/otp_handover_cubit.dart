@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../live_tracking/domain/delivery_tracking_info.dart';
+import '../../live_tracking/domain/live_tracking_repository.dart';
+import '../domain/handover_arrival.dart';
 import '../domain/handover_code_store.dart';
 import '../domain/otp_handover_repository.dart';
 import 'otp_handover_state.dart';
@@ -27,11 +30,16 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
     required this.deliveryId,
     required this.isClient,
     HandoverCodeStore? codeStore,
+    LiveTrackingRepository? deliveryInfo,
   })  : _repository = repository,
         _codeStore = codeStore,
+        _deliveryInfo = deliveryInfo,
         super(const OtpHandoverState()) {
     if (isClient) {
       _loadHandoverCode();
+      // Parallel and fire-and-forget on purpose: the banner must never delay
+      // the code by one frame, and a tracking outage must never blank it.
+      if (deliveryInfo != null) unawaited(_loadArrival());
     } else {
       emit(state.copyWith(mode: OtpHandoverViewMode.ready));
     }
@@ -39,8 +47,41 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
 
   final OtpHandoverRepository _repository;
   final HandoverCodeStore? _codeStore;
+
+  /// Screen 13's best-effort arrival read. Optional: every call site that does
+  /// not pass one simply renders no banner.
+  final LiveTrackingRepository? _deliveryInfo;
   final String deliveryId;
   final bool isClient;
+
+  /// Reads `GET /v1/deliveries/{id}` for the banner's name / vehicle / cash /
+  /// stage. Emits `arrival:` and nothing else — never [OtpHandoverState.mode],
+  /// never an error — and swallows every failure.
+  Future<void> _loadArrival() async {
+    final repo = _deliveryInfo;
+    if (repo == null) return;
+    try {
+      final info = await repo.fetchDeliveryStatus(deliveryId: deliveryId);
+      if (isClosed) return;
+      final jeeber = info.jeeber;
+      // Honesty gate: past handover, both "at your door" and "on the way"
+      // would be lies, so no banner is built at all.
+      if (jeeber == null || info.currentStage == TrackingStage.delivered) {
+        return;
+      }
+      emit(state.copyWith(
+        arrival: HandoverArrival(
+          name: jeeber.displayName,
+          vehicleLabel: jeeber.vehicleLabel,
+          atDoor: info.currentStage == TrackingStage.atDoor,
+          cashAmount: info.price,
+          currency: info.currency,
+        ),
+      ));
+    } catch (_) {
+      // Garnish, not content — a failed banner read is not a screen state.
+    }
+  }
 
   Future<void> _loadHandoverCode() async {
     emit(state.copyWith(mode: OtpHandoverViewMode.loading, clearError: true));
@@ -96,13 +137,34 @@ class OtpHandoverCubit extends Cubit<OtpHandoverState> {
     }
   }
 
-  /// G4: user-initiated "Send the code again" on the SMS-fallback surface.
-  /// Re-hits the trigger endpoint (each call re-sends the SMS server-side).
+  /// G4: user-initiated "Send the code again" — the SMS-fallback surface's
+  /// resend and the code surface's "Send by SMS" link both land here. Re-hits
+  /// the trigger endpoint (each call re-sends the SMS server-side).
+  ///
+  /// It runs on its own [OtpHandoverState.resending] axis and never touches
+  /// [OtpHandoverState.mode]: emitting `loading` blanked the entire screen mid
+  /// handover, and a failure then landed `error`, destroying a code the
+  /// customer was reading off the screen. `mode` transitions belong to the
+  /// initial load alone.
   Future<void> resendSms() async {
-    if (!isClient) return;
-    if (state.mode == OtpHandoverViewMode.loading) return;
-    emit(state.copyWith(mode: OtpHandoverViewMode.loading, clearError: true));
-    await _fetchFromGateway();
+    if (!isClient || state.resending) return;
+    emit(state.copyWith(resending: true, resendFailed: false));
+    try {
+      final result =
+          await _repository.fetchHandoverCode(deliveryId: deliveryId);
+      if (isClosed) return;
+      final code = result.code;
+      emit(state.copyWith(
+        resending: false,
+        // null keeps the existing code (copyWith's null-keeps semantics) —
+        // the live gateway answers a trigger with no code at all.
+        handoverCode: (code != null && code.isNotEmpty) ? code : null,
+        smsSent: true,
+      ));
+    } on OtpHandoverException {
+      if (isClosed) return;
+      emit(state.copyWith(resending: false, resendFailed: true));
+    }
   }
 
   Future<String?> _readStoredCode() async {

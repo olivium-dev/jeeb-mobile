@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:ui' show CheckedState;
+import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -7,12 +7,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_tier_row.dart';
 import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
 import 'package:jeeb_mobile/features/location/presentation/capture_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/widgets/capture_map_viewport.dart';
-import 'package:jeeb_mobile/features/request_type/presentation/request_tier_card.dart';
 import 'package:jeeb_mobile/features/request_type/presentation/request_type_screen.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -90,16 +90,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(RequestTierCard), findsNWidgets(5));
-      // Tier titles are plain text now; the leading glyph is an OMDS vector
-      // icon (Icons.bolt_outlined / Icons.eco_outlined …), not an emoji.
+      expect(find.byType(JeebTierRow), findsNWidgets(5));
+      // redesign-2026-08 · 07: the leading glyph is the design-system emoji
+      // lexicon (⚡🚀🟦🤝🌿), not a Material vector icon.
       expect(find.text('Flash'), findsOneWidget);
       expect(find.text('Eco'), findsOneWidget);
-      expect(find.byIcon(Icons.bolt_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.eco_outlined), findsOneWidget);
+      expect(find.text('⚡'), findsOneWidget);
+      expect(find.text('🌿'), findsOneWidget);
+      // The heading now lives in the in-body top bar (the duplicate section
+      // heading was removed), so it is still exactly one widget.
       expect(find.text('Choose your request'), findsOneWidget);
-      expect(find.text('Location'), findsOneWidget);
-      expect(find.text('Change Location'), findsOneWidget);
+      expect(find.text('Deliver to'), findsOneWidget);
+      // The card draws the short action word; "Change Location" survives as the
+      // accessible name on `request_type_change_location_button`.
+      expect(find.text('Change'), findsOneWidget);
 
       // JM-024 / 63_W1_TEST_PLAN §2.2: the EXACT 5 tier-radio ids + the Continue
       // CTA id the create-flow Maestro flow asserts (on-the-way → on_the_way).
@@ -125,17 +129,19 @@ void main() {
       // `request_type_<tier>_radio` id (was `request_type_tier_<enum>`).
       final ecoCard = find.bySemanticsIdentifier('request_type_eco_radio');
       expect(ecoCard, findsOneWidget);
-      // Every tier starts unchecked until the customer makes a choice.
+      // redesign-2026-08 · 08: the picker rows are the catalog variant, whose
+      // a11y contract is `selected` (a fill swap), not the radio `checked`.
+      // Every tier starts unselected until the customer makes a choice.
       expect(
-        tester.getSemantics(ecoCard).flagsCollection.isChecked,
-        CheckedState.isFalse,
+        tester.getSemantics(ecoCard).flagsCollection.isSelected,
+        Tristate.isFalse,
       );
       await tester.tap(ecoCard);
       await tester.pumpAndSettle();
-      // After the tap the Eco card reports as the checked radio option.
+      // After the tap the Eco card reports as the selected option.
       expect(
-        tester.getSemantics(ecoCard).flagsCollection.isChecked,
-        CheckedState.isTrue,
+        tester.getSemantics(ecoCard).flagsCollection.isSelected,
+        Tristate.isTrue,
       );
     });
 
@@ -150,9 +156,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final label = find.text('Change Location');
-      expect(label, findsOneWidget);
-      await tester.tap(label);
+      final action = find.bySemanticsIdentifier(
+        'request_type_change_location_button',
+      );
+      expect(action, findsOneWidget);
+      await tester.tap(action);
       expect(changed, isTrue);
     });
 
@@ -167,7 +175,9 @@ void main() {
       final heading = find.text('اختر نوع طلبك');
       expect(heading, findsOneWidget);
       expect(Directionality.of(tester.element(heading)), TextDirection.rtl);
-      expect(find.text('تغيير الموقع'), findsOneWidget);
+      // The drawn word is the short `requestTypeChangeCta`; the long
+      // `تغيير الموقع` remains the a11y label, not visible text.
+      expect(find.text('تغيير'), findsOneWidget);
     });
   });
 

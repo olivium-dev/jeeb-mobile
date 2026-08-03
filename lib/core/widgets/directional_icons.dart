@@ -20,6 +20,13 @@ class DirectionalIcons {
   static IconData backIos(BuildContext context) =>
       _isRtl(context) ? Icons.arrow_forward_ios : Icons.arrow_back_ios;
 
+  /// Forward/advance affordance: points left in RTL, right in LTR.
+  ///
+  /// Wiring request 01 — the onboarding "Next" pill carries a trailing arrow
+  /// and [Icon] never auto-mirrors, so the glyph has to be resolved here.
+  static IconData forward(BuildContext context) =>
+      _isRtl(context) ? Icons.arrow_back : Icons.arrow_forward;
+
   /// List-row disclosure chevron: points left in RTL, right in LTR.
   static IconData disclosure(BuildContext context) =>
       _isRtl(context) ? Icons.chevron_left : Icons.chevron_right;

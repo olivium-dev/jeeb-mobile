@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_chat_message.dart';
+import '../chat_redesign_l10n.dart';
 
-/// Center-aligned system notice — the "Kamal Hajj's offer was accepted"
-/// chip that lands in the chat between the offer cards and the 1:1 timeline
-/// when the accept saga resolves.
+/// Centre-aligned system notice — the kit's [JeebSystemChip] in the thread.
+///
+/// Two tones, because the board draws two and they mean different things:
+///   * `offerAccepted` / `offerRejected` → [JeebSystemChip.filled], a SETTLED
+///     FACT ("Offer accepted · 9:12");
+///   * `system` → [JeebSystemChip.outlined], a LIVE/PROGRESS event ("Karim is
+///     on the way · ETA 20 min"), which is why it is the outlined pill.
+///
+/// The ` · HH:mm` suffix is appended **only** when the message really carries a
+/// server timestamp: an undated row's `sentAt` is an ordering anchor inside
+/// 1970, and printing a clock from it is a fabrication
+/// (`chat_undated_band_contract_test` exists for exactly this).
 class SystemMessageBubble extends StatelessWidget {
   const SystemMessageBubble({super.key, required this.message});
 
@@ -14,34 +26,31 @@ class SystemMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final text = _copyFor(context);
     if (text.isEmpty) return const SizedBox.shrink();
+    final label = _labelWithTime(context, text);
     return Padding(
       key: Key('chat-system-${message.id}'),
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
+        horizontal: Spacing.xLarge,
         vertical: Spacing.xSmall,
       ),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.medium,
-            vertical: Spacing.twoXSmall,
-          ),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainer,
-            borderRadius: OmdsBorderRadius.pill,
-          ),
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      ),
+      child: _isSettledFact
+          ? JeebSystemChip.filled(label: label)
+          : JeebSystemChip.outlined(label: label),
+    );
+  }
+
+  bool get _isSettledFact =>
+      message.kind == MessageKind.offerAccepted ||
+      message.kind == MessageKind.offerRejected;
+
+  String _labelWithTime(BuildContext context, String copy) {
+    if (!message.hasServerTimestamp) return copy;
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    return ChatRedesignL10n.of(context).systemChipWithTime(
+      copy,
+      DateFormat.Hm(locale).format(message.sentAt),
     );
   }
 

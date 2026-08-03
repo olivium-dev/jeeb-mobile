@@ -198,6 +198,56 @@ void main() {
     );
   });
 
+  // ── D1 (redesign screen 09) — the GPS accuracy subtitle ──────────────────
+
+  group('current-location accuracy subtitle', () {
+    testWidgets('renders the accuracy radius when the fix carries one',
+        (tester) async {
+      await tester.pumpWidget(
+        _harness(ClientLocationScreen(
+          userId: 'user-client-001',
+          repository: const FakeLocationSelectRepository(),
+          currentLocationResolver: FakeCurrentLocationResolver(
+            result: const CurrentLocationResult.resolved(
+              33.8959,
+              35.4797,
+              accuracyMeters: 8,
+            ),
+          ),
+        )),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('current_location_gps_resolved'),
+        findsOneWidget,
+      );
+      expect(find.text('GPS · accurate to 8 m'), findsOneWidget);
+      // The flat copy is replaced, not appended.
+      expect(find.text('Using your current location'), findsNothing);
+    });
+
+    testWidgets('falls back to the flat resolved copy when accuracy is null',
+        (tester) async {
+      await tester.pumpWidget(
+        _harness(ClientLocationScreen(
+          userId: 'user-client-001',
+          repository: const FakeLocationSelectRepository(),
+          currentLocationResolver: FakeCurrentLocationResolver(
+            result: const CurrentLocationResult.resolved(33.8959, 35.4797),
+          ),
+        )),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('current_location_gps_resolved'),
+        findsOneWidget,
+      );
+      expect(find.text('Using your current location'), findsOneWidget);
+    });
+  });
+
   // ── G1 (sprint-009 P0) — the "What do you need?" compose block ────────────
 
   group('G1 compose description', () {

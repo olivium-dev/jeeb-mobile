@@ -23,6 +23,10 @@ import '../../../l10n/app_localizations.dart';
 ///   · trackingNoShowBody · trackingNoShowReassignCta
 ///   · trackingNoShowRebroadcastCta · trackingStepDelivered
 ///   · orderSummaryPriceLabel · orderSummaryCashLabel
+///   · trackingArrivingIn · trackingCourierOnTheWay · trackingCashOnDelivery
+///   · trackingDoorCodeNote · trackingCashShort
+///   (the redesign-2026-08 batch — see
+///    `docs/redesign-2026-08/wiring/12-live-tracking.md`)
 class LiveTrackingL10n {
   LiveTrackingL10n(this._l10n, this._isArabic);
 
@@ -54,9 +58,47 @@ class LiveTrackingL10n {
   String get stepDelivered => _l10n.trackingStepCompleted;
 
   // ── action bar CTAs ──────────────────────────────────────────────────────
-  String get disputeCta => _pick('Report a problem', 'الإبلاغ عن مشكلة');
+  //
+  // redesign-2026-08 board copy (`12-live-tracking.html` tpl 781-783). The
+  // longer sentence forms were the pre-redesign wording; no test asserts them.
+  String get disputeCta => _pick('Open dispute', 'فتح نزاع');
   String get noShowCta =>
-      _pick("Jeeber didn't show up", 'لم يصل الجيبر');
+      _pick('Report no-show', 'الإبلاغ عن عدم الحضور');
+
+  // ── redesign-2026-08 additions (screen 12) ───────────────────────────────
+  //
+  // Stopgaps only: each one has a queued ARB key (see the class doc). Every
+  // consumer reads them through this resolver, so landing the real keys is a
+  // one-file swap.
+
+  /// Floating ETA pill over the map (`tpl 764`). [minutes] is the live ETA.
+  String arrivingIn(int minutes) => _pick(
+        'Arriving in $minutes min',
+        'الوصول خلال $minutes دقيقة',
+      );
+
+  /// Courier-card title (`tpl 768`). [name] is the in-flight display name.
+  String courierOnTheWay(String name) => _pick(
+        '$name is on the way',
+        '$name في الطريق',
+      );
+
+  /// Courier-card money qualifier (`tpl 769`). D11: customer-facing, cash on
+  /// delivery, never a commission line. [amount] is already formatted.
+  String cashOnDelivery(String amount) => _pick(
+        '$amount cash on delivery',
+        '$amount نقداً عند التسليم',
+      );
+
+  /// Door-code strip label (`tpl 778`). One line — the strip has no sub-line.
+  String get doorCodeNote => _pick(
+        'Door code — share only at handoff',
+        'رمز الباب — شاركه عند التسليم فقط',
+      );
+
+  /// The short cash qualifier drawn in the top-bar meta line (`tpl 724`).
+  /// Screen readers get the full [summaryCashLabel] sentence instead.
+  String get cashShort => _pick('cash', 'نقداً');
 
   // ── no-show sheet ────────────────────────────────────────────────────────
   String get noShowTitle =>

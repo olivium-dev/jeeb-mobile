@@ -8,6 +8,7 @@ import 'package:jeeb_mobile/features/client_offers/application/client_offers_sta
 import 'package:jeeb_mobile/features/client_offers/data/dio_offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/jeeber_vehicle.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_select_chip.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/client_offers_screen.dart';
 import 'package:omds/omds.dart';
 
@@ -58,10 +59,12 @@ OffersSnapshot _snapshot(
   Iterable offers, {
   DateTime? deadline,
   bool requestIsOpen = true,
+  String? requestTitle,
 }) => OffersSnapshot(
   offers: List.unmodifiable(offers),
   windowExpiresAt: deadline ?? DateTime.now().add(const Duration(minutes: 15)),
   requestIsOpen: requestIsOpen,
+  requestTitle: requestTitle,
 );
 
 const double _kAndroidNavigationBarInset = 48;
@@ -93,6 +96,12 @@ void main() {
       expect(find.byKey(const Key('offer-window-timer')), findsOneWidget);
       expect(find.byKey(const Key('offer-card-a')), findsOneWidget);
       expect(find.byKey(const Key('offer-card-b')), findsOneWidget);
+
+      // The default sort is now the composite `best` ranking, so ask for price
+      // explicitly before asserting price order — the test then states what it
+      // means instead of leaning on a default that changed.
+      await tester.tap(find.byKey(const Key('offer-sort-price')));
+      await tester.pump();
 
       // Price asc — 'b' should appear before 'a' in the list.
       final positions = tester
@@ -128,7 +137,11 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // Default: price asc → cheap above pricey
+    // Price asc → cheap above pricey. Asked for explicitly: `best` is the
+    // default now and it weighs rating and ETA alongside the fee.
+    await tester.tap(find.byKey(const Key('offer-sort-price')));
+    await tester.pump();
+
     var cheapY = tester
         .getTopLeft(find.byKey(const Key('offer-card-cheap')))
         .dy;
@@ -170,13 +183,14 @@ void main() {
     await tester.pump();
 
     for (final key in const [
+      Key('offer-sort-best'),
       Key('offer-sort-price'),
       Key('offer-sort-rating'),
     ]) {
       final target = find.byKey(key);
       final visual = find.descendant(
         of: target,
-        matching: find.byType(OmdsChip),
+        matching: find.byType(JeebSelectChip),
       );
       expect(
         tester.getSize(target).height,
@@ -289,22 +303,25 @@ void main() {
       await tester.pump();
 
       final listFinder = find.byKey(const Key('offer-list'));
-      final listView = tester.widget<ListView>(listFinder);
-      final resolvedPadding = listView.padding!.resolve(TextDirection.ltr);
+      final cancelCta = find.byKey(const Key('offer-review-cancel-cta'));
+
+      // The footer is DOCKED now (outside the scroll view), so the clearance
+      // lives on its own padding rather than on the list's scroll extent.
+      final footerPadding = tester.widget<Padding>(
+        find.byKey(const Key('offer-review-footer')),
+      );
       expect(
-        resolvedPadding.bottom,
-        Spacing.xLarge + _kAndroidNavigationBarInset,
+        footerPadding.padding.resolve(TextDirection.ltr).bottom,
+        Spacing.twoXLarge + _kAndroidNavigationBarInset,
         reason:
-            'the fixed OMDS gutter and system bottom inset must both be '
-            'part of the scroll extent',
+            'the docked footer carries the fixed gutter AND the system bottom '
+            'inset, so the CTA never sits under the navigation bar',
       );
 
       final scrollable = find.descendant(
         of: listFinder,
         matching: find.byType(Scrollable),
       );
-      final cancelCta = find.byKey(const Key('offer-review-cancel-cta'));
-      await tester.scrollUntilVisible(cancelCta, 500, scrollable: scrollable);
       await tester.fling(scrollable, const Offset(0, -1000), 10000);
       await tester.pumpAndSettle();
 
@@ -367,7 +384,9 @@ void main() {
       reason: 'error copy stays compact enough for balanced wrapping',
     );
 
-    final body = find.bySemanticsIdentifier('offer_review_list_root');
+    // `offer_review_list_root` now spans the in-body top bar too, so the
+    // centring anchor is the content region below it.
+    final body = find.byKey(const Key('offer-review-content'));
     expect(
       tester.getCenter(error).dy,
       closeTo(tester.getCenter(body).dy, 1),
@@ -601,6 +620,163 @@ void main() {
         isFalse,
       );
       expect(find.byKey(const Key('offer-review-cancel-cta')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'ClientOffersScreen — the Best value badge lands on the ranked-first card',
+    (tester) async {
+      final repo = ScriptedOffersRepository(
+        snapshots: [
+          _snapshot([
+            buildOffer(id: 'meh', fee: 40, rating: 4.0, etaMinutes: 55),
+            buildOffer(id: 'winner', fee: 8, rating: 4.9, etaMinutes: 20),
+          ]),
+        ],
+      );
+      await tester.pumpWidget(
+        wrapForTest(
+          ClientOffersScreen(
+            requestId: 'req-badge',
+            repository: repo,
+            cubitFactory: _testCubitFactory,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Index 0 is the ranked-first card under the default `best` sort.
+      expect(
+        find.bySemanticsIdentifier('offer_card_0_best_value_badge'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('offer_card_1_best_value_badge'),
+        findsNothing,
+      );
+      expect(find.text('Best value'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'ClientOffersScreen — no Best value badge on a single-offer list '
+    '("best of one" says nothing)',
+    (tester) async {
+      final repo = ScriptedOffersRepository(
+        snapshots: [
+          _snapshot([buildOffer(id: 'solo')]),
+        ],
+      );
+      await tester.pumpWidget(
+        wrapForTest(
+          ClientOffersScreen(
+            requestId: 'req-solo',
+            repository: repo,
+            cubitFactory: _testCubitFactory,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Best value'), findsNothing);
+      expect(find.text('Fastest'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'ClientOffersScreen — the window strip carries the live offer count',
+    (tester) async {
+      final repo = ScriptedOffersRepository(
+        snapshots: [
+          _snapshot([
+            buildOffer(id: 'a', fee: 10),
+            buildOffer(id: 'b', fee: 20),
+            buildOffer(id: 'c', fee: 30),
+          ]),
+        ],
+      );
+      await tester.pumpWidget(
+        wrapForTest(
+          ClientOffersScreen(
+            requestId: 'req-strip',
+            repository: repo,
+            cubitFactory: _testCubitFactory,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.bySemanticsIdentifier('offer_review_window_strip'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('3 offers in'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'ClientOffersScreen — the top bar carries the back id and renders the '
+    'request title only when the wire supplied one',
+    (tester) async {
+      final titled = ScriptedOffersRepository(
+        snapshots: [
+          _snapshot([buildOffer(id: 'a')], requestTitle: 'Medicine'),
+        ],
+      );
+      await tester.pumpWidget(
+        wrapForTest(
+          ClientOffersScreen(
+            requestId: 'req-title',
+            repository: titled,
+            cubitFactory: _testCubitFactory,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.bySemanticsIdentifier('offer_review_back'), findsOneWidget);
+      expect(find.text('Choose a Jeeber'), findsOneWidget);
+      expect(find.text('Medicine'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'ClientOffersScreen — a title-less request renders a one-line top bar, '
+    'never a placeholder subtitle',
+    (tester) async {
+      final repo = ScriptedOffersRepository(
+        snapshots: [
+          _snapshot([buildOffer(id: 'a')]),
+        ],
+      );
+      await tester.pumpWidget(
+        wrapForTest(
+          ClientOffersScreen(
+            requestId: 'req-no-title',
+            repository: repo,
+            cubitFactory: _testCubitFactory,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Choose a Jeeber'), findsOneWidget);
+      // The top bar's title/subtitle block collapses to the title alone.
+      final titleBlock = find.ancestor(
+        of: find.text('Choose a Jeeber'),
+        matching: find.byType(Column),
+      );
+      expect(
+        titleBlock,
+        findsWidgets,
+        reason: 'the bar still lays out; it simply has no second line',
+      );
+      expect(find.text('Medicine'), findsNothing);
     },
   );
 }

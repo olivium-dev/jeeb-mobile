@@ -77,7 +77,10 @@ void main() {
       await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
 
-      expect(find.text('What do you need?'), findsOneWidget);
+      // The title moved to the mic hero above this view (redesign-2026-08
+      // screen 04) — printing "What do you need?" twice on one screen was the
+      // duplication the redesign removes, so its absence is the assertion.
+      expect(find.text('What do you need?'), findsNothing);
       expect(
         find.text('No pending requests — broadcast a new one to get offers.'),
         findsOneWidget,
@@ -135,7 +138,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('ماذا تحتاج؟'), findsOneWidget);
+      expect(find.text('ماذا تحتاج؟'), findsNothing);
       expect(
         find.text('لا توجد طلبات معلّقة — أنشئ طلبًا جديدًا لتلقّي العروض.'),
         findsOneWidget,

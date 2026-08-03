@@ -1,88 +1,35 @@
-import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
-
-import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
 
-/// Status pill rendered inside [OrderHistoryCard]. Colour and label are
-/// derived from the request's terminal-vs-in-flight category so a future
-/// state added on the backend still renders sensibly.
-class OrderStatusChip extends StatelessWidget {
-  const OrderStatusChip({super.key, required this.status});
-
-  final OrderRequestStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = _paletteFor(status, context.jeebRoles);
-    return Container(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.small,
-        vertical: Spacing.twoXSmall,
-      ),
-      decoration: BoxDecoration(
-        color: palette.background,
-        borderRadius: OmdsBorderRadius.small,
-      ),
-      child: Text(
-        _labelFor(status, AppLocalizations.of(context)),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: palette.foreground,
-              fontWeight: FontWeight.w600,
-            ),
-      ),
-    );
+/// The localized wire-status label rendered on an order-history row.
+///
+/// The redesign (redesign-2026-08 §24) removed the tinted status *pill*: the
+/// board carries state in the row glyph (accent dot / check / ✕) and in the ink
+/// of a plain meta line, so the only thing left of `OrderStatusChip` is its
+/// status→string switch. It stays a top-level helper — and this file stays on
+/// disk — because `orders_stale_status_chip_test.dart` is the regression guard
+/// for the stale-status defect and asserts on these exact strings
+/// (`find.text('Pending' / 'Picked up' / 'En route')`).
+///
+/// Deriving the label from the wire status (never from the tab bucket) is what
+/// keeps a future backend state rendering sensibly instead of blank.
+String orderStatusLabel(OrderRequestStatus status, AppLocalizations l10n) {
+  switch (status) {
+    case OrderRequestStatus.pending:
+      return l10n.orderHistoryStatusPending;
+    case OrderRequestStatus.matched:
+      return l10n.orderHistoryStatusMatched;
+    case OrderRequestStatus.pickedUp:
+      return l10n.orderHistoryStatusPickedUp;
+    case OrderRequestStatus.enRoute:
+      return l10n.orderHistoryStatusEnRoute;
+    case OrderRequestStatus.delivered:
+      return l10n.orderHistoryStatusDelivered;
+    case OrderRequestStatus.cancelled:
+      return l10n.orderHistoryStatusCancelled;
+    case OrderRequestStatus.disputed:
+      return l10n.orderHistoryStatusDisputed;
+    case OrderRequestStatus.unknown:
+      return l10n.orderHistoryStatusUnknown;
   }
-
-  static _ChipPalette _paletteFor(
-    OrderRequestStatus status,
-    JeebRoles roles,
-  ) {
-    switch (status.tab) {
-      case OrderHistoryTab.completed:
-        // Completed = success role (was brand tertiary doing state duty).
-        return _ChipPalette(
-          background: roles.successContainer,
-          foreground: roles.onSuccessContainer,
-        );
-      case OrderHistoryTab.cancelled:
-        return _ChipPalette(
-          background: roles.errorContainer,
-          foreground: roles.onErrorContainer,
-        );
-      case OrderHistoryTab.active:
-        return _ChipPalette(
-          background: roles.primaryContainer,
-          foreground: roles.onPrimaryContainer,
-        );
-    }
-  }
-
-  static String _labelFor(OrderRequestStatus s, AppLocalizations l10n) {
-    switch (s) {
-      case OrderRequestStatus.pending:
-        return l10n.orderHistoryStatusPending;
-      case OrderRequestStatus.matched:
-        return l10n.orderHistoryStatusMatched;
-      case OrderRequestStatus.pickedUp:
-        return l10n.orderHistoryStatusPickedUp;
-      case OrderRequestStatus.enRoute:
-        return l10n.orderHistoryStatusEnRoute;
-      case OrderRequestStatus.delivered:
-        return l10n.orderHistoryStatusDelivered;
-      case OrderRequestStatus.cancelled:
-        return l10n.orderHistoryStatusCancelled;
-      case OrderRequestStatus.disputed:
-        return l10n.orderHistoryStatusDisputed;
-      case OrderRequestStatus.unknown:
-        return l10n.orderHistoryStatusUnknown;
-    }
-  }
-}
-
-class _ChipPalette {
-  const _ChipPalette({required this.background, required this.foreground});
-  final Color background;
-  final Color foreground;
 }

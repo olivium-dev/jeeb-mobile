@@ -11,7 +11,7 @@ import 'voice_recording_screen.dart';
 /// The [VoiceRecordingScreen] uses [MockGatewayClient.createDio] internally
 /// so it always targets the gateway-shaped mock at :3055 in debug builds.
 class VoiceRequestScreen extends StatelessWidget {
-  const VoiceRequestScreen({super.key, this.onSent});
+  const VoiceRequestScreen({super.key, this.onSent, this.onSwitchToTyping});
 
   /// Optional callback fired once the request is sent. Receives the upload id
   /// and the optional machine transcript (null when resolved asynchronously),
@@ -21,8 +21,16 @@ class VoiceRequestScreen extends StatelessWidget {
   /// is a gateway audioId, not a playable path).
   final VoiceSentCallback? onSent;
 
+  /// Hands off to typed input from the keyboard satellite. Null hides it —
+  /// `/voice-request` pushes the transcription review, `/compose-dictation`
+  /// pops back to the compose field it was launched from.
+  final VoidCallback? onSwitchToTyping;
+
   @override
   Widget build(BuildContext context) {
-    return VoiceRecordingScreen(onSent: onSent);
+    return VoiceRecordingScreen(
+      onSent: onSent,
+      onSwitchToTyping: onSwitchToTyping,
+    );
   }
 }

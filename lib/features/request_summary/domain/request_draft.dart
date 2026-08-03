@@ -1,5 +1,4 @@
 class RequestDraft {
-
   const RequestDraft({
     required this.description,
     this.transcription,
@@ -14,6 +13,8 @@ class RequestDraft {
     this.dropoffLng,
     this.dropoffAddress,
     this.recipientPhone,
+    this.audioLocalPath,
+    this.audioDurationMs,
   });
   final String description;
   final String? transcription;
@@ -36,4 +37,12 @@ class RequestDraft {
   /// capture one; the submission service then falls back to the signed-in
   /// client's own profile phone (the requester is the default recipient).
   final String? recipientPhone;
+
+  /// LOCAL-ONLY (never sent): on-device file the recorder wrote, so the summary
+  /// can replay the clip. [audioUrl] is the gateway audioId — not playable.
+  final String? audioLocalPath;
+
+  /// LOCAL-ONLY: recorded clip length for the replay read-out. Null renders no
+  /// duration at all rather than a fabricated one.
+  final int? audioDurationMs;
 }

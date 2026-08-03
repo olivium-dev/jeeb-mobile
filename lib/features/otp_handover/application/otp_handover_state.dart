@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../domain/handover_arrival.dart';
+
 enum OtpHandoverViewMode { loading, ready, submitting, success, error }
 
 class OtpHandoverState extends Equatable {
@@ -11,11 +13,28 @@ class OtpHandoverState extends Equatable {
     this.shakeKey = 0,
     this.escalate = false,
     this.smsSent = false,
+    this.arrival,
+    this.resending = false,
+    this.resendFailed = false,
   });
 
   final OtpHandoverViewMode mode;
   final String? handoverCode;
   final String? errorMessage;
+
+  /// Screen 13's arrival banner payload. Null is the normal case — the read is
+  /// best-effort garnish over a surface whose reason to exist is the code, so
+  /// it never gates [mode] and never surfaces its own failure.
+  final HandoverArrival? arrival;
+
+  /// True while a user-initiated SMS resend is in flight. Deliberately NOT
+  /// `mode: loading`: that blanked the whole screen and, on failure, dropped a
+  /// displayed code into the error body.
+  final bool resending;
+
+  /// The last resend threw. Rendered as one inline line under the SMS row and
+  /// cleared on the next tap.
+  final bool resendFailed;
 
   /// G4 (sprint-009): true when the gateway reported it delivered the code by
   /// SMS to the recipient (`GET /otp` → `triggered: true`) and the app itself
@@ -48,6 +67,9 @@ class OtpHandoverState extends Equatable {
     int? shakeKey,
     bool? escalate,
     bool? smsSent,
+    HandoverArrival? arrival,
+    bool? resending,
+    bool? resendFailed,
   }) {
     return OtpHandoverState(
       mode: mode ?? this.mode,
@@ -57,6 +79,9 @@ class OtpHandoverState extends Equatable {
       shakeKey: shakeKey ?? this.shakeKey,
       escalate: escalate ?? this.escalate,
       smsSent: smsSent ?? this.smsSent,
+      arrival: arrival ?? this.arrival,
+      resending: resending ?? this.resending,
+      resendFailed: resendFailed ?? this.resendFailed,
     );
   }
 
@@ -69,5 +94,8 @@ class OtpHandoverState extends Equatable {
         shakeKey,
         escalate,
         smsSent,
+        arrival,
+        resending,
+        resendFailed,
       ];
 }

@@ -104,6 +104,43 @@ void main() {
               'load failure');
     });
 
+    // D1 (screen 09): the OS reports a horizontal accuracy radius on every fix
+    // and it used to be dropped at the resolver boundary. It now threads
+    // resolver → state so the address card can say HOW precise the pin is.
+    test('accuracy radius threads resolver → state, and clearGps nulls it',
+        () async {
+      final cubit = buildCubit(
+        gps: const CurrentLocationResult.resolved(
+          33.8959,
+          35.4797,
+          accuracyMeters: 8,
+        ),
+      );
+      addTearDown(cubit.close);
+
+      await cubit.load();
+
+      expect(cubit.state.currentGpsStatus, CurrentGpsStatus.resolved);
+      expect(cubit.state.gpsAccuracyMeters, 8);
+
+      // `clearGps` drops the radius with the coordinate — a stale accuracy on
+      // a cleared fix would claim precision the app no longer has.
+      final cleared = cubit.state.copyWith(clearGps: true);
+      expect(cleared.gpsLat, isNull);
+      expect(cleared.gpsLng, isNull);
+      expect(cleared.gpsAccuracyMeters, isNull);
+    });
+
+    test('a fix with no accuracy radius leaves the field null', () async {
+      final cubit = buildCubit();
+      addTearDown(cubit.close);
+
+      await cubit.load();
+
+      expect(cubit.state.currentGpsStatus, CurrentGpsStatus.resolved);
+      expect(cubit.state.gpsAccuracyMeters, isNull);
+    });
+
     test(
         'current option is NOT confirmable until a real fix resolves '
         '(permission denied → recovery, no Beirut)', () async {

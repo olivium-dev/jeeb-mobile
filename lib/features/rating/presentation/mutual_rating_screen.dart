@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/mutual_rating_cubit.dart';
 import '../application/mutual_rating_state.dart';
@@ -18,11 +26,16 @@ import '../application/mutual_rating_state.dart';
 /// AC4: `rating_root` is the signature id present on this canonical terminal
 /// (the legacy `/feedback` `RatingScreen` exposes the same id).
 class MutualRatingScreen extends StatelessWidget {
-  const MutualRatingScreen({super.key});
+  const MutualRatingScreen({super.key, this.rateeName = ''});
+
+  /// Display name of the counterpart being rated, forwarded by the router from
+  /// `?name=`. Empty is the supported default (no caller holds a display name
+  /// today) — the headline, the avatar initial and the blind-reveal note each
+  /// carry a finished role-aware fallback, so nothing is ever fabricated.
+  final String rateeName;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     // D56: suppress the system back gesture so the mandatory rating cannot be
     // dismissed without submitting. There is intentionally no leading/close
     // affordance.
@@ -45,13 +58,13 @@ class MutualRatingScreen extends StatelessWidget {
     // `MaterialApp.router`). In a plain-`Navigator` host (widget tests,
     // previews) `PopScope` alone already suppresses BACK correctly, so the
     // listener is added only when a Router exists.
+    //
+    // redesign-24: the OMDSAppBar is gone — the board leads with the in-body
+    // "How was <name>?" headline, and there was never a leading control to
+    // lose, so removing it is D56-safe.
     final scope = PopScope(
       canPop: false,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.mutualRatingTitle,
-          automaticallyImplyLeading: false,
-        ),
         // `rating_root` is the screen signature id (JM-034 §2.14, AC4). A
         // boundary container so the id surfaces as its own queryable node.
         body: Semantics(
@@ -85,7 +98,7 @@ class MutualRatingScreen extends StatelessWidget {
   Widget _buildBody(BuildContext context, MutualRatingState state) {
     switch (state.phase) {
       case MutualRatingPhase.inputting:
-        return _InputView(state: state);
+        return _InputView(state: state, rateeName: rateeName);
       case MutualRatingPhase.submitting:
       case MutualRatingPhase.submitted:
         return const Center(child: OmdsLoadingState());
@@ -98,21 +111,25 @@ class MutualRatingScreen extends StatelessWidget {
       case MutualRatingPhase.polling:
       case MutualRatingPhase.revealed:
       case MutualRatingPhase.autoRevealed:
-        return _InputView(state: state);
+        return _InputView(state: state, rateeName: rateeName);
     }
   }
 }
 
 class _InputView extends StatelessWidget {
-  const _InputView({required this.state});
+  const _InputView({required this.state, required this.rateeName});
   final MutualRatingState state;
+  final String rateeName;
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
+      // R1: the board leaves the bottom ~40 % of this screen empty. That is
+      // delivered by `Expanded` + a docked footer, never by a `Spacer` inside
+      // the scroll column (which would overflow the 800×600 widget tests).
       child: Column(
         children: [
-          Expanded(child: _InputScrollArea(state: state)),
+          Expanded(child: _InputScrollArea(state: state, rateeName: rateeName)),
           _SubmitButton(stars: state.stars),
         ],
       ),
@@ -121,28 +138,91 @@ class _InputView extends StatelessWidget {
 }
 
 class _InputScrollArea extends StatelessWidget {
-  const _InputScrollArea({required this.state});
+  const _InputScrollArea({required this.state, required this.rateeName});
   final MutualRatingState state;
+  final String rateeName;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        Spacing.xLarge,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _RatingHeadline(rateeName: rateeName),
+          const SizedBox(height: Spacing.large),
+          _RateeIdentity(rateeName: rateeName),
+          const SizedBox(height: Spacing.large),
+          _StarSection(stars: state.stars),
+          const SizedBox(height: Spacing.xSmall),
+          _StarVerdict(stars: state.stars),
+          const SizedBox(height: Spacing.xLarge),
+          _TagsSection(selectedTags: state.tags),
+          const SizedBox(height: Spacing.large),
+          _CommentField(comment: state.comment),
+          const SizedBox(height: Spacing.large),
+          _BlindRevealNote(rateeName: rateeName),
+        ],
+      ),
+    );
+  }
+}
+
+/// The board's opening question — "How was Karim?" when the counterpart's
+/// display name reached the route, otherwise the role-aware form.
+class _RatingHeadline extends StatelessWidget {
+  const _RatingHeadline({required this.rateeName});
+  final String rateeName;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(Spacing.large),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            l10n.mutualRatingSubtitle,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: Spacing.xLarge),
-          _StarSection(stars: state.stars),
-          const SizedBox(height: Spacing.xLarge),
-          _CommentField(comment: state.comment),
-          const SizedBox(height: Spacing.medium),
-          _TagsSection(selectedTags: state.tags),
-        ],
+    // `isClient` is a public final on the cubit; read once, no subscription.
+    final isClient = context.read<MutualRatingCubit>().isClient;
+    final name = rateeName.trim();
+    final headline = name.isNotEmpty
+        ? l10n.mutualRatingHeadlineNamed(name)
+        : (isClient
+            ? l10n.mutualRatingHeadlineJeeber
+            : l10n.mutualRatingHeadlineClient);
+    // A plain `Text` is bidi-correct for a Latin name inside an Arabic
+    // sentence — `MixedDirectionText` is for name-ONLY lines.
+    return Text(headline, style: context.jeebText.h2);
+  }
+}
+
+/// Ø74 disc + the Ø26 corner mark, centred under the headline.
+class _RateeIdentity extends StatelessWidget {
+  const _RateeIdentity({required this.rateeName});
+  final String rateeName;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final name = rateeName.trim();
+    // `JeebAvatar` normalises the initial itself (trimmed first character,
+    // uppercased, `?` when empty) and emits the
+    // `Semantics(identifier:, label:, image: true)` node for us — no second
+    // wrapper, which would double the node.
+    //
+    // The badge is a COMPLETION mark, never "verified": on the `?mode=jeeber`
+    // leg the ratee is a customer with no KYC.
+    //
+    // TODO(redesign-24): the board prints a recap line directly below this
+    // disc (item · duration · fare). It needs a delivery summary on the rating
+    // surface, which neither MutualRatingState nor RatingRepository carries —
+    // omitted, not faked, and deliberately not smuggled through query params.
+    return Center(
+      child: JeebAvatar.hero(
+        initial: name,
+        badge: JeebAvatarBadge.completed,
+        identifier: 'mutual_rating_ratee_avatar',
+        semanticLabel: name.isEmpty ? l10n.mutualRatingTitle : name,
       ),
     );
   }
@@ -154,21 +234,80 @@ class _StarSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       // QA: addressable handle for the star-rating input. `container: true`
       // surfaces the id as its own node even though OmdsStarRating renders
       // multiple tappable stars (CAP-1).
       identifier: 'mutual_rating_stars',
       container: true,
-      label: '$stars stars selected',
-      child: OmdsStarRating(
-        key: const Key('mutualRating.stars'),
-        rating: stars,
-        onRatingChanged: (v) => context.read<MutualRatingCubit>().setStars(v),
+      label: l10n.mutualRatingStarsA11yLabel(stars),
+      child: Center(
+        // The active star colour is deliberately NOT passed: the app-wide
+        // `OmdsColorTokens.starRatingColor` is already the redesign's amber
+        // (`app.dart:623`). A plain `Row` under the hood mirrors in `ar`, so
+        // star 1 lands at the right edge and the fill grows leftward.
+        //
+        // TODO(redesign-24): the board draws the EMPTY star FILLED grey; OMDS
+        // draws `Icons.star_border`. Swaps to `JeebStarInput` (wiring request
+        // `kit`) when the kit lane lands it, which also brings the per-star
+        // ids jm-034 needs.
+        child: OmdsStarRating(
+          key: const Key('mutualRating.stars'),
+          rating: stars,
+          starSize: Sizes.threeXLarge,
+          spacing: Spacing.xSmall,
+          inactiveColor: scheme.surfaceContainerHighest,
+          onRatingChanged: (v) => context.read<MutualRatingCubit>().setStars(v),
+        ),
       ),
     );
   }
 }
+
+/// The one-word verdict the board prints under the stars ("Great" at 4).
+class _StarVerdict extends StatelessWidget {
+  const _StarVerdict({required this.stars});
+  final int stars;
+
+  @override
+  Widget build(BuildContext context) {
+    // `SizedBox.shrink`, not `Text('')` — an empty Text still occupies a line
+    // box and would open a gap before the section label.
+    if (stars == 0) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+    return Text(
+      _starVerdict(l10n, stars),
+      textAlign: TextAlign.center,
+      style: context.jeebText.bodySmall.copyWith(fontWeight: FontWeight.w700),
+    );
+  }
+}
+
+/// Maps a 1..5 selection to its localized verdict word. Mirrors the `_tagLabel`
+/// idiom: a pure switch with a safe default, so an out-of-range value from a
+/// stale state renders nothing rather than throwing.
+String _starVerdict(AppLocalizations l10n, int stars) {
+  switch (stars) {
+    case 1:
+      return l10n.mutualRatingStarLabel1;
+    case 2:
+      return l10n.mutualRatingStarLabel2;
+    case 3:
+      return l10n.mutualRatingStarLabel3;
+    case 4:
+      return l10n.mutualRatingStarLabel4;
+    case 5:
+      return l10n.mutualRatingStarLabel5;
+    default:
+      return '';
+  }
+}
+
+/// Same cap the removed `maxLength: 500` enforced — kept as a named constant so
+/// the swap to a formatter is provably lossless.
+const int _commentMaxLength = 500;
 
 class _CommentField extends StatelessWidget {
   const _CommentField({required this.comment});
@@ -185,8 +324,16 @@ class _CommentField extends StatelessWidget {
       child: OmdsTextField(
         key: const Key('mutualRating.comment'),
         hintText: l10n.ratingCommentHint,
+        fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+        borderRadius: Sizes.medium,
+        minLines: 3,
         maxLines: 4,
-        maxLength: 500,
+        // Same 500-character cap as before, enforced by a formatter instead of
+        // `maxLength:` so the `0/500` counter chrome disappears — the board
+        // draws a bare note box.
+        inputFormatters: <TextInputFormatter>[
+          LengthLimitingTextInputFormatter(_commentMaxLength),
+        ],
         onChanged: (v) => context.read<MutualRatingCubit>().setComment(v),
       ),
     );
@@ -216,6 +363,9 @@ class MutualRatingTag {
 /// Canonical Jeeb rating tags — [MutualRatingTag.key] values mirror the gateway
 /// `JeebRatingVocabulary.AllowedTags` taxonomy and are the ON-THE-WIRE values.
 /// Exposed for the JEBV4-297 wire-contract test.
+///
+/// The render's chip order is a `flex-wrap` artefact of the design tool — this
+/// list's order is the wire contract and is NOT reordered to match it.
 const kMutualRatingTags = <MutualRatingTag>[
   MutualRatingTag(key: 'punctuality', label: 'Punctual'),
   MutualRatingTag(key: 'communication', label: 'Communication'),
@@ -255,11 +405,10 @@ class _TagsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.mutualRatingTagsLabel,
-          style: Theme.of(context).textTheme.labelMedium,
-        ),
-        const SizedBox(height: Spacing.xSmall),
+        // The kit uppercases internally and skips the transform for caseless
+        // scripts — never pass `.toUpperCase()` from here.
+        JeebSectionLabel(l10n.mutualRatingTagsLabel),
+        const SizedBox(height: Spacing.small),
         // JEBV4-296: `textDirection` is passed explicitly (rather than
         // relying on Wrap's implicit ambient-Directionality fallback) so the
         // chip order is provably RTL-safe under `ar` — logical order stays
@@ -267,6 +416,7 @@ class _TagsSection extends StatelessWidget {
         // mirrored right-to-left on screen.
         Wrap(
           spacing: Spacing.xSmall,
+          runSpacing: Spacing.xSmall,
           textDirection: Directionality.of(context),
           children: kMutualRatingTags
               .map(
@@ -296,17 +446,45 @@ class _TagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Dynamic per-tag id keyed on the canonical taxonomy key (stable across
-    // i18n/RTL) — 41_GUARDRAILS_TESTING §1.1 dynamic-item form.
+    // i18n/RTL) — 41_GUARDRAILS_TESTING §1.1 dynamic-item form. The kit chip
+    // is given no identifier of its own: this wrapper is the frozen node and
+    // it also carries `selected:`, which the kit chip's wrapper does not.
     return Semantics(
       identifier: 'mutual_rating_tag_${tag.key}',
       container: true,
       button: true,
       selected: selected,
-      child: OmdsChip(
+      child: JeebSelectChip(
+        role: JeebChipRole.inlineAction,
         label: label,
-        isSelected: selected,
+        selected: selected,
         // Send the canonical taxonomy KEY, not the display label (JEBV4-297).
         onTap: () => context.read<MutualRatingCubit>().toggleTag(tag.key),
+      ),
+    );
+  }
+}
+
+/// The board's blind-reveal reassurance strip: outlined, eye glyph, muted ink.
+class _BlindRevealNote extends StatelessWidget {
+  const _BlindRevealNote({required this.rateeName});
+  final String rateeName;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final name = rateeName.trim();
+    // Own the node here rather than passing the kit's `identifier:`: the kit
+    // wrapper sets `explicitChildNodes`, which would stop the body text from
+    // merging into the identified node and leave it unlabelled.
+    return Semantics(
+      identifier: 'mutual_rating_blind_note',
+      container: true,
+      child: JeebInfoNote.outlined(
+        icon: Icons.visibility,
+        text: name.isNotEmpty
+            ? l10n.mutualRatingBlindNoteNamed(name)
+            : l10n.mutualRatingSubtitle,
       ),
     );
   }
@@ -319,17 +497,16 @@ class _SubmitButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(Spacing.large),
+    return JeebCtaFooter.single(
       // `rating_submit_cta` is the W1 contract id (JM-034 §2.14). No
-      // `button: true` — OmdsPrimaryButton already exposes the button role;
-      // `container: true` keeps this identifier its own queryable node.
+      // `button: true` — JeebCtaButton's InkWell already exposes the button
+      // role; `container: true` keeps this identifier its own queryable node.
       child: Semantics(
         identifier: 'rating_submit_cta',
         container: true,
-        child: OmdsPrimaryButton(
+        child: JeebCtaButton.primary(
           key: const Key('mutualRating.submit'),
-          text: l10n.mutualRatingSubmit,
+          label: l10n.mutualRatingSubmit,
           isEnabled: stars > 0,
           onTap: () => context.read<MutualRatingCubit>().submit(),
         ),

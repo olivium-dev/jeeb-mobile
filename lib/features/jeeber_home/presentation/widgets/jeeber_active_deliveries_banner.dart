@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/accessibility/accessibility.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../chat/data/dio_accepted_conversations_repository.dart';
 import '../../../chat/domain/accepted_conversation.dart';
@@ -93,6 +98,10 @@ class _JeeberActiveDeliveriesBannerState
   }
 }
 
+/// The board's active-work band: one orange-framed row per won delivery, no
+/// section heading — each card says "Active: …" itself. Kept visually
+/// identical to the shell-injected banner (W-3) so this `??` fallback cannot
+/// drift away from the surface the jeeber actually sees.
 class _ActiveDeliveriesSection extends StatelessWidget {
   const _ActiveDeliveriesSection({required this.accepted, required this.onOpen});
 
@@ -101,25 +110,25 @@ class _ActiveDeliveriesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'jeeber_active_deliveries_section',
       container: true,
       explicitChildNodes: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          Spacing.medium,
-          Spacing.medium,
-          Spacing.medium,
-          Spacing.xSmall,
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          Spacing.small,
+          Spacing.xLarge,
+          0,
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SectionHeader(label: l10n.availabilityActiveDeliveries(accepted.length)),
-            const SizedBox(height: Spacing.xSmall),
             for (final c in accepted)
-              _ActiveDeliveryRow(conversation: c, onOpen: onOpen),
+              Padding(
+                padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
+                child: _ActiveDeliveryCard(conversation: c, onOpen: onOpen),
+              ),
           ],
         ),
       ),
@@ -127,93 +136,78 @@ class _ActiveDeliveriesSection extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      label,
-      style: theme.textTheme.titleSmall?.copyWith(
-        color: theme.colorScheme.onSurface,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _ActiveDeliveryRow extends StatelessWidget {
-  const _ActiveDeliveryRow({required this.conversation, required this.onOpen});
+class _ActiveDeliveryCard extends StatelessWidget {
+  const _ActiveDeliveryCard({required this.conversation, required this.onOpen});
 
   final AcceptedConversation conversation;
   final void Function(String routeId) onOpen;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return Semantics(
+    return JeebAccentFrameCard(
+      // The frozen id rides the card node itself: the kit applies it as an
+      // explicit `Semantics(container, explicitChildNodes)` wrapper, so an
+      // extra wrapper here would only add an unlabelled duplicate node.
       identifier: 'jeeber_active_delivery_card_${conversation.routeId}',
-      container: true,
-      explicitChildNodes: true,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
-        child: Row(
-          children: [
-            _RowAvatar(initial: _initial),
-            const SizedBox(width: Spacing.small),
-            Expanded(child: _RowLabel(text: _title(l10n), theme: theme)),
-            const SizedBox(width: Spacing.small),
-            _OpenChatButton(
-              routeId: conversation.routeId,
-              label: l10n.orderSummaryOpenChat,
-              onOpen: onOpen,
-            ),
-          ],
-        ),
+      onTap: () => onOpen(conversation.routeId),
+      child: Row(
+        children: [
+          const _VehicleDisc(),
+          const SizedBox(width: Spacing.small),
+          Expanded(child: _CardTitle(text: _title(context, l10n))),
+          const SizedBox(width: Spacing.small),
+          _OpenChatPill(
+            routeId: conversation.routeId,
+            label: l10n.orderSummaryOpenChat,
+            onOpen: onOpen,
+          ),
+        ],
       ),
     );
   }
 
-  String get _initial {
-    final name = conversation.counterpartName ?? conversation.title ?? '?';
-    final trimmed = name.trim();
-    return trimmed.isEmpty ? '?' : trimmed[0].toUpperCase();
-  }
-
-  String _title(AppLocalizations l10n) {
-    return conversation.counterpartName ??
+  /// "Active: {order} → {dropoff}". The arrow is resolved from the ambient
+  /// direction — a hardcoded `→` points the wrong way once the row mirrors.
+  String _title(BuildContext context, AppLocalizations l10n) {
+    final subject =
         conversation.title ??
+        conversation.counterpartName ??
         conversation.displayId ??
-        'Order ${conversation.routeId}';
+        conversation.routeId;
+    final destination = conversation.destinationLabel?.trim();
+    final head = '${l10n.jeeberActiveLabel}: $subject';
+    if (destination == null || destination.isEmpty) return head;
+    final arrow = Directionality.of(context) == TextDirection.rtl ? '←' : '→';
+    return '$head $arrow $destination';
   }
 }
 
-class _RowAvatar extends StatelessWidget {
-  const _RowAvatar({required this.initial});
-
-  final String initial;
+/// Ø38 accent disc — the one orange fill this card is allowed (R5).
+class _VehicleDisc extends StatelessWidget {
+  const _VehicleDisc();
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return OmdsProfileAvatar(
-      initial: initial,
-      size: Sizes.threeXLarge,
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      initialColor: colorScheme.primary,
+    final roles = context.jeebRoles;
+    return Container(
+      width: Sizes.threeXLarge,
+      height: Sizes.threeXLarge,
+      alignment: AlignmentDirectional.center,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: roles.accent),
+      child: Icon(
+        Icons.two_wheeler,
+        size: Sizes.large,
+        color: roles.onAccent,
+      ),
     );
   }
 }
 
-class _RowLabel extends StatelessWidget {
-  const _RowLabel({required this.text, required this.theme});
+class _CardTitle extends StatelessWidget {
+  const _CardTitle({required this.text});
 
   final String text;
-  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
@@ -221,16 +215,19 @@ class _RowLabel extends StatelessWidget {
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: theme.textTheme.titleMedium?.copyWith(
-        color: theme.colorScheme.onSurface,
-        fontWeight: FontWeight.w400,
+      style: context.jeebText.body.copyWith(
+        fontWeight: FontWeight.w700,
+        color: Theme.of(context).colorScheme.primary,
       ),
     );
   }
 }
 
-class _OpenChatButton extends StatelessWidget {
-  const _OpenChatButton({
+/// The navy pill at the card's end edge (the board's `Manage`). Its frozen
+/// identifier is what the jeeber flows tap, so it stays a distinct node inside
+/// the card.
+class _OpenChatPill extends StatelessWidget {
+  const _OpenChatPill({
     required this.routeId,
     required this.label,
     required this.onOpen,
@@ -242,15 +239,22 @@ class _OpenChatButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: Sizes.twoXLarge,
-      child: Semantics(
-        identifier: 'jeeber_active_delivery_open_chat_$routeId',
-        button: true,
-        child: OMDSOutlinedButton(
-          key: Key('jeeber-active-open-chat-$routeId'),
-          text: label,
-          onTap: () => onOpen(routeId),
+    void onTap() => onOpen(routeId);
+    return Semantics(
+      identifier: 'jeeber_active_delivery_open_chat_$routeId',
+      button: true,
+      container: true,
+      label: label,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: MinTapTarget(
+          onTap: onTap,
+          child: JeebSelectChip(
+            key: Key('jeeber-active-open-chat-$routeId'),
+            role: JeebChipRole.inlineAction,
+            label: label,
+            selected: true,
+          ),
         ),
       ),
     );

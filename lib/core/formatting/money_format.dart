@@ -30,10 +30,23 @@ abstract final class MoneyFormat {
 
   /// Formats [amount] in [currency] — `$12.00` for USD, `LBP 15,000.00`
   /// otherwise, wrapped in an LTR isolate so it renders correctly in ar/RTL.
-  static String format(double amount, {String currency = 'USD'}) {
+  ///
+  /// [signed] prefixes a `+` for positive amounts, INSIDE the isolate — a
+  /// cash-in row on the earnings breakdown (screen 19). `U+002B` is bidi-class
+  /// ES, so concatenating it outside the isolate resolves with the paragraph
+  /// direction and renders `$8.00+` in Arabic. [_group] already emits its own
+  /// leading `-` for negatives, so [signed] deliberately only adds the positive
+  /// sign. Defaults to false, keeping every existing call site byte-identical.
+  static String format(
+    double amount, {
+    String currency = 'USD',
+    bool signed = false,
+  }) {
     final value = _group(amount.toStringAsFixed(2));
     final code = currency.trim().toUpperCase();
-    final token = (code.isEmpty || code == 'USD') ? '\$$value' : '$code $value';
+    final sign = signed && amount > 0 ? '+' : '';
+    final token =
+        (code.isEmpty || code == 'USD') ? '$sign\$$value' : '$sign$code $value';
     return '$_lri$token$_pdi';
   }
 

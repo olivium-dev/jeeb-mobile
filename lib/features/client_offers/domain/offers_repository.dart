@@ -123,12 +123,20 @@ class OffersSnapshot {
     required this.windowExpiresAt,
     required this.requestIsOpen,
     this.requestIsExpired = false,
+    this.requestTitle,
   });
 
   final List<Offer> offers;
   final DateTime? windowExpiresAt;
   final bool requestIsOpen;
   final bool requestIsExpired;
+
+  /// The request's own item title, read off the `/v1/requests/:id` row the
+  /// snapshot already fetches. Drives the top bar's subtitle line on the
+  /// offer-review screen. Nullable and OPTIONAL by contract: the endpoint does
+  /// not carry a destination address, and a gateway that omits the title must
+  /// leave the subtitle unrendered rather than get a placeholder.
+  final String? requestTitle;
 }
 
 /// Read-side contract for the offer cards screen. Implementations call the

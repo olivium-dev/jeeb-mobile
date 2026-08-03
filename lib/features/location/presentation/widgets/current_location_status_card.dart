@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/location_select_state.dart';
 import 'client_location_option_card.dart';
@@ -15,10 +16,16 @@ import 'client_location_option_card.dart';
 /// fix, offers the correct recovery affordance:
 ///
 ///   * [CurrentGpsStatus.resolving] → a "finding your location" progress row;
-///   * [CurrentGpsStatus.resolved] → a confirmation the real fix is in use;
+///   * [CurrentGpsStatus.resolved] → a confirmation the real fix is in use
+///     (with its accuracy radius when the sensor reported one);
 ///   * [CurrentGpsStatus.permissionDenied] → "open app settings" + retry;
 ///   * [CurrentGpsStatus.serviceDisabled] → "turn on location" + retry;
 ///   * [CurrentGpsStatus.failed] → retry.
+///
+/// Redesign 09: the resolving/resolved lines render INSIDE the option card's
+/// subtitle slot (the board's address card is icon + title + meta line); the
+/// multi-CTA recovery panel keeps its own block below the card, because two
+/// buttons do not fit inside a list card.
 ///
 /// All copy is localized (RTL-safe) and every measurement is a design token.
 class CurrentLocationStatusCard extends StatelessWidget {
@@ -30,6 +37,7 @@ class CurrentLocationStatusCard extends StatelessWidget {
     required this.onRetry,
     required this.onOpenLocationSettings,
     required this.onOpenAppSettings,
+    this.accuracyMeters,
   });
 
   final CurrentGpsStatus status;
@@ -39,9 +47,15 @@ class CurrentLocationStatusCard extends StatelessWidget {
   final VoidCallback onOpenLocationSettings;
   final VoidCallback onOpenAppSettings;
 
+  /// Horizontal accuracy of the resolved device fix, in metres. Null when the
+  /// platform reported none — the subtitle then falls back to the plain
+  /// "using your current location" line. Device sensor value only.
+  final double? accuracyMeters;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final detail = _belowCardDetail(l10n);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -49,24 +63,51 @@ class CurrentLocationStatusCard extends StatelessWidget {
           label: l10n.clientLocationCurrentOption,
           selected: selected,
           onTap: onSelect,
+          subtitle: _inCardDetail(l10n),
         ),
-        _detail(context, l10n),
+        ?detail,
       ],
     );
   }
 
-  Widget _detail(BuildContext context, AppLocalizations l10n) {
+  /// The lines that belong in the card's subtitle slot. They keep their OWN
+  /// Semantics nodes (`current_location_gps_resolving` / `_resolved`), which
+  /// survive because the card's wrapper is `explicitChildNodes`.
+  Widget? _inCardDetail(AppLocalizations l10n) {
+    switch (status) {
+      case CurrentGpsStatus.resolving:
+        return _Resolving(
+          label: l10n.clientLocationGpsResolving,
+          onNavy: selected,
+        );
+      case CurrentGpsStatus.resolved:
+        final meters = accuracyMeters;
+        return _Resolved(
+          label: meters == null
+              ? l10n.clientLocationGpsResolved
+              : l10n.clientLocationGpsAccuracy(meters.round()),
+          onNavy: selected,
+        );
+      case CurrentGpsStatus.idle:
+      case CurrentGpsStatus.permissionDenied:
+      case CurrentGpsStatus.serviceDisabled:
+      case CurrentGpsStatus.failed:
+        return null;
+    }
+  }
+
+  /// The recovery panel, which is a two-CTA block and therefore sits BELOW the
+  /// card rather than inside it.
+  Widget? _belowCardDetail(AppLocalizations l10n) {
     switch (status) {
       case CurrentGpsStatus.idle:
-        return const SizedBox.shrink();
       case CurrentGpsStatus.resolving:
-        return _Resolving(label: l10n.clientLocationGpsResolving);
       case CurrentGpsStatus.resolved:
-        return _Resolved(label: l10n.clientLocationGpsResolved);
+        return null;
       case CurrentGpsStatus.permissionDenied:
         return _Recovery(
           identifier: 'current_location_gps_recovery',
-          icon: Icons.location_disabled_outlined,
+          icon: Icons.location_disabled,
           title: l10n.clientLocationGpsPermissionDeniedTitle,
           message: l10n.clientLocationGpsPermissionDeniedMessage,
           primaryLabel: l10n.clientLocationGpsOpenAppSettings,
@@ -77,7 +118,7 @@ class CurrentLocationStatusCard extends StatelessWidget {
       case CurrentGpsStatus.serviceDisabled:
         return _Recovery(
           identifier: 'current_location_gps_recovery',
-          icon: Icons.location_off_outlined,
+          icon: Icons.location_off,
           title: l10n.clientLocationGpsServiceDisabledTitle,
           message: l10n.clientLocationGpsServiceDisabledMessage,
           primaryLabel: l10n.clientLocationGpsOpenLocationSettings,
@@ -88,7 +129,7 @@ class CurrentLocationStatusCard extends StatelessWidget {
       case CurrentGpsStatus.failed:
         return _Recovery(
           identifier: 'current_location_gps_recovery',
-          icon: Icons.gps_off_outlined,
+          icon: Icons.gps_off,
           title: l10n.clientLocationGpsFailedTitle,
           message: l10n.clientLocationGpsFailedMessage,
           primaryLabel: l10n.clientLocationGpsRetry,
@@ -99,80 +140,61 @@ class CurrentLocationStatusCard extends StatelessWidget {
 }
 
 class _Resolving extends StatelessWidget {
-  const _Resolving({required this.label});
+  const _Resolving({required this.label, required this.onNavy});
 
   final String label;
+
+  /// True while the host card carries the navy selected fill — the meta ink
+  /// has to invert with it or it disappears.
+  final bool onNavy;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final ink = onNavy ? scheme.onPrimary : scheme.onSurfaceVariant;
     return Semantics(
       identifier: 'current_location_gps_resolving',
       liveRegion: true,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          top: Spacing.small,
-          start: Spacing.xSmall,
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: Sizes.medium,
-              height: Sizes.medium,
-              child: CircularProgressIndicator(
-                strokeWidth: UIConstants.strokeWidthNormal,
-                color: theme.colorScheme.primary,
-              ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: Sizes.medium,
+            height: Sizes.medium,
+            child: CircularProgressIndicator(
+              strokeWidth: UIConstants.strokeWidthNormal,
+              color: ink,
             ),
-            const SizedBox(width: Spacing.small),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
+          ),
+          const SizedBox(width: Spacing.xSmall),
+          Expanded(
+            child: Text(
+              label,
+              style: context.jeebText.bodySmall.copyWith(color: ink),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _Resolved extends StatelessWidget {
-  const _Resolved({required this.label});
+  const _Resolved({required this.label, required this.onNavy});
 
   final String label;
+  final bool onNavy;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final ink = onNavy ? scheme.onPrimary : scheme.onSurfaceVariant;
     return Semantics(
       identifier: 'current_location_gps_resolved',
-      child: Padding(
-        padding: const EdgeInsetsDirectional.only(
-          top: Spacing.small,
-          start: Spacing.xSmall,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.my_location_outlined,
-              size: Sizes.medium,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(width: Spacing.small),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        ),
+      child: Text(
+        label,
+        style: context.jeebText.bodySmall.copyWith(color: ink),
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -192,6 +214,9 @@ class _Recovery extends StatelessWidget {
     this.retryLabel,
   });
 
+  /// The redesign's outline weight (§5 #3).
+  static const double _borderWidth = 1.5;
+
   final String identifier;
   final IconData icon;
   final String title;
@@ -203,8 +228,7 @@ class _Recovery extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: identifier,
       child: Container(
@@ -212,8 +236,8 @@ class _Recovery extends StatelessWidget {
         padding: const EdgeInsets.all(Spacing.medium),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerHighest,
-          borderRadius: OmdsBorderRadius.uiLarge,
-          border: Border.all(color: scheme.outlineVariant),
+          borderRadius: OmdsBorderRadius.medium,
+          border: Border.all(color: scheme.outline, width: _borderWidth),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,10 +249,8 @@ class _Recovery extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: scheme.onSurface,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: context.jeebText.cardTitle
+                        .copyWith(color: scheme.onSurface),
                   ),
                 ),
               ],
@@ -236,9 +258,8 @@ class _Recovery extends StatelessWidget {
             const SizedBox(height: Spacing.xSmall),
             Text(
               message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+              style: context.jeebText.body
+                  .copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: Spacing.medium),
             Semantics(

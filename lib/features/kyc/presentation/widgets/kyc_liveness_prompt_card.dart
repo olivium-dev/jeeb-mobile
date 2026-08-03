@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+
 /// Single coaching cue inside a [KycLivenessPromptCard].
 class KycLivenessPrompt {
   const KycLivenessPrompt({required this.icon, required this.text});
@@ -32,20 +35,25 @@ class KycLivenessPromptCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    // R5: `primaryContainer` is the brand orange (#FFDBD1) after the redesign;
+    // orange marks decay, not coaching. This card is a neutral muted surface.
+    final semantic = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.light();
+    final jeebText = context.jeebText;
     return Container(
       key: cardKey,
       padding: const EdgeInsets.all(Spacing.medium),
       decoration: BoxDecoration(
-        color: scheme.primaryContainer.withValues(alpha: 0.6),
-        borderRadius: OmdsBorderRadius.small,
+        color: scheme.surfaceContainerHigh,
+        borderRadius: OmdsBorderRadius.medium,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: scheme.onPrimaryContainer,
+            style: jeebText.bodySmall.copyWith(
+              color: scheme.onSurface,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -54,8 +62,9 @@ class KycLivenessPromptCard extends StatelessWidget {
             if (i > 0) const SizedBox(height: Spacing.xSmall),
             _PromptRow(
               prompt: prompts[i],
-              foreground: scheme.onPrimaryContainer,
-              textStyle: theme.textTheme.bodyMedium,
+              foreground: scheme.onSurface,
+              iconColor: semantic.mutedText,
+              textStyle: jeebText.bodySmall,
             ),
           ],
         ],
@@ -68,11 +77,13 @@ class _PromptRow extends StatelessWidget {
   const _PromptRow({
     required this.prompt,
     required this.foreground,
+    required this.iconColor,
     required this.textStyle,
   });
 
   final KycLivenessPrompt prompt;
   final Color foreground;
+  final Color iconColor;
   final TextStyle? textStyle;
 
   @override
@@ -80,7 +91,7 @@ class _PromptRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(prompt.icon, color: foreground, size: Sizes.large),
+        Icon(prompt.icon, color: iconColor, size: Sizes.large),
         const SizedBox(width: Spacing.small),
         Expanded(
           child: Text(

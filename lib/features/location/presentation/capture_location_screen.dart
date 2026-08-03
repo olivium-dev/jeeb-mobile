@@ -1,27 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import 'widgets/capture_location_pin.dart';
 import 'widgets/capture_map_viewport.dart';
+import 'widgets/capture_picker_sheet.dart';
+import 'widgets/map_capture_controller.dart';
 
-/// "Capture Location" screen (Figma 56546:2303) — a full-screen map picker.
+/// "Capture Location" — the map-first pin picker (redesign-2026-08 screen 09).
 ///
-/// The map pans under a fixed centre pin; the user positions the desired
-/// point under the pin tip and confirms with the bottom "Pin Location" CTA,
-/// which returns the coordinates to the delivery-create flow.
+/// The map runs full-bleed to every edge; the chrome floats on top of it: a
+/// circular back button under the status bar, and a docked sheet carrying the
+/// pinned point and the "Pin Location" CTA. The map pans under a fixed centre
+/// pin, so the point the user is choosing is always the viewport centre.
 ///
-/// Live map tiles are provided by the `ofl_geo_capture` wrap (reuse-table
-/// "Delivery create → wrap" verdict). That package is not yet resolvable in
-/// this worktree, so [mapBuilder] is injected: production passes the
-/// geo-capture map widget; the dev seam / tests pass a neutral placeholder.
-/// The Figma map raster is a mock and is never bundled.
+/// Live map tiles are provided by the `google_maps_flutter` view, injected as
+/// [mapBuilder]: production passes it (via `GoogleMapPickerLauncher`), the dev
+/// seam / tests pass nothing and get a neutral placeholder. The board's map
+/// raster is a mock and is never bundled.
 class CaptureLocationScreen extends StatelessWidget {
   const CaptureLocationScreen({
     super.key,
     this.onPinned,
     this.mapBuilder,
     this.isConfirming = false,
+    this.controller,
   });
 
   /// Invoked when the user confirms the pinned point. Defaults to a back-pop.
@@ -34,74 +37,48 @@ class CaptureLocationScreen extends StatelessWidget {
   /// When true the CTA shows a busy state (reverse-geocode / save in flight).
   final bool isConfirming;
 
+  /// The live map centre, when one exists. Supplied together with [mapBuilder]
+  /// by `GoogleMapPickerLauncher`; the router's placeholder path passes none,
+  /// so the sheet renders without a coordinate card rather than invent one.
+  final MapCaptureController? controller;
+
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    // No SafeArea around the map — it runs to the top edge, and the floating
+    // chrome carries the inset itself.
+    final topPad = MediaQuery.viewPaddingOf(context).top;
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: OMDSAppBar(
-        title: l10n.captureLocationTitle,
-        showBackButton: true,
-        onBackPressed: () => Navigator.of(context).maybePop(),
-      ),
-      body: SafeArea(
-        child: _Body(
-          mapBuilder: mapBuilder,
-          onPinned: onPinned,
-          isConfirming: isConfirming,
-        ),
-      ),
-    );
-  }
-}
-
-class _Body extends StatelessWidget {
-  const _Body({
-    required this.mapBuilder,
-    required this.onPinned,
-    required this.isConfirming,
-  });
-
-  final WidgetBuilder? mapBuilder;
-  final VoidCallback? onPinned;
-  final bool isConfirming;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(child: _MapStack(mapBuilder: mapBuilder)),
-        _PinCta(onPinned: onPinned, isConfirming: isConfirming),
-      ],
-    );
-  }
-}
-
-/// Bottom "Pin Location" confirm CTA. `OmdsPrimaryButton` owns the ≥48dp tap
-/// height; the Semantics id lets Maestro target it.
-class _PinCta extends StatelessWidget {
-  const _PinCta({required this.onPinned, required this.isConfirming});
-
-  final VoidCallback? onPinned;
-  final bool isConfirming;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.large,
-        Spacing.medium,
-        Spacing.large,
-        Spacing.medium,
-      ),
-      child: Semantics(
-        identifier: 'capture_location_pin_cta',
-        button: true,
-        child: OmdsPrimaryButton(
-          text: l10n.captureLocationPinCta,
-          isEnabled: !isConfirming,
-          onTap: () => _onPin(context),
+      backgroundColor: colorScheme.surface,
+      body: Semantics(
+        identifier: 'capture_location_root',
+        container: true,
+        explicitChildNodes: true,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _MapStack(mapBuilder: mapBuilder),
+            PositionedDirectional(
+              start: 0,
+              end: 0,
+              top: topPad,
+              child: JeebTopBar.back(
+                leadingTreatment: JeebTopBarLeadingTreatment.floating,
+                identifier: 'capture_location_back',
+                onLeadingPressed: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+            PositionedDirectional(
+              start: 0,
+              end: 0,
+              bottom: 0,
+              child: CapturePickerSheet(
+                onPin: () => _onPin(context),
+                isConfirming: isConfirming,
+                controller: controller,
+              ),
+            ),
+          ],
         ),
       ),
     );

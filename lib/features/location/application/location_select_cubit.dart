@@ -123,6 +123,7 @@ class LocationSelectCubit extends Cubit<LocationSelectState> {
           currentGpsStatus: CurrentGpsStatus.resolved,
           gpsLat: result.latitude,
           gpsLng: result.longitude,
+          gpsAccuracyMeters: result.accuracyMeters,
         ));
       case CurrentLocationOutcome.permissionDenied:
         emit(state.copyWith(

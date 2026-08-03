@@ -9,7 +9,6 @@ import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dart';
-import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer_icon_button.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -116,17 +115,24 @@ void main() {
     await tester.pumpWidget(_host(cubit));
     await tester.pumpAndSettle();
 
-    final sendButton = tester.widget<ChatComposerIconButton>(
-      find.byKey(ChatComposer.sendButtonKey),
+    // The send affordance is the kit composer's Ø38 circle, which reports its
+    // enabled state on its own Semantics node (there is no widget type left to
+    // read an `onPressed` off). Same contract, read where a screen reader and
+    // Maestro read it.
+    final handle = tester.ensureSemantics();
+    final send = find.byKey(ChatComposer.sendButtonKey);
+    expect(
+      tester.getSemantics(send),
+      containsSemantics(isButton: true, isEnabled: false),
     );
-    expect(sendButton.onPressed, isNull);
 
     await tester.enterText(find.byKey(ChatComposer.textFieldKey), 'x');
     await tester.pump();
-    final enabled = tester.widget<ChatComposerIconButton>(
-      find.byKey(ChatComposer.sendButtonKey),
+    expect(
+      tester.getSemantics(send),
+      containsSemantics(isButton: true, isEnabled: true),
     );
-    expect(enabled.onPressed, isNotNull);
+    handle.dispose();
   });
 
   testWidgets('renders mixed RTL/LTR messages without reordering them', (

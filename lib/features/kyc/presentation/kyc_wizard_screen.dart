@@ -5,6 +5,11 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/role/role_availability_cubit.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_meter.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -88,51 +93,49 @@ class _WizardScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      key: KycWizardScreen.rootKey,
-      appBar: OMDSAppBar(
-        title: l10n.kycWizardTitle,
-        centerTitle: false,
-      ),
-      // `kyc_wizard_root` (65_W2_TEST_PLAN §2 JM-040): the asserted root id of
-      // the KYC wizard. Wraps the whole body so it is visible on every step.
-      body: Semantics(
-        identifier: 'kyc_wizard_root',
-        container: true,
-        child: SafeArea(
-          child: MultiBlocListener(
-            listeners: [
-              BlocListener<KycWizardCubit, KycWizardState>(
-                listenWhen: (prev, curr) =>
-                    !prev.justSubmitted && curr.justSubmitted,
-                listener: _onSubmitted,
-              ),
-              BlocListener<KycWizardCubit, KycWizardState>(
-                listenWhen: (prev, curr) =>
-                    prev.error != curr.error && curr.error != null,
-                listener: _surfaceError,
-              ),
-              // JEBV4-271 (round 3): the authoritative role-arrived signal. When
-              // the getMe `available_roles` projection (published app-wide by
-              // RoleSync on login/resume) gains `jeeber` while the wizard is
-              // still on the submit spinner or a pending status view, advance
-              // straight onto the approved status view — the exact on-device
-              // rev2 gap where `/v1/users/me` returned `jeeber` yet nothing drove
-              // the transition. Only wired when the app-root RoleAvailabilityCubit
-              // is in scope (production shell); a bare wizard harness has none, so
-              // this listener is simply not added.
-              if (context.read<RoleAvailabilityCubit?>() != null)
-                BlocListener<RoleAvailabilityCubit, RoleAvailability>(
-                  listenWhen: (prev, curr) =>
-                      !prev.roles.contains('jeeber') &&
-                      curr.roles.contains('jeeber'),
-                  listener: (context, _) =>
-                      context.read<KycWizardCubit>().onJeeberRoleGranted(),
-                ),
-            ],
-            child: BlocBuilder<KycWizardCubit, KycWizardState>(
-              builder: (context, state) => _buildBody(context, state, l10n),
-            ),
+    // The BlocBuilder sits ABOVE the Scaffold so `appBar:` can read the step:
+    // the redesigned identity step owns its own JeebTopBar chrome, while the
+    // schema/submitting/status steps keep the OMDS bar.
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<KycWizardCubit, KycWizardState>(
+          listenWhen: (prev, curr) => !prev.justSubmitted && curr.justSubmitted,
+          listener: _onSubmitted,
+        ),
+        BlocListener<KycWizardCubit, KycWizardState>(
+          listenWhen: (prev, curr) =>
+              prev.error != curr.error && curr.error != null,
+          listener: _surfaceError,
+        ),
+        // JEBV4-271 (round 3): the authoritative role-arrived signal. When
+        // the getMe `available_roles` projection (published app-wide by
+        // RoleSync on login/resume) gains `jeeber` while the wizard is
+        // still on the submit spinner or a pending status view, advance
+        // straight onto the approved status view — the exact on-device
+        // rev2 gap where `/v1/users/me` returned `jeeber` yet nothing drove
+        // the transition. Only wired when the app-root RoleAvailabilityCubit
+        // is in scope (production shell); a bare wizard harness has none, so
+        // this listener is simply not added.
+        if (context.read<RoleAvailabilityCubit?>() != null)
+          BlocListener<RoleAvailabilityCubit, RoleAvailability>(
+            listenWhen: (prev, curr) =>
+                !prev.roles.contains('jeeber') && curr.roles.contains('jeeber'),
+            listener: (context, _) =>
+                context.read<KycWizardCubit>().onJeeberRoleGranted(),
+          ),
+      ],
+      child: BlocBuilder<KycWizardCubit, KycWizardState>(
+        builder: (context, state) => Scaffold(
+          key: KycWizardScreen.rootKey,
+          appBar: state.step == KycWizardStep.identity
+              ? null
+              : OMDSAppBar(title: l10n.kycWizardTitle, centerTitle: false),
+          // `kyc_wizard_root` (65_W2_TEST_PLAN §2 JM-040): the asserted root id
+          // of the KYC wizard. Wraps the whole body on EVERY step.
+          body: Semantics(
+            identifier: 'kyc_wizard_root',
+            container: true,
+            child: SafeArea(child: _buildBody(context, state, l10n)),
           ),
         ),
       ),
@@ -164,13 +167,31 @@ class _WizardScaffold extends StatelessWidget {
     if (state.step == KycWizardStep.schema) {
       return _SchemaLoadingView(l10n: l10n, state: state);
     }
-    // identity
+    // identity — owns its own chrome (no OMDSAppBar above it).
     return Column(
       children: [
-        _ProgressHeader(state: state),
+        JeebTopBar(
+          key: KycWizardScreen.backLeadingKey,
+          title: l10n.kycWizardTitle,
+          identifier: 'kyc_wizard_back',
+          leadingTooltip: MaterialLocalizations.of(context).backButtonTooltip,
+          onLeadingPressed: () => _leaveWizard(context),
+        ),
+        _CaptureProgress(state: state),
         const Expanded(child: KycIdentityStep()),
       ],
     );
+  }
+
+  /// Mirrors `AppRouter.backFallbacks['kyc-status'] == '/'`: the wizard is
+  /// reachable as a deep link, so a bare `Navigator.maybePop` (the kit's
+  /// default) would leave the back circle dead at the stack root.
+  void _leaveWizard(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/');
   }
 
   void _surfaceError(BuildContext context, KycWizardState state) {
@@ -234,66 +255,108 @@ class _SchemaErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(l10n.kycErrorSchemaLoadFailed),
-          const SizedBox(height: Spacing.medium),
-          Semantics(
-            identifier: 'kyc_wizard_retry_cta',
-            container: true,
-            button: true,
-            child: OMDSOutlinedButton(
-              text: l10n.kycRetry,
-              onTap: () => context.read<KycWizardCubit>().loadSchema(),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.xLarge,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              l10n.kycErrorSchemaLoadFailed,
+              textAlign: TextAlign.center,
+              style: context.jeebText.body.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: Spacing.medium),
+            Semantics(
+              identifier: 'kyc_wizard_retry_cta',
+              container: true,
+              button: true,
+              child: JeebCtaButton.outline(
+                label: l10n.kycRetry,
+                expand: false,
+                onTap: () => context.read<KycWizardCubit>().loadSchema(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ProgressHeader extends StatelessWidget {
-  const _ProgressHeader({required this.state});
+/// "Step 1 of 2 — Your ID" · "then Selfie" over a two-segment bar
+/// (`22 tpl 1300-1306`).
+///
+/// [KycWizardState.currentCaptureStep] is the single source for BOTH the label
+/// and the fill, so the old off-by-one (label clamped to 1, bar showing 0)
+/// cannot come back.
+class _CaptureProgress extends StatelessWidget {
+  const _CaptureProgress({required this.state});
 
   final KycWizardState state;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    // Display at least "Step 1 of 2" while the user is still capturing.
-    final displayStep = state.completedCaptureSteps < 1
-        ? 1
-        : state.completedCaptureSteps;
+    final theme = Theme.of(context);
+    final semantic = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.light();
+    final jeebText = context.jeebText;
+    final current = state.currentCaptureStep;
+    final isLastStep = current >= KycWizardState.totalCaptureSteps;
     return Padding(
       key: KycWizardScreen.progressKey,
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
         Spacing.large,
-        Spacing.medium,
-        Spacing.large,
-        Spacing.small,
+        Spacing.xLarge,
+        0,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            l10n.kycWizardProgressLabel(
-              current: displayStep,
-              total: KycWizardState.totalCaptureSteps,
-            ),
-            style: textTheme.labelMedium,
-          ),
-          const SizedBox(height: Spacing.small),
-          OMDSLabeledStepperProgress(
-            totalSteps: KycWizardState.totalCaptureSteps,
-            completedSteps: state.completedCaptureSteps,
-            stepLabels: [
-              l10n.kycWizardStepIdLabel,
-              l10n.kycWizardStepSelfieLabel,
+          Row(
+            children: [
+              // Expanded (not Spacer) so the label wraps before it collides
+              // with the hint under 200% text or a long Arabic step name.
+              Expanded(
+                child: Text(
+                  l10n.kycWizardProgressStepLabel(
+                    current: current,
+                    total: KycWizardState.totalCaptureSteps,
+                    stepName: isLastStep
+                        ? l10n.kycWizardStepSelfieLabel
+                        : l10n.kycWizardStepIdTitle,
+                  ),
+                  style: jeebText.bodySmall.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+              if (!isLastStep) const SizedBox(width: Spacing.small),
+              if (!isLastStep)
+                Text(
+                  l10n.kycWizardNextStepHint(
+                    stepName: l10n.kycWizardStepSelfieLabel,
+                  ),
+                  style: jeebText.bodySmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: semantic.mutedText,
+                  ),
+                ),
             ],
+          ),
+          const SizedBox(height: Spacing.xSmall),
+          // Segment N is filled while the user is ON step N.
+          JeebMeter.segmented(
+            steps: KycWizardState.totalCaptureSteps,
+            filled: current,
           ),
         ],
       ),

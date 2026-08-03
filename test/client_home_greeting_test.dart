@@ -46,9 +46,10 @@ Widget _harness({
   GreetingProfileState? profile,
   String? avatarSemanticsIdentifier,
 }) {
+  // No `onAddPressed`: the create affordance moved to ClientHomeRequestHero
+  // when the buried "+" became the mic hero (redesign-2026-08 screen 04).
   final child = ClientHomeGreeting(
     name: name,
-    onAddPressed: () {},
     avatarSemanticsIdentifier: avatarSemanticsIdentifier,
   );
   return MaterialApp(

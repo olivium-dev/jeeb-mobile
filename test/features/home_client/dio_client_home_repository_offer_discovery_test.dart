@@ -151,6 +151,98 @@ void main() {
     expect(snapshot.replies, isEmpty);
   });
 
+  // The Replies card's "N offers · from $X" floor. It is computed over the
+  // SAME probe payload the count comes from — zero extra network — and it is
+  // absent by construction wherever the probe is skipped.
+  group('offer floor (redesign-2026-08 screen 04)', () {
+    test('probed row carries the lowest fee and its currency', () async {
+      stub(
+        requests: [
+          {'id': 'req-F', 'status': 'pending', 'title': 'Groceries'},
+        ],
+        offersByRequestId: {
+          'req-F': [
+            {'id': 'o1', 'status': 'pending', 'fee': 12, 'currency': 'USD'},
+            {'id': 'o2', 'status': 'pending', 'fee': 8.5, 'currency': 'USD'},
+            {'id': 'o3', 'status': 'pending', 'fee': 20, 'currency': 'USD'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-F');
+      expect(reply.offerCount, 3);
+      expect(reply.lowestOfferFee, 8.5);
+      expect(reply.offerCurrency, 'USD');
+    });
+
+    test('fee-less offers are ignored by the floor, not counted as zero',
+        () async {
+      stub(
+        requests: [
+          {'id': 'req-G', 'status': 'pending', 'title': 'Pharmacy'},
+        ],
+        offersByRequestId: {
+          'req-G': [
+            {'id': 'o1', 'status': 'pending'},
+            {'id': 'o2', 'status': 'pending', 'fee': 9, 'currency': 'LBP'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-G');
+      expect(reply.offerCount, 2, reason: 'both offers are live');
+      expect(reply.lowestOfferFee, 9, reason: 'the fee-less offer contributes nothing');
+      expect(reply.offerCurrency, 'LBP');
+    });
+
+    test('a row bucketed by its payload count gets NO floor (never probed)',
+        () async {
+      stub(
+        requests: [
+          {
+            'id': 'req-H',
+            'status': 'pending',
+            'title': 'Declared reply',
+            'offersCount': 4,
+          },
+        ],
+        offersByRequestId: const {},
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      expect(offerRequestIds, isEmpty,
+          reason: 'the probe-skip must survive — a declared reply is not probed');
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-H');
+      expect(reply.offerCount, 4);
+      expect(reply.lowestOfferFee, isNull);
+      expect(reply.offerCurrency, isNull);
+    });
+
+    test('offers with no fee at all leave the floor null', () async {
+      stub(
+        requests: [
+          {'id': 'req-I', 'status': 'pending', 'title': 'No quotes'},
+        ],
+        offersByRequestId: {
+          'req-I': [
+            {'id': 'o1', 'status': 'pending'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-I');
+      expect(reply.offerCount, 1);
+      expect(reply.lowestOfferFee, isNull);
+    });
+  });
+
   test('accepted requests are NOT probed for offers (stay In Progress)',
       () async {
     stub(

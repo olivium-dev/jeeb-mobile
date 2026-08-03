@@ -7,6 +7,10 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/friendly_reference.dart';
 import '../../../core/layout/bottom_inset.dart';
 import '../../../core/lifecycle/route_resume_refetch.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/domain/cancel_request_repository.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
@@ -142,58 +146,93 @@ class _ClientOffersView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // No `appBar:` — the redesign's header is an in-body JeebTopBar so the
+    // title, the subtitle and the back circle scroll-lock together with the
+    // fixed header block below them.
     return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.offersScreenTitle,
-        showBackButton: true,
-        // P2: this screen is now a push-tap stack ROOT (`go`, not `push`), so
-        // the default `maybePop()` is a dead arrow on an empty stack. Pop when
-        // we can (in-app Replies CTA entry), else return to the shell.
-        onBackPressed: () => context.canPop() ? context.pop() : context.go('/'),
-      ),
       // offer_review_list_root — signature id for the offer-review-list route.
+      // It spans EVERY state (loading / failed / loaded), as it always has.
       body: Semantics(
         identifier: 'offer_review_list_root',
         explicitChildNodes: true,
-        child: BlocBuilder<ClientOffersCubit, ClientOffersState>(
-          builder: (context, state) {
-            switch (state.status) {
-              case OffersScreenStatus.initial:
-              case OffersScreenStatus.loading:
-                return const OmdsLoadingState();
-              case OffersScreenStatus.failed:
-                return Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: Sizes.threeHundredLarge,
-                    ),
-                    child: OmdsErrorState(
-                      key: const Key('offer-load-error'),
-                      message: offersFailureCopy(
-                        l10n,
-                        state.error,
-                        phase: OffersErrorPhase.load,
-                      ),
-                      retryLabel: l10n.offersRetryAction,
-                      onRetry: () => context.read<ClientOffersCubit>().load(),
-                    ),
+        // `bottom: false` is load-bearing: consuming the bottom inset here
+        // would zero `context.scrollBodyBottomInset` and silently drop the
+        // Android nav-bar clearance under the docked footer.
+        child: SafeArea(
+          bottom: false,
+          child: BlocBuilder<ClientOffersCubit, ClientOffersState>(
+            builder: (context, state) {
+              return Column(
+                children: [
+                  JeebTopBar.back(
+                    title: l10n.offersScreenTitle,
+                    // The item title off the already-fetched request row. Null
+                    // renders one line — never a placeholder.
+                    // TODO(redesign-24): the board's subtitle also carries the
+                    // destination ("— Pharmacie du Musée"); `/v1/requests/:id`
+                    // carries no dropoff address, so it is omitted, not faked.
+                    subtitle: state.requestTitle,
+                    identifier: 'offer_review_back',
+                    // P2: this screen is a push-tap stack ROOT (`go`, not
+                    // `push`), so a bare `maybePop()` is a dead arrow on an
+                    // empty stack. Pop when we can (in-app Replies CTA entry),
+                    // else return to the shell.
+                    onLeadingPressed: () =>
+                        context.canPop() ? context.pop() : context.go('/'),
                   ),
-                );
-              case OffersScreenStatus.loaded:
-                return _LoadedBody(
-                  state: state,
-                  requestId: requestId,
-                  repository: repository,
-                  cancelRepositoryOverride: cancelRepositoryOverride,
-                  onSortChanged: (mode) =>
-                      context.read<ClientOffersCubit>().setSortMode(mode),
-                  onRefresh: () => context.read<ClientOffersCubit>().refresh(),
-                );
-            }
-          },
+                  Expanded(
+                    // One key, present in every state — the anchor the
+                    // centred-error assertion measures against.
+                    key: const Key('offer-review-content'),
+                    child: _body(context, state, l10n),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
+  }
+
+  Widget _body(
+    BuildContext context,
+    ClientOffersState state,
+    AppLocalizations l10n,
+  ) {
+    switch (state.status) {
+      case OffersScreenStatus.initial:
+      case OffersScreenStatus.loading:
+        return const OmdsLoadingState();
+      case OffersScreenStatus.failed:
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: Sizes.threeHundredLarge,
+            ),
+            child: OmdsErrorState(
+              key: const Key('offer-load-error'),
+              message: offersFailureCopy(
+                l10n,
+                state.error,
+                phase: OffersErrorPhase.load,
+              ),
+              retryLabel: l10n.offersRetryAction,
+              onRetry: () => context.read<ClientOffersCubit>().load(),
+            ),
+          ),
+        );
+      case OffersScreenStatus.loaded:
+        return _LoadedBody(
+          state: state,
+          requestId: requestId,
+          repository: repository,
+          cancelRepositoryOverride: cancelRepositoryOverride,
+          onSortChanged: (mode) =>
+              context.read<ClientOffersCubit>().setSortMode(mode),
+          onRefresh: () => context.read<ClientOffersCubit>().refresh(),
+        );
+    }
   }
 }
 
@@ -214,117 +253,141 @@ class _LoadedBody extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final CancelRequestRepository? cancelRepositoryOverride;
 
+  /// Gutter both the fixed header block and the scroll body sit on (board 24).
+  static const EdgeInsetsGeometry _gutter =
+      EdgeInsetsDirectional.symmetric(horizontal: Spacing.xLarge);
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final colors = Theme.of(context).colorScheme;
     // Request status is the action authority. A locally elapsed display
     // deadline cannot disable a server-live offer.
     final acceptDisabled = !state.requestIsOpen;
     // B-01: the id whose accept-confirm sheet is currently open/in flight (null
     // when none). Drives the accept-exactly-ONE list guard below.
     final acceptingOfferId = state.acceptingOfferId;
-    return OmdsPullToRefresh(
-      onRefresh: onRefresh,
-      child: ListView(
-        key: const Key('offer-list'),
-        padding: EdgeInsetsDirectional.fromSTEB(
-          Spacing.medium,
-          Spacing.medium,
-          Spacing.medium,
-          Spacing.xLarge + context.scrollBodyBottomInset,
-        ),
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          if (state.windowExpiresAt != null || state.requestIsExpired)
-            OfferWindowTimer(
+    final bestValueOfferId = state.bestValueOfferId;
+    final fastestOfferId = state.fastestOfferId;
+    return Column(
+      children: [
+        // ── Fixed header: strip, banners, sort bar. These used to scroll away
+        // with the list; the board keeps them pinned above it. ──────────────
+        if (state.windowExpiresAt != null || state.requestIsExpired)
+          Padding(
+            padding: _gutter.add(
+              const EdgeInsetsDirectional.only(top: Spacing.medium),
+            ),
+            child: OfferWindowTimer(
               remaining: state.windowRemaining,
               expired: state.requestIsExpired,
+              offerCount: state.offers.length,
+              progress: state.windowProgress,
             ),
-          if (!state.requestIsOpen) ...[
-            const SizedBox(height: Spacing.small),
-            _Banner(
+          ),
+        if (!state.requestIsOpen)
+          Padding(
+            padding: _gutter.add(
+              const EdgeInsetsDirectional.only(top: Spacing.small),
+            ),
+            child: JeebInfoNote.muted(
               key: const Key('offer-request-closed-banner'),
               icon: Icons.lock_outline,
-              title: l10n.offersRequestClosedTitle,
+              text: l10n.offersRequestClosedTitle,
             ),
-          ],
-          if (state.error != null) ...[
-            const SizedBox(height: Spacing.small),
-            _ErrorBanner(
-              message: offersFailureCopy(
+          ),
+        if (state.error != null)
+          Padding(
+            padding: _gutter.add(
+              const EdgeInsetsDirectional.only(top: Spacing.small),
+            ),
+            child: JeebInfoNote(
+              key: const Key('offer-error-banner'),
+              tone: JeebInfoNoteTone.error,
+              icon: Icons.error_outline,
+              text: offersFailureCopy(
                 l10n,
                 state.error!,
                 phase: state.errorSource == OffersErrorSource.load
                     ? OffersErrorPhase.load
                     : OffersErrorPhase.accept,
               ),
-              onDismiss: () =>
-                  context.read<ClientOffersCubit>().acknowledgeError(),
-            ),
-          ],
-          const SizedBox(height: Spacing.medium),
-          Text(
-            l10n.offersPanelHeader,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: Spacing.small),
-          OfferSortBar(mode: state.sortMode, onChanged: onSortChanged),
-          const SizedBox(height: Spacing.xSmall),
-          if (!state.hasOffers)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: Spacing.xLarge),
-              child: OmdsEmptyState(
-                key: const Key('offer-empty-state'),
-                icon: Icons.hourglass_top_outlined,
-                title: l10n.offersEmptyTitle,
-                subtitle: l10n.offersEmptyBody,
-              ),
-            )
-          else
-            ...state.offers.asMap().entries.map(
-              (entry) => OfferCard(
-                offer: entry.value,
-                index: entry.key,
-                // B-01: while ANY accept-confirm sheet is open (its POST may be
-                // in flight), EVERY card's Accept CTA disables so a second offer
-                // can't be accepted concurrently (double-accept). The sheet owns
-                // the in-flight spinner; the cards behind it just go inert until
-                // the sheet closes (endAccept).
-                isAccepting: false,
-                acceptDisabled: acceptDisabled || acceptingOfferId != null,
-                // Accept → JM-029 offer-accept-confirm sheet (not inline).
-                onAccept: () => _openAcceptSheet(context, entry.value),
-                // Name → jeeber-profile-reviews (JM-067).
-                onTapName: () => _openJeeberProfile(context, entry.value),
-              ),
-            ),
-          if (state.hasOffers && state.requestIsOpen) ...[
-            const SizedBox(height: Spacing.large),
-            // offer_review_cancel_cta → cancel-request-confirm sheet (JM-030).
-            // `container: true` makes this an explicit, id-addressable child of
-            // the `offer_review_list_root` node (which sets
-            // `explicitChildNodes: true`) — without it the CTA's Semantics is
-            // merged into the surrounding ListView subtree and Maestro can't
-            // resolve the identifier (W2 QA RD-3). Mirrors the offer-card CTAs
-            // (each `container: true`) and the cancel-sheet confirm CTA.
-            Semantics(
-              identifier: 'offer_review_cancel_cta',
-              container: true,
-              button: true,
-              label: l10n.offerReviewCancelCta,
-              onTap: () => _openCancelSheet(context),
-              child: ExcludeSemantics(
-                child: OmdsPrimaryButton(
-                  key: const Key('offer-review-cancel-cta'),
-                  text: l10n.offerReviewCancelCta,
-                  variant: OmdsButtonVariant.text,
-                  onTap: () => _openCancelSheet(context),
+              trailing: Semantics(
+                identifier: 'offer_review_error_dismiss_cta',
+                button: true,
+                container: true,
+                child: IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  icon: Icon(Icons.close, color: colors.onErrorContainer),
+                  onPressed: () =>
+                      context.read<ClientOffersCubit>().acknowledgeError(),
                 ),
               ),
             ),
-          ],
-        ],
-      ),
+          ),
+        Padding(
+          padding: _gutter.add(
+            const EdgeInsetsDirectional.only(top: Spacing.small),
+          ),
+          child: OfferSortBar(mode: state.sortMode, onChanged: onSortChanged),
+        ),
+        // ── The list. Top-aligned in the remaining height: >3 offers scroll,
+        // fewer leave the rest of the screen white, which is the render (R1).
+        Expanded(
+          child: OmdsPullToRefresh(
+            onRefresh: onRefresh,
+            child: ListView(
+              key: const Key('offer-list'),
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                Spacing.xLarge,
+                // Clears the recommended card's −9px "Best value" overhang.
+                Spacing.small,
+                Spacing.xLarge,
+                Spacing.medium,
+              ),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                if (!state.hasOffers)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                      top: Spacing.xLarge,
+                    ),
+                    child: OmdsEmptyState(
+                      key: const Key('offer-empty-state'),
+                      icon: Icons.hourglass_top_outlined,
+                      title: l10n.offersEmptyTitle,
+                      subtitle: l10n.offersEmptyBody,
+                    ),
+                  )
+                else
+                  ...state.offers.asMap().entries.map(
+                    (entry) => OfferCard(
+                      offer: entry.value,
+                      index: entry.key,
+                      // B-01: while ANY accept-confirm sheet is open (its POST
+                      // may be in flight), EVERY card's Accept CTA disables so a
+                      // second offer can't be accepted concurrently
+                      // (double-accept). The sheet owns the in-flight spinner;
+                      // the cards behind it just go inert until the sheet closes
+                      // (endAccept).
+                      isAccepting: false,
+                      acceptDisabled: acceptDisabled || acceptingOfferId != null,
+                      isBestValue: entry.value.id == bestValueOfferId,
+                      isFastest: entry.value.id == fastestOfferId,
+                      // Accept → JM-029 offer-accept-confirm sheet (not inline).
+                      onAccept: () => _openAcceptSheet(context, entry.value),
+                      // Name → jeeber-profile-reviews (JM-067).
+                      onTapName: () => _openJeeberProfile(context, entry.value),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        // ── Docked footer. Guard unchanged: absent on a terminal snapshot.
+        if (state.hasOffers && state.requestIsOpen)
+          _Footer(onCancel: () => _openCancelSheet(context)),
+      ],
     );
   }
 
@@ -429,80 +492,69 @@ String offersFailureCopy(
   }
 }
 
-class _Banner extends StatelessWidget {
-  const _Banner({super.key, required this.icon, required this.title});
 
-  final IconData icon;
-  final String title;
+/// The docked footer: the orange one-offer reminder over the Cancel request
+/// text CTA. Outside the scroll view, so the reminder is never scrolled past at
+/// the exact moment the customer is about to commit.
+class _Footer extends StatelessWidget {
+  const _Footer({required this.onCancel});
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(Spacing.small),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-        borderRadius: OmdsBorderRadius.small,
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: colors.onSurface),
-          const SizedBox(width: Spacing.small),
-          Expanded(
-            child: Text(
-              title,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: colors.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message, required this.onDismiss});
-
-  final String message;
-  final VoidCallback onDismiss;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    return Container(
-      key: const Key('offer-error-banner'),
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.small,
-        vertical: Spacing.small,
+    final l10n = AppLocalizations.of(context);
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      key: const Key('offer-review-footer'),
+      padding: EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        0,
+        Spacing.xLarge,
+        // Reads MediaQuery.viewPadding, so the Android nav-bar clearance is
+        // real on 3-button navigation and zero where an ancestor already
+        // consumed it.
+        Spacing.twoXLarge + context.scrollBodyBottomInset,
       ),
-      decoration: BoxDecoration(
-        color: colors.errorContainer,
-        borderRadius: OmdsBorderRadius.small,
-      ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, color: colors.onErrorContainer),
-          const SizedBox(width: Spacing.small),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.onErrorContainer,
-              ),
-            ),
-          ),
           Semantics(
-            identifier: 'offer_review_error_dismiss_cta',
-            button: true,
+            identifier: 'offer_review_only_one_note',
             container: true,
-            child: IconButton(
-              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-              icon: Icon(Icons.close, color: colors.onErrorContainer),
-              onPressed: onDismiss,
+            child: Text(
+              l10n.chatOfferAcceptOnlyOne,
+              textAlign: TextAlign.center,
+              style: context.jeebText.bodySmall.copyWith(
+                fontWeight: FontWeight.w700,
+                // The screen's only orange text — §4.1 rations the accent to
+                // this line and the Best value badge.
+                color: context.jeebRoles.accent,
+              ),
+            ),
+          ),
+          const SizedBox(height: Spacing.small),
+          // offer_review_cancel_cta → cancel-request-confirm sheet (JM-030).
+          // `container: true` makes this an explicit, id-addressable child of
+          // the `offer_review_list_root` node (which sets
+          // `explicitChildNodes: true`) — without it the CTA's Semantics is
+          // merged into the surrounding subtree and Maestro can't resolve the
+          // identifier (W2 QA RD-3). Mirrors the offer-card CTAs (each
+          // `container: true`) and the cancel-sheet confirm CTA.
+          Semantics(
+            identifier: 'offer_review_cancel_cta',
+            container: true,
+            button: true,
+            label: l10n.offerReviewCancelCta,
+            onTap: onCancel,
+            child: ExcludeSemantics(
+              child: OmdsPrimaryButton(
+                key: const Key('offer-review-cancel-cta'),
+                text: l10n.offerReviewCancelCta,
+                variant: OmdsButtonVariant.text,
+                textColor: colors.onSurfaceVariant,
+                onTap: onCancel,
+              ),
             ),
           ),
         ],

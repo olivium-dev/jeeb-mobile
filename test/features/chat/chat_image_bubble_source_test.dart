@@ -149,17 +149,15 @@ void main() {
       await tester.pump();
 
       expect(find.byType(OmdsCachedImage), findsOneWidget);
-      // PRE-EXISTING (not introduced here, and not on any P4/P5 path): the
-      // bubble hands OmdsCachedImage no width/height, and its loading shimmer
-      // is an unconstrained Container, so under the bubble's
-      // `mainAxisSize: min` Column it asserts "BoxConstraints forces an
-      // infinite height" while the network image is still pending. Chat
-      // attachments are object_refs or local bytes and never take this branch;
-      // the http branch exists only for legacy/external URLs. Consumed
-      // explicitly so this test asserts the ROUTING decision (its actual
-      // subject) without silently swallowing anything else. Filed as an OMDS
-      // follow-up.
-      expect(tester.takeException(), isNotNull);
+      // WAS a documented pre-existing defect, now FIXED by the redesign-2026-08
+      // bubble: the old bubble handed OmdsCachedImage no width/height, and its
+      // loading shimmer is an unconstrained Container, so under the bubble's
+      // `mainAxisSize: min` Column it asserted "BoxConstraints forces an
+      // infinite height" while the network image was still pending. The kit's
+      // media slot draws a MEASURED 120×74 tile, so the shimmer is bounded and
+      // the pending frame no longer throws. Asserted (not merely dropped) so a
+      // regression to an unbounded tile reds this test.
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('an empty url is the placeholder (the legacy `photo` decode)',

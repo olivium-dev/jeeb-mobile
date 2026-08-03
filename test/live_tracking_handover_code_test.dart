@@ -8,8 +8,10 @@ import 'dart:async';
 //  2. At-door: the code renders PROMINENTLY inline in the OtpAtDoorCard
 //     (large glyphs + "Share this code with your Jeeber when they arrive"),
 //     with the "Show OTP" CTA still present.
-//  3. Pre-at-door: a discoverable-but-quiet "Delivery code" row shows the
-//     code from accept time onward.
+//  3. Pre-at-door: a discoverable-but-quiet door-code row shows the code from
+//     accept time onward. (redesign-2026-08: the visible label is now the
+//     board's "Door code — share only at handoff"; the a11y label on
+//     `tracking_handover_code_row` is still `trackingCodeChipLabel`.)
 //  4. Without a locally-known code both surfaces degrade gracefully (no row,
 //     the pre-fix at-door copy) — the OTP screen then owns the honest SMS
 //     fallback.
@@ -175,7 +177,7 @@ void main() {
 
   group('Pre-at-door discoverability (G4)', () {
     testWidgets(
-        'InTransit + known code → compact "Delivery code" row with the code',
+        'InTransit + known code → compact door-code row with the code',
         (tester) async {
       when(() =>
               repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
@@ -188,7 +190,7 @@ void main() {
 
       expect(find.byKey(const Key('tracking.codeRowValue')), findsOneWidget);
       expect(find.text('1234'), findsOneWidget);
-      expect(find.text('Delivery code'), findsOneWidget);
+      expect(find.text('Door code — share only at handoff'), findsOneWidget);
       // Not the at-door card (that is the prominent surface).
       expect(find.byKey(const Key('tracking.atDoorCode')), findsNothing);
       await cubit.close();
@@ -217,7 +219,7 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('tracking.codeRowValue')), findsOneWidget);
-      expect(find.text('Delivery code'), findsOneWidget);
+      expect(find.text('Door code — share only at handoff'), findsOneWidget);
       expect(find.text('Show OTP'), findsOneWidget);
       await cubit.close();
     });

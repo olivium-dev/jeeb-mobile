@@ -1,37 +1,62 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_chat_bubble.dart';
+import '../../../../core/widgets/jeeb/jeeb_waveform.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_chat_message.dart';
+import '../chat_redesign_l10n.dart';
 import 'auto_direction_text.dart';
-import 'chat_bubble_timestamp.dart';
 import 'system_message_bubble.dart';
 
-/// Single message row.
+/// Single message row — the redesign-2026-08 screen-21 thread bubble.
 ///
-/// Bubble alignment is **directional**: the sender's own bubble sits on the
-/// trailing edge and the counterpart's on the leading edge, expressed with
-/// `AlignmentDirectional` + `BorderRadiusDirectional` so the whole row
-/// mirrors with the ambient locale (Figma `design-spec.md` §4/§7-10 mandate a
-/// full RTL mirror: self moves to the LEFT and incoming to the RIGHT in
-/// Arabic). The text **inside** the bubble still picks its own direction from
-/// the first strong-directional character ([AutoDirectionText]) so Arabic and
-/// English content read naturally within the same conversation — the
-/// WhatsApp behaviour the ticket calls for. The time → ticks meta row is the
-/// single deliberately LTR island (see [_BubbleFooter]).
+/// Geometry (the `18/18/18/6` directional tail, the 78% ceiling, the `11/14`
+/// padding, the meta line, the Ø32 play disc and the 120×74 photo tile) is
+/// **kit-owned** by [JeebChatBubble] / [JeebChatMedia]. This widget owns only
+/// what belongs to the message: the frozen identifiers and keys, the per-kind
+/// routing, the image source precedence, and the a11y sentences.
+///
+/// Bubble alignment stays **directional** (`AlignmentDirectional` +
+/// `BorderRadiusDirectional`, both inside the kit), so the row mirrors with the
+/// ambient locale. The text INSIDE the bubble still picks its own direction
+/// from the first strong-directional character ([AutoDirectionText]) so Arabic
+/// and English content read naturally within one conversation; it is passed as
+/// `child:` with **no style**, because the kit installs the body ramp.
+///
+/// Two deliberate divergences from the pre-redesign bubble, both from the
+/// board:
+///   * the **incoming** bubble now carries its timestamp (the render draws
+///     `9:24`), reversing the documented D3 decision;
+///   * the **read** state is the localized WORD after a `·`, never a
+///     double blue tick — `JeebSemanticColors.readTick` is banned.
 ///
 /// Per-kind routing:
-///   text             → [_TextBubble]
-///   photo            → [_PhotoBubble] (legacy MVP in-memory bytes)
-///   image            → [_ImageBubble] (CDN URL)
-///   voice            → [_VoiceBubble] (placeholder waveform + play)
-///   location         → [_LocationBubble]
-///   system/accepted  → [SystemMessageBubble] (center chip)
+///   text             → text bubble
+///   photo            → photo tile (legacy MVP in-memory bytes)
+///   image            → photo tile (CDN URL)
+///   voice            → inert play disc + waveform (no audio player exists)
+///   location         → icon + text shell
+///   system/accepted  → [SystemMessageBubble] (centred chip)
 ///   offerCard        → handled by `ChatScreen` directly, never reaches here.
 class ChatMessageBubble extends StatelessWidget {
-  const ChatMessageBubble({super.key, required this.message});
+  const ChatMessageBubble({
+    super.key,
+    required this.message,
+    this.clustered = false,
+  });
 
   final DeliveryChatMessage message;
+
+  /// True when the previous row is a message from the SAME author, in which
+  /// case the rows tighten into one visual block. This is how the board's
+  /// single "voice + photo" bubble is rendered honestly: the wire carries two
+  /// messages (`MessageKind` is one-of), so we draw two bubbles and cluster
+  /// them rather than faking a bubble that could hold both.
+  final bool clustered;
 
   @override
   Widget build(BuildContext context) {
@@ -41,28 +66,29 @@ class ChatMessageBubble extends StatelessWidget {
     // `container: true` + `explicitChildNodes: true` make the per-message
     // wrapper a Semantics *boundary*. Without it the outer
     // `chat_detail_message_<id>` node auto-merges its descendants and swallows
-    // the read double-tick's `chat_detail_message_read` identifier, so neither
+    // the status node's `chat_detail_message_read` identifier, so neither
     // Maestro nor a screen reader can address the read-receipt independently.
-    // The boundary keeps the per-message id AND surfaces the inner read id as
+    // The boundary keeps the per-message id AND surfaces the inner status id as
     // its own queryable node.
     return Semantics(
       identifier: 'chat_detail_message_${message.id}',
       container: true,
       explicitChildNodes: true,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.medium,
-          vertical: Spacing.twoXSmall,
+        // The board's 24 gutter (html:31); a clustered row halves its top gap.
+        padding: EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          clustered ? Sizes.threeXSmall : Spacing.twoXSmall,
+          Spacing.xLarge,
+          Spacing.twoXSmall,
         ),
-        child: _bodyFor(message),
+        child: _bodyFor(context, message),
       ),
     );
   }
 
-  Widget _bodyFor(DeliveryChatMessage message) {
+  Widget _bodyFor(BuildContext context, DeliveryChatMessage message) {
     switch (message.kind) {
-      case MessageKind.text:
-        return _TextBubble(message: message);
       case MessageKind.photo:
         return _PhotoBubble(message: message);
       case MessageKind.image:
@@ -71,6 +97,7 @@ class ChatMessageBubble extends StatelessWidget {
         return _VoiceBubble(message: message);
       case MessageKind.location:
         return _LocationBubble(message: message);
+      case MessageKind.text:
       case MessageKind.system:
       case MessageKind.offerCard:
       case MessageKind.offerAccepted:
@@ -83,81 +110,80 @@ class ChatMessageBubble extends StatelessWidget {
   }
 }
 
-/// Shared bubble shell for every message kind.
+/// Which side of the thread [message] belongs to.
+JeebChatBubbleSide _sideOf(DeliveryChatMessage message) => message.isMine
+    ? JeebChatBubbleSide.outgoing
+    : JeebChatBubbleSide.incoming;
+
+/// The formatted clock for [message], or null when the server never dated it.
 ///
-/// Owns the three things that must be identical (and directional) across all
-/// bubble variants: the leading/trailing alignment, the 70%-max-width
-/// constraint, and the tail-corner radius. Using [AlignmentDirectional] and
-/// [BorderRadiusDirectional] makes the sender bubble hug the trailing edge
-/// and the counterpart bubble hug the leading edge — so the row mirrors
-/// automatically in RTL (Arabic: self → left, incoming → right) per the
-/// Figma spec, instead of being edge-locked with `Alignment.centerRight`.
-class _DirectionalBubble extends StatelessWidget {
-  const _DirectionalBubble({
-    required this.isSender,
-    required this.color,
-    required this.bubbleKey,
-    required this.padding,
-    required this.child,
-    this.symmetricRadius = false,
-  });
+/// An undated row gets NO clock, ever: its ordering anchor sits in 1970 and
+/// rendering `00:00` over a live thread is a fabrication
+/// (`chat_undated_band_contract_test`).
+String? _timeOf(BuildContext context, DeliveryChatMessage message) {
+  if (!message.hasServerTimestamp) return null;
+  final String locale = Localizations.localeOf(context).toLanguageTag();
+  return DateFormat.Hm(locale).format(message.sentAt);
+}
 
-  final bool isSender;
-  final Color color;
-  final Key bubbleKey;
-  final EdgeInsetsGeometry padding;
-  final Widget child;
-
-  /// When true, all corners share the same radius (media/voice/location
-  /// bubbles have no asymmetric tail in the Figma frame).
-  final bool symmetricRadius;
-
-  /// Design-spec §4 "~70% of available width max" ceiling. No OMDS
-  /// fractional-width token exists yet (flag F-CHAT-3); kept as the single
-  /// file-scoped source of truth instead of a bare inline literal so the
-  /// value is named, reviewable, and shared across every bubble kind.
-  static const double _bubbleMaxWidthFraction = 0.7;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: isSender
-          ? AlignmentDirectional.centerEnd
-          : AlignmentDirectional.centerStart,
-      child: ConstrainedBox(
-        // Shrink-to-content with a ~70% ceiling (design-spec §4). OMDS has no
-        // fractional-width token (pilot learning #9 / flag F-CHAT-3), so the
-        // ceiling is derived from the brand bubble-width fraction below.
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * _bubbleMaxWidthFraction,
-        ),
-        child: Container(
-          key: bubbleKey,
-          decoration: BoxDecoration(color: color, borderRadius: _radius),
-          padding: padding,
-          child: child,
-        ),
-      ),
-    );
+/// The delivery status node for an OUTGOING message.
+///
+/// Counterpart bubbles return null — they carry a time and never a status
+/// (there is no read-receipt to report about someone else's message). All five
+/// identifiers and their existing a11y labels are unchanged; only `read` swaps
+/// its double-tick Icon for the localized word.
+JeebChatStatus? _statusOf(BuildContext context, DeliveryChatMessage message) {
+  if (!message.isMine) return null;
+  final l10n = AppLocalizations.of(context);
+  final Key nodeKey = Key('chat-status-${message.id}');
+  switch (message.status) {
+    case MessageStatus.sending:
+      return JeebChatStatus.icon(
+        Icons.access_time,
+        identifier: 'chat_detail_message_sending',
+        semanticLabel: l10n.chatMessageSendingA11y,
+        nodeKey: nodeKey,
+      );
+    case MessageStatus.sent:
+      return JeebChatStatus.icon(
+        Icons.done,
+        identifier: 'chat_detail_message_sent',
+        semanticLabel: l10n.chatMessageSentA11y,
+        nodeKey: nodeKey,
+      );
+    case MessageStatus.delivered:
+      return JeebChatStatus.icon(
+        Icons.done_all,
+        identifier: 'chat_detail_message_delivered',
+        semanticLabel: l10n.chatMessageDeliveredA11y,
+        nodeKey: nodeKey,
+      );
+    case MessageStatus.read:
+      return JeebChatStatus.text(
+        ChatRedesignL10n.of(context).messageReadLabel,
+        identifier: 'chat_detail_message_read',
+        semanticLabel: l10n.chatMessageReadA11y,
+        nodeKey: nodeKey,
+      );
+    case MessageStatus.failed:
+      return JeebChatStatus.icon(
+        Icons.error_outline,
+        iconColor: Theme.of(context).colorScheme.error,
+        identifier: 'chat_detail_message_failed',
+        semanticLabel: l10n.chatMessageFailedA11y,
+        nodeKey: nodeKey,
+      );
   }
+}
 
-  /// Tail at the bottom-trailing corner for the sender, bottom-leading for the
-  /// counterpart — expressed start/end so it mirrors in RTL. The previous
-  /// non-directional `BorderRadius.only(bottomLeft/Right)` kept the tail on a
-  /// fixed physical side and so failed to mirror.
-  BorderRadiusDirectional get _radius {
-    const tail = Radius.circular(Spacing.twoXSmall);
-    const round = Radius.circular(Spacing.small);
-    if (symmetricRadius) {
-      return const BorderRadiusDirectional.all(round);
-    }
-    return BorderRadiusDirectional.only(
-      topStart: round,
-      topEnd: round,
-      bottomStart: isSender ? round : tail,
-      bottomEnd: isSender ? tail : round,
-    );
-  }
+String _authorLabel(DeliveryChatMessage message) =>
+    message.isMine ? 'You' : 'Jeeber';
+
+String _formatDuration(int ms) {
+  final int totalSeconds = (ms / 1000).round();
+  final int minutes = (totalSeconds / 60).floor();
+  final int seconds = totalSeconds % 60;
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
 }
 
 class _TextBubble extends StatelessWidget {
@@ -167,35 +193,13 @@ class _TextBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final isSender = message.isMine;
-    final bubbleColor = isSender
-        ? colorScheme.primary
-        : colorScheme.surfaceContainerHigh;
-    final textColor = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
-
-    return _DirectionalBubble(
-      isSender: isSender,
-      color: bubbleColor,
+    return JeebChatBubble(
+      side: _sideOf(message),
+      time: _timeOf(context, message),
+      status: _statusOf(context, message),
       bubbleKey: Key('chat-bubble-${message.id}'),
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.medium,
-        Spacing.medium,
-        Spacing.medium,
-        Spacing.twoXSmall,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AutoDirectionText(
-            message.text,
-            style: textTheme.bodyLarge?.copyWith(color: textColor),
-          ),
-          _BubbleFooter(message: message, color: textColor, isSender: isSender),
-        ],
-      ),
+      // No style: the kit installs the body ramp and the side's ink.
+      child: AutoDirectionText(message.text),
     );
   }
 }
@@ -207,63 +211,30 @@ class _PhotoBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final isSender = message.isMine;
-    final bubbleColor = isSender
-        ? colorScheme.primary
-        : colorScheme.surfaceContainerHigh;
-    final onBubble = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
-    final authorLabel = isSender ? 'You' : 'Jeeber';
     final l10n = AppLocalizations.of(context);
-    final bubble = _DirectionalBubble(
-      isSender: isSender,
-      color: bubbleColor,
-      bubbleKey: Key('chat-photo-${message.id}'),
-      padding: const EdgeInsets.all(Spacing.twoXSmall),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipRRect(
-            borderRadius: OmdsBorderRadius.xSmall,
-            // P4/P5: `photoBytes!` crashed on a bytes-less `photo` row, and
-            // `Image.memory` had no `errorBuilder`, so undecodable bytes threw
-            // an `ErrorWidget` into the thread. Both degrade to the placeholder.
-            child: (message.photoBytes?.isNotEmpty ?? false)
-                ? Image.memory(
-                    message.photoBytes!,
-                    fit: BoxFit.cover,
-                    gaplessPlayback: true,
-                    errorBuilder: (_, _, _) => _ImagePlaceholder(color: onBubble),
-                  )
-                : _ImagePlaceholder(color: onBubble),
-          ),
-          if (message.text.isNotEmpty)
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                Spacing.twoXSmall,
-                Spacing.twoXSmall,
-                Spacing.twoXSmall,
-                0,
-              ),
-              child: AutoDirectionText(
-                message.text,
-                style: textTheme.bodyMedium?.copyWith(color: onBubble),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(Spacing.twoXSmall),
-            child: _BubbleFooter(
-              message: message,
-              color: onBubble,
-              isSender: isSender,
-            ),
-          ),
-        ],
+    final Uint8List? bytes = message.photoBytes;
+    // P4/P5: `photoBytes!` crashed on a bytes-less `photo` row, and
+    // `Image.memory` had no `errorBuilder`, so undecodable bytes threw an
+    // `ErrorWidget` into the thread. Both degrade to the placeholder.
+    final Widget? photo = (bytes != null && bytes.isNotEmpty)
+        ? Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => const _TilePlaceholder(),
+          )
+        : null;
+    return Semantics(
+      label: l10n.chatPhotoA11y(_authorLabel(message)),
+      child: JeebChatBubble(
+        side: _sideOf(message),
+        media: JeebChatMedia.photo(photo: photo),
+        time: _timeOf(context, message),
+        status: _statusOf(context, message),
+        bubbleKey: Key('chat-photo-${message.id}'),
+        child: message.text.isEmpty ? null : AutoDirectionText(message.text),
       ),
     );
-    return Semantics(label: l10n.chatPhotoA11y(authorLabel), child: bubble);
   }
 }
 
@@ -274,102 +245,65 @@ class _ImageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final isSender = message.isMine;
-    final bubbleColor = isSender
-        ? colorScheme.primary
-        : colorScheme.surfaceContainerHigh;
-    final onBubble = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
-    final authorLabel = isSender ? 'You' : 'Jeeber';
     final l10n = AppLocalizations.of(context);
-    final bubble = _DirectionalBubble(
-      isSender: isSender,
-      color: bubbleColor,
-      symmetricRadius: true,
-      bubbleKey: Key('chat-image-${message.id}'),
-      padding: const EdgeInsets.all(Spacing.twoXSmall),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipRRect(
-            borderRadius: OmdsBorderRadius.xSmall,
-            child: _imageContent(message, onBubble),
-          ),
-          if (message.text.isNotEmpty)
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                Spacing.twoXSmall,
-                Spacing.twoXSmall,
-                Spacing.twoXSmall,
-                0,
-              ),
-              child: AutoDirectionText(
-                message.text,
-                style: textTheme.bodyMedium?.copyWith(color: onBubble),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(Spacing.twoXSmall),
-            child: _BubbleFooter(
-              message: message,
-              color: onBubble,
-              isSender: isSender,
-            ),
-          ),
-        ],
+    return Semantics(
+      label: l10n.chatImageA11y(_authorLabel(message)),
+      child: JeebChatBubble(
+        side: _sideOf(message),
+        media: JeebChatMedia.photo(photo: _imageContent(message)),
+        time: _timeOf(context, message),
+        status: _statusOf(context, message),
+        bubbleKey: Key('chat-image-${message.id}'),
+        child: message.text.isEmpty ? null : AutoDirectionText(message.text),
       ),
     );
-    return Semantics(label: l10n.chatImageA11y(authorLabel), child: bubble);
   }
 
-  /// P4/P5 source precedence. Local bytes WIN — the sender's own just-captured
-  /// frame, or a peer image already resolved through the authenticated CDN read
-  /// proxy — so the photo renders with no round trip and no blink.
+  /// P4/P5 source precedence — UNCHANGED. Local bytes WIN: the sender's own
+  /// just-captured frame, or a peer image already resolved through the
+  /// authenticated CDN read proxy, so the photo renders with no round trip and
+  /// no blink.
   ///
   /// A bare [DeliveryChatMessage.imageUrl] is a CDN `object_ref`
   /// (`chat_attachment/<guid>.jpg`), NOT a fetchable URL: handing it to
   /// [OmdsCachedImage] would issue a doomed unauthenticated GET. Only an
   /// ABSOLUTE http(s) value (a legacy/external image) is passed through.
-  Widget _imageContent(DeliveryChatMessage message, Color onBubble) {
-    final bytes = message.photoBytes;
+  /// Null falls through to the kit's placeholder tile.
+  Widget? _imageContent(DeliveryChatMessage message) {
+    final Uint8List? bytes = message.photoBytes;
     if (bytes != null && bytes.isNotEmpty) {
       return Image.memory(
         bytes,
         fit: BoxFit.cover,
         gaplessPlayback: true,
-        errorBuilder: (_, _, _) => _ImagePlaceholder(color: onBubble),
+        errorBuilder: (_, _, _) => const _TilePlaceholder(),
       );
     }
-    final url = message.imageUrl ?? '';
+    final String url = message.imageUrl ?? '';
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return OmdsCachedImage(
         url: url,
         fit: BoxFit.cover,
-        errorWidget: (_, _, _) => _ImagePlaceholder(color: onBubble),
+        errorWidget: (_, _, _) => const _TilePlaceholder(),
       );
     }
-    return _ImagePlaceholder(color: onBubble);
+    return null;
   }
 }
 
-class _ImagePlaceholder extends StatelessWidget {
-  const _ImagePlaceholder({required this.color});
-
-  final Color color;
+/// The degraded state of a resolved image: the SAME glyph the kit's photo tile
+/// draws when no image was resolved at all, so an undecodable frame and a
+/// missing one look identical instead of one of them going blank.
+class _TilePlaceholder extends StatelessWidget {
+  const _TilePlaceholder();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: Sizes.fiveXLarge * 3,
-      height: Sizes.fiveXLarge * 2,
-      alignment: Alignment.center,
-      color: color.withValues(alpha: UIConstants.opacityLow),
+    return Center(
       child: Icon(
         Icons.image_outlined,
-        size: Sizes.threeXLarge,
-        color: color.withValues(alpha: UIConstants.opacityMedium),
+        size: JeebChatMedia.photoGlyphSize,
+        color: Theme.of(context).colorScheme.onSecondaryContainer,
       ),
     );
   }
@@ -382,112 +316,46 @@ class _VoiceBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isSender = message.isMine;
-    final bubbleColor = isSender
-        ? colorScheme.primary
-        : colorScheme.surfaceContainerHigh;
-    final onBubble = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
-    final durationSecs = ((message.voiceDurationMs ?? 0) / 1000).round();
-    final authorLabel = isSender ? 'You' : 'Jeeber';
     final l10n = AppLocalizations.of(context);
+    final int durationSecs = ((message.voiceDurationMs ?? 0) / 1000).round();
+    final String? transcription = message.voiceTranscription;
     return Semantics(
-      label: l10n.chatVoiceNoteA11y(authorLabel, durationSecs),
-      child: _DirectionalBubble(
-        isSender: isSender,
-        color: bubbleColor,
-        symmetricRadius: true,
+      label: l10n.chatVoiceNoteA11y(_authorLabel(message), durationSecs),
+      child: JeebChatBubble(
+        side: _sideOf(message),
+        media: JeebChatMedia.voice(
+          waveform: const JeebWaveform.inBubble(),
+          label: _formatDuration(message.voiceDurationMs ?? 0),
+          // B-04: no audio player exists anywhere in the app. The disc renders
+          // inert, with no Semantics and no identifier — an id on a permanent
+          // no-op is the defect class B-04 was raised for.
+          onPlay: null,
+        ),
+        time: _timeOf(context, message),
+        status: _statusOf(context, message),
         bubbleKey: Key('chat-voice-${message.id}'),
-        padding: const EdgeInsetsDirectional.fromSTEB(
-          Spacing.medium,
-          Spacing.small,
-          Spacing.medium,
-          Spacing.twoXSmall,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _VoicePlayerRow(message: message, onBubble: onBubble),
-            if (message.voiceTranscription != null)
-              _TranscriptionText(
-                text: message.voiceTranscription!,
-                color: onBubble,
-              ),
-            _BubbleFooter(
-              message: message,
-              color: onBubble,
-              isSender: isSender,
-            ),
-          ],
-        ),
+        child: transcription == null
+            ? null
+            : _TranscriptionText(text: transcription),
       ),
     );
-  }
-}
-
-class _VoicePlayerRow extends StatelessWidget {
-  const _VoicePlayerRow({required this.message, required this.onBubble});
-
-  final DeliveryChatMessage message;
-  final Color onBubble;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Row(
-      children: [
-        Icon(Icons.play_arrow_rounded, color: onBubble),
-        const SizedBox(width: Spacing.xSmall),
-        Expanded(
-          child: Container(
-            height: Sizes.twoXSmall,
-            decoration: BoxDecoration(
-              color: onBubble.withValues(alpha: UIConstants.opacityLow),
-              borderRadius: OmdsBorderRadius.pill,
-            ),
-          ),
-        ),
-        const SizedBox(width: Spacing.xSmall),
-        Text(
-          _formatDuration(message.voiceDurationMs ?? 0),
-          style: textTheme.labelMedium?.copyWith(color: onBubble),
-        ),
-      ],
-    );
-  }
-
-  String _formatDuration(int ms) {
-    final totalSeconds = (ms / 1000).round();
-    final minutes = (totalSeconds / 60).floor();
-    final seconds = totalSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }
 
 class _TranscriptionText extends StatelessWidget {
-  const _TranscriptionText({required this.text, required this.color});
+  const _TranscriptionText({required this.text});
 
   final String text;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final l10n = AppLocalizations.of(context);
-    final display = text == '__unavailable__'
+    final String display = text == '__unavailable__'
         ? l10n.chatVoiceNoteTranscriptionUnavailable
         : l10n.chatVoiceNoteTranscription(text);
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: Spacing.twoXSmall),
-      child: Text(
-        display,
-        style: textTheme.bodySmall?.copyWith(
-          color: color.withValues(alpha: UIConstants.opacityHigh),
-          fontStyle: FontStyle.italic,
-        ),
-      ),
-    );
+    // No colour: the bubble's DefaultTextStyle already carries the side's ink,
+    // so italics is the only override.
+    return Text(display, style: const TextStyle(fontStyle: FontStyle.italic));
   }
 }
 
@@ -498,151 +366,28 @@ class _LocationBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final isSender = message.isMine;
-    final bubbleColor = isSender
-        ? colorScheme.primary
-        : colorScheme.surfaceContainerHigh;
-    final onBubble = isSender ? colorScheme.onPrimary : colorScheme.onSurface;
-    return _DirectionalBubble(
-      isSender: isSender,
-      color: bubbleColor,
-      symmetricRadius: true,
+    final Color ink = JeebChatBubble.bodyInkOf(context, _sideOf(message));
+    return JeebChatBubble(
+      side: _sideOf(message),
+      time: _timeOf(context, message),
+      status: _statusOf(context, message),
       bubbleKey: Key('chat-location-${message.id}'),
-      padding: const EdgeInsets.all(Spacing.medium),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Icon(Icons.location_on_rounded, color: onBubble),
-              const SizedBox(width: Spacing.xSmall),
-              Expanded(
-                child: Text(
-                  message.text.isEmpty
-                      ? '${message.latitude?.toStringAsFixed(4)}, ${message.longitude?.toStringAsFixed(4)}'
-                      : message.text,
-                  style: textTheme.bodyMedium?.copyWith(color: onBubble),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+          Icon(Icons.location_on_rounded, size: Sizes.large, color: ink),
+          const SizedBox(width: Spacing.xSmall),
+          Flexible(
+            child: Text(
+              message.text.isEmpty
+                  ? '${message.latitude?.toStringAsFixed(4)}, ${message.longitude?.toStringAsFixed(4)}'
+                  : message.text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          const SizedBox(height: Spacing.xSmall),
-          _BubbleFooter(message: message, color: onBubble, isSender: isSender),
         ],
       ),
     );
-  }
-}
-
-/// Time + read-receipt row pinned to the bottom-trailing corner of the bubble.
-///
-/// Only the **sender's** bubble carries the meta row: Figma node 56560:1605
-/// leaves the incoming (counterpart) bubble's timestamp slot empty, so the
-/// counterpart footer collapses to nothing (D3 fix). The row owns its own top
-/// gap so suppressing it leaves no orphan spacing, and is laid out LTR so the
-/// order is always "time → ticks" regardless of the surrounding locale.
-class _BubbleFooter extends StatelessWidget {
-  const _BubbleFooter({
-    required this.message,
-    required this.color,
-    required this.isSender,
-  });
-
-  final DeliveryChatMessage message;
-  final Color color;
-  final bool isSender;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!isSender) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: Spacing.twoXSmall),
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ChatBubbleTimestamp(
-              sentAt: message.sentAt,
-              hasServerTimestamp: message.hasServerTimestamp,
-              color: color.withValues(alpha: UIConstants.opacityHigh),
-            ),
-            const SizedBox(width: Spacing.twoXSmall),
-            _StatusIcon(
-              key: Key('chat-status-${message.id}'),
-              status: message.status,
-              color: color,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Status tick that mirrors WhatsApp's convention:
-///   sending   → clock
-///   sent      → single gray tick
-///   delivered → double gray ticks
-///   read      → double blue ticks
-///   failed    → red error glyph
-class _StatusIcon extends StatelessWidget {
-  const _StatusIcon({super.key, required this.status, required this.color});
-
-  final MessageStatus status;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    switch (status) {
-      case MessageStatus.sending:
-        return Semantics(
-          identifier: 'chat_detail_message_sending',
-          label: AppLocalizations.of(context).chatMessageSendingA11y,
-          child: Icon(
-            Icons.access_time,
-            size: Sizes.medium,
-            color: color.withValues(alpha: UIConstants.opacityMedium),
-          ),
-        );
-      case MessageStatus.sent:
-        return Semantics(
-          identifier: 'chat_detail_message_sent',
-          label: AppLocalizations.of(context).chatMessageSentA11y,
-          child: Icon(Icons.done, size: Sizes.medium, color: color),
-        );
-      case MessageStatus.delivered:
-        return Semantics(
-          identifier: 'chat_detail_message_delivered',
-          label: AppLocalizations.of(context).chatMessageDeliveredA11y,
-          child: Icon(Icons.done_all, size: Sizes.medium, color: color),
-        );
-      case MessageStatus.read:
-        return Semantics(
-          identifier: 'chat_detail_message_read',
-          label: AppLocalizations.of(context).chatMessageReadA11y,
-          child: Icon(
-            Icons.done_all,
-            size: Sizes.medium,
-            color: context.omdsColorTokens.infoColor,
-          ),
-        );
-      case MessageStatus.failed:
-        return Semantics(
-          identifier: 'chat_detail_message_failed',
-          label: AppLocalizations.of(context).chatMessageFailedA11y,
-          child: Icon(
-            Icons.error_outline,
-            size: Sizes.medium,
-            color: Theme.of(context).colorScheme.error,
-          ),
-        );
-    }
   }
 }

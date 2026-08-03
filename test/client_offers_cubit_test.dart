@@ -38,7 +38,12 @@ ClientOffersCubit _buildCubit({
 
 void main() {
   group('ClientOffersCubit — initial load', () {
-    test('emits loaded snapshot sorted by price (default)', () async {
+    // PRODUCT CHANGE (redesign-2026-08 screen 11): the default sort is the
+    // composite `best` ranking, not `byPrice`. This test is the documentation
+    // of that change. The ORDER below is unchanged because these three offers
+    // tie on rating and ETA, which leaves fee as the only discriminator — the
+    // new default degrades to the old one exactly when nothing else differs.
+    test('emits loaded snapshot sorted by best value (default)', () async {
       final offers = [
         buildOffer(id: 'a', fee: 30),
         buildOffer(id: 'b', fee: 10),
@@ -50,12 +55,12 @@ void main() {
       await cubit.load();
 
       expect(cubit.state.status, OffersScreenStatus.loaded);
-      expect(cubit.state.sortMode, OfferSortMode.byPrice);
+      expect(cubit.state.sortMode, OfferSortMode.best);
       expect(cubit.state.offers.map((o) => o.id).toList(), [
         'b',
         'c',
         'a',
-      ], reason: 'price asc');
+      ], reason: 'rating and ETA tie, so the composite falls back to fee asc');
       expect(cubit.state.requestIsOpen, isTrue);
     });
 
@@ -150,7 +155,7 @@ void main() {
       await cubit.load();
       final snapshot = cubit.state;
 
-      cubit.setSortMode(OfferSortMode.byPrice);
+      cubit.setSortMode(OfferSortMode.best);
       expect(cubit.state, snapshot);
     });
   });

@@ -4,8 +4,19 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/formatting/money_format.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
-import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_shadows.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../offline_mode/application/offline_cubit.dart';
 import '../application/wallet_hub_cubit.dart';
 import '../application/wallet_hub_state.dart';
@@ -38,6 +49,13 @@ import 'wallet_hub_l10n.dart';
 ///   routes are registered (app_router.dart), so these are HONEST edges. They
 ///   were GUARDED coming-soon during W3 (the W3-era `_comingSoon` notice) until
 ///   the JM-052/055 routes landed; this swap closes that residual.
+///
+/// Redesign-24 (`docs/redesign-2026-08/per-screen-revised/23-wallet.md`): a
+/// restyle, not a rewrite — same data, same route, same block order, all 11
+/// identifiers unmoved. Five bands over a deliberately empty lower third:
+/// navy balance hero → affordability note → outlined reserve note → inline CTA
+/// + orange fee link → grouped exits card, with the trust line docked at the
+/// bottom of the viewport.
 ///
 /// Data: reads the Jeeber wallet snapshot via `sl<WalletRepository>()` — the
 /// INTEGRATOR-STUB until W1m (`GET /v1/jeeb/wallet`) lands + DI repoints to
@@ -80,35 +98,52 @@ class _WalletHubView extends StatelessWidget {
       identifier: 'wallet_hub_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
-          title: copy.title,
-          showBackButton: true,
-          // The wallet chip reaches this hub via stack-REPLACING `goNamed(
-          // 'wallet')`, so there is usually nothing to pop. Pop when we can
-          // (pushed entry), else return to the shell — never pop the last page
-          // (which would leave an empty Navigator → black surface).
-          onBackPressed: () =>
-              context.canPop() ? context.pop() : context.go('/'),
-        ),
-        body: BlocBuilder<WalletHubCubit, WalletHubState>(
-          builder: (context, state) {
-            switch (state.status) {
-              case WalletHubStatus.initial:
-              case WalletHubStatus.loading:
-                return const OmdsLoadingState();
-              case WalletHubStatus.failed:
-                return OmdsErrorState(
-                  message: copy.loadError,
-                  retryLabel: copy.retry,
-                  onRetry: () => context.read<WalletHubCubit>().refresh(),
-                );
-              case WalletHubStatus.loaded:
-                return RefreshIndicator(
-                  onRefresh: () => context.read<WalletHubCubit>().refresh(),
-                  child: _LoadedBody(balance: state.balance, copy: copy),
-                );
-            }
-          },
+        // The board's header is an in-body row, not a Material app bar, so it
+        // renders in EVERY state (loading / failed / loaded) instead of only
+        // where a Scaffold would have hung one.
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar(
+                identifier: 'wallet_back',
+                title: copy.title,
+                leadingTooltip: copy.back,
+                // The wallet chip reaches this hub via stack-REPLACING `goNamed(
+                // 'wallet')`, so there is usually nothing to pop. Pop when we can
+                // (pushed entry), else return to the shell — never pop the last
+                // page (which would leave an empty Navigator → black surface).
+                onLeadingPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/'),
+              ),
+              Expanded(
+                child: BlocBuilder<WalletHubCubit, WalletHubState>(
+                  builder: (context, state) {
+                    switch (state.status) {
+                      case WalletHubStatus.initial:
+                      case WalletHubStatus.loading:
+                        return const OmdsLoadingState();
+                      case WalletHubStatus.failed:
+                        return OmdsErrorState(
+                          message: copy.loadError,
+                          retryLabel: copy.retry,
+                          onRetry: () =>
+                              context.read<WalletHubCubit>().refresh(),
+                        );
+                      case WalletHubStatus.loaded:
+                        return OmdsPullToRefresh(
+                          onRefresh: () =>
+                              context.read<WalletHubCubit>().refresh(),
+                          child: _LoadedBody(
+                            balance: state.balance,
+                            copy: copy,
+                          ),
+                        );
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -123,177 +158,140 @@ class _LoadedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final b = balance;
     final currency = b?.currency ?? '';
     final affordability = b?.affordabilityState ?? WalletAffordability.empty;
     final hasGift = (b?.giftCredit ?? 0) > 0;
 
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.medium,
-        Spacing.large,
-        Spacing.medium,
-        Spacing.xLarge,
-      ),
-      children: [
-        // ── KYC-pending banner (D38/D39): top-up allowed, bidding not yet. ──
-        // Gated on the shared JeeberKycStatusGate (JM-036) — the same source the
-        // DELIVERY tab + offer gate read, so the banner is honest end-to-end.
-        // `jeeb.seam.kyc_status=pending` drives it in Maestro (AC7).
-        if (copy.kycPending)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(bottom: Spacing.large),
-            child: Semantics(
-              identifier: 'wallet_kyc_pending_banner',
-              container: true,
-              child: _Banner(
-                icon: Icons.hourglass_top_outlined,
-                title: copy.kycPendingTitle,
-                body: copy.kycPendingBody,
-              ),
-            ),
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          // Gutter 24, first block 16 below the top bar; the trust line owns
+          // the bottom inset, so this sliver ends flush.
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.medium,
+            Spacing.xLarge,
+            0,
           ),
-
-        // ── Available balance (the screen's signature element). ──────────────
-        Semantics(
-          identifier: 'wallet_available_balance',
-          container: true,
-          explicitChildNodes: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(copy.availableBalanceLabel,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  )),
-              const SizedBox(height: Spacing.twoXSmall),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    _fmt(b?.availableBalance ?? 0),
-                    style: theme.textTheme.headlineMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              // ── KYC-pending banner (D38/D39): top-up allowed, bidding not
+              // yet. Gated on the shared JeeberKycStatusGate (JM-036) — the
+              // same source the DELIVERY tab + offer gate read, so the banner
+              // is honest end-to-end. `jeeb.seam.kyc_status=pending` drives it
+              // in Maestro (AC7).
+              if (copy.kycPending)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    bottom: Spacing.small,
                   ),
-                  if (currency.isNotEmpty) ...[
-                    const SizedBox(width: Spacing.xSmall),
-                    Text(
-                      currency,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              // ── Gift / starter-credit badge (D42, post-KYC). ──────────────
-              if (hasGift) ...[
-                const SizedBox(height: Spacing.small),
-                Semantics(
-                  identifier: 'wallet_gift_badge',
-                  container: true,
-                  child: OmdsChip(
-                    label: copy.giftBadge(_fmt(b?.giftCredit ?? 0), currency),
-                    icon: const Icon(Icons.card_giftcard_outlined, size: 16),
-                    enabled: false,
+                  child: JeebInfoNote.muted(
+                    identifier: 'wallet_kyc_pending_banner',
+                    icon: Icons.hourglass_top,
+                    title: copy.kycPendingTitle,
+                    text: copy.kycPendingBody,
                   ),
                 ),
-              ],
-            ],
+
+              // ── Available balance (the screen's signature element). ────────
+              _BalanceHero(
+                copy: copy,
+                availableBalance: b?.availableBalance ?? 0,
+                giftCredit: b?.giftCredit ?? 0,
+                currency: currency,
+                hasGift: hasGift,
+              ),
+
+              const SizedBox(height: Spacing.small),
+
+              // ── Affordability state note (D43 — STATE copy, NOT a number).
+              JeebInfoNote(
+                identifier: 'wallet_affordability_card',
+                tone: _affordabilityTone(affordability),
+                icon: _affordabilityIcon(affordability),
+                title: copy.affordabilityTitle(affordability),
+                text: copy.affordabilityBody(affordability),
+              ),
+
+              const SizedBox(height: Spacing.small),
+
+              // ── Reserved-now (sum of live 10% reserves, D1). ──────────────
+              // TODO(redesign-24): the board's "1 live offer ·" half needs a
+              // live-reserve COUNT; WalletBalance carries the amount only
+              // (wallet_repository.dart). Omitted, not faked.
+              JeebInfoNote.outlined(
+                identifier: 'wallet_reserved_now',
+                icon: Icons.lock,
+                title: copy.reservedNowLabel,
+                text: copy.reservedNowHint,
+                trailing: Text(
+                  MoneyFormat.format(b?.reservedNow ?? 0, currency: currency),
+                  style: context.jeebText.cardTitle
+                      .copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+
+              // ── Top up → wallet-charge-info (the one OWNED edge; D35
+              // offline) with the fee explainer link beneath it. The footer
+              // keeps its 16px top inset but drops the 24 gutter: this block
+              // sits INSIDE the padded sliver, so the gutter would double.
+              JeebCtaFooter.single(
+                padding: const EdgeInsetsDirectional.only(top: Spacing.medium),
+                below: JeebCtaButton.accentText(
+                  identifier: 'wallet_how_fees_work',
+                  label: copy.howFeesWork,
+                  onTap: () => _showHowFees(context),
+                ),
+                child: JeebCtaButton(
+                  identifier: 'wallet_topup_cta',
+                  label: copy.topUpCta,
+                  leadingIcon: Icons.add,
+                  onTap: () => _onTopUp(context),
+                ),
+              ),
+
+              const SizedBox(height: Spacing.medium),
+
+              JeebOutlinedCard.grouped(
+                children: [
+                  // ── Earnings row → earnings-fees-dashboard (JM-052, W3). ──
+                  // R-4 (jm-053): an HONEST `goNamed('earnings')` — the
+                  // standalone `earnings` route is registered (app_router.dart)
+                  // hosting the same EarningsDashboardScreen (+ EarningsCubit)
+                  // the Earnings tab renders. Replaces the W3-era guarded
+                  // `_comingSoon` once JM-052 shipped.
+                  JeebListRow(
+                    identifier: 'wallet_earnings_row',
+                    icon: Icons.show_chart,
+                    title: copy.earningsRow,
+                    subtitle: copy.earningsRowSubtitle,
+                    onTap: () => context.goNamed('earnings'),
+                  ),
+                  // ── See all activity → wallet-activity-list (JM-055, W3). ──
+                  // R-4 (jm-053): an HONEST `goNamed('wallet-activity')` — the
+                  // `wallet-activity` route is registered (app_router.dart)
+                  // hosting WalletActivityListScreen. Replaces the W3-era
+                  // guarded `_comingSoon` once JM-055 shipped.
+                  JeebListRow(
+                    identifier: 'wallet_see_all_activity',
+                    icon: Icons.article,
+                    title: copy.seeAllActivity,
+                    subtitle: copy.seeAllActivitySubtitle,
+                    onTap: () => context.goNamed('wallet-activity'),
+                  ),
+                ],
+              ),
+            ]),
           ),
         ),
 
-        const SizedBox(height: Spacing.large),
-
-        // ── Affordability state card (D43 — STATE copy, NOT a number). ───────
-        Semantics(
-          identifier: 'wallet_affordability_card',
-          container: true,
-          child: _Banner(
-            icon: _affordabilityIcon(affordability),
-            title: copy.affordabilityTitle(affordability),
-            body: copy.affordabilityBody(affordability),
-            tone: _affordabilityTone(affordability, context.jeebRoles),
-          ),
-        ),
-
-        const SizedBox(height: Spacing.medium),
-
-        // ── Reserved-now (sum of live 10% reserves, D1). ─────────────────────
-        Semantics(
-          identifier: 'wallet_reserved_now',
-          container: true,
-          child: _StatRow(
-            icon: Icons.lock_clock_outlined,
-            label: copy.reservedNowLabel,
-            value: '${_fmt(b?.reservedNow ?? 0)} $currency'.trim(),
-            hint: copy.reservedNowHint,
-          ),
-        ),
-
-        const SizedBox(height: Spacing.large),
-
-        // ── Top up → wallet-charge-info (the one OWNED edge; D35 offline). ───
-        Semantics(
-          identifier: 'wallet_topup_cta',
-          button: true,
-          container: true,
-          child: OmdsPrimaryButton(
-            text: copy.topUpCta,
-            onTap: () => _onTopUp(context),
-          ),
-        ),
-
-        const SizedBox(height: Spacing.small),
-
-        // ── How fees work → explainer sheet (D41/D44). ───────────────────────
-        Semantics(
-          identifier: 'wallet_how_fees_work',
-          button: true,
-          container: true,
-          child: OmdsPrimaryButton(
-            text: copy.howFeesWork,
-            variant: OmdsButtonVariant.text,
-            onTap: () => _showHowFees(context),
-          ),
-        ),
-
-        const SizedBox(height: Spacing.large),
-
-        // ── Earnings row → earnings-fees-dashboard (JM-052, W3). ─────────────
-        // R-4 (jm-053): now an HONEST `goNamed('earnings')` — the standalone
-        // `earnings` route is registered (app_router.dart) hosting the same
-        // EarningsDashboardScreen (+ EarningsCubit) the Earnings tab renders.
-        // Replaces the W3-era guarded `_comingSoon` once JM-052 shipped.
-        Semantics(
-          identifier: 'wallet_earnings_row',
-          button: true,
-          container: true,
-          child: OmdsSettingsRow(
-            title: copy.earningsRow,
-            subtitle: copy.earningsRowSubtitle,
-            leadingIcon: Icons.insights_outlined,
-            onTap: () => context.goNamed('earnings'),
-          ),
-        ),
-
-        // ── See all activity → wallet-activity-list (JM-055, W3). ────────────
-        // R-4 (jm-053): now an HONEST `goNamed('wallet-activity')` — the
-        // `wallet-activity` route is registered (app_router.dart) hosting
-        // WalletActivityListScreen. Replaces the W3-era guarded `_comingSoon`
-        // once JM-055 shipped.
-        Semantics(
-          identifier: 'wallet_see_all_activity',
-          button: true,
-          container: true,
-          child: OmdsSettingsRow(
-            title: copy.seeAllActivity,
-            subtitle: copy.seeAllActivitySubtitle,
-            leadingIcon: Icons.receipt_long_outlined,
-            onTap: () => context.goNamed('wallet-activity'),
-          ),
+        // ── The empty lower third is the design (R1): fill the viewport, dock
+        // the trust line at its foot, and scroll only once the content
+        // genuinely overflows (200% text scale, KYC banner, long AR copy).
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _CashDisclaimer(text: copy.cashDisclaimer),
         ),
       ],
     );
@@ -332,37 +330,219 @@ class _LoadedBody extends StatelessWidget {
     );
   }
 
+  /// Filled glyphs only (R10 — no `_outlined` variants on this board).
   IconData _affordabilityIcon(WalletAffordability a) {
     switch (a) {
       case WalletAffordability.enough:
-        return Icons.check_circle_outline;
+        return Icons.check_circle;
       case WalletAffordability.low:
-        return Icons.warning_amber_outlined;
+        return Icons.warning;
       case WalletAffordability.empty:
-        return Icons.account_balance_wallet_outlined;
+        return Icons.account_balance_wallet;
       case WalletAffordability.allReserved:
-        return Icons.lock_clock_outlined;
+        return Icons.lock_clock;
     }
   }
 
   /// Non-healthy affordability is an attention state ("top up to bid") ->
-  /// semantic warning pair, not the error pair (UX-AUDIT T1 dark-red banner).
-  (Color, Color)? _affordabilityTone(WalletAffordability a, JeebRoles roles) {
+  /// the kit's warning tone, not its error tone (UX-AUDIT T1 dark-red banner).
+  /// All four branches stay: the board only draws `enough`, but D43, the widget
+  /// tests and Maestro AC6 (`wallet_state=insufficient`) need the other three.
+  JeebInfoNoteTone _affordabilityTone(WalletAffordability a) {
     switch (a) {
       case WalletAffordability.enough:
-        return null; // neutral / positive surface
+        return JeebInfoNoteTone.success;
       case WalletAffordability.low:
       case WalletAffordability.empty:
       case WalletAffordability.allReserved:
-        return (roles.warningContainer, roles.onWarningContainer);
+        return JeebInfoNoteTone.warning;
     }
   }
+}
 
-  String _fmt(double v) => v.toStringAsFixed(2);
+/// The navy balance hero — `AVAILABLE TO BID` over the amount, with the
+/// starter-credit pill inside the card and one off-canvas orange ring at the
+/// bottom-END corner (23 disagrees with 04/19 about the corner, which is why
+/// the kit makes it a preset rather than a constant).
+class _BalanceHero extends StatelessWidget {
+  const _BalanceHero({
+    required this.copy,
+    required this.availableBalance,
+    required this.giftCredit,
+    required this.currency,
+    required this.hasGift,
+  });
+
+  final WalletHubL10n copy;
+  final double availableBalance;
+  final double giftCredit;
+  final String currency;
+  final bool hasGift;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.light();
+    // `MoneyFormat` prints the ISO code inline for anything but USD, so the
+    // board's standalone `USD` suffix would double it there.
+    final code = currency.trim().toUpperCase();
+    final showCurrencySuffix = code.isEmpty || code == 'USD';
+
+    return JeebNavySurfaceCard(
+      radius: Spacing.large,
+      padding: const EdgeInsetsDirectional.all(Spacing.large),
+      shadow: JeebShadows.heroNavy,
+      rings: const [JeebNavyRing.statBottomEnd],
+      // The id belongs to the CONTENT, not the card: wrapping the card would
+      // pull the decorative ring into the node. Both flags are load-bearing —
+      // without them the nested gift-badge id is swallowed.
+      child: Semantics(
+        identifier: 'wallet_available_balance',
+        container: true,
+        explicitChildNodes: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Natural casing in, uppercase out: the kit owns the transform so
+            // no lane calls `toUpperCase()` on a caseless script.
+            JeebSectionLabel(copy.availableBalanceLabel),
+            const SizedBox(height: Spacing.twoXSmall),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Flexible(
+                  // The hero is the one place a 200% text scale can push a
+                  // number off the card, so it scales down rather than wraps.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      MoneyFormat.format(availableBalance, currency: currency),
+                      style: context.jeebText.statHero.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                if (showCurrencySuffix) ...[
+                  const SizedBox(width: Spacing.xSmall),
+                  Text(
+                    'USD',
+                    style: context.jeebText.bodySmall.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: semantic.mutedText,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            // ── Gift / starter-credit badge (D42, post-KYC). ───────────────
+            if (hasGift) ...[
+              const SizedBox(height: Spacing.small),
+              Semantics(
+                identifier: 'wallet_gift_badge',
+                container: true,
+                child: _GiftPill(
+                  label: copy.giftBadge(
+                    MoneyFormat.format(giftCredit, currency: currency),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The starter-credit pill (D42) — screen-local by design: the kit ships no
+/// unselected chip that reads on navy, because 23 is the only screen that wants
+/// one (03-WAVE1-KIT §5).
+class _GiftPill extends StatelessWidget {
+  const _GiftPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.light();
+
+    return Container(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.small,
+        // 6px on the board; there is no token between 4 and 8.
+        vertical: Spacing.xSmall - 2,
+      ),
+      decoration: BoxDecoration(
+        // Sanctioned tokens: orange @12% fill / @30% stroke, against the
+        // board's 20/40 — the token layer wins over a two-off literal.
+        color: semantic.accentTint,
+        border: Border.all(color: semantic.accentRing),
+        borderRadius: OmdsBorderRadius.pill,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('🎁', style: context.jeebText.body),
+          const SizedBox(width: Spacing.xSmall - 2),
+          Flexible(
+            child: Text(
+              label,
+              style: context.jeebText.bodySmall.copyWith(
+                fontWeight: FontWeight.w700,
+                color: scheme.onPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The trust line docked at the foot of the viewport (D41/D44): cash on
+/// delivery never routes through the fee-only wallet.
+class _CashDisclaimer extends StatelessWidget {
+  const _CashDisclaimer({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.light();
+
+    return Align(
+      alignment: AlignmentDirectional.bottomCenter,
+      child: Padding(
+        // Bottom 32 against the board's 30 — no 30 token exists.
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          Spacing.large,
+          Spacing.xLarge,
+          Spacing.twoXLarge,
+        ),
+        child: Semantics(
+          identifier: 'wallet_cash_disclaimer',
+          container: true,
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: context.jeebText.caption.copyWith(color: semantic.mutedText),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// The fee-only economics explainer (D41/D44). A static, no-payment bottom sheet
-/// — fees are captured (exactly 10%) from the pre-charged wallet balance, never
+/// — the platform fee is captured from the pre-charged wallet balance, never
 /// charged in-app. Hosts the asserted `wallet_how_fees_explainer` root.
 class _HowFeesSheet extends StatelessWidget {
   const _HowFeesSheet({required this.copy});
@@ -431,113 +611,6 @@ class _FeeBullet extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// A compact informational card used for the affordability state (D43) and the
-/// KYC-pending banner (D38/D39). `tone` tints the surface for non-healthy states.
-class _Banner extends StatelessWidget {
-  const _Banner({
-    required this.icon,
-    required this.title,
-    required this.body,
-    this.tone,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-
-  /// Optional (background, foreground) semantic role pair tinting the card
-  /// for non-healthy states; defaults to the neutral surface pair.
-  final (Color, Color)? tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final bg = tone?.$1 ?? theme.colorScheme.surfaceContainerHighest;
-    final fg = tone?.$2 ?? theme.colorScheme.onSurface;
-    return Container(
-      padding: const EdgeInsets.all(Spacing.medium),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: fg),
-          const SizedBox(width: Spacing.small),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700, color: fg),
-                ),
-                const SizedBox(height: Spacing.twoXSmall),
-                Text(
-                  body,
-                  style: theme.textTheme.bodyMedium?.copyWith(color: fg),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A labelled value row with a hint — used for reserved-now (D1).
-class _StatRow extends StatelessWidget {
-  const _StatRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.hint,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final String? hint;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: Spacing.small),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: theme.textTheme.bodyLarge),
-              if (hint != null) ...[
-                const SizedBox(height: Spacing.twoXSmall),
-                Text(
-                  hint!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(width: Spacing.small),
-        Text(
-          value,
-          style: theme.textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
-      ],
     );
   }
 }

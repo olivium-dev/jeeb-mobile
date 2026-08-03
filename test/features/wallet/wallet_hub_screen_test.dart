@@ -12,8 +12,10 @@
 //   AC6: affordability copy differs healthy vs low (state copy, D43).
 //   AC7: wallet_kyc_pending_banner visible iff KYC pending.
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/jeeb_commission.dart';
 import 'package:jeeb_mobile/core/session/jeeber_kyc_status_gate.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_repository.dart';
 import 'package:jeeb_mobile/features/wallet/presentation/wallet_hub_screen.dart';
@@ -65,6 +67,7 @@ void main() {
     WidgetTester tester, {
     required WalletRepository repo,
     JeeberKycStatus kyc = JeeberKycStatus.approved,
+    Locale locale = const Locale('en'),
   }) async {
     await tester.pumpWidget(
       wrapForTest(
@@ -72,6 +75,7 @@ void main() {
           repository: repo,
           kycStatusGate: _FakeKycGate(kyc),
         ),
+        locale: locale,
       ),
     );
     await tester.pumpAndSettle();
@@ -115,10 +119,10 @@ void main() {
         findsOneWidget);
   });
 
-  testWidgets('AC6/D43: healthy state shows "Ready to bid" copy',
+  testWidgets("AC6/D43: healthy state shows \"You're set to bid\" copy",
       (tester) async {
     await pump(tester, repo: _ScriptedWalletRepository(_balance()));
-    expect(find.text('Ready to bid'), findsOneWidget);
+    expect(find.text("You're set to bid"), findsOneWidget);
     expect(find.text('Running low'), findsNothing);
   });
 
@@ -131,7 +135,7 @@ void main() {
       ),
     );
     expect(find.text('Running low'), findsOneWidget);
-    expect(find.text('Ready to bid'), findsNothing);
+    expect(find.text("You're set to bid"), findsNothing);
   });
 
   testWidgets('AC6/D43: all-reserved state shows distinct copy', (tester) async {
@@ -142,7 +146,7 @@ void main() {
       ),
     );
     expect(find.text('Everything is reserved'), findsOneWidget);
-    expect(find.text('Ready to bid'), findsNothing);
+    expect(find.text("You're set to bid"), findsNothing);
   });
 
   testWidgets('AC7: KYC-pending banner hidden when approved', (tester) async {
@@ -175,5 +179,61 @@ void main() {
     expect(find.bySemanticsIdentifier('wallet_hub_root'), findsOneWidget);
     expect(find.bySemanticsIdentifier('wallet_available_balance'),
         findsNothing);
+  });
+
+  // ── redesign-24 (23-wallet) ────────────────────────────────────────────────
+
+  testWidgets('redesign-24: back circle + docked trust line resolve',
+      (tester) async {
+    // The board's own viewport (440x956). The default 800x600 test surface is
+    // shorter than the hub's content, so the docked trust line would sit below
+    // the fold and its sliver would never be built — that is the harness, not
+    // the design (R1: the real screen ends with an empty lower third).
+    tester.view.physicalSize = const Size(440, 956);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pump(tester, repo: _ScriptedWalletRepository(_balance()));
+
+    expect(find.bySemanticsIdentifier('wallet_back'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('wallet_cash_disclaimer'), findsOneWidget);
+  });
+
+  testWidgets('redesign-24: the top bar renders in the FAILED state too',
+      (tester) async {
+    await pump(
+      tester,
+      repo: _ScriptedWalletRepository(_balance(), throws: true),
+    );
+
+    // The in-body bar is not a Scaffold appBar, so it survives the error state.
+    expect(find.bySemanticsIdentifier('wallet_back'), findsOneWidget);
+  });
+
+  testWidgets('redesign-24: the 10% in the affordability copy derives from '
+      'kJeebCommissionPercent', (tester) async {
+    await pump(tester, repo: _ScriptedWalletRepository(_balance()));
+
+    expect(
+      find.textContaining('$kJeebCommissionPercent%'),
+      findsWidgets,
+      reason: 'the single-rate rule: no screen may spell the rate out',
+    );
+  });
+
+  testWidgets('redesign-24: RTL renders and the hero amount stays LTR-isolated',
+      (tester) async {
+    await pump(
+      tester,
+      repo: _ScriptedWalletRepository(_balance()),
+      locale: const Locale('ar'),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.bySemanticsIdentifier('wallet_available_balance'),
+        findsOneWidget);
+    // MoneyFormat wraps every amount in a Unicode LTR isolate (U+2066) so the
+    // symbol does not migrate to the wrong side of the digits under RTL.
+    expect(find.textContaining('\u2066'), findsWidgets);
   });
 }

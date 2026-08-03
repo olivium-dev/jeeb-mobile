@@ -14,6 +14,7 @@ import 'package:jeeb_mobile/features/earnings/application/earnings_cubit.dart';
 import 'package:jeeb_mobile/features/earnings/application/earnings_state.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_summary.dart';
+import 'package:jeeb_mobile/features/wallet/domain/wallet_repository.dart';
 
 class _FakeEarningsRepository implements EarningsRepository {
   const _FakeEarningsRepository({this.failWith});
@@ -353,4 +354,58 @@ void main() {
       ],
     );
   });
+
+  group('EarningsCubit — wallet balance (footer pill)', () {
+    blocTest<EarningsCubit, EarningsState>(
+      'a healthy wallet read lands in state',
+      build: () => EarningsCubit(
+        repository: const _FakeEarningsRepository(),
+        walletRepository: const _FakeWalletRepository(),
+        jeeberId: 'jeeber-001',
+      ),
+      wait: const Duration(milliseconds: 20),
+      verify: (c) {
+        expect(c.state.walletBalance?.availableBalance, 6.40);
+        expect(c.state.mode, EarningsViewMode.ready);
+      },
+    );
+
+    blocTest<EarningsCubit, EarningsState>(
+      'a failing wallet read never degrades the earnings screen',
+      build: () => EarningsCubit(
+        repository: const _FakeEarningsRepository(),
+        walletRepository: const _FakeWalletRepository(fails: true),
+        jeeberId: 'jeeber-001',
+      ),
+      wait: const Duration(milliseconds: 20),
+      verify: (c) {
+        // No error mode, no error message, no balance — the pill simply
+        // renders without its suffix rather than showing a fabricated zero.
+        expect(c.state.mode, EarningsViewMode.ready);
+        expect(c.state.errorMessage, isNull);
+        expect(c.state.walletBalance, isNull);
+      },
+    );
+  });
+}
+
+class _FakeWalletRepository implements WalletRepository {
+  const _FakeWalletRepository({this.fails = false});
+
+  final bool fails;
+
+  @override
+  Future<WalletBalance> fetchBalance() async {
+    await Future<void>.delayed(Duration.zero);
+    if (fails) {
+      throw const WalletRepositoryException(WalletFailure.network);
+    }
+    return const WalletBalance(
+      availableBalance: 6.40,
+      affordabilityState: WalletAffordability.enough,
+      reservedNow: 0,
+      giftCredit: 0,
+      currency: 'USD',
+    );
+  }
 }

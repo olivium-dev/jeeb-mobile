@@ -338,7 +338,12 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('FS-GATE-SYSTEM-9001'), findsOneWidget);
+      // `textContaining`, not `text`: since redesign-2026-08 the system chip
+      // appends the message's own ` · HH:mm` when the row carries a server
+      // timestamp (the board draws "Offer accepted · 9:12"). The SUBJECT of
+      // this test is that the decoded payload reached the bubble at all, which
+      // a substring match still pins exactly.
+      expect(find.textContaining('FS-GATE-SYSTEM-9001'), findsOneWidget);
       expect(h.http.loadHistoryCalls, 1, reason: 'zero wire reads');
     });
   });

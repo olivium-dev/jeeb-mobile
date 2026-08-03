@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../../core/jeeb_commission.dart';
 import '../../../l10n/app_localizations.dart';
 
 /// JM-052 earnings-fees-dashboard localized copy resolver (R-F,
@@ -53,21 +54,30 @@ class EarningsDashboardL10n {
   /// `earnings_total_cash` — total cash collected off-wallet (COD, D41).
   String get totalCashLabel =>
       _pick('Total cash earned', 'إجمالي النقد المكتسب');
+  /// The trust line under the hero amount: cash never moves through Jeeb
+  /// (D41). Shorter and more direct than the previous phrasing because the
+  /// redesigned hero renders it as a single line under a 38px number.
   String get totalCashHint => _pick(
-    'Cash collected directly from customers, off-wallet.',
-    'النقد الذي حصّلته مباشرة من العملاء، خارج المحفظة.',
+    'Paid to you directly — never through Jeeb.',
+    'يُدفع لك مباشرة — لا يمر عبر جيب أبدًا.',
   );
 
   /// `earnings_fees_paid` — captured platform fees.
   String get feesPaidLabel =>
       _pick('Platform fees paid', 'رسوم المنصة المدفوعة');
+
+  /// The rate is interpolated from [kJeebCommissionPercent], never typed: a
+  /// literal "10%" beside a number derived from the constant would be free to
+  /// disagree with it (see `core/jeeb_commission.dart`).
   String get feesPaidHint => _pick(
-    'Fees captured from your wallet on offers you won.',
-    'رسوم تُخصم من محفظتك على العروض التي فزت بها.',
+    '$kJeebCommissionPercent% per won offer, from your wallet',
+    '$kJeebCommissionPercent٪ لكل عرض فائز، من محفظتك',
   );
 
   /// Net-per-offer (D44) — average cash kept per delivery after the fee.
-  String get netPerOfferLabel => _pick('Net per offer', 'الصافي لكل عرض');
+  /// Sized for the hero's three-column stat slot, not a full-width card.
+  String get netPerOfferLabel =>
+      _pick('Avg kept / offer', 'متوسط المحتفظ به / عرض');
   String get netPerOfferHint => _pick(
     'Average cash you keep per delivery after fees.',
     'متوسط النقد الذي تحتفظ به لكل توصيلة بعد الرسوم.',
@@ -97,23 +107,26 @@ class EarningsDashboardL10n {
   String get breakdownTitle => _pick('Recent deliveries', 'التوصيلات الأخيرة');
   String deliveryRowTitle(String id) => _pick('Delivery $id', 'توصيلة $id');
 
+  /// Row title with the delivery's weekday appended. The board shows an item
+  /// name here (`Pharmacy run · Fri`); the wire carries no item name, so only
+  /// the weekday — which IS derivable from the entry's date — is added.
+  /// Falls back to [deliveryRowTitle] when the date is missing/unparseable.
+  String deliveryRowTitleDated(String id, String weekday) =>
+      _pick('Delivery $id · $weekday', 'توصيلة $id · $weekday');
+
   /// [money] is already a fully-formatted [MoneyFormat] string (e.g. `$1.20`),
   /// so the currency is not appended separately here.
   String deliveryRowFee(String money) => _pick('$money fee', 'رسوم $money');
 
   // ── Cross-feature links (real edges — W3 targets registered). ─────────────
 
-  /// `earnings_wallet_link` → wallet-hub (JM-053).
-  String get walletLink => _pick('Open wallet', 'فتح المحفظة');
-  String get walletLinkSubtitle =>
-      _pick('Balance, reserves and top-ups.', 'الرصيد والحجوزات والشحن.');
+  /// `earnings_wallet_link` → wallet-hub (JM-053). One word: the footer pill
+  /// shares its row with the export CTA and appends the live balance.
+  String get walletLink => _pick('Wallet', 'المحفظة');
 
-  /// `earnings_activity_link` → wallet-activity-list (JM-055).
-  String get activityLink => _pick('See all activity', 'عرض كل النشاط');
-  String get activityLinkSubtitle => _pick(
-    'Reserves, fees, refunds and top-ups.',
-    'الحجوزات والرسوم والمستردات والشحن.',
-  );
+  /// `earnings_activity_link` → wallet-activity-list (JM-055). Sized for a
+  /// trailing link on the section header, not a settings row.
+  String get activityLink => _pick('See all', 'عرض الكل');
 
   String period(String key) {
     switch (key) {

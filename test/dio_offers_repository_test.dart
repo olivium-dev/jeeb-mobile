@@ -100,6 +100,36 @@ void main() {
       });
 
       test(
+        'carries the request title off the /v1/requests/:id row it already '
+        'reads, and normalises a blank one to null',
+        () async {
+          final withTitle = DioOffersRepository(
+            _dioRespond(
+              const {'items': []},
+              requestBody: const {'status': 'pending', 'title': '  Medicine '},
+            ),
+          );
+          expect(
+            (await withTitle.fetchOffers('req-title')).requestTitle,
+            'Medicine',
+          );
+
+          final blank = DioOffersRepository(
+            _dioRespond(
+              const {'items': []},
+              requestBody: const {'status': 'pending', 'title': '   '},
+            ),
+          );
+          expect((await blank.fetchOffers('req-blank')).requestTitle, isNull);
+
+          final absent = DioOffersRepository(
+            _dioRespond(const {'items': []}),
+          );
+          expect((await absent.fetchOffers('req-absent')).requestTitle, isNull);
+        },
+      );
+
+      test(
           'renders a LIVE gateway offer whose status is "pending" '
           '(iter6 offer-card render gap)', () async {
         // The LIVE gateway BFF collapses offer-service submitted/edited/pending

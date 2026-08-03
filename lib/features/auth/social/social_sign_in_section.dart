@@ -21,7 +21,17 @@ import 'social_sign_in_button.dart';
 /// errors as a snackbar; lets the caller decide what to do on success
 /// via [onAuthenticated].
 class SocialSignInSection extends StatelessWidget {
-  const SocialSignInSection({super.key, this.onAuthenticated});
+  const SocialSignInSection({
+    super.key,
+    this.onAuthenticated,
+    this.axis = Axis.vertical,
+  });
+
+  /// Layout of the provider buttons. [Axis.vertical] (the default) keeps the
+  /// original stacked column every existing caller renders; [Axis.horizontal]
+  /// is the redesign-2026-08 screen-02 two-up row (Google at the start), which
+  /// degrades to a single full-width Google button where Apple is unavailable.
+  final Axis axis;
 
   /// Invoked once the cubit reaches [SocialAuthStatus.authenticated]. The
   /// session is already persisted by the time this fires.
@@ -61,32 +71,44 @@ class SocialSignInSection extends StatelessWidget {
       builder: (context, state) {
         final cubit = context.read<SocialAuthCubit>();
         final showApple = SocialSignInButton.isAppleAvailable();
+        final apple = SocialSignInButton(
+          key: const Key('registration.appleSignIn'),
+          // Maestro/JM-018 selector for the shared social button on the
+          // auth entry screen (60_W0_TEST_PLAN §2.1, jm-018-social-login).
+          identifier: 'login_social_apple',
+          provider: SocialProvider.apple,
+          isBusy: state.isBusyFor(SocialProvider.apple),
+          isEnabled: !state.isBusy,
+          onTap: () => cubit.signInWith(SocialProvider.apple),
+        );
+        final google = SocialSignInButton(
+          key: const Key('registration.googleSignIn'),
+          // Maestro/JM-018 selector for the shared social button on the
+          // auth entry screen (60_W0_TEST_PLAN §2.1, jm-018-social-login).
+          identifier: 'login_social_google',
+          provider: SocialProvider.google,
+          isBusy: state.isBusyFor(SocialProvider.google),
+          isEnabled: !state.isBusy,
+          onTap: () => cubit.signInWith(SocialProvider.google),
+        );
+        if (axis == Axis.horizontal) {
+          // Board order: Google at the start, Apple at the end. With Apple
+          // unavailable the Row degrades to one full-width Google button.
+          return Row(
+            children: [
+              Expanded(child: google),
+              if (showApple) ...[
+                const SizedBox(width: Spacing.small),
+                Expanded(child: apple),
+              ],
+            ],
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (showApple) ...[
-              SocialSignInButton(
-                key: const Key('registration.appleSignIn'),
-                // Maestro/JM-018 selector for the shared social button on the
-                // auth entry screen (60_W0_TEST_PLAN §2.1, jm-018-social-login).
-                identifier: 'login_social_apple',
-                provider: SocialProvider.apple,
-                isBusy: state.isBusyFor(SocialProvider.apple),
-                isEnabled: !state.isBusy,
-                onTap: () => cubit.signInWith(SocialProvider.apple),
-              ),
-              const SizedBox(height: Spacing.small),
-            ],
-            SocialSignInButton(
-              key: const Key('registration.googleSignIn'),
-              // Maestro/JM-018 selector for the shared social button on the
-              // auth entry screen (60_W0_TEST_PLAN §2.1, jm-018-social-login).
-              identifier: 'login_social_google',
-              provider: SocialProvider.google,
-              isBusy: state.isBusyFor(SocialProvider.google),
-              isEnabled: !state.isBusy,
-              onTap: () => cubit.signInWith(SocialProvider.google),
-            ),
+            if (showApple) ...[apple, const SizedBox(height: Spacing.small)],
+            google,
           ],
         );
       },
