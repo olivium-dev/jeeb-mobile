@@ -290,7 +290,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
   [ ] **G-M6** audit gate · [ ] **G-M7** S22 sign-off
 
 ### M0 Foundation
-- [ ] M0-1 Token sheet ratified (Fable) — palette §2.1, type ramp sizes from HTML, radii/borders/glass values measured
+- [x] M0-1 Token sheet ratified (Fable) — `01-TOKEN-SHEET.md`: palette→ColorScheme/roles mapping, ramp re-cut (h1 26/−0.6, body 14.5/21, price 22), radii ladder 9/14/18/22/26/34/40/999, glass recipe, field gradients (175deg wash + measured glows), shadow/glow set, Baloo Bhaijaan 2 confirmed from `_ds` tokens @2026-08-03
 - [ ] M0-2 Theme re-cut (`lib/core/theme/*`) + Material overrides §2.4 + system chrome
 - [ ] M0-3 `JeebMidnightField` + variants (hero/content/map/sheet)
 - [ ] M0-4 Motion module `lib/core/motion/jeeb_motion.dart` (8 primitives §2.6 + reduced-motion)
