@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import 'jeeb_color_roles.dart';
 import 'jeeb_midnight_palette.dart';
+import 'jeeb_radii.dart';
 import 'jeeb_semantic_colors.dart';
 import 'jeeb_text_styles.dart';
 import 'jeeb_tier_colors.dart';
@@ -76,11 +77,11 @@ class AppTheme {
   /// The one theme.
   static ThemeData midnight() => _build();
 
-  // Radii ladder §5, private: the public kit tokens are M1's call.
-  static const double _rSm = 9;
-  static const double _rMd = 14;
-  static const double _rLg = 18;
-  static const double _rSheet = 26;
+  // Radii ladder §5 — the rungs this theme uses, aliased to the public ladder.
+  static const double _rSm = JeebRadii.sm;
+  static const double _rMd = JeebRadii.md;
+  static const double _rLg = JeebRadii.lg;
+  static const double _rSheet = JeebRadii.sheet;
 
   static ThemeData _build() {
     const ColorScheme scheme = midnightScheme;

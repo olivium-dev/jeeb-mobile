@@ -292,7 +292,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 ### M0 Foundation
 - [x] M0-1 Token sheet ratified (Fable) — `01-TOKEN-SHEET.md`: palette→ColorScheme/roles mapping, ramp re-cut (h1 26/−0.6, body 14.5/21, price 22), radii ladder 9/14/18/22/26/34/40/999, glass recipe, field gradients (175deg wash + measured glows), shadow/glow set, Baloo Bhaijaan 2 confirmed from `_ds` tokens @2026-08-03
 - [x] M0-2 Theme re-cut + §2.4 Material sweep (29 sub-themes, orange budget enforced per auto-consumer, OMDS 22-token override, bootstrap/splash/first-frame chrome de-flashed; light()==dark()==midnight; shadow migration map + open items ruled in 02-STUDY-NOTES §Theme) @2026-08-03
-- [ ] M0-3 `JeebMidnightField` + variants (hero/content/map/sheet)
+- [x] M0-3 `JeebMidnightField` (hero/content/map/sheet, glow+wash placements RTL-directional, static/animated painter split, pixel-verified vs R1 within ~1%) + public `JeebRadii`; 27 tests @2026-08-04
 - [x] M0-4 Motion module `lib/core/motion/` (8 primitives §2.6, TweenSequence-per-leg keyframes, reduce-motion pins rest frame, 54 tests; defaults ratified in 02-STUDY-NOTES §Motion) @2026-08-03
 - [x] M0-5 Fonts: Inter-ExtraBold w800 + Baloo Bhaijaan 2 (500/600/700) bundled as verified static TTFs (no fvar, correct usWeightClass, Inter metrics match rsms instances; family string exactly "Baloo Bhaijaan 2"); `fontFamilyFallback` wired by M0-2 @2026-08-03
 - [x] M0-6 Dark map style JSON (`assets/map_styles/midnight.json`, measured from R3/R11: land=wash, roads land+0x0F, labels periwinkle ON by ruling, POI/transit off) + `JeebMapStyle` helper + both live `GoogleMap` sites styled via `style:` param @2026-08-03

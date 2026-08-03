@@ -1,0 +1,512 @@
+// The field is the one widget every Midnight screen mounts, so its contracts
+// are pinned here: variant → layer set, directional glow, reduce-motion rest,
+// full-bleed child, and the §5 radii ladder it ships alongside.
+
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:jeeb_mobile/core/motion/jeeb_motion.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
+
+const Key _fieldKey = Key('field');
+const Size _fieldSize = Size(360, 560);
+
+void main() {
+  Future<void> pumpField(
+    WidgetTester tester, {
+    required JeebFieldVariant variant,
+    TextDirection direction = TextDirection.ltr,
+    bool disableAnimations = false,
+    Widget? child,
+    JeebFieldGlowPlacement? glowPlacement,
+    Color? glowColor,
+    JeebFieldWashPlacement? washPlacement,
+    bool? showRings,
+    bool? showTwinkles,
+  }) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: MediaQueryData(disableAnimations: disableAnimations),
+        child: Directionality(
+          textDirection: direction,
+          child: Center(
+            child: RepaintBoundary(
+              key: _fieldKey,
+              child: SizedBox.fromSize(
+                size: _fieldSize,
+                child: JeebMidnightField(
+                  variant: variant,
+                  glowPlacement: glowPlacement,
+                  glowColor: glowColor,
+                  washPlacement: washPlacement,
+                  showRings: showRings,
+                  showTwinkles: showTwinkles,
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+  }
+
+  /// Rasterises the field and returns a sampler over fractional coordinates.
+  Future<Color Function(double, double)> sampler(WidgetTester tester) async {
+    final RenderRepaintBoundary boundary = tester.renderObject(
+      find.byKey(_fieldKey),
+    );
+    late final ByteData pixels;
+    late final ui.Image image;
+    await tester.runAsync(() async {
+      image = await boundary.toImage();
+      pixels = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+    });
+    return (double fx, double fy) {
+      final int x = (fx * (image.width - 1)).round();
+      final int y = (fy * (image.height - 1)).round();
+      final int i = (y * image.width + x) * 4;
+      return Color.fromARGB(
+        pixels.getUint8(i + 3),
+        pixels.getUint8(i),
+        pixels.getUint8(i + 1),
+        pixels.getUint8(i + 2),
+      );
+    };
+  }
+
+  void expectColor(Color actual, Color expected, {double tolerance = 2 / 255}) {
+    expect(actual.r, closeTo(expected.r, tolerance));
+    expect(actual.g, closeTo(expected.g, tolerance));
+    expect(actual.b, closeTo(expected.b, tolerance));
+  }
+
+  /// Walks radially across one orbit arc and returns the strongest red delta
+  /// between two renders, with the blue delta of that same pixel — orange
+  /// pushes blue DOWN, white pushes it up.
+  ({double dr, double db}) arcDelta(
+    Color Function(double, double) on,
+    Color Function(double, double) off,
+    double radiusFactor,
+    double angleDegrees,
+  ) {
+    final Offset centre = Offset(0.90 * _fieldSize.width, 0.05 * _fieldSize.height);
+    final double radius = radiusFactor * _fieldSize.width;
+    final double angle = angleDegrees * math.pi / 180;
+    double dr = 0;
+    double db = 0;
+    for (double step = -6; step <= 6; step += 0.25) {
+      final Offset p =
+          centre + Offset(math.cos(angle), math.sin(angle)) * (radius + step);
+      final double fx = p.dx / _fieldSize.width;
+      final double fy = p.dy / _fieldSize.height;
+      if (fx < 0 || fx > 1 || fy < 0 || fy > 1) {
+        continue;
+      }
+      final double delta = on(fx, fy).r - off(fx, fy).r;
+      if (delta.abs() > dr.abs()) {
+        dr = delta;
+        db = on(fx, fy).b - off(fx, fy).b;
+      }
+    }
+    return (dr: dr, db: db);
+  }
+
+  Finder baseLayer() => find
+      .descendant(
+        of: find.byType(JeebMidnightField),
+        matching: find.byType(CustomPaint),
+      )
+      .first;
+
+  Finder decorLayer() => find
+      .descendant(
+        of: find.byType(JeebMidnightField),
+        matching: find.byType(CustomPaint),
+      )
+      .last;
+
+  group('JeebRadii', () {
+    test('carries the §5 ladder', () {
+      expect(JeebRadii.sm, 9);
+      expect(JeebRadii.md, 14);
+      expect(JeebRadii.lg, 18);
+      expect(JeebRadii.xl, 22);
+      expect(JeebRadii.sheet, 26);
+      expect(JeebRadii.hero, 34);
+      expect(JeebRadii.capsule, 40);
+      expect(JeebRadii.pill, 999);
+    });
+
+    test('rungs ascend', () {
+      const List<double> ladder = <double>[
+        JeebRadii.sm,
+        JeebRadii.md,
+        JeebRadii.lg,
+        JeebRadii.xl,
+        JeebRadii.sheet,
+        JeebRadii.hero,
+        JeebRadii.capsule,
+        JeebRadii.pill,
+      ];
+      for (int i = 1; i < ladder.length; i++) {
+        expect(ladder[i], greaterThan(ladder[i - 1]));
+      }
+    });
+  });
+
+  group('glow placement', () {
+    test('carries the §8 fractions', () {
+      expect(JeebFieldGlowPlacement.topEnd.fx, 0.88);
+      expect(JeebFieldGlowPlacement.topEnd.fy, -0.06);
+      expect(JeebFieldGlowPlacement.centerUpper.fx, 0.50);
+      expect(JeebFieldGlowPlacement.centerUpper.fy, 0.38);
+      expect(JeebFieldGlowPlacement.bottom.fx, 0.50);
+      expect(JeebFieldGlowPlacement.bottom.fy, 0.94);
+    });
+
+    test('is directional — topEnd mirrors under RTL', () {
+      final AlignmentDirectional topEnd =
+          JeebFieldGlowPlacement.topEnd.alignment;
+      expect(topEnd.resolve(TextDirection.ltr).x, closeTo(0.76, 1e-9));
+      expect(topEnd.resolve(TextDirection.rtl).x, closeTo(-0.76, 1e-9));
+      expect(topEnd.resolve(TextDirection.rtl).y, closeTo(-1.12, 1e-9));
+    });
+
+    test('centre placements do not move under RTL', () {
+      for (final JeebFieldGlowPlacement placement in <JeebFieldGlowPlacement>[
+        JeebFieldGlowPlacement.centerUpper,
+        JeebFieldGlowPlacement.bottom,
+      ]) {
+        expect(placement.alignment.resolve(TextDirection.ltr).x, 0);
+        expect(placement.alignment.resolve(TextDirection.rtl).x, 0);
+      }
+    });
+  });
+
+  group('variant layers', () {
+    testWidgets('hero paints wash + glow + periwinkle + two dotted rings', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.hero);
+
+      expect(baseLayer(), paintsExactlyCountTimes(#drawRect, 3));
+      expect(baseLayer(), paintsExactlyCountTimes(#drawPath, 2));
+    });
+
+    testWidgets('content paints wash + one glow and no rings', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+
+      expect(baseLayer(), paintsExactlyCountTimes(#drawRect, 2));
+      expect(baseLayer(), paintsExactlyCountTimes(#drawPath, 0));
+      expect(find.byType(JMotionLoop), findsNothing);
+    });
+
+    testWidgets('sheet paints a navy surface under its glow', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.sheet);
+
+      expect(baseLayer(), paintsExactlyCountTimes(#drawRect, 2));
+      expect(baseLayer(), paintsExactlyCountTimes(#drawPath, 0));
+
+      final Color Function(double, double) pixel = await sampler(tester);
+      expect(pixel(0.5, 0.98), JeebMidnight.surface);
+    });
+
+    testWidgets('map dims the edges and leaves the centre transparent', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.map);
+
+      expect(baseLayer(), paintsExactlyCountTimes(#drawRect, 2));
+
+      final Color Function(double, double) pixel = await sampler(tester);
+      expect(pixel(0.5, 0.5).a, 0);
+      expect(pixel(0.5, 0.01).a, greaterThan(0.3));
+      expect(pixel(0.5, 0.99).a, greaterThan(0.3));
+    });
+
+    testWidgets('hero decor draws two arcs and the twinkle field', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.hero);
+
+      expect(decorLayer(), paintsExactlyCountTimes(#drawArc, 2));
+      expect(decorLayer(), paintsExactlyCountTimes(#drawCircle, 6));
+    });
+
+    testWidgets('showRings/showTwinkles override the variant', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        showRings: true,
+        showTwinkles: false,
+      );
+
+      expect(baseLayer(), paintsExactlyCountTimes(#drawPath, 2));
+      expect(decorLayer(), paintsExactlyCountTimes(#drawArc, 2));
+      expect(decorLayer(), paintsExactlyCountTimes(#drawCircle, 0));
+    });
+
+    testWidgets('hero drops the rings when asked', (WidgetTester tester) async {
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        showRings: false,
+        showTwinkles: false,
+      );
+
+      expect(baseLayer(), paintsExactlyCountTimes(#drawPath, 0));
+      expect(find.byType(JMotionLoop), findsNothing);
+    });
+  });
+
+  group('glow geometry', () {
+    testWidgets('topEnd lands at the end edge and mirrors under RTL', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+      final Color Function(double, double) ltr = await sampler(tester);
+      expect(ltr(0.88, 0.02).r, greaterThan(ltr(0.12, 0.02).r));
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        direction: TextDirection.rtl,
+      );
+      final Color Function(double, double) rtl = await sampler(tester);
+      expect(rtl(0.12, 0.02).r, greaterThan(rtl(0.88, 0.02).r));
+
+      expect(ltr(0.88, 0.02).r, closeTo(rtl(0.12, 0.02).r, 2 / 255));
+    });
+
+    testWidgets('bottom placement moves the glow off the top', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.bottom,
+      );
+      final Color Function(double, double) pixel = await sampler(tester);
+
+      expect(pixel(0.5, 0.97).r, greaterThan(pixel(0.5, 0.5).r));
+      expect(pixel(0.5, 0.02).r, lessThan(pixel(0.5, 0.97).r));
+    });
+
+    testWidgets('glowColor swaps the orange for the success wash', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowColor: JeebMidnightField.successGlow,
+      );
+      final Color Function(double, double) pixel = await sampler(tester);
+
+      final Color glowed = pixel(0.88, 0.02);
+      final Color plain = pixel(0.12, 0.4);
+      expect(glowed.g, greaterThan(plain.g));
+      expect(glowed.r, lessThan(glowed.g));
+    });
+
+    testWidgets('the wash runs light at the top and deepest at the bottom', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+      final Color Function(double, double) pixel = await sampler(tester);
+
+      expectColor(pixel(0.02, 0.005), JeebMidnight.surfaceHigh);
+      expectColor(pixel(0.5, 0.995), JeebMidnight.page);
+      expect(pixel(0.5, 0.45).b, lessThan(pixel(0.5, 0.01).b));
+    });
+  });
+
+  group('periwinkle wash', () {
+    test('carries both attested anchors', () {
+      expect(JeebFieldWashPlacement.startMid.fx, 0.0);
+      expect(JeebFieldWashPlacement.startMid.fy, 0.39);
+      expect(JeebFieldWashPlacement.startMid.alpha, 0.18);
+      expect(JeebFieldWashPlacement.bottomEnd.fx, 0.90);
+      expect(JeebFieldWashPlacement.bottomEnd.fy, 1.0);
+      expect(JeebFieldWashPlacement.bottomEnd.alpha, 0.22);
+    });
+
+    test('is directional', () {
+      final AlignmentDirectional start =
+          JeebFieldWashPlacement.startMid.alignment;
+      expect(start.resolve(TextDirection.ltr).x, -1);
+      expect(start.resolve(TextDirection.rtl).x, 1);
+    });
+
+    testWidgets('hero washes the START side at mid-height and dies by x 0.45', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.hero);
+      final Color Function(double, double) ltr = await sampler(tester);
+
+      expect(ltr(0.02, 0.39).r, greaterThan(ltr(0.98, 0.39).r));
+      expect(ltr(0.45, 0.39).r, closeTo(ltr(0.98, 0.39).r, 2 / 255));
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        direction: TextDirection.rtl,
+      );
+      final Color Function(double, double) rtl = await sampler(tester);
+
+      expect(rtl(0.98, 0.39).r, greaterThan(rtl(0.02, 0.39).r));
+      expect(rtl(0.98, 0.39).r, closeTo(ltr(0.02, 0.39).r, 2 / 255));
+    });
+
+    testWidgets('bottomEnd moves the wash to the far corner', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        washPlacement: JeebFieldWashPlacement.bottomEnd,
+      );
+      final Color Function(double, double) pixel = await sampler(tester);
+
+      expect(pixel(0.95, 0.99).r, greaterThan(pixel(0.05, 0.99).r));
+      expect(pixel(0.02, 0.39).r, closeTo(pixel(0.98, 0.39).r, 2 / 255));
+    });
+
+    testWidgets('a non-hero variant can opt in', (WidgetTester tester) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+      expect(baseLayer(), paintsExactlyCountTimes(#drawRect, 2));
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        washPlacement: JeebFieldWashPlacement.startMid,
+      );
+      expect(baseLayer(), paintsExactlyCountTimes(#drawRect, 3));
+    });
+  });
+
+  group('orbit arcs', () {
+    testWidgets('the inner arc is orange and the outer stays white', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        disableAnimations: true,
+      );
+      final Color Function(double, double) rest = await sampler(tester);
+
+      // Both arcs ride one loop; 440ms puts the outer (delay A) on its peak
+      // with the inner still near its own.
+      await pumpField(tester, variant: JeebFieldVariant.hero);
+      await tester.pump(const Duration(milliseconds: 440));
+      final Color Function(double, double) lit = await sampler(tester);
+
+      final ({double db, double dr}) outer = arcDelta(lit, rest, 0.40, 131);
+      final ({double db, double dr}) inner = arcDelta(lit, rest, 0.26, 159);
+
+      expect(outer.dr, greaterThan(0.02));
+      expect(outer.db, greaterThan(0));
+      expect(inner.dr, greaterThan(0.02));
+      expect(inner.db, lessThan(0));
+    });
+  });
+
+  group('motion', () {
+    testWidgets('hero animates its arcs and twinkles', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.hero);
+
+      expect(tester.hasRunningAnimations, isTrue);
+    });
+
+    testWidgets('reduce motion parks a STAGGERED twinkle on keyframe one', (
+      WidgetTester tester,
+    ) async {
+      // The third dot carries jTwinkle's 1.3s stagger; a stagger written as a
+      // phase offset would park it mid-cycle instead of at rest opacity .2.
+      const Offset dot = Offset(0.62, 0.21);
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        disableAnimations: true,
+        showTwinkles: false,
+      );
+      final Color Function(double, double) bare = await sampler(tester);
+      final Color background = bare(dot.dx, dot.dy);
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        disableAnimations: true,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse);
+
+      final Color Function(double, double) rest = await sampler(tester);
+      expectColor(
+        rest(dot.dx, dot.dy),
+        Color.lerp(background, Colors.white, JeebMotion.twinkleRestOpacity)!,
+        tolerance: 6 / 255,
+      );
+
+      await tester.pump(JeebMotion.twinkleDuration ~/ 3);
+      final Color Function(double, double) later = await sampler(tester);
+      expect(later(dot.dx, dot.dy), rest(dot.dx, dot.dy));
+    });
+
+    testWidgets('the static layers schedule nothing of their own', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
+
+  group('layout', () {
+    testWidgets('the child is laid out full-bleed over every layer', (
+      WidgetTester tester,
+    ) async {
+      const Key childKey = Key('child');
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        child: const SizedBox.expand(key: childKey),
+      );
+
+      expect(tester.getSize(find.byKey(childKey)), _fieldSize);
+      expect(tester.getSize(baseLayer()), _fieldSize);
+      expect(tester.getSize(decorLayer()), _fieldSize);
+      expect(
+        tester.getTopLeft(find.byKey(childKey)),
+        tester.getTopLeft(baseLayer()),
+      );
+    });
+
+    testWidgets('the field fills its constraints without a child', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+
+      expect(tester.getSize(find.byType(JeebMidnightField)), _fieldSize);
+    });
+  });
+}

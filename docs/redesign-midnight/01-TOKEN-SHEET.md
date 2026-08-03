@@ -143,16 +143,22 @@ w500/600/700** — face CONFIRMED from `_ds/tokens/typography.css`:
   at 58–70% stop. Alpha by variant: hero .26–.30 · content .22 · sheet .26.
   Placements (fractions of the field): `topEnd (0.88, −0.06)` · `centerUpper (0.50, 0.34–0.42)` ·
   `bottom (0.50, 0.92–0.96)`.
-- **Periwinkle wash:** radial at `(0.90, 1.00)` `rgba(119,127,192,.22)` — the ONE sanctioned use
-  of legacy periwinkle (decorative glow only).
+- **Periwinkle wash:** `rgba(119,127,192,.18–.22)` — the ONE sanctioned use of legacy
+  periwinkle (decorative glow only). CORRECTED 2026-08-04: hero anchor = `(0.0, 0.39)`
+  (start-edge mid-height, pixel-measured on R1; the caption's "periwinkle wash left");
+  `(0.90, 1.00)` is the alternate anchor from other tiles, selectable via `washPlacement`.
+- **Hero orbit arcs (corrected from R1 pixels):** two concentric arcs at `(0.90, 0.055)`,
+  radii `0.40 W` / `0.26 W`; OUTER = white ≈7%, INNER = ORANGE ≈15% (tile-drawn, budget-
+  sanctioned), both × jArcPulse opacity.
 - **Success wash variant:** `rgba(59,178,115,.16)` at `(0.88, −0.06)` — earnings/money screens.
 - Variants: `hero` (wash + orange glow + periwinkle wash + orbit rings + twinkles) ·
   `content` (wash + one quiet glow, no rings) · `map` (dimmed edges over map) ·
   `sheet` (navy surface + top glow).
 - Orbit-ring strokes (measured from board SVG): quiet background rings `white @ 7%`,
   ~1.5px, **dotted** `stroke-dasharray 1 9` (the route-dot ring; variants `2 9`, `1 12`);
-  emphasized/pulsing arcs (`jArcPulse` targets) `white @ 22%`; occasional periwinkle ring
-  `#777FC0` (decorative, sanctioned like the wash). Dashed drop-zone borders:
+  emphasized/pulsing arcs (`jArcPulse` targets): SVG stroke `white @ 22%`, but the RENDERED
+  resting composite on R1 measures ≈7% — the ratified resting value is the hero-arc block
+  below; occasional periwinkle ring `#777FC0` (decorative, sanctioned like the wash). Dashed drop-zone borders:
   `1.5px dashed white @ .30–.35`. Map route line: `#D73B00`, dash pattern `5 6`, animated
   by `jDash`.
 

@@ -15,6 +15,10 @@ class JeebMidnight {
   static const Color inkMuted = Color(0xFF8A93D8);
   static const Color inkSoft = Color(0xFFB9C0F0);
 
+  /// Legacy periwinkle, retired as ink (§10) — §8 sanctions it for the field's
+  /// decorative wash and nothing else.
+  static const Color periwinkleWash = Color(0xFF777FC0);
+
   static const Color orange = Color(0xFFD73B00);
   static const Color orangeBright = Color(0xFFFF6A2B);
   static const Color orangeSoft = Color(0xFFFFB27A);
