@@ -149,8 +149,12 @@ w500/600/700** — face CONFIRMED from `_ds/tokens/typography.css`:
 - Variants: `hero` (wash + orange glow + periwinkle wash + orbit rings + twinkles) ·
   `content` (wash + one quiet glow, no rings) · `map` (dimmed edges over map) ·
   `sheet` (navy surface + top glow).
-- Orbit-ring stroke: **M0-3 implementer extracts the exact rgba from the board's ring/arc CSS
-  classes** (not measured here; do not invent — report back the value into this sheet).
+- Orbit-ring strokes (measured from board SVG): quiet background rings `white @ 7%`,
+  ~1.5px, **dotted** `stroke-dasharray 1 9` (the route-dot ring; variants `2 9`, `1 12`);
+  emphasized/pulsing arcs (`jArcPulse` targets) `white @ 22%`; occasional periwinkle ring
+  `#777FC0` (decorative, sanctioned like the wash). Dashed drop-zone borders:
+  `1.5px dashed white @ .30–.35`. Map route line: `#D73B00`, dash pattern `5 6`, animated
+  by `jDash`.
 
 ## 9. AA pairs the re-cut contrast test must gate (M0-8)
 
