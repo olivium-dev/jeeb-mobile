@@ -10,6 +10,7 @@ import 'package:jeeb_mobile/core/accessibility/accessibility.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/order_history/application/order_history_cubit.dart';
 import 'package:jeeb_mobile/features/order_history/domain/order_repository.dart';
 import 'package:jeeb_mobile/features/order_history/domain/order_summary.dart';
@@ -75,6 +76,17 @@ class _FakeRepo implements OrderRepository {
   }
 }
 
+class _ThrowingRepo implements OrderRepository {
+  @override
+  Future<OrderPage> fetchPage({
+    required OrderHistoryTab tab,
+    required int page,
+    required int pageSize,
+    OrderDateRange range = const OrderDateRange(),
+  }) async =>
+      throw const OrderRepositoryException(OrderRepositoryErrorKind.server);
+}
+
 OrderSummary _o(String id, OrderRequestStatus status, {DateTime? createdAt}) =>
     OrderSummary(
       id: id,
@@ -94,11 +106,12 @@ Widget _host(
   TextScaler? textScaler,
   int pageSize = 2,
   Locale locale = const Locale('en'),
+  OrderHistoryTab initialTab = OrderHistoryTab.active,
 }) {
   final cubit = OrderHistoryCubit(repository: repo, pageSize: pageSize);
   Widget screen = BlocProvider.value(
     value: cubit,
-    child: const Scaffold(body: OrderHistoryScreen()),
+    child: Scaffold(body: OrderHistoryScreen(initialTab: initialTab)),
   );
   // BUG-A: the Delivery tab is shared; when acting as a jeeber the row tap must
   final role = roleCubit;
@@ -430,6 +443,75 @@ void main() {
         TextDirection.rtl,
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('E4 illustration + the catalog tab seam', () {
+    testWidgets('the empty state draws E4\'s parcel, not E1', (tester) async {
+      final repo = _FakeRepo(const {});
+      await tester.pumpWidget(_host(repo));
+      await tester.pumpAndSettle();
+
+      final empty = tester.widget<JeebEmptyState>(
+        find.byKey(const Key('order-history-empty-active')),
+      );
+      expect(empty.variant, JeebEmptyStateVariant.parcel);
+      expect(empty.variant, isNot(JeebEmptyStateVariant.e1));
+    });
+
+    testWidgets('the error twin draws the same parcel', (tester) async {
+      final repo = _ThrowingRepo();
+      await tester.pumpWidget(_host(repo));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<JeebEmptyState>(
+              find.descendant(
+                of: find.byKey(const Key('order-history-error')),
+                matching: find.byType(JeebEmptyState),
+              ),
+            )
+            .variant,
+        JeebEmptyStateVariant.parcel,
+      );
+    });
+
+    for (final tab in <OrderHistoryTab>[
+      OrderHistoryTab.completed,
+      OrderHistoryTab.cancelled,
+    ]) {
+      testWidgets('initialTab ${tab.name} loads THAT tab, not Active', (
+        tester,
+      ) async {
+        final repo = _FakeRepo({
+          OrderHistoryTab.active: [_o('a1', OrderRequestStatus.enRoute)],
+          OrderHistoryTab.completed: [_o('c1', OrderRequestStatus.delivered)],
+          OrderHistoryTab.cancelled: [_o('x1', OrderRequestStatus.cancelled)],
+        });
+        await tester.pumpWidget(
+          _host(repo, pageSize: 20, initialTab: tab),
+        );
+        await tester.pumpAndSettle();
+
+        expect(repo.calls.single.tab, tab);
+        expect(
+          find.byKey(Key('order-history-list-${tab.name}')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('order-history-card-a1')), findsNothing);
+      });
+    }
+
+    testWidgets('the default still lands on Active', (tester) async {
+      final repo = _FakeRepo({
+        OrderHistoryTab.active: [_o('a1', OrderRequestStatus.enRoute)],
+      });
+      await tester.pumpWidget(_host(repo, pageSize: 20));
+      await tester.pumpAndSettle();
+
+      expect(repo.calls.single.tab, OrderHistoryTab.active);
+      expect(find.byKey(const Key('order-history-card-a1')), findsOneWidget);
     });
   });
 
