@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/directional_icons.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
@@ -11,24 +10,31 @@ import '../../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/settings_state.dart';
 
-/// The navy identity card at the top of Settings (redesign-2026-08 §3.3).
+/// The glass identity card at the top of Settings (MIDNIGHT R22 `tpl 1354`).
 ///
-/// This is the ONLY shadowed surface on the screen — every other card is
-/// outline-over-shadow (R7), so `JeebShadows.ctaNavy` appears exactly once.
+/// Emphasis glass — white 9 % over a white 18 % stroke on the board — and
+/// **no shadow**: the caption's "stacked glass" is the fill step and the
+/// stroke, not a lift.
 class SettingsIdentityCard extends StatelessWidget {
   const SettingsIdentityCard({super.key, required this.state});
 
-  /// Card radius — 18 (board `tpl 1171`), between the 16 of the cards below it
-  /// and the 20 of the stat heroes elsewhere.
-  static const double radius = 18;
+  /// Card radius. The board draws 20; `lg` is the ladder rung inside the
+  /// ±2 tolerance, and every other card on this screen is `lg`.
+  static const double radius = JeebRadii.lg;
 
-  /// Avatar diameter (board `tpl 1172`). Odd sizes use `JeebAvatar`'s unnamed
-  /// constructor; its measured initial size for Ø50 is the board's 18px.
+  /// `15px 16px` (board `tpl 1354`).
+  static const EdgeInsetsGeometry padding =
+      EdgeInsetsDirectional.symmetric(horizontal: 16, vertical: 15);
+
+  /// Avatar diameter (board `tpl 1355`). Ø50's initial resolves to 18px, and
+  /// `primary` re-tones on this card to the board's white-14 % disc.
   static const double avatarDiameter = 50;
 
-  /// Trailing chevron size + opacity (board `tpl 1176`).
+  /// Gap between the disc, the text block and the chevron (board `gap:13`).
+  static const double gap = 13;
+
+  /// Trailing chevron (board `tpl 1360`: 18px, `#8A93D8`).
   static const double chevronSize = 18;
-  static const double chevronOpacity = 0.7;
 
   final SettingsState state;
 
@@ -42,7 +48,7 @@ class SettingsIdentityCard extends StatelessWidget {
     return JeebNavySurfaceCard(
       key: const Key('settings-row-profile'),
       radius: radius,
-      shadow: JeebShadows.ctaNavy,
+      padding: padding,
       identifier: 'settings-profile-row',
       onTap: () => context.pushNamed('settings-profile'),
       child: Row(
@@ -52,7 +58,7 @@ class SettingsIdentityCard extends StatelessWidget {
             diameter: avatarDiameter,
             imageUrl: state.profile.photoUrl,
           ),
-          const SizedBox(width: Spacing.small),
+          const SizedBox(width: gap),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -63,7 +69,7 @@ class SettingsIdentityCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: context.jeebText.cardTitle.copyWith(
-                    color: cs.onPrimary,
+                    color: cs.onSurface,
                   ),
                 ),
                 // One Text on purpose: `find.textContaining` has to resolve the
@@ -77,11 +83,11 @@ class SettingsIdentityCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: Spacing.small),
+          const SizedBox(width: gap),
           Icon(
             DirectionalIcons.disclosure(context),
             size: chevronSize,
-            color: cs.onPrimary.withValues(alpha: chevronOpacity),
+            color: muted,
           ),
         ],
       ),

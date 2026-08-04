@@ -3,18 +3,23 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/diagnostics/diag.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// MORE — the navigation rows the board omits but the app still owns
-/// (redesign-2026-08 §3.7 / CF2).
+/// (CF2, REFUSED: they are live routes with frozen identifiers).
 ///
-/// Saved addresses, notification preferences and the dev-only diagnostics entry
-/// are live routes with frozen identifiers; dropping them to match the board
-/// would delete working navigation, so they are re-homed under one label.
-/// Subtitles stay here — these rows navigate, they do not toggle.
+/// **doc-13 P1 restructure.** With two-line rows this band ran past the fold at
+/// rest, so the board's empty band vanished and the last row was sliced in half.
+/// The rows are now one line — the same rule the toggle rows above already
+/// follow — which puts the whole screen inside the viewport with air to spare.
+/// The subtitles were pure restatement ("Saved addresses / Quick access for
+/// re-order"); the routes and identifiers are untouched, and the rows drop to
+/// the kit's `11/14` navigation rung — these navigate, they are not the board's
+/// `13/16` toggle rows.
 class SettingsMoreCard extends StatelessWidget {
   const SettingsMoreCard({super.key});
 
@@ -34,7 +39,7 @@ class SettingsMoreCard extends StatelessWidget {
               identifier: 'settings_open_addresses',
               icon: Icons.location_on,
               title: l10n.savedAddressesTitle,
-              subtitle: l10n.savedAddressesSubtitle,
+              titleStyle: _titleStyle(context),
               onTap: () => context.pushNamed('settings-addresses'),
             ),
             JeebListRow(
@@ -42,7 +47,7 @@ class SettingsMoreCard extends StatelessWidget {
               identifier: 'settings-row-notifications-manage',
               icon: Icons.notifications,
               title: l10n.notificationPreferencesTitle,
-              subtitle: l10n.notificationPreferencesRowSubtitle,
+              titleStyle: _titleStyle(context),
               onTap: () => context.pushNamed('settings-notifications'),
             ),
             // Dev-only diagnostics export entry (diag-persistence lane). Gated
@@ -55,7 +60,7 @@ class SettingsMoreCard extends StatelessWidget {
                 identifier: 'settings_open_diagnostics',
                 icon: Icons.bug_report,
                 title: 'Diagnostics',
-                subtitle: 'Session logs · dev builds only',
+                titleStyle: _titleStyle(context),
                 onTap: () => context.pushNamed('settings-diagnostics'),
               ),
           ],
@@ -63,4 +68,8 @@ class SettingsMoreCard extends StatelessWidget {
       ],
     );
   }
+
+  /// The screen's row title: 14/w600, matching the toggle and sign-out rows.
+  TextStyle _titleStyle(BuildContext context) =>
+      context.jeebText.body.copyWith(fontWeight: FontWeight.w600);
 }

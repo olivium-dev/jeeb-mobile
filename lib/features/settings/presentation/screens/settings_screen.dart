@@ -7,6 +7,7 @@ import 'package:omds/omds.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/session/profile_refresh_signals.dart';
+import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../profile_name/data/dio_display_name_repository.dart';
@@ -23,19 +24,20 @@ import '../widgets/settings_language_toggle.dart';
 import '../widgets/settings_more_card.dart';
 import '../widgets/settings_notifications_card.dart';
 
-/// Settings screen (T-mobile-031, redesign-2026-08 screen 20).
+/// Settings screen (T-mobile-031, MIDNIGHT R22).
 ///
 /// Bands, top to bottom:
-///   - in-body top bar (Ø40 back circle + title)
-///   - navy identity card — name, phone, edit-profile entry
-///   - Become-a-Jeeber growth card (orange frame)
+///   - in-body top bar (Ø40 glass back circle + title)
+///   - glass identity card — name, phone, edit-profile entry
+///   - Become-a-Jeeber growth card — the page's ONE lit frame
 ///   - LANGUAGE — EN / AR pill (drives the global [LocaleCubit])
 ///   - NOTIFICATIONS — one-line toggles + the always-on security-codes line
 ///   - MORE — addresses, notification preferences, dev diagnostics
 ///   - a real empty band, then the docked footer: sign out, delete, version
 ///
-/// Theme follows system: the `MaterialApp.themeMode` is fixed to
-/// [ThemeMode.system] at app root, so this screen has no theme switcher.
+/// Field: `content` variant, orange glow top-end — the tile's only radial
+/// (`radial-gradient(480px 380px at 88% -6%)`), and it declares no periwinkle.
+/// R22 is board-still: nothing on this screen animates.
 ///
 /// Talks to a single [SettingsCubit] hosted at the route. Hosting it here
 /// keeps the dependency on the persistence + account-service seams scoped
@@ -112,39 +114,45 @@ class _SettingsView extends StatelessWidget {
         }
       },
       builder: (context, state) {
-        return Scaffold(
-          body: SafeArea(
-            // The list reserves the nav-bar inset itself so the footer can
-            // scroll clear of the soft buttons in edge-to-edge mode.
-            bottom: false,
-            child: Column(
-              children: [
-                JeebTopBar.back(
-                  title: l10n.settingsTitle,
-                  identifier: 'settings_back',
-                  // The `/settings` route has no forward-nav entry point
-                  // (ORPHAN, JEBV4-227), so this screen can be reached with an
-                  // empty Navigator stack: pop when we can, else go to the
-                  // shell — never pop the last page (black surface).
-                  onLeadingPressed: () =>
-                      context.canPop() ? context.pop() : context.go('/'),
-                ),
-                // The board's `flex: 1` — the empty band is real, never filled.
-                Expanded(child: _SettingsBody(state: state)),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    // The board's 24px gutter (`tpl 1215`).
-                    padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: Spacing.xLarge,
-                    ),
-                    child: SettingsFooter(
-                      state: state,
-                      appVersion: appVersion,
+        return JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              // The list reserves the nav-bar inset itself so the footer can
+              // scroll clear of the soft buttons in edge-to-edge mode.
+              bottom: false,
+              child: Column(
+                children: [
+                  JeebTopBar.back(
+                    title: l10n.settingsTitle,
+                    identifier: 'settings_back',
+                    // The `/settings` route has no forward-nav entry point
+                    // (ORPHAN, JEBV4-227), so this screen can be reached with
+                    // an empty Navigator stack: pop when we can, else go to the
+                    // shell — never pop the last page (black surface).
+                    onLeadingPressed: () =>
+                        context.canPop() ? context.pop() : context.go('/'),
+                  ),
+                  // The board's `flex: 1` — the empty band is real, never
+                  // filled.
+                  Expanded(child: _SettingsBody(state: state)),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      // The board's 24px gutter (`tpl 1402`).
+                      padding: const EdgeInsetsDirectional.symmetric(
+                        horizontal: Spacing.xLarge,
+                      ),
+                      child: SettingsFooter(
+                        state: state,
+                        appVersion: appVersion,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -193,11 +201,13 @@ class _SettingsBody extends StatelessWidget {
               SettingsIdentityCard(state: state),
               const SizedBox(height: Spacing.small),
               const SettingsBecomeJeeberCard(),
-              const SizedBox(height: Spacing.medium),
+              // The board opens each labelled band with 20 (`tpl 1370`/`1377`),
+              // not the 16 that separates the two cards above.
+              const SizedBox(height: Spacing.large),
               const SettingsLanguageToggle(),
-              const SizedBox(height: Spacing.medium),
+              const SizedBox(height: Spacing.large),
               SettingsNotificationsCard(state: state),
-              const SizedBox(height: Spacing.medium),
+              const SizedBox(height: Spacing.large),
               const SettingsMoreCard(),
             ],
           ),

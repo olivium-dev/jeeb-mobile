@@ -9,8 +9,12 @@ import '../../../../l10n/app_localizations.dart';
 import '../../application/settings_state.dart';
 import 'logout_delete_confirm_sheet.dart';
 
-/// Docked account footer (redesign-2026-08 §3.8) — the JM-062
+/// Docked account footer (MIDNIGHT R22 `tpl 1402`) — the JM-062
 /// `logout-delete-account` host.
+///
+/// "Destructive stays dim red at the bottom" (tile caption): Delete account is
+/// the danger-SOFT `onErrorContainer` (`#FF7B7B`), never the full-strength
+/// `error` — this band must not compete with the lit frame above it.
 ///
 /// Both affordances open [LogoutDeleteConfirmSheet], whose
 /// `logout_confirm_cta` / `delete_confirm_cta` clear the local session and route
@@ -24,8 +28,9 @@ class SettingsFooter extends StatelessWidget {
     required this.appVersion,
   });
 
-  /// Exit glyph size on the sign-out row (board `tpl 1217`).
+  /// Exit glyph size + ink alpha on the sign-out row (board `tpl 1404`).
   static const double signOutGlyphSize = 18;
+  static const double signOutGlyphOpacity = 0.9;
 
   final SettingsState state;
 
@@ -64,6 +69,9 @@ class SettingsFooter extends StatelessWidget {
                   identifier: 'settings_sign_out_row',
                   icon: _signOutGlyph,
                   iconSize: signOutGlyphSize,
+                  iconColor: colorScheme.onSurface.withValues(
+                    alpha: signOutGlyphOpacity,
+                  ),
                   title: l10n.appBarSignOut,
                   titleStyle: context.jeebText.body.copyWith(
                     fontWeight: FontWeight.w600,
@@ -77,14 +85,16 @@ class SettingsFooter extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: Spacing.xSmall),
+            // No spacer either side of the button: its own 48dp tap target
+            // already draws the board's 10/12 margins, and stacking both put
+            // the destructive line 23dp below the card instead of 10.
             Semantics(
               identifier: 'settings_delete_account_row',
               button: true,
               child: TextButton(
                 key: const Key('settings-row-delete-account'),
                 style: TextButton.styleFrom(
-                  foregroundColor: colorScheme.error,
+                  foregroundColor: colorScheme.onErrorContainer,
                   textStyle: context.jeebText.bodySmall,
                 ),
                 onPressed: (!state.deletionPending && !state.isDeletingAccount)
@@ -99,7 +109,6 @@ class SettingsFooter extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: captionStyle,
               ),
-            const SizedBox(height: Spacing.small),
             Text(
               l10n.settingsVersionFooter(appVersion),
               textAlign: TextAlign.center,

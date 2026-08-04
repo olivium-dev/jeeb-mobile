@@ -328,12 +328,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M2-16 R20 Order chat — **container non-zero (+56/-123)**, green banner demoted to a quiet timeline chip, no typing indicator, counterpart-name carry-in closed at the one site where the name is in scope; **parked 320x480@2.0 overflow FIXED** (composer, 52px) @2026-08-04
 - [x] M2-17 R21+E4 Order history + empty — rows/status chips/expired dimming per tile, E4 empty on the E1 variant pending a sanctioned `parcel` (§8 Q-025); date-filter sheet still light-theme → wave-C fixup @2026-08-04
 - [x] M2-18 R4 Wallet — hub restyled on the money tokens, balance hero + transaction rows, all 6 catalog states re-captured; wallet subtree stays M3 @2026-08-04
-- [ ] M2-19 R22 Settings
-- [ ] M2-20 R23 Become a Jeeber (KYC wizard)
-- [ ] M2-21 R5+W1-3 Onboarding + walkthrough slides
-- [ ] M2-22 R6 Registration
-- [ ] M2-23 R7 OTP verify
-- [ ] M2-24 R8 Transcription review
+- [x] M2-19 R22 Settings — content field topEnd, stacked-glass rungs (9%/18% identity over 7%/14%), board toggle geometry replacing the OMDS row (which rendered a PERIWINKLE track — the orange was unreachable through it), MORE band to the navigation rung, destructive on danger-soft @2026-08-04
+- [x] M2-20 R23 Become a Jeeber (KYC wizard) — ID-band relocation (P1), capture tiles + liveness card on the kit, encryption clause preserved verbatim under legal hold @2026-08-04
+- [x] M2-21 R5+W1-3 Onboarding + walkthrough — THE motion row: 19 board-measured animated elements wired with their exact delay ladders (bubble pair 4/4.4s @1.2s, W2 rings 3.2s @.6s offset, W3 the only jDash on any R/W tile); R5 and W1 ship as ONE widget with two placements @2026-08-04
+- [x] M2-22 R6 Registration — hero box DELETED (caption: typography sits straight on the field), orange-rimmed phone field, orange CTA, frosted socials with bare brand labels; L1/L2 never built @2026-08-04
+- [x] M2-23 R7 OTP verify — periwinkle wash top-start (the mirror of R6, measured not assumed), input74 cells with the third active, three-ink subtitle, pass-1 Verify pill DELETED and its frozen id re-homed @2026-08-04
+- [x] M2-24 R8 Transcription review — injected scrubber waveform REMOVED per the board, low-confidence underline as a Pattern-A slot, fully static @2026-08-04
 
 ### M3 Remainder (46) — Tier 1
 - [ ] M3-01 `deep_link_targets/delivery_detail_screen.dart` (697, `/orders/:id`)
