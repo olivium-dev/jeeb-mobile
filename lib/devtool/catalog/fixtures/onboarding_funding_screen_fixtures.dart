@@ -38,6 +38,16 @@ const WalletBalance onboardingFundingScreenGiftSpentBalance = WalletBalance(
   currency: 'USD',
 );
 
+/// Nothing to enrich with: the snapshot loaded, but neither amount is > 0, so
+/// the explainer copy carries the screen alone.
+const WalletBalance onboardingFundingScreenNoCreditBalance = WalletBalance(
+  availableBalance: 0,
+  affordabilityState: WalletAffordability.empty,
+  reservedNow: 0,
+  giftCredit: 0,
+  currency: 'USD',
+);
+
 /// The typographic ceiling: a weak-unit currency, where the amounts are the
 const WalletBalance onboardingFundingScreenCeilingBalance = WalletBalance(
   availableBalance: 2222222.21,

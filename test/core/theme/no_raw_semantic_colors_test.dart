@@ -19,11 +19,17 @@ void main() {
     'lib/features/delivery_status/presentation/widgets/delivery_lifecycle_banner.dart',
     'lib/features/dispute_status/presentation/dispute_status_screen.dart',
     'lib/features/offline_mode/presentation/offline_banner.dart',
-    // Journey 3 — wallet / settlement / history / auth
+    // Journey 3 — wallet / history / auth
     'lib/features/wallet/presentation/wallet_hub_screen.dart',
-    'lib/features/settlement/presentation/settlement_screen.dart',
-    'lib/features/settlement/presentation/settlement_detail_screen.dart',
-    'lib/features/settlement/presentation/widgets/settlement_status_pill.dart',
+    // MIDNIGHT M3-11..14: the rest of the wallet journey, added with the
+    // restyle that took `colorScheme.primary` off eight non-CTA elements.
+    'lib/features/wallet/presentation/wallet_activity_list_screen.dart',
+    'lib/features/wallet/presentation/widgets/wallet_activity_row.dart',
+    'lib/features/wallet/presentation/transaction_detail_screen.dart',
+    'lib/features/wallet/presentation/wallet_charge_info_screen.dart',
+    'lib/features/wallet/presentation/customer_wallet_stub_screen.dart',
+    // settlement_screen/_detail_screen/settlement_status_pill removed with the
+    // ratified M3-15/16 orphan deletion (02-STUDY-NOTES §ORPHAN, owner Q9).
     'lib/features/order_history/presentation/order_status_chip.dart',
     // sign_up_screen.dart removed with the email/password funnel (JEBV4-199).
     'lib/features/prohibited_acknowledgment/presentation/prohibited_acknowledgment_dialog.dart',

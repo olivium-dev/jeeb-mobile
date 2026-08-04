@@ -18,9 +18,6 @@ import '../../../features/settings/presentation/screens/notification_preferences
 import '../../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../../features/settings/presentation/screens/settings_screen.dart';
 import '../../../features/settings/presentation/widgets/logout_delete_confirm_sheet.dart';
-import '../../../features/settlement/domain/settlement_repository.dart';
-import '../../../features/settlement/presentation/settlement_detail_screen.dart';
-import '../../../features/settlement/presentation/settlement_screen.dart';
 import '../../../features/tier_selection/data/tier_repository.dart';
 import '../../../features/tier_selection/domain/tier.dart';
 import '../catalog_models.dart';
@@ -31,8 +28,6 @@ import '../fixtures/request_summary_unavailable_screen_fixtures.dart';
 import '../fixtures/request_type_screen_fixtures.dart';
 import '../fixtures/reviews_list_screen_fixtures.dart';
 import '../fixtures/saved_addresses_screen_fixtures.dart';
-import '../fixtures/settlement_detail_screen_fixtures.dart';
-import '../fixtures/settlement_screen_fixtures.dart';
 import '../fixtures/settings_screen_fixtures.dart';
 
 Widget _requestSummaryScreen(
@@ -312,57 +307,5 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       ),
     ],
   ),
-  CatalogEntry(
-    feature: 'settlement',
-    screen: 'SettlementScreen',
-    states: [
-      CatalogState(
-        'Loading',
-        (_) =>
-            const SettlementScreen(repository: SettlementScreenPendingRepository()),
-      ),
-      CatalogState(
-        'Ready — Mixed',
-        (_) => const SettlementScreen(
-          repository: SettlementScreenFakeRepository(
-            statements: settlementDetailScreenSampleWeeks,
-          ),
-        ),
-      ),
-      CatalogState(
-        'Empty',
-        (_) => const SettlementScreen(
-          repository: SettlementScreenFakeRepository(),
-        ),
-      ),
-      CatalogState(
-        'Error',
-        (_) => const SettlementScreen(
-          repository: SettlementScreenFakeRepository(
-            fetchFailure: SettlementFailure.network,
-          ),
-        ),
-      ),
-    ],
-  ),
-  CatalogEntry(
-    feature: 'settlement',
-    screen: 'SettlementDetailScreen',
-    states: [
-      CatalogState(
-        'Paid',
-        (_) => const SettlementDetailScreen(
-          statement: settlementDetailScreenPaidWeek,
-        ),
-      ),
-      CatalogState(
-        'Pending',
-        (_) => const SettlementDetailScreen(
-          statement: settlementDetailScreenPendingWeek,
-        ),
-      ),
-    ],
-  ),
-
   // TODO: live_settings_screen — resolves Dio in a field initializer (no seam point)
 ];

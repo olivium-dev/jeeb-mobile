@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../domain/wallet_ledger_repository.dart';
 import '../wallet_activity_l10n.dart';
 
-/// Row radius/padding — 24's order-row numbers (`24-order-history.html`
-/// tpl 1427/1437), which the notifications inbox row already adopted. This list
-/// hangs directly off the redesigned 23 hub, so its rows have to read as the
-/// same product as its neighbours.
-const double _rowRadius = 18;
-const EdgeInsetsGeometry _rowPadding = EdgeInsetsDirectional.symmetric(
+/// Row geometry — R21's own box (`border-radius:20px; padding:14px 16px`), which
+/// snaps to `JeebRadii.lg` (18) under the §5 ±2 rule and is the rung
+/// `notification_row.dart` already ships.
+const EdgeInsetsGeometry kWalletActivityRowPadding =
+    EdgeInsetsDirectional.symmetric(
   horizontal: Spacing.medium,
   vertical: 14,
 );
@@ -29,11 +29,19 @@ const EdgeInsetsGeometry _rowPadding = EdgeInsetsDirectional.symmetric(
 /// tinted credit/debit. The whole row is the tap target — on tap the screen
 /// pushes `transaction-detail` (JM-056).
 ///
-/// Redesign-2026-08: a re-skin onto the kit, not a rewrite. The hand-rolled
-/// `InkWell` + Ø56 grey icon tile + hairline `Divider` became a
-/// [JeebOutlinedCard] (outline over shadow, r18, 14/16) carrying two bands in
-/// 24's rhythm — a headline row (glyph · type label · signed amount) over a meta
-/// row (reference · relative time). Nothing was added or removed.
+/// MIDNIGHT (M3-11), derived from R4 (`04-r4-wallet.png`) whose hub this list
+/// hangs off, with R19 (earnings) as the secondary pattern for row facts:
+///   * rest-glass [JeebOutlinedCard] at `JeebRadii.lg`, 14/16 — R21's rung.
+///   * type label = `onSurface` (§1 "board primary ink"; the wave-B ruling that
+///     `onSurface` is the heading ink app-wide). It was `colorScheme.primary`,
+///     which under Midnight IS `#D73B00` — a read-only label spending the
+///     orange budget.
+///   * typed glyph = `onSurfaceVariant`, §1's muted ink role: the icon is
+///     cosmetic (flows key on the row id), so it must not read as an action.
+///   * amount = `price` (22/w800/−0.5, §6 "money emphasis"), credit inked
+///     `onSuccessContainer` `#7BD9A4` (R19's own cash-row ink) and debit
+///     `onErrorContainer` `#FF7B7B` — the danger-SOFT half, per the R22 ruling
+///     the kit's `JeebCtaVariant.danger` records: never full-strength `#FF5252`.
 class WalletActivityRow extends StatelessWidget {
   const WalletActivityRow({
     super.key,
@@ -53,12 +61,12 @@ class WalletActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebRoles roles = context.jeebRoles;
     final bool isCredit = entry.sign >= 0;
     final String ref = copy.refLabel(entry.ref);
     final String time = copy.relativeTime(entry.timestamp, now: now);
-    // Periwinkle meta ink — 24's date/status line, 23's row subtitles.
     final TextStyle metaStyle = context.jeebText.bodySmall.copyWith(
-      color: scheme.onSecondaryContainer,
+      color: scheme.onSurfaceVariant,
     );
 
     return JeebOutlinedCard(
@@ -68,20 +76,18 @@ class WalletActivityRow extends StatelessWidget {
       // it replaces (the `NotificationRow` precedent).
       identifier: 'wallet_activity_row_${entry.id}',
       onTap: onTap,
-      radius: _rowRadius,
-      padding: _rowPadding,
+      radius: JeebRadii.lg,
+      padding: kWalletActivityRowPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Row(
             children: <Widget>[
-              // Filled glyph inline at 16 (R10) — the Ø56 `surfaceContainerHighest`
-              // tile is gone: an outlined card does not need a second box.
               Icon(
                 _iconFor(entry.type),
                 size: Sizes.medium,
-                color: scheme.primary,
+                color: scheme.onSurfaceVariant,
               ),
               const SizedBox(width: Spacing.xSmall),
               Expanded(
@@ -90,7 +96,7 @@ class WalletActivityRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: context.jeebText.cardTitle.copyWith(
-                    color: scheme.primary,
+                    color: scheme.onSurface,
                   ),
                 ),
               ),
@@ -98,10 +104,7 @@ class WalletActivityRow extends StatelessWidget {
               // Signed amount — `+` credit (released / refund / top up / gift),
               // `-` debit (reserve / fee-won / penalty). The sign comes from the
               // W2m `sign`, not the type, so a corrected backend row renders
-              // correctly without an enum table here. The credit ink is the
-              // contrast-gated `success` role: navy-vs-ink (the pre-redesign
-              // pair) are the same colour to the eye, so the tint carried no
-              // information at all.
+              // correctly without an enum table here.
               Text(
                 copy.signedAmount(entry.amount, entry.sign, entry.currency),
                 // The `+`/`-` is the load-bearing half of this token and the
@@ -109,10 +112,10 @@ class WalletActivityRow extends StatelessWidget {
                 // isolate), so an Arabic paragraph would reorder it to
                 // `USD 0.90-`. Resolve the run LTR instead.
                 textDirection: TextDirection.ltr,
-                style: context.jeebText.cardTitle.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color:
-                      isCredit ? context.jeebRoles.success : scheme.primary,
+                style: context.jeebText.price.copyWith(
+                  color: isCredit
+                      ? roles.onSuccessContainer
+                      : roles.onErrorContainer,
                 ),
               ),
             ],

@@ -22,6 +22,7 @@ import '../../../features/voice_request/presentation/voice_recording_screen.dart
 import '../../../features/wallet/data/empty_wallet_ledger_repository.dart';
 import '../../../features/wallet/domain/wallet_ledger_repository.dart';
 import '../../../features/wallet/domain/wallet_transaction_repository.dart';
+import '../../../features/wallet/presentation/customer_wallet_stub_screen.dart';
 import '../../../features/wallet/presentation/transaction_detail_screen.dart';
 import '../../../features/wallet/presentation/wallet_activity_list_screen.dart';
 import '../../../features/wallet/presentation/wallet_charge_info_screen.dart';
@@ -30,6 +31,7 @@ import '../catalog_models.dart';
 import '../fixtures/shell_screen_fixtures.dart';
 import '../fixtures/support_ticket_screen_fixtures.dart';
 import '../fixtures/tier_selection_screen_fixtures.dart';
+import '../fixtures/customer_wallet_stub_screen_fixtures.dart';
 import '../fixtures/transaction_detail_screen_fixtures.dart';
 import '../fixtures/transcription_screen_fixtures.dart';
 import '../fixtures/voice_recording_screen_fixtures.dart';
@@ -53,6 +55,7 @@ List<CatalogEntry> get batch11Entries => <CatalogEntry>[
   _transactionDetailEntry,
   _walletActivityListEntry,
   _walletChargeInfoEntry,
+  _customerWalletStubEntry,
 ];
 
 /// Wraps bare tab body in Scaffold for Material ancestor.
@@ -475,6 +478,22 @@ final CatalogEntry _walletChargeInfoEntry = CatalogEntry(
       'Charge-at-store instructions',
       (_) => const WalletChargeInfoScreenHost(
         screen: WalletChargeInfoScreen(),
+      ),
+    ),
+  ],
+);
+
+/// The customer-facing wallet surface had NO catalog state at all, so its whole
+/// treatment was uncapturable. Needs the GoRouter wrapper: the chip reaches it
+/// with a stack-REPLACING `goNamed`, so the exit falls back to the shell.
+final CatalogEntry _customerWalletStubEntry = CatalogEntry(
+  feature: 'wallet',
+  screen: 'CustomerWalletStubScreen',
+  states: [
+    CatalogState(
+      'Cash on delivery — no in-app balance',
+      (_) => const CustomerWalletStubScreenPreviewHost(
+        screen: CustomerWalletStubScreen(),
       ),
     ),
   ],

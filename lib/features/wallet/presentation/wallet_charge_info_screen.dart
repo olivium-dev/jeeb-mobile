@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
@@ -42,17 +44,25 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 ///
 /// Identifier contract: 65_W2_TEST_PLAN §2/§4 JM-054. Every id below is exact.
 ///
-/// Redesign-2026-08: a re-skin onto the Jeeb kit, not a rewrite — same route,
-/// same blocks in the same order, same copy, every identifier unmoved, and
-/// still zero payment affordances. There is no board render for this screen;
-/// the language comes from the hub it hangs off, 23 (`screens/23-wallet.png`)
-/// and from its already-redesigned neighbours in this directory: an in-body
-/// [JeebTopBar], a 24px gutter, and the three loose numbered rows collected
-/// into ONE outlined card whose kit dividers carry the sequence (23's own
-/// grouped-exits shape, the shape `transaction_detail_screen.dart` gives its
-/// field rows), the two trailing caveats as [JeebInfoNote.muted] panels, and
-/// the back CTA docked over real white emptiness (R1) instead of floating at
-/// the end of the scroll.
+/// MIDNIGHT (M3-13): a re-skin, not a rewrite — same route, same blocks in the
+/// same order, same copy, every frozen identifier unmoved, and still zero
+/// payment affordances. The board never drew this screen; it is DERIVED from
+/// R4 (`04-r4-wallet.png`), the hub whose `+ Top up` CTA is the only way here,
+/// carrying the treatment `wallet_hub_screen.dart` already ships: the same two
+/// radials on the same anchors (ORANGE glow top-start, PERIWINKLE wash end-side
+/// at mid-height), `animateDecor: false` (03-MOTION-NOTES §R4 records zero
+/// animated elements), an in-body [JeebTopBar], a 24px gutter, the three
+/// numbered rows in ONE outlined card whose kit dividers carry the sequence,
+/// the two caveats as [JeebInfoNote.muted] panels, and the exit docked.
+///
+/// This screen has ONE state: it makes no network call, so there is no loading,
+/// empty or error branch to draw.
+///
+/// R4's caption is explicit that the money ACT ("Top up") is the only solid
+/// orange element on the wallet. This screen's only CTA is a navigation exit, so
+/// it spends none — and the three numbered badges, which were filled
+/// `colorScheme.primary` (which under Midnight IS `#D73B00`), are now the kit's
+/// glass disc rung.
 class WalletChargeInfoScreen extends StatelessWidget {
   const WalletChargeInfoScreen({super.key});
 
@@ -74,14 +84,22 @@ class WalletChargeInfoScreen extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: Scaffold(
-        // The header is an in-body row, not a Material app bar — the shape the
-        // hub, the activity list and the transaction detail all moved to, so
-        // this screen carries the board's 24px gutter instead of a centred M3
-        // title.
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+        backgroundColor: Colors.transparent,
+        // R4's two radials, carried from the hub — separate layers, separate
+        // anchors, neither animated.
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topStart,
+          washPlacement: JeebFieldWashPlacement.endMid,
+          animateDecor: false,
+          // The header is an in-body row, not a Material app bar — the shape the
+          // hub, the activity list and the transaction detail all moved to, so
+          // this screen carries the board's 24px gutter instead of a centred M3
+          // title.
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
               JeebTopBar(
                 // New interactive element -> `<screen>_<element>`. The in-body
                 // `charge_info_back_cta` below keeps its own id untouched (the
@@ -155,21 +173,23 @@ class WalletChargeInfoScreen extends StatelessWidget {
                 ),
               ),
 
-              // ── R1: the residual space above the footer stays plain white —
-              //    the one exit docks, in the position every redesigned screen
-              //    in this journey puts it.
+              // ── The residual space above the footer stays field — the one
+              //    exit docks, in the position every screen in this journey
+              //    puts it. `primary` is periwinkle (theme ruling 3): the exit
+              //    is navigation, not the money act R4 rations orange to.
               JeebCtaFooter.single(
                 child: Semantics(
                   identifier: 'charge_info_back_cta',
                   button: true,
                   container: true,
-                  child: JeebCtaButton(
+                  child: JeebCtaButton.primary(
                     label: l10n.chargeInfoBackCta,
                     onTap: () => _back(context),
                   ),
                 ),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -177,15 +197,16 @@ class WalletChargeInfoScreen extends StatelessWidget {
   }
 }
 
-/// A single ordered instruction step: a numbered navy badge + the step copy,
+/// A single ordered instruction step: a numbered glass badge + the step copy,
 /// sized to sit inside a [JeebOutlinedCard.grouped] ([JeebListRow]'s own 14/16
 /// padding and 12 gap, so a step row keeps the same rhythm as every other row
 /// in a grouped card across the redesign).
 ///
-/// The badge is the kit stepper's done-node idiom (navy disc, light w800 ink)
-/// held at the nearest size token — the kit ships no numbered badge because 23
-/// is the only board screen with one, and a screen-local mark is cheaper than
-/// a 33rd kit widget (03-WAVE1-KIT §5, the starter-credit-pill precedent).
+/// The kit ships no numbered badge, so this is a screen-local mark on the kit's
+/// own glass-disc rung (`glassFillEmphasis` + 1px `glassBorder` + `onSurface`
+/// ink — R19's fee disc). It was a solid `colorScheme.primary` disc, which pass
+/// 1 read as navy and Midnight renders `#D73B00`: three orange discs on a screen
+/// whose only act is "Back to wallet".
 class _Step extends StatelessWidget {
   const _Step({required this.index, required this.id, required this.text});
 
@@ -196,6 +217,9 @@ class _Step extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors glass =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
     return Semantics(
       identifier: id,
       container: true,
@@ -210,14 +234,15 @@ class _Step extends StatelessWidget {
               height: Sizes.xLarge,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: scheme.primary,
+                color: glass.glassFillEmphasis,
+                border: Border.all(color: glass.glassBorder),
                 shape: BoxShape.circle,
               ),
               child: Text(
                 '$index',
                 style: context.jeebText.bodySmall.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: scheme.onPrimary,
+                  color: scheme.onSurface,
                 ),
               ),
             ),

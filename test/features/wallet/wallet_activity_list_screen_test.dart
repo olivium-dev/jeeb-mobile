@@ -52,7 +52,16 @@ WalletLedgerEntry _row(
 void main() {
   Future<void> pump(WidgetTester tester, WalletLedgerRepository repo) async {
     await tester.pumpWidget(
-      wrapForTest(WalletActivityListScreen(repository: repo)),
+      wrapForTest(
+        // MIDNIGHT: the empty/loading/error illustration loops ∞ by design, so
+        // `pumpAndSettle` cannot settle without reduce motion (wave-B ruling).
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: WalletActivityListScreen(repository: repo),
+          ),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
   }

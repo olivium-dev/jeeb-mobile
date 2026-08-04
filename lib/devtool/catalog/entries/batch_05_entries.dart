@@ -50,6 +50,24 @@ final CatalogEntry _onboardingFundingEntry = CatalogEntry(
       ),
     ),
     CatalogState(
+      'Empty — snapshot loaded with nothing to enrich',
+      (_) => const OnboardingFundingScreenHost(
+        screen: OnboardingFundingScreen(
+          repository: OnboardingFundingScreenStaticWallet(
+            onboardingFundingScreenNoCreditBalance,
+          ),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Loading — wallet read in flight',
+      (_) => const OnboardingFundingScreenHost(
+        screen: OnboardingFundingScreen(
+          repository: OnboardingFundingScreenPendingWallet(),
+        ),
+      ),
+    ),
+    CatalogState(
       'Fail-safe — wallet fetch failed, static explainer only',
       (_) => const OnboardingFundingScreenHost(
         screen: OnboardingFundingScreen(
@@ -350,6 +368,22 @@ final CatalogEntry _kycRejectedEntry = CatalogEntry(
     CatalogState(
       'Reason — other/generic',
       (_) => KycRejectedScreen(gateway: KycRejectedScreenFixtures.other()),
+    ),
+    // MIDNIGHT M3-21: the three non-default phases of the cause enrichment.
+    // All three fixtures existed and none was mounted, so none was ever captured.
+    CatalogState(
+      'No structured reason',
+      (_) => KycRejectedScreen(
+        gateway: KycRejectedScreenFixtures.rejectedWithoutReason(),
+      ),
+    ),
+    CatalogState(
+      'Status read failed',
+      (_) => KycRejectedScreen(gateway: KycRejectedScreenFixtures.failing()),
+    ),
+    CatalogState(
+      'Status read in flight',
+      (_) => KycRejectedScreen(gateway: KycRejectedScreenFixtures.pending()),
     ),
   ],
 );

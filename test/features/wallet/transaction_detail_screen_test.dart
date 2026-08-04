@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/wallet/domain/wallet_ledger_repository.dart';
@@ -54,7 +55,17 @@ void main() {
   }) async {
     await tester.pumpWidget(
       wrapForTest(
-        TransactionDetailScreen(transactionId: 'led-1', repository: repo),
+        // MIDNIGHT: the loading/error illustration loops ∞ by design, so
+        // `pumpAndSettle` cannot settle without reduce motion (wave-B ruling).
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: TransactionDetailScreen(
+              transactionId: 'led-1',
+              repository: repo,
+            ),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();

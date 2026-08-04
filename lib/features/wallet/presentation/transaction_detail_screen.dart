@@ -5,11 +5,16 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/server_time.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
-import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -19,6 +24,13 @@ import '../data/stub_wallet_transaction_repository.dart';
 import '../domain/wallet_ledger_repository.dart';
 import '../domain/wallet_transaction_repository.dart';
 import 'transaction_detail_l10n.dart';
+import 'widgets/wallet_state_mark.dart';
+
+/// Shares the ledger list's empty-family composition — see `_kStateArt` there:
+/// R19's `e1` frame with the client mic and shopping medallions replaced by a
+/// glass money mark, so a read-only money surface spends no orange.
+const JeebEmptyStateVariant _kStateArt = JeebEmptyStateVariant.e1;
+const List<JeebEmptyMedallion> _kNoMedallions = <JeebEmptyMedallion>[];
 
 /// transaction-detail (JM-056). Per-type detail of a single ledger row reached
 /// from wallet-activity-list (JM-055, `wallet_activity_row_<id>` tap):
@@ -41,17 +53,23 @@ import 'transaction_detail_l10n.dart';
 ///
 /// Semantics ids placed (30_BACKLOG JM-056):
 ///   `txn_detail_root`         — screen host container
-///   `txn_detail_back`         — the top bar's leading circle (redesign-2026-08)
+///   `txn_detail_back`         — the top bar's leading circle
 ///   `txn_detail_order_link`   — → order-summary-pinned
 ///   `txn_detail_dispute_link` — → dispute-open-evidence
 ///
-/// Redesign-2026-08: a re-skin onto the Jeeb kit, not a rewrite — same route,
-/// same 4-state machine, same fields in the same order, every identifier
-/// unmoved. There is no board render for this screen; the language comes from
-/// the hub two steps up, 23 (`screens/23-wallet.png`): an in-body [JeebTopBar]
-/// that renders in EVERY state, the navy stat hero for the one number the
-/// screen exists to state, a muted note for the explanation, and outlined cards
-/// for the fields and the outbound edges.
+/// MIDNIGHT (M3-12): a re-skin, not a rewrite — same route, same 4-state
+/// machine, same fields in the same order, every frozen identifier unmoved. The
+/// board never drew this screen; it is DERIVED from R4 (`04-r4-wallet.png`), the
+/// hub two steps up, whose treatment `wallet_hub_screen.dart` already ships:
+/// the same two radials on the same anchors (ORANGE glow top-start, PERIWINKLE
+/// wash end-side at mid-height), and R4's own frosted bank-card — hero glass at
+/// `xl`, a real blur, the board's `floatNav` lift — carried onto the one number
+/// this screen exists to state.
+///
+/// R4's caption rations the orange to the single money ACT ("Top up"), so this
+/// read-only leaf spends none: the hub's corner glow is not carried, and the
+/// value ink that used to be `colorScheme.primary` (which under Midnight IS
+/// `#D73B00`) is back on `onSurface`.
 class TransactionDetailScreen extends StatelessWidget {
   const TransactionDetailScreen({
     super.key,
@@ -103,62 +121,93 @@ class _TransactionDetailView extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: Semantics(
-      identifier: 'txn_detail_root',
-      container: true,
-      child: Scaffold(
-        // The header is an in-body row, not a Material app bar, so it renders
-        // in EVERY state (loading / failed / loaded) and carries the board's
-        // 24px gutter instead of a centred M3 title.
-        body: SafeArea(
-          child: Column(
-            children: [
-              JeebTopBar(
-                identifier: 'txn_detail_back',
-                title: copy.title,
-                leadingTooltip:
-                    MaterialLocalizations.of(context).backButtonTooltip,
-                // Normally pushed from wallet-activity-list's
-                // `wallet_activity_row_<id>` tap, but also reachable via deep
-                // link with an empty Navigator stack. Pop when we can (pushed
-                // entry), else return to the shell — never pop the last page
-                // (which would leave an empty Navigator → black surface).
-                onLeadingPressed: () =>
-                    context.canPop() ? context.pop() : context.go('/'),
+        identifier: 'txn_detail_root',
+        container: true,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          // R4's two radials, carried from the hub — separate layers, separate
+          // anchors, neither animated (03-MOTION-NOTES §R4).
+          body: JeebMidnightField(
+            variant: JeebFieldVariant.content,
+            glowPlacement: JeebFieldGlowPlacement.topStart,
+            washPlacement: JeebFieldWashPlacement.endMid,
+            animateDecor: false,
+            // The header is an in-body row, not a Material app bar, so it
+            // renders in EVERY state (loading / failed / loaded) and carries the
+            // board's 24px gutter instead of a centred M3 title.
+            child: SafeArea(
+              child: Column(
+                children: [
+                  JeebTopBar(
+                    identifier: 'txn_detail_back',
+                    title: copy.title,
+                    leadingTooltip:
+                        MaterialLocalizations.of(context).backButtonTooltip,
+                    // Normally pushed from wallet-activity-list's
+                    // `wallet_activity_row_<id>` tap, but also reachable via deep
+                    // link with an empty Navigator stack. Pop when we can (pushed
+                    // entry), else return to the shell — never pop the last page
+                    // (which would leave an empty Navigator → black surface).
+                    onLeadingPressed: () =>
+                        context.canPop() ? context.pop() : context.go('/'),
+                  ),
+                  Expanded(
+                    child:
+                        BlocBuilder<
+                          TransactionDetailCubit,
+                          TransactionDetailState
+                        >(
+                          builder: (context, state) {
+                            switch (state.status) {
+                              case TransactionDetailStatus.initial:
+                              case TransactionDetailStatus.loading:
+                                return _StateBlock(
+                                  status: JeebEmptyStateStatus.loading,
+                                  // TODO(midnight): l10n-queued —
+                                  // txnDetailLoadingHeadline.
+                                  headline: copy.title,
+                                );
+                              case TransactionDetailStatus.failed:
+                                return _errorBlock(
+                                  context,
+                                  _errorCopy(copy, state.error),
+                                  copy.retry,
+                                );
+                              case TransactionDetailStatus.loaded:
+                                final txn = state.transaction;
+                                if (txn == null) {
+                                  return _errorBlock(
+                                    context,
+                                    copy.loadErrorGeneric,
+                                    copy.retry,
+                                  );
+                                }
+                                return _LoadedBody(txn: txn, copy: copy);
+                            }
+                          },
+                        ),
+                  ),
+                ],
               ),
-              Expanded(
-                child:
-                    BlocBuilder<TransactionDetailCubit, TransactionDetailState>(
-                  builder: (context, state) {
-                    switch (state.status) {
-                      case TransactionDetailStatus.initial:
-                      case TransactionDetailStatus.loading:
-                        return const OmdsLoadingState();
-                      case TransactionDetailStatus.failed:
-                        return OmdsErrorState(
-                          message: _errorCopy(copy, state.error),
-                          retryLabel: copy.retry,
-                          onRetry: () =>
-                              context.read<TransactionDetailCubit>().retry(),
-                        );
-                      case TransactionDetailStatus.loaded:
-                        final txn = state.transaction;
-                        if (txn == null) {
-                          return OmdsErrorState(
-                            message: copy.loadErrorGeneric,
-                            retryLabel: copy.retry,
-                            onRetry: () =>
-                                context.read<TransactionDetailCubit>().retry(),
-                          );
-                        }
-                        return _LoadedBody(txn: txn, copy: copy);
-                    }
-                  },
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  /// The failure twin of the loading block, with the retry as its CTA.
+  Widget _errorBlock(BuildContext context, String message, String retryLabel) {
+    return _StateBlock(
+      status: JeebEmptyStateStatus.error,
+      glyph: Icons.cloud_off,
+      // TODO(midnight): l10n-queued — txnDetailErrorTitle. The existing strings
+      // are full sentences, which read as body copy in the `h1` headline slot.
+      headline: message,
+      action: JeebCtaButton.primary(
+        label: retryLabel,
+        expand: false,
+        onTap: () => context.read<TransactionDetailCubit>().retry(),
       ),
     );
   }
@@ -176,6 +225,43 @@ class _TransactionDetailView extends StatelessWidget {
       case null:
         return copy.loadErrorGeneric;
     }
+  }
+}
+
+/// The non-loaded states on the one Midnight pattern family (study-notes ruling
+/// 1) — the shape `wallet_hub_screen.dart` already ships for the same journey.
+/// Replaces `OmdsLoadingState` / `OmdsErrorState`, both light-theme widgets.
+class _StateBlock extends StatelessWidget {
+  const _StateBlock({
+    required this.status,
+    required this.headline,
+    this.glyph,
+    this.action,
+  });
+
+  final JeebEmptyStateStatus status;
+  final String headline;
+
+  /// Null on loading: the kit paints its skeleton over the whole frame and
+  /// never reaches the `center` slot.
+  final IconData? glyph;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final IconData? mark = glyph;
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: status,
+          variant: _kStateArt,
+          center: mark == null ? null : WalletStateMark(glyph: mark),
+          medallions: _kNoMedallions,
+          headline: headline,
+          action: action,
+        ),
+      ),
+    );
   }
 }
 
@@ -200,11 +286,12 @@ class _LoadedBody extends StatelessWidget {
       ),
       children: [
         // ── Amount (sign-prefixed, D41) — the one number this screen exists to
-        //    state, so it takes 23's navy stat hero rather than the first line
-        //    of a label/value stack. Same string, same id, same position.
+        //    state, so it takes R4's frosted bank-card. Same string, same id,
+        //    same position.
         _AmountHero(
           label: copy.amountLabel,
           amount: copy.signedAmount(txn.sign, _fmt(txn.amount), txn.currency),
+          isCredit: txn.sign >= 0,
         ),
 
         const SizedBox(height: Spacing.medium),
@@ -226,13 +313,13 @@ class _LoadedBody extends StatelessWidget {
 
         // ── The typed fields, in the order they have always been in. Grouped
         //    inside one outlined card: the kit draws the 1px inset dividers, so
-        //    the rows stop being loose lines on a bare white body.
+        //    the rows stop being loose lines on a bare body.
         if (fields.isNotEmpty) ...[
           const SizedBox(height: Spacing.medium),
           JeebOutlinedCard.grouped(children: fields),
         ],
 
-        // ── The outbound edges, in 23's own grouped-exits card. ──────────────
+        // ── The outbound edges, in R4's own grouped-exits card. ──────────────
         if (edges.isNotEmpty) ...[
           const SizedBox(height: Spacing.medium),
           JeebOutlinedCard.grouped(children: edges),
@@ -370,28 +457,36 @@ class _LoadedBody extends StatelessWidget {
   }
 }
 
-/// The navy stat hero — the signed amount under its section label, in 23's
-/// balance-hero treatment (`JeebShadows.heroNavy`, one off-canvas orange ring at
-/// the bottom-END corner). Hosts the asserted `txn_detail_amount` node, which
-/// merges label + value into one announcement exactly as the label/value row it
-/// replaces did.
+/// R4's frosted bank-card, carried from `wallet_hub_screen.dart`: hero glass at
+/// `JeebRadii.xl`, a real blur, the board's `floatNav` lift, the section label
+/// over the signed amount. Hosts the asserted `txn_detail_amount` node, which
+/// merges label + value into one announcement exactly as before.
+///
+/// The hub's Ø150 corner glow is NOT carried: R4's caption rations the solid
+/// orange to the one money act, and a read-only transaction is not one.
 class _AmountHero extends StatelessWidget {
-  const _AmountHero({required this.label, required this.amount});
+  const _AmountHero({
+    required this.label,
+    required this.amount,
+    required this.isCredit,
+  });
+
+  /// Board `padding: 22px` on the hub's bank-card (`tpl 268`).
+  static const double _cardPadding = 22;
 
   final String label;
   final String amount;
+  final bool isCredit;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebRoles roles = context.jeebRoles;
 
-    return JeebNavySurfaceCard(
-      radius: Spacing.large,
-      padding: const EdgeInsetsDirectional.all(Spacing.large),
-      shadow: JeebShadows.heroNavy,
-      rings: const [JeebNavyRing.statBottomEnd],
-      // The id belongs to the CONTENT, not the card: wrapping the card would
-      // pull the decorative ring into the node (23's own rule).
+    return JeebGlassCapsule(
+      radius: JeebRadii.xl,
+      blurSigma: JeebGlassCapsule.heroBlur,
+      shadow: JeebShadows.floatNav,
+      padding: const EdgeInsetsDirectional.all(_cardPadding),
       child: Semantics(
         identifier: 'txn_detail_amount',
         container: true,
@@ -415,7 +510,11 @@ class _AmountHero extends StatelessWidget {
                 // `USD 1.50-`. Resolve the run LTR instead.
                 textDirection: TextDirection.ltr,
                 style: context.jeebText.statHero.copyWith(
-                  color: scheme.onPrimary,
+                  // The same credit/debit pair the ledger row uses, so the ink
+                  // the Jeeber tapped is the ink that opens.
+                  color: isCredit
+                      ? roles.onSuccessContainer
+                      : roles.onErrorContainer,
                 ),
               ),
             ),
@@ -428,8 +527,8 @@ class _AmountHero extends StatelessWidget {
 
 /// A label / value row used for the transaction fields, sized to sit inside a
 /// [JeebOutlinedCard.grouped] (14/16 — [JeebListRow]'s own padding, so a field
-/// row and an edge row keep the same rhythm). The label is periwinkle meta ink,
-/// the value the navy fact.
+/// row and an edge row keep the same rhythm). The label is §1's muted ink role,
+/// the value the `onSurface` fact.
 class _DetailRow extends StatelessWidget {
   const _DetailRow({required this.label, required this.value});
 
@@ -448,7 +547,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               label,
               style: context.jeebText.bodySmall.copyWith(
-                color: scheme.onSecondaryContainer,
+                color: scheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -459,7 +558,7 @@ class _DetailRow extends StatelessWidget {
               textAlign: TextAlign.end,
               style: context.jeebText.body.copyWith(
                 fontWeight: FontWeight.w700,
-                color: scheme.primary,
+                color: scheme.onSurface,
               ),
             ),
           ),

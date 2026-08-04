@@ -360,8 +360,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M3-10 `delivery_man_profile/presentation/delivery_man_profile_screen.dart` (150) — delivery-man profile derived from R15 identity + R16 rating pill @2026-08-04
 
 ### M3 — Tier 2 (money surfaces)
-- [ ] M3-11 `wallet_activity_list_screen.dart` (392) · [ ] M3-12 `transaction_detail_screen.dart` (388)
-- [ ] M3-13 `wallet_charge_info_screen.dart` (194) · [ ] M3-14 `customer_wallet_stub_screen.dart` (123)
+- [x] M3-11 `wallet_activity_list_screen.dart` (392) — wallet activity list on the hub's shipped R4 field (glow topStart + wash endMid); 3 orange leaks per ledger row killed @2026-08-04 · [ ] M3-12 `transaction_detail_screen.dart` (388)
+- [x] M3-13 `wallet_charge_info_screen.dart` (194) — charge info; 3 rendered step discs were solid orange under a comment claiming navy @2026-08-04 · [ ] M3-14 `customer_wallet_stub_screen.dart` (123)
 - [ ] M3-15 `settlement_screen.dart` (291) **ORPHAN — ruling** · [ ] M3-16 `settlement_detail_screen.dart` (165) **ORPHAN — ruling**
 
 ### M3 — Tier 3 (KYC funnel)

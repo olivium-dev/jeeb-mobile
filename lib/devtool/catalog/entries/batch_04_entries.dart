@@ -322,5 +322,17 @@ final CatalogEntry _jeeberOnboardingEntry = CatalogEntry(
         cubit: DmOnboardingScreenPreviewFixtures.serviceAreaStep(),
       ),
     ),
+    CatalogState(
+      'Step 3 — Checking coverage',
+      (_) => DmOnboardingScreen(
+        cubit: DmOnboardingScreenPreviewFixtures.checkingCoverage(),
+      ),
+    ),
+    CatalogState(
+      'Step 3 — Coverage check failed',
+      (_) => DmOnboardingScreen(
+        cubit: DmOnboardingScreenPreviewFixtures.coverageFailed(),
+      ),
+    ),
   ],
 );

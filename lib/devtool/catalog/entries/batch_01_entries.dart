@@ -28,6 +28,12 @@ final CatalogEntry _accountStatusEntry = CatalogEntry(
   screen: 'AccountStatusScreen',
   states: [
     CatalogState(
+      'Checking status',
+      (context) => const AccountStatusScreen(
+        repository: AccountStatusScreenPendingRepository(),
+      ),
+    ),
+    CatalogState(
       'Suspended',
       (context) => const AccountStatusScreen(
         repository: AccountStatusScreenFakeRepository(
@@ -40,6 +46,15 @@ final CatalogEntry _accountStatusEntry = CatalogEntry(
       (context) => const AccountStatusScreen(
         repository: AccountStatusScreenFakeRepository(
           accountStatusScreenLockedWithReason,
+        ),
+      ),
+    ),
+    // The layout ceiling: free server text long enough to scroll the band.
+    CatalogState(
+      'Locked — long server reason',
+      (context) => const AccountStatusScreen(
+        repository: AccountStatusScreenFakeRepository(
+          accountStatusScreenLockedLongReason,
         ),
       ),
     ),
