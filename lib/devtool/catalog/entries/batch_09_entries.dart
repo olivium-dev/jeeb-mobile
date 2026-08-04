@@ -320,6 +320,12 @@ final CatalogEntry _otpVerificationScreenEntry = CatalogEntry(
       'Code Entry — Wrong Code',
       (_) => _otpVerificationScreen(otpVerificationScreenWrongCodeCubit),
     ),
+    // R7 deleted the Verify pill, so the in-flight verify now speaks from the
+    // meta row — it needs its own capture to be reviewable at all.
+    CatalogState(
+      'Code Entry — Verifying',
+      (_) => _otpVerificationScreen(otpVerificationScreenVerifyingCubit),
+    ),
     CatalogState(
       'Locked Out',
       (_) => _otpVerificationScreen(otpVerificationScreenLockedOutCubit),

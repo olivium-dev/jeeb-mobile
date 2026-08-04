@@ -4,8 +4,12 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_state.dart';
 import 'package:jeeb_mobile/features/registration/domain/lebanon_phone.dart';
@@ -90,7 +94,7 @@ void main() {
     expect(cubit.state.isPhoneReady, isFalse);
     expect(
       tester
-          .widget<OmdsLoadingButton>(
+          .widget<JeebCtaButton>(
             find.byKey(const Key('registration.sendCode')),
           )
           .isEnabled,
@@ -104,7 +108,7 @@ void main() {
     expect(cubit.state.isPhoneReady, isTrue);
     expect(
       tester
-          .widget<OmdsLoadingButton>(
+          .widget<JeebCtaButton>(
             find.byKey(const Key('registration.sendCode')),
           )
           .isEnabled,
@@ -222,7 +226,7 @@ void main() {
     await tester.pumpWidget(wrapForTest(
       RegistrationScreen(cubit: makeCubit()),
     ));
-    final disabled = tester.widget<OmdsLoadingButton>(
+    final disabled = tester.widget<JeebCtaButton>(
       find.byKey(const Key('registration.sendCode')),
     );
     expect(disabled.isEnabled, isFalse);
@@ -233,7 +237,7 @@ void main() {
     );
     await tester.pump();
 
-    final enabled = tester.widget<OmdsLoadingButton>(
+    final enabled = tester.widget<JeebCtaButton>(
       find.byKey(const Key('registration.sendCode')),
     );
     expect(enabled.isEnabled, isTrue);
@@ -392,20 +396,109 @@ void main() {
     expect(find.text('or'), findsOneWidget);
   });
 
-  testWidgets('FR-LOGIN: CTA is an OmdsLoadingButton (in-button spinner)',
+  // MIDNIGHT R6 realignment: the board draws an ORANGE pill, which is
+  // `JeebCtaButton.accent`. The in-button spinner (the behaviour this test was
+  // really guarding) moved with it — `isLoading`, not a separate widget.
+  testWidgets('R6: send-code CTA is the kit ACCENT pill and spins in place',
       (tester) async {
-    await tester.pumpWidget(wrapForTest(
-      RegistrationScreen(cubit: makeCubit()),
-    ));
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: cubit)));
     await tester.pump();
+
+    final finder = find.byKey(const Key('registration.sendCode'));
+    expect(finder, findsOneWidget);
+    final cta = tester.widget<JeebCtaButton>(finder);
+    expect(cta.variant, JeebCtaVariant.accent);
+    expect(cta.isLoading, isFalse);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    when(() => otp.sendCode(any())).thenAnswer(
+      (_) => Completer<OtpSendOutcome>().future,
+    );
+    await tester.enterText(
+      find.byKey(const Key('registration.phoneField')),
+      '71123456',
+    );
+    await tester.pump();
+    await tester.tap(finder);
+    await tester.pump();
+
+    expect(tester.widget<JeebCtaButton>(finder).isLoading, isTrue);
     expect(
-      find.byKey(const Key('registration.sendCode')),
+      find.descendant(of: finder, matching: find.byType(CircularProgressIndicator)),
       findsOneWidget,
     );
-    expect(
-      tester.widget(find.byKey(const Key('registration.sendCode'))),
-      isA<OmdsLoadingButton>(),
+  });
+
+  // The tile paints the pill `#D73B00` with the ctaOrange lift; a token
+  // re-point that silently reverted to navy would move <5% of the frame and
+  // sail past the golden comparator, so the fill is read off the widget.
+  testWidgets('R6: the send-code pill actually paints accent orange',
+      (tester) async {
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: makeCubit())));
+    await tester.enterText(
+      find.byKey(const Key('registration.phoneField')),
+      '71123456',
     );
+    await tester.pump();
+
+    final decoration = tester
+        .widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byKey(const Key('registration.sendCode')),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        )
+        .decoration as BoxDecoration;
+    expect(decoration.color, JeebColorRoles.midnight().accent);
+    expect(decoration.boxShadow, JeebShadows.ctaOrange);
+  });
+
+  // R6's field rim is the one orange the phone block spends, at the measured
+  // 2px on r14 glass — all three are invisible to a 5%-tolerant golden.
+  testWidgets('R6: the phone field is 2px accent-rimmed r14 glass',
+      (tester) async {
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: makeCubit())));
+    await tester.pump();
+
+    final box = tester.widget<Container>(
+      find.byKey(const Key('registration.phoneFieldBox')),
+    );
+    final decoration = box.decoration! as BoxDecoration;
+    final border = decoration.border! as Border;
+    expect(border.top.color, JeebColorRoles.midnight().accent);
+    expect(border.top.width, 2);
+    expect(
+      decoration.borderRadius,
+      BorderRadius.circular(JeebRadii.md),
+    );
+    expect(decoration.color, JeebSemanticColors.midnight().glassFill);
+  });
+
+  // doc-13 P1: the OMDS input theme injects a fill and per-state borders, so
+  // the inner field drew a SECOND rounded box inside the glass one. Nulling
+  // `border` alone did not do it — the pass-1 screen shipped believing it had.
+  testWidgets('R6: the inner TextField draws no box of its own', (tester) async {
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: makeCubit())));
+    await tester.pump();
+
+    final decoration = tester
+        .widget<TextField>(find.byKey(const Key('registration.phoneField')))
+        .decoration!;
+    expect(decoration.filled, isFalse);
+    expect(decoration.fillColor, Colors.transparent);
+    for (final border in <InputBorder?>[
+      decoration.border,
+      decoration.enabledBorder,
+      decoration.focusedBorder,
+      decoration.disabledBorder,
+      decoration.errorBorder,
+      decoration.focusedErrorBorder,
+    ]) {
+      expect(border, InputBorder.none);
+    }
   });
 
   testWidgets('FR-LOGIN: register screen lays out RTL under Locale(ar)',

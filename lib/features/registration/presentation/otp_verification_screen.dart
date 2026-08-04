@@ -9,6 +9,8 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_code_cells.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_numeric_keypad.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
@@ -25,14 +27,11 @@ const String _pdi = '\u2069';
 
 /// `phone-otp-verification` — the phone-OTP verify step (JM-009).
 ///
-/// **Re-parented behind sign-up / social (CTO-D1, G8).** In the email-first
-/// funnel the user gives Name/Email/Password on `/sign-up` (JM-008) — or signs
-/// in socially with no phone on file (JM-018) — and is then sent to this verify
-/// step to confirm the phone with a 4-digit OTP before the account is active.
-/// It is NOT a new route: it stays inside `/register` (the host
-/// [RegistrationScreen] drives the phone-entry → send-code → this OTP entry
-/// inside one [RegistrationCubit] scope), per 50_EXECUTION_PLAN §"Re-parent
-/// (no new route)".
+/// **Reached from phone entry or social (JM-018).** It is NOT a new route: it
+/// stays inside `/register` (the host [RegistrationScreen] drives phone-entry →
+/// send-code → this OTP entry inside one [RegistrationCubit] scope). The
+/// email/password `/sign-up` funnel that once preceded it was REMOVED in
+/// JEBV4-199 (Q-044 RATIFIED).
 ///
 /// **Redesign 2026-08 (screen 03).** The OS keyboard used to cover the very
 /// cells it was filling, so the code is now entered on an in-screen
@@ -60,6 +59,13 @@ const String _pdi = '\u2069';
 /// ([BiometricLockScreen], JM-005) and NEVER lands here — there is no per-login
 /// OTP. The bypass therefore lives in the router redirect, not in this widget;
 /// the OTP screen stays a pure sign-up-verify surface.
+///
+/// **MIDNIGHT R7.** The board draws the field with a periwinkle wash top-START
+/// and NO orange field glow (the only orange is the active cell), glass code
+/// cells, frosted keypad keys, and a genuinely empty band between them: the
+/// pass-1 "Verify" pill was Pattern D chrome (doc-13) and is DELETED — its
+/// frozen `phone_otp_verify_cta` re-homes onto a zero-size semantics node that
+/// still carries the verify action. Nothing on this screen animates.
 ///
 /// Semantics ids exposed (60_W0_TEST_PLAN §2.5):
 ///   `phone_otp_input` (+ per-cell `phone_otp_input_0..3`) ·
@@ -182,119 +188,116 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           container: true,
           explicitChildNodes: true,
           child: Scaffold(
-            body: SafeArea(
-              // Top-aligned column + a real empty band + a docked keypad. The
-              // scroll view is what keeps that shape legal at 200% text scale.
-              child: LayoutBuilder(
-                builder: (context, constraints) => SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints:
-                        BoxConstraints(minHeight: constraints.maxHeight),
-                    child: IntrinsicHeight(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          JeebTopBar.back(
-                            key: const Key('registration.otpBack'),
-                            identifier: 'phone_otp_back_cta',
-                            onLeadingPressed: () =>
-                                context.read<RegistrationCubit>().changePhone(),
-                          ),
-                          Padding(
-                            padding: const EdgeInsetsDirectional.symmetric(
-                              horizontal: Spacing.xLarge,
+            backgroundColor: Colors.transparent,
+            // R7's field: periwinkle wash at the top START and NO orange glow —
+            // the tile's only radial is the active cell's own halo.
+            body: JeebMidnightField(
+              variant: JeebFieldVariant.content,
+              glowColor: Colors.transparent,
+              washPlacement: JeebFieldWashPlacement.topStart,
+              animateDecor: false,
+              child: SafeArea(
+                // Top-aligned column + a real empty band + a docked keypad. The
+                // scroll view is what keeps that shape legal at 200% text scale.
+                child: LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints:
+                          BoxConstraints(minHeight: constraints.maxHeight),
+                      child: IntrinsicHeight(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            JeebTopBar.back(
+                              key: const Key('registration.otpBack'),
+                              identifier: 'phone_otp_back_cta',
+                              onLeadingPressed: () => context
+                                  .read<RegistrationCubit>()
+                                  .changePhone(),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const SizedBox(height: Spacing.medium),
-                                Text(
-                                  l10n.registrationOtpHeadline,
-                                  style: context.jeebText.h1
-                                      .copyWith(color: colorScheme.primary),
-                                ),
-                                const SizedBox(height: Spacing.xSmall),
-                                _SubtitleRow(displayPhone: state.displayPhone),
-                                const SizedBox(height: Spacing.xLarge),
-                                if (isLockedOut)
-                                  _LockoutBanner(
-                                    remaining: state.lockoutSecondsRemaining,
-                                  )
-                                else ...[
-                                  Semantics(
-                                    identifier: 'phone_otp_input',
-                                    container: true,
-                                    // Without it the per-cell ids are
-                                    // swallowed.
-                                    explicitChildNodes: true,
-                                    // The cells are no longer TextFields,
-                                    // so the value is spoken from here.
-                                    value: _enteredCode.split('').join(' '),
-                                    child: JeebCodeCells.input74(
-                                      key: const Key('registration.otpField'),
-                                      length: kCustomerOtpLength,
-                                      value: _enteredCode,
-                                      hasError: state.otpError != null,
-                                      // Emits phone_otp_input_0..3 verbatim.
-                                      cellIdentifier: 'phone_otp_input',
-                                    ),
-                                  ),
-                                  const SizedBox(height: Spacing.small),
-                                  _MetaRow(
-                                    otpError: state.otpError,
-                                    resendSecondsRemaining:
-                                        state.resendSecondsRemaining,
-                                    onResend: _handleResend,
-                                  ),
-                                  if (state.failedAttempts > 0) ...[
-                                    const SizedBox(height: Spacing.small),
-                                    _AttemptsRemainingLabel(
-                                      attemptsUsed: state.failedAttempts,
-                                      maxAttempts: context
-                                          .read<RegistrationCubit>()
-                                          .policy
-                                          .maxAttempts,
-                                    ),
-                                  ],
-                                ],
-                              ],
-                            ),
-                          ),
-                          // The board's empty band is real emptiness (R1).
-                          const Spacer(),
-                          if (!isLockedOut) ...[
                             Padding(
                               padding: const EdgeInsetsDirectional.symmetric(
                                 horizontal: Spacing.xLarge,
                               ),
-                              // `phone_otp_verify_cta` (60_W0_TEST_PLAN §2.5):
-                              // manual fallback; the keypad auto-submits on the
-                              // 4th digit.
-                              child: JeebCtaButton.primary(
-                                key: const Key('registration.verify'),
-                                identifier: 'phone_otp_verify_cta',
-                                label: state.isVerifying
-                                    ? l10n.registrationOtpVerifying
-                                    : l10n.registrationOtpVerify,
-                                isEnabled: !state.isVerifying &&
-                                    _enteredCode.length == kCustomerOtpLength,
-                                onTap: () => context
-                                    .read<RegistrationCubit>()
-                                    .verifyCode(_enteredCode),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: Spacing.medium),
+                                  Text(
+                                    l10n.registrationOtpHeadline,
+                                    style: context.jeebText.h1
+                                        .copyWith(color: colorScheme.onSurface),
+                                  ),
+                                  const SizedBox(height: Spacing.xSmall),
+                                  _SubtitleRow(displayPhone: state.displayPhone),
+                                  const SizedBox(height: Spacing.xLarge),
+                                  if (isLockedOut)
+                                    _LockoutBanner(
+                                      remaining: state.lockoutSecondsRemaining,
+                                    )
+                                  else ...[
+                                    Semantics(
+                                      identifier: 'phone_otp_input',
+                                      container: true,
+                                      // Without it the per-cell ids are
+                                      // swallowed.
+                                      explicitChildNodes: true,
+                                      // The cells are no longer TextFields,
+                                      // so the value is spoken from here.
+                                      value: _enteredCode.split('').join(' '),
+                                      child: JeebCodeCells.input74(
+                                        key: const Key('registration.otpField'),
+                                        length: kCustomerOtpLength,
+                                        value: _enteredCode,
+                                        hasError: state.otpError != null,
+                                        // Emits phone_otp_input_0..3 verbatim.
+                                        cellIdentifier: 'phone_otp_input',
+                                      ),
+                                    ),
+                                    const SizedBox(height: Spacing.small),
+                                    _MetaRow(
+                                      otpError: state.otpError,
+                                      isVerifying: state.isVerifying,
+                                      resendSecondsRemaining:
+                                          state.resendSecondsRemaining,
+                                      onResend: _handleResend,
+                                    ),
+                                    if (state.failedAttempts > 0) ...[
+                                      const SizedBox(height: Spacing.small),
+                                      _AttemptsRemainingLabel(
+                                        attemptsUsed: state.failedAttempts,
+                                        maxAttempts: context
+                                            .read<RegistrationCubit>()
+                                            .policy
+                                            .maxAttempts,
+                                      ),
+                                    ],
+                                    _VerifyActionNode(
+                                      isEnabled: !state.isVerifying &&
+                                          _enteredCode.length ==
+                                              kCustomerOtpLength,
+                                      onVerify: () => context
+                                          .read<RegistrationCubit>()
+                                          .verifyCode(_enteredCode),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                            const SizedBox(height: Spacing.medium),
-                            // Carries its own 0/20/30 gutter — mounts OUTSIDE
-                            // the 24pt body padding.
-                            JeebNumericKeypad(
-                              identifierPrefix: 'phone_otp_keypad',
-                              onDigit: _appendDigit,
-                              onBackspace: _deleteDigit,
-                              backspaceLabel:
-                                  l10n.registrationOtpKeypadBackspaceA11y,
-                            ),
+                            // The board's empty band is real emptiness (R1).
+                            const Spacer(),
+                            if (!isLockedOut)
+                              // Carries its own 0/20/30 gutter — mounts OUTSIDE
+                              // the 24pt body padding.
+                              JeebNumericKeypad(
+                                identifierPrefix: 'phone_otp_keypad',
+                                onDigit: _appendDigit,
+                                onBackspace: _deleteDigit,
+                                backspaceLabel:
+                                    l10n.registrationOtpKeypadBackspaceA11y,
+                              ),
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -311,6 +314,32 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     // A stale full code must not sit under a freshly sent SMS.
     setState(() => _enteredCode = '');
     context.read<RegistrationCubit>().resendCode();
+  }
+}
+
+/// The re-homed `phone_otp_verify_cta`.
+///
+/// doc-13 Pattern D: the pill this id used to hang on was UI invented for the
+/// identifier — the board draws a bare spacer there and the 4th digit
+/// auto-submits. The node keeps the frozen id, key and semantic tap action at
+/// zero size, so nothing is lost except the chrome.
+class _VerifyActionNode extends StatelessWidget {
+  const _VerifyActionNode({required this.isEnabled, required this.onVerify});
+
+  final bool isEnabled;
+  final VoidCallback onVerify;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'phone_otp_verify_cta',
+      label: AppLocalizations.of(context).registrationOtpVerify,
+      button: true,
+      container: true,
+      enabled: isEnabled,
+      onTap: isEnabled ? onVerify : null,
+      child: const SizedBox.shrink(key: Key('registration.verify')),
+    );
   }
 }
 
@@ -336,13 +365,13 @@ class _SubtitleRow extends StatelessWidget {
             children: [
               TextSpan(
                 text: '${l10n.registrationOtpSentToLabel} ',
-                // AA-safe muted ink — periwinkle is never body text on white.
                 style: body.copyWith(color: colorScheme.onSurfaceVariant),
               ),
               TextSpan(
                 text: '$_lri$displayPhone$_pdi',
+                // The number is WHITE on the tile; orange is spent on `Edit`.
                 style: body.copyWith(
-                  color: colorScheme.primary,
+                  color: colorScheme.onSurface,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -385,11 +414,17 @@ class _SubtitleRow extends StatelessWidget {
 class _MetaRow extends StatelessWidget {
   const _MetaRow({
     required this.otpError,
+    required this.isVerifying,
     required this.resendSecondsRemaining,
     required this.onResend,
   });
 
   final RegistrationOtpError? otpError;
+
+  /// The in-flight verify used to be spoken by the deleted CTA's label; the
+  /// board's start slot is where it belongs.
+  final bool isVerifying;
+
   final int resendSecondsRemaining;
   final VoidCallback onResend;
 
@@ -409,7 +444,10 @@ class _MetaRow extends StatelessWidget {
                   style: small.copyWith(color: colorScheme.error),
                 )
               : Text(
-                  l10n.registrationOtpAutoVerifyHint,
+                  isVerifying
+                      ? l10n.registrationOtpVerifying
+                      : l10n.registrationOtpAutoVerifyHint,
+                  key: const Key('registration.otpStatusLine'),
                   style: small.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
         ),
@@ -428,8 +466,9 @@ class _MetaRow extends StatelessWidget {
                   ),
                   TextSpan(
                     text: '$_lri${_countdown(resendSecondsRemaining)}$_pdi',
+                    // White on the tile — the countdown is not an orange moment.
                     style: small.copyWith(
-                      color: colorScheme.primary,
+                      color: colorScheme.onSurface,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -497,32 +536,14 @@ class _LockoutBanner extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final minutes = (remaining ~/ 60).toString();
     final seconds = (remaining % 60).toString().padLeft(2, '0');
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
+    // The board draws no lockout; the kit's error note is the Midnight form of
+    // the danger slab this used to hand-roll.
+    return JeebInfoNote.error(
       key: const Key('registration.lockoutBanner'),
-      padding: const EdgeInsets.all(Spacing.medium),
-      decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
-        borderRadius: OmdsBorderRadius.medium,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.registrationLockoutTitle,
-            style: context.jeebText.titleProminent.copyWith(
-              color: colorScheme.onErrorContainer,
-            ),
-          ),
-          const SizedBox(height: Spacing.xSmall),
-          Text(
-            l10n.registrationLockoutBody(minutes, seconds),
-            style: context.jeebText.body.copyWith(
-              color: colorScheme.onErrorContainer,
-            ),
-          ),
-        ],
-      ),
+      icon: Icons.lock_clock,
+      title: l10n.registrationLockoutTitle,
+      text: l10n.registrationLockoutBody(minutes, seconds),
+      identifier: 'phone_otp_lockout_banner',
     );
   }
 }

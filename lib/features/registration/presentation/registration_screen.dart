@@ -12,10 +12,14 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../core/session/session_cubit.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
-import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../auth/social/social_auth_cubit.dart';
 import '../../auth/social/social_auth_service.dart';
@@ -28,6 +32,14 @@ import '../domain/lebanon_phone.dart';
 import '../domain/otp_service.dart';
 import '../domain/registration_attempt_policy.dart';
 import 'otp_verification_screen.dart';
+
+/// Board-measured phone-field box: h60, r14, a 2px accent rim (R6 tile,
+/// y 319–385 / corner 14 at the 1.1 export scale).
+const double _kPhoneFieldHeight = 60;
+const double _kPhoneFieldStroke = 2;
+
+/// Board gap from the wordmark block down to the "PHONE NUMBER" label (36).
+const double _kWelcomeToFormGap = 36;
 
 /// Entry point for the phone+OTP registration flow (T-mobile-002).
 ///
@@ -282,43 +294,61 @@ class _RegistrationViewState extends State<_RegistrationView> {
           identifier: 'registration_root',
           container: true,
           child: AnnotatedRegion<SystemUiOverlayStyle>(
-            // The navy band bleeds under the status bar now that the app bar is
-            // gone, so the system glyphs have to flip to their light variant.
+            // The field bleeds under the status bar, so the system glyphs have
+            // to flip to their light variant.
             value: SystemUiOverlayStyle.light,
             child: Scaffold(
-              // `column → content → flex:1 → docked note` (plan R1). The
-              // LayoutBuilder/ConstrainedBox/IntrinsicHeight trio is what makes
-              // the Spacer legal inside a scroll view: the sheet fills the
-              // viewport when it fits and degrades to a real scroll when the
-              // keyboard opens or text scales to 200%.
-              body: LayoutBuilder(
-                builder: (context, constraints) => SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints:
-                        BoxConstraints(minHeight: constraints.maxHeight),
-                    child: IntrinsicHeight(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _RegisterHero(),
-                          Padding(
-                            padding: const EdgeInsetsDirectional.fromSTEB(
-                              Spacing.xLarge,
-                              Spacing.xLarge,
-                              Spacing.xLarge,
-                              0,
-                            ),
-                            child: _PhoneEntryBody(
-                              state: state,
-                              phoneController: _phoneController,
-                              onSocialAuthenticated: () =>
-                                  _onSocialAuthenticated(context),
-                            ),
+              backgroundColor: Colors.transparent,
+              // MIDNIGHT R6: the welcome run sits straight on the field (the
+              // tile draws no hero box) and the bloom is the ORANGE glow at the
+              // top END — measured on the tile, not the periwinkle wash.
+              body: JeebMidnightField(
+                variant: JeebFieldVariant.content,
+                glowPlacement: JeebFieldGlowPlacement.topEnd,
+                animateDecor: false,
+                // `column → content → flex:1 → docked note` (plan R1). The
+                // LayoutBuilder/ConstrainedBox/IntrinsicHeight trio is what
+                // makes the Spacer legal inside a scroll view: the sheet fills
+                // the viewport when it fits and degrades to a real scroll when
+                // the keyboard opens or text scales to 200%.
+                child: SafeArea(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minHeight: constraints.maxHeight),
+                        child: IntrinsicHeight(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsetsDirectional.fromSTEB(
+                                  Spacing.xLarge,
+                                  Spacing.large,
+                                  Spacing.xLarge,
+                                  0,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    const _WelcomeBlock(),
+                                    const SizedBox(height: _kWelcomeToFormGap),
+                                    _PhoneEntryBody(
+                                      state: state,
+                                      phoneController: _phoneController,
+                                      onSocialAuthenticated: () =>
+                                          _onSocialAuthenticated(context),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Real emptiness (plan R1) — never fill it.
+                              const Spacer(),
+                              const _TrustNote(),
+                            ],
                           ),
-                          // Real emptiness (plan R1) — never fill it.
-                          const Spacer(),
-                          const _TrustNote(),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -344,9 +374,9 @@ class _RegistrationViewState extends State<_RegistrationView> {
 /// The phone-entry composition, phone-first per the redesign board: label →
 /// field row → helper → CTA → "or" divider → a compact two-up social row.
 ///
-/// NOTE: the debug-only super-login entry points were RELOCATED to the login
-/// screen (`lib/features/auth/presentation/login_screen.dart`) — P1 owner
-/// request. They no longer live here.
+/// NOTE: the debug-only super-login entry points were removed from this screen
+/// with the email/password funnel (JEBV4-199, Q-044 RATIFIED). Phone-OTP plus
+/// Apple/Google social is the whole of end-user auth.
 class _PhoneEntryBody extends StatelessWidget {
   const _PhoneEntryBody({
     required this.state,
@@ -389,8 +419,8 @@ class _PhoneEntryBody extends StatelessWidget {
   }
 }
 
-/// Phone send-code CTA — kept as an [OmdsLoadingButton] for the in-button
-/// spinner, re-shaped to the board's navy pill (r999, h56, `ctaNavy` lift).
+/// Phone send-code CTA — the board's ORANGE pill (h58, `ctaOrange` glow),
+/// which is `JeebCtaButton.accent`. It keeps the in-button spinner.
 class _SendCodeButton extends StatelessWidget {
   const _SendCodeButton({required this.state, required this.phoneController});
 
@@ -400,7 +430,6 @@ class _SendCodeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     // BUG-1 (customer-spine blocker): the phone field — not the cubit — owns the
     // text while the user types (PR #45). Read the live controller text here and
     // hand it to `sendCode` so Send validates/sends the number actually rendered,
@@ -410,52 +439,32 @@ class _SendCodeButton extends StatelessWidget {
     final renderedReady =
         LebanonPhone.tryParse(phoneController.text) != null || state.isPhoneReady;
     final canTap = renderedReady && !state.isSendingCode;
-    return Semantics(
+    return JeebCtaButton.accent(
+      key: const Key('registration.sendCode'),
       identifier: 'register_phone_submit_cta',
-      button: true,
-      container: true,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: OmdsBorderRadius.pill,
-          // §4.5 outline-over-shadow: only a live CTA is promoted; a disabled
-          // pill drops the lift instead of floating over flat white.
-          boxShadow: canTap ? JeebShadows.ctaNavy : null,
-        ),
-        child: OmdsLoadingButton(
-          key: const Key('registration.sendCode'),
-          text: l10n.registrationSendCode,
-          isLoading: state.isSendingCode,
-          // Enablement reads the live controller text (or the cubit's ready flag)
-          // so the CTA can't be wrongly disabled when the field leads the cubit
-          // (PR #45 made the field the source of truth while typing).
-          isEnabled: canTap,
-          height: Sizes.fiveXLarge,
-          borderRadius: OmdsBorderRadius.pill,
-          // OMDS only inks its own default style, so a supplied `textStyle`
-          // MUST carry the on-primary colour or the label inherits the body
-          // ink and disappears into the navy pill.
-          textStyle:
-              context.jeebText.button.copyWith(color: colorScheme.onPrimary),
-          // BUG-1 fix: pass the field's live text to `sendCode`, which re-syncs it
-          // into `state.phoneInput` and validates/sends the exact number the user
-          // sees — never a stale cubit value that flipped the field red and emitted
-          // zero OTP requests (also covers the run-2 on-device submit-path P0, since
-          // the cubit re-commits the rendered text at submit before validating).
-          onTap: () => context
-              .read<RegistrationCubit>()
-              .sendCode(renderedPhone: phoneController.text),
-        ),
-      ),
+      label: l10n.registrationSendCode,
+      isLoading: state.isSendingCode,
+      isEnabled: canTap,
+      height: JeebCtaButton.primaryHeightTall,
+      // BUG-1 fix: pass the field's live text to `sendCode`, which re-syncs it
+      // into `state.phoneInput` and validates/sends the exact number the user
+      // sees — never a stale cubit value that flipped the field red and emitted
+      // zero OTP requests (also covers the run-2 on-device submit-path P0, since
+      // the cubit re-commits the rendered text at submit before validating).
+      onTap: () => context
+          .read<RegistrationCubit>()
+          .sendCode(renderedPhone: phoneController.text),
     );
   }
 }
 
-/// The navy welcome band (redesign board `tpl 66-76`): full-bleed to the top
-/// edge, bottom-only r36, two off-canvas decorative rings, wordmark → headline
-/// → bilingual tagline. Consumes the kit's `topBand` mode — screen 02 is its
-/// only consumer, and the status-bar inset is folded into its padding there.
-class _RegisterHero extends StatelessWidget {
-  const _RegisterHero();
+/// Wordmark → headline → bilingual tagline, set straight on the field.
+///
+/// The pass-1 navy band is GONE: the R6 tile caption reads "welcome typography
+/// sits straight on the glowing field (no hero box)". `_register_hero` is
+/// Maestro-frozen (jm-009, jm-018), so it re-homes onto this run.
+class _WelcomeBlock extends StatelessWidget {
+  const _WelcomeBlock();
 
   static const String _logoAsset = 'assets/brand/jeeb_logo.svg';
 
@@ -463,9 +472,11 @@ class _RegisterHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
-    return JeebNavySurfaceCard.topBand(
+    return Semantics(
       identifier: '_register_hero',
-      rings: const [JeebNavyRing.bandOuter, JeebNavyRing.bandInner],
+      container: true,
+      // Without it the wordmark's own label is swallowed into the run.
+      explicitChildNodes: true,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,9 +485,9 @@ class _RegisterHero extends StatelessWidget {
             identifier: '_register_hero_logo',
             label: l10n.splashLogoSemantic,
             image: true,
-            // Height-constrained so the wordmark scales to the band; width
-            // derives from the SVG's intrinsic 182:73 ratio (no distortion).
-            // The start alignment keeps it pinned to the gutter and mirrors.
+            // Height-constrained so the wordmark scales; width derives from the
+            // SVG's intrinsic 182:73 ratio (no distortion). The start alignment
+            // keeps it pinned to the gutter and mirrors.
             child: SvgPicture.asset(
               _logoAsset,
               height: Sizes.twoXLarge,
@@ -484,20 +495,21 @@ class _RegisterHero extends StatelessWidget {
               alignment: AlignmentDirectional.centerStart,
             ),
           ),
-          const SizedBox(height: Spacing.medium),
+          // Board gap wordmark→headline is 22 and h1 carries ~11 of it as
+          // leading, so the box is the small rung, not the large one.
+          const SizedBox(height: Spacing.small),
           Text(
             l10n.registrationWelcome,
             key: const Key('registration.welcome'),
-            style: context.jeebText.h1.copyWith(color: colorScheme.onPrimary),
+            style: context.jeebText.h1.copyWith(color: colorScheme.onSurface),
           ),
-          const SizedBox(height: Spacing.xSmall),
+          const SizedBox(height: Spacing.twoXSmall),
           Text(
-            // Periwinkle on navy is the board's pairing; the AA guard bans it
-            // on light surfaces only. The string is authored per locale so each
-            // one leads with its own script — no Directionality override.
+            // Both runs are one periwinkle ink on the tile. The string is
+            // authored per locale so each leads with its own script.
             l10n.registrationTagline,
             style: context.jeebText.body
-                .copyWith(color: colorScheme.onSecondaryContainer),
+                .copyWith(color: colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -523,9 +535,6 @@ class _OrDivider extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
           child: Text(
             label,
-            // Deliberately `onSurfaceVariant`, NOT periwinkle: plan §4.1 and
-            // `color_role_contrast_test.dart:129-137` both forbid periwinkle
-            // body ink on a light surface.
             style: context.jeebText.bodySmall
                 .copyWith(color: colorScheme.onSurfaceVariant),
           ),
@@ -547,11 +556,9 @@ class _OrDivider extends StatelessWidget {
 /// - [OmdsTextField] does not expose `prefixIconConstraints`, so a tight
 ///   inline "+961" glyph would inflate to the default 48dp prefix gutter
 ///   and break the digit-alignment design.
-/// All styling still flows through the OMDS theme and the redesign token
-/// layer: the fill is `colorScheme.surfaceContainerHigh`, the 2px stroke is
-/// `colorScheme.primary`, the radius is [OmdsBorderRadius.medium] and the
-/// focus ring is `JeebShadows.focusRing`. Promotion to OMDS tracked under
-/// JEEB-57.
+/// MIDNIGHT R6: the box is glass, not a raised navy slab — `glassFill` behind a
+/// 2px `accent` rim at [JeebRadii.md], h60 (measured). Promotion to OMDS is
+/// tracked under JEEB-57.
 class _PhoneField extends StatefulWidget {
   const _PhoneField({
     required this.controller,
@@ -582,7 +589,10 @@ class _PhoneFieldState extends State<_PhoneField> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final l10n = AppLocalizations.of(context);
     final errorText = widget.errorText;
     return Column(
@@ -594,29 +604,31 @@ class _PhoneFieldState extends State<_PhoneField> {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.enabled ? _focusNode.requestFocus : null,
-          child: Text(
-            l10n.registrationPhoneHint,
-            style: context.jeebText.cardTitle
-                .copyWith(color: colorScheme.onSurface),
-          ),
+          child: JeebSectionLabel(l10n.registrationPhoneHint),
         ),
-        const SizedBox(height: Spacing.small),
+        const SizedBox(height: Spacing.xSmall),
         ListenableBuilder(
           listenable: _focusNode,
           builder: (context, _) => Container(
-            height: Sizes.sixXLarge,
+            key: const Key('registration.phoneFieldBox'),
+            height: _kPhoneFieldHeight,
             padding: const EdgeInsetsDirectional.symmetric(
               horizontal: Spacing.medium,
             ),
             decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHigh,
-              borderRadius: OmdsBorderRadius.medium,
+              color: semantics.glassFill,
+              borderRadius: BorderRadius.circular(JeebRadii.md),
               border: Border.all(
-                color:
-                    errorText == null ? colorScheme.primary : colorScheme.error,
-                width: Sizes.threeXSmall,
+                color: errorText == null
+                    ? context.jeebRoles.accent
+                    : colorScheme.error,
+                width: _kPhoneFieldStroke,
               ),
-              boxShadow: _focusNode.hasFocus ? JeebShadows.focusRing : null,
+              // The light-theme `focusRing` is retired (§7); a lit field is the
+              // board's own resting orange halo, and an errored one keeps none.
+              boxShadow: _focusNode.hasFocus && errorText == null
+                  ? JeebShadows.glowRest
+                  : null,
             ),
             child: Row(
               children: [
@@ -676,8 +688,18 @@ class _PhoneFieldState extends State<_PhoneField> {
                         fontWeight: FontWeight.w600,
                         color: colorScheme.onSurface,
                       ),
+                      // doc-13 P1 box-in-a-box: `border` alone leaves the OMDS
+                      // input theme's injected fill AND its per-state borders,
+                      // which drew a second rounded box inside this one.
                       decoration: InputDecoration(
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        filled: false,
+                        fillColor: Colors.transparent,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                         hintText: l10n.registrationPhoneExample,
@@ -726,8 +748,6 @@ class _PhoneFieldState extends State<_PhoneField> {
             errorText ?? l10n.registrationPhoneHelper,
             style: context.jeebText.bodySmall.copyWith(
               fontWeight: FontWeight.w500,
-              // AA-safe brown, NOT the board's periwinkle: plan §4.1 forbids
-              // periwinkle as body ink on a light surface.
               color: errorText == null
                   ? colorScheme.onSurfaceVariant
                   : colorScheme.error,
@@ -759,6 +779,8 @@ class _TrustNote extends StatelessWidget {
       child: JeebInfoNote.muted(
         icon: Icons.shield,
         iconSize: Sizes.large,
+        // Board r14, one rung under the note's r18 default.
+        radius: JeebRadii.md,
         text: l10n.registrationTrustNote,
         identifier: 'register_trust_note',
       ),

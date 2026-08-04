@@ -71,8 +71,12 @@ class SocialSignInSection extends StatelessWidget {
       builder: (context, state) {
         final cubit = context.read<SocialAuthCubit>();
         final showApple = SocialSignInButton.isAppleAvailable();
+        // Two-up pills are too narrow for "Continue with <provider>" — the
+        // provider is what clipped away (doc-13 P1).
+        final compact = axis == Axis.horizontal;
         final apple = SocialSignInButton(
           key: const Key('registration.appleSignIn'),
+          compact: compact,
           // Maestro/JM-018 selector for the shared social button on the
           // auth entry screen (60_W0_TEST_PLAN §2.1, jm-018-social-login).
           identifier: 'login_social_apple',
@@ -83,6 +87,7 @@ class SocialSignInSection extends StatelessWidget {
         );
         final google = SocialSignInButton(
           key: const Key('registration.googleSignIn'),
+          compact: compact,
           // Maestro/JM-018 selector for the shared social button on the
           // auth entry screen (60_W0_TEST_PLAN §2.1, jm-018-social-login).
           identifier: 'login_social_google',

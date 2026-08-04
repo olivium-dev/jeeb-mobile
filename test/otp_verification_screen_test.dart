@@ -7,7 +7,9 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:jeeb_mobile/core/dev_seam/dev_seam.dart';
 import 'package:jeeb_mobile/core/dev_seam/dev_seam_config.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_code_cells.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_numeric_keypad.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_top_bar.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
@@ -346,6 +348,101 @@ void main() {
       tester.getCenter(keypadKey('1')).dx,
       lessThan(tester.getCenter(keypadKey('3')).dx),
     );
+    await cubit.close();
+  });
+
+  // ── MIDNIGHT R7 ─────────────────────────────────────────────────────────
+  //
+  // Every assertion below reads a value off the widget rather than trusting a
+  // capture: the golden comparator tolerates 5% and each of these moves far
+  // less than that.
+
+  testWidgets(
+      'R7: the Pattern D Verify pill is GONE — the frozen id survives on a '
+      'zero-size node that still carries the verify action', (tester) async {
+    final cubit = await primedOnOtpStep();
+    await tester.pumpWidget(hostScreen(cubit));
+    await tester.pump();
+
+    // The board draws a bare spacer here; no pill, no label.
+    expect(find.text('Verify'), findsNothing);
+    expect(find.text('Verifying…'), findsNothing);
+
+    final node = find.byKey(const Key('registration.verify'));
+    expect(node, findsOneWidget);
+    // The pill's whole cost was a 56dp band above the keypad; the re-homed
+    // node takes none of it (the stretch parent still hands it a width).
+    expect(tester.getSize(node).height, 0);
+    expect(
+      find.bySemanticsIdentifier('phone_otp_verify_cta'),
+      findsOneWidget,
+    );
+    await cubit.close();
+  });
+
+  testWidgets('R7: the in-flight verify speaks from the board-drawn meta slot',
+      (tester) async {
+    final cubit = await primedOnOtpStep();
+    await tester.pumpWidget(hostScreen(cubit));
+    await tester.pump();
+
+    final status = find.byKey(const Key('registration.otpStatusLine'));
+    expect(tester.widget<Text>(status).data, 'Verifies automatically');
+
+    when(() => otp.verifyCode(
+          e164Phone: any(named: 'e164Phone'),
+          code: any(named: 'code'),
+        )).thenAnswer((_) => Completer<OtpVerifyOutcome>().future);
+    await tapDigits(tester, '1234');
+    await tester.pump();
+
+    expect(tester.widget<Text>(status).data, 'Verifying…');
+    await cubit.close();
+  });
+
+  testWidgets(
+      'R7: the field draws the periwinkle wash top-START and spends NO orange '
+      'glow — the tile mirrors R6, it does not copy it', (tester) async {
+    final cubit = await primedOnOtpStep();
+    await tester.pumpWidget(hostScreen(cubit));
+    await tester.pump();
+
+    final field = tester.widget<JeebMidnightField>(
+      find.byType(JeebMidnightField),
+    );
+    expect(field.variant, JeebFieldVariant.content);
+    expect(field.washPlacement, JeebFieldWashPlacement.topStart);
+    expect(field.glowColor, Colors.transparent);
+    expect(field.animateDecor, isFalse);
+    await cubit.close();
+  });
+
+  testWidgets(
+      'R7: the headline and the resend countdown are INK, not orange — only '
+      'Edit spends the accent', (tester) async {
+    final cubit = await primedOnOtpStep();
+    await tester.pumpWidget(hostScreen(cubit));
+    await tester.pump();
+
+    final scheme =
+        Theme.of(tester.element(find.byType(JeebCodeCells))).colorScheme;
+    final accent = JeebColorRoles.midnight().accent;
+
+    final headline = tester.widget<Text>(find.text('Check your messages'));
+    expect(headline.style!.color, scheme.onSurface);
+    expect(headline.style!.color, isNot(accent));
+
+    final countdown = tester.widget<Text>(
+      find.byKey(const Key('registration.resendCountdown')),
+    );
+    final spans = (countdown.textSpan! as TextSpan).children!;
+    // [0] = "Resend in " (muted), [1] = the m:ss value.
+    expect((spans[0] as TextSpan).style!.color, scheme.onSurfaceVariant);
+    expect((spans[1] as TextSpan).style!.color, scheme.onSurface);
+    expect((spans[1] as TextSpan).style!.color, isNot(accent));
+
+    final edit = tester.widget<Text>(find.text('Edit'));
+    expect(edit.style!.color, accent);
     await cubit.close();
   });
 }

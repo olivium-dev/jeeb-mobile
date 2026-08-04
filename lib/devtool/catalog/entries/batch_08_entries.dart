@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../../features/onboarding/presentation/widgets/walkthrough_voice_art.dart';
 import '../../../features/order_history/application/order_history_cubit.dart';
 import '../../../features/order_history/domain/order_repository.dart';
 import '../../../features/order_history/domain/order_summary.dart';
@@ -20,10 +21,18 @@ import '../fixtures/order_summary_screen_fixtures.dart';
 import '../fixtures/otp_handover_screen_fixtures.dart';
 import '../fixtures/password_security_screen_fixtures.dart';
 
-Widget _onboardingPreview(OnboardingScreenCubitFactory create) =>
+Widget _onboardingPreview(
+  OnboardingScreenCubitFactory create, {
+  int slide = 0,
+  WalkthroughVoicePlacement? slideOneVariant,
+}) =>
     OnboardingScreenPreviewHost(
       create: create,
-      child: OnboardingScreen(onComplete: () {}),
+      slide: slide,
+      child: OnboardingScreen(
+        onComplete: () {},
+        slideOneVariant: slideOneVariant,
+      ),
     );
 
 Widget _orderHistoryScreen(
@@ -71,12 +80,48 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
         screen: 'OnboardingScreen',
         states: [
           CatalogState(
-            'Slides — EN',
+            'W1 Say it — EN',
             (_) => _onboardingPreview(OnboardingScreenPreviewFixtures.english),
           ),
           CatalogState(
-            'Slides — AR',
+            'W2 Trusted Jeebers — EN',
+            (_) => _onboardingPreview(
+              OnboardingScreenPreviewFixtures.english,
+              slide: 1,
+            ),
+          ),
+          CatalogState(
+            'W3 Live tracking — EN',
+            (_) => _onboardingPreview(
+              OnboardingScreenPreviewFixtures.english,
+              slide: 2,
+            ),
+          ),
+          // The board's other placement of the same slide-1 composition.
+          CatalogState(
+            'R5 Onboarding placement — EN',
+            (_) => _onboardingPreview(
+              OnboardingScreenPreviewFixtures.english,
+              slideOneVariant: WalkthroughVoicePlacement.r5,
+            ),
+          ),
+          CatalogState(
+            'W1 Say it — AR',
             (_) => _onboardingPreview(OnboardingScreenPreviewFixtures.arabic),
+          ),
+          CatalogState(
+            'W2 Trusted Jeebers — AR',
+            (_) => _onboardingPreview(
+              OnboardingScreenPreviewFixtures.arabic,
+              slide: 1,
+            ),
+          ),
+          CatalogState(
+            'W3 Live tracking — AR',
+            (_) => _onboardingPreview(
+              OnboardingScreenPreviewFixtures.arabic,
+              slide: 2,
+            ),
           ),
         ],
       ),
