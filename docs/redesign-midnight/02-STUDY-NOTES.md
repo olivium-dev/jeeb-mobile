@@ -306,6 +306,39 @@ glass there, so "no change, measured" was the correct outcome, not a miss.
 **Still open, not ours to close:** R18 renders **5** stepper segments where the board draws **4**,
 because `active_delivery_stage_done` is a frozen identifier (owner Q7 territory).
 
+## Glow-anchor wave outcomes (2026-08-04)
+
+`JeebFieldGlowPlacement.topStart` (0.12, -0.08) landed and R4/R9/R17 adopted it. All three were
+wrong before: R9 at `bottom` (opposite end of the screen), R4/R17 mirrored at the `topEnd` default.
+Two independent measurements agreed without consulting each other — CSS declarations, and a
+pixel-space 5-parameter least-squares fit that un-composites the orange ink per channel (fx within
+0.0016 on all three). **fy is an extrapolation, not a measurement** (the anchor is 76px off-canvas;
+profile likelihood is flat across -0.094..-0.073) — it rides on the board's literal `-8%`.
+
+**Three real defects found and NOT yet closed:**
+1. **R4's periwinkle wash is 335px too low.** Shipped `JeebFieldWashPlacement.bottomEnd` is
+   (0.90, 1.0); the board declares — and pixels confirm at fy 0.6503, exact — an end-side wash at
+   mid-height. Ratified anchor for the kit: **`endMid(1.17, 0.65, 0.21, 1.78, 0.714)`**. Pinned with
+   a test meanwhile so the orange adoption cannot silently drag it. **Fix in the next kit lane.**
+2. **The glow-alpha split may be wrong.** Kit gives `content` 0.22 / `hero` 0.28; the board measures
+   **0.246 / 0.249 / 0.259** on R4/R9/R17 — all three cluster *between* the two kit constants, so
+   both content tiles ship ~0.027 low and the hero tile ~0.021 high. Do not patch per screen: this
+   wants a survey across all 30 tiles at **M6**, then one ruling.
+3. **Fade stop is 58% on the board vs the shipped `_glowFade` 0.60** — global, shared with the
+   `topEnd` tiles. Also M6.
+
+**Catalog coverage gaps found (neither element has ANY capture):**
+- The active-delivery card's whole treatment is uncapturable: the only banner catalog state seeds
+  **2** deliveries, which trips `_disclosureThreshold = 2` and collapses to a disclosure row with
+  zero cards. Needs a 1-delivery state in `batch_04_entries.dart`.
+- No `jeeber_home` catalog state mounts an active-delivery banner at all.
+
+**Accepted:** the R16 banner pair is *not* pixel-identical by design (the shell twin's end pill is a
+periwinkle CTA + status line; the fallback's is a white select chip). The new pair test therefore
+pins the **frame treatment** — fill rung, painted surface, stroke, radius — not the whole card.
+Pinning the pill would have failed on day one. The "visually identical" doc claim should be read as
+"identical framing", and if the owner means it more strictly that is a separate product call.
+
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
 | Screen | Ruling | Key evidence |
