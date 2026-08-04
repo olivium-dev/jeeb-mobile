@@ -44,6 +44,12 @@ Widget _app({required Widget home}) => MaterialApp(
   // The PRODUCTION observer, the one `AppRouter` installs.
   navigatorObservers: <NavigatorObserver>[appRouteObserver],
   home: home,
+  // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES §E1):
+  // pumpAndSettle only terminates under reduce motion.
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: true),
+    child: child!,
+  ),
 );
 
 Future<void> _pushOnTop(WidgetTester tester) async {

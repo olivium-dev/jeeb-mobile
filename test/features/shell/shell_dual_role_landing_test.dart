@@ -87,6 +87,12 @@ Widget _harness({
           GlobalCupertinoLocalizations.delegate,
         ],
         home: const ShellScreen(),
+        // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES
+        // §E1): pumpAndSettle only terminates under reduce motion.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
       ),
     ),
   );
@@ -135,6 +141,10 @@ void main() {
       _harness(prefs: prefs, availableRoles: const ['client', 'jeeber']),
     );
     await tester.pumpAndSettle();
+    // Home's in-memory repo resolves behind a 150ms fake-latency timer that
+    // schedules no frame; advance past it so none is left pending.
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
 
     // The LIVE jeeber dashboard body is the on-screen (onstage) tab — i.e. the
     expect(
@@ -162,6 +172,8 @@ void main() {
     await tester.pumpWidget(
       _harness(prefs: prefs, availableRoles: const ['client']),
     );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     // The client Requests home is the on-screen tab.
@@ -214,10 +226,18 @@ void main() {
               GlobalCupertinoLocalizations.delegate,
             ],
             home: const ShellScreen(),
+            // JeebEmptyState's E1 illustration loops ∞ by design
+            // (03-MOTION-NOTES §E1); pumpAndSettle needs reduce motion.
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: child!,
+            ),
           ),
         ),
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     final handle = tester.ensureSemantics();

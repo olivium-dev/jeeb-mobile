@@ -108,6 +108,12 @@ Widget _harness({
           GlobalCupertinoLocalizations.delegate,
         ],
         home: const ShellScreen(),
+        // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES
+        // §E1): pumpAndSettle only terminates under reduce motion.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
       ),
     ),
   );
@@ -138,6 +144,10 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
+    // Home's in-memory repo resolves behind a 150ms fake-latency timer that
+    // schedules no frame; advance past it so none is left pending.
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
 
     // The regular-user surfaces.
     expect(find.text('Requests'), findsWidgets);
@@ -154,6 +164,8 @@ void main() {
     await tester.pumpWidget(
       _harness(prefs: prefs, availableRoles: const ['client']),
     );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     // Both jeeber tab bodies (Dashboard + Earnings) render the become-a-jeeber
@@ -174,6 +186,8 @@ void main() {
     await tester.pumpWidget(
       _harness(prefs: prefs, availableRoles: const ['client', 'jeeber']),
     );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     // The live jeeber home is rendered (its root key is present in the
@@ -196,6 +210,8 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
 
     // Tap the additive Dashboard destination (index 2).
     await tester.tap(find.text('Dashboard').last);
@@ -213,6 +229,8 @@ void main() {
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs, locale: const Locale('ar')));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     expect(find.text('الطلبات'), findsWidgets);

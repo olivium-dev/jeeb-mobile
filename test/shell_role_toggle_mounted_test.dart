@@ -83,6 +83,12 @@ Widget _harness({
         GlobalCupertinoLocalizations.delegate,
       ],
       home: const ShellScreen(),
+      // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES
+      // §E1): pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
     ),
   );
 }
@@ -120,6 +126,10 @@ void main() {
       _harness(prefs: prefs, availableRoles: const ['client', 'jeeber']),
     );
     await tester.pumpAndSettle();
+    // Home's in-memory repo resolves behind a 150ms fake-latency timer that
+    // schedules no frame; advance past it so none is left pending.
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
     await _openProfile(tester);
 
     // The role SWITCH is gone (UX LAW: additive tabs, no mode flip).
@@ -133,6 +143,8 @@ void main() {
       _harness(prefs: prefs, availableRoles: const ['client']),
     );
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
     await _openProfile(tester);
 
     // JEBV4-204: RoleToggleSetting was DELETED; assert against its former key
@@ -145,6 +157,8 @@ void main() {
     await tester.pumpWidget(
       _harness(prefs: prefs, availableRoles: const ['client', 'jeeber']),
     );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     // The additive Dashboard tab is kept offstage while Requests is selected,
@@ -164,6 +178,8 @@ void main() {
     await tester.pumpWidget(
       _harness(prefs: prefs, availableRoles: const ['client']),
     );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     // Both additive jeeber tab bodies (Dashboard + Earnings) show the
