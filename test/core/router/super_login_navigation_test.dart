@@ -94,6 +94,12 @@ void main() {
         ],
         child: MaterialApp.router(
           routerConfig: router,
+          // JeebEmptyState's E1 illustration loops ∞ by design (02-STUDY-NOTES
+          // §Motion): pumpAndSettle only terminates under reduce motion.
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: child!,
+          ),
           localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
             SyncAppLocalizationsDelegate(),
             GlobalMaterialLocalizations.delegate,

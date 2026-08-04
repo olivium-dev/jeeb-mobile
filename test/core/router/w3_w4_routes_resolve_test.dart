@@ -83,6 +83,12 @@ Widget _harness(_Built built) {
     ],
     child: MaterialApp.router(
       routerConfig: built.router,
+      // JeebEmptyState's E1 illustration loops ∞ by design (02-STUDY-NOTES
+      // §Motion): pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
         SyncAppLocalizationsDelegate(),
         GlobalMaterialLocalizations.delegate,
@@ -112,6 +118,10 @@ void main() {
       built.router.dispose();
     });
     await tester.pumpWidget(_harness(built));
+    await tester.pumpAndSettle();
+    // Home's in-memory repo resolves behind a 150ms fake-latency timer that
+    // schedules no frame; advance past it so none is left pending.
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
   }
 
