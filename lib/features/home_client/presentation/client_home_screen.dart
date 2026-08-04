@@ -496,27 +496,20 @@ class _ClientHomeTabBar extends StatelessWidget {
         alignment: AlignmentDirectional.centerStart,
         child: Stack(
           children: <Widget>[
-            // The board's two segments hug their labels at the start edge; the
-            // kit track is flex-filling, so it is sized to its content here.
-            IntrinsicWidth(
-              child: JeebSegmentedToggle(
-                segments: <JeebSegment>[
-                  for (var i = 0; i < _tabs.length; i++)
-                    JeebSegment(
-                      label: labels[i],
-                      key: Key('client-home-tab-${_tabs[i].name}'),
-                      identifier: 'orders_filter_${_tabs[i].name}',
-                    ),
-                ],
-                // Sized to content, so the labels need the horizontal padding
-                // the flex-filling default deliberately omits.
-                segmentPadding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: 14,
-                  vertical: 9,
-                ),
-                selectedIndex: _tabs.indexOf(selectedTab),
-                onChanged: (index) => onSelected(_tabs[index]),
-              ),
+            // E1 draws no enclosing track: two free pills that hug their
+            // labels at the start edge (wave-A trackless placement).
+            JeebSegmentedToggle(
+              placement: JeebSegmentedPlacement.trackless,
+              segments: <JeebSegment>[
+                for (var i = 0; i < _tabs.length; i++)
+                  JeebSegment(
+                    label: labels[i],
+                    key: Key('client-home-tab-${_tabs[i].name}'),
+                    identifier: 'orders_filter_${_tabs[i].name}',
+                  ),
+              ],
+              selectedIndex: _tabs.indexOf(selectedTab),
+              onChanged: (index) => onSelected(_tabs[index]),
             ),
             // JM-023 / JM-027's coined `orders_home_replies_tab`: a second id
             // for the same target, laid over the Replies half so QA still taps

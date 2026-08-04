@@ -135,6 +135,74 @@ void main() {
     });
   });
 
+  group('JeebSegmentedToggle trackless placement (E1)', () {
+    Widget trackless({int selectedIndex = 0, ValueChanged<int>? onChanged}) {
+      return JeebSegmentedToggle(
+        placement: JeebSegmentedPlacement.trackless,
+        segments: languageSegments,
+        selectedIndex: selectedIndex,
+        onChanged: onChanged ?? (_) {},
+      );
+    }
+
+    testWidgets('draws NO enclosing track', (tester) async {
+      await tester.pumpWidget(wrapRemainder(trackless()));
+
+      // The only decorated boxes left are the two pills themselves.
+      final Iterable<DecoratedBox> boxes = tester.widgetList<DecoratedBox>(
+        find.descendant(
+          of: find.byType(JeebSegmentedToggle),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      expect(boxes.length, 2);
+      expect(find.byType(Expanded), findsNothing);
+    });
+
+    testWidgets('the unselected pill carries the glass the track would have',
+        (tester) async {
+      await tester.pumpWidget(wrapRemainder(trackless()));
+
+      final BoxDecoration selected = segmentDecoration(tester, 'English');
+      expect(selected.color, white);
+      expect(selected.border, isNull, reason: 'selection is a fill swap');
+
+      final BoxDecoration unselected = segmentDecoration(tester, 'العربية');
+      expect(unselected.color, glassFill);
+      expect((unselected.border! as Border).top.color, glassBorderStrong);
+      expect((unselected.border! as Border).top.width, 1);
+    });
+
+    testWidgets('pills hug their labels at E1\'s 10/18 pad, 10 apart',
+        (tester) async {
+      await tester.pumpWidget(wrapRemainder(trackless()));
+
+      expect(
+        JeebSegmentedToggle.tracklessSegmentPadding.resolve(TextDirection.ltr),
+        const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
+      );
+      expect(JeebSegmentedToggle.tracklessGap, 10);
+
+      final Rect first = tester.getRect(find.text('English'));
+      final Rect second = tester.getRect(find.text('العربية'));
+      // 18 pad on each facing edge + the 10 gap.
+      expect(second.left - first.right, closeTo(18 + 10 + 18, 0.01));
+    });
+
+    testWidgets('still reports taps and keeps the frozen per-segment ids',
+        (tester) async {
+      final List<int> taps = <int>[];
+      await tester.pumpWidget(wrapRemainder(trackless(onChanged: taps.add)));
+
+      await tester.tap(find.byKey(const Key('settings-row-language-ar')));
+      expect(taps, <int>[1]);
+      expect(
+        find.bySemanticsIdentifier('settings_language_ar_option'),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('JeebSegmentedToggle behaviour', () {
     testWidgets('reports the tapped index, including a re-tap of the selection',
         (tester) async {

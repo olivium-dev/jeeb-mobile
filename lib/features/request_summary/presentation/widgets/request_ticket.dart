@@ -329,7 +329,7 @@ class _VoiceReplayBandState extends State<_VoiceReplayBand> {
                 ),
               ),
               const SizedBox(width: Spacing.small),
-              const Expanded(child: JeebWaveform.cardMark()),
+              const Expanded(child: JeebWaveform.playbackBand()),
               if (durationMs != null) ...<Widget>[
                 const SizedBox(width: Spacing.small),
                 // A clip length never reorders in Arabic.
@@ -473,10 +473,16 @@ class _TierRow extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
+          // Wave-A: the ticket's chips are glass (board `rgba(255,255,255,.1)`),
+          // not the solid navy pill M1 ruling 4 draws on R1.
           if (resolved == null)
-            JeebTierChip.meta(label: label)
+            JeebTierChip.meta(label: label, glass: true)
           else
-            JeebTierChip(tier: JeebTier.fromId(resolved.name), label: label),
+            JeebTierChip(
+              tier: JeebTier.fromId(resolved.name),
+              label: label,
+              glass: true,
+            ),
           const SizedBox(width: Spacing.xSmall),
           if (sla != null)
             Expanded(

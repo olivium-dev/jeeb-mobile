@@ -167,6 +167,60 @@ void main() {
     });
   });
 
+  group('JeebTierChip — the R12 glass opt-in', () {
+    testWidgets('glass: true is glassFillEmphasis + a 1px glassBorder',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          const JeebTierChip(
+            tier: JeebTier.flash,
+            label: 'Flash',
+            glass: true,
+          ),
+        ),
+      );
+
+      final BuildContext context = tester.element(find.byType(JeebTierChip));
+      final JeebSemanticColors semantics =
+          Theme.of(context).extension<JeebSemanticColors>()!;
+      final BoxDecoration decoration = _pillDecoration(tester);
+
+      expect(decoration.color, semantics.glassFillEmphasis);
+      expect((decoration.border! as Border).top.color, semantics.glassBorder);
+      expect(
+        (decoration.border! as Border).top.width,
+        JeebTierChip.glassBorderWidth,
+      );
+      expect(JeebTierChip.glassBorderWidth, 1);
+    });
+
+    testWidgets('opaque stays the DEFAULT — M1 ruling 4 (R1) is untouched',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _wrap(const JeebTierChip(tier: JeebTier.flash, label: 'Flash')),
+      );
+
+      final BuildContext context = tester.element(find.byType(JeebTierChip));
+      expect(
+        _pillDecoration(tester).color,
+        Theme.of(context).colorScheme.surfaceContainerHigh,
+      );
+      expect(_pillDecoration(tester).border, isNull);
+    });
+
+    testWidgets('meta carries the opt-in too', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        _wrap(const JeebTierChip.meta(label: 'Under 1 hour', glass: true)),
+      );
+
+      final BuildContext context = tester.element(find.byType(JeebTierChip));
+      expect(
+        _pillDecoration(tester).color,
+        Theme.of(context).extension<JeebSemanticColors>()!.glassFillEmphasis,
+      );
+    });
+  });
+
   group('JeebTierChip — the re-tone is structural', () {
     testWidgets('inside a navy card it flips to white14 glass + ink', (
       WidgetTester tester,

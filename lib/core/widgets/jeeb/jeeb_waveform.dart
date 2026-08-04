@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_color_roles.dart';
 import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import 'jeeb_surface_tone.dart';
 
-/// The four realized waveform marks (redesign-2026-08 §5 #14).
+/// The five realized waveform marks (redesign-2026-08 §5 #14).
 ///
 /// These are **not** one mark at four sizes: bar count, bar width, gap,
 /// baseline alignment and ink family all differ. Picking a mode is picking a
@@ -28,14 +29,20 @@ enum JeebWaveformMode {
   inBubble,
 
   /// The recording mark above 05's timer readout.
-  /// 10 bars w4 gap 4, h 12–38, container h40, **bottom-aligned**, orangeSoft
-  /// with an alpha tail at both ends. Measured on 05 `tpl 257-267`.
+  /// 10 bars w4 gap 4, h 12–38, container h40, **bottom-aligned**, accent
+  /// `#D73B00` with an alpha tail at both ends. Measured on 05 `tpl 257-267`;
+  /// the ink re-measured on R2 (wave-A: the board draws the accent, not soft).
   live,
+
+  /// The replay mark inside R12's ticket band.
+  /// 6 bars w3 gap 3, h 10/18/12/22/14/20, container h26, **bottom-aligned**,
+  /// accent `#D73B00` at α1/1/1/.5/.5/.4. Measured on R12's ticket head band.
+  playbackBand,
 }
 
 /// The Jeeb voice mark (redesign-2026-08 §5 #14).
 ///
-/// A static, purely decorative bar cluster. It renders exactly the four
+/// A static, purely decorative bar cluster. It renders exactly the five
 /// measured profiles in [JeebWaveformMode] and exposes **no geometry
 /// parameters** — bar count, width, gap and heights are the drift vector the
 /// plan warns about, and every board deviation found so far (16's 3-bar mark,
@@ -96,6 +103,14 @@ class JeebWaveform extends StatelessWidget {
   })  : mode = JeebWaveformMode.live,
         outgoing = null;
 
+  /// 6-bar replay mark, container h26, bottom-aligned — R12's ticket band.
+  const JeebWaveform.playbackBand({
+    super.key,
+    this.identifier,
+    this.semanticLabel,
+  })  : mode = JeebWaveformMode.playbackBand,
+        outgoing = null;
+
   /// Container height for [JeebWaveformMode.cardMark] (04 `tpl 189`).
   static const double cardMarkHeight = 16;
 
@@ -107,6 +122,9 @@ class JeebWaveform extends StatelessWidget {
 
   /// Container height for [JeebWaveformMode.live] (05 `tpl 257`).
   static const double liveHeight = 40;
+
+  /// Container height for [JeebWaveformMode.playbackBand] (R12 ticket band).
+  static const double playbackBandHeight = 26;
 
   /// Bar corner radius — `JeebRadii.sm` on every bar, i.e. always a stadium.
   static const double barRadius = JeebRadii.sm;
@@ -137,6 +155,7 @@ class JeebWaveform extends StatelessWidget {
     final _JeebWaveformSpec spec = _specOf(mode);
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final Color orangeSoft = _semantics(context).orangeSoft;
+    final Color accent = context.jeebRoles.accent;
     final bool onNavyBubble =
         outgoing ?? JeebSurfaceTone.of(context).onNavy;
 
@@ -152,6 +171,7 @@ class JeebWaveform extends StatelessWidget {
               color: _inkFor(
                 spec.inks[i],
                 orangeSoft: orangeSoft,
+                accent: accent,
                 scheme: scheme,
                 onNavyBubble: onNavyBubble,
               ).withValues(alpha: spec.alphas[i]),
@@ -189,12 +209,15 @@ class JeebWaveform extends StatelessWidget {
   Color _inkFor(
     _JeebBarInk ink, {
     required Color orangeSoft,
+    required Color accent,
     required ColorScheme scheme,
     required bool onNavyBubble,
   }) {
     switch (ink) {
       case _JeebBarInk.orangeSoft:
         return orangeSoft;
+      case _JeebBarInk.accent:
+        return accent;
       case _JeebBarInk.ink:
         return scheme.onSurface;
       case _JeebBarInk.bubble:
@@ -207,6 +230,9 @@ class JeebWaveform extends StatelessWidget {
 enum _JeebBarInk {
   /// `JeebSemanticColors.orangeSoft` — token sheet §3 names the waveform bars.
   orangeSoft,
+
+  /// `jeebRoles.accent` (`#D73B00`) — the voice marks R2 and R12 draw solid.
+  accent,
 
   /// `colorScheme.onSurface` — the board ink bars of the on-navy mark.
   ink,
@@ -248,6 +274,8 @@ _JeebWaveformSpec _specOf(JeebWaveformMode mode) {
       return _kInBubble;
     case JeebWaveformMode.live:
       return _kLive;
+    case JeebWaveformMode.playbackBand:
+      return _kPlaybackBand;
   }
 }
 
@@ -304,6 +332,7 @@ const _JeebWaveformSpec _kInBubble = _JeebWaveformSpec(
 
 /// 05 `tpl 257-267` — `align-items: flex-end`, gap 4, h40. Ten bars, not the
 /// plan's "~11"; the alpha tail is at both ends, solid through the middle five.
+/// Wave-A: R2 draws these in the ACCENT, not orangeSoft; the alphas stand.
 const _JeebWaveformSpec _kLive = _JeebWaveformSpec(
   containerHeight: JeebWaveform.liveHeight,
   barWidth: 4,
@@ -311,16 +340,35 @@ const _JeebWaveformSpec _kLive = _JeebWaveformSpec(
   heights: <double>[12, 22, 32, 18, 38, 26, 36, 16, 28, 12],
   alphas: <double>[0.35, 0.45, 1, 1, 1, 1, 1, 0.5, 0.4, 0.3],
   inks: <_JeebBarInk>[
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
-    _JeebBarInk.orangeSoft,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+  ],
+  alignment: CrossAxisAlignment.end,
+);
+
+/// R12's ticket band — `align-items: flex-end`, gap 3, h26. Six accent bars
+/// with the alpha tail on the three trailing ones.
+const _JeebWaveformSpec _kPlaybackBand = _JeebWaveformSpec(
+  containerHeight: JeebWaveform.playbackBandHeight,
+  barWidth: 3,
+  gap: 3,
+  heights: <double>[10, 18, 12, 22, 14, 20],
+  alphas: <double>[1, 1, 1, 0.5, 0.5, 0.4],
+  inks: <_JeebBarInk>[
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
+    _JeebBarInk.accent,
   ],
   alignment: CrossAxisAlignment.end,
 );

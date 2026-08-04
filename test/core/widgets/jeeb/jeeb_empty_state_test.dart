@@ -71,7 +71,8 @@ void main() {
       expect(body.fontWeight, FontWeight.w500);
     });
 
-    testWidgets('medallion discs are glass, glyphs are ink', (tester) async {
+    testWidgets('medallion discs are glass, subjects are DRAWN not stock',
+        (tester) async {
       await tester.pumpWidget(wrap(e1, disableAnimations: true));
       await tester.pumpAndSettle();
 
@@ -88,10 +89,25 @@ void main() {
       expect(disc.border!.top.color, JeebMidnight.glassBorderStrong);
       expect(disc.border!.top.width, 1);
 
-      final Icon glyph = tester.widget<Icon>(
-        find.byIcon(JeebEmptyState.defaultMedallions.first.icon),
+      // Wave-A / the E1 caption: "no stock art". The four defaults carry drawn
+      // subjects, so no Material glyph may appear inside the illustration.
+      expect(
+        JeebEmptyState.defaultMedallions
+            .map((JeebEmptyMedallion m) => m.art)
+            .toList(),
+        <JeebEmptyMedallionArt>[
+          JeebEmptyMedallionArt.medicine,
+          JeebEmptyMedallionArt.groceries,
+          JeebEmptyMedallionArt.document,
+          JeebEmptyMedallionArt.gift,
+        ],
       );
-      expect(glyph.color, JeebMidnight.ink);
+      expect(
+        JeebEmptyState.defaultMedallions
+            .every((JeebEmptyMedallion m) => m.icon == null),
+        isTrue,
+      );
+      expect(inState(Icon), findsNothing);
     });
 
     testWidgets('block padding is E1\'s measured 36 gutter', (tester) async {
@@ -104,6 +120,39 @@ void main() {
       );
       final Padding padding = tester.widget<Padding>(inState(Padding).first);
       expect(padding.padding, const EdgeInsets.symmetric(horizontal: 36));
+    });
+
+    testWidgets('compact halves the illustration and tightens the block',
+        (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState.compact(
+            headline: 'No saved addresses',
+            body: 'Pin one and it lands here.',
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        JeebEmptyState.compactIllustrationSize,
+        JeebEmptyState.defaultIllustrationSize / 2,
+      );
+      expect(
+        tester.widget<Padding>(inState(Padding).first).padding,
+        JeebEmptyState.compactPadding,
+      );
+      // h2 (20), not the full-page h1 (26).
+      final TextStyle headline =
+          tester.widget<Text>(find.text('No saved addresses')).style!;
+      expect(headline.fontSize, 20);
+
+      // The illustration is the block's only FittedBox.
+      expect(
+        tester.getSize(inState(FittedBox).first).width,
+        JeebEmptyState.compactIllustrationSize,
+      );
     });
 
     testWidgets('survives a theme with no Jeeb extensions', (tester) async {
@@ -520,13 +569,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      final Offset first = tester.getCenter(
-        find.byIcon(JeebEmptyState.defaultMedallions.first.icon),
+      // Medallion 0 is the top-START anchor and 1 the top-END one; the
+      // illustration is absolutely placed, so RTL must not swap them.
+      final Finder discs = find.byWidgetPredicate(
+        (Widget w) =>
+            w is DecoratedBox &&
+            w.decoration is BoxDecoration &&
+            (w.decoration as BoxDecoration).color ==
+                JeebMidnight.glassFillEmphasis,
       );
-      final Offset last = tester.getCenter(
-        find.byIcon(JeebEmptyState.defaultMedallions[1].icon),
-      );
-      expect(first.dx, lessThan(last.dx));
+      expect(tester.getCenter(discs.at(0)).dx,
+          lessThan(tester.getCenter(discs.at(1)).dx));
     });
   });
 }

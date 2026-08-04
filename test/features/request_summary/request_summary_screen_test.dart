@@ -7,7 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/features/request_summary/application/request_summary_cubit.dart';
@@ -450,10 +452,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // Wave-A: the Theme-swap workaround is gone — the kit owns the fill.
+      final JeebCtaButton cta = tester.widget<JeebCtaButton>(
+        find.byKey(const Key('request_summary.submit')),
+      );
+      expect(cta.variant, JeebCtaVariant.accent);
+
       final BuildContext ctaContext = tester.element(
         find.byKey(const Key('request_summary.submit')),
       );
-      expect(Theme.of(ctaContext).colorScheme.secondary, JeebMidnight.orange);
+      expect(ctaContext.jeebRoles.accent, JeebMidnight.orange);
+      expect(
+        Theme.of(ctaContext).colorScheme.secondary,
+        isNot(JeebMidnight.orange),
+        reason: 'the periwinkle role must no longer be shadowed by orange',
+      );
     });
 
     testWidgets('P0-8b: the ticket builds with no GoRouter ancestor', (

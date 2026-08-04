@@ -210,11 +210,12 @@ void main() {
       expect(label.color, onAccentContainer);
 
       // 07's default tier is also the flagged one, so selected + badged is a
-      // real state.
+      // real state. Wave-A: the LIT row keeps the tint — a solid accent pill
+      // on the orange-20% fill loses its edge.
       await tester.pumpWidget(
         wrapRemainder(compact(badge: 'Most picked', selected: true)),
       );
-      final BoxDecoration solid = tester
+      final BoxDecoration lit = tester
           .widget<DecoratedBox>(
             find
                 .ancestor(
@@ -224,10 +225,10 @@ void main() {
                 .first,
           )
           .decoration as BoxDecoration;
-      expect(solid.color, accent);
+      expect(lit.color, accentContainer);
       expect(
         tester.widget<Text>(find.text('Most picked')).style!.color,
-        onAccent,
+        onAccentContainer,
       );
     });
 

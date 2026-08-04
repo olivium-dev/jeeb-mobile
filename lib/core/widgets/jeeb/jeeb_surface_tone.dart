@@ -34,6 +34,7 @@ class JeebSurfaceToneData {
     required this.meterFill,
     required this.meterEmpty,
     required this.dividerInk,
+    this.accentSelected = false,
   });
 
   /// The rest-glass tone: ink `onSurface`, meta `mutedText`, chip = solid
@@ -72,8 +73,20 @@ class JeebSurfaceToneData {
 
   /// R9's accent-selected tone: [navy]'s inks (white title, `inkSoft` meta) on
   /// the orange-20% fill, and `kind: navy` so `onNavy` still reads true.
-  factory JeebSurfaceToneData.accentSelected(BuildContext context) =>
-      JeebSurfaceToneData.navy(context);
+  factory JeebSurfaceToneData.accentSelected(BuildContext context) {
+    final JeebSurfaceToneData navy = JeebSurfaceToneData.navy(context);
+    return JeebSurfaceToneData(
+      kind: navy.kind,
+      titleInk: navy.titleInk,
+      mutedInk: navy.mutedInk,
+      chipFill: navy.chipFill,
+      chipInk: navy.chipInk,
+      meterFill: navy.meterFill,
+      meterEmpty: navy.meterEmpty,
+      dividerInk: navy.dividerInk,
+      accentSelected: true,
+    );
+  }
 
   /// The surface this tone describes.
   final JeebSurfaceKind kind;
@@ -99,6 +112,10 @@ class JeebSurfaceToneData {
   /// The 1px inset rule between grouped rows.
   final Color dividerInk;
 
+  /// True on R9's lit fill only. `kind` stays navy (so `onNavy` and every ink
+  /// are unchanged); this discriminates the one case that must not re-tone.
+  final bool accentSelected;
+
   /// True when the subtree sits on the emphasis surface.
   bool get onNavy => kind == JeebSurfaceKind.navy;
 
@@ -113,7 +130,8 @@ class JeebSurfaceToneData {
           other.chipInk == chipInk &&
           other.meterFill == meterFill &&
           other.meterEmpty == meterEmpty &&
-          other.dividerInk == dividerInk;
+          other.dividerInk == dividerInk &&
+          other.accentSelected == accentSelected;
 
   @override
   int get hashCode => Object.hash(
@@ -125,6 +143,7 @@ class JeebSurfaceToneData {
         meterFill,
         meterEmpty,
         dividerInk,
+        accentSelected,
       );
 }
 

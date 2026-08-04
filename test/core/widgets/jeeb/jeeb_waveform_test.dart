@@ -134,6 +134,33 @@ void main() {
       }
     });
 
+    testWidgets('playbackBand is 6 bars w3 in a h26 container, bottom-aligned',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(_wrap(const JeebWaveform.playbackBand()));
+
+      final List<SizedBox> bars = _bars(tester);
+      expect(bars.length, 6, reason: 'R12 ticket band');
+      expect(
+        bars.map((SizedBox b) => b.height).toList(),
+        <double>[10, 18, 12, 22, 14, 20],
+      );
+      expect(bars.every((SizedBox b) => b.width == 3), isTrue);
+
+      final Rect container = tester.getRect(find.byType(JeebWaveform));
+      expect(container.height, JeebWaveform.playbackBandHeight);
+      expect(JeebWaveform.playbackBandHeight, 26);
+      final Iterable<Rect> barRects = find
+          .descendant(
+            of: find.byType(JeebWaveform),
+            matching: find.byType(DecoratedBox),
+          )
+          .evaluate()
+          .map((Element e) => tester.getRect(find.byWidget(e.widget)));
+      for (final Rect rect in barRects) {
+        expect(rect.bottom, moreOrLessEquals(container.bottom));
+      }
+    });
+
     testWidgets('the unnamed constructor renders the same mark as the named one',
         (WidgetTester tester) async {
       await tester.pumpWidget(
@@ -193,6 +220,33 @@ void main() {
       expect(_decorationAt(tester, 2).color, _orangeSoft);
       expect(_decorationAt(tester, 3).color, _orangeSoft);
       expect(_decorationAt(tester, 4).color, _ink.withValues(alpha: 0.55));
+    });
+
+    testWidgets('live is the ACCENT, not orangeSoft, with its alpha tail kept',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(_wrap(const JeebWaveform.live()));
+
+      // Wave-A / R2-measured: the recording mark is `#D73B00`. The alphas are
+      // unchanged, so only the ink family moved.
+      expect(_decorationAt(tester, 0).color, _orange.withValues(alpha: 0.35));
+      expect(_decorationAt(tester, 1).color, _orange.withValues(alpha: 0.45));
+      for (int i = 2; i < 7; i++) {
+        expect(_decorationAt(tester, i).color, _orange);
+      }
+      expect(_decorationAt(tester, 9).color, _orange.withValues(alpha: 0.3));
+      expect(_decorationAt(tester, 0).color, isNot(_orangeSoft));
+    });
+
+    testWidgets('playbackBand is full accent with a .5/.5/.4 tail',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(_wrap(const JeebWaveform.playbackBand()));
+
+      for (int i = 0; i < 3; i++) {
+        expect(_decorationAt(tester, i).color, _orange);
+      }
+      expect(_decorationAt(tester, 3).color, _orange.withValues(alpha: 0.5));
+      expect(_decorationAt(tester, 4).color, _orange.withValues(alpha: 0.5));
+      expect(_decorationAt(tester, 5).color, _orange.withValues(alpha: 0.4));
     });
 
     testWidgets('inBubble inks board ink on a glass bubble',

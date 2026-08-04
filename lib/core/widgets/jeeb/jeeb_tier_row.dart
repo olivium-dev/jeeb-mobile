@@ -449,7 +449,8 @@ class _CatalogBody extends StatelessWidget {
 ///  * 08 `Recommended` — a **solid** accent pill with `onAccent` ink at
 ///    `10/w800` (`tpl 455`). The dominant board badge is this one.
 ///
-/// On a navy/accent surface the 07 badge falls back to the solid 08 treatment.
+/// On a plain navy surface the 07 badge falls back to the solid 08 treatment;
+/// on R9's accent-selected fill it stays tinted (wave-A).
 /// 07's default tier *is* flagged `recommended` in today's data
 /// (`tier_repository.dart:100`), so selected-and-badged really happens.
 class _Badge extends StatelessWidget {
@@ -466,8 +467,10 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final JeebRoles roles = context.jeebRoles;
-    final bool tinted =
-        variant == JeebTierRowVariant.compact && !tone.onNavy;
+    // Wave-A: R9's lit row keeps the tinted badge — a solid accent pill on the
+    // orange-20% fill loses its edge, which is what the navy fallback is for.
+    final bool tinted = variant == JeebTierRowVariant.compact &&
+        (!tone.onNavy || tone.accentSelected);
 
     return DecoratedBox(
       decoration: BoxDecoration(

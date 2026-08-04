@@ -10,6 +10,17 @@ const BorderRadius _pillRadius =
 /// Gap between segments (`5` — R5 language toggle).
 const double _segmentGap = 5;
 
+/// Where the segments sit (wave-A ruling — E1 draws no enclosing track).
+enum JeebSegmentedPlacement {
+  /// R5/20: segments inside one glass track (`glassFill` + 1px
+  /// `glassBorderStrong`, radius `pill`, padding 4). The default.
+  tracked,
+
+  /// E1: free-standing pills. No track; the UNSELECTED segments are glass
+  /// chips (`glassFill` + 1px `glassBorder`), the selected one stays white.
+  trackless,
+}
+
 /// One segment of a [JeebSegmentedToggle].
 ///
 /// Carries its own [key] and [identifier] because screen 20's language rows are
@@ -46,6 +57,10 @@ class JeebSegment {
 /// **white fill with navy (`#0B1351`) ink at 13.5/w700**, the rest stay
 /// transparent with `inkSoft` ink at 13.5/w600. Orange is not in this control.
 ///
+/// **Two placements** ([JeebSegmentedPlacement]): `tracked` (R5, the default)
+/// and `trackless` (E1 — free-standing pills, no enclosing glass, and the
+/// *unselected* segments carry the glass chip themselves).
+///
 /// **Scope, deliberately narrow:**
 ///  * 20's language switch is the only kit consumer.
 ///  * 01 uses a *screen-local* dark-on-navy variant (`OnboardingLanguageToggle`)
@@ -63,8 +78,9 @@ class JeebSegmentedToggle extends StatelessWidget {
     required this.segments,
     required this.selectedIndex,
     required this.onChanged,
+    this.placement = JeebSegmentedPlacement.tracked,
     this.padding = defaultPadding,
-    this.segmentPadding = defaultSegmentPadding,
+    this.segmentPadding,
     this.borderWidth = 1,
     this.identifier,
   });
@@ -76,6 +92,14 @@ class JeebSegmentedToggle extends StatelessWidget {
   /// `flex:1`, so horizontal padding would fight the flex.
   static const EdgeInsetsGeometry defaultSegmentPadding =
       EdgeInsetsDirectional.symmetric(vertical: 9);
+
+  /// Free-pill segment padding (`10/18` — E1). Horizontal too: a trackless
+  /// segment hugs its label instead of sharing the width.
+  static const EdgeInsetsGeometry tracklessSegmentPadding =
+      EdgeInsetsDirectional.symmetric(vertical: 10, horizontal: 18);
+
+  /// Gap between free pills (`10` — E1), against the tracked control's 5.
+  static const double tracklessGap = 10;
 
   /// The segments, in logical order. Two on the board; more render fine.
   final List<JeebSegment> segments;
@@ -89,13 +113,17 @@ class JeebSegmentedToggle extends StatelessWidget {
   /// segment is tapped: swallowing that would make the control feel dead.
   final ValueChanged<int> onChanged;
 
-  /// Track padding.
+  /// Tracked (R5, default) or trackless free pills (E1).
+  final JeebSegmentedPlacement placement;
+
+  /// Track padding. Ignored when [placement] is trackless.
   final EdgeInsetsGeometry padding;
 
-  /// Per-segment padding.
-  final EdgeInsetsGeometry segmentPadding;
+  /// Per-segment padding. Null takes the placement's own default —
+  /// [defaultSegmentPadding] tracked, [tracklessSegmentPadding] trackless.
+  final EdgeInsetsGeometry? segmentPadding;
 
-  /// Track border width (`1` — the glass hairline).
+  /// Glass hairline width — the track's, or a free pill's own (`1`).
   final double borderWidth;
 
   /// Maestro id for the track itself. Segments carry their own
@@ -106,35 +134,43 @@ class JeebSegmentedToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final JeebSemanticColors semantics = _semantics(context);
+    final bool trackless = placement == JeebSegmentedPlacement.trackless;
+    final EdgeInsetsGeometry resolvedSegmentPadding = segmentPadding ??
+        (trackless ? tracklessSegmentPadding : defaultSegmentPadding);
 
-    Widget track = DecoratedBox(
-      decoration: BoxDecoration(
-        color: semantics.glassFill,
-        borderRadius: _pillRadius,
-        border:
-            Border.all(color: semantics.glassBorderStrong, width: borderWidth),
-      ),
-      child: Padding(
-        // Border-box correction: the board's stroke sits outside the 4px track
-        // padding, but Flutter paints it over the child.
-        padding: padding.add(EdgeInsets.all(borderWidth)),
-        child: Row(
-          children: <Widget>[
-            for (var index = 0; index < segments.length; index++) ...<Widget>[
-              if (index > 0) const SizedBox(width: _segmentGap),
-              Expanded(
-                child: _Segment(
-                  segment: segments[index],
-                  selected: index == selectedIndex,
-                  padding: segmentPadding,
-                  onTap: () => onChanged(index),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    final Row row = Row(
+      mainAxisSize: trackless ? MainAxisSize.min : MainAxisSize.max,
+      children: <Widget>[
+        for (var index = 0; index < segments.length; index++) ...<Widget>[
+          if (index > 0)
+            SizedBox(width: trackless ? tracklessGap : _segmentGap),
+          // Tracked segments are `flex:1`; E1's free pills hug their labels.
+          if (trackless)
+            Flexible(child: _segmentAt(index, resolvedSegmentPadding))
+          else
+            Expanded(child: _segmentAt(index, resolvedSegmentPadding)),
+        ],
+      ],
     );
+
+    Widget track = trackless
+        ? row
+        : DecoratedBox(
+            decoration: BoxDecoration(
+              color: semantics.glassFill,
+              borderRadius: _pillRadius,
+              border: Border.all(
+                color: semantics.glassBorderStrong,
+                width: borderWidth,
+              ),
+            ),
+            child: Padding(
+              // Border-box correction: the board's stroke sits outside the 4px
+              // track padding, but Flutter paints it over the child.
+              padding: padding.add(EdgeInsets.all(borderWidth)),
+              child: row,
+            ),
+          );
 
     if (identifier != null) {
       track = Semantics(
@@ -149,6 +185,15 @@ class JeebSegmentedToggle extends StatelessWidget {
 
     return track;
   }
+
+  Widget _segmentAt(int index, EdgeInsetsGeometry resolvedPadding) => _Segment(
+        segment: segments[index],
+        selected: index == selectedIndex,
+        padding: resolvedPadding,
+        borderWidth: borderWidth,
+        trackless: placement == JeebSegmentedPlacement.trackless,
+        onTap: () => onChanged(index),
+      );
 }
 
 class _Segment extends StatelessWidget {
@@ -156,25 +201,39 @@ class _Segment extends StatelessWidget {
     required this.segment,
     required this.selected,
     required this.padding,
+    required this.borderWidth,
+    required this.trackless,
     required this.onTap,
   });
 
   final JeebSegment segment;
   final bool selected;
   final EdgeInsetsGeometry padding;
+  final double borderWidth;
+  final bool trackless;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebSemanticColors semantics = _semantics(context);
+    // Trackless: the unselected pill carries the glass the track would have.
+    final bool glassPill = trackless && !selected;
 
     final Widget body = DecoratedBox(
       decoration: BoxDecoration(
         // Selection is a fill swap, never a border (§5 #4). White fill + navy
         // ink; `onPrimary` is the sheet's `#FFFFFF`, `surface` its `#0B1351`.
-        color: selected ? scheme.onPrimary : Colors.transparent,
+        color: selected
+            ? scheme.onPrimary
+            : (trackless ? semantics.glassFill : Colors.transparent),
         borderRadius: _pillRadius,
+        border: glassPill
+            ? Border.all(
+                color: semantics.glassBorderStrong,
+                width: borderWidth,
+              )
+            : null,
       ),
       child: Material(
         type: MaterialType.transparency,

@@ -93,6 +93,9 @@ void main() {
           OmdsColorTokensProvider(
             tokens: jeebMidnightOmdsTokens,
             child: MaterialApp.router(
+              // The DEBUG ribbon is chrome the board never draws; it sat over
+              // the top-end corner of every capture.
+              debugShowCheckedModeBanner: false,
               theme: withCaptureTestFonts(AppTheme.midnight()),
               supportedLocales: AppLocalizations.supportedLocales,
               localizationsDelegates:

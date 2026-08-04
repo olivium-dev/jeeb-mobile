@@ -4,10 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
@@ -181,8 +179,6 @@ class _ContinueFooter extends StatelessWidget {
     }
     final l10n = AppLocalizations.of(context);
     final hasSelection = state.selectedTierId != null;
-    final ThemeData theme = Theme.of(context);
-    final JeebRoles roles = context.jeebRoles;
     return SafeArea(
       top: false,
       child: Padding(
@@ -190,27 +186,13 @@ class _ContinueFooter extends StatelessWidget {
         child: Semantics(
           identifier: 'request_type_continue_cta',
           button: true,
-          child: DecoratedBox(
-            // R9 draws the CTA orange with an outer glow — a tile-drawn CTA,
-            // inside the budget. TODO(midnight): kit has no accent pill yet.
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(JeebCtaButton.pillRadius),
-              boxShadow: hasSelection ? JeebShadows.ctaOrange : null,
-            ),
-            child: Theme(
-              data: theme.copyWith(
-                colorScheme: theme.colorScheme.copyWith(
-                  secondary: roles.accent,
-                  onSecondary: roles.onAccent,
-                ),
-              ),
-              child: JeebCtaButton.primary(
-                key: const Key('request-type-continue'),
-                label: l10n.requestTypeContinue,
-                isEnabled: hasSelection,
-                onTap: () => _onContinue(context, hasSelection),
-              ),
-            ),
+          // R9 draws the CTA orange with an outer glow — a tile-drawn CTA,
+          // inside the budget. The kit variant owns the fill, ink and glow.
+          child: JeebCtaButton.accent(
+            key: const Key('request-type-continue'),
+            label: l10n.requestTypeContinue,
+            isEnabled: hasSelection,
+            onTap: () => _onContinue(context, hasSelection),
           ),
         ),
       ),

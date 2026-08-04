@@ -73,8 +73,10 @@ void main() {
     });
 
     test('the kit-local shadows migrated off the dead navy-tinted set', () {
-      // Selection is LIT, not lifted (R9/R22); the strip is a small float.
-      expect(JeebNavySurfaceCard.selectedShadow, JeebShadows.glowRest);
+      // Wave-A: selection is the FILL SWAP alone — a glow only where a tile
+      // draws one, opted into per call site. The strip is a small float.
+      expect(JeebNavySurfaceCard.selectedShadow, JeebNavySurfaceCard.noShadow);
+      expect(JeebNavySurfaceCard.selectedShadow, isEmpty);
       expect(JeebNavySurfaceCard.stripShadow, JeebShadows.overlay);
     });
 

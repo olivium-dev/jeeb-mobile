@@ -3,13 +3,19 @@ import 'package:flutter/material.dart';
 import '../../theme/jeeb_color_roles.dart';
 import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
+import '../../theme/jeeb_shadows.dart';
 import '../../theme/jeeb_text_styles.dart';
 
-/// The four realized call-to-action treatments (redesign-2026-08 §5 #2).
+/// The five realized call-to-action treatments (redesign-2026-08 §5 #2).
 enum JeebCtaVariant {
   /// MIDNIGHT: periwinkle `secondary` pill, navy `onSecondary`
   /// [JeebTextStyles.button], no lift. h56 (01 08 15 23) or h58 (10 14 17).
   primary,
+
+  /// MIDNIGHT: solid `jeebRoles.accent` pill, `onAccent` ink, `ctaOrange` lift,
+  /// `orangePressed` while held. Only where a tile draws the orange act
+  /// (R9 `Continue`, R12 `Broadcast`) — never as a default.
+  accent,
 
   /// MIDNIGHT: glass pill — `glassFill` + 1px `glassBorderStrong`, `onSurface`
   /// ink. h50 (12 18) or h54 (14).
@@ -89,6 +95,30 @@ class JeebCtaButton extends StatelessWidget {
     this.semanticLabel,
     this.semanticHint,
   }) : variant = JeebCtaVariant.primary;
+
+  /// Orange pill — the tile-drawn act (R9 `Continue`, R12 `Broadcast`).
+  ///
+  /// Carries [JeebShadows.ctaOrange] while interactive and drops it when
+  /// disabled: a glow under a dimmed pill reads as an enabled button.
+  const JeebCtaButton.accent({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.isEnabled = true,
+    this.isLoading = false,
+    this.height,
+    this.expand,
+    this.labelStyle,
+    this.leadingIcon,
+    this.trailingIcon,
+    this.iconSize,
+    this.iconSpacing = 10,
+    this.mirrorIcons = false,
+    this.contentPadding,
+    this.identifier,
+    this.semanticLabel,
+    this.semanticHint,
+  }) : variant = JeebCtaVariant.accent;
 
   /// Glass pill (12 14 18).
   const JeebCtaButton.outline({
@@ -261,11 +291,14 @@ class JeebCtaButton extends StatelessWidget {
   bool get isInteractive => isEnabled && !isLoading && onTap != null;
 
   bool get _isPill =>
-      variant == JeebCtaVariant.primary || variant == JeebCtaVariant.outline;
+      variant == JeebCtaVariant.primary ||
+      variant == JeebCtaVariant.accent ||
+      variant == JeebCtaVariant.outline;
 
   double get _defaultHeight {
     switch (variant) {
       case JeebCtaVariant.primary:
+      case JeebCtaVariant.accent:
         return primaryHeight;
       case JeebCtaVariant.outline:
         return outlineHeight;
@@ -290,7 +323,9 @@ class JeebCtaButton extends StatelessWidget {
     final JeebTextStyles text = context.jeebText;
     final bool live = isInteractive;
 
-    final Color ink = _ink(context, scheme, live);
+    final JeebRoles roles = context.jeebRoles;
+    final bool isAccent = variant == JeebCtaVariant.accent;
+    final Color ink = _ink(roles, scheme, live);
     final TextStyle style = (labelStyle ?? _defaultLabelStyle(text)).copyWith(
       color: ink,
     );
@@ -318,7 +353,7 @@ class JeebCtaButton extends StatelessWidget {
       height: height ?? _defaultHeight,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: _fill(scheme, semantics, live),
+          color: _fill(roles, scheme, semantics, live),
           borderRadius: radius,
           border: variant == JeebCtaVariant.outline
               ? Border.all(
@@ -328,6 +363,7 @@ class JeebCtaButton extends StatelessWidget {
                   width: outlineBorderWidth,
                 )
               : null,
+          boxShadow: isAccent && live ? JeebShadows.ctaOrange : null,
         ),
         child: ClipRRect(
           borderRadius: radius,
@@ -338,6 +374,10 @@ class JeebCtaButton extends StatelessWidget {
             child: InkWell(
               onTap: live ? onTap : null,
               borderRadius: radius,
+              // The accent pill's held state is a FILL SWAP to `orangePressed`,
+              // so the ripple is suppressed and the highlight covers the fill.
+              splashColor: isAccent ? Colors.transparent : null,
+              highlightColor: isAccent ? semantics.orangePressed : null,
               child: Center(child: content),
             ),
           ),
@@ -404,6 +444,7 @@ class JeebCtaButton extends StatelessWidget {
   TextStyle _defaultLabelStyle(JeebTextStyles text) {
     switch (variant) {
       case JeebCtaVariant.primary:
+      case JeebCtaVariant.accent:
         // 17/w600 — the board's CTA label on every h56/h58 pill.
         return text.button;
       case JeebCtaVariant.outline:
@@ -418,10 +459,17 @@ class JeebCtaButton extends StatelessWidget {
     }
   }
 
-  Color? _fill(ColorScheme scheme, JeebSemanticColors semantics, bool live) {
+  Color? _fill(
+    JeebRoles roles,
+    ColorScheme scheme,
+    JeebSemanticColors semantics,
+    bool live,
+  ) {
     switch (variant) {
       case JeebCtaVariant.primary:
         return _alpha(scheme.secondary, live);
+      case JeebCtaVariant.accent:
+        return _alpha(roles.accent, live);
       case JeebCtaVariant.outline:
         return _alpha(semantics.glassFill, live);
       case JeebCtaVariant.text:
@@ -430,18 +478,22 @@ class JeebCtaButton extends StatelessWidget {
     }
   }
 
-  Color _ink(BuildContext context, ColorScheme scheme, bool live) {
+  Color _ink(JeebRoles roles, ColorScheme scheme, bool live) {
     switch (variant) {
       case JeebCtaVariant.primary:
         return live
             ? scheme.onSecondary
             : scheme.onSecondary.withValues(alpha: disabledLabelOpacity);
+      case JeebCtaVariant.accent:
+        return live
+            ? roles.onAccent
+            : roles.onAccent.withValues(alpha: disabledLabelOpacity);
       case JeebCtaVariant.outline:
         return _alpha(scheme.onSurface, live);
       case JeebCtaVariant.text:
         return _alpha(scheme.onSurfaceVariant, live);
       case JeebCtaVariant.accentText:
-        return _alpha(context.jeebRoles.accent, live);
+        return _alpha(roles.accent, live);
     }
   }
 

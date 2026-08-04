@@ -138,8 +138,25 @@ void main() {
       final Border border = decoration.border! as Border;
       expect(border.top.color, glassBorderStrong);
       expect(border.top.width, 1, reason: 'never a thicker border');
-      // Midnight lights selection instead of lifting it.
-      expect(decoration.boxShadow, JeebShadows.glowRest);
+      // Wave-A: no glow by default — the fill swap IS the selection.
+      expect(decoration.boxShadow, isEmpty);
+    });
+
+    testWidgets('a consumer can still opt the glow back in', (tester) async {
+      await tester.pumpWidget(
+        wrapCard(
+          const JeebOutlinedCard(
+            state: JeebCardState.selected,
+            selectedShadow: JeebShadows.glowRest,
+            child: Text('body'),
+          ),
+        ),
+      );
+
+      expect(
+        decorationOf(tester, find.byType(JeebNavySurfaceCard)).boxShadow,
+        JeebShadows.glowRest,
+      );
     });
 
     testWidgets('re-tones internal chips/meters without consumer help',

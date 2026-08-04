@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_text_styles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 
@@ -14,6 +15,8 @@ const Color _periwinkle = Color(0xFF8A93D8);
 const Color _pageNavy = Color(0xFF070C33);
 const Color _ink = Color(0xFFEDEFFC);
 const Color _orange = Color(0xFFD73B00);
+const Color _orangePressed = Color(0xFFC23300);
+const Color _white = Color(0xFFFFFFFF);
 const Color _glassFill = Color(0x12FFFFFF);
 const Color _glassBorderStrong = Color(0x29FFFFFF);
 
@@ -92,6 +95,101 @@ void main() {
 
       await tester.tap(find.byType(JeebCtaButton));
       expect(taps, 1);
+    });
+  });
+
+  group('JeebCtaButton.accent', () {
+    testWidgets('is a solid orange h56 pill with white ink and the ctaOrange lift',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapCta(JeebCtaButton.accent(label: 'Continue', onTap: () {})),
+      );
+
+      final BuildContext context = tester.element(find.text('Continue'));
+      final BoxDecoration decoration =
+          ctaDecorationOf(tester, find.byType(JeebCtaButton));
+
+      expect(decoration.color, context.jeebRoles.accent);
+      expect(decoration.color, _orange);
+      expect(decoration.border, isNull);
+      expect(decoration.boxShadow, JeebShadows.ctaOrange);
+      expect(
+        decoration.borderRadius,
+        BorderRadius.circular(JeebCtaButton.pillRadius),
+      );
+      expect(
+        tester.getSize(find.byType(JeebCtaButton)).height,
+        JeebCtaButton.primaryHeight,
+      );
+      expect(
+        tester.widget<Text>(find.text('Continue')).style!.color,
+        context.jeebRoles.onAccent,
+      );
+      expect(tester.widget<Text>(find.text('Continue')).style!.color, _white);
+    });
+
+    testWidgets('holds at orangePressed and never ripples over the fill',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapCta(JeebCtaButton.accent(label: 'Broadcast', onTap: () {})),
+      );
+
+      final BuildContext context = tester.element(find.text('Broadcast'));
+      final InkWell well = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byType(JeebCtaButton),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(well.highlightColor, _semanticsOf(context).orangePressed);
+      expect(well.highlightColor, _orangePressed);
+      expect(well.splashColor, Colors.transparent);
+    });
+
+    testWidgets('disabled dims the fill and DROPS the glow', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        wrapCta(
+          JeebCtaButton.accent(
+            label: 'Continue',
+            isEnabled: false,
+            onTap: () => taps++,
+          ),
+        ),
+      );
+
+      final BuildContext context = tester.element(find.text('Continue'));
+      final BoxDecoration decoration =
+          ctaDecorationOf(tester, find.byType(JeebCtaButton));
+
+      expect(
+        decoration.color,
+        context.jeebRoles.accent
+            .withValues(alpha: JeebCtaButton.disabledFillOpacity),
+      );
+      expect(
+        decoration.boxShadow,
+        isNull,
+        reason: 'a glow under a dimmed pill reads as enabled',
+      );
+
+      await tester.tap(find.byType(JeebCtaButton));
+      expect(taps, 0);
+    });
+
+    testWidgets('reads jeebRoles safely under a bare ThemeData.light()',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.light(),
+          home: Scaffold(
+            body: JeebCtaButton.accent(label: 'Continue', onTap: () {}),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Continue'), findsOneWidget);
     });
   });
 
@@ -465,6 +563,16 @@ void main() {
       expect(JeebCtaButton.primaryHeightTall, 58);
       expect(JeebCtaButton.outlineHeight, 50);
       expect(JeebCtaButton.textHeight, 48);
+    });
+
+    test('the variant set is the five ratified treatments', () {
+      expect(JeebCtaVariant.values, <JeebCtaVariant>[
+        JeebCtaVariant.primary,
+        JeebCtaVariant.accent,
+        JeebCtaVariant.outline,
+        JeebCtaVariant.text,
+        JeebCtaVariant.accentText,
+      ]);
     });
   });
 

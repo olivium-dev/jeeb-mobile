@@ -49,9 +49,6 @@ class ClientLocationOptionCard extends StatelessWidget {
       explicitChildNodes: true,
       child: JeebOutlinedCard(
         state: selected ? JeebCardState.selected : JeebCardState.normal,
-        // R11's address card is neutral glass: the kit's default orange
-        // `glowRest` halo on a selected card is not on this tile.
-        selectedShadow: const <BoxShadow>[],
         onTap: onTap,
         padding: const EdgeInsetsDirectional.symmetric(
           horizontal: Spacing.medium,

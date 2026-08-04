@@ -35,13 +35,46 @@ enum JeebEmptyStateStatus {
   error,
 }
 
-/// One icon medallion on the E1 route-dot ring.
+/// The four drawn subjects of E1's ring — "bring me anything".
+///
+/// Flat two-tone art (white/periwinkle bodies, orange accents), traced from the
+/// E1 SVG. The caption is explicit: **no stock art**, so these are drawn rather
+/// than picked from a Material set.
+enum JeebEmptyMedallionArt {
+  /// Pill bottle: white body, accent cap, periwinkle label with a white cross.
+  medicine,
+
+  /// Grocery bag: white body, periwinkle handle, orangeSoft baguette, greens.
+  groceries,
+
+  /// Envelope: white body, periwinkle flap, accent seal.
+  document,
+
+  /// Gift box: white body, periwinkle lid, accent ribbon and bow.
+  gift,
+}
+
+/// One medallion on the E1 route-dot ring — drawn [art] or a consumer glyph.
 @immutable
 class JeebEmptyMedallion {
-  const JeebEmptyMedallion({required this.icon, this.tint, this.semanticLabel});
+  /// A Material glyph, for a subject the four drawn defaults do not cover.
+  const JeebEmptyMedallion({
+    required IconData this.icon,
+    this.tint,
+    this.semanticLabel,
+  }) : art = null;
 
-  /// The glyph inside the glass disc.
-  final IconData icon;
+  /// One of E1's four drawn subjects. [tint] does not apply: the art is
+  /// two-tone by construction.
+  const JeebEmptyMedallion.art(this.art, {this.semanticLabel})
+      : icon = null,
+        tint = null;
+
+  /// The glyph inside the glass disc, or null when [art] is set.
+  final IconData? icon;
+
+  /// The drawn subject, or null when [icon] is set.
+  final JeebEmptyMedallionArt? art;
 
   /// Glyph ink. Null reads `onSurface`; pass an accent only where a tile draws
   /// one, per the orange budget.
@@ -54,11 +87,12 @@ class JeebEmptyMedallion {
   bool operator ==(Object other) =>
       other is JeebEmptyMedallion &&
       other.icon == icon &&
+      other.art == art &&
       other.tint == tint &&
       other.semanticLabel == semanticLabel;
 
   @override
-  int get hashCode => Object.hash(icon, tint, semanticLabel);
+  int get hashCode => Object.hash(icon, art, tint, semanticLabel);
 }
 
 /// "Empty ≠ dead" — the Midnight empty / loading / error pattern (master plan
@@ -84,14 +118,43 @@ class JeebEmptyState extends StatelessWidget {
     this.headlineIdentifier,
     this.bodyIdentifier,
     this.semanticLabel,
-  });
+  }) : compact = false;
+
+  /// The inline form — a half-size illustration, tighter gaps and the `h2`
+  /// headline, for an empty block sitting INSIDE a form or a card rather than
+  /// owning the screen.
+  const JeebEmptyState.compact({
+    super.key,
+    required this.headline,
+    this.body,
+    this.variant = JeebEmptyStateVariant.e1,
+    this.status = JeebEmptyStateStatus.empty,
+    this.center,
+    this.medallions,
+    this.action,
+    this.illustrationSize = compactIllustrationSize,
+    this.padding = compactPadding,
+    this.identifier,
+    this.headlineIdentifier,
+    this.bodyIdentifier,
+    this.semanticLabel,
+  }) : compact = true;
 
   /// The board's illustration width (E1 draws a 300×280 viewBox at 300px).
   static const double defaultIllustrationSize = 300;
 
+  /// The inline illustration width — half the board's, the point at which the
+  /// medallion art still reads at a glance.
+  static const double compactIllustrationSize = 150;
+
   /// E1's own block gutter — wider than the 24 screen default, as measured.
   static const EdgeInsetsGeometry defaultPadding = EdgeInsets.symmetric(
     horizontal: 36,
+  );
+
+  /// Inline gutter — the host form already owns the screen gutter.
+  static const EdgeInsetsGeometry compactPadding = EdgeInsets.symmetric(
+    horizontal: 16,
   );
 
   /// Gap under the illustration (board `margin:8px 0 0`).
@@ -103,13 +166,18 @@ class JeebEmptyState extends StatelessWidget {
   /// Gap above the CTA.
   static const double actionGap = 24;
 
-  /// E1's four: medicine · groceries · documents · gift.
+  /// [JeebEmptyState.compact]'s gaps.
+  static const double compactHeadlineGap = 4;
+  static const double compactBodyGap = 5;
+  static const double compactActionGap = 16;
+
+  /// E1's four drawn subjects: medicine · groceries · documents · gift.
   static const List<JeebEmptyMedallion> defaultMedallions =
       <JeebEmptyMedallion>[
-        JeebEmptyMedallion(icon: Icons.medication_outlined),
-        JeebEmptyMedallion(icon: Icons.shopping_bag_outlined),
-        JeebEmptyMedallion(icon: Icons.mail_outline),
-        JeebEmptyMedallion(icon: Icons.card_giftcard),
+        JeebEmptyMedallion.art(JeebEmptyMedallionArt.medicine),
+        JeebEmptyMedallion.art(JeebEmptyMedallionArt.groceries),
+        JeebEmptyMedallion.art(JeebEmptyMedallionArt.document),
+        JeebEmptyMedallion.art(JeebEmptyMedallionArt.gift),
       ];
 
   /// White headline, `h1` centred.
@@ -153,12 +221,16 @@ class JeebEmptyState extends StatelessWidget {
   /// Accessibility label for the block.
   final String? semanticLabel;
 
+  /// True for [JeebEmptyState.compact] — the inline density.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final _Ink ink = _Ink.of(context, status);
     final JeebTextStyles text = context.jeebText;
     final String? bodyText = body;
     final Widget? cta = status == JeebEmptyStateStatus.loading ? null : action;
+    final TextStyle headlineStyle = compact ? text.h2 : text.h1;
 
     return Semantics(
       identifier: identifier,
@@ -179,18 +251,18 @@ class JeebEmptyState extends StatelessWidget {
               medallions: medallions ?? defaultMedallions,
               size: illustrationSize,
             ),
-            const SizedBox(height: headlineGap),
+            SizedBox(height: compact ? compactHeadlineGap : headlineGap),
             Semantics(
               identifier: headlineIdentifier,
               header: true,
               child: Text(
                 headline,
                 textAlign: TextAlign.center,
-                style: text.h1.copyWith(color: ink.scheme.onSurface),
+                style: headlineStyle.copyWith(color: ink.scheme.onSurface),
               ),
             ),
             if (bodyText != null) ...<Widget>[
-              const SizedBox(height: bodyGap),
+              SizedBox(height: compact ? compactBodyGap : bodyGap),
               Semantics(
                 identifier: bodyIdentifier,
                 child: Text(
@@ -201,7 +273,7 @@ class JeebEmptyState extends StatelessWidget {
               ),
             ],
             if (cta != null) ...<Widget>[
-              const SizedBox(height: actionGap),
+              SizedBox(height: compact ? compactActionGap : actionGap),
               cta,
             ],
           ],
@@ -225,6 +297,8 @@ class _Ink {
     required this.accentDeep,
     required this.accentSoft,
     required this.onAccent,
+    required this.periwinkle,
+    required this.produce,
   });
 
   factory _Ink.of(BuildContext context, JeebEmptyStateStatus status) {
@@ -242,6 +316,10 @@ class _Ink {
       accentDeep: danger ? scheme.errorContainer : semantic.orangePressed,
       accentSoft: danger ? scheme.onErrorContainer : semantic.orangeSoft,
       onAccent: roles.onAccent,
+      // The medallion art's second tone. Midnight periwinkle `#8A93D8`, not the
+      // board SVG's retired `#777FC0` (token sheet §10).
+      periwinkle: scheme.secondary,
+      produce: roles.onSuccessContainer,
     );
   }
 
@@ -252,6 +330,8 @@ class _Ink {
   final Color accentDeep;
   final Color accentSoft;
   final Color onAccent;
+  final Color periwinkle;
+  final Color produce;
 
   Color white(double alpha) => scheme.onSurface.withValues(alpha: alpha);
 
@@ -264,7 +344,9 @@ class _Ink {
       other.accentBright == accentBright &&
       other.accentDeep == accentDeep &&
       other.accentSoft == accentSoft &&
-      other.onAccent == onAccent;
+      other.onAccent == onAccent &&
+      other.periwinkle == periwinkle &&
+      other.produce == produce;
 
   @override
   int get hashCode => Object.hash(
@@ -275,6 +357,8 @@ class _Ink {
     accentDeep,
     accentSoft,
     onAccent,
+    periwinkle,
+    produce,
   );
 }
 
@@ -683,21 +767,152 @@ class _Medallion extends StatelessWidget {
   final _Ink ink;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: ink.semantic.glassFillEmphasis,
-      border: Border.all(color: ink.semantic.glassBorderStrong),
-    ),
-    child: Center(
-      child: Icon(
-        medallion.icon,
-        size: _medallionGlyph,
-        color: medallion.tint ?? ink.scheme.onSurface,
-        semanticLabel: medallion.semanticLabel,
+  Widget build(BuildContext context) {
+    final JeebEmptyMedallionArt? art = medallion.art;
+    final Widget content = art == null
+        ? Center(
+            child: Icon(
+              medallion.icon,
+              size: _medallionGlyph,
+              color: medallion.tint ?? ink.scheme.onSurface,
+              semanticLabel: medallion.semanticLabel,
+            ),
+          )
+        : Semantics(
+            label: medallion.semanticLabel,
+            child: CustomPaint(painter: _MedallionArt(art: art, ink: ink)),
+          );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: ink.semantic.glassFillEmphasis,
+        border: Border.all(color: ink.semantic.glassBorderStrong),
       ),
-    ),
-  );
+      child: content,
+    );
+  }
+}
+
+/// The drawn medallion subjects, traced from E1's SVG into the disc's own
+/// 54×54 box (board anchor − 27 on both axes).
+class _MedallionArt extends CustomPainter {
+  const _MedallionArt({required this.art, required this.ink});
+
+  final JeebEmptyMedallionArt art;
+  final _Ink ink;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Traced at Ø54; a compact illustration scales the whole disc down.
+    final double scale = size.shortestSide / (_medallionRadius * 2);
+    canvas.scale(scale);
+    switch (art) {
+      case JeebEmptyMedallionArt.medicine:
+        _paintMedicine(canvas, ink);
+      case JeebEmptyMedallionArt.groceries:
+        _paintGroceries(canvas, ink);
+      case JeebEmptyMedallionArt.document:
+        _paintDocument(canvas, ink);
+      case JeebEmptyMedallionArt.gift:
+        _paintGift(canvas, ink);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MedallionArt oldDelegate) =>
+      oldDelegate.art != art || oldDelegate.ink != ink;
+}
+
+RRect _rrect(double l, double t, double w, double h, double r) =>
+    RRect.fromRectAndRadius(
+      Rect.fromLTWH(l, t, w, h),
+      Radius.circular(r),
+    );
+
+/// Pill bottle — white body, accent cap, periwinkle label, white cross.
+void _paintMedicine(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(_rrect(18, 19, 18, 23, 4), _fillPaint(ink.scheme.onSurface))
+    ..drawRRect(_rrect(17, 12, 20, 8, 3), _fillPaint(ink.accent))
+    ..drawRRect(_rrect(22, 25, 10, 10, 2), _fillPaint(ink.periwinkle))
+    ..drawPath(
+      Path()
+        ..moveTo(25, 30)
+        ..relativeLineTo(4, 0)
+        ..moveTo(27, 28)
+        ..relativeLineTo(0, 4),
+      _strokePaint(ink.scheme.onSurface, 1.6),
+    );
+}
+
+/// Grocery bag — white body, periwinkle handle, orangeSoft loaf, green produce.
+void _paintGroceries(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawPath(
+      Path()
+        ..moveTo(17, 19)
+        ..relativeLineTo(20, 0)
+        ..relativeLineTo(-2.5, 22)
+        ..relativeLineTo(-15, 0)
+        ..close(),
+      _fillPaint(ink.scheme.onSurface),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(21, 19)
+        ..relativeLineTo(0, -4)
+        ..arcToPoint(
+          const Offset(33, 15),
+          radius: const Radius.circular(6),
+        )
+        ..relativeLineTo(0, 4),
+      _strokePaint(ink.periwinkle, 2.2),
+    )
+    ..save()
+    ..translate(32, 15)
+    ..rotate(24 * math.pi / 180)
+    ..translate(-32, -15)
+    ..drawRRect(_rrect(29, 7, 6, 16, 3), _fillPaint(ink.accentSoft))
+    ..restore()
+    ..drawCircle(const Offset(22, 15), 4.5, _fillPaint(ink.produce));
+}
+
+/// Envelope — white body, periwinkle flap, accent seal.
+void _paintDocument(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(_rrect(15, 17, 25, 18, 2.5), _fillPaint(ink.scheme.onSurface))
+    ..drawPath(
+      Path()
+        ..moveTo(15, 19.5)
+        ..lineTo(27, 29)
+        ..lineTo(40, 19.5),
+      _strokePaint(ink.periwinkle, 2, StrokeCap.butt),
+    )
+    ..drawCircle(const Offset(27, 31), 3.4, _fillPaint(ink.accent));
+}
+
+/// Gift box — white body, periwinkle lid, accent ribbon and bow.
+void _paintGift(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(_rrect(15, 21, 24, 19, 2.5), _fillPaint(ink.scheme.onSurface))
+    ..drawRRect(_rrect(13, 15, 28, 7, 2.5), _fillPaint(ink.periwinkle))
+    ..drawRect(
+      const Rect.fromLTWH(25, 15, 4.5, 25),
+      _fillPaint(ink.accent),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(27, 14)
+        ..relativeCubicTo(-7, -1, -9, -8, -4, -9)
+        ..relativeCubicTo(4, -1, 5, 5, 4, 9)
+        ..close()
+        ..moveTo(27, 14)
+        ..relativeCubicTo(7, -1, 9, -8, 4, -9)
+        ..relativeCubicTo(-4, -1, -5, 5, -4, 9)
+        ..close(),
+      _fillPaint(ink.accent),
+    );
 }
 
 /// A `jTwinkle` sparkle or star dot placed by its board-space centre.

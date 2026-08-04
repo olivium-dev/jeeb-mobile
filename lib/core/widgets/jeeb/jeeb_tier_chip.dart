@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 import 'jeeb_surface_tone.dart';
 
@@ -95,6 +96,7 @@ class JeebTierChip extends StatelessWidget {
     required this.label,
     this.identifier,
     this.semanticLabel,
+    this.glass = false,
   }) : emojiOverride = null;
 
   /// 24 WR-3: `OrderTier` is `order_history`'s own enum and must not be mapped
@@ -106,6 +108,7 @@ class JeebTierChip extends StatelessWidget {
     required this.label,
     this.identifier,
     this.semanticLabel,
+    this.glass = false,
   })  : emojiOverride = emoji,
         tier = JeebTier.unknown;
 
@@ -116,6 +119,7 @@ class JeebTierChip extends StatelessWidget {
     required this.label,
     this.identifier,
     this.semanticLabel,
+    this.glass = false,
   })  : emojiOverride = '',
         tier = JeebTier.unknown;
 
@@ -150,6 +154,14 @@ class JeebTierChip extends StatelessWidget {
   /// [tier]'s emoji".
   final String? emojiOverride;
 
+  /// Wave-A: R12's ticket draws its chips GLASS (`glassFillEmphasis` + 1px
+  /// `glassBorder`), not the toned opaque pill. Opt-in — M1 ruling 4's solid
+  /// treatment (R1) stays the default everywhere else.
+  final bool glass;
+
+  /// The R12 glass hairline (sheet §4 — 1px on every glass surface).
+  static const double glassBorderWidth = 1;
+
   /// The kit-owned emoji for a server slug — 12 needs only this, because its
   /// tier line is plain text, not a pill (12 §3).
   static String emojiFor(String? tierId) => JeebTier.fromId(tierId).emoji;
@@ -165,10 +177,18 @@ class JeebTierChip extends StatelessWidget {
       color: tone.chipInk,
     );
 
+    final JeebSemanticColors semantics = _semantics(context);
+
     Widget chip = DecoratedBox(
       decoration: BoxDecoration(
-        color: tone.chipFill,
+        color: glass ? semantics.glassFillEmphasis : tone.chipFill,
         borderRadius: _pillRadius,
+        border: glass
+            ? Border.all(
+                color: semantics.glassBorder,
+                width: glassBorderWidth,
+              )
+            : null,
       ),
       child: Padding(
         padding: defaultPadding,
@@ -203,3 +223,8 @@ class JeebTierChip extends StatelessWidget {
     return chip;
   }
 }
+
+/// A bare `!` read crashes under harnesses themed with `ThemeData.light()`.
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();

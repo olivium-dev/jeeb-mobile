@@ -124,9 +124,10 @@ class JeebNavySurfaceCard extends StatelessWidget {
   /// visible decision at the call site (§5 #4).
   static const List<BoxShadow> noShadow = <BoxShadow>[];
 
-  /// The selected state of `JeebOutlinedCard`. Midnight lights selection
-  /// instead of lifting it (R9/R22): the navy-tinted lift died with the theme.
-  static const List<BoxShadow> selectedShadow = JeebShadows.glowRest;
+  /// The selected state of `JeebOutlinedCard`. Wave-A: **none** — the fill swap
+  /// IS the selection; a glow ships only where a tile draws one (opt in with
+  /// `selectedShadow: JeebShadows.glowRest`, or use `accentSelected`).
+  static const List<BoxShadow> selectedShadow = noShadow;
 
   /// 21's pinned summary strip — a small floating surface, so `overlay`.
   static const List<BoxShadow> stripShadow = JeebShadows.overlay;
