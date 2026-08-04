@@ -13,8 +13,8 @@ import 'package:jeeb_mobile/features/rating/application/mutual_rating_cubit.dart
 import 'package:jeeb_mobile/features/rating/domain/entities/rating_status.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
 import 'package:jeeb_mobile/features/rating/presentation/mutual_rating_screen.dart';
-import 'package:jeeb_mobile/features/settlement/domain/settlement_statement.dart';
-import 'package:jeeb_mobile/features/settlement/presentation/settlement_detail_screen.dart';
+import 'package:jeeb_mobile/core/jeeb_commission.dart';
+import 'package:jeeb_mobile/features/offers/presentation/offer_composer_l10n.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
@@ -159,36 +159,35 @@ void main() {
   });
 
   group('Earnings framing — fee-only, not gross/commission', () {
-    testWidgets('settlement detail labels the per-delivery cut as a platform fee',
-        (tester) async {
-      const statement = SettlementStatement(
-        id: 'stmt-1',
-        weekLabel: 'Week 1',
-        totalPayout: 90.0,
-        currency: 'USD',
-        status: SettlementStatus.paid,
-        deliveries: [
-          SettlementDeliveryLine(
-            deliveryId: 'd-1',
-            date: '2026-06-18',
-            tier: 'Express',
-            fare: 100.0,
-            commission: 10.0,
-            net: 90.0,
-            currency: 'USD',
-          ),
-        ],
-      );
+    // RE-HOMED from the deleted SettlementDetailScreen (M3-15/16 orphan
+    // deletion) onto the offer composer — the one shipped screen still drawing
+    // a platform-fee line, which is the "already-shipped screen" leg the kit's
+    // JeebMoneyBreakdown asserts cannot cover on their own.
+    AppLocalizations arb(String tag) => debugLoadAppLocalizationsSync(
+          Locale(tag),
+          File('lib/l10n/app_$tag.arb').readAsStringSync(),
+        );
 
-      await tester.pumpWidget(
-        wrapForTest(const SettlementDetailScreen(statement: statement)),
-      );
-      await tester.pump();
+    test('the composer fee line reads "Platform fee", never "Commission"', () {
+      final en = OfferComposerL10n(arb('en'), false);
+      final ar = OfferComposerL10n(arb('ar'), true);
 
-      // Fee-only framing (D41/D44): the line reads "Platform fee", and the
-      expect(find.textContaining('Platform fee'), findsOneWidget);
-      expect(find.textContaining('Commission'), findsNothing);
-      expect(find.text('Total cash kept'), findsOneWidget);
+      for (final label in [en.feeRowLabel, en.feeLinePending]) {
+        expect(label, contains('Platform fee'));
+        expect(label.toLowerCase(), isNot(contains('commission')));
+      }
+      // AR: "رسوم المنصة" (platform fee), never "عمولة" (commission).
+      for (final label in [ar.feeRowLabel, ar.feeLinePending]) {
+        expect(label, contains('رسوم المنصة'));
+        expect(label, isNot(contains('عمولة')));
+      }
+    });
+
+    test('the fee percentage derives from kJeebCommissionPercent', () {
+      expect(
+        OfferComposerL10n(arb('en'), false).feeRowLabel,
+        contains('$kJeebCommissionPercent%'),
+      );
     });
   });
 }

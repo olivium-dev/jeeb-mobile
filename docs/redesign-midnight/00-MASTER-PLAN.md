@@ -360,9 +360,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M3-10 `delivery_man_profile/presentation/delivery_man_profile_screen.dart` (150) — delivery-man profile derived from R15 identity + R16 rating pill @2026-08-04
 
 ### M3 — Tier 2 (money surfaces)
-- [x] M3-11 `wallet_activity_list_screen.dart` (392) — wallet activity list on the hub's shipped R4 field (glow topStart + wash endMid); 3 orange leaks per ledger row killed @2026-08-04 · [ ] M3-12 `transaction_detail_screen.dart` (388)
-- [x] M3-13 `wallet_charge_info_screen.dart` (194) — charge info; 3 rendered step discs were solid orange under a comment claiming navy @2026-08-04 · [ ] M3-14 `customer_wallet_stub_screen.dart` (123)
-- [ ] M3-15 `settlement_screen.dart` (291) **ORPHAN — ruling** · [ ] M3-16 `settlement_detail_screen.dart` (165) **ORPHAN — ruling**
+- [x] M3-11 `wallet_activity_list_screen.dart` (392) — wallet activity list on the hub's shipped R4 field (glow topStart + wash endMid); 3 orange leaks per ledger row killed @2026-08-04 · [x] M3-12 `transaction_detail_screen.dart` (388) — transaction detail; amount hero was inked onPrimary (white-on-orange) on a navy card @2026-08-04
+- [x] M3-13 `wallet_charge_info_screen.dart` (194) — charge info; 3 rendered step discs were solid orange under a comment claiming navy @2026-08-04 · [x] M3-14 `customer_wallet_stub_screen.dart` (123) — customer wallet stub; headline + mark glyph were orange on a screen with no money act. Catalog entry ADDED — the whole screen was uncapturable @2026-08-04
+- [D] M3-15 `settlement_screen.dart` **DELETED** · [D] M3-16 `settlement_detail_screen.dart` **DELETED** — ratified ORPHAN ruling, evidence re-verified independently first (zero inbound nav, zero deep links, zero Maestro). Disproved a FALSE `// FROZEN identifier` comment before relying on it, and re-homed the D41/D44 'Platform fee' decision lock onto the offer composer rather than letting the deletion silently drop it. Cubit/repo KEPT (still DI-registered) @2026-08-04
 
 ### M3 — Tier 3 (KYC funnel)
 - [ ] M3-17 `dm_onboarding_screen.dart` (258) · [ ] M3-18 `onboarding_funding_screen.dart` (202)

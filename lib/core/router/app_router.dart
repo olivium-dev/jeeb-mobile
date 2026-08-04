@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart' show Spacing;
-import 'package:open_file/open_file.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -89,10 +88,6 @@ import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/offers/presentation/offer_submission_screen.dart';
-import '../../features/settlement/domain/settlement_repository.dart';
-import '../../features/settlement/domain/settlement_statement.dart';
-import '../../features/settlement/presentation/settlement_detail_screen.dart';
-import '../../features/settlement/presentation/settlement_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/otp_handover/application/otp_handover_cubit.dart';
 import '../../features/otp_handover/domain/handover_code_store.dart';
@@ -552,8 +547,6 @@ class AppRouter {
     'escalate': '/',
     // ── W2 / W2.5 jeeber + wallet.
     'jeeber-active-delivery': '/',
-    'jeeber-settlement': '/',
-    'jeeber-settlement-detail': '/jeeber/settlement',
     'onboarding-funding': '/',
     'offer-kyc-gate': '/',
     'delivery-register-prompt': '/',
@@ -1605,38 +1598,6 @@ class AppRouter {
                 Uri.parse(url),
                 mode: LaunchMode.externalApplication,
               ),
-            );
-          },
-        ),
-
-        // T-MOB-032: Settlement statement list.
-        GoRoute(
-          path: '/jeeber/settlement',
-          name: 'jeeber-settlement',
-          builder: (context, state) => SettlementScreen(
-            repository: sl<SettlementRepository>(),
-            onTapStatement: (statement) {
-              context.push(
-                '/jeeber/settlement/${statement.id}',
-                extra: statement,
-              );
-            },
-            // T-MOB-032 AC3: open downloaded PDF using open_file package.
-            onOpenPdf: (path) => OpenFile.open(path),
-          ),
-        ),
-
-        // T-MOB-032: Settlement statement detail (per-delivery breakdown).
-        GoRoute(
-          path: '/jeeber/settlement/:id',
-          name: 'jeeber-settlement-detail',
-          builder: (context, state) {
-            final extra = state.extra;
-            if (extra is SettlementStatement) {
-              return SettlementDetailScreen(statement: extra);
-            }
-            return const Scaffold(
-              body: Center(child: Text('Statement not found')),
             );
           },
         ),

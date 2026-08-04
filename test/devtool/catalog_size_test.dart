@@ -8,9 +8,11 @@ void main() {
     final int states =
         kScreenCatalog.fold<int>(0, (int s, CatalogEntry e) => s + e.states.length);
 
-    expect(kScreenCatalog.length, greaterThanOrEqualTo(89),
+    // Floors 89/288 → 87/282: the settlement pair (4+2 states) was deleted as a
+    // ratified orphan (02-STUDY-NOTES §ORPHAN, M3-15/16), not lost coverage.
+    expect(kScreenCatalog.length, greaterThanOrEqualTo(87),
         reason: 'screens dropped — a designer-facing tool lost coverage');
-    expect(states, greaterThanOrEqualTo(288),
+    expect(states, greaterThanOrEqualTo(282),
         reason: 'states dropped — a designer-facing tool lost coverage');
   });
 }
