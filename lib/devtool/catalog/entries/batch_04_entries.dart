@@ -224,6 +224,20 @@ final CatalogEntry _jeeberActiveDeliveriesEntry = CatalogEntry(
       'Empty (no active deliveries — banner self-hides)',
       (_) => _activeDeliveriesBanner(const []),
     ),
+    // Appended, not inserted: two deliveries trip the disclosure threshold and
+    // collapse to a row with ZERO cards, so only ONE renders the card itself.
+    CatalogState(
+      'One delivery (pinned card — under the disclosure threshold)',
+      (_) => _activeDeliveriesBanner(const [
+        ActiveDeliverySummary(
+          id: 'delivery-9003',
+          status: JeeberDeliveryStatus.atDoor,
+          title: 'Nadia Haddad — Mar Mikhael → Badaro',
+          dropoffAddress: 'Badaro, Beirut',
+          conversationId: 'conv-9003',
+        ),
+      ]),
+    ),
   ],
 );
 

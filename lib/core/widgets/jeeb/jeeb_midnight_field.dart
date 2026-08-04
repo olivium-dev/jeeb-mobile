@@ -52,7 +52,11 @@ enum JeebFieldWashPlacement {
 
   /// R14/R7/R21/E4's top-start bloom, board `480px 400px at 12% -6%` — the
   /// start-side mirror of the `topEnd` glow, above the top edge, not at mid.
-  topStart(0.12, -0.06, 0.22, 480 / 440, 400 / 480);
+  topStart(0.12, -0.06, 0.22, 480 / 440, 400 / 480),
+
+  /// R4's own wash, board `700px 560px at 110% 65%` — past the END edge at MID
+  /// height. `bottomEnd` drew it 335px lower on the 956 canvas.
+  endMid(1.17, 0.65, 0.21, 1.78, 0.714);
 
   const JeebFieldWashPlacement(
     this.fx,

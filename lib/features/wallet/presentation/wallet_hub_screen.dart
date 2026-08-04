@@ -157,7 +157,7 @@ class _WalletHubViewState extends State<_WalletHubView> {
         body: JeebMidnightField(
           variant: JeebFieldVariant.hero,
           glowPlacement: JeebFieldGlowPlacement.topStart,
-          washPlacement: JeebFieldWashPlacement.bottomEnd,
+          washPlacement: JeebFieldWashPlacement.endMid,
           showTwinkles: false,
           animateDecor: false,
           // The board's header is an in-body row, not a Material app bar, so it

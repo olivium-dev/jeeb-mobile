@@ -670,6 +670,67 @@ void main() {
       expect(lift(0.95, 0.99), closeTo(0, 0.005));
     });
 
+    test('endMid carries the ratified R4 anchor', () {
+      expect(JeebFieldWashPlacement.endMid.fx, 1.17);
+      expect(JeebFieldWashPlacement.endMid.fy, 0.65);
+      expect(JeebFieldWashPlacement.endMid.alpha, 0.21);
+      expect(JeebFieldWashPlacement.endMid.radiusFactor, 1.78);
+      expect(JeebFieldWashPlacement.endMid.aspect, 0.714);
+      // Board `at 110% 65%`: past the END edge, at MID height. On the 956-tall
+      // canvas that is 335px above the corner `bottomEnd` was drawing.
+      expect(JeebFieldWashPlacement.endMid.fx, greaterThan(1));
+      expect(
+        (JeebFieldWashPlacement.bottomEnd.fy -
+                JeebFieldWashPlacement.endMid.fy) *
+            956,
+        closeTo(335, 1),
+      );
+      expect(
+        JeebFieldWashPlacement.endMid.alignment.resolve(TextDirection.ltr).x,
+        greaterThan(1),
+      );
+      expect(
+        JeebFieldWashPlacement.endMid.alignment.resolve(TextDirection.rtl).x,
+        lessThan(-1),
+      );
+    });
+
+    test('endMid is APPENDED — the older anchors keep their indices', () {
+      expect(JeebFieldWashPlacement.values.last, JeebFieldWashPlacement.endMid);
+      expect(JeebFieldWashPlacement.startMid.index, 0);
+      expect(JeebFieldWashPlacement.bottomEnd.index, 1);
+      expect(JeebFieldWashPlacement.topStart.index, 2);
+      // bottomEnd keeps its own value; endMid is a sibling, not a rename.
+      expect(JeebFieldWashPlacement.bottomEnd.fy, 1.0);
+      expect(JeebFieldWashPlacement.bottomEnd.alpha, 0.22);
+    });
+
+    testWidgets('endMid peaks at the END edge mid-height, not the corner', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+      final Color Function(double, double) bare = await sampler(tester);
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        washPlacement: JeebFieldWashPlacement.endMid,
+      );
+      final Color Function(double, double) lit = await sampler(tester);
+
+      double lift(double fx, double fy) => lit(fx, fy).b - bare(fx, fy).b;
+
+      expect(lift(0.98, 0.65), greaterThan(0.03));
+      // The corner `bottomEnd` lit is now well down the falloff instead of at
+      // the peak — the 335px move, read in pixels.
+      expect(lift(0.98, 0.65), greaterThan(lift(0.98, 0.99) * 2));
+      // rx 1.78 still reaches past the mid-line; ry 0.714 of it dies before the
+      // top edge, and neither reaches the start edge.
+      expect(lift(0.30, 0.65), greaterThan(0.01));
+      expect(lift(0.02, 0.65), closeTo(0, 0.004));
+      expect(lift(0.98, 0.02), closeTo(0, 0.004));
+    });
+
     testWidgets('a non-hero variant can opt in', (WidgetTester tester) async {
       await pumpField(tester, variant: JeebFieldVariant.content);
       expect(baseLayer(), paintsExactlyCountTimes(#drawRect, 2));

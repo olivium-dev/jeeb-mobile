@@ -110,15 +110,32 @@ void main() {
       expect(field.glowPlacement, JeebFieldGlowPlacement.topStart);
     });
 
-    testWidgets('leaves the periwinkle wash on its own ratified anchor', (
+    testWidgets('draws the periwinkle wash on its own ratified anchor', (
       tester,
     ) async {
       final JeebMidnightField field = await pumpField(tester);
 
       // The second radial is a SEPARATE layer; adopting the orange anchor must
       // not drag it along. Board `110% 65%` — end-side, mid-height, not top.
-      expect(field.washPlacement, JeebFieldWashPlacement.bottomEnd);
-      expect(field.washPlacement!.fx, greaterThan(0.5));
+      expect(field.washPlacement, JeebFieldWashPlacement.endMid);
+      expect(field.washPlacement!.fx, greaterThan(1));
+      expect(field.washPlacement!.fy, closeTo(0.6503, 0.001));
+      // The shipped `bottomEnd` sat this far down the 956-tall board canvas.
+      expect(
+        (JeebFieldWashPlacement.bottomEnd.fy - field.washPlacement!.fy) * 956,
+        closeTo(335, 1),
+      );
+      // The orange glow is untouched by the wash move.
+      expect(field.glowPlacement, JeebFieldGlowPlacement.topStart);
+    });
+
+    testWidgets('the wash holds in the loading state too', (tester) async {
+      final JeebMidnightField field = await pumpField(
+        tester,
+        repo: const _NeverWalletRepository(),
+      );
+
+      expect(field.washPlacement, JeebFieldWashPlacement.endMid);
     });
   });
 }
