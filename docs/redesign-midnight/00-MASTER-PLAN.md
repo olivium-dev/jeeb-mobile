@@ -466,7 +466,7 @@ selfCritique deltas · test results · TODOs added · open questions.
 
 | Decision class | Who |
 |---|---|
-| Token sheet, theme/Material overrides, kit API, navigation/route changes, deletions, ambiguity rulings, screen accept/reject, wave gates, owner communication | **Fable (orchestrator)** |
+| Token sheet, theme/Material overrides, kit API, navigation/route changes, deletions, ambiguity rulings, screen accept/reject, wave gates, owner communication | **The orchestrator session** (originally Fable; role is model-agnostic per §10 — same discipline on any model) |
 | Screen implementation, state restyles, sweeps, captures, greps, targeted test runs, draft copy passes | **Opus subagents** |
 | Anything an Opus agent is unsure about | It STOPS and returns the question |
 
@@ -520,44 +520,73 @@ Seeded from doc-13 §4 — these survive into Midnight:
   dark map, harness fixes. Extra: board-measured motion notes (20/30 tiles STATIC — plan M5
   amended), ORPHAN rulings (4 delete/5 keep), 3 ramp-overflow regressions flagged to M2 rows.
   Orchestration: parallel Opus agents per user directive; M1 kit workflow launching.
+- 2026-08-04 · M1 COMPLETE (5/5 + G-M1: 570/570) via 11-agent workflow + fixup. M2 wave A
+  COMPLETE (rows 01–06) via 6-lane workflow: shell/pill-nav, R1+E1, R2 transcript band,
+  R9, R11 (+ratified deletions), R12 (first-ever verified). Kit fixup round 2 applied
+  (accent CTA, waveform inks, drawn medallions, trackless toggle, glass chip, glow opt-in;
+  kit suite now 588). **PAUSED by owner for model handoff — wave B NOT launched.** Resume:
+  §10 (model-agnostic) → workflows/m2-waveB-workflow.js. Known non-green at pause: 30
+  analyze infos (pre-existing) · 3 ramp-overflow regressions parked to M2-13/15/16 (G-M0
+  row) · language_settings_screen_test ×2 pins pre-M1 segment ink → M3-27 ·
+  gesture_log_test baseline red. Owner questions live in §8 (Q1–Q10, Q-011..013).
 
 ---
 
-## 10. Resume prompt (paste into a NEW session to continue this work)
+## 10. Resume prompt (MODEL-AGNOSTIC — paste into a NEW session on ANY capable model)
 
 ```
-Continue the Jeeb MIDNIGHT redesign — pass 2, where the Rich UI board is the ratified spec
-for EVERY screen and EVERY empty/loading/error state of the app.
+Continue the Jeeb MIDNIGHT redesign — pass 2. The Rich UI board is the ratified spec for
+EVERY screen and EVERY empty/loading/error state. You are the ORCHESTRATOR: you make the
+critical calls (tokens, kit API, navigation, deletions, accept/reject, ambiguity rulings)
+and you delegate ALL implementation to parallel subagents. This role was previously run on
+Fable; whatever model you are, the same discipline applies verbatim.
 
-Read and follow EXACTLY, before anything else:
-/Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile/docs/redesign-midnight/00-MASTER-PLAN.md
-It contains the design contract (palette, orange budget, background widget system, Material
-overrides, motion primitives with exact timings), the full screen checklist, the per-screen
-loop, the implementer prompt template, and every known trap. Do NOT re-plan, do NOT
-re-derive: run §7.1 session bootstrap, then execute §7.2 THE LOOP from the first unchecked
-row of §6.
+Read IN ORDER, before anything else (all under
+/Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile/docs/redesign-midnight/):
+1. 00-MASTER-PLAN.md — contract, checklist §6 (live state: M0+M1 done, M2-01..06 done),
+   loop §7, gates, §8 owner questions, §9 log.
+2. 01-TOKEN-SHEET.md — every measured value; do NOT re-measure or invent.
+3. 02-STUDY-NOTES.md — ALL standing rulings (theme, motion, ORPHAN delete/keep, M1 review,
+   wave-A review). Rulings there BIND implementers; do not re-litigate.
+4. 03-MOTION-NOTES.md — board-measured motion per element; supersedes §2.6's example
+   column. 20 of 30 tiles are STATIC: never add motion the notes don't list.
 
-Hard rules:
-- ONE branch: feat/redesign-midnight (cut from integration/redesign-ui on first run). Never
-  a new repo or branch. Push to origin regularly.
-- The spec: tile PNGs in "/Users/oudaykhaled/Downloads/Jeeb - Marketing-3/export-rich-ui/screens/"
-  (each tile's bottom caption is the designer's note — it is part of the spec), and the LIVE
-  board "file:///Users/oudaykhaled/Downloads/Jeeb%20-%20Marketing-3/Jeeb%20Rich%20UI.dc.html"
-  opened in Chrome to observe animations before implementing them.
-- You (Fable) make critical decisions only: tokens, theme/Material overrides, kit API,
-  navigation, deletions, accept/reject, ambiguity rulings. ALL implementation and mid/light
-  work goes to Opus subagents (Agent tool, model: "opus") using the plan's §7.3 template —
-  tile-PNG read + 8 observations BEFORE code, selfCritique after.
-- Verify against docs/redesign-2026-08/_BASELINE.md: 0 analyze errors (5 known infos), only
-  the 4 named pre-existing test failures. On a machine other than oudays-mbp-2, re-apply
-  _BASELINE env fixes first (stale omds/dio = ~155 phantom failures).
-- NEVER build L1 Log in / L2 Sign up (ratified deletion). lottie stays EXACTLY 3.3.1.
-- Every screen ships: Midnight field background, budgeted orange, tokens/kit only, ALL
-  states redesigned, tile-observed motion, RTL-safe, frozen identifiers re-homed.
-- One commit per checklist item (tick the row in the same commit); park after 2 failed
-  review bounces and move on; batch owner questions in §8 instead of blocking.
+RESUME POINT: M2 wave B. The ready-to-run workflow script is
+docs/redesign-midnight/workflows/m2-waveB-workflow.js (6 screens + the l10n-merge lane for
+docs/redesign-midnight/l10n-queue/*). Before launching it, verify the wave-A kit-fixup
+landed (git log should show a "kit fixup round 2" / wave-A rulings commit touching
+JeebCtaButton.accent, JeebWaveform live ink, JeebEmptyState medallions): if absent, re-run
+that fixup first from 02-STUDY-NOTES §"Wave-A review rulings". Run §7.1 bootstrap, launch
+the wave via the Workflow tool ({scriptPath}), then on completion: review every lane's
+report, rule on escalations, commit ONE commit per checklist row (tick in the same commit),
+push, and author wave C the same way (next rows: M2-13..18; copy m2-waveB-workflow.js as
+the template — keep the ownership rules below).
 
-Work autonomously through the checklist in order. At wave gates run the full verification.
-When you stop, append a one-line status to §9 and report: rows completed, rows parked, and
-any §8 questions added.
+OPERATING RULES (learned + mandated this engagement — non-negotiable):
+- ONE branch feat/redesign-midnight; never a new repo/branch; push every ~3 commits.
+- USER MANDATE: use Workflow fan-outs and parallelize maximally. Per wave: lanes own
+  DISJOINT feature dirs; exactly ONE lane may touch lib/core/router/app_router.dart and
+  exactly ONE may touch lib/l10n/*.arb — everyone else queues keys to
+  docs/redesign-midnight/l10n-queue/<item>.md with TODO(midnight): l10n-queued call sites.
+- USER MANDATE: code comments max 2 lines, only when strictly necessary — in every
+  implementer prompt.
+- Implementers: model "opus", §7.3 template (tile-PNG read + 8 observations BEFORE code,
+  selfCritique after, scoped analyze/tests, captures to docs/redesign-midnight/captures/).
+  An implementer that hits ambiguity STOPS and returns the question; you rule or queue §8.
+- Kit is RE-FROZEN (570+ tests green). Kit/theme API changes happen ONLY by your explicit
+  sanction, batched into a dedicated fixup lane, recorded in 02-STUDY-NOTES.
+- Verification bar: flutter analyze 0 errors (~30 known infos) · kit suite all-green ·
+  targeted suites per screen · non-zero diff on primary files · the 3 parked ramp-overflow
+  regressions (G-M0 row) must be FIXED by M2-13/15/16 when those rows run, not re-parked.
+- NEVER build L1/L2 (ratified deletion) · lottie EXACTLY 3.3.1 · frozen test identifiers
+  re-homed, never dropped · RTL-safe · reduce-motion respected (tests pump(duration), never
+  pumpAndSettle on looping surfaces; captures are rest-frame by design).
+- On a machine other than oudays-mbp-2: re-apply docs/redesign-2026-08/_BASELINE.md env
+  fixes FIRST (stale omds/dio = ~155 phantom failures).
+- Final validation standard is unchanged: real OTP login, real taps, 2 devices for chat,
+  physical S22 (M7) — harness captures alone never close the engagement.
+
+Work autonomously wave by wave. At wave gates run full analyze + full suite vs the G-M0
+classification, tick the G-row, append one line to §9. When you stop: §9 line + report
+rows completed / parked / §8 questions added.
 ```
