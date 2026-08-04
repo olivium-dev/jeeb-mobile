@@ -210,6 +210,59 @@ kit change and M4 owns loading states.
 **Deferred to M6:** the kit's own E3 colour deviations (background glow on `#8A93D8` vs the board's
 legacy `#777FC0`; ground shadow as page-navy @ .45 vs black @ .35).
 
+## Wave-C review rulings (2026-08-04) — BINDING
+
+**MY ERROR, now corrected:** wave-B ruling 6 (`JeebFieldWashPlacement.topStart`) was sanctioned in
+these notes but **never briefed to either kit lane** — I listed 7 changes and wrote only 6 into the
+fixup prompts. R14 shipped on `startMid` and R17 hit the same wall. The M2-13 lane also established
+the board is **directional per tile**: R4/R9/R17 draw the decorative bloom **top-start**;
+R1/R6/R8/R12/R19/R22/R23 draw it **top-end**. So `topStart` is not a one-screen convenience — it is
+the anchor for a whole class. Landing in the wave-C fixup, with R14/R17 adopting and R4/R9 re-checked.
+*Lesson: a ruling that is recorded but not transcribed into a lane prompt does not exist.*
+
+**Newly sanctioned kit changes** (wave-C fixup lane; kit re-freezes after):
+8. `JeebFieldWashPlacement.topStart` (≈0.10, 0.03) — above.
+9. `JeebEmptyStateVariant.parcel` — E4's open glass parcel box with the mic glowing inside. E4 is
+   one of §2.7's four canonical instances, which is exactly the argument that carried `radar` and
+   `street`. `pocket` has no orbit ring and adds a `jFloat` E4 does not draw; `e1` (what M2-17
+   shipped) keeps E4's exact glow/sparkle timings but over-draws the waveform ears and 2 star dots.
+10. `JeebAccentFrameCard` frame fill — R21's in-motion row measures an **orange 10–12%
+    (`accentTint`) fill inside the accent frame**; the kit keeps `JeebOutlinedCard`'s white-7% glass.
+    `accentSelectedFill` (20%) is too hot. **R16/R18/R20 are the other frame consumers and must be
+    re-measured with it** — do not assume this is an R21-only change.
+11. `JeebStepperDoneInk.washed` — R18's PASSED bars measure white ~33% (`#626794`), not the ratified
+    periwinkle `#8A93D8`. **Ruling: a third enum value, NOT a new glass-fill rung.** The glass ladder
+    is 7/10/14 and a 33% fill would blow it open (and repeat the R14 clamp argument I already
+    refused); the stepper enum exists precisely because tiles disagree about this one ink, so the
+    semantic belongs there. R3 keeps `accent`, R18 moves to `washed`.
+
+**Non-kit fixups sanctioned in the same wave:**
+- **`InMemoryClientHomeRepository`'s default `latency: 150ms`** becomes `Duration.zero`, with
+  callers opting *in*. It is a frameless `Future.delayed` that every widget test mounting the shell
+  must know to drain — it is the entire root cause of the "Edit B" class that cost two lanes real
+  time. This is the product-code shape fixing itself instead of 15 harnesses compensating.
+- A **guard test** asserting that any harness mounting `ShellScreen` sets `disableAnimations`. The
+  reduce-motion `builder:` is now load-bearing in **15 harnesses**, trivially omitted on a new one,
+  and fails in a way that reads as a product bug. Makes the wave-close lesson mechanical.
+- `order_history_date_filter_sheet.dart` restyle — a **light-theme Material/OMDS sheet still
+  shipping** on a screen we just marked done. Its goldens were 99.87% stale at baseline.
+- Order-history **Completed/Cancelled catalog states** (needs a tab-preselection seam), then delete
+  the one-off `test/tools/m2_17_capture_test.dart`.
+
+**Standing rulings:**
+- R21 expired-row dimming: the tile is **not a uniform fade** (fill d≈0.41, title d≈0.62, meta and
+  `Re-broadcast` d≈0.80). A 0.65 blanket puts the meta run under 4.5:1. Recommendation attached to
+  owner Q6: dim the **fill** near 0.41 and hold **ink** at 0.80, which matches the tile's own ink
+  alphas and stays near AA. Shipped at 0.65 pending sign-off.
+- R21's green completed-check stays navy-knockout on green. The board draws white-on-green, but
+  §2 ratifies `onSuccess = #070C33` because white on `#3BB273` fails AA. **The token wins over the
+  tile when the tile loses an AA pair** — same principle as the retired brown-on-white guard.
+- `chat_header_contrast_test` is a **pass-1 instrument measuring a pre-Midnight palette** — verified
+  5-red at `493f588b`, i.e. not wave-C fallout. Two of its rows measure a genuine sub-AA pair
+  (`onPrimary` on an orange-blended chip at 3.87:1) that needs either a large-text determination or
+  a token fix. Routed to **M6**, which owns the AA re-test; filed as Q-022 so it is not mistaken
+  for new breakage at the G-M2 gate.
+
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
 | Screen | Ruling | Key evidence |

@@ -515,6 +515,12 @@ Seeded from doc-13 §4 — these survive into Midnight:
 19. [Q-019] (M2-07) R10's third offer card is drawn dimmed with no action row; §7.2-C4 says every offer stays acceptable. Shipped un-dimmed. Frame amendment, or rule change?
 20. [Q-020] (M2-12) R16's ★ rating pill and the shell's header actions want the same corner. Which owns it?
 
+22. [Q-022] (M2-16) `chat_header_contrast_test` is 5-red — **verified pre-existing at 493f588b**, a pass-1 contrast instrument still pinning light-era role values against Midnight. Two rows measure a genuine sub-AA pair: `onPrimary` on an orange-blended chip at **3.87:1**. Needs a large-text determination or a token fix, then the whole instrument re-cut the way M0-8 re-cut the theme gate. Routed to M6.
+23. [Q-023] (M2-14) R18's PASSED stepper bars measure white ~33% (`#626794`); we ship the ratified periwinkle `#8A93D8`, which reads brighter and bluer. Ruled: add a third `JeebStepperDoneInk.washed` rather than open the 7/10/14 glass-fill ladder. Confirm the board reading.
+24. [Q-006 evidence] (M2-17) Expired-row dimming — measurements now attached: the tile is **not a uniform fade** (fill d≈0.41, title d≈0.62, meta + `Re-broadcast` d≈0.80). The briefed 0.65 blanket puts the meta run under 4.5:1. Recommend fill≈0.41 / ink≈0.80. Designer sign-off still needed.
+25. [Q-025] (M2-17) E4 needs its own `JeebEmptyStateVariant.parcel` (open glass parcel box, mic glowing inside). Sanctioned; confirm the subject.
+26. [Q-026] (M2-17) R21's in-motion row measures an orange 10–12% fill inside the accent frame; the kit's frame form is white-7% glass. Sanctioned as a frame-fill rung — **R16/R18/R20 are the other frame consumers and need re-measuring with it.**
+
 *(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
 
 ---
@@ -565,6 +571,20 @@ Seeded from doc-13 §4 — these survive into Midnight:
   28 field tests were all relational, so a wrong constant was invisible; the replacement test was
   proved discriminating before being accepted. Deferred: E2's loading skeleton is still E1-shaped
   (M4 owns loading states); kit E3 colour deviations (M6).
+- 2026-08-04 · **M2 wave C COMPLETE (rows 13–18)** + the wave-B l10n merge + the shell-harness half
+  of the pumpAndSettle regression, via an 8-lane workflow (8 agents / 0 errors / ~33 min). Committed
+  one commit per row, ticks in-commit, pushed. **M2 is now 18/24.** Verified on the settled tree:
+  analyze **0 errors / 30 infos**; **1880 pass / 5 fail** across the union of wave-C suites, and all
+  5 reds verified identical at `493f588b` in a worktree (a pass-1 contrast instrument, Q-022) — wave
+  C introduced **zero** regressions. **All three parked ramp-overflow regressions are FIXED, not
+  re-parked**: R17 (JeebInfoNote trailing slot, 5px AR@200%), R19 (1px — and my brief named the
+  wrong file; the lane checked and found the real red in data_truth, where RenderViewport drops a
+  below-the-fold semantics node so nothing throws), R20 (composer, 52px). The R20 zero-diff trap is
+  closed with the container at +56/-123. Shell harnesses +90/-0 — zero deletions, so no assertion
+  was weakened — with the lane empirically probing which files needed the timer drain instead of
+  assuming. **Second correction to my own work this session:** wave-B ruling 6 (`topStart`) was
+  recorded but never transcribed into a lane prompt, so it never shipped; R14 and R17 both hit it.
+  New sanctions Q-022..Q-026 and a wave-C fixup wave to close them.
 
 ---
 
