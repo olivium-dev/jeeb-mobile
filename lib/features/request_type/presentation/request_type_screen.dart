@@ -125,11 +125,11 @@ class _Scaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // R9's field: the base wash with the single quiet glow low behind the CTA.
-    // No orbit rings, no twinkles — content variant, and the tile is STATIC.
+    // R9's field: ONE orange radial, measured at the top-start corner (board
+    // `at 10% -8%`). Content variant — no rings, no twinkles, tile is STATIC.
     return JeebMidnightField(
       variant: JeebFieldVariant.content,
-      glowPlacement: JeebFieldGlowPlacement.bottom,
+      glowPlacement: JeebFieldGlowPlacement.topStart,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         // The redesign header is an in-body row, not a Material app bar — no

@@ -133,6 +133,9 @@ class _ActiveDeliveryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return JeebAccentFrameCard(
+      // Orange 12% inside the frame (wave-C ruling 10) — must stay identical to
+      // the shell-injected banner's rung; a pair test pins them equal.
+      fill: JeebAccentFrameFill.accentTint,
       // The frozen id rides the card node itself: the kit applies it as an
       // explicit `Semantics(container, explicitChildNodes)` wrapper, so an
       // extra wrapper here would only add an unlabelled duplicate node.

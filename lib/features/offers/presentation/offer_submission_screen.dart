@@ -305,6 +305,7 @@ class _OfferComposerState extends State<_OfferComposer> {
         backgroundColor: Colors.transparent,
         body: JeebMidnightField(
           variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topStart,
           // R17 draws 0 animated elements (03-MOTION-NOTES): rest frame only.
           animateDecor: false,
           child: SafeArea(child: _buildContent(context, l10n, state)),

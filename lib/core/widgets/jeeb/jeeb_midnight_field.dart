@@ -27,7 +27,11 @@ enum JeebFieldVariant {
 enum JeebFieldGlowPlacement {
   topEnd(0.88, -0.06),
   centerUpper(0.50, 0.38),
-  bottom(0.50, 0.94);
+  bottom(0.50, 0.94),
+
+  /// R4/R9/R17's ORANGE top-start bloom (board `at 20%/10%/12% −8%`), the
+  /// glow twin of the periwinkle `JeebFieldWashPlacement.topStart`.
+  topStart(0.12, -0.08);
 
   const JeebFieldGlowPlacement(this.fx, this.fy);
 

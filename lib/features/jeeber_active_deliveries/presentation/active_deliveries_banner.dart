@@ -220,6 +220,9 @@ class _ActiveDeliveryCard extends StatelessWidget {
       // explicit child nodes are what keep the two action ids queryable.
       child: JeebAccentFrameCard(
         identifier: 'jeeber_active_delivery_row_${delivery.id}',
+        // Orange 12% inside the frame (wave-C ruling 10); the jeeber_home `??`
+        // fallback carries the same rung and a pair test pins them equal.
+        fill: JeebAccentFrameFill.accentTint,
         // Tapping the card opens the chat — the primary entry the iter6
         // blocker stranded the jeeber out of.
         onTap: onOpenChat,

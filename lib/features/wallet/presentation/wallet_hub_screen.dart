@@ -156,6 +156,7 @@ class _WalletHubViewState extends State<_WalletHubView> {
         // orbit ring, and no twinkles — the hero layer set minus its stars.
         body: JeebMidnightField(
           variant: JeebFieldVariant.hero,
+          glowPlacement: JeebFieldGlowPlacement.topStart,
           washPlacement: JeebFieldWashPlacement.bottomEnd,
           showTwinkles: false,
           animateDecor: false,

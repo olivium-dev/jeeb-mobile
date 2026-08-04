@@ -192,6 +192,50 @@ void main() {
         expect(placement.alignment.resolve(TextDirection.rtl).x, 0);
       }
     });
+
+    test('topStart carries the measured R4/R9/R17 ORANGE anchor', () {
+      expect(JeebFieldGlowPlacement.topStart.fx, 0.12);
+      expect(JeebFieldGlowPlacement.topStart.fy, -0.08);
+
+      // Above the canvas, and higher than the periwinkle twin: the three orange
+      // tiles declare −8%, the four wash tiles −6%.
+      expect(JeebFieldGlowPlacement.topStart.fy, lessThan(0));
+      expect(
+        JeebFieldGlowPlacement.topStart.fy,
+        lessThan(JeebFieldWashPlacement.topStart.fy),
+      );
+
+      // The exact start-side mirror of the ratified topEnd 0.88.
+      expect(
+        JeebFieldGlowPlacement.topStart.fx,
+        closeTo(1 - JeebFieldGlowPlacement.topEnd.fx, 1e-9),
+      );
+      expect(
+        JeebFieldGlowPlacement.topStart.alignment.resolve(TextDirection.ltr).x,
+        closeTo(-0.76, 1e-9),
+      );
+      expect(
+        JeebFieldGlowPlacement.topStart.alignment.resolve(TextDirection.rtl).x,
+        closeTo(0.76, 1e-9),
+      );
+      expect(
+        JeebFieldGlowPlacement.topStart.alignment.resolve(TextDirection.ltr).y,
+        closeTo(-1.16, 1e-9),
+      );
+    });
+
+    test('topStart was APPENDED — the shipped three keep their indices', () {
+      expect(JeebFieldGlowPlacement.values, <JeebFieldGlowPlacement>[
+        JeebFieldGlowPlacement.topEnd,
+        JeebFieldGlowPlacement.centerUpper,
+        JeebFieldGlowPlacement.bottom,
+        JeebFieldGlowPlacement.topStart,
+      ]);
+      expect(JeebFieldGlowPlacement.topEnd.index, 0);
+      expect(JeebFieldGlowPlacement.centerUpper.index, 1);
+      expect(JeebFieldGlowPlacement.bottom.index, 2);
+      expect(JeebFieldGlowPlacement.topStart.index, 3);
+    });
   });
 
   group('variant layers', () {
@@ -368,6 +412,152 @@ void main() {
         closeTo(0.3 * ry, 7),
         reason: 'the shipped 1.35× factor lands 15px past this',
       );
+    });
+
+    testWidgets('topStart\'s ORANGE falloff resolves the anchor itself', (
+      WidgetTester tester,
+    ) async {
+      // Corner-only checks pass with the anchor points out of place, so this
+      // solves the gradient's own centre back out of the rendered ramp.
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+      );
+      final Color Function(double, double) lit = await sampler(tester);
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+        glowColor: const Color(0x00D73B00),
+      );
+      final Color Function(double, double) bare = await sampler(tester);
+
+      // src-over inverted: (lit − bare) = a × (orange − bare), so this reads the
+      // gradient's alpha back out of the frame with the base wash cancelled.
+      double alphaAt(double x, double y) {
+        final double fx = x / _fieldSize.width;
+        final double fy = y / _fieldSize.height;
+        return (lit(fx, fy).r - bare(fx, fy).r) /
+            (JeebMidnight.orange.r - bare(fx, fy).r);
+      }
+
+      final double rx = _fieldSize.width * 520 / 440;
+      const double squash = 420 / 520;
+      // Linear to nothing at the 60% stop, so down the anchor column
+      // alpha(y) = a0 × (1 − (y − cy) / ramp) — a straight line in y.
+      final double ramp = squash * 0.6 * rx;
+      final double anchorX = 0.12 * _fieldSize.width;
+
+      double columnAlpha(double y) {
+        double sum = 0;
+        for (double x = anchorX - 12; x <= anchorX + 12; x++) {
+          sum += alphaAt(x, y);
+        }
+        return sum / 25;
+      }
+
+      // The bloom must already be dying at the very first row — an anchor
+      // INSIDE the canvas would climb to a peak first.
+      for (double y = 0; y < 120; y += 8) {
+        expect(
+          columnAlpha(y + 8),
+          lessThan(columnAlpha(y)),
+          reason: 'alpha must fall monotonically from row 0 down',
+        );
+      }
+
+      // Least-squares the ramp: alpha(y) = b + m·y, with a0 = −m·ramp and
+      // alpha(cy) = a0, hence cy = −ramp − b/m.
+      double sy = 0, sa = 0, syy = 0, sya = 0;
+      int n = 0;
+      for (double y = 4; y <= 140; y += 4) {
+        final double a = columnAlpha(y);
+        sy += y;
+        sa += a;
+        syy += y * y;
+        sya += y * a;
+        n++;
+      }
+      final double m = (n * sya - sy * sa) / (n * syy - sy * sy);
+      final double b = (sa - m * sy) / n;
+      final double a0 = -m * ramp;
+      final double cy = -ramp - b / m;
+
+      expect(a0, closeTo(0.22, 0.01), reason: 'content variant glow alpha');
+      expect(cy, lessThan(0), reason: 'the anchor sits ABOVE the canvas');
+      expect(
+        cy / _fieldSize.height,
+        closeTo(-0.08, 0.012),
+        reason: 'board −8%, NOT the wash twin\'s −6% and NOT a positive fy',
+      );
+
+      // Now cx, from the same alpha field: d² = (x − cx)² + k², so (d² − x²) is
+      // LINEAR in x with slope −2cx — unbiased under pixel noise, unlike a sqrt.
+      double cxSum = 0;
+      int rows = 0;
+      for (double y = 4; y <= 64; y += 4) {
+        double sx = 0, sq = 0, sxx = 0, sxq = 0;
+        int p = 0;
+        for (double x = 110; x <= 220; x += 5) {
+          final double d = 0.6 * rx * (1 - alphaAt(x, y) / a0);
+          final double q = d * d - x * x;
+          sx += x;
+          sq += q;
+          sxx += x * x;
+          sxq += x * q;
+          p++;
+        }
+        cxSum += -0.5 * (p * sxq - sx * sq) / (p * sxx - sx * sx);
+        rows++;
+      }
+      final double cx = cxSum / rows;
+      expect(
+        cx / _fieldSize.width,
+        closeTo(0.12, 0.012),
+        reason: 'board 10–20%, shipped at the 0.12 median',
+      );
+    });
+
+    testWidgets('topStart mirrors to the end side under RTL', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+      );
+      final Color Function(double, double) ltr = await sampler(tester);
+      expect(ltr(0.12, 0.02).r, greaterThan(ltr(0.88, 0.02).r));
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+        direction: TextDirection.rtl,
+      );
+      final Color Function(double, double) rtl = await sampler(tester);
+
+      expect(rtl(0.88, 0.02).r, greaterThan(rtl(0.12, 0.02).r));
+      expect(rtl(0.88, 0.02).r, closeTo(ltr(0.12, 0.02).r, 2 / 255));
+    });
+
+    testWidgets('topStart did NOT become the default — topEnd still is', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+      final Color Function(double, double) fallback = await sampler(tester);
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+      );
+      final Color Function(double, double) explicit = await sampler(tester);
+
+      expect(fallback(0.88, 0.02), explicit(0.88, 0.02));
+      expect(fallback(0.88, 0.02).r, greaterThan(fallback(0.12, 0.02).r));
     });
 
     testWidgets('the wash runs light at the top and deepest at the bottom', (
