@@ -97,6 +97,70 @@ body, tail-corner 6). R20 outgoing waveform bars = white on the tinted fill (now
    wiring time (board ranges are wider than §2.6's column).
 4. Do NOT add: R20 typing indicator, R15 star twinkle — tempting, board-absent.
 
+## Wave-B review rulings (2026-08-04) — BINDING
+
+**Sanctioned kit/theme changes** (batched into the wave-B fixup lane; kit re-freezes after):
+1. `JeebEmptyStateVariant.radar` — E2's concentric-ring waiting state. Sanctioned because
+   03-MOTION-NOTES lists "Concentric ring pulse | E2, W2, sample C" as a *recurring* composite,
+   not a one-screen widget. Rings `jArcPulse` 3s on a **1 / .5 / 0** outward-to-inward delay
+   ladder, centre glow `jBreathe` 3s, three avatars `jBreathe` 2.6s at 0 / .8 / 1.6s.
+2. `JeebEmptyStateVariant.street` — E3's night-street scene. E3 is one of §2.7's four canonical
+   instances, so it gets a real variant rather than `balcony` (which draws a request bubble and a
+   `jDash` route E3 does not). Lamp bulb + cone `jBreathe` 3.6s as ONE element; two listening arcs
+   `jArcPulse` 2.2s at 0 / .45s. This tile's sparkles are STATIC, unlike E1/E4.
+3. `JeebAvatarFill.glass` — board Ø74 disc is white ~22% with a WHITE initial. Existing rungs are
+   both opaque navy and `dormant` also forces periwinkle ink. Unblocks R15 and E2's initial discs.
+4. `JeebCodeCells` display border `glassBorderStrong` (.16) → `glassBorderVivid` (.22) — R13
+   measures .22, which is exactly the cluster `glassBorderVivid` was added for.
+5. `JeebStepper` bar `doneInk` (fill-through colour) — R3 fills passed segments ORANGE, R18 fills
+   them periwinkle. Two tiles genuinely disagree, so this is a parameter, not a per-screen repaint.
+   Removes the feature-side duplication M2-08 shipped. Must land before M2-14 (R18).
+6. `JeebFieldWashPlacement.topStart` (≈0.10, 0.03) — R14 measures its decorative lift top-start.
+7. **`_glowRadiusFactor` 1.35 → 1.18** — see 01-TOKEN-SHEET §8 CORRECTION. Affects every screen.
+
+**Rejected / clamped:**
+- R14's zoom chip measures a white **31%** border. The ladder tops out at `glassBorderVivid` 22%
+  and stays there — one outlier chip on one screen does not earn a fourth rung. Clamp, note it.
+
+**Standing rulings (no kit change):**
+- Bottom sheets are NOT automatically the `sheet` (26) rung. R3 measures ≈21dp → `xl` (22) wins.
+  Measurement beats the semantic name; the ladder's "snap to nearest, ±2" rule governs.
+- `onSurface` (`#EDEFFC`) is the heading ink app-wide. Tiles that read pure `#FFFFFF` do not
+  override §1 — do not shift the hex per screen.
+- Offer meta line keeps the **vehicle** run until `distanceKm` exists on the wire. Real data beats
+  a blank slot, and three tests (incl. an Arabic assertion) pin it. doc-13's "defect" framing
+  assumed distance was obtainable; it is not.
+- R10's third offer card ships **un-dimmed and actionable**. The tile's "recede" is a marketing
+  metaphor; §7.2-C4 (every offer stays acceptable) is a product rule and wins.
+- E2's "Add details to attract offers" CTA stays **unmounted** — no add-details route or seam
+  exists anywhere, and a CTA with no destination is worse than an absent one. Key stays queued.
+- R16's extra bands (3 tab chips + search toggle + tier band vs the tile's 2) **stay**. Their
+  identifiers are frozen and Maestro-pinned; ground rule 6 outranks tile-count fidelity.
+- R15 tag chips ship **board-faithful** (33dp targets). Wrapping them in `MinTapTarget` inflates
+  the measured 8dp run gap to ~22dp and breaks the 3+2 rhythm. Routed to the M6 a11y sweep, which
+  should decide it once for all inline chip rows rather than per screen.
+- Catalog mounting live-tracking with `useLiveMap: false` is **accepted** — it cures 2 of the 4
+  known harness render failures and the capture harness was never the place to exercise a live
+  GoogleMap platform view.
+- `JeebMoneyBreakdown` is NOT consumed on R14: the widget forbids a fee line on customer surfaces
+  and R14 draws one inline sentence. Consume its *treatment*. §3's carry-in line was corrected.
+
+**Regression attribution (measured, not assumed):** `test/core/router/` is **38 red**, and it is
+red identically at `fc93ace9` (pre-wave-B) — verified by running the suite in a worktree at that
+commit. Wave B introduced none of it. Cause: the shell's home tab mounts `JeebEmptyState`, whose
+E1 illustration loops ∞ *by design* (7 animated elements), so `pumpAndSettle` can never settle.
+This is a **test-harness gap, not a spec violation** — R1's field decor is correctly static
+(`animateDecor: false` at `client_home_screen.dart:208`). Fix is the sanctioned one from §Motion:
+`disableAnimations: true` in the harness. Wave A missed it because the full suite only runs at
+wave gates and wave A was not a gate. **Lesson: run the router/shell suites at every wave close,
+not only at gates.**
+
+**Live defect found, pre-existing:** `CaptureLocationScreen._onPin` calls `Navigator.maybePop()`
+with **no value**, so `GoogleMapPickerLauncher.pickOnMap()` always resolves null. Live consumer is
+`address_detail_form_screen.dart:219` ("Edit pin"), which therefore silently discards the pinned
+coordinate. Byte-identical before M2-05 (`git show ca57dda2^`), so it predates Midnight. Fixed in
+the wave-B fixup lane rather than parked — we had just shipped R11 as done.
+
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
 | Screen | Ruling | Key evidence |

@@ -148,8 +148,15 @@ w500/600/700** — face CONFIRMED from `_ds/tokens/typography.css`:
 
 - **Base wash (canonical, 35×):** `linear-gradient(175deg, #10175E 0%, #0B1351 45%, #070C33 100%)`
   — lighter at top, deepest at bottom.
-- **Orange glow:** radial ellipse ≈520×420 board-px (≈1.35× screen width), `#D73B00` → transparent
+- **Orange glow:** radial ellipse, CSS `radial-gradient(520px 420px at …)` — those two lengths are
+  the **radii**, rx≈520 / ry≈420 board-px on the 440×956 phone canvas. `#D73B00` → transparent
   at 58–70% stop. Alpha by variant: hero .26–.30 · content .22 · sheet .26.
+  **CORRECTION 2026-08-04 (raised by the M2-09 lane, re-measured from the board HTML):** the
+  original parenthetical "≈1.35× screen width" contradicted its own 520px figure —
+  520/440 = **1.18×**, and the whole board cluster is rx 500–560 (mode 520; R1 itself is 500).
+  `_glowRadiusFactor` shipped 1.35 = 594px, wider than every glow the board draws. Ratified
+  factor is **1.18**; the periwinkle wash is a separate, larger ellipse (`700px 560px` → 1.59×)
+  and keeps its own factor. Corrected in the wave-B fixup lane.
   Placements (fractions of the field): `topEnd (0.88, −0.06)` · `centerUpper (0.50, 0.34–0.42)` ·
   `bottom (0.50, 0.92–0.96)`.
 - **Periwinkle wash:** `rgba(119,127,192,.18–.22)` — the ONE sanctioned use of legacy

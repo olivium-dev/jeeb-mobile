@@ -25,6 +25,8 @@ CONSTRAINTS:
 - RTL-safe; respect MediaQuery.disableAnimations (screen tests: pump(duration), never pumpAndSettle on looping surfaces).
 - Do NOT touch lib/core/router/app_router.dart unless you own it (stated below). Do NOT touch other screens' feature dirs.
 - Baseline note: if your lane contains one of the named baseline-red tests (client_offers_screen_test, mutual_rating_tag_chips_l10n_test, jeeber_feed_card_test) and your change alters its failure MODE (or fixes it), say so explicitly.
+- Analyze baseline on this branch: 0 errors / 30 known infos. Your bar is 0 errors and no NEW warnings.
+- CONCURRENCY: an l10n lane is running at the same time and owns lib/l10n — it regenerates app_localizations.dart mid-wave. If analyze or tests report an error inside lib/l10n, or a missing AppLocalizations getter you did not introduce, re-run that command ONCE before reporting it; only report it if it reproduces.
 
 AFTER IMPLEMENTING — selfCritique: re-Read the tile, list 4+ px/hex-specific deltas, fix what you can, report the rest.
 
@@ -67,12 +69,16 @@ Carry-ins: doc-13 P1 cluster — availability strip, rating pill, the "Make of�
 
 const L10N = `You are the l10n merge lane for MIDNIGHT wave B in ${REPO}, branch feat/redesign-midnight (NEVER run git mutations). GOLDEN RULE: comments max 2 lines, only when super necessary.
 YOU OWN lib/l10n/*.arb this wave. Work:
-1. Read every file in docs/redesign-midnight/l10n-queue/ (wave-A queues: M2-02, M2-03, M2-04, M2-05). Apply the queued keys to app_en.arb + app_ar.arb following existing key conventions (metadata blocks if the file uses them; AR values as queued — flag any AR string that looks machine-weak rather than inventing better copy).
+1. Process EXACTLY these four queue files and NO others: docs/redesign-midnight/l10n-queue/M2-02-r1-e1.md, M2-03-r2.md, M2-04-r9.md, M2-05-r11.md. (Six screen lanes are running concurrently and WILL create new files in that directory — those are wave-C work, not yours. Never glob the directory.) Apply the queued keys to app_en.arb + app_ar.arb following existing key conventions (metadata blocks if the file uses them; AR values as queued — flag any AR string that looks machine-weak rather than inventing better copy).
 2. Run flutter gen-l10n (or the repo's codegen path — check how app_localizations.dart is produced) so the generated files match.
 3. Swap every call site marked "TODO(midnight): l10n-queued" in lib/features/{home_client,voice_request,request_type,location} to its real new key; remove those TODOs. Do NOT touch other feature dirs (6 screen lanes are working there concurrently) — if a queue row points elsewhere, apply the key but leave the call site and report it.
-4. Delete the processed queue files.
-VERIFY: flutter analyze --no-pub lib/l10n lib/features/home_client lib/features/voice_request lib/features/request_type lib/features/location → 0 errors · flutter test test/l10n test/features/home_client test/features/request_type test/features/location test/voice_recording_screen_test.dart → green.
-RETURN: keys applied per file · call sites swapped · AR strings flagged for review · test results · questions.`
+4. Delete ONLY those four queue files.
+ORCHESTRATOR RULINGS for the blockers the queue files name:
+- M2-05 flags that \`captureLocationPinCta\` ("Pin Location") is pinned by find.text finders in test/delivery_create_screens_test.dart:254 and test/capture_location_map_injection_test.dart. YOU OWN those two test files this wave — update both finders to the new literal in the same pass. No other lane touches test/ root.
+- Superseded keys (e.g. captureLocationPinCallout/PinCta, and any key a queue row says is "replaced"): after swapping call sites, grep for remaining references. Zero references → delete the key from both ARBs. Any reference left → KEEP the key and report where it is still used. Never leave a dangling reference.
+- Value changes (M2-03's voiceRecordingStatusRecording) are in scope: change the value, keep the key id.
+VERIFY: flutter analyze --no-pub lib/l10n lib/features/home_client lib/features/voice_request lib/features/request_type lib/features/location → 0 errors · flutter test test/l10n test/features/home_client test/features/request_type test/features/location test/voice_recording_screen_test.dart test/delivery_create_screens_test.dart test/capture_location_map_injection_test.dart → green.
+RETURN: keys applied per file · keys deleted (with the grep evidence) · call sites swapped · test finders updated · AR strings flagged for review · test results · questions.`
 
 phase('Screens')
 const results = await parallel([

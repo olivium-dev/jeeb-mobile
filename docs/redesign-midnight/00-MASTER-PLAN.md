@@ -506,6 +506,13 @@ Seeded from doc-13 §4 — these survive into Midnight:
 11. [Q-011] (M2-01) Earnings tab glyph: no Material filled single-banknote-with-dot exists; shipped `Icons.payments`. Designer: want a custom glyph asset?
 12. [Q-012] (M2-02) Maestro jm-027 AC2: `replies_accept_cta` now opens the accept sheet from the card (behaviour-preserving). QA: confirm, or re-point AC2 to `offer_review_list_root`.
 13. [Q-013] (M2-06) R12 voice replay band has zero pixel evidence (no fixture carries a real audio path). Approve adding a voice-draft catalog state with an on-disk clip (M4).
+14. [Q-014] (l10n merge) **R2 copy contradicts behaviour.** The tile draws "Recording — release to send", but the phase machine is `recording→recorded→playing→sending→sent`: release lands in a local review with playback and an explicit send. Shipped as "release to stop" (prior ruling C-05.1 upheld — we do not ship copy that over-promises). Designer/product: is the board asking for a *send-on-release* flow (a product change), or is the tile literal just loose?
+15. [Q-015] (M2-12) E3 ships on the `balcony` illustration until the sanctioned `street` variant lands in the fixup lane. Confirm the night-street scene (parked scooter, amber streetlamp, listening arcs) is the intended E3 subject.
+16. [Q-016] (M2-11) **Counterpart-name plumbing is only half-closable.** `mutualRatingLocation()` now exists; `chat_detail_screen` (name available → assigned to M2-16) and `delivery_detail_screen` (→ M3-01) are one-line swaps. But `otp_handover_screen.dart:271` has **no name in scope** — `_DoneBody` receives only `deliveryId` + `isClient`, so closing it needs a repo/state change, not plumbing. Approve that state change, or accept the nameless leg there permanently?
+17. [Q-017] (l10n merge) **Live defect, pre-existing:** `pickOnMap()` always resolves null because `CaptureLocationScreen._onPin` pops without a value — so "Edit pin" on the address-detail form silently discards the chosen coordinate. Fixed in the fixup lane; flagging because it shipped broken long before Midnight and may have a matching field report.
+18. [Q-018] (M2-07) E2's "Add details to attract offers" CTA has no destination anywhere in the app. Shipped unmounted. Does product want an edit-request flow, or should the slot stay empty?
+19. [Q-019] (M2-07) R10's third offer card is drawn dimmed with no action row; §7.2-C4 says every offer stays acceptable. Shipped un-dimmed. Frame amendment, or rule change?
+20. [Q-020] (M2-12) R16's ★ rating pill and the shell's header actions want the same corner. Which owns it?
 
 *(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
 
@@ -529,6 +536,20 @@ Seeded from doc-13 §4 — these survive into Midnight:
   analyze infos (pre-existing) · 3 ramp-overflow regressions parked to M2-13/15/16 (G-M0
   row) · language_settings_screen_test ×2 pins pre-M1 segment ink → M3-27 ·
   gesture_log_test baseline red. Owner questions live in §8 (Q1–Q10, Q-011..013).
+- 2026-08-04 · **M2 wave B COMPLETE (rows 07–12) + the wave-A l10n merge**, via the same 7-lane
+  workflow (7 agents / 0 errors / ~55 min). Committed one commit per row, ticks in-commit, pushed.
+  Verification on the settled tree: analyze **0 errors / 30 infos** (= baseline exactly) and
+  **784/784** across the union of every lane's targeted suites. Two script fixes were applied
+  before launch — the l10n lane globbed the queue directory it would then delete (it would have
+  eaten wave-C's queued keys), and nobody owned the two test files the M2-05 queue named as
+  blockers. Rulings recorded in 02-STUDY-NOTES §"Wave-B review rulings"; 7 kit/theme changes
+  sanctioned into a fixup lane, incl. **`_glowRadiusFactor` 1.35 → 1.18** — the token sheet's own
+  §8 parenthetical contradicted its 520px measurement, so every screen's glow was ~14% too wide.
+  Two things wave A had missed, both now measured rather than assumed: `test/core/router/` is
+  **38 red** and is red identically at `fc93ace9` (verified in a worktree — a harness gap, since
+  the E1 empty state loops ∞ by design and `pumpAndSettle` cannot settle), and `pickOnMap()` has
+  long discarded the pinned coordinate. Both go to the fixup lane, not the parking lot.
+  New owner questions Q-014..Q-020.
 
 ---
 
