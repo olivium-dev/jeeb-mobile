@@ -7,6 +7,7 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_tier_chip.dart';
@@ -14,10 +15,10 @@ import '../../../l10n/app_localizations.dart';
 import '../domain/order_summary.dart';
 import 'order_status_chip.dart';
 
-/// Board radius for a 24 row (`24-order-history.html` tpl 1427 / 1437).
+/// Board radius for an R21 row (`JeebRadii.lg`, tile-measured 18).
 const double _cardRadius = 18;
 
-/// Single row in the order-history list (redesign-2026-08 §24).
+/// Single row in the order-history list (MIDNIGHT R21).
 ///
 /// Two bands inside one kit card: an identity row (state glyph · where-from ·
 /// amount) and a meta row (tier · date · status · action pill). The shell is
@@ -25,6 +26,8 @@ const double _cardRadius = 18;
 /// (`pickedUp` / `enRoute`) is the board's one orange element and renders as a
 /// [JeebAccentFrameCard]; everything else is a plain [JeebOutlinedCard]. In
 /// practice at most one row is live, which is exactly the board.
+///
+/// R21 is a ZERO-MOTION tile (03-MOTION-NOTES): nothing on this row animates.
 ///
 /// The card stays self-contained — it takes an [order] plus callbacks and
 /// renders. No BLoC subscription, so it is trivial to embed in goldens.
@@ -39,8 +42,10 @@ class OrderHistoryCard extends StatelessWidget {
 
   /// `14/16` — the board's row padding (`24-order-history.html` tpl 1427). The
   /// kit folds the stroke width in itself, so this is not hand-corrected.
-  static const EdgeInsetsGeometry cardPadding =
-      EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium, vertical: 14);
+  static const EdgeInsetsGeometry cardPadding = EdgeInsetsDirectional.symmetric(
+    horizontal: Spacing.medium,
+    vertical: 14,
+  );
 
   /// Ø18 in the board is the *glyph* box; the live dot itself is Ø9 (tpl 1429).
   static const double liveDotSize = 9;
@@ -52,6 +57,15 @@ class OrderHistoryCard extends StatelessWidget {
   /// Above this text scale the meta line sheds its tier chip. Same 1.5 the
   /// screen header uses to stop sharing a line between its two bands.
   static const double largeTextScaleThreshold = 1.5;
+
+  /// R21's expired row "fades but keeps its orange Re-broadcast spark".
+  /// TODO(midnight): Q6 — the tile is NOT a uniform fade (measured: fill ≈.41,
+  /// title ≈.62, meta ≈.80) and .65 on #8A93D8 lands under AA. Owner call open.
+  static const double expiredOpacity = 0.65;
+
+  /// Inline meta affordance height (`Re-broadcast`). Sub-48 like R15's tag
+  /// chips — routed to the M6 a11y sweep, not solved per screen.
+  static const double metaActionHeight = 28;
 
   final OrderSummary order;
   final VoidCallback onTap;
@@ -66,10 +80,12 @@ class OrderHistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final String locale = Localizations.localeOf(context).toLanguageTag();
-    final String dateLabel =
-        DateFormat.MMMd(locale).format(order.createdAt.toLocal());
+    final String dateLabel = DateFormat.MMMd(
+      locale,
+    ).format(order.createdAt.toLocal());
     // R5: orange marks what is moving *now*. `matched` is assigned-not-moving.
-    final bool isLive = order.status == OrderRequestStatus.pickedUp ||
+    final bool isLive =
+        order.status == OrderRequestStatus.pickedUp ||
         order.status == OrderRequestStatus.enRoute;
 
     // T11 / SW-02: show the real amount through the one MoneyFormat rule when
@@ -79,8 +95,9 @@ class OrderHistoryCard extends StatelessWidget {
     final String amountLabel = amountKnown
         ? MoneyFormat.format(order.amountMinor! / 100, currency: order.currency)
         : '—';
-    final String amountSemantics =
-        amountKnown ? amountLabel : l10n.orderHistoryAmountUnavailable;
+    final String amountSemantics = amountKnown
+        ? amountLabel
+        : l10n.orderHistoryAmountUnavailable;
 
     final Widget body = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -123,18 +140,25 @@ class OrderHistoryCard extends StatelessWidget {
         child: body,
       );
     }
-    return JeebOutlinedCard(
+    final Widget card = JeebOutlinedCard(
       key: cardKey,
       identifier: identifier,
       semanticLabel: semanticLabel,
       onTap: onTap,
       radius: _cardRadius,
       padding: cardPadding,
-      // Never `state: dormant` — a cancelled row keeps full opacity so its
-      // periwinkle meta line stays above AA (§2, R9).
+      // NOT `state: dormant` — that rung is 0.75 AND drops the actions row,
+      // and R21's faded row still draws its Re-broadcast affordance.
       child: body,
     );
+    if (!_isExpired(order.status)) return card;
+    return Opacity(opacity: expiredOpacity, child: card);
   }
+
+  /// Cancelled and disputed are the tile's faded "expired" row.
+  static bool _isExpired(OrderRequestStatus status) =>
+      status == OrderRequestStatus.cancelled ||
+      status == OrderRequestStatus.disputed;
 }
 
 /// Glyph · where-from · amount.
@@ -157,8 +181,8 @@ class _IdentityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    // No item/description field on the list DTO — pickup is the real
-    // "where from" the board's `Medicine — Pharmacie du Musée` is naming.
+    // TODO(midnight): the board's `Medicine — Pharmacie du Musée` needs an item
+    // title on GET /v1/requests; pickup is the honest slot — omitted, not faked.
     final String title = order.pickupAddress.isEmpty
         ? l10n.orderHistoryAddressMissing
         : order.pickupAddress;
@@ -172,7 +196,7 @@ class _IdentityRow extends StatelessWidget {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: context.jeebText.cardTitle.copyWith(color: scheme.primary),
+            style: context.jeebText.cardTitle.copyWith(color: scheme.onSurface),
           ),
         ),
         const SizedBox(width: Spacing.xSmall),
@@ -180,10 +204,12 @@ class _IdentityRow extends StatelessWidget {
           amountLabel,
           semanticsLabel: amountSemantics,
           maxLines: 1,
+          // `body` not `cardTitle`: the tile's price reads a step larger, but
+          // at 2× text the extra px overflows the identity row.
           style: context.jeebText.body.copyWith(
             fontWeight: FontWeight.w800,
             // A missing price is muted, not shouted like a real amount.
-            color: amountKnown ? scheme.primary : scheme.onSurfaceVariant,
+            color: amountKnown ? scheme.onSurface : scheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -214,8 +240,8 @@ class _StatusGlyph extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: roles.accent,
-            // The halo belongs to motion only — a queued row is a plain dot.
-            boxShadow: isLive ? JeebShadows.stepGlow : null,
+            // Tile-drawn glow on the live row only; a queued row is a flat dot.
+            boxShadow: isLive ? JeebShadows.glowDot : null,
           ),
         );
       case OrderRequestStatus.delivered:
@@ -268,7 +294,13 @@ class _MetaRow extends StatelessWidget {
         order.status.tab == OrderHistoryTab.active &&
         MediaQuery.textScalerOf(context).scale(1) <=
             OrderHistoryCard.largeTextScaleThreshold;
+    // Tile-measured #8A93D8 on the completed row's `Jun 26 · …` run; the lit
+    // row carries no periwinkle at all on the tile, so it steps up to inkSoft.
+    final Color metaInk = isLive
+        ? scheme.onSecondaryContainer
+        : scheme.onSurfaceVariant;
     final Widget? pill = _pill(context, l10n);
+    final Widget? rebroadcast = _rebroadcast(context, l10n);
 
     return Row(
       children: <Widget>[
@@ -286,6 +318,9 @@ class _MetaRow extends StatelessWidget {
                 JeebTierChip.custom(
                   emoji: JeebTierChip.emojiFor(order.tier.name),
                   label: _tierLabel(order.tier, l10n),
+                  // R21 measures white ~12% inside the accent frame, not the
+                  // opaque navy pill R1 draws.
+                  glass: true,
                 ),
                 const SizedBox(width: Spacing.xSmall),
               ],
@@ -294,21 +329,10 @@ class _MetaRow extends StatelessWidget {
                   dateLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: metaStyle.copyWith(
-                    color: scheme.onSecondaryContainer,
-                  ),
+                  style: metaStyle.copyWith(color: metaInk),
                 ),
               ),
-              const SizedBox(width: Spacing.twoXSmall),
-              Container(
-                width: OrderHistoryCard.metaDotSize,
-                height: OrderHistoryCard.metaDotSize,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: scheme.onSecondaryContainer,
-                ),
-              ),
-              const SizedBox(width: Spacing.twoXSmall),
+              _MetaDot(ink: metaInk),
               // Date and status stay two separate `Text`s: the stale-status
               // regression suite pins `find.text('Pending'/'Picked up'/…)`.
               Flexible(
@@ -317,12 +341,21 @@ class _MetaRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: metaStyle.copyWith(
+                    // #FFB499, tile-measured: solid accent is unreadable on
+                    // the frame's own orange-lit fill.
                     color: isLive
-                        ? context.jeebRoles.accent
-                        : scheme.onSecondaryContainer,
+                        ? context.jeebRoles.onAccentContainer
+                        : metaInk,
                   ),
                 ),
               ),
+              // TODO(midnight): the board's `· Karim · ★ 4` (completed) and
+              // `· ETA 20 min` (live) need a jeeber name, rating and ETA on
+              // GET /v1/requests — omitted, not faked.
+              if (rebroadcast != null) ...<Widget>[
+                _MetaDot(ink: metaInk),
+                rebroadcast,
+              ],
             ],
           ),
         ),
@@ -334,8 +367,9 @@ class _MetaRow extends StatelessWidget {
     );
   }
 
-  /// `Track` while moving, `Jeeb it again` once terminal, nothing in between —
-  /// a queued or just-matched row has no honest action of its own here.
+  /// `Track` while moving (white slab), `Jeeb it again` once delivered (glass).
+  /// A queued or just-matched row has no honest action of its own here, and the
+  /// expired row's affordance is the inline [_rebroadcast] spark instead.
   Widget? _pill(BuildContext context, AppLocalizations l10n) {
     if (isLive && onTrack != null) {
       return JeebSelectChip(
@@ -346,10 +380,7 @@ class _MetaRow extends StatelessWidget {
         identifier: 'order_history_track_cta_${order.id}',
       );
     }
-    final bool isTerminal = order.status == OrderRequestStatus.delivered ||
-        order.status == OrderRequestStatus.cancelled ||
-        order.status == OrderRequestStatus.disputed;
-    if (isTerminal && onReorder != null) {
+    if (order.status == OrderRequestStatus.delivered && onReorder != null) {
       return JeebSelectChip(
         role: JeebChipRole.inlineAction,
         label: l10n.orderHistoryReorderCta,
@@ -358,6 +389,24 @@ class _MetaRow extends StatelessWidget {
       );
     }
     return null;
+  }
+
+  /// The expired row's orange text spark. FROZEN id re-homed off the pill: the
+  /// board draws no pill here, and `order_history_reorder_cta_<id>` is pinned.
+  Widget? _rebroadcast(BuildContext context, AppLocalizations l10n) {
+    final bool isExpired =
+        order.status == OrderRequestStatus.cancelled ||
+        order.status == OrderRequestStatus.disputed;
+    if (!isExpired || onReorder == null) return null;
+    return JeebCtaButton.accentText(
+      // TODO(midnight): l10n-queued `orderHistoryRebroadcastCta` = Re-broadcast.
+      label: l10n.orderHistoryReorderCta,
+      onTap: onReorder,
+      height: OrderHistoryCard.metaActionHeight,
+      labelStyle: context.jeebText.bodySmall,
+      contentPadding: EdgeInsetsDirectional.zero,
+      identifier: 'order_history_reorder_cta_${order.id}',
+    );
   }
 
   static String _tierLabel(OrderTier tier, AppLocalizations l10n) {
@@ -373,5 +422,26 @@ class _MetaRow extends StatelessWidget {
       case OrderTier.eco:
         return l10n.tierSelectionTierEco;
     }
+  }
+}
+
+/// The Ø3 meta separator with its own breathing room on both sides.
+class _MetaDot extends StatelessWidget {
+  const _MetaDot({required this.ink});
+
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.twoXSmall,
+      ),
+      child: Container(
+        width: OrderHistoryCard.metaDotSize,
+        height: OrderHistoryCard.metaDotSize,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: ink),
+      ),
+    );
   }
 }

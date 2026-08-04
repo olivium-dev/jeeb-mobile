@@ -139,9 +139,12 @@ Widget _host(
       GlobalCupertinoLocalizations.delegate,
     ],
     builder: (context, child) {
-      final scaled = MediaQuery.of(
-        context,
-      ).copyWith(textScaler: textScaler ?? TextScaler.linear(textScaleFactor));
+      // MIDNIGHT: E4's illustration loops ∞ by design, so `pumpAndSettle`
+      // cannot settle on any empty/loading/error frame without reduce motion.
+      final scaled = MediaQuery.of(context).copyWith(
+        textScaler: textScaler ?? TextScaler.linear(textScaleFactor),
+        disableAnimations: true,
+      );
       return MediaQuery(
         data: scaled,
         child: Builder(

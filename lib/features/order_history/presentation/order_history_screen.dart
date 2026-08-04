@@ -8,6 +8,9 @@ import '../../../core/layout/bottom_inset.dart';
 import '../../../core/role/role_cubit.dart';
 import '../../../core/role/user_role.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/order_history_cubit.dart';
@@ -97,45 +100,55 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
         return Semantics(
           identifier: 'order_history_root',
           container: true,
-          child: Column(
-            children: [
-              _HistoryHeader(
-                range: state.dateRange,
-                onTap: () => _openFilter(state.dateRange),
-              ),
-              // Free-standing content-width pills, not a Material TabBar: the
-              // board (tpl 1422) is a plain `flex; gap:8` with no indicator and
-              // no 48px row. The TabController/TabBarView stay — they carry
-              // swipe, keep-alive retention and `cubit.selectTab`.
-              JeebChipRow.scrollable(
-                padding: _kBandPadding,
+          // R21/E4 draw the base wash with one quiet orange glow and no orbit
+          // rings or twinkles — `content`, and the shell paints no field.
+          child: JeebMidnightField(
+            variant: JeebFieldVariant.content,
+            // The shell owns the Scaffold, so the header text has no Material
+            // ancestor of its own — transparent, paints nothing over the field.
+            child: Material(
+              type: MaterialType.transparency,
+              child: Column(
                 children: [
-                  for (final (index, tab) in OrderHistoryTab.values.indexed)
-                    Semantics(
-                      // FROZEN: order_history_{active,completed,cancelled}_tab.
-                      identifier: 'order_history_${tab.name}_tab',
-                      container: true,
-                      button: true,
-                      child: JeebSelectChip(
-                        role: JeebChipRole.filter,
-                        label: _tabLabel(tab, l10n),
-                        selected: state.activeTab == tab,
-                        count: _tabCount(state, tab),
-                        onTap: () => _tabController.animateTo(index),
-                      ),
+                  _HistoryHeader(
+                    range: state.dateRange,
+                    onTap: () => _openFilter(state.dateRange),
+                  ),
+                  // Free-standing content-width pills, not a Material TabBar: the
+                  // board (tpl 1422) is a plain `flex; gap:8` with no indicator and
+                  // no 48px row. The TabController/TabBarView stay — they carry
+                  // swipe, keep-alive retention and `cubit.selectTab`.
+                  JeebChipRow.scrollable(
+                    padding: _kBandPadding,
+                    children: [
+                      for (final (index, tab) in OrderHistoryTab.values.indexed)
+                        Semantics(
+                          // FROZEN: order_history_{active,completed,cancelled}_tab.
+                          identifier: 'order_history_${tab.name}_tab',
+                          container: true,
+                          button: true,
+                          child: JeebSelectChip(
+                            role: JeebChipRole.filter,
+                            label: _tabLabel(tab, l10n),
+                            selected: state.activeTab == tab,
+                            count: _tabCount(state, tab),
+                            onTap: () => _tabController.animateTo(index),
+                          ),
+                        ),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        for (final tab in OrderHistoryTab.values)
+                          _OrderTabView(tab: tab, key: ValueKey(tab)),
+                      ],
                     ),
+                  ),
                 ],
               ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    for (final tab in OrderHistoryTab.values)
-                      _OrderTabView(tab: tab, key: ValueKey(tab)),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -157,7 +170,8 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
   /// orders. A never-selected tab is lazy, so it simply has no number.
   static int? _tabCount(OrderHistoryState state, OrderHistoryTab tab) {
     final tabState = state.tabs[tab]!;
-    final isSettled = tabState.status == OrderTabStatus.ready &&
+    final isSettled =
+        tabState.status == OrderTabStatus.ready &&
         !tabState.hasMore &&
         tabState.orders.isNotEmpty;
     return isSettled ? tabState.orders.length : null;
@@ -208,14 +222,12 @@ class _HistoryHeader extends StatelessWidget {
       button: true,
       child: JeebSelectChip(
         key: const Key('order-history-filter-chip'),
-        // The kit-normalized nearest scale to the board's 8/14 · 12.5/w600
-        // navy chip; `filter` would render it as large as the tab pills and
-        // invert the header's hierarchy.
+        // The kit-normalized nearest scale to the tile's 8/14 · 12.5/w600
+        // glass chip; `filter` would render it as large as the tab pills and
+        // invert the header's hierarchy. The tile draws NO leading glyph — the
+        // old orange `tune` icon was an unbudgeted accent.
         role: JeebChipRole.quickReply,
         label: _rangeLabel(l10n, locale),
-        leading: usesLargeText
-            ? null
-            : Icon(Icons.tune, size: Sizes.medium, color: scheme.primary),
         onTap: onTap,
       ),
     );
@@ -225,7 +237,7 @@ class _HistoryHeader extends StatelessWidget {
       l10n.navDelivery,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: context.jeebText.h2.copyWith(color: scheme.primary),
+      style: context.jeebText.h2.copyWith(color: scheme.onSurface),
     );
 
     if (usesLargeText) {
@@ -345,41 +357,35 @@ class _OrderTabViewState extends State<_OrderTabView>
             context.watch<RoleCubit?>()?.state == UserRole.jeeber;
 
         if (tabState.status == OrderTabStatus.loadingFirstPage) {
-          return const Center(
-            key: Key('order-history-loading'),
-            child: OmdsLoadingState(),
+          return _StateBlock(
+            key: const Key('order-history-loading'),
+            status: JeebEmptyStateStatus.loading,
+            // TODO(midnight): l10n-queued `orderHistoryLoadingHeadline`; the
+            // screen title would just echo the header band two lines above.
+            headline: l10n.deliveryStatusLoading,
+            identifier: 'order_history_loading',
           );
         }
         if (tabState.status == OrderTabStatus.error) {
-          return OmdsErrorState(
+          return _StateBlock(
             key: const Key('order-history-error'),
-            title: l10n.orderHistoryErrorTitle,
-            message: tabState.errorKind == OrderTabErrorKind.network
+            status: JeebEmptyStateStatus.error,
+            headline: l10n.orderHistoryErrorTitle,
+            body: tabState.errorKind == OrderTabErrorKind.network
                 ? l10n.orderHistoryErrorNetwork
                 : l10n.orderHistoryErrorServer,
-            retryLabel: l10n.orderHistoryErrorRetry,
-            onRetry: () => context.read<OrderHistoryCubit>().refresh(),
+            identifier: 'order_history_error',
+            action: JeebCtaButton.primary(
+              label: l10n.orderHistoryErrorRetry,
+              identifier: 'order_history_retry_cta',
+              onTap: () => context.read<OrderHistoryCubit>().refresh(),
+            ),
           );
         }
         if (tabState.orders.isEmpty) {
-          // R1: the residual space stays white and top-aligned — no Center.
           return OmdsPullToRefresh(
             onRefresh: () => context.read<OrderHistoryCubit>().refresh(),
-            child: ListView(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: Sizes.sixXLarge,
-                  ),
-                  child: OmdsEmptyState(
-                    key: Key('order-history-empty-${widget.tab.name}'),
-                    icon: Icons.receipt_long_outlined,
-                    title: l10n.orderHistoryEmptyTitle,
-                    subtitle: _emptySubtitle(widget.tab, l10n),
-                  ),
-                ),
-              ],
-            ),
+            child: _OrdersEmptyView(tab: widget.tab),
           );
         }
 
@@ -434,6 +440,54 @@ class _OrderTabViewState extends State<_OrderTabView>
       },
     );
   }
+}
+
+/// E4 — "Empty ≠ dead". The tile's four animated elements (centre glow
+/// `jBreathe` 3.2s + the 2.4/2.8/3.0s sparkle ladder) are exactly what the kit
+/// illustration runs; the orbit ring stays still.
+///
+/// No ring medallions: E4 draws a bare ring around its parcel, unlike E1.
+class _OrdersEmptyView extends StatelessWidget {
+  const _OrdersEmptyView({required this.tab});
+
+  /// The illustration sits high in the tile, not centred in the residual band.
+  static const double topGap = 40;
+
+  final OrderHistoryTab tab;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    // The tile is the Active bucket: "your first request" is only honest when
+    // there is no order anywhere, so the other two keep their own line.
+    final bool isFirstRun = tab == OrderHistoryTab.active;
+    return ListView(
+      padding: EdgeInsetsDirectional.only(
+        top: topGap,
+        bottom: context.scrollBodyBottomInset + Sizes.sixXLarge,
+      ),
+      children: [
+        JeebEmptyState(
+          key: Key('order-history-empty-${tab.name}'),
+          identifier: 'order_history_empty_${tab.name}',
+          medallions: const <JeebEmptyMedallion>[],
+          headline: l10n.orderHistoryEmptyTitle,
+          // TODO(midnight): l10n-queued `orderHistoryEmptyBody` — the tile's
+          // "one voice note away" line; nearest existing key meanwhile.
+          body: _emptySubtitle(tab, l10n),
+          action: isFirstRun
+              ? JeebCtaButton.accent(
+                  // TODO(midnight): l10n-queued `orderHistoryEmptyCta`.
+                  label: l10n.homeEmptyCta,
+                  leadingIcon: Icons.mic,
+                  identifier: 'order_history_empty_cta',
+                  onTap: () => GoRouter.of(context).pushNamed('request-type'),
+                )
+              : null,
+        ),
+      ],
+    );
+  }
 
   static String _emptySubtitle(OrderHistoryTab tab, AppLocalizations l10n) {
     switch (tab) {
@@ -444,5 +498,43 @@ class _OrderTabViewState extends State<_OrderTabView>
       case OrderHistoryTab.cancelled:
         return l10n.orderHistoryEmptyCancelled;
     }
+  }
+}
+
+/// The loading and error twins of [_OrdersEmptyView] — same illustration, kit
+/// skeleton / danger tint, centred in the residual band.
+class _StateBlock extends StatelessWidget {
+  const _StateBlock({
+    super.key,
+    required this.status,
+    required this.headline,
+    required this.identifier,
+    this.body,
+    this.action,
+  });
+
+  final JeebEmptyStateStatus status;
+  final String headline;
+  final String identifier;
+  final String? body;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsetsDirectional.only(
+          bottom: context.scrollBodyBottomInset,
+        ),
+        child: JeebEmptyState(
+          status: status,
+          headline: headline,
+          body: body,
+          medallions: const <JeebEmptyMedallion>[],
+          identifier: identifier,
+          action: action,
+        ),
+      ),
+    );
   }
 }
