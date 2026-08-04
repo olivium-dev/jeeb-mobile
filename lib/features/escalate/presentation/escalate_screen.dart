@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
@@ -36,14 +39,14 @@ import '../domain/escalate_repository.dart';
 /// injectable for tests — they default to the codebase's stub/fake seams
 /// (image_picker real binding is the cross-codebase D1m/T-mobile-040 follow-up).
 ///
-/// Redesign-2026-08 (no board render — screen 21 `order-chat`, its entry point,
-/// is the language reference): a re-skin onto the Jeeb kit, not a product
-/// change. Same phases, same block order, same edges, all 11 identifiers
-/// unmoved. `OMDSAppBar` → in-body [JeebTopBar] (so the header renders in the
-/// submitting/error phases too, as on 21), the six radio `ListTile`s → outlined
-/// cards that flip to a solid-navy fill when selected (the board's one
-/// selection idiom), the grey evidence `Container` → [JeebOutlinedCard], and
-/// the footer → [JeebCtaFooter.split]. 24px gutters, outline over shadow.
+/// MIDNIGHT M3-02 — **the board never drew this screen.** Its language is
+/// derived from **R13 OTP handover**, the tile that draws the door into it
+/// ("Problem? Open a dispute"): the `content` field with one quiet glow, glass
+/// rows down the page, real emptiness, then ONE docked footer. The reason rows
+/// take R9's ratified lit-selection idiom (the board's only drawn exclusive
+/// choice); the destructive affordance takes R22's danger-SOFT
+/// `onErrorContainer`, never full-strength `error`. Same phases, same block
+/// order, same edges, all 11 identifiers unmoved.
 class EscalateScreen extends StatefulWidget {
   const EscalateScreen({
     super.key,
@@ -154,53 +157,58 @@ class _EscalateScreenState extends State<EscalateScreen> {
       identifier: 'dispute_root',
       container: true,
       child: Scaffold(
-        // The header is an in-body row (21's shape), not a Material app bar, so
-        // it renders in EVERY phase — submitting and error included, where a
-        // Scaffold `appBar` used to be the only thing anchoring the screen.
-        body: SafeArea(
-          child: Column(
-            children: [
-              JeebTopBar(
-                title: l10n.escalateTitle,
-                // No `identifier:` on purpose — `dispute_back` is the FROZEN id
-                // of the footer's "Back to chat" button and must stay unique.
-                leadingTooltip: l10n.disputeStatusBackCta,
-              ),
-              Expanded(
-                child: BlocConsumer<EscalateCubit, EscalateState>(
-                  listenWhen: (p, n) =>
-                      p.phase != n.phase && n.phase == EscalatePhase.success,
-                  listener: (context, state) {
-                    // EDGE (JM-060 AC): on a successful open, route to
-                    // dispute-status (JM-065). 21_NAV_PLAN §C. Replace so back
-                    // doesn't re-open the form.
-                    final id = state.caseId ?? '';
-                    if (id.isEmpty) return;
-                    context.goNamed(
-                      'dispute-status',
-                      pathParameters: <String, String>{'id': id},
-                    );
-                  },
-                  builder: (context, state) {
-                    switch (state.phase) {
-                      case EscalatePhase.inputting:
-                      case EscalatePhase.success:
-                        return _InputForm(
-                          state: state,
-                          recording: _recording,
-                          photoError: _photoError,
-                          onPickPhoto: _pickPhoto,
-                          onToggleVoice: _toggleVoice,
-                        );
-                      case EscalatePhase.submitting:
-                        return const _SubmittingView();
-                      case EscalatePhase.error:
-                        return _ErrorView(errorKind: state.errorKind);
-                    }
-                  },
+        backgroundColor: Colors.transparent,
+        // The header is an in-body row (R13's shape), not a Material app bar,
+        // so it renders in EVERY phase — submitting and error included.
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.centerUpper,
+          animateDecor: false,
+          child: SafeArea(
+            child: Column(
+              children: [
+                JeebTopBar(
+                  title: l10n.escalateTitle,
+                  // No `identifier:` on purpose — `dispute_back` is the FROZEN id
+                  // of the footer's "Back to chat" button and must stay unique.
+                  leadingTooltip: l10n.disputeStatusBackCta,
                 ),
-              ),
-            ],
+                Expanded(
+                  child: BlocConsumer<EscalateCubit, EscalateState>(
+                    listenWhen: (p, n) =>
+                        p.phase != n.phase && n.phase == EscalatePhase.success,
+                    listener: (context, state) {
+                      // EDGE (JM-060 AC): on a successful open, route to
+                      // dispute-status (JM-065). 21_NAV_PLAN §C. Replace so back
+                      // doesn't re-open the form.
+                      final id = state.caseId ?? '';
+                      if (id.isEmpty) return;
+                      context.goNamed(
+                        'dispute-status',
+                        pathParameters: <String, String>{'id': id},
+                      );
+                    },
+                    builder: (context, state) {
+                      switch (state.phase) {
+                        case EscalatePhase.inputting:
+                        case EscalatePhase.success:
+                          return _InputForm(
+                            state: state,
+                            recording: _recording,
+                            photoError: _photoError,
+                            onPickPhoto: _pickPhoto,
+                            onToggleVoice: _toggleVoice,
+                          );
+                        case EscalatePhase.submitting:
+                          return const _SubmittingView();
+                        case EscalatePhase.error:
+                          return _ErrorView(errorKind: state.errorKind);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -208,16 +216,24 @@ class _EscalateScreenState extends State<EscalateScreen> {
   }
 }
 
-/// 24px side gutters, 16 above the first block (§4.3 / 02-R1).
+/// Board `margin:18px` under the header (R13 `tpl 799`), less the bar's own
+/// 4dp tap overhang so the first block lands where the tile draws it.
+const double _kContentTopGap = 18 - JeebTopBar.tapOverhang;
+
+/// 24px side gutters (token sheet §5 — the default screen gutter).
 const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
-  Spacing.medium,
+  _kContentTopGap,
   Spacing.xLarge,
   Spacing.xLarge,
 );
 
-/// Between two top-level blocks. The measured board rhythm is 16–22px.
-const double _kBlockGap = Spacing.large;
+/// Between two top-level blocks — R13's own stacked-block margin (`tpl 813`).
+const double _kBlockGap = 22;
+
+/// The empty-family subject for this screen: the dispute is about the parcel
+/// that went wrong, not about composing a new request (E1's mic).
+const JeebEmptyStateVariant _kEmptyVariant = JeebEmptyStateVariant.parcel;
 
 class _InputForm extends StatelessWidget {
   const _InputForm({
@@ -247,16 +263,16 @@ class _InputForm extends StatelessWidget {
               children: [
                 // JM-060 AC1: auto-attach note (D53) — the chat snapshot +
                 // GPS/timeline are attached automatically. Coined id
-                // `dispute_auto_attach_note` (67_W34_TEST_PLAN). Placed near
-                // the top so it is visible without scrolling. It now carries
-                // the screen's lede copy itself: the pre-redesign layout
-                // printed `escalateSubtitle` as a bare paragraph AND again,
-                // verbatim, in this note directly beneath it. Same sentence,
-                // same place, one node.
+                // `dispute_auto_attach_note` (67_W34_TEST_PLAN).
                 JeebInfoNote.muted(
                   identifier: 'dispute_auto_attach_note',
                   icon: Icons.attachment,
+                  // TODO(midnight): l10n-queued `escalateAutoAttachNote` — this
+                  // is the screen lede, not the auto-attach sentence the id names.
                   text: l10n.escalateSubtitle,
+                  padding: JeebInfoNote.stackedPadding,
+                  gap: JeebInfoNote.stackedGap,
+                  iconSize: JeebInfoNote.stackedIconSize,
                 ),
                 const SizedBox(height: _kBlockGap),
                 _ReasonPicker(selectedReason: state.reason),
@@ -325,14 +341,16 @@ class _ReasonTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Semantics(
       identifier: 'dispute_reason_${reason.name}',
       button: true,
       selected: selected,
       child: JeebOutlinedCard(
-        // Selection is a FILL swap, never a heavier border: the selected card
-        // IS the navy card (one state machine), so the six rows never jitter.
-        state: selected ? JeebCardState.selected : JeebCardState.normal,
+        // R9's lit selection is the board's ONE drawn exclusive choice, and at
+        // most one of these six rows is ever lit.
+        state: selected ? JeebCardState.accentSelected : JeebCardState.normal,
         padding: const EdgeInsetsDirectional.symmetric(
           horizontal: Spacing.medium,
           vertical: 14,
@@ -343,16 +361,17 @@ class _ReasonTile extends StatelessWidget {
             Icon(
               selected ? Icons.check_circle : Icons.radio_button_unchecked,
               size: 20,
-              // The rationed orange: a selection mark on navy, never a fill.
-              color: selected ? context.jeebRoles.accent : scheme.outline,
+              // Rest ring = the board's radio-ring rung (§3 `glassBorderVivid`).
+              color: selected
+                  ? context.jeebRoles.accent
+                  : semantics.glassBorderVivid,
             ),
             const SizedBox(width: Spacing.small),
             Expanded(
               child: Text(
                 _reasonLabel(l10n, reason),
-                style: context.jeebText.cardTitle.copyWith(
-                  color: selected ? scheme.onPrimary : scheme.onSurface,
-                ),
+                style: context.jeebText.cardTitle
+                    .copyWith(color: scheme.onSurface),
               ),
             ),
           ],
@@ -398,9 +417,11 @@ class _PhotoSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(
-            label: l10n.escalatePhotoCountRemaining(remaining),
-            child: JeebSectionLabel(l10n.escalatePhotoLabel),
+          // The cap was screen-reader-only chrome; the kit's own hint slot puts
+          // it on the row where everyone can read it.
+          JeebSectionLabel(
+            l10n.escalatePhotoLabel,
+            hint: l10n.escalatePhotoCountRemaining(remaining),
           ),
           const SizedBox(height: Spacing.small),
           if (photos.isNotEmpty) ...[
@@ -463,7 +484,9 @@ class _PhotoChip extends StatelessWidget {
         leading: Icon(
           Icons.close,
           size: 14,
-          color: Theme.of(context).colorScheme.onPrimary,
+          // The selected pill is a white slab: its own navy ink, or the glyph
+          // is invisible. Danger-soft would fail AA on white.
+          color: Theme.of(context).colorScheme.onInverseSurface,
         ),
         onTap: () => context.read<EscalateCubit>().removePhoto(path),
       ),
@@ -499,19 +522,60 @@ class _VoiceSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // TODO(midnight): l10n-queued `escalateVoiceLabel` — this reads
+        // "Record your request", which is the create-flow's sentence.
         JeebSectionLabel(l10n.voiceRecordingTitle),
         const SizedBox(height: Spacing.small),
         Semantics(
           identifier: 'dispute_voice',
           button: true,
           label: label,
-          child: JeebCtaButton.outline(
-            label: hasVoice ? l10n.voiceRequestRecorded : label,
-            leadingIcon: icon,
-            onTap: onToggle,
-          ),
+          child: hasVoice
+              ? _CapturedVoiceRow(discardLabel: label, onDiscard: onToggle)
+              : JeebCtaButton.outline(
+                  label: label,
+                  leadingIcon: icon,
+                  onTap: onToggle,
+                ),
         ),
       ],
+    );
+  }
+}
+
+/// The captured clip: a glass row (R13's grammar) whose only action is
+/// destructive, so its label carries R22's danger-SOFT `onErrorContainer`.
+class _CapturedVoiceRow extends StatelessWidget {
+  const _CapturedVoiceRow({required this.discardLabel, required this.onDiscard});
+  final String discardLabel;
+  final VoidCallback onDiscard;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return JeebOutlinedCard(
+      onTap: onDiscard,
+      child: Row(
+        children: [
+          Icon(Icons.graphic_eq, size: 20, color: scheme.onSurfaceVariant),
+          const SizedBox(width: Spacing.small),
+          Expanded(
+            child: Text(
+              l10n.voiceRequestRecorded,
+              style:
+                  context.jeebText.cardTitle.copyWith(color: scheme.onSurface),
+            ),
+          ),
+          Text(
+            discardLabel,
+            style: context.jeebText.bodySmall.copyWith(
+              color: scheme.onErrorContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -524,6 +588,8 @@ class _CommentField extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'dispute_comment_field',
+      // The kit has no input primitive; OmdsTextField reads the Midnight
+      // `inputDecorationTheme` (glass fill, glass border, periwinkle caret).
       child: OmdsTextField(
         labelText: l10n.escalateCommentLabel,
         maxLines: 4,
@@ -544,59 +610,54 @@ class _EvidenceSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'dispute_evidence_timeline',
-      child: JeebOutlinedCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.attach_file, size: 17, color: scheme.primary),
-                const SizedBox(width: Spacing.small),
-                Expanded(
-                  child: Text(
-                    l10n.escalateSubtitle,
-                    style: context.jeebText.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: Spacing.small),
-            if (!loaded)
-              _EvidenceLine(
-                icon: Icons.hourglass_top,
-                label: l10n.escalateSubmitting,
-              )
-            else ...[
-              Semantics(
-                identifier: 'dispute_evidence_chat',
-                child: _EvidenceLine(
+      child: JeebOutlinedCard(child: _body(context)),
+    );
+  }
+
+  Widget _body(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (!loaded) {
+      return _EvidenceLine(
+        icon: Icons.hourglass_top,
+        // TODO(midnight): l10n-queued `escalateEvidenceLoading`.
+        label: l10n.deliveryStatusLoading,
+      );
+    }
+    if (evidence.isEmpty) {
+      // The fetch degraded: nothing was attached, so nothing is listed. The
+      // blueprint's chat id stays addressable on a zero-size node.
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            identifier: 'dispute_evidence_chat',
+            child: const SizedBox.shrink(),
+          ),
+          JeebEmptyState.compact(
+            variant: _kEmptyVariant,
+            // TODO(midnight): l10n-queued `escalateEvidenceEmpty`.
+            headline: l10n.activeDeliveryUnavailable,
+          ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          identifier: 'dispute_evidence_chat',
+          child: evidence.hasChatSnapshot
+              ? _EvidenceLine(
                   icon: Icons.chat_bubble,
-                  label: evidence.hasChatSnapshot
-                      ? '${l10n.chatTitle} (${evidence.chatMessageCount ?? 0})'
-                      : l10n.chatTitle,
-                ),
-              ),
-              if (evidence.hasTimeline)
-                ...evidence.timeline.map(
-                  (e) => _EvidenceLine(
-                    icon: Icons.place,
-                    label: _stepLabel(l10n, e.status),
-                  ),
+                  label: '${l10n.chatTitle} (${evidence.chatMessageCount ?? 0})',
                 )
-              else
-                _EvidenceLine(
-                  icon: Icons.place,
-                  label: l10n.trackingTitle,
-                ),
-            ],
-          ],
+              : const SizedBox.shrink(),
         ),
-      ),
+        for (final e in evidence.timeline)
+          _EvidenceLine(icon: Icons.place, label: _stepLabel(l10n, e.status)),
+      ],
     );
   }
 
@@ -617,7 +678,7 @@ class _EvidenceSection extends StatelessWidget {
   }
 }
 
-/// One attached-evidence line: filled glyph (R10) + subtitle ink.
+/// One attached-evidence line: glyph + subtitle ink, both periwinkle.
 class _EvidenceLine extends StatelessWidget {
   const _EvidenceLine({required this.icon, required this.label});
   final IconData icon;
@@ -665,10 +726,11 @@ class _SupportLink extends StatelessWidget {
       link: true,
       container: true,
       onTap: () => context.goNamed('support-ticket'),
+      // R23's `How fees work` / R13's `Send by SMS`: the informational escape
+      // out of a flow is the board's one sanctioned orange text link (§4.1).
       child: ExcludeSemantics(
-        child: JeebCtaButton.text(
+        child: JeebCtaButton.accentText(
           label: l10n.disputeStatusSupportCta,
-          leadingIcon: Icons.support_agent,
           expand: true,
           onTap: () => context.goNamed('support-ticket'),
         ),
@@ -695,8 +757,7 @@ class _BottomBar extends StatelessWidget {
           // EDGE: dispute_back → order-chat. Pop when possible (the chat /
           // tracking / receipt is the typical entry); else fall back to the
           // home shell (a cold deep-link has nothing to pop). 21_NAV_PLAN §C.
-          onTap: () =>
-              context.canPop() ? context.pop() : context.goNamed('shell'),
+          onTap: () => _leave(context),
         ),
       ),
       trailing: Semantics(
@@ -712,6 +773,9 @@ class _BottomBar extends StatelessWidget {
   }
 }
 
+void _leave(BuildContext context) =>
+    context.canPop() ? context.pop() : context.goNamed('shell');
+
 class _SubmittingView extends StatelessWidget {
   const _SubmittingView();
 
@@ -719,13 +783,13 @@ class _SubmittingView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const OmdsLoadingState(),
-          const SizedBox(height: Spacing.medium),
-          Text(l10n.escalateSubmitting, style: context.jeebText.body),
-        ],
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          variant: _kEmptyVariant,
+          headline: l10n.escalateSubmitting,
+          identifier: 'dispute_submitting',
+        ),
       ),
     );
   }
@@ -738,14 +802,30 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final message = _errorMessage(l10n, errorKind);
+    final alreadyOpen = errorKind == EscalateErrorKind.alreadyOpen;
     return Semantics(
       identifier: 'dispute_error',
-      child: OmdsErrorState(
-        message: message,
-        onRetry: errorKind == EscalateErrorKind.alreadyOpen
-            ? null
-            : () => context.read<EscalateCubit>().retryFromError(),
+      child: Center(
+        child: SingleChildScrollView(
+          child: JeebEmptyState(
+            status: JeebEmptyStateStatus.error,
+            variant: _kEmptyVariant,
+            headline: _errorMessage(l10n, errorKind),
+            // An already-open dispute cannot be retried, and a dead end is
+            // worse than the wrong verb: it gets the way out instead.
+            action: alreadyOpen
+                ? JeebCtaButton.outline(
+                    label: l10n.disputeStatusBackCta,
+                    onTap: () => _leave(context),
+                  )
+                : JeebCtaButton.primary(
+                    // TODO(midnight): l10n-queued `escalateRetryCta`.
+                    label: l10n.otpRetry,
+                    onTap: () =>
+                        context.read<EscalateCubit>().retryFromError(),
+                  ),
+          ),
+        ),
       ),
     );
   }
