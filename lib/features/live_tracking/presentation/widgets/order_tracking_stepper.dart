@@ -4,7 +4,7 @@ import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_stepper.dart';
-import '../live_tracking_l10n.dart';
+import '../../../../l10n/app_localizations.dart';
 
 /// JM-032 AC1: the 4-step order-tracking stepper — Ordered → Picked → In
 /// Transit → Delivered (D70) — and the owner of `tracking_stepper` + the four
@@ -39,12 +39,12 @@ class OrderTrackingStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final labels = <String>[
-      l10n.stepOrdered,
-      l10n.stepPicked,
-      atDoor ? l10n.stepAtDoor : l10n.stepInTransit,
-      l10n.stepDelivered,
+      l10n.trackingStepOrdered,
+      l10n.trackingStepPicked,
+      atDoor ? l10n.activeDeliveryStatusAtDoor : l10n.trackingStepInTransit,
+      l10n.trackingStepCompleted,
     ];
 
     return Semantics(

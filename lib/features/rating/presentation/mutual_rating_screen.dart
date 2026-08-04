@@ -602,10 +602,6 @@ class _BlindRevealNote extends StatelessWidget {
       container: true,
       child: JeebInfoNote.outlined(
         icon: Icons.visibility,
-        // TODO(midnight): l10n-queued — the board shortens both strings to
-        // "<name> rates you too. Both ratings reveal together." and gives the
-        // nameless leg the same promise instead of today's confidentiality
-        // wording. Queued in docs/redesign-midnight/l10n-queue/M2-11-r15.md.
         text: name.isNotEmpty
             ? l10n.mutualRatingBlindNoteNamed(name)
             : l10n.mutualRatingSubtitle,
@@ -654,8 +650,7 @@ class _SubmittingView extends StatelessWidget {
         child: SingleChildScrollView(
           child: JeebEmptyState.compact(
             status: JeebEmptyStateStatus.loading,
-            // TODO(midnight): l10n-queued `mutualRatingSubmittingHeadline`.
-            headline: l10n.mutualRatingSubmit,
+            headline: l10n.mutualRatingSubmittingHeadline,
             identifier: 'mutual_rating_loading',
           ),
         ),

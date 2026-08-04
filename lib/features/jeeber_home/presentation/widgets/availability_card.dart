@@ -188,8 +188,6 @@ class _StatusTitle extends StatelessWidget {
       maxLines: _kCompactOnlineTitleMaxLines,
       overflow: TextOverflow.ellipsis,
       child: Text(
-        // TODO(midnight): l10n-queued availabilityStatusOnlineMidnight — the
-        // tile reads "Online · goes offline in 1h 40m" (countdown blocked).
         _title(l10n),
         style: context.jeebText.cardTitle.copyWith(
           color: Theme.of(context).colorScheme.onSurface,
@@ -205,7 +203,9 @@ class _StatusTitle extends StatelessWidget {
   String _title(AppLocalizations l10n) {
     if (view.isToggleInFlight) return l10n.availabilityTransitioning;
     return switch (view.status.state) {
-      AvailabilityState.online => l10n.availabilityStatusOnline,
+      // The counted form (`availabilityStatusOnlineUntil`) stays unwired: the
+      // gateway nulls lastActivityAt, so the countdown has no anchor.
+      AvailabilityState.online => l10n.availabilityStatusOnlineShort,
       AvailabilityState.offline => l10n.availabilityStatusOffline,
       AvailabilityState.autoOffline => l10n.availabilityStatusAutoOffline,
     };

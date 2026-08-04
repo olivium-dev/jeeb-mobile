@@ -173,9 +173,7 @@ class _ClientOffersView extends StatelessWidget {
                 return Column(
                   children: [
                     JeebTopBar.back(
-                      // TODO(midnight): l10n-queued — the board titles this
-                      // screen "Offers" (`offersTitle`).
-                      title: l10n.offersScreenTitle,
+                      title: l10n.offersTitle,
                       // The item title off the already-fetched request row. Null
                       // renders one line — never a placeholder.
                       // TODO(midnight): the board's subtitle also carries the
@@ -225,12 +223,11 @@ class _ClientOffersView extends StatelessWidget {
       case OffersScreenStatus.failed:
         return _CenteredBlock(
           maxWidth: Sizes.threeHundredLarge,
-          // TODO(midnight): l10n-queued — the board splits this into a title
-          // ("Couldn't load offers") over the failure line.
           child: OffersWaitingState(
             blockKey: const Key('offer-load-error'),
             status: JeebEmptyStateStatus.error,
-            headline: offersFailureCopy(
+            headline: l10n.offersLoadErrorTitle,
+            body: offersFailureCopy(
               l10n,
               state.error,
               phase: OffersErrorPhase.load,
@@ -635,14 +632,12 @@ class _Footer extends StatelessWidget {
             identifier: 'offer_review_cancel_cta',
             container: true,
             button: true,
-            label: l10n.offerReviewCancelCta,
+            label: l10n.offerReviewCancelCtaFree,
             onTap: onCancel,
             child: ExcludeSemantics(
-              // TODO(midnight): l10n-queued — the board spells out the promise
-              // ("Cancel request — free before you accept").
               child: JeebCtaButton(
                 key: const Key('offer-review-cancel-cta'),
-                label: l10n.offerReviewCancelCta,
+                label: l10n.offerReviewCancelCtaFree,
                 variant: JeebCtaVariant.text,
                 labelStyle: context.jeebText.bodySmall.copyWith(
                   fontWeight: FontWeight.w700,

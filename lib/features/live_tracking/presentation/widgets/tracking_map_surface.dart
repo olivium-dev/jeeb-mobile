@@ -11,7 +11,6 @@ import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_tracking_info.dart';
-import '../live_tracking_l10n.dart';
 import 'courier_position_notice.dart';
 import 'tracking_google_map.dart';
 
@@ -240,7 +239,7 @@ class _TrackingEtaPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     final minutes = etaMinutes;
     return Semantics(
@@ -254,7 +253,9 @@ class _TrackingEtaPill extends StatelessWidget {
         ),
         shadow: JeebShadows.overlay,
         child: Text(
-          minutes == null ? l10n.summaryEtaPending : l10n.arrivingIn(minutes),
+          minutes == null
+              ? l10n.trackingEtaPending
+              : l10n.trackingArrivingIn(minutes),
           style: context.jeebText.bodySmall.copyWith(
             fontWeight: FontWeight.w700,
             color: scheme.onSurface,

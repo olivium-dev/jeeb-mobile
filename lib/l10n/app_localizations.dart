@@ -2576,6 +2576,20 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get requestSummaryChange => _get('requestSummaryChange');
 
   // 11 · Offers
+  String get offersTitle => _get('offersTitle');
+  String offersCardEtaIn(int minutes) =>
+      _get('offersCardEtaIn').replaceFirst('{minutes}', '$minutes');
+  String offersCardEtaInHours(int hours) =>
+      _get('offersCardEtaInHours').replaceFirst('{hours}', '$hours');
+  String get offersWaitingTitle => _get('offersWaitingTitle');
+  String offersWaitingTitleCount(int count) =>
+      _get('offersWaitingTitleCount').replaceFirst('{count}', '$count');
+  String get offersWaitingBody => _get('offersWaitingBody');
+  String offersWaitingWindowChip(String time) =>
+      _get('offersWaitingWindowChip').replaceFirst('{time}', time);
+  String get offersWaitingAddDetailsCta => _get('offersWaitingAddDetailsCta');
+  String get offerReviewCancelCtaFree => _get('offerReviewCancelCtaFree');
+  String get offersLoadErrorTitle => _get('offersLoadErrorTitle');
   String get offersSortByBest => _get('offersSortByBest');
   String get offersCardBestValueBadge => _get('offersCardBestValueBadge');
   String get offersCardFastestBadge => _get('offersCardFastestBadge');
@@ -2618,6 +2632,20 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get trackingCashShort => _get('trackingCashShort');
   String get trackingNoShowCta => _get('trackingNoShowCta');
   String get trackingDisputeCta => _get('trackingDisputeCta');
+  String get trackingNoShowTitle => _get('trackingNoShowTitle');
+  String get trackingNoShowBody => _get('trackingNoShowBody');
+  String get trackingNoShowReassignCta => _get('trackingNoShowReassignCta');
+  String get trackingNoShowRebroadcastCta =>
+      _get('trackingNoShowRebroadcastCta');
+  String get trackingNoShowKeepCta => _get('trackingNoShowKeepCta');
+  String get trackingEtaPending => _get('trackingEtaPending');
+  String trackingPositionStale(int minutes) =>
+      _get('trackingPositionStale').replaceFirst('{minutes}', '$minutes');
+  String trackingPositionLost(int minutes) =>
+      _get('trackingPositionLost').replaceFirst('{minutes}', '$minutes');
+  String get trackingPositionLostNoAge => _get('trackingPositionLostNoAge');
+  String get orderSummaryPriceLabel => _get('orderSummaryPriceLabel');
+  String get orderSummaryCashLabel => _get('orderSummaryCashLabel');
 
   // 13 · OTP handover
   String get otpClientShareSubtitle => _get('otpClientShareSubtitle');
@@ -2635,10 +2663,14 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get otpClientResendSmsAction => _get('otpClientResendSmsAction');
   String get otpDisputeCta => _get('otpDisputeCta');
   String get otpResendFailed => _get('otpResendFailed');
+  String get otpHandoverLoadingHeadline => _get('otpHandoverLoadingHeadline');
+  String get otpHandoverErrorHeadline => _get('otpHandoverErrorHeadline');
 
   // 14 · Receipt confirm
   String get receiptCashNote => _get('receiptCashNote');
   String get receiptProofBadge => _get('receiptProofBadge');
+  String receiptProofBadgeAt(String time) =>
+      _get('receiptProofBadgeAt').replaceFirst('{time}', time);
   String get receiptProofZoomCta => _get('receiptProofZoomCta');
   String get receiptProofViewerCloseLabel =>
       _get('receiptProofViewerCloseLabel');
@@ -2657,8 +2689,28 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('mutualRatingBlindNoteNamed').replaceFirst('{name}', name);
   String mutualRatingStarsA11yLabel(int stars) =>
       _get('mutualRatingStarsA11yLabel').replaceFirst('{stars}', '$stars');
+  String get mutualRatingSubmittingHeadline =>
+      _get('mutualRatingSubmittingHeadline');
 
   // 16 · Jeeber home
+  String jeeberGreetingAhlan(String name) =>
+      _get('jeeberGreetingAhlan').replaceFirst('{name}', name);
+  String get availabilityStatusOnlineShort =>
+      _get('availabilityStatusOnlineShort');
+  String availabilityStatusOnlineUntil(String remaining) =>
+      _get('availabilityStatusOnlineUntil')
+          .replaceFirst('{remaining}', remaining);
+  String availabilityZoneLine(String zone) =>
+      _get('availabilityZoneLine').replaceFirst('{zone}', zone);
+  String get jeeberFeedQuietStreetTitle => _get('jeeberFeedQuietStreetTitle');
+  String get jeeberFeedQuietStreetBody => _get('jeeberFeedQuietStreetBody');
+  String jeeberFeedQuietStreetBodyZoned(String zone) =>
+      _get('jeeberFeedQuietStreetBodyZoned').replaceFirst('{zone}', zone);
+  String get jeeberFeedPullToRefreshAction =>
+      _get('jeeberFeedPullToRefreshAction');
+  String get jeeberFeedWidenZoneAction => _get('jeeberFeedWidenZoneAction');
+  String jeeberFeedBusiestHours(String range) =>
+      _get('jeeberFeedBusiestHours').replaceFirst('{range}', range);
   String get jeeberDashboardEyebrow => _get('jeeberDashboardEyebrow');
   String jeeberFeedNearbyCount(int count) =>
       _get('jeeberFeedNearbyCount').replaceFirst('{count}', '$count');

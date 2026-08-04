@@ -126,10 +126,10 @@ class JeeberFeedEmptyBlock extends StatelessWidget {
       key: rootKey,
       identifier: 'jeeber_feed_empty_state',
       variant: JeebEmptyStateVariant.street,
-      // TODO(midnight): l10n-queued jeeberFeedQuietStreetTitle / ...Body — the
-      // tile reads "Quiet street right now" / "No requests nearby — …".
-      headline: l10n.requestFeedEmptyTitle,
-      body: l10n.requestFeedEmptySubtitle,
+      // The zoned body (`jeeberFeedQuietStreetBodyZoned`) stays unwired — the
+      // gateway returns no zone.
+      headline: l10n.jeeberFeedQuietStreetTitle,
+      body: l10n.jeeberFeedQuietStreetBody,
       // TODO(midnight): omitted — E3's second pill "Widen my zone": the app has
       // no service-zone surface and the gateway parses no zone back.
       action: onRefresh == null ? null : _RefreshPill(onRefresh: onRefresh!),
@@ -146,9 +146,7 @@ class _RefreshPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return IntrinsicWidth(
       child: JeebCtaButton.outline(
-        // TODO(midnight): l10n-queued jeeberFeedPullToRefreshAction — the tile
-        // reads "Pull to refresh".
-        label: AppLocalizations.of(context).availabilityLoadRetry,
+        label: AppLocalizations.of(context).jeeberFeedPullToRefreshAction,
         identifier: 'jeeber_feed_empty_refresh_cta',
         expand: false,
         onTap: onRefresh,

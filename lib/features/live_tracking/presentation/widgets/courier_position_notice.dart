@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_tracking_info.dart';
-import '../live_tracking_l10n.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
@@ -41,14 +41,14 @@ class CourierPositionNotice extends StatelessWidget {
   }
 
   String _label(BuildContext context) {
-    final l10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final minutes = _ageMinutes;
     if (info.positionLost) {
       return minutes == null
-          ? l10n.positionLostNoticeNoAge
-          : l10n.positionLostNotice(minutes);
+          ? l10n.trackingPositionLostNoAge
+          : l10n.trackingPositionLost(minutes);
     }
-    return l10n.positionStaleNotice(minutes ?? 0);
+    return l10n.trackingPositionStale(minutes ?? 0);
   }
 
   int? get _ageMinutes {

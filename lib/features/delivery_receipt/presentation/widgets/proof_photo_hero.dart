@@ -34,7 +34,6 @@ class ProofPhotoHero extends StatelessWidget {
     required this.photoSemanticLabel,
     required this.badgeText,
     required this.zoomCtaText,
-    this.capturedAtLabel,
     this.onZoom,
   });
 
@@ -44,14 +43,12 @@ class ProofPhotoHero extends StatelessWidget {
   /// a11y label on the photo / placeholder (`receipt_proof_photo`).
   final String photoSemanticLabel;
 
-  /// Overlay badge copy — "Proof of delivery".
+  /// Overlay badge copy — `receiptProofBadge`, or `receiptProofBadgeAt` once a
+  /// capture time is on the wire. The `· ` separator lives inside that string.
   final String badgeText;
 
   /// Zoom pill copy — "Tap to zoom".
   final String zoomCtaText;
-
-  /// The tile's `· 9:38` run. Null renders the label alone.
-  final String? capturedAtLabel;
 
   /// Opens the full-screen viewer. Null when there is no photo, which also
   /// makes the whole-hero gesture inert.
@@ -60,9 +57,6 @@ class ProofPhotoHero extends StatelessWidget {
   /// Board height of the hero frame (`tpl 834`). A one-screen dimension, so it
   /// is named here rather than promoted to a shared spacing token.
   static const double _kProofHeroHeight = 230;
-
-  /// Board `·` between the badge label and its capture time.
-  static const String _kBadgeSeparator = ' · ';
 
   /// The tag darkens the photo under it so the time reads on any exposure.
   /// Measured black @ 45% over the frame.
@@ -75,11 +69,6 @@ class ProofPhotoHero extends StatelessWidget {
     final JeebSemanticColors glass =
         theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     final String? url = proofPhotoUrl;
-    // TODO(midnight): l10n-queued `receiptProofBadgeAt` — the tile reads
-    // "Proof of delivery · 9:38" and the gateway carries no capture time yet.
-    final String badge = capturedAtLabel == null
-        ? badgeText
-        : '$badgeText$_kBadgeSeparator$capturedAtLabel';
 
     return Semantics(
       container: true,
@@ -138,7 +127,7 @@ class ProofPhotoHero extends StatelessWidget {
                   fill: colorScheme.scrim.withValues(alpha: _kTagScrimAlpha),
                   blurSigma: JeebGlassCapsule.softBlur,
                   child: Text(
-                    badge,
+                    badgeText,
                     style: context.jeebText.caption
                         .copyWith(color: colorScheme.onSurface),
                   ),

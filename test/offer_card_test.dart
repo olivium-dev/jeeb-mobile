@@ -30,7 +30,7 @@ void main() {
     expect(find.text('Hadi'), findsOneWidget);
     // MoneyFormat renders USD as "$42.50" (currency-unification lane), carried
     expect(find.text('\u2066\$42.50\u2069'), findsOneWidget);
-    expect(find.text('18 min ETA'), findsOneWidget);
+    expect(find.text('in 18 mins'), findsOneWidget);
     expect(find.text('Motorcycle'), findsOneWidget);
     expect(find.text('Accept'), findsOneWidget);
     expect(find.text('4.7'), findsOneWidget);

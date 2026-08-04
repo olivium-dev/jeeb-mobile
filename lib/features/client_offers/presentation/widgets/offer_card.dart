@@ -276,9 +276,7 @@ class OfferCard extends StatelessWidget {
                     indexId: 'offer_card_${index}_eta',
                     patternId: 'offer_card_${offer.jeeberId}_eta',
                     child: Text(
-                      // TODO(midnight): l10n-queued — the board's register is
-                      // "in 40 mins" (`offersCardEtaIn`), not "40 min ETA".
-                      l10n.offersCardEtaMinutes(offer.etaMinutes),
+                      l10n.offersCardEtaIn(offer.etaMinutes),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.end,

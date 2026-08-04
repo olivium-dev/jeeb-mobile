@@ -158,8 +158,8 @@ void main() {
         isNull,
       );
       expect(find.byIcon(Icons.cloud_off_outlined), findsNothing);
-      expect(find.text('Waiting for offers'), findsOneWidget);
-      expect(find.text('No offers yet · window closes in 4:12'), findsOneWidget);
+      expect(find.text('Broadcasting to nearby Jeebers…'), findsOneWidget);
+      expect(find.text('Window closes in 4:12'), findsOneWidget);
     });
 
     testWidgets('survives reduce motion and RTL', (tester) async {
@@ -189,8 +189,8 @@ void main() {
       await tester.pump();
 
       expect(find.byType(JeebEmptyState), findsOneWidget);
-      expect(find.textContaining('window closes'), findsNothing);
-      expect(find.text('Waiting for offers'), findsOneWidget);
+      expect(find.textContaining('Window closes'), findsNothing);
+      expect(find.text('Broadcasting to nearby Jeebers…'), findsOneWidget);
     });
 
     testWidgets('the failure form swaps the core for the no-signal disc', (

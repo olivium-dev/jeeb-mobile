@@ -5,7 +5,7 @@
 //   2. Online state: the SAME navy strip (redesign-2026-08: one shape for every
 //      state), with the semantic success role (`JeebColorRoles`) driving the
 //      on-track and no delivery-count/idle supporting lines.
-//   3. The compact copy says "You're online — receiving requests", en + ar.
+//   3. The compact copy says "Online" (MIDNIGHT R16), en + ar.
 //   4. Toggling forwards to the cubit wiring (onToggle) and the in-flight
 //      frame swaps the switch for the legacy-keyed spinner (tap-blocked).
 //   5. §SW-23 persistence: the card also renders in the FEED state
@@ -81,7 +81,7 @@ class _ExpandedOnlineCopyDelegate
   @override
   Future<AppLocalizations> load(Locale locale) async =>
       AppLocalizations(locale, {
-        'availabilityStatusOnline': onlineCopy,
+        'availabilityStatusOnlineShort': onlineCopy,
         'availabilityIndicatorSemanticOnline': onlineCopy,
       });
 
@@ -211,7 +211,7 @@ void main() {
             'role of the active theme.',
       );
 
-      expect(find.text("You're online — receiving requests"), findsOneWidget);
+      expect(find.text('Online'), findsOneWidget);
       expect(find.text('2 active deliveries'), findsNothing);
       expect(find.text('Auto-offline after 8 h idle'), findsNothing);
       // MIDNIGHT R16: "the availability card glows green when online" — the
@@ -225,7 +225,7 @@ void main() {
       );
     });
 
-    testWidgets('arabic copy: online status says تستقبل الطلبات (requests)', (
+    testWidgets('arabic copy: online status says متصل (online)', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -239,7 +239,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('أنت متصل — تستقبل الطلبات'), findsOneWidget);
+      expect(find.text('متصل'), findsOneWidget);
       expect(find.byType(JeebNavySurfaceCard), findsNothing);
       expect(
         tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,

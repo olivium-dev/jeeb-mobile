@@ -4,9 +4,9 @@ import 'package:omds/omds.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../../delivery_status/domain/jeeber_summary.dart';
 import '../../../mixed_direction/presentation/mixed_direction_text.dart';
-import '../live_tracking_l10n.dart';
 
 /// Formats the accepted price for display. Deliberately NOT a currency-symbol
 /// mapper: the gateway sends an ISO code and inventing `$` would be a second
@@ -60,7 +60,7 @@ class TrackingCourierCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final ramp = context.jeebText;
     final amount = price;
@@ -70,7 +70,7 @@ class TrackingCourierCard extends StatelessWidget {
     final subtitle = amount == null
         ? jeeber.vehicleLabel
         : '${jeeber.vehicleLabel} · '
-            '${l10n.cashOnDelivery(formatTrackingPrice(amount, currency))}';
+            '${l10n.trackingCashOnDelivery(formatTrackingPrice(amount, currency))}';
     final action = trailing;
 
     return Semantics(
@@ -93,7 +93,7 @@ class TrackingCourierCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  l10n.courierOnTheWay(jeeber.displayName),
+                  l10n.trackingCourierOnTheWay(jeeber.displayName),
                   style: ramp.titleProminent
                       .copyWith(color: theme.colorScheme.onSurface),
                   maxLines: 1,

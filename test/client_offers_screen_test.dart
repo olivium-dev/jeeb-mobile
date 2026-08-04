@@ -516,7 +516,7 @@ void main() {
     expect(find.text('Rana'), findsOneWidget);
     // Lane item 3: one MoneyFormat everywhere - the pill renders "$17.50",
     expect(find.text('\u2066\$17.50\u2069'), findsOneWidget);
-    expect(find.text('22 min ETA'), findsOneWidget);
+    expect(find.text('in 22 mins'), findsOneWidget);
     expect(find.text('Bicycle'), findsOneWidget);
   });
 
@@ -736,7 +736,7 @@ void main() {
       await tester.pump();
 
       expect(find.bySemanticsIdentifier('offer_review_back'), findsOneWidget);
-      expect(find.text('Choose a Jeeber'), findsOneWidget);
+      expect(find.text('Offers'), findsOneWidget);
       expect(find.text('Medicine'), findsOneWidget);
     },
   );
@@ -762,10 +762,10 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Choose a Jeeber'), findsOneWidget);
+      expect(find.text('Offers'), findsOneWidget);
       // The top bar's title/subtitle block collapses to the title alone.
       final titleBlock = find.ancestor(
-        of: find.text('Choose a Jeeber'),
+        of: find.text('Offers'),
         matching: find.byType(Column),
       );
       expect(

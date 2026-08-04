@@ -59,11 +59,10 @@ class OffersWaitingState extends StatelessWidget {
       identifier: 'offer_review_empty_state',
       variant: JeebEmptyStateVariant.radar,
       status: status,
-      // TODO(midnight): l10n-queued — the board headlines the live reach
-      // ("Broadcasting to 12 Jeebers…"); no reach count is on the wire, so the
-      // count is omitted, not faked.
-      headline: override ?? l10n.offersEmptyTitle,
-      body: override == null ? l10n.offersEmptyBody : body,
+      // The counted form (`offersWaitingTitleCount`) stays unwired: no
+      // broadcast reach is on the wire, so the count is omitted, not faked.
+      headline: override ?? l10n.offersWaitingTitle,
+      body: override == null ? l10n.offersWaitingBody : body,
       // Waiting keeps the kit's own broadcast core (bloom ring + `(·)` glyph);
       // only the failure form overrides it. Discs default to the tile's K/N/R.
       center: status == JeebEmptyStateStatus.error
@@ -132,9 +131,7 @@ class _WindowChip extends StatelessWidget {
           OfferWindowDot(color: roles.accent),
           const SizedBox(width: Spacing.xSmall),
           Text(
-            // TODO(midnight): l10n-queued — the board's chip is the bare
-            // "Window closes in {time}" (`offersWaitingWindowChip`).
-            l10n.offersWindowStrip(0, CountdownFormat.format(remaining)),
+            l10n.offersWaitingWindowChip(CountdownFormat.format(remaining)),
             style: context.jeebText.bodySmall.copyWith(
               fontWeight: FontWeight.w700,
               color: Theme.of(context).colorScheme.onSurface,

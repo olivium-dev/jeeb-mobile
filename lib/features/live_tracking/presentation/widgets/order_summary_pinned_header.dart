@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import '../../../../core/widgets/jeeb/jeeb_tier_chip.dart';
+import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_tracking_info.dart';
-import '../live_tracking_l10n.dart';
 import 'tracking_courier_card.dart' show formatTrackingPrice;
 
 /// JM-031/JM-032: the accepted-order facts, as SEMANTICS ONLY.
@@ -38,7 +38,7 @@ class OrderSummaryPinnedHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trackingL10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final price = info.price;
     final tier = info.tier;
     final eta = info.etaMinutes;
@@ -56,7 +56,7 @@ class OrderSummaryPinnedHeader extends StatelessWidget {
           if (hasTier)
             _Fact(
               'order_summary_tier',
-              '${JeebTierChip.emojiFor(tier)} ${trackingL10n.tierName(tier)}',
+              '${JeebTierChip.emojiFor(tier)} ${_tierName(l10n, tier)}',
             ),
           // 2 — price, formatted exactly as the courier line renders it.
           if (price != null)
@@ -66,20 +66,39 @@ class OrderSummaryPinnedHeader extends StatelessWidget {
             ),
           // 3 — the D11 cash reminder, as the full sentence rather than the
           // courier line's short qualifier.
-          _Fact('order_summary_cash_label', trackingL10n.summaryCashLabel),
+          _Fact('order_summary_cash_label', l10n.orderSummaryCashLabel),
           // 4 — D-12-1: the jeeber name run C1 pins.
           _Fact('order_summary_jeeber_name', info.jeeberName ?? ''),
           // 5 — D-12-2: ETA, the same value the map chip announces.
           _Fact(
             'order_summary_eta',
             eta == null
-                ? trackingL10n.summaryEtaPending
-                : '${trackingL10n.summaryEtaLabel}: '
-                    '${trackingL10n.summaryEtaMinutes(eta)}',
+                ? l10n.trackingEtaPending
+                : '${l10n.trackingEtaLabel}: '
+                    '${l10n.trackingEtaMinutes(eta)}',
           ),
         ],
       ),
     );
+  }
+
+  /// Tier id → localized display name; unknown ids fall back to the raw id.
+  static String _tierName(AppLocalizations l10n, String tierId) {
+    switch (tierId.toLowerCase().replaceAll('_', '-')) {
+      case 'flash':
+        return l10n.tierSelectionTierFlash;
+      case 'express':
+        return l10n.tierSelectionTierExpress;
+      case 'standard':
+        return l10n.tierSelectionTierStandard;
+      case 'on-the-way':
+      case 'ontheway':
+        return l10n.tierSelectionTierOnTheWay;
+      case 'eco':
+        return l10n.tierSelectionTierEco;
+      default:
+        return tierId;
+    }
   }
 }
 

@@ -24,7 +24,6 @@ import '../../delivery_status/domain/jeeber_summary.dart';
 import '../application/live_tracking_cubit.dart';
 import '../application/live_tracking_state.dart';
 import '../domain/delivery_tracking_info.dart';
-import 'live_tracking_l10n.dart';
 import 'widgets/delivery_tracking_panel.dart';
 import 'widgets/order_summary_pinned_header.dart';
 import 'widgets/order_tracking_stepper.dart';
@@ -609,7 +608,7 @@ class _TrackingCourierRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final courier = jeeber;
     // EDGE: order_summary_open_chat → order-chat (JM-025). Routes by the
     // REQUEST id (== correlationKey), falling back to the delivery id — NEVER
@@ -617,7 +616,7 @@ class _TrackingCourierRow extends StatelessWidget {
     final chat = _TrackingCircleAction(
       icon: Icons.chat_bubble,
       identifier: 'order_summary_open_chat',
-      semanticLabel: l10n.summaryOpenChat,
+      semanticLabel: l10n.orderSummaryOpenChat,
       onTap: () => context.goNamed(
         'chat-detail',
         pathParameters: {
@@ -706,7 +705,7 @@ class _TrackingActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     // The no-show recovery routes are request-scoped; the delivery row carries
     // requestId (mock convention: deliveryId == accepted-request-id when null).
     final requestId = (info.requestId?.isNotEmpty ?? false)
@@ -720,7 +719,7 @@ class _TrackingActionBar extends StatelessWidget {
         identifier: 'tracking_noshow_cta',
         button: true,
         child: JeebCtaButton.text(
-          label: l10n.noShowCta,
+          label: l10n.trackingNoShowCta,
           expand: true,
           onTap: () => TrackingNoShowSheet.show(
             context: context,
@@ -741,7 +740,7 @@ class _TrackingActionBar extends StatelessWidget {
         identifier: 'tracking_dispute_cta',
         button: true,
         child: JeebCtaButton.outline(
-          label: l10n.disputeCta,
+          label: l10n.trackingDisputeCta,
           // EDGE: tracking_dispute_cta → dispute-open-evidence
           // (`escalate` route, JM-060/W4). 21_NAV_PLAN §C.
           onTap: () => context.goNamed(
@@ -770,7 +769,6 @@ class _HandoverCodeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final trackingL10n = LiveTrackingL10n.of(context);
     final scheme = Theme.of(context).colorScheme;
     final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
@@ -792,7 +790,7 @@ class _HandoverCodeRow extends StatelessWidget {
         gap: Spacing.small,
         onTap: () => context.push('/orders/$deliveryId/otp'),
         label: Text(
-          trackingL10n.doorCodeNote,
+          l10n.trackingDoorCodeNote,
           style: context.jeebText.bodySmall
               .copyWith(color: semantics.mutedText),
           maxLines: 1,

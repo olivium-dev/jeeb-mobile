@@ -90,7 +90,7 @@ void main() {
     expect(cubit.state.status.isOnline, isTrue);
     expect(cubit.state.status.activeDeliveryCount, 2);
     expect(find.bySemanticsIdentifier('availability_switch'), findsOneWidget);
-    expect(find.text("You're online — receiving requests"), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
     // WP-B intentionally collapsed the settled online card to a two-line
     expect(
       find.byKey(AvailabilityStatusBlock.activeDeliveriesKey),

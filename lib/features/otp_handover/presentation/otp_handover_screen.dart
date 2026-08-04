@@ -222,13 +222,6 @@ class _OtpBody extends StatelessWidget {
   }
 }
 
-/// Screen title as the headline is the interim: the queued
-/// `otpHandoverLoadingHeadline` says what is actually in flight.
-String _stateHeadline(AppLocalizations l10n, bool isClient) =>
-    // TODO(midnight): l10n-queued otpHandoverLoadingHeadline /
-    // otpHandoverErrorHeadline.
-    isClient ? l10n.otpHandoverClientTitle : l10n.otpHandoverJeeberTitle;
-
 class _LoadingBody extends StatelessWidget {
   const _LoadingBody({required this.isClient});
 
@@ -241,7 +234,7 @@ class _LoadingBody extends StatelessWidget {
       child: SingleChildScrollView(
         child: JeebEmptyState(
           status: JeebEmptyStateStatus.loading,
-          headline: _stateHeadline(l10n, isClient),
+          headline: l10n.otpHandoverLoadingHeadline,
           identifier: 'otp_handover_loading',
         ),
       ),
@@ -267,7 +260,7 @@ class _ErrorBody extends StatelessWidget {
       child: SingleChildScrollView(
         child: JeebEmptyState(
           status: JeebEmptyStateStatus.error,
-          headline: _stateHeadline(l10n, isClient),
+          headline: l10n.otpHandoverErrorHeadline,
           body: _mapMessage(l10n, state.errorMessage),
           identifier: 'otp_handover_error',
           action: JeebCtaButton.primary(

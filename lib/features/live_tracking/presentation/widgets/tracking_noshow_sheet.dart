@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../live_tracking_l10n.dart';
+import '../../../../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
@@ -47,7 +47,7 @@ class TrackingNoShowSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Semantics(
       identifier: 'tracking_noshow_sheet',
@@ -61,12 +61,12 @@ class TrackingNoShowSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                l10n.noShowTitle,
+                l10n.trackingNoShowTitle,
                 style: theme.textTheme.titleLarge,
               ),
               const SizedBox(height: Spacing.small),
               Text(
-                l10n.noShowBody,
+                l10n.trackingNoShowBody,
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
@@ -75,7 +75,7 @@ class TrackingNoShowSheet extends StatelessWidget {
                 identifier: 'tracking_noshow_reassign_cta',
                 button: true,
                 child: OmdsPrimaryButton(
-                  text: l10n.noShowReassignCta,
+                  text: l10n.trackingNoShowReassignCta,
                   onTap: onReassign,
                 ),
               ),
@@ -84,7 +84,7 @@ class TrackingNoShowSheet extends StatelessWidget {
                 identifier: 'tracking_noshow_rebroadcast_cta',
                 button: true,
                 child: OmdsPrimaryButton(
-                  text: l10n.noShowRebroadcastCta,
+                  text: l10n.trackingNoShowRebroadcastCta,
                   variant: OmdsButtonVariant.outlined,
                   onTap: onRebroadcast,
                 ),
@@ -94,7 +94,7 @@ class TrackingNoShowSheet extends StatelessWidget {
                 identifier: 'tracking_noshow_keep_cta',
                 button: true,
                 child: OmdsPrimaryButton(
-                  text: l10n.noShowKeepCta,
+                  text: l10n.trackingNoShowKeepCta,
                   variant: OmdsButtonVariant.text,
                   onTap: onKeepWaiting,
                 ),

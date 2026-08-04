@@ -348,11 +348,11 @@ class _LoadedBody extends StatelessWidget {
                 ProofPhotoHero(
                   proofPhotoUrl: receipt.proofPhotoUrl,
                   photoSemanticLabel: l10n.receiptProofPhotoLabel,
+                  // TODO(midnight): omitted, not faked — the tile reads
+                  // "Proof of delivery · 9:38"; swap to receiptProofBadgeAt
+                  // when a gateway field carries the capture time.
                   badgeText: l10n.receiptProofBadge,
                   zoomCtaText: l10n.receiptProofZoomCta,
-                  // TODO(midnight): omitted, not faked — the tile reads
-                  // "· 9:38"; no gateway field carries the capture time.
-                  capturedAtLabel: null,
                   onZoom: receipt.hasProofPhoto
                       ? () => showProofPhotoViewer(
                             context,

@@ -81,8 +81,8 @@ class JeeberHomeGreeting extends StatelessWidget {
   String _resolveGreeting(AppLocalizations l10n, String? resolvedName) {
     final trimmed = resolvedName?.trim();
     if (trimmed == null || trimmed.isEmpty) return l10n.homeGreetingFallback;
-    // Greet with the first name only ("Hello, Sami", not "Hello, Sami Fawaz").
+    // Greet with the first name only ("Ahlan, Sami", not "Ahlan, Sami Fawaz").
     final firstName = trimmed.split(RegExp(r'\s+')).first;
-    return l10n.homeGreetingNamed(firstName);
+    return l10n.jeeberGreetingAhlan(firstName);
   }
 }
