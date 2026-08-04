@@ -8,10 +8,6 @@ import 'package:jeeb_mobile/core/observability/session_trace/obs_file_writer.dar
 
 /// Requires `flutter test --dart-define=JEEB_DEVTOOL_ENABLED=true …` to
 /// exercise the `skip:`-guarded groups below — [kObsCompiledIn] is a hard
-/// compile-time const (frozen, no test override by design, mirroring
-/// `kDevToolEnabled`), so a normal `flutter test` run cannot flip it. The
-/// unconditional groups still give full, meaningful coverage of the
-/// "compiled out ⇒ zero-cost no-op" guarantee in a plain run.
 String get _needsDevtoolDefine =>
     'requires --dart-define=JEEB_DEVTOOL_ENABLED=true';
 
@@ -74,8 +70,6 @@ void main() {
       final fake = _FakeSink();
       Observability.instance.sink = fake;
       // enabled=false alone forces `recording` false regardless of
-      // kObsCompiledIn, so this assertion is meaningful in either
-      // invocation of this file (with or without the devtool define).
       ObservabilityConfig.instance.enabled = false;
 
       Observability.instance

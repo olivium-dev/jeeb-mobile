@@ -3,13 +3,8 @@ import 'package:equatable/equatable.dart';
 import '../data/voice_recording_repository.dart';
 import '../domain/voice_clip.dart';
 
-/// Discrete phases of the voice-request flow. Drives which controls the
-/// screen renders (mic vs. playback row, send button enable, error banner).
 enum VoiceRecordingPhase { idle, recording, recorded, playing, sending, sent }
 
-/// Reasons surfaced to the user when something goes wrong. Recording errors
-/// are transient; upload errors persist until the user retries or discards the
-/// retained clip so the submission failure always has an on-screen recovery.
 enum VoiceRecordingError {
   permissionDenied,
   recorderUnavailable,
@@ -31,14 +26,8 @@ class VoiceRecordingState extends Equatable {
     this.result,
   });
 
-  /// Hard cap on a single voice request. The recorder is auto-stopped if the
-  /// user keeps holding the button past this point and the cubit surfaces
-  /// [VoiceRecordingError.maxDurationReached] so they know why.
   static const Duration maxDuration = Duration(seconds: 60);
 
-  /// Minimum duration the cubit will accept before treating the recording as
-  /// real audio. A shorter press is treated as a mis-tap — the clip is
-  /// discarded and [VoiceRecordingError.tooShort] is raised.
   static const Duration minSendableDuration = Duration(seconds: 1);
 
   final VoiceRecordingPhase phase;
@@ -61,7 +50,6 @@ class VoiceRecordingState extends Equatable {
           phase == VoiceRecordingPhase.playing ||
           phase == VoiceRecordingPhase.sending);
 
-  /// Whether the captured clip meets the minimum length to be uploaded.
   bool get canSend => hasClip && clip!.duration >= minSendableDuration;
 
   VoiceRecordingState copyWith({

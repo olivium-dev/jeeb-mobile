@@ -1,25 +1,4 @@
 // Fix 6 — jeeber dashboard active-delivery overflow regression guards.
-//
-// Two overflows were observed on SM-S921B (Fable 5 visual findings):
-//   (a) the card action Row ("Open chat" + "Manage delivery") right-overflowed
-//       by 39px — the two OMDS buttons carry non-ellipsizing labels, so an
-//       Expanded box narrower than the icon+label intrinsic width clipped.
-//   (b) the no-requests surface bottom-overflowed (45px / 477px) — the banner's
-//       unbounded Column of cards sat as a fixed child above an Expanded view,
-//       pushing the Column past the viewport.
-//
-// Both are exercised at a narrow 360x640 surface; the test fails if any
-// RenderFlex overflow (or other) exception is thrown while laying out.
-//
-// JEBV4-286 — a THIRD, distinct right-overflow (27px) was found on S908B
-// (run-26): that device's card content width sits *above* the side-by-side
-// threshold (so the two-Expanded Row is chosen instead of the stacked
-// Column), but the per-button slot is still narrower than "Manage
-// delivery"'s intrinsic icon+label width. Bumping the threshold only moves
-// the breakpoint to the next device, so the fix instead makes the button
-// label itself `Flexible` + ellipsizing (see `_ButtonLabel` in
-// active_deliveries_banner.dart). Exercised below at a 384-wide surface
-// (S908B's approximate logical width) in both LTR and RTL.
 
 import 'dart:async';
 
@@ -50,7 +29,6 @@ class _FakeActiveDeliveriesRepo implements ActiveDeliveriesRepository {
 
 /// A few active deliveries with long titles/addresses — enough to make the
 /// unbounded banner Column exceed a short viewport (reproduces overflow (b)) and
-/// each card's action Row narrow (reproduces overflow (a)).
 List<ActiveDeliverySummary> _deliveries(int n) => List.generate(
       n,
       (i) => ActiveDeliverySummary(
@@ -116,7 +94,6 @@ void main() {
         _host(availability: availability, deliveries: deliveries),
       );
       // Drain the async load + the `loaded` emission (no pumpAndSettle — the
-      // cubit's 10s poll Timer would otherwise trip the pending-timer invariant).
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 

@@ -55,7 +55,6 @@ List<SuperLoginDemoUser> _roster(int n) => List<SuperLoginDemoUser>.generate(
 
 void main() {
   // Host that opens the picker with the injected service and stashes the
-  // selected user so the test can assert on what a tap returned.
   Widget host(
     SuperLoginDemoUserService service, {
     void Function(SuperLoginDemoUser?)? onResult,
@@ -84,8 +83,6 @@ void main() {
     await tester.tap(find.byKey(const Key('open')));
     await tester.pump(); // start the sheet route
     // Advance the modal's slide-up entry animation so the content lands inside
-    // the viewport (otherwise the sheet is still translated below the screen
-    // and any row/CTA tap derives an off-screen offset and misses).
     await tester.pump(const Duration(milliseconds: 350));
   }
 
@@ -210,7 +207,6 @@ void main() {
         findsOneWidget,
       );
       // Per-user Semantics identifiers required by the ticket
-      // (super_login_plus_user_<userId>).
       expect(
         find.bySemanticsIdentifier('super_login_plus_user_${_client.userId}'),
         findsOneWidget,

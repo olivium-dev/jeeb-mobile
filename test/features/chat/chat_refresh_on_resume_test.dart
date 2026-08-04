@@ -1,17 +1,4 @@
 // Regression: BUG-chat-cache-staleness.
-//
-// A chat-detail thread left open while the app is backgrounded retains its
-// screen-scoped [ChatCubit] in memory (the OS did not kill the process), so the
-// one-shot create-time [ChatCubit.load] never re-runs. Any messages the
-// counterpart sent while we were away stayed invisible until an app restart.
-//
-// The fix adds:
-//   1. [ChatCubit.refresh] — a non-destructive re-fetch of history + phase that
-//      surfaces messages that arrived since [load], preserves the visible
-//      thread on a transient failure, and never re-opens the inbound stream.
-//   2. A [WidgetsBindingObserver] on the chat scaffold that calls [refresh] on
-//      `AppLifecycleState.resumed`, so the thread is never stale within a live
-//      session.
 library;
 
 import 'dart:async';
@@ -91,9 +78,6 @@ ChatCubit _cubit(_MutableHistoryGateway gateway) {
 
 void main() {
   // b02 P0: the resume bus is a process-wide singleton with a 2 s coalescing
-  // floor. Without a per-test reset the floor bleeds across cases in this file
-  // (they run milliseconds apart) and a genuine resume in test N is silently
-  // folded into test N-1's window.
   setUp(() async => AppResumeSignals.debugReset());
 
   group('ChatCubit.refresh', () {
@@ -171,9 +155,6 @@ void main() {
       expect(gateway.loadHistoryCalls, 1, reason: 'cold mount loads once');
 
       // Simulate background → foreground. `paused`, not `inactive`: b02 P0
-      // made `inactive → resumed` a FOCUS FLAP that must refetch nothing (a
-      // heads-up notification, the shade, a permission dialog), and this test
-      // means a real trip out of the app.
       for (final s in const <AppLifecycleState>[
         AppLifecycleState.inactive,
         AppLifecycleState.hidden,

@@ -5,8 +5,11 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/accessibility/accessibility.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/session/jeeber_kyc_status_gate.dart';
-import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_cubit.dart';
 import '../../application/availability_state.dart';
@@ -20,6 +23,7 @@ import '../../../jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import '../../../jeeber_request_feed/presentation/pending_offer_row.dart';
 import 'availability_card.dart';
 import 'jeeber_home_greeting.dart';
+import 'jeeber_no_requests_view.dart';
 
 /// Tab the Jeeber feed view is currently filtered to, matching the three
 /// filter chips in the Figma `deliveryman-requests` flow:
@@ -115,6 +119,11 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   JeeberTierFilter _tierFilter = JeeberTierFilter.all;
   String _query = '';
 
+  /// C8: the search field is collapsed behind the magnifier at rest — the board
+  /// spends the row on the count chips, not on an empty input. This is the
+  /// search *affordance*, not the deleted global-search feature.
+  bool _searchExpanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -207,9 +216,11 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
           child: AvailabilityCard(
             view: avState,
             onToggle: () => context.read<AvailabilityCubit>().toggle(),
+            onExtendActivity: () =>
+                context.read<AvailabilityCubit>().extendActivity(),
           ),
         ),
-        if (isOffline) SliverToBoxAdapter(child: _OfflineBanner()),
+        if (isOffline) const SliverToBoxAdapter(child: _OfflineBanner()),
         // Existing delivery work stays visible without burying the earning
         // task: ActiveDeliveriesBanner is collapsed to one disclosure row at
         // rest and expands only on explicit request.
@@ -228,6 +239,9 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
       child: isOffline
           ? scrollView
           : OmdsPullToRefresh(
+              // Periwinkle, never the `colorScheme.primary` default: on
+              // Midnight that is the orange, and this is transient chrome.
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               onRefresh: () => context.read<RequestFeedCubit>().refresh(),
               child: scrollView,
             ),
@@ -235,16 +249,39 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   }
 
   List<Widget> _feedControls() => [
-    _FeedSearchBar(
-      controller: _searchController,
-      focusNode: _searchFocusNode,
-      onChanged: (query) => setState(() => _query = query),
+    Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        0,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _FeedTabStrip(
+              active: _activeTab,
+              onChanged: _onTabChanged,
+              submittedOffersCubit: widget.submittedOffersCubit,
+            ),
+          ),
+          const SizedBox(width: Spacing.xSmall),
+          _SearchToggle(expanded: _searchExpanded, onTap: _onSearchToggled),
+        ],
+      ),
     ),
-    const SizedBox(height: Spacing.small),
-    _FeedTabStrip(active: _activeTab, onChanged: _onTabChanged),
-    const SizedBox(height: Spacing.small),
-    if (_activeTab == JeeberFeedTab.requests)
+    if (_searchExpanded) ...[
+      const SizedBox(height: Spacing.small),
+      _FeedSearchBar(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
+        onChanged: (query) => setState(() => _query = query),
+      ),
+    ],
+    if (_activeTab == JeeberFeedTab.requests) ...[
+      const SizedBox(height: Spacing.small),
       _TierFilterStrip(active: _tierFilter, onChanged: _onTierChanged),
+    ],
   ];
 
   /// The feed body as SLIVERS of the page's own scroll view.
@@ -258,7 +295,7 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   List<Widget> _feedSlivers(bool isOffline) {
     if (isOffline) {
       return const [
-        SliverFillRemaining(hasScrollBody: false, child: _OfflineEmptyBody()),
+        SliverFillRemaining(hasScrollBody: true, child: _OfflineEmptyBody()),
       ];
     }
     // JM-048 AC3: the Pending-Response sub-tab is backed by the jeeber's
@@ -303,83 +340,83 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
     if (next == null || next == _tierFilter) return;
     setState(() => _tierFilter = next);
   }
+
+  /// Expanding focuses the field straight away (the tap WAS the intent to
+  /// type); collapsing clears the query too, so a hidden filter can never keep
+  /// suppressing rows the jeeber can no longer see a reason for.
+  void _onSearchToggled() {
+    if (_searchExpanded) {
+      setState(() {
+        _searchExpanded = false;
+        _query = '';
+        _searchController.clear();
+      });
+      return;
+    }
+    setState(() => _searchExpanded = true);
+    _searchFocusNode.requestFocus();
+  }
 }
 
 /// T-MOB-029: Banner shown when Jeeber goes offline (AC3).
+///
+/// A full-bleed coloured slab became an inset note: offline is an attention
+/// state (self-inflicted, recoverable), not a failure, so it keeps the warning
+/// role but stops behaving like a system error bar. Inks come from the kit's
+/// warning tone — this file is raw-colour gated.
 class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Container(
-      // Offline is an attention state (self-inflicted, recoverable), not a
-      // failure -> semantic warning role instead of the error pair.
-      color: context.jeebRoles.warningContainer,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.small,
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.small,
+        Spacing.xLarge,
+        0,
       ),
-      child: _OfflineBannerContent(l10n: l10n),
-    );
-  }
-}
-
-class _OfflineBannerContent extends StatelessWidget {
-  const _OfflineBannerContent({required this.l10n});
-
-  final AppLocalizations l10n;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = context.jeebRoles.onWarningContainer;
-    return Row(
-      children: [
-        Icon(Icons.wifi_off, color: color, size: Sizes.large),
-        const SizedBox(width: Spacing.small),
-        Expanded(
-          child: _OfflineBannerText(l10n: l10n, color: color),
-        ),
-      ],
-    );
-  }
-}
-
-class _OfflineBannerText extends StatelessWidget {
-  const _OfflineBannerText({required this.l10n, required this.color});
-
-  final AppLocalizations l10n;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          l10n.jeeberFeedOfflineBannerTitle,
-          style: theme.textTheme.labelLarge?.copyWith(color: color),
-        ),
-        Text(
-          l10n.jeeberFeedOfflineBannerSubtitle,
-          style: theme.textTheme.bodySmall?.copyWith(color: color),
-        ),
-      ],
+      child: JeebInfoNote.warning(
+        key: JeeberFeedTabView.offlineBannerKey,
+        icon: Icons.wifi_off,
+        title: l10n.jeeberFeedOfflineBannerTitle,
+        text: l10n.jeeberFeedOfflineBannerSubtitle,
+      ),
     );
   }
 }
 
 /// Empty body shown while the Jeeber is offline (feed cleared per AC3).
+///
+/// The board draws no offline frame, so it reads as E3's quiet-street block
+/// with the offline copy — one empty family for the whole screen.
 class _OfflineEmptyBody extends StatelessWidget {
   const _OfflineEmptyBody();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsEmptyState(
-      icon: Icons.wifi_off,
-      title: l10n.jeeberFeedOfflineBannerTitle,
-      subtitle: l10n.jeeberFeedOfflineBannerSubtitle,
+    // Scrollable, not a bare `Center`: the drawn illustration is taller than a
+    // short viewport, and `SliverFillRemaining` would ask it for intrinsics.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
+            child: Center(
+              child: JeebEmptyState(
+                identifier: 'jeeber_feed_offline_empty_state',
+                variant: JeebEmptyStateVariant.street,
+                headline: l10n.jeeberFeedOfflineBannerTitle,
+                body: l10n.jeeberFeedOfflineBannerSubtitle,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -397,7 +434,7 @@ class _TierFilterStrip extends StatelessWidget {
     final filters = _filters(l10n);
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
+        horizontal: Spacing.xLarge,
       ),
       child: SingleChildScrollView(
         key: JeeberFeedTabView.tierStripKey,
@@ -428,9 +465,12 @@ class _TierFilterStrip extends StatelessWidget {
       child: ExcludeSemantics(
         child: MinTapTarget(
           onTap: onTap,
-          child: OmdsChip(
+          // No `onTap` on the pill: MinTapTarget owns the gesture (it wraps
+          // its child in an IgnorePointer), so an InkWell here would be dead.
+          child: JeebSelectChip(
+            role: JeebChipRole.filter,
             label: filter.label,
-            isSelected: active == filter.value,
+            selected: active == filter.value,
           ),
         ),
       ),
@@ -470,63 +510,113 @@ class _FeedSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
+        horizontal: Spacing.xLarge,
       ),
       child: Semantics(
         identifier: 'jeeber_feed_search_field',
-        child: OmdsSearchBar(
-          key: JeeberFeedTabView.searchBarKey,
-          controller: controller,
-          focusNode: focusNode,
-          hintText: AppLocalizations.of(context).jeeberFeedSearchHint,
-          onChanged: onChanged,
+        // `OmdsSearchBar` hardcodes its focus ring to `colorScheme.primary` in
+        // the decoration, so app_theme's periwinkle `focusedBorder` never lands.
+        child: Theme(
+          data: theme.copyWith(
+            colorScheme: theme.colorScheme.copyWith(
+              primary: theme.colorScheme.secondary,
+            ),
+          ),
+          child: OmdsSearchBar(
+            key: JeeberFeedTabView.searchBarKey,
+            controller: controller,
+            focusNode: focusNode,
+            hintText: AppLocalizations.of(context).jeeberFeedSearchHint,
+            onChanged: onChanged,
+          ),
         ),
       ),
     );
   }
 }
 
-/// Feed sub-tab chips — Requests / Pending / Replies.
+/// Feed sub-tab chips — Nearby {n} / Pending {n} / Replies {n}.
 ///
-/// Built from individual [OmdsChip]s (not the monolithic [OmdsFilterChips])
-/// because JM-048 needs a per-chip Semantics identifier on the Pending chip
+/// Built from individual pills (not the monolithic [OmdsFilterChips]) because
+/// JM-048 needs a per-chip Semantics identifier on the Pending chip
 /// (`jeeber_feed_pending_tab`) so the QA flow can tap it, which the bundled
 /// filter-chips widget does not expose. Each chip carries its own id; all three
 /// are queryable (honest), only `jeeber_feed_pending_tab` is contract-required.
+///
+/// The counts are the board's, and every one of them is derived from state the
+/// screen already holds — no new fetch, no new cubit field. They live INSIDE
+/// the localized label (`Nearby {count}`) rather than in the kit's badge slot,
+/// so Arabic decides its own digit/word order.
 class _FeedTabStrip extends StatelessWidget {
-  const _FeedTabStrip({required this.active, required this.onChanged});
+  const _FeedTabStrip({
+    required this.active,
+    required this.onChanged,
+    required this.submittedOffersCubit,
+  });
 
   final JeeberFeedTab active;
   final ValueChanged<JeeberFeedTab?> onChanged;
 
+  /// When present it is the authority on the pending count (the jeeber's real
+  /// submitted offers); otherwise the feed-derived count stands in.
+  final SubmittedOffersCubit? submittedOffersCubit;
+
   @override
   Widget build(BuildContext context) {
+    return BlocBuilder<RequestFeedCubit, RequestFeedState>(
+      builder: (context, feedState) {
+        final cubit = submittedOffersCubit;
+        if (cubit == null) {
+          return _strip(context, feedState, _count(feedState, _pendingStatus));
+        }
+        return BlocBuilder<SubmittedOffersCubit, SubmittedOffersState>(
+          bloc: cubit,
+          builder: (context, offersState) =>
+              _strip(context, feedState, offersState.offers.length),
+        );
+      },
+    );
+  }
+
+  static const JeeberFeedItemStatus _pendingStatus =
+      JeeberFeedItemStatus.pendingResponse;
+
+  Widget _strip(
+    BuildContext context,
+    RequestFeedState feedState,
+    int pendingCount,
+  ) {
     final l10n = AppLocalizations.of(context);
     return SingleChildScrollView(
       key: JeeberFeedTabView.tabStripKey,
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
-      ),
       child: Row(
         children: [
           _tabChip(
             identifier: 'jeeber_feed_requests_tab',
-            label: l10n.jeeberFeedFilterRequests,
+            label: l10n.jeeberFeedNearbyCount(
+              _count(feedState, JeeberFeedItemStatus.incoming),
+            ),
+            semanticLabel: l10n.jeeberFeedFilterRequests,
             tab: JeeberFeedTab.requests,
           ),
-          const SizedBox(width: Spacing.small),
+          const SizedBox(width: Spacing.xSmall),
           _tabChip(
             identifier: 'jeeber_feed_pending_tab',
-            label: l10n.jeeberFeedFilterPendingResponse,
+            label: l10n.jeeberFeedPendingCount(pendingCount),
+            semanticLabel: l10n.jeeberFeedFilterPendingResponse,
             tab: JeeberFeedTab.pendingResponse,
           ),
-          const SizedBox(width: Spacing.small),
+          const SizedBox(width: Spacing.xSmall),
           _tabChip(
             identifier: 'jeeber_feed_replies_tab',
-            label: l10n.jeeberFeedFilterReplies,
+            label: l10n.jeeberFeedRepliesCount(
+              _count(feedState, JeeberFeedItemStatus.accepted),
+            ),
+            semanticLabel: l10n.jeeberFeedFilterReplies,
             tab: JeeberFeedTab.replies,
           ),
         ],
@@ -534,9 +624,23 @@ class _FeedTabStrip extends StatelessWidget {
     );
   }
 
+  /// The `_visibleRequests` predicate minus the query/tier filters: what the
+  /// tab would show if you tapped it right now.
+  int _count(RequestFeedState state, JeeberFeedItemStatus status) {
+    return state.requests
+        .where(
+          (r) =>
+              r.requestIsOpen &&
+              r.feedStatus == status &&
+              !state.expiredIds.contains(r.id),
+        )
+        .length;
+  }
+
   Widget _tabChip({
     required String identifier,
     required String label,
+    required String semanticLabel,
     required JeeberFeedTab tab,
   }) {
     void onTap() => onChanged(tab);
@@ -544,14 +648,59 @@ class _FeedTabStrip extends StatelessWidget {
       identifier: identifier,
       button: true,
       selected: active == tab,
-      label: label,
+      // TalkBack reads the tab, not "Nearby twelve" — the count is decoration
+      // for the eye and noise for the ear.
+      label: semanticLabel,
       onTap: onTap,
       child: ExcludeSemantics(
         child: MinTapTarget(
           onTap: onTap,
-          child: OmdsChip(
+          child: JeebSelectChip(
+            role: JeebChipRole.filter,
             label: label,
-            isSelected: active == tab,
+            selected: active == tab,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The board's Ø38 magnifier disc. Tapping it reveals the search field (and
+/// tapping it again hides + clears it), so the row at rest is chips only.
+class _SearchToggle extends StatelessWidget {
+  const _SearchToggle({required this.expanded, required this.onTap});
+
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    return Semantics(
+      identifier: 'jeeber_feed_search_toggle',
+      button: true,
+      label: l10n.jeeberFeedSearchToggleLabel,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: MinTapTarget(
+          onTap: onTap,
+          child: Container(
+            width: Sizes.threeXLarge,
+            height: Sizes.threeXLarge,
+            alignment: AlignmentDirectional.center,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHigh,
+              shape: BoxShape.circle,
+            ),
+            // `onSurface`, never `primary`: on Midnight `primary` IS the orange
+            // and this glyph is not one of R16's drawn orange moments.
+            child: Icon(
+              expanded ? Icons.close : Icons.search,
+              size: Sizes.medium,
+              color: colorScheme.onSurface,
+            ),
           ),
         ),
       ),
@@ -614,15 +763,14 @@ class _FeedRequestSliverBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final visible = _visibleRequests(state.requests);
+    final cubit = context.read<RequestFeedCubit>();
     if (visible.isEmpty) {
       return SliverFillRemaining(
         hasScrollBody: true,
-        child: _EmptyTabState(l10n: l10n),
+        child: _EmptyTabState(onRefresh: cubit.refresh),
       );
     }
-    final cubit = context.read<RequestFeedCubit>();
     // JM-048: the FIRST incoming row exposes the screen-level
     // `feed_make_offer_cta` so the QA flow taps an unambiguous make-offer CTA
     // — never an expired card, whose offer affordance is inert.
@@ -659,6 +807,13 @@ class _FeedRequestSliverBody extends StatelessWidget {
             onOffer: () => onMakeOffer(request),
             onAdvanceStatus: () => cubit.accept(request.id),
             exposeMakeOfferId: index == firstIncomingIndex,
+            // R5: the same computation also decides the ONE orange CTA on the
+            // screen — the newest offerable row. No second source of truth.
+            isFreshest: index == firstIncomingIndex,
+            // TODO(redesign-24): the board marks voice-filed requests with a
+            // waveform. `DeliveryRequest` carries no `hasAudio`/`audioUrl`, so
+            // the mark stays off rather than guessed — see W-2 §4.5.
+            isVoice: false,
           );
         },
       ),
@@ -709,27 +864,17 @@ class _FeedRequestSliverBody extends StatelessWidget {
   }
 }
 
+/// An empty tab is E3 — the same "Empty ≠ dead" panel the no-requests screen
+/// draws. Always-scrollable: pull-to-refresh over an empty feed depends on it.
 class _EmptyTabState extends StatelessWidget {
-  const _EmptyTabState({required this.l10n});
+  const _EmptyTabState({required this.onRefresh});
 
-  final AppLocalizations l10n;
+  final VoidCallback onRefresh;
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: OmdsEmptyState(
-            icon: Icons.inbox_outlined,
-            title: l10n.jeeberFeedEmptyTitle,
-            subtitle: l10n.jeeberFeedEmptySubtitle,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => JeeberFeedEmptyPanel(
+    onRefresh: onRefresh,
+  );
 }
 
 /// JM-048 AC3 + JM-047: the Pending-Response sub-tab body, backed by the
@@ -757,6 +902,7 @@ class _PendingOffersList extends StatelessWidget {
             child: BlocBuilder<SubmittedOffersCubit, SubmittedOffersState>(
               bloc: cubit,
               builder: (context, state) => OmdsPullToRefresh(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 onRefresh: cubit.load,
                 child: _pendingBody(context, state),
               ),
@@ -768,11 +914,17 @@ class _PendingOffersList extends StatelessWidget {
   }
 
   Widget _pendingBody(BuildContext context, SubmittedOffersState state) {
+    final l10n = AppLocalizations.of(context);
     if (state.status == SubmittedOffersStatus.loading && state.offers.isEmpty) {
-      return const Center(child: OmdsLoadingState());
+      return Center(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.pendingOffersEmptyTitle,
+        ),
+      );
     }
     if (state.offers.isEmpty) {
-      return _PendingEmptyState(l10n: AppLocalizations.of(context));
+      return _PendingEmptyState(l10n: l10n);
     }
     return ListView.builder(
       key: JeeberFeedTabView.pendingListKey,
@@ -829,10 +981,13 @@ class _PendingEmptyState extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: OmdsEmptyState(
-            icon: Icons.hourglass_empty_rounded,
-            title: l10n.pendingOffersEmptyTitle,
-            subtitle: l10n.pendingOffersEmptyBody,
+          child: Center(
+            child: JeebEmptyState(
+              identifier: 'jeeber_pending_offers_empty_state',
+              variant: JeebEmptyStateVariant.pocket,
+              headline: l10n.pendingOffersEmptyTitle,
+              body: l10n.pendingOffersEmptyBody,
+            ),
           ),
         ),
       ),

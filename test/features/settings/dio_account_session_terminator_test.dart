@@ -130,7 +130,6 @@ void main() {
     // The dead route is gone.
     expect(dio.postPaths, isNot(contains('/v1/devices/unregister')));
     // The live gateway route fired with the deviceId body (userId is derived
-    // server-side from the bearer, so it is NOT in the body).
     expect(dio.deletePaths, contains('/api/PushNotification/device'));
     final body = dio.deleteBodies.single;
     expect(body?['deviceId'], 'dev-abc');

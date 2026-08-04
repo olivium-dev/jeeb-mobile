@@ -9,27 +9,13 @@ import 'chat_screen.dart';
 import 'widgets/chat_fee_banner.dart';
 import 'widgets/confirm_delivery_action_sheet.dart';
 
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../core/previews/jeeb_preview.dart';
+import '../../../devtool/catalog/fixtures/dev_chat_preview_screen_fixtures.dart';
+
 /// Debug-only full-screen host that renders [ChatScreen] for one of the
 /// designed chat states, backed by [DevChatFixtureGateway].
-///
 /// Reached only via the router's `JEEB_DEV_CHAT` seam (see `AppRouter`), which
-/// extends the established `JEEB_DEV_*` dart-define pattern (pilot learning
-/// #1) so the Figma chat frames can be captured deterministically on the
-/// emulator. Never reachable in release.
-///
-/// Selectors:
-///   `sending`               → client's just-sent initial request, pre-offers
-///                             (Figma 56535:6469) — single outgoing bubble, no
-///                             offer cards, composer present
-///   `broadcasting`          → client offers feed (Figma 56535:6659)
-///   `accepted` / *          → client accepted thread (Figma 56546:2382)
-///   `dm`                    → delivery-man chat (Figma 56539:906)
-///   `dm-order-picked`       → delivery-man chat, "Order picked" banner
-///                             (Figma 56560:1605)
-///   `dm-confirm-picking`    → delivery-man chat + confirm-picking sheet
-///                             (Figma 56618:2751)
-///   `dm-confirm-heading-off`→ delivery-man chat + heading-off sheet
-///                             (Figma 56618:2852)
 class DevChatPreviewScreen extends StatelessWidget {
   const DevChatPreviewScreen({super.key, required this.selector});
 
@@ -58,17 +44,10 @@ class DevChatPreviewScreen extends StatelessWidget {
   Widget _clientPreview() {
     final sending = selector == 'sending';
     final broadcasting = selector == 'broadcasting';
-    // `sending` and `broadcasting` share the request-feed header (centered
-    // order id, no counterpart avatar) and the broadcasting phase semantics
-    // (composer visible, no counterpart header). `sending` differs only in the
-    // seeded thread: a single outgoing request with no offer cards yet.
     final requestFeed = sending || broadcasting;
     final phase = requestFeed
         ? ConversationPhase.broadcasting
         : ConversationPhase.accepted;
-    // No bundled avatar bitmap (dev-only assets must not ship): the accepted
-    // header falls back to the OMDS initials avatar, captured deterministically
-    // and offline.
     return ChatScreen(
       deliveryId: 'dev-chat',
       counterpartName: requestFeed ? 'ORD-23748' : 'Kamal Hajj',
@@ -78,9 +57,6 @@ class DevChatPreviewScreen extends StatelessWidget {
   }
 }
 
-/// Delivery-man chat preview: fee banner + price/time composer hint, with an
-/// optional confirmation sheet auto-opened for the picking / heading-off
-/// states so they can be captured without a tap.
 class _DeliveryManPreview extends StatefulWidget {
   const _DeliveryManPreview({required this.host});
 
@@ -93,9 +69,6 @@ class _DeliveryManPreview extends StatefulWidget {
 class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
   static const String _feeAmount = r'$0.5';
 
-  /// Backing delivery for this Jeeber-variant thread. Reused both as the chat
-  /// channel id and as the path id for the active-delivery entry point so the
-  /// "Start delivery" CTA opens the matching delivery.
   static const String _deliveryId = 'dev-chat-dm';
 
   @override
@@ -128,14 +101,6 @@ class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
         onDismiss: () {},
         onOrderPicked: () {},
       ),
-      // ENTRY POINT (jeeber active-delivery): the Jeeber-variant chat is the
-      // only place a jeeber-role [ChatScreen] is constructed (feeNotice !=
-      // null). The production `/chat/:id` route builds the CLIENT variant via
-      // ChatDetailScreen (currentUserId hardcoded to a client, feeNotice null,
-      // and it resolves a conversation id rather than carrying the jeeber role
-      // + delivery id), so it cannot cleanly supply both signals today. We
-      // therefore gate the "Start delivery" CTA on the jeeber variant here,
-      // where the delivery id is in scope, and push the active-delivery route.
       onStartActiveDelivery: () =>
           context.push('/jeeber/deliveries/$_deliveryId/active'),
       gateway: DevChatFixtureGateway(
@@ -146,3 +111,153 @@ class _DeliveryManPreviewState extends State<_DeliveryManPreview> {
     );
   }
 }
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// The phone the chat frames are designed against (Figma 56535:6659).
+const Size _devChatPreviewScreenPhoneBox = Size(390, 844);
+
+/// The narrowest phone the app still supports — and roughly what an Android
+/// multi-window split leaves a foreground app. The viewport that produced the
+const Size _devChatPreviewScreenCompactBox = Size(320, 568);
+
+/// Pins [child] to a device-sized frame inside whatever box the host gives it.
+/// The `size:` on [JeebPreview] boxes the CANVAS; this boxes the WIDGET TREE,
+Widget _devChatPreviewScreenFramed(
+  Widget child, {
+  Size box = _devChatPreviewScreenPhoneBox,
+}) {
+  return Align(
+    alignment: Alignment.topCenter,
+    child: SizedBox(width: box.width, height: box.height, child: child),
+  );
+}
+
+/// One selector, framed. The ordinary host.
+Widget _devChatPreviewScreenHosted(
+  String selector, {
+  Size box = _devChatPreviewScreenPhoneBox,
+}) =>
+    _devChatPreviewScreenFramed(
+      DevChatPreviewScreen(selector: selector),
+      box: box,
+    );
+
+/// Host for the two selectors that auto-open a confirm sheet.
+/// The local [Navigator] is the whole point: [ConfirmDeliveryActionSheet.show]
+Widget _devChatPreviewScreenSheetHosted(String selector) {
+  return _devChatPreviewScreenFramed(
+    Navigator(
+      onGenerateRoute: (RouteSettings settings) => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => DevChatPreviewScreen(selector: selector),
+      ),
+    ),
+  );
+}
+
+/// Figma 56535:6469 — the request is sent and nothing has answered yet.
+/// Shares the request-feed header with the broadcasting state (the centred
+@JeebPreview(
+  group: 'chat',
+  name: 'Client · sending initial request',
+  size: _devChatPreviewScreenPhoneBox,
+)
+Widget devChatPreviewScreenClientSending() => _devChatPreviewScreenHosted(
+      DevChatPreviewScreenPreviewFixtures.clientSending,
+    );
+
+/// Figma 56535:6659 — offers are landing, and the most content this screen can
+/// produce.
+@JeebPreview(
+  group: 'chat',
+  name: 'Client · broadcasting offers',
+  size: _devChatPreviewScreenPhoneBox,
+)
+Widget devChatPreviewScreenClientBroadcasting() => _devChatPreviewScreenHosted(
+      DevChatPreviewScreenPreviewFixtures.clientBroadcasting,
+    );
+
+/// Figma 56546:2382 — the accepted 1:1 thread.
+/// The selector flips the phase to `accepted` and the header name from the
+@JeebPreview(
+  group: 'chat',
+  name: 'Client · accepted thread',
+  size: _devChatPreviewScreenPhoneBox,
+)
+Widget devChatPreviewScreenClientAccepted() => _devChatPreviewScreenHosted(
+      DevChatPreviewScreenPreviewFixtures.clientAccepted,
+    );
+
+/// The silent fallback, previewed on purpose.
+/// `accepted-thread` is not a selector this screen knows. It renders anyway —
+@JeebPreview(
+  group: 'chat',
+  name: 'Unrecognised selector · silent fallback',
+  size: _devChatPreviewScreenPhoneBox,
+)
+Widget devChatPreviewScreenUnrecognisedSelector() =>
+    _devChatPreviewScreenHosted(
+      DevChatPreviewScreenPreviewFixtures.unrecognised,
+    );
+
+/// Figma 56539:906 — the Jeeber's side of the same thread.
+/// The leg that carries the balance-deduction banner and the price/time
+@JeebPreview(
+  group: 'chat',
+  name: 'Jeeber · accepted thread',
+  size: _devChatPreviewScreenPhoneBox,
+)
+Widget devChatPreviewScreenJeeberAccepted() => _devChatPreviewScreenHosted(
+      DevChatPreviewScreenPreviewFixtures.jeeberAccepted,
+    );
+
+/// Figma 56560:1605 — the fee banner's trailing slot becomes an "Order picked"
+/// pill.
+@JeebPreview(
+  group: 'chat',
+  name: 'Jeeber · order picked',
+  size: _devChatPreviewScreenPhoneBox,
+  matrix: true,
+)
+Widget devChatPreviewScreenJeeberOrderPicked() => _devChatPreviewScreenHosted(
+      DevChatPreviewScreenPreviewFixtures.jeeberOrderPicked,
+    );
+
+/// Figma 56618:2751 — the confirm-picking sheet, auto-opened over the thread.
+/// The composition only this screen produces, and the second matrix card: the
+@JeebPreview(
+  group: 'chat',
+  name: 'Jeeber · confirm picking sheet',
+  size: _devChatPreviewScreenPhoneBox,
+  matrix: true,
+)
+Widget devChatPreviewScreenJeeberConfirmPicking() =>
+    _devChatPreviewScreenSheetHosted(
+      DevChatPreviewScreenPreviewFixtures.jeeberConfirmPicking,
+    );
+
+/// Figma 56618:2852 — the heading-off sheet, auto-opened over the thread.
+/// Worth its own card precisely because it looks almost identical to the
+@JeebPreview(
+  group: 'chat',
+  name: 'Jeeber · confirm heading-off sheet',
+  size: _devChatPreviewScreenPhoneBox,
+)
+Widget devChatPreviewScreenJeeberConfirmHeadingOff() =>
+    _devChatPreviewScreenSheetHosted(
+      DevChatPreviewScreenPreviewFixtures.jeeberConfirmHeadingOff,
+    );
+
+/// The same order-picked state on the 320x568 floor.
+/// The Jeeber leg stacks the most non-flexible chrome of any state here — fee
+@JeebPreview(
+  group: 'chat',
+  name: 'Compact 320 pt · jeeber order picked',
+  size: _devChatPreviewScreenCompactBox,
+)
+Widget devChatPreviewScreenCompactJeeber() => _devChatPreviewScreenHosted(
+      DevChatPreviewScreenPreviewFixtures.jeeberOrderPicked,
+      box: _devChatPreviewScreenCompactBox,
+    );

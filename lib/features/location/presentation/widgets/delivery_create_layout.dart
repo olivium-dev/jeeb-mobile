@@ -3,18 +3,19 @@ import 'package:omds/omds.dart';
 
 /// Shared layout constants for the delivery-create screens (Request type,
 /// Client Location). Keeps the page gutter rhythm identical across the flow
-/// (Figma `GapPadding-24` → `Spacing.large`) without repeating the literal
-/// `EdgeInsetsDirectional` in each screen.
+/// without repeating the literal `EdgeInsetsDirectional` in each screen.
 class DeliveryCreateLayout {
   const DeliveryCreateLayout._();
 
-  /// Scrollable page padding: large gutters, a medium top inset under the
-  /// navbar, and a generous bottom inset so the last row clears the nav bar.
+  /// Scrollable page padding: the board-wide 24px start/end gutter
+  /// (`Spacing.xLarge`, wiring request 09 — was `Spacing.large`/20), a medium
+  /// top inset under the navbar, and a generous bottom inset so the last row
+  /// clears the nav bar. Screens 07/08/09 all render against 24.
   static const EdgeInsetsDirectional pagePadding =
       EdgeInsetsDirectional.fromSTEB(
-    Spacing.large,
+    Spacing.xLarge,
     Spacing.medium,
-    Spacing.large,
+    Spacing.xLarge,
     Spacing.twoXLarge,
   );
 }

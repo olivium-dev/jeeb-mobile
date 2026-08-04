@@ -1,8 +1,4 @@
 // G3 badge render + clear: BadgeCountCubit was incremented on every push but
-// rendered by ZERO widgets. The shell's Dashboard (feed) tab icon now carries
-// an M3 count badge for the UNSEEN OPEN REQUESTS (newRequests), and viewing
-// the feed clears it (FeedResumeRefetcher) — so a dismissed push always
-// leaves a visible trail: badge → feed.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -52,8 +48,6 @@ Widget _harness({
   required BadgeCountCubit badge,
 }) {
   // Mirrors test/shell_role_tabs_test.dart: DashboardTab self-provides its
-  // cubits from DI (registered in setUp); a jeeber RoleAvailability lights up
-  // the live dashboard body so FeedResumeRefetcher is mounted.
   return MultiBlocProvider(
     providers: [
       BlocProvider(
@@ -86,6 +80,13 @@ Widget _harness({
   );
 }
 
+/// M0-4: Midnight primitives loop forever, so a shell test settles only under
+/// reduce motion — and the clock still needs the tab fixtures' load delay.
+Future<void> _settle(WidgetTester tester) async {
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   late BadgeCountCubit badge;
 
@@ -109,14 +110,16 @@ void main() {
   testWidgets(
       'new-request pushes badge the Dashboard tab icon while another tab is '
       'selected, and VIEWING the feed clears it', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs, badge: badge));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // A jeeber lands ON the dashboard (BUG-1), so step off it first — the
-    // badge counts requests arriving while the jeeber is NOT looking.
     await tester.tap(find.bySemanticsIdentifier('shell_tab_requests'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.bySemanticsIdentifier('shell_tab_dashboard_badge'),
         findsNothing);
 
@@ -124,7 +127,7 @@ void main() {
     badge
       ..increment(isNewRequest: true)
       ..increment(isNewRequest: true);
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.bySemanticsIdentifier('shell_tab_dashboard_badge'),
         findsOneWidget, reason: 'the tracked count must actually RENDER (G3)');
@@ -133,7 +136,7 @@ void main() {
 
     // Viewing the feed clears the badge (FeedResumeRefetcher).
     await tester.tap(find.bySemanticsIdentifier('shell_tab_dashboard'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(badge.state.newRequests, 0,
         reason: 'viewing the feed marks the requests seen');
     expect(find.bySemanticsIdentifier('shell_tab_dashboard_badge'),
@@ -144,15 +147,18 @@ void main() {
 
   testWidgets('non-request pushes (chat/offer) do NOT badge the feed tab',
       (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs, badge: badge));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await tester.tap(find.bySemanticsIdentifier('shell_tab_requests'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     badge.increment(); // e.g. a chat push
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.bySemanticsIdentifier('shell_tab_dashboard_badge'),
         findsNothing,
@@ -162,12 +168,15 @@ void main() {
   testWidgets(
       'a push landing WHILE the feed is on screen never shows a badge '
       '(the jeeber is already looking)', (tester) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs: prefs, badge: badge));
-    await tester.pumpAndSettle(); // lands on the dashboard (jeeber landing)
+    await _settle(tester); // lands on the dashboard (jeeber landing)
 
     badge.increment(isNewRequest: true);
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(badge.state.newRequests, 0);
     expect(find.bySemanticsIdentifier('shell_tab_dashboard_badge'),

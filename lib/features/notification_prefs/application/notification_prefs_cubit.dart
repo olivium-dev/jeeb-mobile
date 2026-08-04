@@ -6,13 +6,9 @@ import '../domain/notification_prefs_model.dart';
 import '../domain/notification_prefs_repository.dart';
 import 'notification_prefs_state.dart';
 
-/// Drives the notification-preferences screen (JM-058, D64).
-///
-/// On mount, GETs `/v1/notifications/preferences`. Each category toggle
-/// optimistically updates the UI then schedules a debounced PUT (default 500ms).
-/// On PUT failure the category reverts and [NotificationPrefsLoaded.saveError]
-/// fires so the screen shows an OMDS snackbar. The transactional class is locked
-/// (never toggled) and push is the only channel surfaced (R2).
+/// Notification preferences driver (JM-058).
+/// GET prefs on mount; each toggle optimistically updates then schedules debounced PUT (500ms).
+/// PUT failure reverts category and fires saveError. Transactional locked (always-on);
 class NotificationPrefsCubit extends Cubit<NotificationPrefsState> {
   NotificationPrefsCubit({
     required NotificationPrefsRepository repository,
@@ -25,7 +21,7 @@ class NotificationPrefsCubit extends Cubit<NotificationPrefsState> {
   final Duration _debounceDuration;
   Timer? _debounce;
 
-  /// Fetches prefs from the gateway on mount / retry.
+  /// Fetch prefs on mount / retry.
   Future<void> load() async {
     emit(const NotificationPrefsLoading());
     try {
@@ -38,7 +34,7 @@ class NotificationPrefsCubit extends Cubit<NotificationPrefsState> {
     }
   }
 
-  /// Toggles a category, optimistically updates, and schedules a debounced PUT.
+  /// Toggle category, optimistic update, debounced PUT.
   void toggleCategory(NotificationCategory category, bool value) {
     final current = state;
     if (current is! NotificationPrefsLoaded) return;
@@ -74,12 +70,12 @@ class NotificationPrefsCubit extends Cubit<NotificationPrefsState> {
       emit(NotificationPrefsLoaded(prefs: confirmed));
     } catch (_) {
       if (isClosed) return;
-      // Revert to the last server-confirmed snapshot + flag the error (D30).
+      // Revert to last server-confirmed snapshot; flag error.
       emit(NotificationPrefsLoaded(prefs: preRevert, saveError: true));
     }
   }
 
-  /// Clears the transient save-error flag once the snackbar has been shown.
+  /// Clear transient save-error flag once snackbar shown.
   void acknowledgeError() {
     final current = state;
     if (current is NotificationPrefsLoaded && current.saveError) {

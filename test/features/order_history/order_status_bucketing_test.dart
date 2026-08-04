@@ -1,18 +1,4 @@
 // Run-22 P1-B / lane item 6 regression guard — status → bucket table.
-//
-// The customer "Delivery" surface (order_history: Active / Completed /
-// Cancelled tabs) must classify BOTH the canonical V3 status vocabulary
-// (Ordered → Picked → InTransit → AtDoor → Done) AND the legacy snake_case
-// aliases, including the accepted-but-not-yet-picked state, which MUST land
-// in the Active (In Progress) bucket. Before this fix the parser only knew
-// the legacy lowercase names — every canonical status fell into `unknown`,
-// so `Done` orders lingered under Active and the Completed/Cancelled tabs
-// never matched a canonical row.
-//
-// (The run-22 empty-Active-bucket symptom itself was root-caused to the
-// GATEWAY list endpoints returning [] post-accept — owned by the gateway
-// lane. This table guarantees the client buckets correctly the moment the
-// list returns data.)
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -31,14 +17,12 @@ void main() {
 
     const table = <String, (OrderRequestStatus, OrderHistoryTab)>{
       // Canonical V3 vocabulary (SM-1 Ordered → Picked → InTransit → AtDoor
-      // → Done) — all pre-terminal states are Active.
       'Ordered': (OrderRequestStatus.matched, active),
       'Picked': (OrderRequestStatus.pickedUp, active),
       'InTransit': (OrderRequestStatus.enRoute, active),
       'AtDoor': (OrderRequestStatus.enRoute, active),
       'Done': (OrderRequestStatus.delivered, completed),
       // Accepted-pre-pickup (offer accepted, no shipment on the road yet) —
-      // the run-22 P1-B state. MUST be Active/In Progress.
       'accepted': (OrderRequestStatus.matched, active),
       'ACCEPTED': (OrderRequestStatus.matched, active),
       'assigned': (OrderRequestStatus.matched, active),
@@ -88,7 +72,6 @@ void main() {
     });
 
     // A loosely-filtered server page mixing canonical + legacy + terminal
-    // statuses — what a drifting `status=` filter actually returns.
     List<Map<String, Object?>> mixedPage() => [
           {'id': 'r-accepted', 'status': 'accepted', 'createdAt': '2026-07-03T00:44:05Z'},
           {'id': 'r-ordered', 'status': 'Ordered', 'createdAt': '2026-07-03T00:44:05Z'},
@@ -143,7 +126,6 @@ void main() {
     test('hasMore derives from the WIRE page size, not the filtered count',
         () async {
       // Server filled the page (2/2) but filtering trims one row — more pages
-      // may still exist.
       adapter.body = {
         'items': [
           {'id': 'r-1', 'status': 'accepted', 'createdAt': '2026-07-03T00:00:00Z'},
@@ -209,7 +191,6 @@ void main() {
     test('ABSENT amount → amountMinor null, NOT a fabricated 0 (\$0.00)',
         () async {
       // The row the audit caught: a completed order whose list entry carries no
-      // amount key. The old `_ => 0` fallback rendered "\$0.00" on every row.
       adapter.body = {
         'items': [
           {
@@ -234,8 +215,6 @@ void main() {
     // ── SW-03 family: local-time truth on history rows ──────────────────────
     test('zone-less createdAt is normalized to a UTC instant', () async {
       // A gateway string WITHOUT a zone marker is a UTC instant; parsing it raw
-      // would read it as device-local, so the card's toLocal() would be a no-op
-      // and print the UTC wall clock (feed read "12:31" under a 14:31 clock).
       adapter.body = {
         'items': [
           {

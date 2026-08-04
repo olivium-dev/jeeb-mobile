@@ -1,17 +1,13 @@
 import 'dart:async';
 // S9 live-tracking defect fix (T-S9-APP-TRACK).
-//
-// PROVES a genuine 404 ("Delivery not found") renders a distinct OMDS
-// error/empty state with a retry — NOT a crash and NOT the generic
-// "Server error" the live defect showed.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_cubit.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_screen.dart';
@@ -30,6 +26,12 @@ Widget _harness(LiveTrackingCubit cubit) => MaterialApp(
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // JeebEmptyState's illustration loops ∞ (02-STUDY-NOTES M0-4):
+      // `pumpAndSettle` only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       home: BlocProvider<LiveTrackingCubit>.value(
         value: cubit,
         child: const LiveTrackingScreen(deliveryId: 'req-123', useLiveMap: false),
@@ -52,8 +54,12 @@ void main() {
     await tester.pumpWidget(_harness(cubit));
     await tester.pumpAndSettle();
 
-    // OMDS error state (not raw Material), keyed for QA targeting.
-    expect(find.byType(OmdsErrorState), findsOneWidget);
+    // MIDNIGHT error state (JeebEmptyState at `error` status), keyed for QA.
+    expect(find.byType(JeebEmptyState), findsOneWidget);
+    expect(
+      tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+      JeebEmptyStateStatus.error,
+    );
     expect(find.byKey(const Key('live-tracking-error-state')), findsOneWidget);
     expect(find.text('Delivery not found'), findsOneWidget);
     // Retry affordance present; generic "Server error" absent.

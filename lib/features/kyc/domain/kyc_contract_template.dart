@@ -1,8 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-/// Contract template meta returned by `GET /v1/kyc/contract-template?type=tos`.
-///
-/// Holds the template identifier used when POSTing the sign endpoint.
 class KycContractTemplate extends Equatable {
   const KycContractTemplate({
     required this.templateId,
@@ -25,7 +22,6 @@ class KycContractTemplate extends Equatable {
   final String templateId;
   final String tosVersion;
 
-  /// CDN URL of the ToS markdown document.
   final String documentUrl;
 
   final String locale;
@@ -36,7 +32,6 @@ class KycContractTemplate extends Equatable {
       [templateId, tosVersion, documentUrl, locale, name];
 }
 
-/// Returned by `POST /v1/kyc/contract-template/sign`.
 class KycSignStamp extends Equatable {
   const KycSignStamp({
     required this.tosSignedAt,

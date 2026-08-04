@@ -1,20 +1,4 @@
 // sprint-8f — Confirm CTA must NOT hard-depend on saved-locations.
-//
-// REGRESSION LOCK for the on-device defect: the customer could not create a
-// request because the location-select "Confirm location" CTA
-// (`location_select_confirm_cta`) never enabled when the saved-locations read
-// (`GET /api/users/me/saved-locations`) failed/404'd or came back empty. The
-// CTA's enablement used to be gated on `status == loaded`; it now depends ONLY
-// on the customer having picked a pickup+dropoff location ("Current Location"
-// is the valid default), so a failed/empty saved-locations fetch never blocks
-// creating a request.
-//
-// This drives the REAL `AppRouter.create(...)` graph (request-type → Continue →
-// location-select), and for BOTH an errored and an empty saved-locations
-// response proves:
-//   1. the `location_select_confirm_cta` OmdsPrimaryButton is ENABLED, and
-//   2. tapping it fires `RequestSubmissionService.submit()` (POST /requests)
-//      and routes to the WAITING screen with the real server-minted id.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -103,13 +87,18 @@ Widget _harness(
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
+      // MIDNIGHT M3-03: this flow lands on the waiting screen, whose E2 radar
+      // loops ∞ by design — pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
     ),
   );
 }
 
 /// The OmdsLoadingButton inside the `location_select_confirm_cta` Semantics.
 /// B-02 swapped OmdsPrimaryButton → OmdsLoadingButton (disable + spinner while
-/// the create POST is in flight); it still exposes `isEnabled`.
 OmdsLoadingButton _confirmButton(WidgetTester tester) {
   final cta = find.bySemanticsIdentifier('location_select_confirm_cta');
   expect(
@@ -138,12 +127,15 @@ Future<void> _driveToLocationSelect(WidgetTester tester) async {
   expect(continueCta, findsOneWidget);
   await tester.ensureVisible(continueCta);
   await tester.tap(continueCta);
-  await tester.pumpAndSettle();
+  // MIDNIGHT M0-4: the saved-addresses error band is a `JeebEmptyState` whose
+  // illustration loops forever — advance the transition by hand.
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 /// G1: the Confirm CTA is additionally gated on a non-empty "What do you
 /// need?" description — type one so the saved-locations behaviour under test
-/// stays the only variable.
 Future<void> _describeRequest(WidgetTester tester) async {
   await tester.enterText(
     find.byKey(const Key('clientLocation.descriptionField')),
@@ -165,17 +157,11 @@ void main() {
       );
       sl.registerLazySingleton<LocationSelectRepository>(() => repo);
       // JEBV4-176: the current-location option resolves a REAL device fix — the
-      // fake resolves a non-Beirut coordinate so Confirm enables on a genuine
-      // GPS point (never the removed 33.8886/35.4955 fallback).
       sl.registerLazySingleton<CurrentLocationResolver>(
         FakeCurrentLocationResolver.new,
       );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
       // Confirm now routes to the WAITING screen (waiting-no-coverage). Register
-      // a WaitingRepository whose cold-load FAILS so NoOfferTimeoutScreen mounts
-      // in its timer-free error state (a successful load would attach the
-      // WaitingCubit's Stream.periodic poll/clock timers and leak them into the
-      // headless binding). We only assert the navigation target here.
       sl.registerLazySingleton<WaitingRepository>(
         () => FakeWaitingRepository(
           failure: const WaitingException(WaitingFailure.network),
@@ -204,12 +190,11 @@ void main() {
 
         await _driveToLocationSelect(tester);
 
-        // The saved-locations error banner is shown — proving the fetch failed.
-        // (Found by type: bySemanticsIdentifier can race the async GPS-recovery
-        // rebuild's semantics flush in this headless harness; the OmdsErrorState
-        // widget itself renders deterministically.)
+        // The saved-locations error banner is shown — proving the fetch
+        // failed. MIDNIGHT: the band is a `JeebEmptyState`, so the assertion is
+        // re-homed onto its frozen identifier rather than the widget type.
         expect(
-          find.byType(OmdsErrorState, skipOffstage: false),
+          find.bySemanticsIdentifier('location_select_saved_addresses_error'),
           findsOneWidget,
           reason: 'the saved-locations fetch must have failed in this case',
         );
@@ -217,7 +202,6 @@ void main() {
         await _describeRequest(tester);
 
         // The CTA is ENABLED despite the failed fetch (the defect was it staying
-        // disabled forever).
         expect(
           _confirmButton(tester).isEnabled,
           isTrue,
@@ -227,11 +211,12 @@ void main() {
         );
 
         // Tapping it actually CREATES the request (proves it is interactive,
-        // not just visually enabled).
         await tester.tap(
           find.bySemanticsIdentifier('location_select_confirm_cta'),
         );
-        await tester.pumpAndSettle();
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
 
         expect(
           submission.submitCount,
@@ -270,7 +255,6 @@ void main() {
         );
 
         // G1 validation lock: with the description still empty the CTA stays
-        // DISABLED — content is required before a request can be created.
         expect(
           _confirmButton(tester).isEnabled,
           isFalse,

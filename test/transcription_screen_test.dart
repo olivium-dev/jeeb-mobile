@@ -54,7 +54,6 @@ Widget _harness(Widget child, {Locale locale = const Locale('en')}) {
 
 /// Finds a widget carrying the given Semantics identifier. We resolve the
 /// identifier through the merged semantics node so uiautomator-style targeting
-/// is exercised exactly as Codex QA will use it.
 Finder _byIdentifier(String identifier) {
   return find.byWidgetPredicate(
     (w) => w is Semantics && w.properties.identifier == identifier,
@@ -267,8 +266,6 @@ void main() {
       addTearDown(cubit.close);
 
       // Inject the cubit AND a status banner with a retry handler by rendering
-      // the banner directly with the failed state (the screen wires onRetry to
-      // a follow-up; here we assert the banner contract).
       var retryCalls = 0;
       await tester.pumpWidget(
         _harness(

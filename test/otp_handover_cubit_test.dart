@@ -94,8 +94,6 @@ void main() {
     });
 
     // G4 fallback: the LIVE gateway GET /otp is an SMS trigger — it returns
-    // `{triggered: true}` and no code. The customer must see the honest
-    // "sent by SMS" state, and must NEVER be flipped into a code-entry grid.
     test('live SMS-trigger shape → ready + smsSent, no code, no error',
         () async {
       when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
@@ -127,6 +125,52 @@ void main() {
       verify(
         () => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')),
       ).called(2);
+      await cubit.close();
+    });
+
+    // redesign-2026-08 screen 13: the resend runs on its own `resending` axis.
+    // It used to emit `mode: loading` (blanking the whole screen mid handover)
+    // and land `mode: error` on failure — destroying a code the customer was
+    // reading off the screen at the door.
+    test('a failed resend KEEPS the displayed code and never faults the screen',
+        () async {
+      store.rows['DLV-770001'] = '1234';
+
+      final cubit = clientCubit(codeStore: store);
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state.handoverCode, '1234');
+
+      when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenThrow(const OtpHandoverException(OtpHandoverErrorKind.network));
+
+      await cubit.resendSms();
+
+      expect(cubit.state.mode, OtpHandoverViewMode.ready);
+      expect(cubit.state.handoverCode, '1234');
+      expect(cubit.state.resending, isFalse);
+      expect(cubit.state.resendFailed, isTrue);
+      await cubit.close();
+    });
+
+    test('the next resend clears the previous failure line', () async {
+      store.rows['DLV-770001'] = '1234';
+
+      final cubit = clientCubit(codeStore: store);
+      await Future<void>.delayed(Duration.zero);
+
+      when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenThrow(const OtpHandoverException(OtpHandoverErrorKind.network));
+      await cubit.resendSms();
+      expect(cubit.state.resendFailed, isTrue);
+
+      when(() => repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenAnswer((_) async => const OtpFetchResult(smsTriggered: true));
+      await cubit.resendSms();
+
+      expect(cubit.state.resendFailed, isFalse);
+      expect(cubit.state.smsSent, isTrue);
+      expect(cubit.state.handoverCode, '1234',
+          reason: 'a trigger-only response must not erase the shown code');
       await cubit.close();
     });
 

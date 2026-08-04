@@ -4,11 +4,16 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/session/greeting_profile_cubit.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_profile_header.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Customer home header with "Hello, **{name}**", a small
-/// [OmdsProfileAvatar] prefix, and a filled circular "+" icon button (themed
-/// via [OmdsButtonStyles.iconButtonFilled]).
+/// Customer home header (redesign-2026-08 screen 04, `04-client-home.html`
+/// tpl 158-165): `[Ø46 avatar] [eyebrow / Hello, {name}]`.
+///
+/// This widget is the **adapter**, not the layout — the kit's
+/// [JeebProfileHeader] owns every measurement. What lives here is the data
+/// resolution the header cannot know about:
 ///
 /// P0-X06: the greeting name + avatar are sourced from the signed-in user's
 /// real profile via the ambient [GreetingProfileCubit] when one is provided
@@ -17,20 +22,29 @@ import '../../../../l10n/app_localizations.dart';
 /// `avatarUrl` instead of a bare "?" placeholder. With NO ambient cubit (bare
 /// widget tests) the widget falls back to the passed [name] and the initials
 /// avatar — preserving the prior contract.
+///
+/// The create-request affordance is NOT here any more: the `+` icon button
+/// became the mic hero (`ClientHomeRequestHero`), which now carries the frozen
+/// `orders_create_request_button` identifier.
 class ClientHomeGreeting extends StatelessWidget {
   const ClientHomeGreeting({
     super.key,
     required this.name,
-    this.onAddPressed,
     this.avatarSemanticsIdentifier,
   });
 
+  /// Device-local hour at which the eyebrow flips morning → afternoon.
+  static const int _afternoonHour = 12;
+
+  /// Device-local hour at which the eyebrow flips afternoon → evening.
+  static const int _eveningHour = 17;
+
   final String? name;
-  final VoidCallback? onAddPressed;
   final String? avatarSemanticsIdentifier;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // Read the ambient personalized-greeting profile if the shell provided one.
     // A bare widget test without the provider falls back to the passed name and
     // a null avatar (no "?" when a name is known).
@@ -44,27 +58,57 @@ class ClientHomeGreeting extends StatelessWidget {
     // greeting + initials avatar via a null name.
     final resolvedName = displayNameOrNull(rawName);
     final avatarUrl = profile?.avatarUrl;
+    // Greet with the first name only ("Hello, Sami", not "Hello, Sami Fawaz").
+    final firstName = _firstName(resolvedName);
+    final greeting = (firstName == null || firstName.isEmpty)
+        ? l10n.homeGreetingFallback
+        : l10n.homeGreetingNamed(firstName);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      // HTML tpl 158: `16px 24px 0`.
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
         Spacing.medium,
-        Spacing.medium,
-        Spacing.medium,
-        Spacing.xSmall,
+        Spacing.xLarge,
+        0,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _GreetingLine(
-              name: resolvedName,
-              avatarUrl: avatarUrl,
-              avatarSemanticsIdentifier: avatarSemanticsIdentifier,
-            ),
-          ),
-          const SizedBox(width: Spacing.small),
-          _AddRequestButton(onPressed: onAddPressed),
-        ],
+      child: JeebProfileHeader(
+        name: greeting,
+        eyebrow: _eyebrow(l10n),
+        // TODO(redesign-24): the board draws an unread dot on this avatar.
+        // There is no unread source on this surface (NotificationsListState
+        // lives behind the notifications route) — omitted rather than faked;
+        // the shell's bell is the notification affordance.
+        avatar: JeebAvatar.header(
+          // The board's own-user disc is grey + periwinkle, not a navy fill.
+          fill: JeebAvatarFill.dormant,
+          initial: firstName ?? '',
+          imageUrl: avatarUrl,
+          avatarKey: const Key('client-home-greeting-avatar'),
+        ),
+        avatarIdentifier: avatarSemanticsIdentifier,
+        // The shell overlays its wallet chip + bell on top of this row
+        // (`shell_screen.dart:301-325`), so the end gutter is reserved rather
+        // than filled — otherwise a long name runs under them.
+        trailingReserve: Spacing.fourXLarge * 2,
       ),
     );
+  }
+
+  /// Time-of-day eyebrow, derived from the DEVICE clock — it is a greeting, not
+  /// server data, so there is nothing to fetch and nothing to be stale.
+  String _eyebrow(AppLocalizations l10n) {
+    final hour = DateTime.now().hour;
+    if (hour < _afternoonHour) return l10n.homeGreetingEyebrowMorning;
+    if (hour < _eveningHour) return l10n.homeGreetingEyebrowAfternoon;
+    return l10n.homeGreetingEyebrowEvening;
+  }
+
+  /// First whitespace-delimited token of [full], or `null` when blank.
+  static String? _firstName(String? full) {
+    final trimmed = full?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed.split(RegExp(r'\s+')).first;
   }
 
   /// Reads the ambient [GreetingProfileCubit] state, or `null` when no provider
@@ -75,125 +119,5 @@ class ClientHomeGreeting extends StatelessWidget {
     } on Object {
       return null;
     }
-  }
-}
-
-class _GreetingLine extends StatelessWidget {
-  const _GreetingLine({
-    required this.name,
-    required this.avatarSemanticsIdentifier,
-    this.avatarUrl,
-  });
-
-  final String? name;
-  final String? avatarUrl;
-  final String? avatarSemanticsIdentifier;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    // Greet with the first name only ("Hello, Sami", not "Hello, Sami Fawaz").
-    final firstName = _firstName(name);
-    final greeting = (firstName == null || firstName.isEmpty)
-        ? l10n.homeGreetingFallback
-        : l10n.homeGreetingNamed(firstName);
-    return Row(
-      children: [
-        _GreetingAvatar(
-          initial: firstName,
-          avatarUrl: avatarUrl,
-          semanticsIdentifier: avatarSemanticsIdentifier,
-        ),
-        const SizedBox(width: Spacing.xSmall),
-        Flexible(child: _GreetingText(text: greeting)),
-      ],
-    );
-  }
-
-  /// First whitespace-delimited token of [full], or `null` when blank.
-  static String? _firstName(String? full) {
-    final trimmed = full?.trim();
-    if (trimmed == null || trimmed.isEmpty) return null;
-    return trimmed.split(RegExp(r'\s+')).first;
-  }
-}
-
-class _GreetingText extends StatelessWidget {
-  const _GreetingText({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      text,
-      style: theme.textTheme.titleLarge?.copyWith(
-        color: theme.colorScheme.primary,
-        fontWeight: FontWeight.w400,
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-}
-
-class _GreetingAvatar extends StatelessWidget {
-  const _GreetingAvatar({
-    required this.initial,
-    required this.semanticsIdentifier,
-    this.avatarUrl,
-  });
-
-  final String? initial;
-  final String? avatarUrl;
-  final String? semanticsIdentifier;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final trimmed = initial?.trim();
-    // First initial of the name when known; '?' only as a last resort when the
-    // user has neither a name nor an avatar on file.
-    final seed = (trimmed != null && trimmed.isNotEmpty)
-        ? trimmed[0].toUpperCase()
-        : '?';
-    final url = avatarUrl?.trim();
-    final avatar = OmdsProfileAvatar(
-      key: const Key('client-home-greeting-avatar'),
-      initial: seed,
-      profilePicUrl: (url == null || url.isEmpty) ? null : url,
-      size: Sizes.large,
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      initialColor: colorScheme.primary,
-    );
-    final identifier = semanticsIdentifier;
-    if (identifier == null) return avatar;
-    return Semantics(identifier: identifier, image: true, child: avatar);
-  }
-}
-
-class _AddRequestButton extends StatelessWidget {
-  const _AddRequestButton({required this.onPressed});
-
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'orders_create_request_button',
-      container: true,
-      explicitChildNodes: true,
-      button: true,
-      label: l10n.homeEmptyCta,
-      child: IconButton(
-        key: const Key('client-home-greeting-add'),
-        onPressed: onPressed,
-        icon: const Icon(Icons.add, size: Sizes.xLarge),
-        style: OmdsButtonStyles.iconButtonFilled(colorScheme),
-      ),
-    );
   }
 }

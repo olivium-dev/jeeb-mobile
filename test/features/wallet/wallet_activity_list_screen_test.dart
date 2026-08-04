@@ -1,12 +1,4 @@
 // Widget tests for WalletActivityListScreen (JM-055). Proves the screen renders
-// the EXACT Semantics identifiers from 30_BACKLOG JM-055 off an injected fake
-// WalletLedgerRepository (no DI, no network):
-//
-//   AC: wallet_activity_root host + per-row wallet_activity_row_<id> (typed,
-//       amount+sign+icon+ref), with the D30/D73 state nodes:
-//       wallet_activity_loading / wallet_activity_error +
-//       wallet_activity_retry_cta / wallet_activity_empty, and a tap on a row →
-//       transaction-detail (/wallet/transactions/:id).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -60,7 +52,16 @@ WalletLedgerEntry _row(
 void main() {
   Future<void> pump(WidgetTester tester, WalletLedgerRepository repo) async {
     await tester.pumpWidget(
-      wrapForTest(WalletActivityListScreen(repository: repo)),
+      wrapForTest(
+        // MIDNIGHT: the empty/loading/error illustration loops ∞ by design, so
+        // `pumpAndSettle` cannot settle without reduce motion (wave-B ruling).
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: WalletActivityListScreen(repository: repo),
+          ),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -147,7 +148,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap the row's InkWell (the Semantics wrapper is zero-size for hit-test;
-    // the tap target is the InkWell the row builds).
     await tester.tap(find.descendant(
       of: find.byType(WalletActivityRow),
       matching: find.byType(InkWell),
@@ -155,8 +155,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Navigation happened: the transaction-detail target rendered with the
-    // row's id forwarded as the `:id` path param (push semantics — assert the
-    // destination is shown rather than the base URI).
     expect(find.bySemanticsIdentifier('stub_txn_detail'), findsOneWidget);
     expect(find.text('txn led-x'), findsOneWidget);
   });

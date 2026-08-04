@@ -1,14 +1,3 @@
-// Tests for DioRatingRepository (JM-034).
-//
-// Verifies against the real Express mock score-taking-service contract:
-//   - submitRating POSTs /v1/ratings/jeeb/submit with deliveryId + score +
-//     raterRole + raterId (from the session token store).
-//   - submitRating passes raterRole=client vs jeeber.
-//   - submitRating maps a DioException to a typed RatingRepositoryException
-//     (network on connection errors).
-//   - fetchRatingStatus GETs /v1/ratings/jeeb/{id}/status and parses the
-//     mock `state` shape.
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';

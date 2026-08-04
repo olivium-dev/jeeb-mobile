@@ -4,6 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/cancellation_repository.dart';
 import '../domain/cancellation_result.dart';
@@ -12,10 +20,12 @@ import 'cubit/cancellation_state.dart';
 import 'widgets/cancellation_reason_group.dart';
 import 'widgets/cancellation_success_sheet.dart';
 
-/// Cancellation reason-picker and submission screen (T-MOB-024).
+/// Cancellation reason-picker and submission screen (T-MOB-024), for both the
+/// client and the Jeeber. Emits the gateway result through a success sheet.
 ///
-/// Accessible from the active delivery menu for both client and Jeeber roles.
-/// Emits [onCancelled] with the result when the gateway returns 200.
+/// MIDNIGHT · M3-04 — the board never drew this screen; it is derived from R9
+/// (the only single-select-then-confirm tile) with the destructive family
+/// substituted wherever R9 spends its tile-drawn orange.
 class CancellationScreen extends StatelessWidget {
   const CancellationScreen({
     super.key,
@@ -23,6 +33,7 @@ class CancellationScreen extends StatelessWidget {
     required this.isJeeber,
     this.repository,
     this.initialState,
+    this.initialReason,
   });
 
   final String deliveryId;
@@ -31,18 +42,18 @@ class CancellationScreen extends StatelessWidget {
   /// Injectable for widget tests; production resolves via DI.
   final CancellationRepository? repository;
 
-  /// DT-04 screen-catalog / test seam: preset the cubit's initial state (e.g.
-  /// [CancellationLoading]) so the screen can be previewed mid-submit. Null
-  /// (default, production) starts idle exactly as before.
+  /// DT-04 screen-catalog / test seam: preset the cubit's initial state so a
+  /// mid-submit or terminal phase can be previewed. Null starts idle.
   final CancellationState? initialState;
 
-  /// Resolves the repo: an explicit override (tests) → the GetIt-registered
-  /// [DioCancellationRepository]. The `/orders/:id/cancel` route builder passes
-  /// no `repository` and no `Provider<CancellationRepository>` exists in the
-  /// widget tree (it lives only in GetIt), so reading it from `context`
-  /// threw ProviderNotFoundException on every open (P0-CANCEL-CRASH). Resolve
-  /// via `sl` — the same pattern SearchResultsScreen/NotificationsListScreen
-  /// use for a DI-only repository.
+  /// Same seam for the picker: pre-picks one reason code so the picked-row
+  /// treatment is capturable. Null (production) opens with nothing chosen —
+  /// a destructive act is never pre-selected.
+  final String? initialReason;
+
+  /// The `/orders/:id/cancel` builder passes no `repository` and no
+  /// `Provider<CancellationRepository>` exists in the tree (it lives only in
+  /// GetIt), so reading it from `context` threw on every open (P0-CANCEL-CRASH).
   CancellationRepository _resolveRepository() =>
       repository ?? sl<CancellationRepository>();
 
@@ -56,26 +67,46 @@ class CancellationScreen extends StatelessWidget {
       child: _CancellationView(
         deliveryId: deliveryId,
         isJeeber: isJeeber,
+        initialReason: initialReason,
       ),
     );
   }
 }
 
+/// R9's measured body inset — 24 gutters, 12 under the top bar, 20 of air
+/// before the docked footer.
+const EdgeInsetsGeometry _bodyPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.small,
+  Spacing.xLarge,
+  Spacing.large,
+);
+
+/// The error strip shares the footer's 24 gutter and sits 12 above the pill.
+const EdgeInsetsGeometry _errorStripPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  0,
+  Spacing.xLarge,
+  Spacing.small,
+);
+
 class _CancellationView extends StatefulWidget {
   const _CancellationView({
     required this.deliveryId,
     required this.isJeeber,
+    this.initialReason,
   });
 
   final String deliveryId;
   final bool isJeeber;
+  final String? initialReason;
 
   @override
   State<_CancellationView> createState() => _CancellationViewState();
 }
 
 class _CancellationViewState extends State<_CancellationView> {
-  String? _selectedReason;
+  late String? _selectedReason = widget.initialReason;
   final _otherController = TextEditingController();
 
   @override
@@ -84,7 +115,7 @@ class _CancellationViewState extends State<_CancellationView> {
     super.dispose();
   }
 
-  List<String> _reasons(AppLocalizations l10n) {
+  List<String> _reasons() {
     if (widget.isJeeber) {
       return [
         'cannot_complete',
@@ -133,19 +164,11 @@ class _CancellationViewState extends State<_CancellationView> {
         );
   }
 
+  /// Only success leaves the screen. The 409 and 5xx lanes used to flash a
+  /// snackbar and vanish; they are drawn states now.
   void _onStateChange(BuildContext context, CancellationState state) {
     if (state is CancellationSuccess) {
       _showSuccessSheet(context, state.result);
-    } else if (state is CancellationTooLate) {
-      showOmdsSnackbar(
-        context,
-        message: AppLocalizations.of(context).cancellationTooLate,
-      );
-    } else if (state is CancellationError) {
-      showOmdsSnackbar(
-        context,
-        message: AppLocalizations.of(context).cancellationGenericError,
-      );
     }
   }
 
@@ -163,25 +186,62 @@ class _CancellationViewState extends State<_CancellationView> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final reasons = _reasons(l10n);
+    final reasons = _reasons();
 
     return BlocListener<CancellationCubit, CancellationState>(
       listener: _onStateChange,
       child: Semantics(
         identifier: 'cancellation_root',
         container: true,
-        child: Scaffold(
-          appBar: OMDSAppBar(
-            title: l10n.cancellationTitle,
-            showBackButton: true,
-          ),
-          body: _Body(
-            reasons: reasons,
-            selectedReason: _selectedReason,
-            otherController: _otherController,
-            label: (r) => _label(r, l10n),
-            onReasonChanged: (r) => setState(() => _selectedReason = r),
-            onSubmit: () => _submit(context),
+        // R9's field: ONE orange radial at the top-start corner, no periwinkle
+        // wash (R4/R9/R17 declare none), and the tile is STILL.
+        child: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topStart,
+          animateDecor: false,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  JeebTopBar.back(
+                    identifier: 'cancellation_back',
+                    title: l10n.cancellationTitle,
+                  ),
+                  Expanded(
+                    child: BlocBuilder<CancellationCubit, CancellationState>(
+                      builder: (context, state) => state is CancellationTooLate
+                          ? const _TooLateView()
+                          : _Body(
+                              reasons: reasons,
+                              selectedReason: _selectedReason,
+                              otherController: _otherController,
+                              label: (r) => _label(r, l10n),
+                              onReasonChanged: (r) =>
+                                  setState(() => _selectedReason = r),
+                            ),
+                    ),
+                  ),
+                  BlocBuilder<CancellationCubit, CancellationState>(
+                    builder: (context, state) {
+                      if (state is CancellationTooLate) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (state is CancellationError) const _ErrorStrip(),
+                          _SubmitFooter(
+                            isEnabled: _selectedReason != null,
+                            onSubmit: () => _submit(context),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -196,7 +256,6 @@ class _Body extends StatelessWidget {
     required this.otherController,
     required this.label,
     required this.onReasonChanged,
-    required this.onSubmit,
   });
 
   final List<String> reasons;
@@ -204,48 +263,28 @@ class _Body extends StatelessWidget {
   final TextEditingController otherController;
   final String Function(String) label;
   final ValueChanged<String?> onReasonChanged;
-  final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.medium,
-          vertical: Spacing.medium,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _PromptText(text: l10n.cancellationReasonPrompt),
-            const SizedBox(height: Spacing.medium),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    CancellationReasonGroup(
-                      reasons: reasons,
-                      selectedReason: selectedReason,
-                      labelOf: label,
-                      onChanged: onReasonChanged,
-                    ),
-                    if (selectedReason == 'other') ...[
-                      const SizedBox(height: Spacing.small),
-                      _OtherTextField(controller: otherController),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: Spacing.medium),
-            _SubmitButton(
-              isEnabled: selectedReason != null,
-              onSubmit: onSubmit,
-            ),
+    return SingleChildScrollView(
+      padding: _bodyPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PromptText(text: l10n.cancellationReasonPrompt),
+          const SizedBox(height: Spacing.small),
+          CancellationReasonGroup(
+            reasons: reasons,
+            selectedReason: selectedReason,
+            labelOf: label,
+            onChanged: onReasonChanged,
+          ),
+          if (selectedReason == 'other') ...[
+            const SizedBox(height: Spacing.small),
+            _OtherTextField(controller: otherController),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -258,9 +297,13 @@ class _PromptText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `titleProminent` (17/w700), not `h2`: the top bar already owns the
+    // screen's 20/w700 line, so the question reads as its section headline.
     return Text(
       text,
-      style: Theme.of(context).textTheme.titleMedium,
+      style: context.jeebText.titleProminent.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
     );
   }
 }
@@ -278,17 +321,63 @@ class _OtherTextField extends StatelessWidget {
     return Semantics(
       identifier: 'cancellation_other_field',
       textField: true,
+      label: l10n.cancellationOtherHint,
       child: OmdsTextField(
         controller: controller,
-        labelText: l10n.cancellationOtherHint,
-        maxLines: 3,
+        // R15/R17's Midnight recipe: a hint rather than a floating Material
+        // label, with fill/border/hint ink from the Midnight OMDS token set.
+        hintText: l10n.cancellationOtherHint,
+        borderRadius: JeebRadii.lg,
+        minLines: 3,
+        maxLines: 4,
+        keyboardType: TextInputType.multiline,
+        textCapitalization: TextCapitalization.sentences,
       ),
     );
   }
 }
 
-class _SubmitButton extends StatelessWidget {
-  const _SubmitButton({required this.isEnabled, required this.onSubmit});
+/// The 409 lane: the delivery is already moving, so the picker has nothing left
+/// to offer. E3's night street is the only variant whose subject is a courier
+/// on the road.
+class _TooLateView extends StatelessWidget {
+  const _TooLateView();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: JeebEmptyState(
+        variant: JeebEmptyStateVariant.street,
+        identifier: 'cancellation_too_late',
+        headline: l10n.cancellationTooLateHeadline,
+        body: l10n.cancellationTooLateBody,
+      ),
+    );
+  }
+}
+
+/// The 5xx lane, docked above the CTA so the selection stays live and a retry
+/// is one tap away — R11's error-banner treatment.
+class _ErrorStrip extends StatelessWidget {
+  const _ErrorStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: _errorStripPadding,
+      child: JeebInfoNote.error(
+        identifier: 'cancellation_error_note',
+        icon: Icons.error,
+        text: l10n.cancellationErrorNote,
+      ),
+    );
+  }
+}
+
+class _SubmitFooter extends StatelessWidget {
+  const _SubmitFooter({required this.isEnabled, required this.onSubmit});
 
   final bool isEnabled;
   final VoidCallback onSubmit;
@@ -299,16 +388,20 @@ class _SubmitButton extends StatelessWidget {
     return BlocBuilder<CancellationCubit, CancellationState>(
       builder: (context, state) {
         final loading = state is CancellationLoading;
-        return Semantics(
-          identifier: 'cancellation_submit_cta',
-          container: true,
-          button: true,
-          child: OmdsPrimaryButton(
-            text: loading
-                ? l10n.deliveryActionCancellingLabel
-                : l10n.cancellationConfirmButton,
-            isEnabled: isEnabled && !loading,
-            onTap: onSubmit,
+        return JeebCtaFooter.single(
+          child: Semantics(
+            identifier: 'cancellation_submit_cta',
+            container: true,
+            button: true,
+            // NOT the accent pill: R9 spends orange on `Continue` because its
+            // tile draws it, and no tile draws this destructive act at all.
+            child: JeebCtaButton.outline(
+              label: loading
+                  ? l10n.deliveryActionCancellingLabel
+                  : l10n.cancellationConfirmButton,
+              isEnabled: isEnabled && !loading,
+              onTap: onSubmit,
+            ),
           ),
         );
       },

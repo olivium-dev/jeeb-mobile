@@ -1,24 +1,13 @@
 import 'dart:async';
 // sprint-009 scenario matrix #9/#10 (feat/request-scenarios).
-//
-// PROVES:
-//  1. DeliveryTrackingInfo parses the terminal/side lifecycle axis from every
-//     canonical + legacy status token (DeliveryStatusAlias table, ADR-002 §3),
-//     and the previously-dropped aliases heading_off ⇒ InTransit and
-//     rated ⇒ Done now land on the right stage.
-//  2. LiveTrackingCubit stops polling once the row is terminal cancelled.
-//  3. LiveTrackingScreen renders the graceful `tracking_cancelled_state`
-//     (OmdsEmptyState + "Delivery cancelled" + back-home CTA) instead of a
-//     live "Ordered" stepper for a cancelled/expired delivery — the pre-fix
-//     dead-end.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_cubit.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
@@ -44,6 +33,12 @@ Widget _harness(LiveTrackingCubit cubit) => MaterialApp(
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // JeebEmptyState's illustration loops ∞ (02-STUDY-NOTES M0-4):
+      // `pumpAndSettle` only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       home: BlocProvider<LiveTrackingCubit>.value(
         value: cubit,
         child:
@@ -115,11 +110,6 @@ void main() {
   });
 
   // b02 wave C / N7: the 5s poll became a `type=delivery` push subscription, so
-  // "stops polling" is now "retires the subscription and takes no read on a
-  // later push". That is the STRONGER claim: the bus is app-wide, so an
-  // unretired subscription would keep re-reading a cancelled row on every
-  // unrelated push for the rest of the session — where before it merely kept a
-  // timer alive on one screen.
   group('LiveTrackingCubit terminal cancelled (scenario matrix #9)', () {
     test('stops reading once the row is cancelled', () async {
       final repo = _MockRepo();
@@ -251,14 +241,18 @@ void main() {
         find.byKey(const Key('live-tracking-cancelled-state')),
         findsOneWidget,
       );
-      expect(find.byType(OmdsEmptyState), findsOneWidget);
+      // MIDNIGHT: the empty family is JeebEmptyState now, at `empty` status.
+      expect(find.byType(JeebEmptyState), findsOneWidget);
       expect(find.text('Delivery cancelled'), findsOneWidget);
       expect(
         find.byKey(const Key('tracking-cancelled-home-cta')),
         findsOneWidget,
       );
       // The live stepper and error state must NOT render for a terminal row.
-      expect(find.byType(OmdsErrorState), findsNothing);
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+        JeebEmptyStateStatus.empty,
+      );
       expect(find.text('Ordered'), findsNothing);
 
       await cubit.close();

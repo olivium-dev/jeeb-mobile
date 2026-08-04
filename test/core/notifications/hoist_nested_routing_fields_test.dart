@@ -5,10 +5,6 @@ import 'package:jeeb_mobile/core/notifications/domain/notification_message.dart'
 
 /// Regression for the s006 two-device push-tap gap: the live jeeb-gateway chat
 /// push nests routing fields inside a single stringified `data` entry serialized
-/// as single-quote (Python-style) pseudo-JSON. Captured on-device:
-///   [push] rx keys=[data, body, title] cat=null
-///   data: {'conversationId':'…','requestId':'…','type':'chat'}
-/// Without hoisting, category=other and the tap routes nowhere (Dashboard).
 void main() {
   group('hoistNestedRoutingFields', () {
     test('hoists conversationId + type from the exact live single-quote blob',

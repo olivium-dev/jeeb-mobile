@@ -29,11 +29,8 @@ void main() {
 
     expect(find.text('Hadi'), findsOneWidget);
     // MoneyFormat renders USD as "$42.50" (currency-unification lane), carried
-    // verbatim in the fee pill. Pre-existing stale assertion (was "42.50" + a
-    // separate "USD") repaired here so the offers suite stays green.
-    // MoneyFormat wraps the token in an LTR isolate (JEBV4-98/F10).
     expect(find.text('\u2066\$42.50\u2069'), findsOneWidget);
-    expect(find.text('18 min ETA'), findsOneWidget);
+    expect(find.text('in 18 mins'), findsOneWidget);
     expect(find.text('Motorcycle'), findsOneWidget);
     expect(find.text('Accept'), findsOneWidget);
     expect(find.text('4.7'), findsOneWidget);
@@ -57,13 +54,10 @@ void main() {
     // Indefinite spinner — pump once and assert, then settle nothing.
     await tester.pump();
 
-    expect(find.text('Accepting…'), findsOneWidget);
-    // OfferCard uses `OmdsButtonLoading` as the in-flight icon (OMDS sweep
-    // replaced the raw `CircularProgressIndicator`). `OmdsButtonLoading`
-    // still wraps a `CircularProgressIndicator` internally, but assert on
-    // the OMDS type so the test fails loudly if the design system swaps
-    // implementations.
-    expect(find.byType(OmdsButtonLoading), findsOneWidget);
+    // MIDNIGHT: the kit CTA swaps the whole label for the spinner, so the
+    // in-flight wording lives on the addressable semantics node.
+    expect(find.bySemanticsLabel('Accepting…'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
   testWidgets('OfferCard accept tap fires onAccept', (tester) async {
@@ -189,8 +183,6 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // W6 "People, not UUIDs" (sprint-009 SW-08): identity + honest ratings.
-  // ---------------------------------------------------------------------------
 
   testWidgets(
       'OfferCard suppresses a raw UUID jeeberName → "New Jeeber", and the '
@@ -315,4 +307,128 @@ void main() {
     expect(find.text('لا تقييمات بعد'), findsOneWidget);
     expect(find.textContaining('jeeb-'), findsNothing);
   });
+
+  // ---------------------------------------------------------------------------
+  // redesign-2026-08 screen 11 — ranking badges.
+  // ---------------------------------------------------------------------------
+
+  testWidgets('OfferCard renders no ranking badge by default', (tester) async {
+    await tester.pumpWidget(
+      wrapForTest(
+        OfferCard(
+          offer: buildOffer(id: 'plain'),
+          index: 0,
+          onAccept: () {},
+          onTapName: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Best value'), findsNothing);
+    expect(find.text('Fastest'), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('offer_card_0_best_value_badge'),
+      findsNothing,
+    );
+    expect(
+      find.bySemanticsIdentifier('offer_card_0_fastest_badge'),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'OfferCard renders the Best value badge and its dual ids when isBestValue',
+    (tester) async {
+      final offer = buildOffer(id: 'top');
+      await tester.pumpWidget(
+        wrapForTest(
+          OfferCard(
+            offer: offer,
+            index: 0,
+            isBestValue: true,
+            onAccept: () {},
+            onTapName: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Best value'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('offer_card_0_best_value_badge'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier(
+          'offer_card_${offer.jeeberId}_best_value_badge',
+        ),
+        findsOneWidget,
+      );
+      // C4: a recommended card is still just a card — the action row stays.
+      expect(find.byKey(const Key('offer-card-accept-top')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'OfferCard renders the Fastest pill and its dual ids when isFastest',
+    (tester) async {
+      final offer = buildOffer(id: 'quick', jeeberName: 'Nour');
+      await tester.pumpWidget(
+        wrapForTest(
+          OfferCard(
+            offer: offer,
+            index: 1,
+            isFastest: true,
+            onAccept: () {},
+            onTapName: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Fastest'), findsOneWidget);
+      expect(find.text('Nour'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('offer_card_1_fastest_badge'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('offer_card_${offer.jeeberId}_fastest_badge'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'OfferCard mirrors the Best value badge to the start edge under RTL '
+    '(PositionedDirectional, never right:)',
+    (tester) async {
+      await tester.pumpWidget(
+        wrapForTest(
+          OfferCard(
+            offer: buildOffer(id: 'rtl-badge'),
+            index: 0,
+            isBestValue: true,
+            onAccept: () {},
+            onTapName: () {},
+          ),
+          locale: const Locale('ar'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('أفضل قيمة'), findsOneWidget);
+      // Under RTL the directional `end` resolves to the LEFT half of the card.
+      final card = tester.getRect(find.byKey(const Key('offer-card-rtl-badge')));
+      final badge = tester.getRect(find.text('أفضل قيمة'));
+      expect(
+        badge.center.dx,
+        lessThan(card.center.dx),
+        reason: 'the badge must mirror with the text direction',
+      );
+      // It also straddles the card's top edge rather than sitting inside it.
+      expect(badge.top, lessThan(card.top));
+    },
+  );
 }

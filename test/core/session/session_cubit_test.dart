@@ -1,13 +1,4 @@
 // Unit coverage for the FR-P0-3 SessionCubit token classifier.
-//
-// The cubit translates the AuthTokenStore's access token into a tri-state the
-// router gate reads. The contract that MATTERS:
-//   * no token            → unauthenticated (router forces /register)
-//   * valid (future-exp) JWT → authenticated
-//   * expired JWT         → unauthenticated
-//   * non-JWT mock/super token → authenticated (presence is enough)
-//   * keystore read throws → unauthenticated (FAIL CLOSED)
-// and the cold-start `unknown` phase must be inert (isUnauthenticated == false).
 
 import 'dart:convert';
 
@@ -23,7 +14,6 @@ class _MockAuthTokenStore extends Mock implements AuthTokenStore {}
 
 /// Builds a structurally-valid JWT (header.payload.signature) whose payload
 /// carries the given `exp` (seconds since epoch). Signature is unverified — the
-/// classifier only reads the `exp` claim, never validates the signature.
 String _jwtWithExp(int expSeconds) {
   String seg(Map<String, Object?> m) =>
       base64Url.encode(utf8.encode(jsonEncode(m))).replaceAll('=', '');

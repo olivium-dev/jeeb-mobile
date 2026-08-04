@@ -1,0 +1,114 @@
+// Render tests for the MixedDirectionText previews.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:jeeb_mobile/features/mixed_direction/presentation/mixed_direction_text.dart';
+
+import '../preview_test_harness.dart';
+
+/// The long note as the preview concatenates it.
+const String _longArabicNote =
+    'الرجاء التوصيل إلى مبنى الأمين، الطابق الرابع، شارع الحمرا، بيروت، '
+    'والاتصال بي قبل الوصول بعشر دقائق';
+
+/// The direction of the [Directionality] the widget wraps [text] in — the
+/// nearest such ancestor, which is the one `MixedDirectionText.build` creates.
+TextDirection _directionOf(WidgetTester tester, String text) {
+  final Finder directionality = find.ancestor(
+    of: find.text(text),
+    matching: find.byType(Directionality),
+  );
+  expect(directionality, findsWidgets);
+  return tester.widget<Directionality>(directionality.first).textDirection;
+}
+
+void main() {
+  setUpAll(loadPreviewArbs);
+
+  testPreviewsRender(
+    'MixedDirectionText',
+    const <String, Widget Function()>{
+      'English (LTR)': mixedDirectionTextEnglish,
+      'Arabic (RTL)': mixedDirectionTextArabic,
+      'Arabic name in an English frame': mixedDirectionTextArabicNameInEnglish,
+      'Leading digit · LTR misfire': mixedDirectionTextLeadingDigit,
+      'Long Arabic note · clamped to 2 lines': mixedDirectionTextLongArabicNote,
+      'Leading whitespace (crash boundary)': mixedDirectionTextLeadingWhitespace,
+    },
+    expectedText: const <String, String>{
+      'English (LTR)': 'Pickup from Spinneys, Hamra',
+      'Arabic (RTL)': 'توصيل من محل الحلويات في الأشرفية',
+      'Arabic name in an English frame': 'Rate محمد الحلبي',
+      'Leading digit · LTR misfire': '2 boxes - توصيل سريع',
+      'Long Arabic note · clamped to 2 lines': _longArabicNote,
+      'Leading whitespace (crash boundary)': '  توصيل من الأشرفية',
+    },
+  );
+
+  group('MixedDirectionText preview specifics', () {
+    testWidgets('an Arabic-first note lays out RTL', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, mixedDirectionTextArabic);
+
+      expect(
+        _directionOf(tester, 'توصيل من محل الحلويات في الأشرفية'),
+        TextDirection.rtl,
+      );
+    });
+
+    testWidgets('direction comes from the text, never from the app locale', (
+      WidgetTester tester,
+    ) async {
+      // Same preview, Arabic app locale: the surrounding app has mirrored, and
+      await pumpPreview(
+        tester,
+        mixedDirectionTextEnglish,
+        locale: const Locale('ar'),
+      );
+
+      expect(
+        _directionOf(tester, 'Pickup from Spinneys, Hamra'),
+        TextDirection.ltr,
+      );
+    });
+
+    testWidgets('an Arabic name inside an English frame stays LTR', (
+      WidgetTester tester,
+    ) async {
+      // The frame decides, not the name — "Rate …" opens with `R`. The Arabic
+      await pumpPreview(tester, mixedDirectionTextArabicNameInEnglish);
+
+      expect(_directionOf(tester, 'Rate محمد الحلبي'), TextDirection.ltr);
+    });
+
+    testWidgets('KNOWN MISFIRE · a leading digit forces a mostly-Arabic note '
+        'to LTR', (WidgetTester tester) async {
+      // `detectDirection` reads exactly one character, so `2` outvotes three
+      await pumpPreview(tester, mixedDirectionTextLeadingDigit);
+
+      expect(_directionOf(tester, '2 boxes - توصيل سريع'), TextDirection.ltr);
+    });
+
+    testWidgets('leading whitespace is trimmed for detection but kept in the '
+        'rendered text', (WidgetTester tester) async {
+      await pumpPreview(tester, mixedDirectionTextLeadingWhitespace);
+
+      expect(_directionOf(tester, '  توصيل من الأشرفية'), TextDirection.rtl);
+      // The spaces survive into the Text — trimming happens in the detector
+      expect(find.text('توصيل من الأشرفية'), findsNothing);
+    });
+
+    testWidgets('the long note is clamped to two lines with an ellipsis', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, mixedDirectionTextLongArabicNote);
+
+      final Text note = tester.widget<Text>(find.text(_longArabicNote));
+      expect(note.maxLines, 2);
+      expect(note.overflow, TextOverflow.ellipsis);
+      expect(_directionOf(tester, _longArabicNote), TextDirection.rtl);
+    });
+  });
+}

@@ -1,13 +1,5 @@
 /// Widget tests for ChatScreen M1+ visibility (T-MOB-014).
-///
 /// Tests cover:
-///   - AC1: Composer visible in broadcasting phase
-///   - AC1: SendButton disabled when composerText empty
-///   - AC1: Composer hidden in closed phase
-///   - AC2: OfferCard renders with Accept + Decline buttons
-///   - AC2: Accepting offer sets acceptingOfferId optimistically
-///   - AC4: JeeberRemovedBanner shown in closed phase with offerRejected message
-///   - AC2: OfferAcceptedBanner shown after accept
 library;
 
 import 'dart:async';
@@ -29,8 +21,6 @@ import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-// ---------------------------------------------------------------------------
-// Localization helper
 // ---------------------------------------------------------------------------
 
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -57,8 +47,6 @@ void _loadArb() {
   _delegate = _SyncLocDelegate({'en': en, 'ar': ar});
 }
 
-// ---------------------------------------------------------------------------
-// Test double
 // ---------------------------------------------------------------------------
 
 class _FakeGateway extends ChatGateway {
@@ -101,8 +89,6 @@ class _FakeGateway extends ChatGateway {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helper
 // ---------------------------------------------------------------------------
 
 DeliveryChatMessage _offerMsg(String offerId) =>
@@ -162,8 +148,6 @@ ChatCubit _cubit({
   return c;
 }
 
-// ---------------------------------------------------------------------------
-// Tests
 // ---------------------------------------------------------------------------
 
 void main() {

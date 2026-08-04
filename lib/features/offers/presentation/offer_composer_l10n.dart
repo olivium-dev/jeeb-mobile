@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../../../core/formatting/money_format.dart';
+import '../../../core/jeeb_commission.dart';
 import '../../../l10n/app_localizations.dart';
 
 /// JM-045 / JM-046 localized copy resolver (R-F, 40_GUARDRAILS_ARCH §9 l10n
@@ -13,8 +15,14 @@ import '../../../l10n/app_localizations.dart';
 /// resolver reuses the EXISTING localized getters where one fits and supplies
 /// the genuinely-missing strings from a feature-local EN/AR map until the
 /// integrator lands the dedicated keys (REQUESTED in `50_ROUTE_REQUESTS.md`,
-/// "JM-045"). Maestro asserts on `Semantics(identifier:)` only, so the visible
-/// copy is cosmetic — this swaps to the real getters with no call-site change.
+/// "JM-045"; redesign-2026-08 wiring request WR-5). Maestro asserts on
+/// `Semantics(identifier:)` only, so the visible copy is cosmetic — this swaps
+/// to the real getters with no call-site change.
+///
+/// **Money is never interpolated raw.** Every amount goes through
+/// [MoneyFormat.format], which wraps the token in a Unicode LTR isolate — that
+/// is what keeps `$0.80` from scrambling inside an Arabic sentence (JEBV4-98).
+/// Bare numeric runs (the ETA ceiling) go through [_ltr] for the same reason.
 ///
 /// Delete this file once the integrator adds the `offerComposer*` /
 /// `insufficientBalance*` keys requested in `50_ROUTE_REQUESTS.md`.
@@ -29,101 +37,178 @@ class OfferComposerL10n {
     );
   }
 
+  /// U+2066 LEFT-TO-RIGHT ISOLATE.
+  static const String _lri = '\u2066';
+
+  /// U+2069 POP DIRECTIONAL ISOLATE.
+  static const String _pdi = '\u2069';
+
+  /// U+2212 MINUS SIGN — what the board draws on `−$0.80` and `−1`, not the
+  /// ASCII hyphen.
+  static const String minusSign = '\u2212';
+
   final AppLocalizations _l10n;
   final bool _isArabic;
 
   String _pick(String en, String ar) => _isArabic ? ar : en;
 
-  // ── App bar / header ────────────────────────────────────────────────────
-  /// `offer_composer` app-bar title — reuses the existing offer-submission key.
-  String get title => _l10n.offerSubmissionTitle;
+  /// Wraps [run] in an LTR isolate so a Western-digit run keeps its internal
+  /// order (and its sign/symbol placement) inside an Arabic paragraph.
+  String _ltr(String run) => '$_lri$run$_pdi';
 
-  /// Withdraw/close tooltip on the leading button — reuses an existing getter.
+  // ── Header ──────────────────────────────────────────────────────────────
+  /// The top bar title (board `tpl 991`).
+  String get title => _pick('Your offer', 'عرضك');
+
+  /// Withdraw/close tooltip on the leading circle — reuses an existing getter.
   String get closeTooltip => _l10n.offerSubmitWithdrawTooltip;
 
-  /// `offer_composer_order_ref` — "Your offer · ORD-…" header (AC3). The order
-  /// reference itself (`ref`) is not localized.
-  String orderRef(String ref) =>
-      _pick('Your offer · $ref', 'عرضك · $ref');
-
-  /// Short intro under the header — reuses the existing offer-submission intro.
+  /// Short intro under the header. No consumer since the redesign moved the
+  /// header into [title] + the order-ref subtitle; the ARB key is untouched.
   String get intro => _l10n.offerSubmissionIntro;
 
-  // ── Price field ─────────────────────────────────────────────────────────
-  /// `offer_composer_price_field` label — reuses the existing fee label.
-  String get priceLabel => _l10n.offerSubmissionFeeLabel;
+  // ── Price block ─────────────────────────────────────────────────────────
+  /// `YOUR PRICE` section label (uppercasing belongs to `JeebSectionLabel`).
+  String get priceSectionLabel => _pick('Your price', 'سعرك');
 
-  // ── ETA dropdown (bounded by tier SLA, D14) ───────────────────────────────
-  /// `offer_composer_eta_dropdown` label — reuses the existing ETA label.
-  String get etaLabel => _l10n.offerSubmissionEtaLabel;
+  /// Placeholder inside the money field before anything is typed. Digits stay
+  /// Western in both locales (the [MoneyFormat] digit policy).
+  String get pricePlaceholder => '0.00';
 
-  // ── Description / note field (optional free text, wire field `note`) ───────
-  /// `offer_composer_note_field` label. Feature-local EN/AR until the
-  /// integrator lands the dedicated `offerComposerNote*` ARB keys (REQUESTED in
-  /// `50_ROUTE_REQUESTS.md`) — same precedent as the economics lines above.
+  /// The currency mark drawn beside the amount: `$` for USD (and for a blank
+  /// currency, which the gateway treats as USD), else the ISO code.
+  String currencyMark(String currency) {
+    final code = currency.trim().toUpperCase();
+    return code.isEmpty || code == 'USD' ? r'$' : code;
+  }
+
+  /// a11y label for the `−1` pill — `−1` alone reads badly.
+  String get priceDecrementLabel => _pick(
+        'Decrease offer by 1',
+        'خفض العرض بمقدار ١',
+      );
+
+  /// a11y label for the `+1` pill.
+  String get priceIncrementLabel => _pick(
+        'Increase offer by 1',
+        'زيادة العرض بمقدار ١',
+      );
+
+  /// Validation under the price field.
+  String get priceRequiredError => _l10n.offerComposerPriceRequired;
+
+  // ── ETA block (bounded by the tier SLA, D14) ────────────────────────────
+  /// `PICKUP ETA` section label.
+  String get etaSectionLabel => _pick('Pickup ETA', 'وقت الاستلام');
+
+  /// The section label's inline hint — the band ceiling. The board reads
+  /// `· Flash allows ≤ 60 min`; the tier is not on this route (see the header
+  /// TODO), so only the ceiling is rendered — never a guessed tier name.
+  String etaCeilingHint(int minutes) => _pick(
+        '· ${_ltr('≤ $minutes')} min',
+        '· ${_ltr('≤ $minutes')} دقيقة',
+      );
+
+  /// "{minutes} min" — a single bounded ETA option label.
+  String etaOption(int minutes) =>
+      _pick('${_ltr('$minutes')} min', '${_ltr('$minutes')} دقيقة');
+
+  /// Validation under the ETA row.
+  String get etaRequiredError => _l10n.offerComposerEtaRequired;
+
+  // ── Note field (optional free text, wire field `note`) ───────────────────
+  /// `offer_composer_note_field` accessibility label. The redesigned field
+  /// shows a placeholder only, so this is the field's a11y name.
   String get noteLabel =>
       _pick('Describe your offer (optional)', 'صِف عرضك (اختياري)');
 
-  /// `offer_composer_note_field` hint / placeholder.
+  /// `offer_composer_note_field` placeholder (board `tpl 1009`).
   String get noteHint => _pick(
-        'e.g. On my way now — I can pick up in 5 minutes.',
-        'مثال: أنا في الطريق الآن — يمكنني الاستلام خلال ٥ دقائق.',
+        'Add a note — "I\'m 5 mins from the pharmacy" (optional)',
+        'أضف ملاحظة — "أنا على بعد ٥ دقائق من الصيدلية" (اختياري)',
       );
 
-  /// Placeholder shown on the dropdown before the Jeeber picks an ETA.
-  String get etaPlaceholder => _pick('Select pickup ETA', 'اختر وقت الاستلام');
+  // ── Economics layer (D37 / D44 / D1) ────────────────────────────────────
+  /// `offer_composer_offer_line` label — the Jeeber's own bid.
+  String get offerRowLabel => _pick('Your offer', 'عرضك');
 
-  /// Title of the ETA picker sheet.
-  String get etaSheetTitle => _pick('Pickup ETA', 'وقت الاستلام');
-
-  /// "{minutes} min" — a single bounded ETA option label.
-  String etaOption(int minutes) => _pick('$minutes min', '$minutes دقيقة');
-
-  // ── Economics layer (D37 / D44 / D1) ──────────────────────────────────────
-  /// `offer_composer_fee_line` — the exact 10% platform fee (D37/D44).
-  String feeLine(String amount, String currency) => _pick(
-        'Platform fee (10%): $amount $currency',
-        'رسوم المنصة (١٠٪): $amount $currency',
+  /// `offer_composer_fee_line` label. The percentage is interpolated from
+  /// [kJeebCommissionPercent] so the word and the number cannot drift (D37/D44
+  /// — "Platform fee", NEVER "Commission").
+  String get feeRowLabel => _pick(
+        'Platform fee ($kJeebCommissionPercent%)',
+        'رسوم المنصة ($kJeebCommissionPercent٪)',
       );
 
   /// Fee line shown before a price is entered (no amount yet).
   String get feeLinePending => _pick(
-        'Platform fee: 10% of your offer',
-        'رسوم المنصة: ١٠٪ من عرضك',
+        'Platform fee: $kJeebCommissionPercent% of your offer',
+        'رسوم المنصة: $kJeebCommissionPercent٪ من عرضك',
       );
 
-  /// `offer_composer_net_line` — "You earn (cash)" net-per-offer (D44). The
-  /// Jeeber is paid the full fee in cash by the customer; the 10% is taken from
-  /// the pre-charged wallet, so the net the Jeeber keeps == the offer price.
-  String netLine(String amount, String currency) => _pick(
-        'You earn (cash): $amount $currency',
-        'تربح (نقداً): $amount $currency',
-      );
+  /// `offer_composer_net_line` label — what the Jeeber keeps after the fee.
+  ///
+  /// This is the redesign's C2 decision: the board computes offer → −10% fee →
+  /// "you keep", and `netPerOffer` (`earnings_summary.dart:170`) already
+  /// defines net that way, so the composer and Earnings now agree. The board's
+  /// `(cash)` qualifier is dropped on purpose — the cash in hand IS the full
+  /// offer; the reserve footnote carries the wallet mechanics.
+  String get keepRowLabel => _pick('You keep', 'تحتفظ بـ');
 
   /// Net line shown before a price is entered.
   String get netLinePending => _pick(
-        'You earn (cash): your full offer, paid by the customer',
-        'تربح (نقداً): كامل عرضك، يدفعه العميل',
+        'You keep: your offer minus the platform fee',
+        'تحتفظ بـ: عرضك ناقص رسوم المنصة',
       );
 
+  /// A formatted, LTR-isolated money token (`$8.00`, `LBP 15,000.00`).
+  String money(double amount, String currency) =>
+      MoneyFormat.format(amount, currency: currency);
+
+  /// The same token carrying the board's U+2212 sign (`−$0.80`), kept inside
+  /// one isolate so the sign stays glued to the digits under RTL.
+  String negativeMoney(double amount, String currency) =>
+      _ltr('$minusSign${money(amount, currency)}');
+
   /// `offer_composer_reserve_note` — reserve/charge/release copy (D1).
-  String reserveNote(String amount, String currency) => _pick(
-        '$amount $currency reserved now from your wallet · charged only if you '
-            'win · released if you don’t.',
-        'يُحجز الآن $amount $currency من محفظتك · يُخصم فقط إذا فزت · '
-            'يُعاد إن لم تفز.',
+  /// [amount] arrives pre-formatted through [money].
+  String reserveNote(String amount) => _pick(
+        '$amount is reserved from your wallet now · charged only if you win · '
+            'released if you’re not picked.',
+        'يُحجز الآن $amount من محفظتك · يُخصم فقط إذا فزت · '
+            'يُعاد إن لم يقع الاختيار عليك.',
       );
 
   /// Reserve note shown before a price is entered.
   String get reserveNotePending => _pick(
-        '10% is reserved now from your wallet · charged only if you win · '
-            'released if you don’t.',
-        'يُحجز الآن ١٠٪ من محفظتك · يُخصم فقط إذا فزت · يُعاد إن لم تفز.',
+        '$kJeebCommissionPercent% is reserved now from your wallet · charged '
+            'only if you win · released if you don’t.',
+        'يُحجز الآن $kJeebCommissionPercent٪ من محفظتك · يُخصم فقط إذا فزت · '
+            'يُعاد إن لم تفز.',
       );
 
-  // ── Send CTA ──────────────────────────────────────────────────────────────
-  /// `offer_composer_send_cta` — reuses the existing submit-button key.
+  // ── Wallet strip ────────────────────────────────────────────────────────
+  /// `offer_composer_wallet_strip` — the available balance. [amount] arrives
+  /// pre-formatted through [money].
+  String walletStrip(String amount) => _pick(
+        'Wallet: $amount available',
+        'المحفظة: $amount متاح',
+      );
+
+  /// `offer_composer_wallet_topup_cta` — reuses the shipped wallet key.
+  String get walletTopUpCta => _l10n.walletTopUpCta;
+
+  // ── Send CTA ────────────────────────────────────────────────────────────
+  /// `offer_composer_send_cta` before a price is entered — reuses the existing
+  /// submit-button key.
   String get sendCta => _l10n.offerSubmissionSubmitButton;
+
+  /// `offer_composer_send_cta` with the kept amount restated (board `tpl
+  /// 1031`). [amount] arrives pre-formatted through [money].
+  String sendCtaWithNet(String amount) => _pick(
+        'Send offer — keep $amount',
+        'أرسل العرض — تحتفظ بـ $amount',
+      );
 
   // ── Transient feedback ────────────────────────────────────────────────────
   /// Request-gone snack — reuses the existing offer-submit getter.
@@ -146,8 +231,9 @@ class OfferComposerL10n {
 
   /// Body explaining the gap.
   String get insufficientBody => _pick(
-        'Top up your wallet to reserve the 10% and send this offer.',
-        'اشحن محفظتك لحجز الـ ١٠٪ وإرسال هذا العرض.',
+        'Top up your wallet to reserve the $kJeebCommissionPercent% and send '
+            'this offer.',
+        'اشحن محفظتك لحجز الـ $kJeebCommissionPercent٪ وإرسال هذا العرض.',
       );
 
   /// `insufficient_balance_needed_amount` — "Needed: X currency".

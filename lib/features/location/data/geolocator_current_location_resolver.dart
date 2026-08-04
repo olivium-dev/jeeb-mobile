@@ -2,12 +2,6 @@ import '../../background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../background_gps/domain/location_permission.dart';
 import '../domain/current_location_resolver.dart';
 
-/// Production [CurrentLocationResolver] over [GeolocatorGeocaptureGateway]
-/// (JEBV4-176). Mirrors the go-online one-shot-fix pattern already used for the
-/// jeeber availability toggle (see `injection_container.dart`): ensure location
-/// services are on, ensure a foreground grant (prompt once when
-/// denied/undetermined), then take a single fix — degrading to a typed
-/// [CurrentLocationOutcome] instead of ever fabricating a coordinate.
 class GeolocatorCurrentLocationResolver implements CurrentLocationResolver {
   GeolocatorCurrentLocationResolver({GeolocatorGeocaptureGateway? gateway})
       : _gateway = gateway ?? GeolocatorGeocaptureGateway();
@@ -29,10 +23,15 @@ class GeolocatorCurrentLocationResolver implements CurrentLocationResolver {
         return const CurrentLocationResult.permissionDenied();
       }
       final fix = await _gateway.currentFix();
-      return CurrentLocationResult.resolved(fix.latitude, fix.longitude);
+      // The gateway already carries the OS accuracy radius on every sample; it
+      // used to be dropped here. Threading it lets the card tell the customer
+      // how precise the fix actually is instead of a flat "using your location".
+      return CurrentLocationResult.resolved(
+        fix.latitude,
+        fix.longitude,
+        accuracyMeters: fix.accuracyMeters,
+      );
     } catch (_) {
-      // A platform channel error / timeout is a genuine acquisition failure —
-      // surfaced as a retryable state, never a silent fake fix.
       return const CurrentLocationResult.failed();
     }
   }

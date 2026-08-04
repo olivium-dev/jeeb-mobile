@@ -1,34 +1,33 @@
-// Regression guard for the dev-seam create-request top-plus defect (screens
-// 13/14/15).
+// Regression guard for the dev-seam create-request defect (screens 13/14/15).
 //
-// THE DEFECT (capture-confirmed from pixels): on the client-home tabs the "+"
-// create-request top plus rendered a light-gray DISABLED circle instead of the
-// Figma filled-navy (colorScheme.primary) circle with a white "+". The button
-// widget (client_home_greeting.dart `_AddRequestButton` → IconButton.filled
-// with OmdsButtonStyles.iconButtonFilled) is correct: it derives its fill from
-// colorScheme.primary and its icon from colorScheme.onPrimary. But the SHELL
-// constructed ClientHomeScreen WITHOUT an `onCreateRequest` callback
-// (home_tab.dart), so it defaulted to null. A null `onPressed` makes
-// IconButton render in its DISABLED state, which paints the disabled-gray
-// color regardless of the configured backgroundColor — hence the gray plus in
-// every screen-13/14/15 capture.
+// THE DEFECT (capture-confirmed from pixels): the SHELL constructed
+// ClientHomeScreen WITHOUT an `onCreateRequest` callback (home_tab.dart), so it
+// defaulted to null and the create surface rendered inert — originally as a
+// disabled-gray "+" circle instead of the Figma filled-navy one.
 //
 // THE FIX: home_tab.dart now passes a non-null `onCreateRequest` (wired to the
-// `request-type` route, matching production create-request intent). A non-null
-// callback makes `onPressed != null`, so the top plus renders ENABLED → navy.
+// `request-type` route, matching production create-request intent).
+//
+// REDESIGN-2026-08 (screen 04, wiring request): the top "+" IconButton
+// (`Key('client-home-greeting-add')`) was replaced by the board's mic hero, so
+// the assertions below moved off that Key and onto the FROZEN semantics
+// identifier `orders_create_request_button` that survived the rebuild. The
+// GUARDED DEFECT is unchanged and is what these tests still prove: the create
+// surface must never render with a null callback from the shell. The negative
+// pins (`client_home_voice_request` and `Key('client-home-voice-cta')` absent)
+// are kept verbatim — those surfaces stay retired.
 //
 // WHY THIS TEST AND NOT client_home_screen_test.dart's "DEFECT 1": that test
-// resolves the button STYLE with an empty WidgetState set ({}), so it asserts
-// the navy fill is *configured* — it passes even when the live button is
-// disabled (because disabled is a different WidgetState the {} resolution never
-// applies). It cannot catch a null callback. THIS test drives the real
-// `HomeTab` through the dev seam and asserts the top plus is actually ENABLED
-// (onPressed != null), which is the precise condition that regressed to gray.
+// asserts the create affordance is *configured* correctly; it cannot catch a
+// null callback handed down by the shell. THIS test drives the real `HomeTab`
+// through the dev seam and asserts the create node actually carries a tap
+// action, which is the precise condition that regressed.
 //
 // kDebugMode is true under `flutter test`, so HomeTab._devSeamTab() reads the
 // injected DevSeam config — the same runtime path the capture APK takes.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -44,8 +43,8 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import '../../support/sync_app_localizations.dart';
 
 /// Minimal router so `GoRouter.of(context)` (used by HomeTab's create-request
-/// wiring) resolves. The top-plus tap is never exercised here — we only assert the
-/// button is enabled — so a single placeholder route is sufficient.
+/// wiring) resolves. The create tap is never exercised here — we only assert the
+/// node carries a tap action — so a single placeholder route is sufficient.
 GoRouter _router({required String homeTab}) {
   return GoRouter(
     initialLocation: '/',
@@ -64,7 +63,9 @@ GoRouter _router({required String homeTab}) {
         ),
       ),
       GoRoute(
+        // NAMED, because HomeTab._openRequestType uses `pushNamed`.
         path: '/request-type',
+        name: 'request-type',
         builder: (context, state) => const Scaffold(body: Placeholder()),
       ),
     ],
@@ -89,13 +90,13 @@ Widget _app(GoRouter router) {
 void main() {
   tearDown(DevSeam.debugReset);
 
-  group('HomeTab create-request top plus (dev-seam screens 13/14/15)', () {
+  group('HomeTab create-request surface (dev-seam screens 13/14/15)', () {
     // The seam drives the home tab to each of the three filter variants. In
-    // ALL three the create-request top plus must render ENABLED so it paints the
-    // navy primary fill (not the disabled-gray that a null callback produces).
+    // ALL three the create-request surface must render with a live callback —
+    // a null one from the shell is the defect this file guards.
     for (final homeTab in const ['pending', 'replies', 'in_progress']) {
       testWidgets(
-        'is ENABLED (navy, onPressed != null) under jeeb.home_tab=$homeTab',
+        'is ENABLED (tap action present) under jeeb.home_tab=$homeTab',
         (tester) async {
           DevSeam.debugOverride(DevSeamConfig(route: '/', homeTab: homeTab));
 
@@ -103,23 +104,23 @@ void main() {
           await tester.pumpWidget(_app(_router(homeTab: homeTab)));
           await tester.pumpAndSettle();
 
-          final topPlus = tester.widget<IconButton>(
-            find.byKey(const Key('client-home-greeting-add')),
+          final createFinder = find.bySemanticsIdentifier(
+            'orders_create_request_button',
           );
+          expect(createFinder, findsOneWidget);
 
-          // The precise condition that regressed to gray: a disabled
-          // IconButton (onPressed == null) repaints in the disabled color
-          // regardless of its configured navy backgroundColor.
+          // The precise condition that regressed: the shell handing down a
+          // null `onCreateRequest`, which strips the tap action off the node
+          // while the surface still paints.
           expect(
-            topPlus.onPressed,
-            isNotNull,
+            tester
+                .getSemantics(createFinder)
+                .getSemanticsData()
+                .hasAction(SemanticsAction.tap),
+            isTrue,
             reason:
-                'create-request top plus must be enabled under the dev seam so it '
-                'renders the Figma navy fill, not the disabled-gray circle',
-          );
-          expect(
-            find.bySemanticsIdentifier('orders_create_request_button'),
-            findsOneWidget,
+                'create-request surface must carry a live tap handler under the '
+                'dev seam — a null shell callback renders it inert',
           );
           expect(
             find.bySemanticsIdentifier('orders_home_new_order_fab'),
@@ -138,30 +139,15 @@ void main() {
       );
     }
 
-    testWidgets(
-      'resolved background is the navy primary color in the ENABLED state',
-      (tester) async {
-        DevSeam.debugOverride(
-          const DevSeamConfig(route: '/', homeTab: 'pending'),
-        );
-
-        await tester.pumpWidget(_app(_router(homeTab: 'pending')));
-        await tester.pumpAndSettle();
-
-        final topPlusFinder = find.byKey(const Key('client-home-greeting-add'));
-        final topPlus = tester.widget<IconButton>(topPlusFinder);
-        expect(topPlus.onPressed, isNotNull);
-
-        // Resolve the style in the *enabled* (non-disabled) state — i.e. the
-        // state the button is actually in now — and confirm it is navy primary
-        // with a white icon, matching Figma 56535:1783.
-        final scheme = Theme.of(tester.element(topPlusFinder)).colorScheme;
-        const enabledStates = <WidgetState>{};
-        final bg = topPlus.style!.backgroundColor!.resolve(enabledStates);
-        final fg = topPlus.style!.foregroundColor!.resolve(enabledStates);
-        expect(bg, scheme.primary);
-        expect(fg, scheme.onPrimary);
-      },
-    );
+    // RETIRED (redesign-2026-08, screen 04): this file's second case used to
+    // resolve `IconButton.style.backgroundColor` on
+    // `Key('client-home-greeting-add')` and assert the navy primary fill. That
+    // IconButton no longer exists — the board's mic hero replaced it — and the
+    // hero's navy card fill / accent mic is now asserted by
+    // `client_home_screen_test.dart` ("create-request hero uses primary card
+    // fill + accent mic"), which owns that surface. The defect THIS file
+    // guards (a null `onCreateRequest` handed down by the shell) is fully
+    // covered by the three dev-seam cases above, which assert the frozen
+    // `orders_create_request_button` node carries a live tap action.
   });
 }

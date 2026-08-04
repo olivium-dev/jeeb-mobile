@@ -123,28 +123,18 @@ tags:
 
 - takeScreenshot: jm009_ac1b_otp_screen
 
-# Enter the 6-digit OTP one digit per cell (RC-7 fix: Maestro inputText does not
-# distribute across multi-cell OmdsOtpInput; tap each cell by its per-cell id).
-# Cell ids: phone_otp_input_0 .. phone_otp_input_5 (added by app engineer RC-7 fix).
-# OmdsOtpInput auto-submits on the last digit (onCompleted fires submit()).
+# Enter the 4-digit OTP on the in-screen keypad (redesign 03: the code cells
+# are display-only, so tapOn + inputText per cell can no longer deposit digits;
+# kCustomerOtpLength = 4, so the old six-cell block was stale twice over).
+# Auto-verifies on the 4th digit.
 - tapOn:
-    id: "phone_otp_input_0"
-- inputText: "1"
+    id: "phone_otp_keypad_1"
 - tapOn:
-    id: "phone_otp_input_1"
-- inputText: "2"
+    id: "phone_otp_keypad_2"
 - tapOn:
-    id: "phone_otp_input_2"
-- inputText: "3"
+    id: "phone_otp_keypad_3"
 - tapOn:
-    id: "phone_otp_input_3"
-- inputText: "4"
-- tapOn:
-    id: "phone_otp_input_4"
-- inputText: "5"
-- tapOn:
-    id: "phone_otp_input_5"
-- inputText: "6"
+    id: "phone_otp_keypad_4"
 
 - runFlow:
     when:

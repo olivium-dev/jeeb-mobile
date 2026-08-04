@@ -1,9 +1,5 @@
 import 'notifications_repository.dart';
 
-/// Maps the notification type used on the wire to the inbox domain kind.
-///
-/// A leading `jeeb.` is tolerated for compatibility with an old gateway serving
-/// a new APK. The current gateway normally strips that namespace itself.
 NotificationKind notificationKindFromWireType(String? wireType) {
   var type = wireType?.trim();
   if (type == null || type.isEmpty) return NotificationKind.unknown;

@@ -3,16 +3,8 @@ import 'package:dio/dio.dart';
 import '../domain/cancellation_repository.dart';
 import '../domain/cancellation_result.dart';
 
-/// Dio-backed implementation of [CancellationRepository].
-///
-/// Endpoint contract verified against Mockoon :3055 (useMockPrefixes=false):
-///   POST /v1/deliveries/{id}/cancel
-///       body: { "reason": string, "otherDetails"?: string }
-///       200  → CancelDeliveryResponse
-///       409  → too_late_to_cancel
-///
-/// Observability: logs `delivery.cancel_requested` and
-/// `delivery.cancel_confirmed` per AC5.
+/// Posts to /v1/deliveries/{id}/cancel; 409/422 → too_late_to_cancel.
+/// Logs delivery.cancel_requested and delivery.cancel_confirmed per AC5.
 class DioCancellationRepository implements CancellationRepository {
   const DioCancellationRepository(this._dio);
 

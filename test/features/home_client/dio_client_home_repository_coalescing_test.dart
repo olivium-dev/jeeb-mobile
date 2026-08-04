@@ -1,11 +1,4 @@
 // F3 (offers polling storm): the home load must COALESCE its reads so a
-// steady-state customer session stays well under the per-subscription rate
-// budget. These tests pin the two coalescing wins:
-//   1. the `role=client` list is fetched ONCE and shared between the auction
-//      buckets and the recent-deliveries strip — no duplicate same-cycle GET;
-//   2. a candidate whose payload already reports an offer is NOT probed again
-//      via `GET /v1/offers` (the probe can only raise a count that already
-//      buckets it into Replies).
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,9 +49,6 @@ void main() {
     await repo.loadSnapshot();
 
     // Capture every /requests query. Exactly one is the plain role=client read
-    // (no `status`); the only other legitimate /requests call is the
-    // status=active in-flight merge. The old code fired the role=client read
-    // TWICE (pageSize 50 for buckets + pageSize 10 for recents).
     final requestCalls = verify(() => dio.get<dynamic>(
           '/requests',
           queryParameters: captureAny(named: 'queryParameters'),

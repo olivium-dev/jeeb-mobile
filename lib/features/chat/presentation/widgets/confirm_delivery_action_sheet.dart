@@ -1,26 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_scrim.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'delivery_confirm_illustration.dart';
 
-/// Which delivery confirmation the sheet drives.
-enum DeliveryConfirmKind {
-  /// Jeeber confirms physically picking the order up (Figma node 56618:2751).
-  picking,
+import '../../../../core/previews/jeeb_preview.dart';
 
-  /// Jeeber confirms heading off to deliver (Figma node 56618:2852).
+enum DeliveryConfirmKind {
+  picking,
   headingOff,
 }
 
-/// Modal bottom sheet shown over the dimmed chat when the Jeeber confirms a
-/// delivery state transition (picking the order / heading off).
-///
-/// Composed entirely from OMDS primitives + tokens: an M3 drag handle, the
-/// shared [DeliveryConfirmIllustration], a navy title, a periwinkle subtitle,
-/// and a navy [OmdsLoadingButton] Confirm CTA that shows a spinner while the
-/// gateway call runs. The same shell renders both confirmations — only the
-/// copy differs.
 class ConfirmDeliveryActionSheet extends StatelessWidget {
   const ConfirmDeliveryActionSheet({
     super.key,
@@ -30,30 +24,19 @@ class ConfirmDeliveryActionSheet extends StatelessWidget {
   });
 
   final DeliveryConfirmKind kind;
-
-  /// Fired when the Confirm CTA is tapped.
   final VoidCallback onConfirm;
-
-  /// True while the heading-off / picking call is in flight.
   final bool isConfirming;
 
-  /// Opens the sheet over the current route with a navy-tinted scrim. Returns
-  /// the value popped by the sheet (`true` once confirmed), or null if
-  /// dismissed.
   static Future<bool?> show(
     BuildContext context, {
     required DeliveryConfirmKind kind,
     required Future<void> Function() onConfirm,
   }) {
-    final scrim = Theme.of(context)
-        .colorScheme
-        .onSecondaryContainer
-        .withValues(alpha: UIConstants.opacityHigh);
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      barrierColor: scrim,
+      barrierColor: JeebScrim.barrier(context),
       shape: const RoundedRectangleBorder(
         borderRadius: OmdsBorderRadius.topXLarge,
       ),
@@ -80,9 +63,6 @@ class ConfirmDeliveryActionSheet extends StatelessWidget {
     return Semantics(
       identifier: 'confirm_delivery_action_sheet',
       // explicitChildNodes keeps the drag handle, title, and Confirm CTA as
-      // independent, id-addressable semantics nodes instead of letting the
-      // framework collapse them into this container node (QA B1: Maestro could
-      // only see `confirm_delivery_action_sheet`).
       explicitChildNodes: true,
       child: SafeArea(
         top: false,
@@ -106,8 +86,6 @@ class ConfirmDeliveryActionSheet extends StatelessWidget {
   }
 }
 
-/// Stateful host that flips the CTA into its loading state while the supplied
-/// async [onConfirm] runs, then pops `true` on success.
 class _ConfirmSheetHost extends StatefulWidget {
   const _ConfirmSheetHost({required this.kind, required this.onConfirm});
 
@@ -142,7 +120,6 @@ class _ConfirmSheetHostState extends State<_ConfirmSheetHost> {
   }
 }
 
-/// Vertical content stack: drag handle, illustration, text block, CTA.
 class _SheetContent extends StatelessWidget {
   const _SheetContent({
     required this.title,
@@ -183,14 +160,16 @@ class _SheetContent extends StatelessWidget {
   }
 }
 
-/// Centered M3 drag handle (32×4 pill) tinted with the brand primary.
 class _SheetDragHandle extends StatelessWidget {
   const _SheetDragHandle();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    // Inert chrome takes the .22 glass rung — never the accent (`primary` IS
+    // #D73B00 under Midnight). Same rung as the settings sign-out grabber.
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Center(
       child: Semantics(
         identifier: 'confirm_delivery_drag_handle',
@@ -199,7 +178,7 @@ class _SheetDragHandle extends StatelessWidget {
           width: Spacing.twoXLarge,
           height: Spacing.twoXSmall,
           decoration: BoxDecoration(
-            color: colorScheme.primary,
+            color: semantics.glassBorderVivid,
             borderRadius: OmdsBorderRadius.pill,
           ),
         ),
@@ -208,7 +187,6 @@ class _SheetDragHandle extends StatelessWidget {
   }
 }
 
-/// Centered navy title + periwinkle subtitle.
 class _SheetTextBlock extends StatelessWidget {
   const _SheetTextBlock({required this.title, required this.subtitle});
 
@@ -218,6 +196,8 @@ class _SheetTextBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Column(
       children: [
         Semantics(
@@ -226,9 +206,8 @@ class _SheetTextBlock extends StatelessWidget {
           child: Text(
             title,
             textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.secondaryContainer,
-              fontWeight: FontWeight.w800,
+            style: context.jeebText.h2.copyWith(
+              color: theme.colorScheme.onSurface,
             ),
           ),
         ),
@@ -238,9 +217,7 @@ class _SheetTextBlock extends StatelessWidget {
           child: Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: context.jeebText.body.copyWith(color: semantics.mutedText),
           ),
         ),
       ],
@@ -248,13 +225,7 @@ class _SheetTextBlock extends StatelessWidget {
   }
 }
 
-/// Full-width navy Confirm CTA that spins while the action runs.
-///
-/// The `Semantics` node owns the tap action and is an explicit `container`
-/// boundary — the same shape as the proven `ChatComposerIconButton`
-/// (`chat_detail_send_button`), which Maestro can tap in flow 04. This makes
-/// the CTA a standalone, id-addressable, tappable node rather than relying on
-/// the inner [OmdsLoadingButton]'s bare `GestureDetector` semantics (QA B1).
+/// Semantics node required for QA B1 (Maestro testing).
 class _SheetConfirmCta extends StatelessWidget {
   const _SheetConfirmCta({
     required this.label,
@@ -268,7 +239,6 @@ class _SheetConfirmCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final enabled = !isConfirming;
     return Semantics(
       identifier: 'confirm_delivery_confirm_button',
@@ -278,16 +248,160 @@ class _SheetConfirmCta extends StatelessWidget {
       label: label,
       onTap: enabled ? onConfirm : null,
       child: ExcludeSemantics(
-        child: OmdsLoadingButton(
+        child: JeebCtaButton.primary(
           key: const Key('confirm-delivery-confirm-button'),
-          text: label,
+          label: label,
           isLoading: isConfirming,
           onTap: onConfirm,
-          backgroundColor: colorScheme.secondaryContainer,
-          textColor: colorScheme.onPrimary,
-          borderRadius: OmdsBorderRadius.uiSmall,
         ),
       ),
     );
   }
+}
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+// Widget previews for [ConfirmDeliveryActionSheet] — run with
+
+/// Phone width, and tall enough that the EN 200%-text rendering of the matrix
+/// still fits.
+const Size _confirmDeliveryActionSheetSheetBox = Size(390, 560);
+
+/// The bare sheet, driven exactly as `chat_screen` drives it.
+/// `onConfirm` is a no-op: the previews are for looking at the sheet, and the
+Widget _confirmDeliveryActionSheetSheet(DeliveryConfirmKind kind, {bool isConfirming = false}) =>
+    ConfirmDeliveryActionSheet(
+      kind: kind,
+      isConfirming: isConfirming,
+      onConfirm: () {},
+    );
+
+/// Figma 56618:2751 — the jeeber confirms the parcel is physically in hand.
+/// The default reading, and the longer of the two titles. "Confirm Picking the
+@JeebPreview(group: 'chat', name: 'Picking · idle', size: _confirmDeliveryActionSheetSheetBox)
+Widget confirmDeliveryActionSheetPicking() =>
+    _confirmDeliveryActionSheetSheet(DeliveryConfirmKind.picking);
+
+/// Figma 56618:2852 — the jeeber confirms they are setting off.
+/// Worth its own preview precisely because it looks almost identical: the only
+@JeebPreview(group: 'chat', name: 'Heading off · idle', size: _confirmDeliveryActionSheetSheetBox)
+Widget confirmDeliveryActionSheetHeadingOff() =>
+    _confirmDeliveryActionSheetSheet(DeliveryConfirmKind.headingOff);
+
+/// The confirm call is in flight.
+/// The CTA swaps its label for `OmdsButtonLoading`, and its `Semantics` node
+@JeebPreview(group: 'chat', name: 'Confirming · spinner', size: _confirmDeliveryActionSheetSheetBox)
+Widget confirmDeliveryActionSheetConfirming() =>
+    _confirmDeliveryActionSheetSheet(DeliveryConfirmKind.picking, isConfirming: true);
+
+/// The narrowest phone the app supports (320 pt), pinned to that width by the
+/// preview itself.
+@JeebPreview(group: 'chat', name: 'Narrow phone · 320 pt', size: Size(320, 560))
+Widget confirmDeliveryActionSheetNarrowPhone() => Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        width: 320,
+        child: _confirmDeliveryActionSheetSheet(DeliveryConfirmKind.picking),
+      ),
+    );
+
+/// The sheet as the jeeber actually meets it: pushed by
+/// [ConfirmDeliveryActionSheet.show] over the dimmed chat.
+@JeebPreview(group: 'chat', name: 'Modal presentation · heading off', size: Size(390, 700))
+Widget confirmDeliveryActionSheetInModalRoute() =>
+    _confirmDeliveryActionSheetModalPresentation(DeliveryConfirmKind.headingOff);
+
+/// Hosts the sheet in a real modal route.
+/// The local [Navigator] is what makes this self-contained: `show()` needs a
+Widget _confirmDeliveryActionSheetModalPresentation(DeliveryConfirmKind kind) => Navigator(
+      onGenerateRoute: (RouteSettings settings) => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => _ConfirmDeliveryActionSheetSheetOverChat(kind: kind),
+      ),
+    );
+
+/// Opens the sheet over [_ConfirmDeliveryActionSheetChatBackdrop] on the first frame.
+class _ConfirmDeliveryActionSheetSheetOverChat extends StatefulWidget {
+  const _ConfirmDeliveryActionSheetSheetOverChat({required this.kind});
+
+  final DeliveryConfirmKind kind;
+
+  @override
+  State<_ConfirmDeliveryActionSheetSheetOverChat> createState() => _ConfirmDeliveryActionSheetSheetOverChatState();
+}
+
+class _ConfirmDeliveryActionSheetSheetOverChatState extends State<_ConfirmDeliveryActionSheetSheetOverChat> {
+  @override
+  void initState() {
+    super.initState();
+    // Post-frame, because `show()` needs a mounted route to push onto — the
+    WidgetsBinding.instance.addPostFrameCallback((_) => _open());
+  }
+
+  Future<void> _open() async {
+    if (!mounted) return;
+    await ConfirmDeliveryActionSheet.show(
+      context,
+      kind: widget.kind,
+      // Resolves immediately: no gateway, no delay, no network.
+      onConfirm: () async {},
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const _ConfirmDeliveryActionSheetChatBackdrop();
+}
+
+/// A neutral stand-in for the chat thread behind the sheet — enough shape to
+/// judge the scrim against.
+/// Deliberately text-free, so every string a preview test pins can only have
+class _ConfirmDeliveryActionSheetChatBackdrop extends StatelessWidget {
+  const _ConfirmDeliveryActionSheetChatBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final JeebSemanticColors glass =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
+    return ColoredBox(
+      color: theme.colorScheme.surfaceContainerLowest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: <Widget>[
+            _bubble(glass, width: 210, incoming: true),
+            _bubble(glass, width: 150, incoming: false),
+            _bubble(glass, width: 240, incoming: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// One placeholder bubble, painted with the SHIPPED bubble fills so the
+  /// backdrop cannot drift from `JeebChatBubble`. [AlignmentDirectional] rather
+  /// than [Alignment] so the fake thread mirrors in AR like the real one does.
+  Widget _bubble(
+    JeebSemanticColors glass, {
+    required double width,
+    required bool incoming,
+  }) =>
+      Container(
+        alignment: incoming
+            ? AlignmentDirectional.centerStart
+            : AlignmentDirectional.centerEnd,
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Container(
+          width: width,
+          height: 44,
+          decoration: BoxDecoration(
+            color: incoming ? glass.glassFill : glass.bubbleOutFill,
+            border: Border.all(
+              color: incoming ? glass.glassBorder : glass.bubbleOutBorder,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      );
 }

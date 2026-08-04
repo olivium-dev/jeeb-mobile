@@ -1,19 +1,4 @@
 // JEBV4-308: the delivery-detail rating row is STATUS-AWARE. Before this fix it
-// pushed the blank legacy `/orders/:id/feedback` form unconditionally, letting
-// an already-rated user re-open a re-editable form and never reflecting the
-// server-owned reveal state (`GET /v1/ratings/jeeb/{id}/status`).
-//
-// This locks three behaviours of the row:
-//   * not-yet-rated (pendingMine)      → routes to the canonical mandatory
-//                                         terminal `/orders/:id/mutual-rate`
-//                                         (client leg, no `?mode=jeeber`);
-//   * already-rated (pendingTheirs)    → shows a read-only "submitted" summary
-//                                         and does NOT navigate;
-//   * revealed (bothRated)             → shows a read-only summary carrying the
-//                                         counterpart's stars, and does NOT
-//                                         navigate;
-//   * status unavailable (throws)      → degrades to the rating terminal so the
-//                                         user is never blocked from rating.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -81,7 +66,6 @@ Future<Widget> _host(_FakeRatingRepository repo) async {
         ),
       ),
       // Stub stand-in for the real MutualRatingScreen so the test asserts the
-      // ROUTE (and its `mode` leg) without pulling the rating feature DI graph.
       GoRoute(
         path: '/orders/:id/mutual-rate',
         builder: (context, state) {
@@ -154,7 +138,6 @@ void main() {
       await tester.pumpWidget(await _host(repo));
       await tester.pumpAndSettle();
       // Resolve the real ARB-backed strings via the mounted context instead of
-      // hardcoding copy.
       final ctx = tester.element(find.byKey(const Key('order-detail-rate')));
       final strings = AppLocalizations.of(ctx);
 

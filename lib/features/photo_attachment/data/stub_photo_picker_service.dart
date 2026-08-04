@@ -3,13 +3,6 @@ import 'dart:typed_data';
 import '../domain/photo_attachment.dart';
 import '../domain/photo_picker_service.dart';
 
-/// In-memory picker used by the MVP build and by widget tests.
-///
-/// Returns synthetic byte payloads (a single repeated byte) so the UI can be
-/// exercised end-to-end without `image_picker`, runtime permissions, or a
-/// real camera. The real platform binding lands with the camera plugin task;
-/// at that point this implementation stays as the default `PhotoPickerService`
-/// for tests and Maestro flows.
 class StubPhotoPickerService implements PhotoPickerService {
   StubPhotoPickerService({
     this.cameraPayload,
@@ -18,19 +11,12 @@ class StubPhotoPickerService implements PhotoPickerService {
     this.galleryFailure,
   });
 
-  /// Bytes returned from [pickFromCamera] when no failure is configured.
-  /// Defaults to a 1 MB block so the compression path is exercised but the
-  /// payload fits under the 2 MB ceiling without iteration.
   final Uint8List? cameraPayload;
 
-  /// Bytes returned from [pickFromGallery] when no failure is configured.
-  /// Defaults to a 3 MB block so the gallery path exercises the compressor.
   final Uint8List? galleryPayload;
 
-  /// When set, [pickFromCamera] throws [PhotoPickException] with this failure.
   final PhotoPickFailure? cameraFailure;
 
-  /// When set, [pickFromGallery] throws [PhotoPickException] with this failure.
   final PhotoPickFailure? galleryFailure;
 
   @override

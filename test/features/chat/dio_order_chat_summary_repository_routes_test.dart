@@ -1,16 +1,4 @@
 // BUG-8 (sprint-008 run-7) regression guard — customer order-chat pinned-summary
-// delivery read route.
-//
-// The in-chat pinned summary (JM-025) is the FIRST read on the customer chat +
-// tracking surfaces and used the SINGULAR `GET /v1/delivery/{id}`, which the
-// live origin gateway (`:10090`) answers with 404 — the exact residual captured
-// in run-7 `wire-step5-chat.txt` (`GET /v1/delivery/2896… → 404`, then the
-// request/offer follow-ups also 404, so the strip never populated). The
-// materialized delivery aggregate is served ONLY at the PLURAL
-// `GET /v1/deliveries/{id}` (Contract 8c) — the same route the jeeber + customer
-// tracking sides already read with 200. This test pins the summary's delivery
-// read to the plural route on the origin base and keeps the legacy `:4010` mock
-// singular alias intact, at the WIRE level with a recording adapter (no socket).
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -57,9 +45,6 @@ void main() {
     expect(adapter.getPaths, isNot(contains('/v1/deliveries/$_deliveryId')));
   });
 
-  // ---------------------------------------------------------------------
-  // P3 (b01-20260725) — the INITIAL REQUIREMENT (`description`) + the
-  // Jeeber-safe read mode (`ownerScopedReads:false`).
   // ---------------------------------------------------------------------
 
   test('P3/M1: reads the description from the DELIVERY row', () async {

@@ -2,9 +2,6 @@ import '../../tier_selection/domain/tier.dart';
 
 /// Maps a [TierId] to its EXACT `request_type_<tier>_radio` Semantics
 /// identifier per 63_W1_TEST_PLAN §2.2 (JM-024). The blueprint tier ids are the
-/// snake-case forms (`on-the-way` → `on_the_way`), so [TierId.onTheWay] must
-/// surface as `request_type_on_the_way_radio` — the camelCase `enum.name`
-/// (`onTheWay`) would NOT match the contract the Maestro flow asserts.
 String requestTypeRadioId(TierId id) => switch (id) {
       TierId.flash => 'request_type_flash_radio',
       TierId.express => 'request_type_express_radio',

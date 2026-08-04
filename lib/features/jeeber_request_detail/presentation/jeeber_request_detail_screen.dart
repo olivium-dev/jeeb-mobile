@@ -3,17 +3,23 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/formatting/friendly_reference.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
 import '../domain/services/prohibited_item_report_service.dart';
 
-/// T-mobile-013 / T-MOB-FIX-001: Jeeber request-detail hub.
+/// Jeeber request-detail hub (T-mobile-013 / T-MOB-FIX-001) — the only in-app
+/// entry to the offer composer (`/jeeber/requests/:id/offer`).
 ///
-/// Reached from the dashboard feed-row tap (in-app `extra` payload) and from a
-/// matching push-notification deep link. This is the ONLY in-app entry to the
-/// offer-composition form (`/jeeber/requests/:id/offer`), so it owns the
-/// "Make offer" CTA. The route already wires the offer form's `onSubmitted`
-/// to `/chat`, so this screen only has to launch it.
+/// MIDNIGHT M3-06: no tile was drawn. Page shape, field and CTA rung derive
+/// from R17 (offer composer); the card's ink ranking from R16's feed card.
 class JeeberRequestDetailScreen extends StatefulWidget {
   const JeeberRequestDetailScreen({
     super.key,
@@ -36,20 +42,30 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.jeeberRequestDetailTitle,
-        showBackButton: true,
-      ),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: _RequestSummary(request: widget.request)),
-            _ActionBar(
-              onMakeOffer: _openOfferForm,
-              onDecline: () => widget.onDeclined(widget.request.id),
-            ),
-          ],
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        // R17's measured anchor: orange glow start-side, off-canvas. R17
+        // declares no periwinkle wash, so none is passed.
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+        animateDecor: false,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Pop-GUARDED: a cold push-tap has nothing to pop and must not
+              // blank the surface.
+              JeebTopBar.back(
+                title: l10n.jeeberRequestDetailTitle,
+                identifier: 'jeeber_request_detail_back',
+              ),
+              Expanded(child: _RequestSummary(request: widget.request)),
+              _ActionBar(
+                onMakeOffer: _openOfferForm,
+                onDecline: () => widget.onDeclined(widget.request.id),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -63,13 +79,8 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
   }
 }
 
-/// Summary of the [FeedRequest] payload, laid out with the same
-/// `OMDSSectionCard` + detail-row idiom as the client-side delivery-details
-/// card. Surfaces the request content (G1: `description` — what the customer
-/// actually asked for, rendered first and in full), the pickup point, and the
-/// request reference. Richer dropoff/fee/distance rows slot in here unchanged
-/// once the detail route is upgraded to carry the full `DeliveryRequest`
-/// payload (a contract change, out of scope here).
+/// Section label over one grouped card. The card ends where its content ends —
+/// the residual space below stays field, uncentred and unpadded (R17).
 class _RequestSummary extends StatelessWidget {
   const _RequestSummary({required this.request});
 
@@ -79,23 +90,32 @@ class _RequestSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(Spacing.xLarge),
-      child: OMDSSectionCard(
-        key: const Key('jeeber-request-detail-summary'),
-        title: l10n.jeeberRequestDetailRequestSection,
-        content: _RequestSummaryRows(request: request),
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.large,
+        Spacing.xLarge,
+        Spacing.xLarge,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          JeebSectionLabel(l10n.jeeberRequestDetailRequestSection),
+          const SizedBox(height: Spacing.small),
+          _RequestSummaryCard(request: request),
+        ],
       ),
     );
   }
 }
 
-/// The genuinely-present fields of the [FeedRequest], one detail row each.
+/// The genuinely-present [FeedRequest] fields, one row each inside the grouped
+/// card. G1 (sprint-009 P0): the client's own text leads, full length.
 ///
-/// G1 (sprint-009 P0): the customer's own "What do you need?" text leads the
-/// card — it is the content the jeeber is agreeing to buy/deliver, so it
-/// renders FIRST, full-length (no truncation), above pickup and reference.
-class _RequestSummaryRows extends StatelessWidget {
-  const _RequestSummaryRows({required this.request});
+/// R16 ranking: the request content is the card headline (`cardTitle` w700 on
+/// `onSurface`), the field name its muted qualifier. No glyph column — neither
+/// R16's request card nor R17's money card draws one.
+class _RequestSummaryCard extends StatelessWidget {
+  const _RequestSummaryCard({required this.request});
 
   final FeedRequest request;
 
@@ -103,122 +123,42 @@ class _RequestSummaryRows extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final description = request.description?.trim();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    // TODO(midnight): omitted — R16's card also carries a tier chip, an age and
+    // `{distance} · {neighbourhood}`; FeedRequest carries none of the three.
+    return JeebOutlinedCard.grouped(
+      key: const Key('jeeber-request-detail-summary'),
       children: [
-        if (description != null && description.isNotEmpty) ...[
+        if (description != null && description.isNotEmpty)
           Semantics(
             identifier: 'jeeber_request_detail_description',
-            child: _DetailRow(
-              icon: Icons.shopping_bag_outlined,
-              label: l10n.jeeberRequestDetailSectionDescription,
-              value: description,
+            child: JeebListRow(
+              title: description,
+              titleStyle: context.jeebText.cardTitle,
+              subtitle: l10n.jeeberRequestDetailSectionDescription,
+              showChevron: false,
             ),
           ),
-          const SizedBox(height: Spacing.medium),
-        ],
-        _DetailRow(
-          icon: Icons.adjust,
-          label: l10n.jeeberRequestDetailSectionPickup,
-          value: request.shortLabel,
+        JeebListRow(
+          title: request.shortLabel,
+          subtitle: l10n.jeeberRequestDetailSectionPickup,
+          showChevron: false,
         ),
-        const SizedBox(height: Spacing.medium),
-        _DetailRow(
-          icon: Icons.confirmation_number_outlined,
-          label: l10n.jeeberRequestDetailReference,
-          value: friendlyReference(request.id),
+        JeebListRow(
+          title: friendlyReference(request.id),
+          subtitle: l10n.jeeberRequestDetailReference,
+          showChevron: false,
         ),
       ],
     );
   }
 }
 
-/// Icon-badge + label + value row, mirroring the client delivery-details card
-/// idiom so jeeber and client detail screens read consistently.
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _DetailRowBadge(icon: icon),
-        const SizedBox(width: Spacing.medium),
-        Expanded(
-          child: _DetailRowText(label: label, value: value),
-        ),
-      ],
-    );
-  }
-}
-
-class _DetailRowBadge extends StatelessWidget {
-  const _DetailRowBadge({required this.icon});
-
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      width: Sizes.twoXLarge,
-      height: Sizes.twoXLarge,
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        icon,
-        size: Sizes.medium,
-        color: colorScheme.onPrimaryContainer,
-      ),
-    );
-  }
-}
-
-class _DetailRowText extends StatelessWidget {
-  const _DetailRowText({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: Sizes.threeXSmall),
-        Text(
-          value,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: colorScheme.onSurface,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Bottom action area: primary "Make offer" (the offer-form entry) and an
-/// outlined "Decline". Each CTA carries a Semantics identifier for Maestro QA.
+/// Docked footer: the orange make-offer act over a text-rank decline.
+///
+/// Both neighbours draw THIS act orange (R16's freshest offer pill, R17's h58
+/// docked pill), and the label is R16's — this button opens the composer.
+/// Declining is the secondary WORD, not a second pill (R4/R16 ruling; the
+/// `below` slot is the board's 10-style line under the docked pill).
 class _ActionBar extends StatelessWidget {
   const _ActionBar({required this.onMakeOffer, required this.onDecline});
 
@@ -228,30 +168,17 @@ class _ActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.all(Spacing.xLarge),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Semantics(
-            identifier: 'jeeber-request-detail-make-offer',
-            button: true,
-            child: OmdsPrimaryButton(
-              text: l10n.offerSubmissionTitle,
-              onTap: onMakeOffer,
-            ),
-          ),
-          const SizedBox(height: Spacing.small),
-          Semantics(
-            identifier: 'jeeber-request-detail-decline',
-            button: true,
-            child: OmdsPrimaryButton(
-              text: l10n.jeeberRequestDetailDeclineButton,
-              variant: OmdsButtonVariant.outlined,
-              onTap: onDecline,
-            ),
-          ),
-        ],
+    return JeebCtaFooter.single(
+      below: JeebCtaButton.text(
+        label: l10n.jeeberRequestDetailDeclineButton,
+        onTap: onDecline,
+        identifier: 'jeeber-request-detail-decline',
+      ),
+      child: JeebCtaButton.accent(
+        label: l10n.jeeberFeedMakeOfferAction,
+        height: JeebCtaButton.primaryHeightTall,
+        onTap: onMakeOffer,
+        identifier: 'jeeber-request-detail-make-offer',
       ),
     );
   }

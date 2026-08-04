@@ -6,10 +6,6 @@ import 'package:jeeb_mobile/core/network/mock_gateway_client.dart';
 import 'package:jeeb_mobile/core/network/redacting_log_interceptor.dart';
 
 /// Security regression test for the dev-logging token leak: the debug HTTP
-/// logger must NEVER print a full bearer JWT or an FCM registration token.
-///
-/// Captures `debugPrint` output (a reassignable global in flutter foundation)
-/// while driving the interceptor over the exact shapes that used to leak.
 void main() {
   const jwt =
       'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1LTEifQ.LEAKED-signature-DEADBEEF';
@@ -67,10 +63,8 @@ void main() {
 
     final all = printed.join('\n');
     // The logged value is EXACTLY the deterministic correlation handle the
-    // redaction layer produces for this header value...
     expect(all, contains(DiagRedaction.redactToken(headerValue)));
     // ...which matches the documented `tok:<fnv8>~<last4>` shape (last4 of
-    // the header value = last 4 chars of the JWT).
     expect(
       RegExp('tok:[0-9a-f]{8}~BEEF').hasMatch(all),
       isTrue,
@@ -119,13 +113,6 @@ void main() {
     expect(all, contains('userId'));
   });
 
-  // ===========================================================================
-  // P4 + P5 (b01-20260725) — TC-C18. The CDN image read uses
-  // `ResponseType.bytes`, so `response.data` is a raw `Uint8List`. The logger
-  // used to pass any non-Map body straight through to string interpolation: a
-  // 1–2 MB image printed as a comma-separated integer list per attachment,
-  // which floods logcat and visibly stalls the DEBUG APK used for on-device
-  // E2E. Binary bodies must degrade to a one-line size summary.
   // ===========================================================================
   group('P4/P5 — binary bodies are never stringified', () {
     test('a Uint8List response body logs as `<binary N bytes>`', () {

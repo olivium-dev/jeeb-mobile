@@ -3,18 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:omds/omds.dart';
 
+import '../core/theme/app_theme.dart';
+import '../core/theme/jeeb_text_styles.dart';
+import '../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../l10n/app_localizations.dart';
 
-/// Jeeb branded splash — Figma node `56572:1711` ("Splash", 440×956).
-///
-/// Full-bleed brand-navy background with the Jeeb wordmark optically centered
-/// and the localized tagline in the lower band. The wordmark is the bundled
-/// brand vector (`assets/brand/jeeb_logo.svg`, Figma "Group 68" 56572:1821),
-/// never re-drawn as `Text` glyphs.
-///
-/// Renders under the OMDS theme + [AppLocalizations] supplied by the splash
-/// host, so every color is a `colorScheme` role and every string is an ARB
-/// key — no literals. Direction-agnostic layout mirrors automatically in RTL.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../core/previews/jeeb_preview.dart';
+
 class BrandedSplash extends StatelessWidget {
   const BrandedSplash({super.key});
 
@@ -22,25 +18,24 @@ class BrandedSplash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: Colors.transparent,
-      ),
+      value: AppTheme.systemOverlayStyle,
       child: Semantics(
         identifier: '_splash_screen',
         container: true,
-        child: ColoredBox(
-          color: colorScheme.secondaryContainer,
-          child: const SafeArea(child: _SplashBody()),
+        // §8 base wash, no orange: the splash has no tile, so it spends no
+        // accent budget and runs still — it is the first frame of a cold start.
+        child: const JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowColor: Colors.transparent,
+          animateDecor: false,
+          child: SafeArea(child: _SplashBody()),
         ),
       ),
     );
   }
 }
 
-/// Vertical composition: wordmark optically centered (slightly above true
-/// centre via asymmetric [Spacer] weights), tagline anchored to the lower band.
 class _SplashBody extends StatelessWidget {
   const _SplashBody();
 
@@ -58,9 +53,6 @@ class _SplashBody extends StatelessWidget {
   }
 }
 
-/// Bundled Jeeb wordmark, clamped to a brand-sized max width and centred. The
-/// SVG keeps its intrinsic aspect ratio (viewBox 182:73), so it scales down on
-/// narrow devices without distortion. Marked as meaningful image artwork.
 class _SplashLogo extends StatelessWidget {
   const _SplashLogo();
 
@@ -73,9 +65,6 @@ class _SplashLogo extends StatelessWidget {
       image: true,
       container: true,
       child: Center(
-        // Token width; height derives from the SVG's intrinsic 182:73 ratio,
-        // so the wordmark scales without distortion. ~45% of a 440dp frame —
-        // the brand-sized analogue of Figma's 182px (≈41%) wordmark.
         child: SvgPicture.asset(
           BrandedSplash._logoAsset,
           width: Sizes.twoHundredLarge,
@@ -86,8 +75,6 @@ class _SplashLogo extends StatelessWidget {
   }
 }
 
-/// Localized "Delivery App" tagline. Uses the theme `titleMedium` role on the
-/// on-secondary (white) color so contrast holds against the navy fill.
 class _SplashTagline extends StatelessWidget {
   const _SplashTagline();
 
@@ -101,11 +88,151 @@ class _SplashTagline extends StatelessWidget {
       child: Text(
         l10n.splashTagline,
         textAlign: TextAlign.center,
-        style: theme.textTheme.titleMedium?.copyWith(
-          color: theme.colorScheme.onSecondary,
-          fontWeight: FontWeight.w700,
+        // `onSecondary` is page navy — on the field it measured 1.17:1.
+        style: context.jeebText.titleProminent.copyWith(
+          color: theme.colorScheme.onSecondaryContainer,
         ),
       ),
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// The Figma frame the widget is specified against (node `56572:1711`), and the
+/// surface size `client_home_screen_test.dart` and friends pump at.
+const Size _brandedSplashFigmaFrame = Size(440, 956);
+
+/// The smallest phone the app is still expected to look right on — the width
+/// `jeeber_feed_card_test.dart` uses for its compact case.
+const Size _brandedSplashCompactFrame = Size(360, 640);
+
+/// A modern notched phone (iPhone 15 Pro class) in portrait.
+const Size _brandedSplashNotchedFrame = Size(393, 852);
+
+/// The same device rotated. A cold launch in landscape is a real path on
+/// Android tablets and on any phone with rotation unlocked.
+const Size _brandedSplashLandscapeFrame = Size(852, 393);
+
+/// A tablet in portrait (iPad Air class).
+const Size _brandedSplashTabletFrame = Size(834, 1194);
+
+/// Status-bar + home-indicator insets of a notched phone in portrait.
+const EdgeInsets _brandedSplashNotchInsets = EdgeInsets.only(top: 59, bottom: 34);
+
+/// Rotated: the notch moves to a side, the home indicator thins out.
+const EdgeInsets _brandedSplashLandscapeInsets = EdgeInsets.only(
+  left: 59,
+  right: 59,
+  bottom: 21,
+);
+
+// Each `@JeebPreview` below declares a canvas box of `frame + (12, 44)`: the
+
+/// Simulates one window around [BrandedSplash].
+/// The splash is full-bleed and sizes itself to whatever it is given, so a
+/// preview that just returned `const BrandedSplash()` would render the host's
+class _BrandedSplashDeviceFrame extends StatelessWidget {
+  const _BrandedSplashDeviceFrame({
+    required this.label,
+    required this.frame,
+    this.insets = EdgeInsets.zero,
+  });
+
+  final String label;
+  final Size frame;
+  final EdgeInsets insets;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+          child: Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              size: frame,
+              padding: insets,
+              viewPadding: insets,
+              viewInsets: EdgeInsets.zero,
+            ),
+            child: SizedBox.fromSize(
+              size: frame,
+              child: const BrandedSplash(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Unbounds both axes so a simulated frame wider or taller than the host is
+/// rendered at its real size instead of being clamped down to the host.
+Widget _brandedSplashHosted({
+  required String label,
+  required Size frame,
+  EdgeInsets insets = EdgeInsets.zero,
+}) =>
+    SingleChildScrollView(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: _BrandedSplashDeviceFrame(label: label, frame: frame, insets: insets),
+      ),
+    );
+
+/// The reference reading: the exact Figma frame the widget is specified
+/// against, with no system chrome claimed.
+@JeebPreview(group: 'app', name: 'Figma frame 440 × 956', size: Size(452, 1000))
+Widget brandedSplashFigmaFrame() => _brandedSplashHosted(
+      label: 'Figma frame · 440 × 956 · no insets',
+      frame: _brandedSplashFigmaFrame,
+    );
+
+/// The small end of the range: a 360 pt phone.
+/// `Sizes.twoHundredLarge` is a fixed 200 pt, so the wordmark is now **55.6 %**
+@JeebPreview(group: 'app', name: 'Compact 360 × 640', size: Size(372, 684))
+Widget brandedSplashCompactPhone() => _brandedSplashHosted(
+      label: 'Compact phone · 360 × 640 · no insets',
+      frame: _brandedSplashCompactFrame,
+    );
+
+/// The state ~every iOS user actually sees: a notched phone with a 59 pt status
+/// bar and a 34 pt home indicator.
+@JeebPreview(group: 'app', name: 'Notched 393 × 852 · inset 59/34', size: Size(405, 896))
+Widget brandedSplashNotchedPhone() => _brandedSplashHosted(
+      label: 'Notched phone · 393 × 852 · inset 59/34',
+      frame: _brandedSplashNotchedFrame,
+      insets: _brandedSplashNotchInsets,
+    );
+
+/// The short viewport: the same device rotated, launched cold.
+/// This is the state the vertical composition was never drawn for. `_SplashBody`
+@JeebPreview(group: 'app', name: 'Landscape 852 × 393', size: Size(864, 438))
+Widget brandedSplashLandscape() => _brandedSplashHosted(
+      label: 'Landscape · 852 × 393 · inset 59/59/21',
+      frame: _brandedSplashLandscapeFrame,
+      insets: _brandedSplashLandscapeInsets,
+    );
+
+/// The large end of the range: a tablet in portrait.
+/// The other half of the fixed-token problem. The wordmark is still 200 pt, so
+@JeebPreview(group: 'app', name: 'Tablet 834 × 1194', size: Size(846, 1238))
+Widget brandedSplashTablet() => _brandedSplashHosted(
+      label: 'Tablet portrait · 834 × 1194 · no insets',
+      frame: _brandedSplashTabletFrame,
+    );

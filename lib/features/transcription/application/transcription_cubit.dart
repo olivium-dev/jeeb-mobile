@@ -1,3 +1,5 @@
+import 'dart:ui' show TextRange;
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -31,6 +33,9 @@ class TranscriptionState extends Equatable {
     this.audioDuration = Duration.zero,
     this.isPlaying = false,
     this.playbackPosition = Duration.zero,
+    this.language,
+    this.editRange,
+    this.appliedQuickAdds = const <String>{},
   });
 
   final String text;
@@ -46,6 +51,19 @@ class TranscriptionState extends Equatable {
   final Duration audioDuration;
   final bool isPlaying;
   final Duration playbackPosition;
+
+  /// The gateway's detected language code (`ar-LB`, `ar`, `en`), seeded from
+  /// [VoiceClip.language]. Null until the voice_request lane forwards it — the
+  /// chip then renders nothing rather than guessing from the UI locale.
+  final String? language;
+
+  /// Which slice of [text] the editor should pre-select when edit mode opens.
+  /// Set by the tap-a-word affordance; null for the "Edit all" entry point.
+  final TextRange? editRange;
+
+  /// Ids of the quick-add scaffolds already appended, so each chip fires once
+  /// and then leaves the row.
+  final Set<String> appliedQuickAdds;
 
   /// True when there is a real recording to replay (a non-empty path).
   bool get hasAudio => (audioPath ?? '').isNotEmpty;
@@ -71,6 +89,10 @@ class TranscriptionState extends Equatable {
     Duration? audioDuration,
     bool? isPlaying,
     Duration? playbackPosition,
+    String? language,
+    TextRange? editRange,
+    Set<String>? appliedQuickAdds,
+    bool clearEditRange = false,
   }) {
     return TranscriptionState(
       text: text ?? this.text,
@@ -82,6 +104,10 @@ class TranscriptionState extends Equatable {
       audioDuration: audioDuration ?? this.audioDuration,
       isPlaying: isPlaying ?? this.isPlaying,
       playbackPosition: playbackPosition ?? this.playbackPosition,
+      language: language ?? this.language,
+      // `?? this.editRange` can never null it out, so the reset is explicit.
+      editRange: clearEditRange ? null : (editRange ?? this.editRange),
+      appliedQuickAdds: appliedQuickAdds ?? this.appliedQuickAdds,
     );
   }
 
@@ -96,6 +122,9 @@ class TranscriptionState extends Equatable {
         audioDuration,
         isPlaying,
         playbackPosition,
+        language,
+        editRange,
+        appliedQuickAdds,
       ];
 }
 
@@ -125,6 +154,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
         audioPath: clip.audioPath,
         localAudioPath: clip.localAudioPath,
         audioDuration: Duration(milliseconds: clip.durationMs),
+        language: clip.language,
       ),
     );
   }
@@ -141,6 +171,28 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
 
   void startEditing() => emit(state.copyWith(isEditing: true));
 
+  /// Opens the editor with [range] pre-selected — the "tap the word you want
+  /// to fix" affordance, so a one-word correction is not a full retype.
+  void startEditingWord(TextRange range) =>
+      emit(state.copyWith(isEditing: true, editRange: range));
+
+  /// Appends a labelled scaffold (`Quantity: `) to the request and drops the
+  /// user into the editor with the caret after it. Fires once per [id]: the
+  /// chip leaves the row, so a double-tap cannot duplicate the fragment.
+  void applyQuickAdd(String id, String fragment) {
+    if (state.appliedQuickAdds.contains(id)) return;
+    final newText = state.text.isEmpty ? fragment : '${state.text}\n$fragment';
+    emit(state.copyWith(
+      text: newText,
+      isEditing: true,
+      editRange: TextRange.collapsed(newText.length),
+      appliedQuickAdds: <String>{...state.appliedQuickAdds, id},
+      status: newText.trim().isEmpty
+          ? TranscriptionStatus.queued
+          : TranscriptionStatus.ready,
+    ));
+  }
+
   void updateText(String text) => emit(state.copyWith(text: text));
 
   /// Commits the edited [text] and leaves edit mode. Empty edits drop back to
@@ -150,6 +202,7 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
     emit(state.copyWith(
       text: trimmed,
       isEditing: false,
+      clearEditRange: true,
       status: trimmed.isEmpty
           ? TranscriptionStatus.queued
           : TranscriptionStatus.ready,
@@ -181,6 +234,24 @@ class TranscriptionCubit extends Cubit<TranscriptionState> {
       // file on a cold deep link) must never crash the review screen — reset
       // the toggle instead of leaving a stuck "playing" state.
       emit(state.copyWith(isPlaying: false));
+    }
+  }
+
+  /// Moves the playhead from the scrubber knob. No-op without a playable
+  /// source (same guard as [togglePlayback]); the player call degrades the
+  /// same way, because a knob drag must never crash the review screen.
+  Future<void> seekTo(Duration position) async {
+    final path = state.playbackPath;
+    if (path == null || path.isEmpty) return;
+    final clamped = position < Duration.zero
+        ? Duration.zero
+        : (position > state.audioDuration ? state.audioDuration : position);
+    emit(state.copyWith(playbackPosition: clamped));
+    try {
+      await _player.seek(clamped);
+    } on Object {
+      // The optimistic position already shipped; an unplayable source just
+      // means the knob moved and the audio did not.
     }
   }
 

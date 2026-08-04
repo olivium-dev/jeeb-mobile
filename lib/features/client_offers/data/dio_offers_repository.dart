@@ -9,28 +9,6 @@ import '../domain/jeeber_vehicle.dart';
 import '../domain/offer.dart';
 import '../domain/offers_repository.dart';
 
-/// Dio-backed [OffersRepository].
-///
-/// Endpoints (gateway contract; `MockGatewayClient` rewrites the `/v1/...`
-/// prefix to the `:4010` service prefix — 40_GUARDRAILS_ARCH §4):
-///   GET  `/v1/offers?requestId=<id>` → current offer rows.
-///   GET  `/v1/requests/:requestId`   → owner-scoped request status and an
-///                                       optional server deadline.
-///   POST /v1/offers/:offerId/accept  → `/offer-service/v1/offers/:id/accept` —
-///                                       `{ offer, conversationId, ... }` on 200,
-///                                       409 race-conflict, 410 gone.
-///
-/// The offer-list response does not own request lifecycle. The repository joins
-/// it with the request row so Accept follows the server status. A countdown is
-/// exposed only when either response carries a parseable server deadline.
-///
-/// Wire-shape note (mock + journey-seed `offers_received`): each offer row is
-/// `{ id, requestId, jeeberId, amount: { value, currency }, price: { value },
-/// etaMinutes, note, status, createdAt }`. The list endpoint does NOT enrich
-/// the row with the Jeeber's display name or rating (those live on the chat
-/// `offer_card` message body); we parse name/rating defensively and fall back
-/// to sane defaults. Surfacing the real name/rating on the list row is a
-/// backender enrichment gap — flagged O-list-enrich in 50_ROUTE_REQUESTS.md.
 class DioOffersRepository implements OffersRepository {
   DioOffersRepository(
     Dio dio, {
@@ -38,34 +16,13 @@ class DioOffersRepository implements OffersRepository {
     SingleFlightGet? coalescer,
   })  : _dio = dio,
         _handoverCodeStore = handoverCodeStore,
-        // FIX-A: route the `GET /v1/offers` reads through the SHARED
-        // single-flight coalescer (DI injects one instance across the offers /
-        // waiting / home repos) so a duplicate concurrent probe for the same
-        // requestId collapses onto ONE wire call instead of fanning out into a
-        // 429-tripping storm. Falls back to a private per-instance coalescer so
-        // a bare `DioOffersRepository(dio)` (widget tests) still dedupes.
         _coalescer = coalescer ?? SingleFlightGet(dio);
 
   final Dio _dio;
   final SingleFlightGet _coalescer;
 
-  /// G4: sink for the accept response's `handoverCode`. The accept response is
-  /// the only wire moment the customer is given the code, so the parse site is
-  /// the single choke point that persists it (fire-and-forget — a prefs write
-  /// must never fail or delay the accept). Null in tests that don't exercise
-  /// persistence.
   final HandoverCodeStore? _handoverCodeStore;
 
-  /// Offer statuses that are still live (a client can accept them). Withdrawn /
-  /// superseded / expired / accepted offers are filtered out of the review list
-  /// — the screen only shows live bids.
-  ///
-  /// `pending` is the status the LIVE jeeb-gateway/offer-service stamps on a
-  /// freshly-submitted, acceptable offer (`GET /v1/offers?requestId` returns
-  /// `"status":"pending"`). The `:4010` mock used `submitted`/`edited`, so the
-  /// client originally omitted `pending` — which silently filtered out every
-  /// real offer and left the "Choose a Jeeber" screen stuck on "Waiting for
-  /// offers" even though the offer arrived 200 on the wire. All three are live.
   static const Set<String> _liveStatuses = {'pending', 'submitted', 'edited'};
 
   @override
@@ -97,30 +54,11 @@ class DioOffersRepository implements OffersRepository {
     }
   }
 
-  /// Pull the server-created delivery id + conversation id out of the accept
-  /// response.
-  ///
-  /// The offer-accept saga returns an `OfferAcceptResultDto`. The golden
-  /// response surfaces the created delivery as `deliveryId` and the promoted
-  /// 1:1 order chat as `conversationId` (mock `POST /v1/offers/:offerId/accept`
-  /// returns `{ offer, handoverCode, conversationId, conversationPhase }`); we
-  /// also accept the snake_case variants so we stay compatible regardless of
-  /// the gateway's serialization casing. Anything else (legacy body with no
-  /// field, non-map payload, empty string) maps to a null field so the caller
-  /// never crashes — JM-029 falls back to the request/delivery id when the
-  /// conversation id is absent, and the "Track order" CTA stays hidden when the
-  /// delivery id is absent.
   OfferAcceptResult _parseAcceptResult(dynamic data) {
     if (data is! Map) return OfferAcceptResult.empty;
     final deliveryId = acceptResponseDeliveryId(data);
     final conversationId =
         _cleanString(data['conversationId'] ?? data['conversation_id']);
-    // G4 (sprint-009 P0): RETAIN the handover code. The accept response is the
-    // only wire moment the customer's app receives it (`GET /otp` is an SMS
-    // trigger with no `code` field), so discarding it here — the pre-fix
-    // behavior — left the customer with nothing to show the Jeeber at the
-    // door. Persisted keyed by delivery id so it survives app restarts.
-    // NEVER log it (DiagRedaction masks `handoverCode` keys).
     final handoverCode =
         _cleanString(data['handoverCode'] ?? data['handover_code']);
     _persistHandoverCode(deliveryId: deliveryId, code: handoverCode);
@@ -131,12 +69,9 @@ class DioOffersRepository implements OffersRepository {
     );
   }
 
-  /// Normalises a wire field: non-empty trimmed string or null.
   String? _cleanString(Object? raw) =>
       raw is String && raw.trim().isNotEmpty ? raw.trim() : null;
 
-  /// Fire-and-forget local persistence of the handover code — a prefs write
-  /// must never fail, delay, or reorder the accept flow.
   void _persistHandoverCode({String? deliveryId, String? code}) {
     final store = _handoverCodeStore;
     if (store == null || deliveryId == null || code == null) return;
@@ -146,9 +81,6 @@ class DioOffersRepository implements OffersRepository {
   }
 
   OffersSnapshot _parseSnapshot(dynamic data, dynamic requestData) {
-    // Tolerate every shape the gateway / mock can emit: the offer-service
-    // `{ items: [...] }` envelope (current mock), a legacy `{ offers: [...] }`
-    // key, or a bare top-level array.
     final List<dynamic> items;
     if (data is List) {
       items = data;
@@ -161,15 +93,12 @@ class DioOffersRepository implements OffersRepository {
     }
     final rows = items.whereType<Map<String, dynamic>>().toList(growable: false);
 
-    // A request is closed once one of its offers has been accepted — the
-    // review list should then render the closed banner rather than stale CTAs.
     final hasAccepted =
         rows.any((r) => (r['status'] as String?) == 'accepted');
 
     final offers = rows
         .where((r) {
           final status = r['status'] as String?;
-          // Null status (lenient fixtures / legacy bodies) is treated as live.
           return status == null || _liveStatuses.contains(status);
         })
         .map(_parseOffer)
@@ -189,7 +118,19 @@ class DioOffersRepository implements OffersRepository {
       windowExpiresAt: deadline,
       requestIsOpen: open,
       requestIsExpired: ServerRequestStatus.isExpired(requestStatus),
+      requestTitle: _requestTitle(requestData),
     );
+  }
+
+  /// The request's item title off the already-fetched `/v1/requests/:id` row.
+  /// No extra call — `fetchOffers` reads that row anyway. Blank/absent → null so
+  /// the offer-review top bar renders one line instead of an empty subtitle.
+  String? _requestTitle(dynamic requestData) {
+    if (requestData is! Map) return null;
+    final raw = requestData['title'];
+    if (raw is! String) return null;
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   bool? _explicitOpen(dynamic data) {
@@ -226,10 +167,6 @@ class DioOffersRepository implements OffersRepository {
       vehicle: _parseVehicle(
         json['vehicleType'] as String? ?? json['vehicle'] as String?,
       ),
-      // W6/SW-08: when the row carries no rating, default to an HONEST 0.0 with
-      // a 0 count — never a fabricated 4.5. The offer card guards on
-      // `ratingCount > 0` and renders "No ratings yet" for the zero case, so a
-      // real score is only ever shown when the gateway actually sent one.
       rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
       ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
       submittedAt: submitted,
@@ -241,11 +178,6 @@ class DioOffersRepository implements OffersRepository {
     );
   }
 
-  /// Reads the quoted fee from whichever money shape the gateway used. The
-  /// offer-service rows carry the amount as a nested `{ value, currency }`
-  /// object under `amount` (or `price`); legacy/test bodies may carry a flat
-  /// numeric `fee`. Tolerate all three so the card never shows 0.00 for a
-  /// well-formed offer.
   double _parseFee(Map<String, dynamic> json) {
     final flat = json['fee'];
     if (flat is num) return flat.toDouble();
@@ -300,18 +232,9 @@ class DioOffersRepository implements OffersRepository {
     return JeeberVehicle.scooter;
   }
 
-  /// Small default back-off for a rate-limited read when the server sent no
-  /// (parseable) `Retry-After`. The [RateLimitInterceptor] still owns the exact
-  /// suppression window; this only paces the cubit's cold-load auto-retry.
   static const Duration _rateLimitRetryFallback = Duration(seconds: 5);
 
   Never _rethrowDio(DioException e) {
-    // FIX-A: a 429 — or the RateLimitInterceptor's local suppression rejection
-    // (a synthetic `DioExceptionType.cancel` raised while a Retry-After window
-    // is open) — is TRANSIENT back-pressure, never a fatal cold-load failure.
-    // Map it to the retryable [OffersFailure.rateLimited] so the offers screen
-    // stays in loading and auto-retries after Retry-After, instead of dropping
-    // to the connection-error page.
     if (_isRateLimited(e)) {
       throw OffersRepositoryException(
         OffersFailure.rateLimited,
@@ -327,17 +250,9 @@ class DioOffersRepository implements OffersRepository {
     throw const OffersRepositoryException(OffersFailure.unknown);
   }
 
-  /// True when [e] is a rate-limit signal: a gateway 429 OR the local
-  /// [RateLimitInterceptor] suppression rejection (the ONLY source of a
-  /// `DioExceptionType.cancel` on this read path — this repo never cancels a
-  /// request itself).
   static bool _isRateLimited(DioException e) =>
       e.response?.statusCode == 429 || e.type == DioExceptionType.cancel;
 
-  /// Best-effort `Retry-After` (delta-seconds) off a real 429; the local
-  /// suppression rejection carries no response, so it falls back to
-  /// [_rateLimitRetryFallback]. The interceptor still enforces the precise
-  /// window, so an early retry simply re-suppresses and the loop self-heals.
   Duration _retryAfterOf(DioException e) {
     final raw = e.response?.headers.value('retry-after')?.trim();
     final seconds = raw == null ? null : int.tryParse(raw);
@@ -348,45 +263,21 @@ class DioOffersRepository implements OffersRepository {
   Never _rethrowAccept(DioException e) {
     final status = e.response?.statusCode;
     if (status == 409) {
-      // A 409 is NOT always "offer gone". The gateway BR-10 pre-check returns a
-      // 409 with ProblemDetails `type`
-      // `https://jeeb.dev/errors/too-many-active-deliveries` when the winning
-      // Jeeber already holds the max concurrent active deliveries — the offer is
-      // still pending upstream. Distinguish it so the UI shows the correct
-      // reason ("choose another offer") instead of the misleading "this offer is
-      // no longer available". (JEBV4-158)
       if (_isTooManyActiveDeliveries(e.response?.data)) {
         throw const OffersRepositoryException(OffersFailure.jeeberAtCapacity);
       }
-      // sprint-009 scenario matrix #7: the gateway reuses 409 for several
-      // distinct accept conflicts and discriminates via the ProblemDetails
-      // body (`OffersController.cs`). Request-level closure (the auction is
-      // already won / cancelled / expired — `request_not_open`,
-      // `request-not-acceptable`, `already-accepted`) must render "This
-      // request is no longer open", NOT the offer-level "offer no longer
-      // available" copy a withdrawn/superseded single offer gets.
       throw OffersRepositoryException(
         _isRequestClosedConflict(e.response?.data)
             ? OffersFailure.requestNotOpen
             : OffersFailure.offerNotPending,
       );
     }
-    // 410 offer-expired: the request expired before the accept landed.
-    // 404: the offer/request vanished server-side (superseded + pruned) —
-    // same user-facing truth as a closed request, never a generic failure.
     if (status == 410 || status == 404) {
       throw const OffersRepositoryException(OffersFailure.requestNotOpen);
     }
     _rethrowDio(e);
   }
 
-  /// Classifies a 409 accept body as a REQUEST-level closure (auction gone:
-  /// `request_not_open` / `request-not-acceptable` / `already-accepted`) vs an
-  /// OFFER-level conflict (`offer-not-pending`, BR-1/BR-10 violations). The
-  /// gateway ProblemDetails carries the discriminator in `type`/`code`/`title`/
-  /// `detail` depending on the surface, so probe them all defensively
-  /// (40_GUARDRAILS_ARCH §4; mirrors `DioOfferSubmissionRepository._isOfferCap`).
-  /// An undiscriminated body stays offer-level (the pre-fix behavior).
   bool _isRequestClosedConflict(Object? data) {
     if (data is! Map) return false;
     final haystack = [
@@ -405,9 +296,6 @@ class DioOffersRepository implements OffersRepository {
         haystack.contains('request is no longer');
   }
 
-  /// True when a 409 body is the gateway's BR-10 too-many-active-deliveries
-  /// ProblemDetails. Matches on the stable `type` URI (preferred); tolerant of
-  /// the body arriving as a decoded `Map` or a raw JSON `String`.
   static bool _isTooManyActiveDeliveries(Object? body) {
     const marker = 'too-many-active-deliveries';
     if (body is Map) {

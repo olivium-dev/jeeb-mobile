@@ -9,7 +9,9 @@ import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 void main() {
   group('TierSelectionCubit — load', () {
     blocTest<TierSelectionCubit, TierSelectionState>(
-      'hydrates the catalog without preselecting the recommended tier',
+      // MIDNIGHT R9 / doc-13 P0-4 reverses the old "nothing is pre-selected"
+      // rule: the board loads with the recommended tier already lit.
+      'preselects the recommended tier on load',
       build: () => TierSelectionCubit(repository: const FakeTierRepository()),
       act: (cubit) => cubit.load(),
       expect: () => [
@@ -24,13 +26,23 @@ void main() {
           (s) =>
               s.status == TierSelectionStatus.loaded &&
               s.tiers.length == FakeTierRepository.defaultCatalog.length &&
-              s.selectedTierId == null &&
-              s.canConfirm == false &&
+              s.selectedTierId == TierId.standard &&
+              s.canConfirm == true &&
               s.failure == null,
-          'lands on loaded with no customer selection',
+          'lands on loaded with the recommended tier selected',
         ),
       ],
     );
+
+    test('leaves the selection null when no tier is flagged recommended', () async {
+      final cubit = TierSelectionCubit(
+        repository: const _SingleTierRepository(TierId.standard),
+      );
+      addTearDown(cubit.close);
+      await cubit.load();
+      expect(cubit.state.selectedTierId, isNull);
+      expect(cubit.state.canConfirm, isFalse);
+    });
 
     blocTest<TierSelectionCubit, TierSelectionState>(
       'surfaces the failure instead of serving the fallback catalog (JEBV4-300)',
@@ -42,10 +54,6 @@ void main() {
         predicate<TierSelectionState>(
           (s) => s.status == TierSelectionStatus.loading,
         ),
-        // JEBV4-300: the fallback catalog's tiers carry serverId == null, so
-        // confirming one would post a client-side enum slug the gateway never
-        // minted. On failure the cubit lands on error (blocking Continue and
-        // showing a retry) rather than silently serving the bundled catalog.
         predicate<TierSelectionState>(
           (s) =>
               s.status == TierSelectionStatus.error &&
@@ -62,7 +70,6 @@ void main() {
       final cubit = TierSelectionCubit(repository: const FakeTierRepository());
       addTearDown(cubit.close);
       final first = cubit.load();
-      // The second call should not double-emit loading nor double-resolve.
       final second = cubit.load();
       await Future.wait([first, second]);
       expect(cubit.state.status, TierSelectionStatus.loaded);
@@ -78,8 +85,6 @@ void main() {
         );
         addTearDown(cubit.close);
         await cubit.load();
-        // JEBV4-300: the first load fails the network and surfaces the error
-        // rather than serving the bundled catalog — Continue stays blocked.
         expect(cubit.state.status, TierSelectionStatus.error);
         expect(cubit.state.failure, TierLoadFailure.network);
         expect(cubit.state.usingCachedFallback, isFalse);
@@ -87,8 +92,6 @@ void main() {
 
         shouldFail = false;
         await cubit.load();
-        // Retry succeeds against the live repository: now loaded with real tiers
-        // (each carrying its gateway serverId) and the failure cleared.
         expect(cubit.state.status, TierSelectionStatus.loaded);
         expect(cubit.state.usingCachedFallback, isFalse);
         expect(cubit.state.failure, isNull);
@@ -115,7 +118,6 @@ void main() {
       addTearDown(cubit.close);
       await cubit.load();
       cubit.selectTier(TierId.standard);
-      // Standard is the only tier; selecting onTheWay should be ignored.
       cubit.selectTier(TierId.onTheWay);
       expect(cubit.state.selectedTierId, TierId.standard);
     });
@@ -138,7 +140,11 @@ void main() {
     });
 
     test('confirm is a no-op when nothing is selected', () async {
-      final cubit = TierSelectionCubit(repository: const FakeTierRepository());
+      // A catalog with no recommended tier is now the only way to reach the
+      // "nothing selected" state after a successful load.
+      final cubit = TierSelectionCubit(
+        repository: const _SingleTierRepository(TierId.standard),
+      );
       addTearDown(cubit.close);
       await cubit.load();
       expect(cubit.state.selectedTierId, isNull);

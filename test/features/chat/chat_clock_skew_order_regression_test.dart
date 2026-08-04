@@ -1,40 +1,4 @@
 // CLOCK-SKEW ORDER regression (chat) — the poll tick that re-sorts a thread
-// nobody changed.
-//
-// THE DEFECT (P2, user-visible). `ChatCubit._pollHistory` runs
-// `_reconciledWithHistory(latest)` on EVERY tick, and that ends in the full
-// chronological `_ordered` sort. `origin/main`'s `_mergeInbound` early-returned
-// when the poll surfaced nothing new, so a no-op tick never re-sorted anything.
-// It does now — and an own optimistic bubble the server has not echoed yet
-// carries the LOCAL clock, which is not comparable with a server timestamp:
-//
-//   * device 10 minutes SLOW — their row is server-dated 12:00:00Z, my reply
-//     carries 11:50. The append path renders [theirs, mine] because `_appended`
-//     deliberately skips the sort. The next tick sorts by time and renders
-//     [mine, theirs] — their message jumps below my reply to it.
-//   * device 20 minutes FAST — my message carries 12:20, the reply that lands
-//     afterwards is server-dated 12:01, and it renders ABOVE my message.
-//
-// It self-heals the moment the server echo lands (`_adoptEcho` replaces the
-// local clock with the server's). A send that FAILS is never echoed, so it stays
-// mis-sorted for the life of the session.
-//
-// WHY THE PREVIOUS SUITE WAS GREEN WHILE THIS WAS LIVE.
-// `chat_interleaved_order_regression_test.dart` has a slow-clock case (T1b) but
-// its every scenario drives `refresh()` with the echo ALREADY on the wire — so
-// the row under test is server-dated by the time anything sorts it. No case ever
-// let a poll tick run against a thread whose newest row was an un-echoed own
-// bubble. That is the case below, and it is the only one that discriminates:
-// force-stop-then-read cannot see this defect at all, because a cold load has no
-// optimistic row left to mis-sort.
-//
-// WHAT IS DELIBERATELY NOT ASSERTED HERE: the rendered CLOCK on an own bubble.
-// The fix must not touch it — `sentAt` stays the local send time so the bubble
-// keeps showing a real time — so `T5c` pins that the display value is untouched
-// while the ORDER stops depending on it.
-//
-// Everything runs through the REAL `DioChatGateway` decode and the REAL
-// `ChatCubit` merge paths, off raw wire bodies.
 library;
 
 import 'dart:async';
@@ -192,13 +156,6 @@ List<String> _texts(ChatCubit cubit) =>
 
 /// Drives [count] further history re-pulls and waits for each to land AND
 /// merge.
-///
-/// N4: this used to wait for [count] safety-net POLL ticks. The poll is
-/// deleted; the trigger is a push. The re-order hazard these cases exist for is
-/// a property of the MERGE, not of what caused it, so every assertion below is
-/// unchanged — a re-pull is a re-pull. Fires ONE push per pull rather than a
-/// burst, because the cubit single-flights a burst down to one read and the
-/// cases here need [count] distinct folds.
 Future<void> _awaitPollTicks(_ChatWire wire, int count) async {
   for (var pull = 0; pull < count; pull++) {
     final target = wire.historyReads + 1;
@@ -229,7 +186,6 @@ void main() {
       'the wire',
       () async {
         // Their message is server-dated 12:00:00Z. This device believes it is
-        // 11:50 — ten minutes behind.
         final wire = _ChatWire(
           initialRows: <Map<String, Object?>>[
             _row('srv-01', _jeeberId, 'theirs',
@@ -251,7 +207,6 @@ void main() {
         );
 
         // Three ticks. The server has NOT echoed my message, so every read
-        // returns exactly the row that was there before — a genuine no-op tick.
         await _awaitPollTicks(wire, 3);
 
         expect(
@@ -305,8 +260,6 @@ void main() {
       'even though the server dated it 19 minutes EARLIER than my device did',
       () async {
         // This is the other skew direction, and the one the old code got wrong
-        // in the opposite way: my bubble carries 12:20, the reply the server
-        // stamps at 12:01 sorted ABOVE it.
         final wire = _ChatWire(
           initialRows: <Map<String, Object?>>[
             _row('srv-01', _jeeberId, 'opening',
@@ -323,7 +276,6 @@ void main() {
         expect(_texts(cubit), <String>['opening', 'mine']);
 
         // Their reply lands AFTER my send, server-dated 12:01 — earlier than
-        // what this device thinks "now" is. My own message is still un-echoed.
         wire.rows = <Map<String, Object?>>[
           _row('srv-01', _jeeberId, 'opening',
               createdAtUtc: '2026-07-27T12:00:00Z'),
@@ -388,7 +340,6 @@ void main() {
           postFails: true,
         );
         // Both sends happen at the same skewed instant — the clock does not even
-        // advance between them, so nothing but the send sequence can order them.
         final clock = _TestClock(DateTime.utc(2026, 7, 27, 11, 50));
         final cubit = _cubit(_gateway(wire, viewerId: _customerId),
             clock: clock);
@@ -414,8 +365,6 @@ void main() {
       'ref-bearing row) keeps its position across ticks',
       () async {
         // `_dispatchVoiceNote` swaps the draft for a freshly CONSTRUCTED message
-        // rather than a copyWith, so anything the draft carried for ordering has
-        // to survive that swap or the row reverts to local-clock ordering.
         final wire = _ChatWire(
           initialRows: <Map<String, Object?>>[
             _row('srv-01', _jeeberId, 'theirs',
@@ -455,9 +404,6 @@ void main() {
       'timestamp takes over and can legitimately re-order the thread',
       () async {
         // The re-sort is not being disabled. This proves it still runs and still
-        // absorbs echoes into the server's own position: the server says my
-        // message actually landed BEFORE the row I saw above it, and that is
-        // what renders.
         final wire = _ChatWire(
           initialRows: <Map<String, Object?>>[
             _row('srv-01', _jeeberId, 'theirs',

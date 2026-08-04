@@ -1,9 +1,4 @@
 // JM-024 — location-select screen contract (63_W1_TEST_PLAN §2.3): the three
-// Semantics identifiers, the seeded saved-address cards, and the nav-callback
-// seams (confirm → order-chat, saved-row → saved-addresses, new → map-pin).
-//
-// Isolated (no router): the screen self-provides its cubit over the injected
-// FakeLocationSelectRepository.
 
 import 'dart:io';
 
@@ -85,8 +80,6 @@ void main() {
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
     // JEBV4-176: the "Current Location" option resolves a REAL device fix so
-    // Confirm can enable and no GPS-recovery panel pushes the affordances
-    // off-screen (a real geolocator is unavailable in the headless harness).
     sl.registerLazySingleton<CurrentLocationResolver>(
       FakeCurrentLocationResolver.new,
     );
@@ -101,7 +94,6 @@ void main() {
     await tester.pumpWidget(
       _harness(const ClientLocationScreen(
         // DEFECT A: inject the user id so the screen uses the test seam instead
-        // of resolving from AuthTokenStore (secure storage, unavailable here).
         userId: 'user-client-001',
         repository: FakeLocationSelectRepository(),
       )),
@@ -177,7 +169,11 @@ void main() {
         ),
       )),
     );
-    await tester.pumpAndSettle();
+    // MIDNIGHT M0-4: the error band is a `JeebEmptyState` whose illustration
+    // loops forever, so this surface advances with pump(), never pumpAndSettle.
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
 
     // The create flow stays usable: Current + New + Confirm still present.
     expect(
@@ -198,6 +194,56 @@ void main() {
     );
   });
 
+  // ── D1 (redesign screen 09) — the GPS accuracy subtitle ──────────────────
+
+  group('current-location accuracy subtitle', () {
+    testWidgets('renders the accuracy radius when the fix carries one',
+        (tester) async {
+      await tester.pumpWidget(
+        _harness(ClientLocationScreen(
+          userId: 'user-client-001',
+          repository: const FakeLocationSelectRepository(),
+          currentLocationResolver: FakeCurrentLocationResolver(
+            result: const CurrentLocationResult.resolved(
+              33.8959,
+              35.4797,
+              accuracyMeters: 8,
+            ),
+          ),
+        )),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('current_location_gps_resolved'),
+        findsOneWidget,
+      );
+      expect(find.text('GPS · accurate to 8 m'), findsOneWidget);
+      // The flat copy is replaced, not appended.
+      expect(find.text('Using your current location'), findsNothing);
+    });
+
+    testWidgets('falls back to the flat resolved copy when accuracy is null',
+        (tester) async {
+      await tester.pumpWidget(
+        _harness(ClientLocationScreen(
+          userId: 'user-client-001',
+          repository: const FakeLocationSelectRepository(),
+          currentLocationResolver: FakeCurrentLocationResolver(
+            result: const CurrentLocationResult.resolved(33.8959, 35.4797),
+          ),
+        )),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('current_location_gps_resolved'),
+        findsOneWidget,
+      );
+      expect(find.text('Using your current location'), findsOneWidget);
+    });
+  });
+
   // ── G1 (sprint-009 P0) — the "What do you need?" compose block ────────────
 
   group('G1 compose description', () {
@@ -205,8 +251,6 @@ void main() {
     const micKey = Key('clientLocation.descriptionMic');
 
     // B-02: the Confirm CTA is an OmdsLoadingButton (disable + spinner while
-    // the create POST is in flight); it still exposes `isEnabled`, so the G1
-    // gating assertions below are unchanged.
     OmdsLoadingButton confirmButton(WidgetTester tester) {
       final cta = find.bySemanticsIdentifier('location_select_confirm_cta');
       expect(cta, findsOneWidget);

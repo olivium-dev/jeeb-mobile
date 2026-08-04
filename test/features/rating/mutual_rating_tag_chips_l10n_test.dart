@@ -1,23 +1,4 @@
 // JEBV4-296 regression guard — the mutual-rating quick-tag chips rendered
-// hardcoded English text even under the `ar` locale while the rest of the
-// screen was Arabic (confirmed on-device during the JEBV4-99 r2 AR/RTL
-// capture pass:
-// docs/evidence/JEBV4-99/r2/jeeber/ar/*_13-mutual-rating-EN-tag-leak.png).
-//
-// Fix: chip labels are now sourced from ARB (`mutualRatingTag{Punctuality,
-// Communication,PackageCondition,Courtesy,Navigation}`) via `_tagLabel`,
-// while the underlying wire values sent to
-// `RatingRepository.submitRating(tags: ...)` stay the canonical gateway
-// taxonomy keys (`kMutualRatingTags` — JEBV4-297,
-// `punctuality`/`communication`/`package_condition`/`courtesy`/`navigation`).
-//
-// This test asserts:
-//   - under `ar`, all five chips render the Arabic ARB labels.
-//   - none of the raw English display-label literals leak onto the ar screen.
-//   - under `en`, the chips still render the English labels (no regression).
-//   - tapping a localized chip still toggles the CANONICAL (gateway taxonomy)
-//     wire value in cubit state — the l10n change must not alter the wire
-//     contract established by JEBV4-297.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

@@ -152,10 +152,6 @@ void main() {
   });
 
   // DEFECT-C2: RoleSync.sync must fire on the authenticated session transition
-  // (login completion), not only at cold-start (pre-auth) and resume. This
-  // group reproduces the exact wiring `JeebApp._wireSessionRoleSync` installs:
-  // subscribe to the SessionCubit stream and call sync() on every transition
-  // INTO authenticated.
   group('DEFECT-C2: fires on the authenticated session transition', () {
     /// Mirrors `JeebApp._wireSessionRoleSync`: re-runs [RoleSync.sync] whenever
     /// the session transitions to authenticated.
@@ -185,8 +181,6 @@ void main() {
       final sub = wire(session, sync);
 
       // Before login: cubit is in the inert `unknown` phase, so the role-sync
-      // trigger has NOT fired — the toggle is hidden and the role is the
-      // `client` default (exactly the DEFECT-C2 symptom).
       expect(session.state.status, SessionStatus.unknown);
       expect(repo.calls, 0);
       expect(role.state, UserRole.client);

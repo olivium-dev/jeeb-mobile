@@ -1,28 +1,3 @@
-// A FAILED READ MUST HEAL ITSELF WHEN THE NETWORK COMES BACK.
-//
-// #189 made the third state visible (we-could-not-find-out → error + retry).
-// It did not make it RECOVER: the only way out was a tap on "Try again" or
-// backing out and re-entering the route. Measured live on the pre-fix build,
-// the failed chat screen was byte-identical 45 s later and byte-identical
-// 65 s AFTER connectivity was fully restored (ping 0 % loss), because the only
-// thing that could have cleared the failure — a successful read — was never
-// attempted again: the retained 60 s history poll had been deleted, so ZERO
-// reads happened on that screen for 3 m 21 s.
-//
-// So the screen states, correctly, that it does not know — and then never finds
-// out. This suite pins the recovery, and pins its BOUND:
-//
-//   * DoD          — connectivity returns and the thread renders itself, with
-//                    no tap and no re-entry.
-//   * NEGATIVE     — while the network stays down, the retry is a BACKOFF and
-//                    not a poll: a bounded number of attempts over a minute,
-//                    not one every few seconds. (The owner mandate bans a
-//                    repeated call at any interval; a terminating retry of a
-//                    FAILED read is error recovery, and its terminating
-//                    property is what this test asserts.)
-//   * CONTROL      — a screen that resolved successfully schedules NO retries
-//                    at all, so the mechanism cannot become an ambient poll on
-//                    the healthy path.
 library;
 
 import 'package:dio/dio.dart';
@@ -38,13 +13,11 @@ import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
 
 /// Offline until [healed] is flipped, then serves the live accepted-conversation
-/// wire. Nobody taps anything: the flip is the only event.
 class _HealingDio {
   _HealingDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -106,7 +79,6 @@ class _HealingDio {
   final List<String> requests = <String>[];
 
   /// Resolution ATTEMPTS, counted off the wire: the correlation-key lookup is
-  /// the first read of every attempt.
   int get resolutionAttempts =>
       requests.where((p) => p == '/v1/conversations').length;
 }
@@ -167,18 +139,17 @@ void main() {
       await tester.pumpWidget(_host(role, _HealingDio.requestId));
       await tester.pumpAndSettle();
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsOneWidget,
         reason: 'network down: the screen says it does not know',
       );
 
-      // Connectivity returns. NOBODY TOUCHES THE SCREEN.
       healing.healed = true;
       await tester.pump(const Duration(seconds: 3));
       await tester.pumpAndSettle();
 
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsNothing,
         reason:
             'the failed read must retry itself once the network is back; the '
@@ -204,7 +175,6 @@ void main() {
       final coldAttempts = healing.resolutionAttempts;
       expect(coldAttempts, 1, reason: 'one cold resolution');
 
-      // A full minute of continuous failure.
       for (var i = 0; i < 12; i++) {
         await tester.pump(const Duration(seconds: 5));
       }
@@ -223,7 +193,7 @@ void main() {
             'a 5 s cadence would be 12 in this window. This is a terminating '
             'backoff on a FAILED read, not a poll: attempts=$retries',
       );
-      expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+      expect(find.byType(ChatResolutionErrorView), findsOneWidget);
     },
   );
 

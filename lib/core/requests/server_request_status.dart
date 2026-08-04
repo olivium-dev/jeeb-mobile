@@ -1,8 +1,5 @@
 /// Shared interpretation of the gateway-owned request lifecycle.
-///
 /// A request is actionable only while the server reports one of the live
-/// statuses below. Consumers must not infer lifecycle from a local clock or
-/// from the mere presence of a row in a response.
 abstract final class ServerRequestStatus {
   static const Set<String> live = {
     'pending',

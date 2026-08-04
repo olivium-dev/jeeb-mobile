@@ -5,16 +5,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/features/language/presentation/screens/language_settings_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
+
+/// MIDNIGHT token sheet §1/§3, the same constants
+/// `test/core/widgets/jeeb/jeeb_segmented_toggle_test.dart` pins.
+const Color _white = Color(0xFFFFFFFF);
+const Color _navyInk = Color(0xFF0B1351);
+const Color _inkSoft = Color(0xFFB9C0F0);
 
 Widget _harness(LocaleCubit cubit) {
   return BlocProvider.value(
     value: cubit,
     child: BlocBuilder<LocaleCubit, Locale>(
       builder: (context, locale) => MaterialApp(
+        // Midnight is the only scheme; an unthemed host renders Material's
+        // default purple, which is what pinned the pre-Midnight assertions.
+        theme: AppTheme.midnight(),
         locale: locale,
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: const [
@@ -29,12 +40,50 @@ Widget _harness(LocaleCubit cubit) {
   );
 }
 
+/// The selected segment of a [JeebSegmentedToggle] is a **fill swap**, not a
+/// trailing glyph (redesign-2026-08 §5 #19), so selection is read off the
+/// segment's own [DecoratedBox] — the nearest one above its frozen key.
+BoxDecoration _segmentDecoration(WidgetTester tester, Key key) {
+  final DecoratedBox box = tester.widget<DecoratedBox>(
+    find
+        .ancestor(of: find.byKey(key), matching: find.byType(DecoratedBox))
+        .first,
+  );
+  return box.decoration as BoxDecoration;
+}
+
+/// The segment's own label style — the other half of the fill swap.
+TextStyle _segmentTextStyle(WidgetTester tester, Key key) => tester
+    .widget<Text>(
+      find.descendant(of: find.byKey(key), matching: find.byType(Text)),
+    )
+    .style!;
+
+/// Asserts the ratified Midnight segmented-active treatment: the selected pill
+/// is a WHITE fill with navy w700 ink, the other stays transparent with
+/// `inkSoft` w600 (kit ruling 3 / token sheet §1, §3). It is deliberately NOT
+/// `colorScheme.primary` — under Midnight that slot is the `#D73B00` CTA
+/// orange, and spending it on a language switch is an orange-budget leak.
+void _expectMidnightSelection(
+  WidgetTester tester, {
+  required Key selected,
+  required Key unselected,
+}) {
+  expect(_segmentDecoration(tester, selected).color, _white);
+  expect(_segmentTextStyle(tester, selected).color, _navyInk);
+  expect(_segmentTextStyle(tester, selected).fontWeight, FontWeight.w700);
+
+  expect(_segmentDecoration(tester, unselected).color, Colors.transparent);
+  expect(_segmentTextStyle(tester, unselected).color, _inkSoft);
+  expect(_segmentTextStyle(tester, unselected).fontWeight, FontWeight.w600);
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  testWidgets('renders both language rows with the active one checked',
+  testWidgets('renders both language segments with the active one filled',
       (tester) async {
     final prefs = await SharedPreferences.getInstance();
     final cubit = LocaleCubit(
@@ -48,18 +97,11 @@ void main() {
     expect(find.byKey(const Key('language-row-en')), findsOneWidget);
     expect(find.byKey(const Key('language-row-ar')), findsOneWidget);
 
-    // English is active, so its row carries the check mark while the Arabic
-    // row does not.
-    final englishCheck = find.descendant(
-      of: find.byKey(const Key('language-row-en')),
-      matching: find.byIcon(Icons.check),
+    _expectMidnightSelection(
+      tester,
+      selected: const Key('language-row-en'),
+      unselected: const Key('language-row-ar'),
     );
-    final arabicCheck = find.descendant(
-      of: find.byKey(const Key('language-row-ar')),
-      matching: find.byIcon(Icons.check),
-    );
-    expect(englishCheck, findsOneWidget);
-    expect(arabicCheck, findsNothing);
   });
 
   testWidgets('tapping Arabic flips strings, RTL, and persists the choice',
@@ -92,17 +134,12 @@ void main() {
     // case).
     expect(prefs.getString('app.locale.languageCode'), 'ar');
 
-    // The check mark moved to the Arabic row.
-    final arabicCheck = find.descendant(
-      of: find.byKey(const Key('language-row-ar')),
-      matching: find.byIcon(Icons.check),
+    // The white fill moved to the Arabic segment.
+    _expectMidnightSelection(
+      tester,
+      selected: const Key('language-row-ar'),
+      unselected: const Key('language-row-en'),
     );
-    final englishCheck = find.descendant(
-      of: find.byKey(const Key('language-row-en')),
-      matching: find.byIcon(Icons.check),
-    );
-    expect(arabicCheck, findsOneWidget);
-    expect(englishCheck, findsNothing);
   });
 
   testWidgets('tapping the already-selected language is a no-op',
@@ -126,5 +163,31 @@ void main() {
     // was the device fallback would otherwise clobber resetToDeviceLocale's
     // contract.
     expect(prefs.getString('app.locale.languageCode'), isNull);
+  });
+
+  testWidgets('mounts R22\'s content field: orange glow topEnd, board-still',
+      (tester) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cubit = LocaleCubit(
+      prefs: prefs,
+      deviceLocaleProvider: () => const Locale('en'),
+    );
+
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final JeebMidnightField field = tester.widget<JeebMidnightField>(
+      find.byType(JeebMidnightField),
+    );
+    expect(field.variant, JeebFieldVariant.content);
+    // R22 declares `radial-gradient(480px 380px at 88% -6%)` and NO periwinkle
+    // wash, so the orange glow anchors topEnd and no wash layer is requested.
+    expect(field.glowPlacement, JeebFieldGlowPlacement.topEnd);
+    expect(field.washPlacement, isNull);
+    expect(field.animateDecor, isFalse);
+
+    // The field is the background; a painted Scaffold would cover it.
+    final Scaffold scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, Colors.transparent);
   });
 }

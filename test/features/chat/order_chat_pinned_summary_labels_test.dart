@@ -1,19 +1,5 @@
 /// Run-22 chat-cluster regression — role-aware / content-aware labels on the
 /// pinned order-summary strip (`order_chat_pinned_summary`).
-///
-/// The audited defect (proof-run22 customer-E-inprogress-bucket-a1): the strip
-/// rendered the literal screen title "Order summary" as its heading, as the
-/// view-summary link, AND as filler for every unresolved figure (3× on one
-/// screen), plus a misleading "$ Track order" chip where the D11 cash reminder
-/// belongs. These tests lock the fixed vocabulary:
-///   * heading = human order reference (friendlyReference: ORD-… passthrough,
-///     UUID → #XXXXXX) — never the screen title;
-///   * link = "View summary";
-///   * cash reminder = "Pay cash on delivery" — never "Track order";
-///   * unresolved price/ETA/tier = localized "Pending" placeholder;
-///   * status chip = canonical deliveryStage* vocabulary;
-///   * party name is role-aware (customer sees the Jeeber, jeeber sees the
-///     customer) and synthetic handles are suppressed for a role generic.
 library;
 
 import 'dart:io';
@@ -26,8 +12,6 @@ import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expan
 import 'package:jeeb_mobile/features/chat/presentation/widgets/order_chat_pinned_summary.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-// ---------------------------------------------------------------------------
-// Localization host (sync ARB load), mirroring order_chat_jm025_test.dart.
 // ---------------------------------------------------------------------------
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncLocDelegate(this._arbByTag);
@@ -63,9 +47,6 @@ Widget _host(Widget child, {Locale locale = const Locale('en')}) => MaterialApp(
 
 /// b02 chat-header redesign: the strip is COLLAPSED by default and discloses
 /// the party line, the requirement, the ETA/tier chips and the cash reminder
-/// behind `order_chat_summary_expand`. Every assertion below that targets one
-/// of those elements now opens the disclosure first — the vocabulary they lock
-/// is unchanged, only the number of taps to see it.
 Future<void> _expand(WidgetTester tester) async {
   await tester.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
   await tester.pump();
@@ -74,7 +55,6 @@ Future<void> _expand(WidgetTester tester) async {
 void main() {
   setUpAll(_loadArb);
   // The choice is remembered for the SESSION, and widget tests share one
-  // process — without this a test that expands leaks that state into the next.
   setUp(ChatHeaderExpansionStore.instance.reset);
 
   const uuid = '9acb579d-1c2e-4f3a-b8d1-77aa10cc42e6';
@@ -109,7 +89,6 @@ void main() {
     // Party name: the customer sees the winning Jeeber.
     expect(find.text('Kamal Hajj'), findsOneWidget);
     // Locked figures render verbatim from the fixture's priceLabel (this
-    // widget takes an already-formatted label; it does not call MoneyFormat).
     expect(find.text(r'$9.00'), findsOneWidget);
     // Canonical status vocabulary (deliveryStage*).
     expect(find.text('Picked up'), findsOneWidget);
@@ -136,7 +115,6 @@ void main() {
     // Heading derives a short stable reference from the delivery id.
     expect(find.text('#CC42E6'), findsOneWidget);
     // price + ETA + tier all pending → three placeholder chips, assertable ids
-    // preserved, zero repeated titles.
     expect(find.text('Pending'), findsNWidgets(3));
     expect(find.text('Order summary'), findsNothing);
     // The strip only renders on an accepted order → Matched is the floor.
@@ -218,8 +196,6 @@ void main() {
     expect(find.text('Delivered'), findsOneWidget);
   });
 
-  // -------------------------------------------------------------------
-  // P3 (b01-20260725) — the INITIAL REQUIREMENT row.
   // -------------------------------------------------------------------
 
   /// The description's own `Text` node (the one AutoDirectionText renders).
@@ -334,9 +310,6 @@ void main() {
     );
     await tester.pumpWidget(_host(SizedBox(
       // A realistic narrow-phone viewport. NOTE: the strip's own intrinsic
-      // height is ~163 px even with NO description, so a 200 px host would
-      // overflow on the empty strip too — that host would test the harness,
-      // not the clamp.
       width: 360,
       height: 640,
       child: Column(children: [
@@ -355,12 +328,6 @@ void main() {
     expect(text.maxLines, 2);
     expect(text.overflow, TextOverflow.ellipsis);
     // R2 guard: the clamp BOUNDS the strip's growth. Measured baselines at this
-    // width — pre-b02, no description 163.5 px, 2-line description 207.5 px.
-    // Post-b02 the strip is COLLAPSED by default (one 48 dp row) and this
-    // assertion is on the EXPANDED state, which carries the party line and the
-    // ETA/tier/cash rows the old strip showed unconditionally: 248 px. The
-    // clamp is still what bounds it — unclamped, 420 chars wrap to ~17 lines in
-    // the square-glyph test font and the strip runs past 640 px.
     expect(
       tester.getSize(find.byType(OrderChatPinnedSummary)).height,
       lessThan(260),
@@ -376,10 +343,6 @@ void main() {
       description: long,
     );
     // The harness, not the subject: with the header expanded AND the description
-    // expanded to its full 420 chars the strip is ~650 px in the widget-test
-    // font (square em glyphs, ~1.8x real Inter width), so the 600 px default
-    // test surface is too short to lay it out. The clamp itself is asserted in
-    // M12.
     await tester.binding.setSurfaceSize(const Size(400, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(_host(SizedBox(

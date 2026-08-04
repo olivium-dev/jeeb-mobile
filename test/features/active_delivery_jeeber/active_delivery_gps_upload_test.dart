@@ -1,18 +1,4 @@
 // JEBV4-269: the jeeber GPS uploader wiring.
-//
-// Proves the previously-orphan BackgroundGpsCubit pipeline is now driven by the
-// ActiveDeliveryCubit lifecycle — the missing wire that left the customer's
-// live-tracking map empty:
-//
-//   * uploads start ONLY while the delivery is en route (InTransit) — the one
-//     phase the gateway ingests fixes for and the customer needs a live map;
-//   * a fix that survives the filter is POSTed carrying THIS delivery's id
-//     (delivery-scoped so the gateway's party + in-transit gate applies);
-//   * the uploader stays idle before pickup / on arrival (battery) and is torn
-//     down when the delivery completes or the screen closes.
-//
-// The battery cadence/accuracy-filter itself is covered by
-// background_gps_cubit_test.dart; this suite is the lifecycle wiring.
 
 import 'dart:typed_data';
 
@@ -174,13 +160,6 @@ void main() {
     });
 
     // ---------------------------------------------------------------------
-    // P1, 2026-08-01: the uploader's lifetime is the DELIVERY, not the SCREEN.
-    //
-    // The suite used to assert the opposite ("tears the uploader down when the
-    // screen closes"), which is precisely the defect: a jeeber who opened chat
-    // or backed out to the feed mid-delivery stopped reporting position, and
-    // the customer's live map froze with no error raised anywhere.
-    // ---------------------------------------------------------------------
 
     test('KEEPS uploading after the screen closes while the delivery is still '
         'InTransit', () async {
@@ -190,24 +169,19 @@ void main() {
       expect(gps.state.phase, BackgroundGpsPhase.tracking);
 
       // `start()` tears down before it subscribes, so the counter is already
-      // non-zero here. What matters is that it does not move again.
       final teardownsBeforeClose = gateway.stopCount;
 
       // The jeeber navigates away (chat / feed / back). The route pops and the
-      // screen's cubit is disposed — the delivery, however, is still en route.
       await cubit.close();
       await pumpEventQueue();
 
       // The pipeline is untouched: not closed, not torn down again, still
-      // bound to this delivery.
       expect(gps.isClosed, isFalse);
       expect(gateway.stopCount, teardownsBeforeClose);
       expect(gps.state.phase, BackgroundGpsPhase.tracking);
       expect(gps.state.deliveryId, _deliveryId);
 
       // The claim that actually matters: a fix captured AFTER the screen is
-      // gone still reaches the gateway. A phase flag alone would not prove the
-      // customer's map keeps moving; an accepted upload does.
       await gateway.emit(_sample());
       await pumpEventQueue();
       expect(uploader.calls, hasLength(1));
@@ -231,7 +205,6 @@ void main() {
       await pumpEventQueue();
 
       // Battery + privacy: the en-route window closed, so the stream is down.
-      // Surviving the screen must NOT become "runs forever".
       expect(gps.state.phase, BackgroundGpsPhase.idle);
       expect(gateway.stopCount, greaterThan(teardownsWhileTracking));
 
@@ -245,9 +218,6 @@ void main() {
     test('a second delivery screen does not stop a sibling delivery that is '
         'still en route', () async {
       // The uploader is now an app-scoped singleton, so "is it idle?" is no
-      // longer a safe stop condition — every stop must be scoped to the
-      // delivery that owns it. Without that guard, opening a second (not yet
-      // en-route) delivery would kill the first one's live upload.
       final shared = buildGps();
 
       final enRoute = ActiveDeliveryCubit(

@@ -110,7 +110,6 @@ void main() {
         reason: 'poll must not register before a userId exists');
 
     // Interactive login lands: a userId is now persisted and the session
-    // transition drives JeebApp to call notifyLogin().
     await tokenStore.save(
       accessToken: 'mock-jwt-access-u1',
       refreshToken: 'mock-refresh-u1',
@@ -149,7 +148,6 @@ void main() {
     // First login emission registers exactly once.
     await registrar.notifyLogin();
     // A second emission (e.g. a duplicate authenticated transition for the SAME
-    // (user, token)) must be a no-op — already registered for this identity.
     await registrar.notifyLogin();
 
     expect(dio.paths, [registerPath]);
@@ -182,9 +180,6 @@ void main() {
     await registrar.notifyLogin();
 
     // Super-login account switch: user B's tokens land on the SAME install with
-    // the SAME FCM token, and the session stream re-emits authenticated →
-    // JeebApp calls notifyLogin() again. This is the exact bug: the old one-shot
-    // latch swallowed this and B was never registered.
     await tokenStore.save(
       accessToken: 'mock-jwt-access-uB',
       refreshToken: 'mock-refresh-uB',
@@ -223,14 +218,12 @@ void main() {
       userId: 'u1',
     );
     // start() subscribes to onTokenRefresh AND polls for the userId (present),
-    // so it registers v1 once. Let its async _attempt chain settle.
     await registrar.start();
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(dio.paths, [registerPath]);
     expect(dio.bodies.single['fcmToken'], 'fcm-token-v1');
 
     // FCM rotates the token (reinstall / restore). The refresh listener must
-    // re-register the new token — the (user, token) key changed.
     transport.emitTokenRefresh('fcm-token-v2');
     await Future<void>.delayed(const Duration(milliseconds: 20));
 
@@ -298,8 +291,6 @@ void main() {
     expect(dio.paths.length, 1);
 
     // Sign-out: the session goes unauthenticated → JeebApp calls
-    // notifySignedOut(), which clears the dedup so a same-user re-login is not
-    // skipped as a duplicate (the logout DELETE removed this install's token).
     await tokenStore.clear();
     registrar.notifySignedOut();
 

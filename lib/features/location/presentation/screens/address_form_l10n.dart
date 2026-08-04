@@ -1,16 +1,5 @@
 import 'package:flutter/widgets.dart';
 
-/// Feature-local EN/AR copy for the JM-050 address-detail-form field labels that
-/// have **no existing ARB key** (Building / Floor-apt / Delivery-notes / COD
-/// phone / the edit-pin CTA / the "use a saved pin" hint).
-///
-/// Mirrors the JM-031 `order_summary_l10n.dart` precedent: the ARB is
-/// integrator-owned and per-screen engineers must not edit it (40_GUARDRAILS
-/// §9), so the missing strings live here, locale-resolved off the active
-/// `Directionality`/`Locale`, until the integrator batches the dedicated
-/// `addressForm*` keys (requested in 50_ROUTE_REQUESTS). Maestro keys on the
-/// `Semantics(identifier:)`, never the text, so this is cosmetic copy only — the
-/// labels are NOT load-bearing for the flow.
 class AddressFormL10n {
   const AddressFormL10n._(this._ar);
 

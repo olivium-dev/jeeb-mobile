@@ -14,8 +14,6 @@ import 'entries/batch_11_entries.dart';
 
 export 'catalog_models.dart';
 
-/// All cataloged screens, assembled from the per-batch entry files (DT-04 / F2)
-/// and sorted by feature for a stable menu order.
 final List<CatalogEntry> kScreenCatalog = <CatalogEntry>[
   ...batch01Entries,
   ...batch02Entries,

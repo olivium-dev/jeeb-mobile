@@ -15,7 +15,6 @@ import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_servic
 /// Test double for [ChatGateway] that returns canned acks and lets the test
 /// push inbound events from outside the cubit. The InMemory variant ships
 /// real timers and is great for screens; for cubit unit tests we want full
-/// control over event timing.
 class _TestChatGateway extends ChatGateway {
   _TestChatGateway({
     this.history = const <DeliveryChatMessage>[],
@@ -52,8 +51,6 @@ class _TestChatGateway extends ChatGateway {
 /// P4/P5: a [ChatGateway] that DOES have a CDN wired — it overrides
 /// `uploadImage` / `fetchImageBytes` the way [DioChatGateway] does when a
 /// [CdnAssetGateway] is registered. The plain [_TestChatGateway] deliberately
-/// does NOT, which is what keeps the legacy `photo` path (and its four
-/// baseline tests) alive.
 class _CdnChatGateway extends _TestChatGateway {
   _CdnChatGateway({
     this.objectRef = '',
@@ -237,7 +234,6 @@ void main() {
       final cubit = _build(gateway: gateway);
       await cubit.load();
       // Inbound message from the counterpart — should not be promoted by a
-      // read receipt destined for the local outgoing queue.
       final inbound = DeliveryChatMessage.text(
         id: 'in-1',
         author: ChatAuthor.them,
@@ -338,14 +334,11 @@ void main() {
 
         cubit.composerChanged('on my way');
         await cubit.sendText();
-        // One optimistic own bubble with the local outbox id.
         expect(cubit.state.messages, hasLength(1));
         final optimisticId = cubit.state.messages.single.id;
         expect(cubit.state.messages.single.author, ChatAuthor.me);
 
         // The mock fans the sender's OWN message back out over the WS with the
-        // canonical SERVER id (different from the optimistic local id) and
-        // author resolved to `me` (senderId == currentUserId on the gateway).
         gateway.push(
           IncomingMessage(
             DeliveryChatMessage.text(
@@ -359,7 +352,6 @@ void main() {
         );
         await Future<void>.delayed(Duration.zero);
 
-        // STILL one bubble — the echo did not create a duplicate.
         expect(
           cubit.state.messages,
           hasLength(1),
@@ -368,10 +360,8 @@ void main() {
         final reconciled = cubit.state.messages.single;
         expect(reconciled.text, 'on my way');
         expect(reconciled.author, ChatAuthor.me);
-        // The bubble adopted the SERVER id so later receipts (keyed by it) land.
         expect(reconciled.id, 'srv-msg-7');
         expect(reconciled.id, isNot(optimisticId));
-        // The further-along status is kept (echo `delivered` > optimistic `sent`).
         expect(reconciled.status, MessageStatus.delivered);
       },
     );
@@ -445,7 +435,6 @@ void main() {
         cubit.composerChanged('same words');
         await cubit.sendText();
         // The counterpart happens to send the IDENTICAL text — it must still
-        // appear as its own (them) bubble; the dedupe is for `me` echoes only.
         gateway.push(
           IncomingMessage(
             DeliveryChatMessage.text(
@@ -478,7 +467,6 @@ void main() {
         cubit.composerChanged('first');
         await cubit.sendText();
         // A genuinely different own message arriving over the WS (not an echo
-        // of `first`) must append as a second bubble.
         gateway.push(
           IncomingMessage(
             DeliveryChatMessage.text(
@@ -568,10 +556,6 @@ void main() {
     });
   });
 
-  // ===========================================================================
-  // P4 + P5 (b01-20260725) — chat camera + gallery attachment through the CDN.
-  // TC-C3..TC-C11 in docs/batches/b01-20260725/testcases/P45.md §C.
-  // ===========================================================================
   group('ChatCubit — P4/P5 CDN image attachments', () {
     ChatCubit buildWithCdn({
       required _CdnChatGateway gateway,
@@ -592,7 +576,6 @@ void main() {
       return cubit;
     }
 
-    // TC-C3
     test('camera send uploads to the CDN then posts an `image`', () async {
       final gateway = _CdnChatGateway(objectRef: 'chat_attachment/aa.jpg');
       final cubit = buildWithCdn(gateway: gateway);
@@ -612,12 +595,10 @@ void main() {
       );
       expect(m.status, MessageStatus.sent);
       expect(cubit.state.isAttaching, isFalse);
-      // The posted message — not just the state entry — is the `image`.
       expect(gateway.sentMessages.single.kind, MessageKind.image);
       expect(gateway.sentMessages.single.imageUrl, 'chat_attachment/aa.jpg');
     });
 
-    // TC-C4
     test('gallery send does the same through the gallery branch', () async {
       final gateway = _CdnChatGateway(objectRef: 'chat_attachment/bb.jpg');
       final picker = _CountingPicker();
@@ -634,7 +615,6 @@ void main() {
       expect(m.imageUrl, 'chat_attachment/bb.jpg');
     });
 
-    // TC-C5
     test('an upload failure is honest — failed bubble, error, NOTHING posted',
         () async {
       final gateway = _CdnChatGateway(uploadThrows: true);
@@ -652,7 +632,6 @@ void main() {
       );
     });
 
-    // TC-C6
     test('no CDN wired ⇒ unchanged legacy `photo` behaviour', () async {
       final gateway = _TestChatGateway();
       final cubit = _build(
@@ -671,7 +650,6 @@ void main() {
       expect(gateway.sentMessages.single.kind, MessageKind.photo);
     });
 
-    // TC-C7
     test('an oversize pick is rejected before any upload', () async {
       final gateway = _CdnChatGateway(objectRef: 'chat_attachment/cc.jpg');
       final cubit = buildWithCdn(
@@ -690,7 +668,6 @@ void main() {
       expect(cubit.state.isAttaching, isFalse);
     });
 
-    // TC-C8 (regression guard on the pre-existing cancel/permission paths)
     test('cancel and permission-denied behave exactly as before', () async {
       final cancelled = buildWithCdn(
         gateway: _CdnChatGateway(objectRef: 'x'),
@@ -716,7 +693,6 @@ void main() {
       expect(denied.state.messages, isEmpty);
     });
 
-    // TC-C9
     test('a double tap picks and uploads exactly once', () async {
       final gateway = _CdnChatGateway(objectRef: 'chat_attachment/dd.jpg');
       final picker = _CountingPicker();
@@ -733,7 +709,6 @@ void main() {
       expect(cubit.state.messages, hasLength(1));
     });
 
-    // TC-C10
     test('inbound image bytes are resolved once and then deduped', () async {
       final inbound = DeliveryChatMessage.image(
         id: 'srv-1',
@@ -763,7 +738,6 @@ void main() {
       expect(gateway.fetchedRefs, hasLength(1));
     });
 
-    // TC-C11
     test('two captionless images with distinct refs do NOT collapse', () async {
       final gateway = _CdnChatGateway(objectRef: 'chat_attachment/e1.jpg');
       final cubit = buildWithCdn(gateway: gateway);

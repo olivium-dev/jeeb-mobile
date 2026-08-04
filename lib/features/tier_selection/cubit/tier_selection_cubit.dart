@@ -4,22 +4,6 @@ import '../data/tier_repository.dart';
 import '../domain/tier.dart';
 import 'tier_selection_state.dart';
 
-/// Owns the tier-catalog fetch and the user's selection. Three calls:
-///
-///   - [load] pulls `GET /tiers` on first mount and on retry; on failure it
-///     surfaces [TierSelectionStatus.error] so the screen blocks Continue and
-///     shows a retry banner. It deliberately does NOT fall back to the bundled
-///     [FakeTierRepository.defaultCatalog] (JEBV4-300): those tiers carry no
-///     gateway [Tier.serverId], so confirming one would put a client-side enum
-///     slug on the wire for a tier the gateway never minted (and On-the-Way /
-///     Eco are tiers the server does not even sell).
-///   - [selectTier] records the user's choice without confirming it.
-///   - [confirm] commits the choice; the host listens for
-///     [TierSelectionState.confirmedTierId] to drive navigation.
-///
-/// Loading a catalog never chooses a tier for the customer. An existing,
-/// deliberate selection is retained when the catalog is refreshed as long as
-/// that tier is still available.
 class TierSelectionCubit extends Cubit<TierSelectionState> {
   TierSelectionCubit({required TierRepository repository})
     : _repository = repository,
@@ -61,10 +45,6 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
     );
   }
 
-  /// JEBV4-300: surface the fetch failure instead of silently serving the
-  /// bundled fallback catalog. The screen renders a retry banner and keeps the
-  /// Continue CTA hidden, so no fallback tier (serverId == null) can ever reach
-  /// `POST /requests`. Retry re-runs [load] → `GET /tiers`.
   void _emitFailure(TierLoadFailure failure) {
     emit(
       state.copyWith(
@@ -91,8 +71,15 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
     emit(state.copyWith(confirmedTierId: id));
   }
 
-  TierId? _retainedSelection(List<Tier> tiers) =>
-      tiers.any((tier) => tier.id == state.selectedTierId)
-      ? state.selectedTierId
-      : null;
+  /// R9 loads with a row already lit (doc-13 P0-4): an existing choice wins,
+  /// otherwise the catalog's recommended tier seeds the selection.
+  TierId? _retainedSelection(List<Tier> tiers) {
+    if (tiers.any((tier) => tier.id == state.selectedTierId)) {
+      return state.selectedTierId;
+    }
+    for (final tier in tiers) {
+      if (tier.recommended) return tier.id;
+    }
+    return null;
+  }
 }

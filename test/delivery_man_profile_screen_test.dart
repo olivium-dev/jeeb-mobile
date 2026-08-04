@@ -71,6 +71,12 @@ Widget _harness({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: DeliveryManProfileScreen(data: data ?? _data()),
   );
 }
@@ -105,7 +111,6 @@ void main() {
       expect(find.text('113 Reviews'), findsOneWidget);
       expect(find.text('View all'), findsOneWidget);
       // D58: cards attribute by first name only (the seed reviewer is "Karl
-      // Assaf" → "Karl").
       expect(find.text('Karl'), findsNWidgets(2));
       expect(find.text('Karl Assaf'), findsNothing);
     });
@@ -136,7 +141,7 @@ void main() {
       expect(find.text('Verified Technician'), findsNothing);
     });
 
-    testWidgets('renders the OmdsEmptyState when there are no reviews',
+    testWidgets('renders the JeebEmptyState when there are no reviews',
         (tester) async {
       await tester.pumpWidget(
         _harness(
@@ -182,7 +187,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The OmdsReviewCard action row (Helpful/Reply) is suppressed
-      // (showActions: false) — assert by their action icons + localized labels.
       expect(find.byIcon(Icons.thumb_up_outlined), findsNothing);
       expect(find.byIcon(Icons.chat_bubble_outline), findsNothing);
       expect(find.text('Helpful (24)'), findsNothing);

@@ -8,9 +8,6 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 /// Test-only [LocalizationsDelegate] that reads ARB files synchronously
 /// from the filesystem. The production delegate uses
 /// `rootBundle.loadString` which doesn't reliably complete inside
-/// `flutter test`'s headless binding — `pumpAndSettle` returns before
-/// the future resolves and the Localizations widget renders
-/// `SizedBox.shrink`.
 class SyncAppLocalizationsDelegate
     extends LocalizationsDelegate<AppLocalizations> {
   const SyncAppLocalizationsDelegate();
@@ -34,9 +31,6 @@ class SyncAppLocalizationsDelegate
   bool shouldReload(SyncAppLocalizationsDelegate old) => false;
 }
 
-/// Standard test wrapper: a MaterialApp with light theme and the sync
-/// localizations delegate installed. Use across every widget test that
-/// touches AppLocalizations.
 Widget wrapForTest(Widget child, {Locale locale = const Locale('en')}) {
   return MaterialApp(
     theme: ThemeData.light(),

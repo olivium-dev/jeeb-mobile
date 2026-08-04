@@ -1,12 +1,5 @@
 import 'dart:math' as math;
 
-/// Exponential backoff schedule for the chat WebSocket reconnect loop.
-///
-/// `delay(0)` is fired immediately after the first failure (no wait).
-/// Subsequent attempts double the previous delay up to [maxDelay]. The
-/// numbers and ceiling are deliberately conservative: the chat socket is
-/// expensive to spin up server-side and a tight reconnect loop is a known
-/// thundering-herd risk on mobile carrier outages.
 class ReconnectPolicy {
   const ReconnectPolicy({
     this.initialDelay = const Duration(seconds: 1),
@@ -19,12 +12,8 @@ class ReconnectPolicy {
   final Duration maxDelay;
   final double multiplier;
 
-  /// 0 means "retry forever". Used in tests to assert give-up paths.
   final int maxAttempts;
 
-  /// Compute the wait before the [attempt]-th reconnect. `attempt = 1`
-  /// returns [initialDelay]; later attempts grow by [multiplier] and cap at
-  /// [maxDelay].
   Duration delayFor(int attempt) {
     if (attempt <= 0) return Duration.zero;
     final base = initialDelay.inMilliseconds.toDouble();

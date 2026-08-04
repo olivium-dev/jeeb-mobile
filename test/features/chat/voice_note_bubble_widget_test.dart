@@ -1,11 +1,5 @@
 /// Widget tests for voice note bubble (T-MOB-016).
-///
 /// Tests cover:
-///   - AC1: Voice bubble renders with duration
-///   - AC2: Transcription text fills in below waveform
-///   - AC3: 'Transcription unavailable' shown on sentinel value
-///   - AC4: Semantic label includes duration (a11y)
-///   - Voice bubble renders for sender and receiver
 library;
 
 import 'dart:io';
@@ -18,8 +12,6 @@ import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_message_bubble.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-// ---------------------------------------------------------------------------
-// Localization helper (mirrors chat_screen_test.dart pattern)
 // ---------------------------------------------------------------------------
 
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -46,8 +38,6 @@ void _loadArb() {
   _delegate = _SyncLocDelegate({'en': en, 'ar': ar});
 }
 
-// ---------------------------------------------------------------------------
-// Helper
 // ---------------------------------------------------------------------------
 
 DeliveryChatMessage _voiceMsg({
@@ -80,8 +70,6 @@ Widget _buildApp(DeliveryChatMessage message, {Locale locale = const Locale('en'
       ),
     );
 
-// ---------------------------------------------------------------------------
-// Tests
 // ---------------------------------------------------------------------------
 
 void main() {
@@ -128,7 +116,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // Sentinel '__unavailable__' maps to the localized unavailable string.
-      // Use find.byType(Scaffold) context which is inside the Localizations scope.
       final l10n = AppLocalizations.of(
         tester.element(find.byType(Scaffold).first),
       );
@@ -174,10 +161,6 @@ void main() {
 
     testWidgets('semantic label includes author and duration (AC4)', (tester) async {
       // AC4: Audio bubble exposes 'Voice note from <author>, <duration>s, double tap to play'.
-      // durationMs=8000 → 8 seconds. Child text nodes (duration pill, status icon text)
-      // are merged by the Semantics framework into the outer label, so the actual node
-      // label starts with — but may not equal — the a11y template string. We assert
-      // startsWith so the test is robust to child-merge artefacts.
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_buildApp(_voiceMsg(durationMs: 8000)));
       await tester.pumpAndSettle();
@@ -197,8 +180,6 @@ void main() {
         });
       }
       // Walks the semantics tree via the test binding's pipelineOwner;
-      // rootPipelineOwner.semanticsOwner is null in the widget-test harness
-      // (semantics live on the child owner), so the deprecated accessor is kept.
       // ignore: deprecated_member_use
       walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
       expect(found, isTrue, reason: 'Expected semantics label starting with "$expectedPrefix" not found');
@@ -208,9 +189,6 @@ void main() {
     testWidgets('semantic label for counterpart bubble uses Jeeber author (AC4)',
         (tester) async {
       // Counterpart (isMine=false): BubbleFooter is suppressed so the
-      // duration-text child merges into the Semantics label node. The
-      // label starts with the a11y template text; we use startsWith so the
-      // test remains valid regardless of the appended merged-child strings.
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
         _buildApp(_voiceMsg(isMine: false, durationMs: 3000)),
@@ -232,8 +210,6 @@ void main() {
         });
       }
       // Walks the semantics tree via the test binding's pipelineOwner;
-      // rootPipelineOwner.semanticsOwner is null in the widget-test harness
-      // (semantics live on the child owner), so the deprecated accessor is kept.
       // ignore: deprecated_member_use
       walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
       expect(found, isTrue,

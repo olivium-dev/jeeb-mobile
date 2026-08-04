@@ -10,12 +10,10 @@ import '../../../l10n/app_localizations.dart';
 import '../../settings/presentation/screens/settings_screen.dart';
 import '../../settings/presentation/widgets/become_jeeber_card.dart';
 
-/// Profile tab. T-mobile-031 turned the inline settings sub-list (language +
-/// role only) into the full settings screen so QA has a single surface for
-/// profile, language, notifications, addresses, biometric, account, and
-/// version. Role-switching stays here because it is a QA-only affordance
-/// driven by the [RoleCubit] and not part of the user-facing settings AC.
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; legacy role-switch UX, violates the no-role-switch core UX rule — see docs/project-understanding/reconciliation/orphans.md
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/previews/jeeb_preview.dart';
+
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
@@ -29,8 +27,6 @@ class ProfileTab extends StatelessWidget {
       key: const Key('profile-tab-root'),
       padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
       children: [
-        // T-MOB-027: Become-a-Jeeber card — visible for Client users who
-        // have not yet taken on the Jeeber role.
         BecomeJeeberCard(
           isAlreadyJeeber: role == UserRole.jeeber,
           onTap: () => _openKycFlow(context),
@@ -101,9 +97,6 @@ class ProfileTab extends StatelessWidget {
   }
 }
 
-/// Pairs an [OmdsSettingsRow] with explicit Semantics so screen readers
-/// announce the row as a selectable option with its current state, instead of
-/// reading the trailing check icon as an unlabelled decoration.
 class _SelectableSettingsRow extends StatelessWidget {
   const _SelectableSettingsRow({
     required this.rowKey,
@@ -135,3 +128,184 @@ class _SelectableSettingsRow extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED.
+
+/// A typical phone: the width both cubit-driven states are designed against.
+const double _profileTabPhoneWidth = 390;
+
+/// The narrowest width the app still has to survive (iPhone SE 1st gen, and
+/// the small Android estate). The Become-a-Jeeber card's single [Row] —
+const double _profileTabNarrowPhoneWidth = 320;
+
+/// A full tab, not a widget: tall enough for all four blocks (card + three
+/// settings sections) so the canvas shows the whole surface without scrolling.
+const Size _profileTabBox = Size(_profileTabPhoneWidth, 780);
+
+/// Same height, narrow width.
+const Size _profileTabNarrowBox = Size(_profileTabNarrowPhoneWidth, 780);
+
+/// An in-memory stand-in for [SharedPreferences].
+/// [RoleCubit] and [LocaleCubit] both REQUIRE a `SharedPreferences`, and the
+/// real one is async (`getInstance()`) and platform-channel backed — neither of
+class _ProfileTabInMemoryPrefs implements SharedPreferences {
+  _ProfileTabInMemoryPrefs([Map<String, Object>? seed])
+      : _store = <String, Object>{...?seed};
+
+  final Map<String, Object> _store;
+
+  @override
+  Object? get(String key) => _store[key];
+
+  @override
+  bool? getBool(String key) => _store[key] as bool?;
+
+  @override
+  double? getDouble(String key) => _store[key] as double?;
+
+  @override
+  int? getInt(String key) => _store[key] as int?;
+
+  @override
+  String? getString(String key) => _store[key] as String?;
+
+  @override
+  List<String>? getStringList(String key) =>
+      (_store[key] as List<String>?)?.toList();
+
+  @override
+  Set<String> getKeys() => _store.keys.toSet();
+
+  @override
+  bool containsKey(String key) => _store.containsKey(key);
+
+  @override
+  Future<bool> setBool(String key, bool value) => _put(key, value);
+
+  @override
+  Future<bool> setDouble(String key, double value) => _put(key, value);
+
+  @override
+  Future<bool> setInt(String key, int value) => _put(key, value);
+
+  @override
+  Future<bool> setString(String key, String value) => _put(key, value);
+
+  @override
+  Future<bool> setStringList(String key, List<String> value) =>
+      _put(key, value);
+
+  @override
+  Future<bool> remove(String key) async {
+    _store.remove(key);
+    return true;
+  }
+
+  @override
+  Future<bool> clear() async {
+    _store.clear();
+    return true;
+  }
+
+  @override
+  Future<bool> commit() async => true;
+
+  @override
+  Future<void> reload() async {}
+
+  Future<bool> _put(String key, Object value) async {
+    _store[key] = value;
+    return true;
+  }
+}
+
+/// Pins the width [ProfileTab] is laid out against, so the canvas and the
+/// render tests see the same line breaks. Top-aligned because the tab is a
+/// [ListView] and must keep the full height it is offered.
+class _ProfileTabViewport extends StatelessWidget {
+  const _ProfileTabViewport({required this.width, required this.child});
+
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: AlignmentDirectional.topStart,
+      child: SizedBox(width: width, child: child),
+    );
+  }
+}
+
+/// Seats [ProfileTab] under the two cubits it watches.
+/// [role] and [locale] are passed as explicit initial values rather than seeded
+Widget _profileTabHosted({
+  required UserRole role,
+  required Locale locale,
+  double width = _profileTabPhoneWidth,
+}) {
+  final SharedPreferences prefs = _ProfileTabInMemoryPrefs();
+  return _ProfileTabViewport(
+    width: width,
+    child: MultiBlocProvider(
+      providers: <BlocProvider<Object?>>[
+        BlocProvider<RoleCubit>(
+          create: (_) => RoleCubit(prefs: prefs, initialRole: role),
+        ),
+        BlocProvider<LocaleCubit>(
+          create: (_) => LocaleCubit(
+            prefs: prefs,
+            deviceLocaleProvider: () => locale,
+          ),
+        ),
+      ],
+      child: const ProfileTab(),
+    ),
+  );
+}
+
+/// The default surface: a Client who has never taken on the Jeeber role.
+/// This is the only state in which the Become-a-Jeeber card exists, so it is
+@JeebPreview(group: 'shell', name: 'Client', size: _profileTabBox)
+Widget profileTabClient() => _profileTabHosted(
+      role: UserRole.client,
+      locale: const Locale('en'),
+    );
+
+/// T-MOB-027 AC2, made visible: once the user's `available_roles` already
+/// include Jeeber, the Become-a-Jeeber card must disappear entirely — not grey
+@JeebPreview(group: 'shell', name: 'Jeeber', size: _profileTabBox)
+Widget profileTabJeeber() => _profileTabHosted(
+      role: UserRole.jeeber,
+      locale: const Locale('en'),
+    );
+
+/// The selection state the check-icon logic can invert: [LocaleCubit] holds
+/// Arabic, so the check belongs on the **second** language row.
+@JeebPreview(group: 'shell', name: 'Arabic selected', size: _profileTabBox)
+Widget profileTabArabicSelected() => _profileTabHosted(
+      role: UserRole.client,
+      locale: const Locale('ar'),
+    );
+
+/// Layout ceiling: the same Client surface at [_profileTabNarrowPhoneWidth].
+/// The Become-a-Jeeber card lays out avatar + `Expanded(text)` + an
+@JeebPreview(group: 'shell', name: 'Narrow 320', size: _profileTabNarrowBox)
+Widget profileTabNarrowPhone() => _profileTabHosted(
+      role: UserRole.client,
+      locale: const Locale('en'),
+      width: _profileTabNarrowPhoneWidth,
+    );
+
+/// A jeeber on the narrow phone, in the Arabic selection.
+/// The combination matters because the thing that shortens the tab (no card)
+@JeebPreview(
+  group: 'shell',
+  name: 'Jeeber narrow · Arabic',
+  size: _profileTabNarrowBox,
+)
+Widget profileTabJeeberNarrowArabic() => _profileTabHosted(
+      role: UserRole.jeeber,
+      locale: const Locale('ar'),
+      width: _profileTabNarrowPhoneWidth,
+    );

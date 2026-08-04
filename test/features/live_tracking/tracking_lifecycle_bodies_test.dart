@@ -1,17 +1,5 @@
 import 'dart:async';
 // P6 (UT-12) — the customer tracking screen's lifecycle bodies.
-//
-// PROVES:
-//  a. A CANCELLED row renders `tracking_cancelled_state` and no live stepper.
-//  b. An EXPIRED row renders its OWN `tracking_expired_state` body — different
-//     copy from cancelled (P6/A3: cancel and expire carry different fee/strike
-//     semantics) — with its own home CTA.
-//  c. A `FailedNeedsEscalation` row renders `tracking_under_review_state` and
-//     NOT the active layout with a stepper rewound to step 1 (the pre-fix
-//     symptom, P6/A1). No home CTA — the row is still live.
-//  d. At the door the third step RELABELS to "At Door" while its Semantics
-//     identifier stays `tracking_step_in_transit` (P6/A5 id stability).
-//  e. In transit the same node reads the in-transit label.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -144,7 +132,7 @@ void main() {
     await cubit.close();
   });
 
-  testWidgets('d: at the door the third step reads "At Door" but keeps the '
+  testWidgets('d: at the door the third step reads "At door" but keeps the '
       'tracking_step_in_transit identifier (P6/A5)', (tester) async {
     final semantics = tester.ensureSemantics();
     final cubit = await _pumpStatus(tester, 'AtDoor');
@@ -154,7 +142,7 @@ void main() {
       find.bySemanticsIdentifier('tracking_step_in_transit'),
     );
     // Relabelled…
-    expect(node.value, 'At Door');
+    expect(node.value, 'At door');
     // …but the id a Maestro flow addresses is unchanged.
     expect(node.identifier, 'tracking_step_in_transit');
     expect(find.bySemanticsIdentifier('tracking_step_at_door'), findsNothing);

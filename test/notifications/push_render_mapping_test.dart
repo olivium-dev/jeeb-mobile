@@ -3,20 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/notifications/domain/notification_message.dart';
 import 'package:jeeb_mobile/core/notifications/domain/push_render_mapping.dart';
 
-/// Sprint-3 Contract 9 (FCM data-message RECEIVE) acceptance lock — the
-/// REAL receive-side mapping that was a phantom in S2.
-///
-/// Locks the byte-for-byte mapping of the frozen Contract 9b data-only chat
-/// payload onto the fields that render a local heads-up notification, and
-/// proves the FOREGROUND and BACKGROUND paths produce IDENTICAL output for
-/// the same payload (Contract 9c.1/9c.2) in BOTH directions (client→jeeber
-/// and jeeber→client, Contract 9c.3).
-///
-/// What this does NOT prove (Contract 9 [DEPLOY-GATED], documented not faked):
-/// that the deployed gateway (:10090) actually FIRES a real FCM fan-out on a
-/// chat append (Contract 10) — that is the live G2 gate behind S0-BE-07. The
-/// `adb`/data-only simulation in `sprints/sprint-03/lanes/push-receive.md`
-/// covers the on-device render without the deploy.
 Map<String, String> _frozenChatData({
   required String conversationId,
   required String messageId,
@@ -25,7 +11,6 @@ Map<String, String> _frozenChatData({
   String body = 'see you at the door',
 }) {
   // Exactly the Contract 9b field shape: all values strings, camelCase
-  // conversationId, type discriminator, title+body INSIDE data (data-only).
   return <String, String>{
     'type': 'chat',
     'conversationId': conversationId,
@@ -86,7 +71,6 @@ void main() {
       final bg = PushRenderFields.fromData(data, messageId: 'msg-parity');
 
       // Foreground path: the transport first parses to NotificationMessage
-      // (its `_toDomain`), then renders. Mirror that here.
       final domain = NotificationMessage(
         id: 'msg-parity',
         category: NotificationCategory.fromData(data),
@@ -128,7 +112,6 @@ void main() {
       );
 
       // The recipient (non-author) renders one heads-up either way; the app
-      // never keys on senderId (it is dropped) so render is direction-agnostic.
       expect(clientToJeeber.title, jeeberToClient.title);
       expect(clientToJeeber.body, jeeberToClient.body);
       expect(clientToJeeber.category, jeeberToClient.category);

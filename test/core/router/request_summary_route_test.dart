@@ -27,6 +27,7 @@ import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/router/app_router.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
@@ -155,15 +156,18 @@ void main() {
         expect(find.text('12 Hamra St, Beirut'), findsOneWidget);
         expect(find.text('88 Verdun Ave, Beirut'), findsOneWidget);
 
-        // Submit button is present and enabled (not isSubmitting).
-        // RequestSummaryScreen renders an `OmdsLoadingButton` (OMDS sweep
-        // replaced the raw FilledButton). The button is "enabled" when
-        // `isLoading == false` and `isEnabled == true`.
-        final submit = find.widgetWithText(OmdsLoadingButton, 'Send request');
+        // Submit button is present and enabled (not isSubmitting). The
+        // redesign (screen 10) re-homed the frozen `request_summary_submit`
+        // identifier and the `request_summary.submit` Key onto the docked
+        // `JeebCtaButton` broadcast CTA, so the finder targets the contract
+        // rather than the (now localized-and-changed) label string.
+        final submit = find.bySemanticsIdentifier('request_summary_submit');
         expect(submit, findsOneWidget);
-        final submitButton = tester.widget<OmdsLoadingButton>(submit);
+        final submitButton = tester.widget<JeebCtaButton>(
+          find.byKey(const Key('request_summary.submit')),
+        );
         expect(submitButton.isLoading, isFalse);
-        expect(submitButton.isEnabled, isTrue);
+        expect(submitButton.isInteractive, isTrue);
 
         // No OmdsLoadingState (the "draft == null" placeholder rendered by
         // RequestSummaryScreen — replaces the previous CircularProgressIndicator).
@@ -183,7 +187,10 @@ void main() {
         // mount so the shell at `/` never renders.
         built.router.go('/request-summary');
         await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
-        await tester.pumpAndSettle();
+        // MIDNIGHT (M0-4): the fallback's JeebEmptyState art loops forever, so
+        // pumpAndSettle would time out — advance a fixed frame budget instead.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
 
         expect(
           tester.takeException(),
@@ -196,7 +203,7 @@ void main() {
         // Submit button should not be present in the fallback path — there
         // is no draft to submit.
         expect(
-          find.widgetWithText(OmdsLoadingButton, 'Send request'),
+          find.bySemanticsIdentifier('request_summary_submit'),
           findsNothing,
           reason: 'Fallback path must not render the populated summary '
               'screen with a Submit button.',
@@ -219,7 +226,9 @@ void main() {
         // before mount so the shell at `/` never renders.
         built.router.go('/request-summary', extra: 'not-a-request-draft');
         await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
-        await tester.pumpAndSettle();
+        // See Test 2: the empty-state illustration never settles.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
 
         expect(
           tester.takeException(),
@@ -229,7 +238,7 @@ void main() {
         );
 
         expect(
-          find.widgetWithText(OmdsLoadingButton, 'Send request'),
+          find.bySemanticsIdentifier('request_summary_submit'),
           findsNothing,
         );
 

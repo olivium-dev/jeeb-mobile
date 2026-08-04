@@ -1,19 +1,4 @@
 // W0-INT route-resolution gate.
-//
-// Proves the surviving integrator route batch is REGISTERED and each route
-// resolves to its screen — the integrator's Phase-A exit gate ("every route
-// reaches its root"). These are nav-honesty pins (CTO brief §6.7).
-//
-//   /set-password     → SetPasswordScreen          (JM-022 / JM-061, in-app-social)
-//   /lock             → BiometricLockScreen (REAL, not the placeholder) (JM-005)
-//   /account-status   → AccountStatusScreen        (JM-066)
-//
-// The hidden email/password funnel routes (`/login`, `/sign-up`, `/recover`,
-// `/recover/verify`) were REMOVED in JEBV4-199 (Q-044); this file now also
-// asserts they no longer resolve (their names throw). The redirect gate is
-// exercised in fr_gating_first_run_test.dart (logged-out → /register, the
-// phone-OTP entry) and the account-status branch defaults to a no-op gate, so
-// navigation to these pre-auth routes is allowed here.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -49,8 +34,6 @@ typedef _Built = ({
 
 Future<_Built> _buildRouter() async {
   // Onboarded so the first-run onboarding gate is satisfied; the default
-  // (always-authenticated) session gate keeps us off the login-redirect path
-  // so an explicit goNamed to each route resolves.
   SharedPreferences.setMockInitialValues(<String, Object>{
     'app.onboarding.completed': true,
   });
@@ -86,6 +69,12 @@ Widget _harness(_Built built) {
     ],
     child: MaterialApp.router(
       routerConfig: built.router,
+      // JeebEmptyState's E1 illustration loops ∞ by design (02-STUDY-NOTES
+      // §Motion): pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
         SyncAppLocalizationsDelegate(),
         GlobalMaterialLocalizations.delegate,
@@ -119,8 +108,6 @@ void main() {
 
   group('W0 integrator routes resolve to their stubs', () {
     // JEBV4-199: the hidden email/password funnel route names are GONE. A
-    // removed name has no location, so `namedLocation` throws — the positive
-    // proof that the funnel routes were deleted (not merely hidden).
     for (final removed in const ['login', 'sign-up', 'recover-password',
         'recover-verify']) {
       testWidgets('removed funnel route "$removed" no longer resolves',
@@ -156,10 +143,6 @@ void main() {
     testWidgets('biometric-lock route is registered at /lock', (tester) async {
       await pump(tester);
       // The biometric gate redirects `/lock` → `/` while the (stub) cubit
-      // reports `disabled`, so we can't observe the screen by navigation here
-      // (that path is JM-005's, with a real `locked` cubit). Registration of
-      // the named route is the integrator's contract: namedLocation resolves
-      // without throwing.
       expect(built.router.namedLocation('biometric-lock'), '/lock');
     });
 
@@ -167,10 +150,6 @@ void main() {
         'BiometricLockScreen is the real screen exposing biometric_unlock_prompt',
         (tester) async {
       // Mount the screen directly: the `/lock` builder now uses this real
-      // screen (no longer the construction-emptystate placeholder). It carries
-      // the JM-005 signature id. The real screen consumes the app-level
-      // BiometricLockCubit (the instance app.dart provides + the router watches,
-      // JM-005), so the harness provides one — mirroring `app.dart`.
       SharedPreferences.setMockInitialValues(const <String, Object>{});
       final prefs = await SharedPreferences.getInstance();
       final lock = BiometricLockCubit(

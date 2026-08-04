@@ -7,8 +7,6 @@ import 'package:jeeb_mobile/features/shell/tab_visibility.dart';
 
 /// `AppResumeSignals` coalesces at a 2 s floor and re-emits on the TRAILING
 /// edge, so a second resume inside one test body lands 2 s later rather than
-/// immediately. Every assertion here is taken after pumping past that window,
-/// so it measures the settled number of callbacks instead of racing the timer.
 const _resumeSettle = Duration(seconds: 3);
 
 /// Legal `AppLifecycleState` transition into the background, mirroring
@@ -60,8 +58,6 @@ class _Host extends StatelessWidget {
 /// Hosts the widget inside a shell tab, exactly as `ShellScreen` does — an
 /// `IndexedStack` child wrapped in a [TabVisibility]. Every tab stays MOUNTED
 /// across a bottom-nav switch, which is the whole reason the tab term is
-/// needed: a background tab's lifecycle never re-runs, so without consulting
-/// [TabVisibility] it would happily refetch on resume while off-screen.
 class _TabHost extends StatelessWidget {
   const _TabHost({required this.onResume, required this.isVisible});
 
@@ -110,8 +106,6 @@ Future<void> _popTop(WidgetTester tester) async {
 void main() {
   tearDown(() async {
     // The resume one-shot rides the process-wide `AppResumeSignals` singleton,
-    // whose coalescing window and `_sawBackground` latch would otherwise bleed
-    // between cases and make a resume look dropped.
     await AppResumeSignals.debugReset();
   });
 
@@ -132,10 +126,6 @@ void main() {
     tester,
   ) async {
     // The hazard this closes: the shell keeps every tab mounted in an
-    // IndexedStack, so an off-screen tab is alive and receives the resume.
-    // Without the TabVisibility term it would refetch for a tab the user
-    // cannot see — re-creating the read amplification the visibility gating
-    // removed (10 wire reads per push down to 1).
     var fired = 0;
     await tester.pumpWidget(
       _TabHost(onResume: () => fired++, isVisible: false),
@@ -151,7 +141,6 @@ void main() {
     tester,
   ) async {
     // The other half: gating must not silence the visible tab. Without this
-    // the previous test would also pass with the callback wired to nothing.
     var fired = 0;
     await tester.pumpWidget(
       _TabHost(onResume: () => fired++, isVisible: true),
@@ -204,8 +193,6 @@ void main() {
   );
 
   // THE DISCRIMINATOR. Without this case the test above is also passed by a
-  // widget that simply refetches whenever a route pops — which would be a new,
-  // unbounded read source rather than a resume backstop.
   testWidgets('returning to the route WITHOUT a resume fires nothing', (
     tester,
   ) async {
@@ -252,7 +239,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // A heads-up notification / the shade / a permission dialog: the app never
-    // left the foreground, so nothing may refetch.
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
@@ -264,7 +250,6 @@ void main() {
     expect(fired, 0);
 
     // POSITIVE CONTROL — the same harness, the same widget, a real trip.
-    // Without it the zero above is unreadable: a dead observer scores it too.
     await _resume(tester);
     expect(fired, 1);
   });

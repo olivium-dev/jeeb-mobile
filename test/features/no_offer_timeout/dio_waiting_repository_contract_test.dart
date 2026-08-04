@@ -57,36 +57,39 @@ Matcher _throwsContract(Matcher messageMatcher) => throwsA(
 
 void main() {
   group('T4 — offer-wait contract (no legacy alias, no fabrication)', () {
-    test('T4.1 — a legacy-only payload is REJECTED, never silently accepted', () async {
-      final repo = _repo(const {
-        'status': 'pending',
-        'broadcastExpiresAt': '2026-07-25T18:00:00Z',
-      });
+    test(
+      'T4.1 — a legacy-only payload is REJECTED, never silently accepted',
+      () async {
+        final repo = _repo(const {
+          'status': 'pending',
+          'broadcastExpiresAt': '2026-07-25T18:00:00Z',
+        });
 
-      await expectLater(
-        repo.fetchRequest('req-legacy'),
-        _throwsContract(
-          allOf(
-            contains('offerDeadlineInSeconds'),
-            contains('req-legacy'),
+        await expectLater(
+          repo.fetchRequest('req-legacy'),
+          _throwsContract(
+            allOf(contains('offerDeadlineInSeconds'), contains('req-legacy')),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('T4.2 — the contract field anchors against the injected clock', () async {
-      final repo = _repo(const {
-        'status': 'pending',
-        'offerDeadlineInSeconds': 1740,
-        'serverNow': '2026-07-25T09:00:00Z',
-      });
+    test(
+      'T4.2 — the contract field anchors against the injected clock',
+      () async {
+        final repo = _repo(const {
+          'status': 'pending',
+          'offerDeadlineInSeconds': 1740,
+          'serverNow': '2026-07-25T09:00:00Z',
+        });
 
-      final waiting = await repo.fetchRequest('req-1');
+        final waiting = await repo.fetchRequest('req-1');
 
-      expect(waiting.remainingAtReceipt, const Duration(seconds: 1740));
-      expect(waiting.receivedAt, _now);
-      expect(waiting.phase, WaitingRequestPhase.broadcasting);
-    });
+        expect(waiting.remainingAtReceipt, const Duration(seconds: 1740));
+        expect(waiting.receivedAt, _now);
+        expect(waiting.phase, WaitingRequestPhase.broadcasting);
+      },
+    );
 
     test('T4.3 — a stringly-typed deadline is a contract violation', () async {
       final repo = _repo(const {
@@ -100,17 +103,20 @@ void main() {
       );
     });
 
-    test('T4.4 — a negative remaining is clock jitter, NOT a contract break', () async {
-      final repo = _repo(const {
-        'status': 'pending',
-        'offerDeadlineInSeconds': -3,
-      });
+    test(
+      'T4.4 — a negative remaining is clock jitter, NOT a contract break',
+      () async {
+        final repo = _repo(const {
+          'status': 'pending',
+          'offerDeadlineInSeconds': -3,
+        });
 
-      final waiting = await repo.fetchRequest('req-1');
+        final waiting = await repo.fetchRequest('req-1');
 
-      expect(waiting.remainingAtReceipt, Duration.zero);
-      expect(waiting.deadline, _now);
-    });
+        expect(waiting.remainingAtReceipt, Duration.zero);
+        expect(waiting.deadline, _now);
+      },
+    );
 
     test('T4.5 — an expired row legitimately carries no deadline', () async {
       final repo = _repo(const {'status': 'expired'});
@@ -135,17 +141,20 @@ void main() {
     // deadline for it (it is pre-acceptance server-side). A non-null value on a
     // terminal phase is accepted and simply unused; only ABSENCE on a live
     // phase throws. See plan §3.3.
-    test('T4.7 — a deadline on a terminal `matched` row is accepted, unused', () async {
-      final repo = _repo(const {
-        'status': 'matched',
-        'offerDeadlineInSeconds': 900,
-      });
+    test(
+      'T4.7 — a deadline on a terminal `matched` row is accepted, unused',
+      () async {
+        final repo = _repo(const {
+          'status': 'matched',
+          'offerDeadlineInSeconds': 900,
+        });
 
-      final waiting = await repo.fetchRequest('req-1');
+        final waiting = await repo.fetchRequest('req-1');
 
-      expect(waiting.phase, WaitingRequestPhase.matched);
-      expect(waiting.remainingAtReceipt, const Duration(seconds: 900));
-    });
+        expect(waiting.phase, WaitingRequestPhase.matched);
+        expect(waiting.remainingAtReceipt, const Duration(seconds: 900));
+      },
+    );
 
     test('T4.8 — the deadline is DERIVED from the relative value', () async {
       final anchor = DateTime.utc(2026, 7, 25, 12);

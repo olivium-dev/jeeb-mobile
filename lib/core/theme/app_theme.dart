@@ -3,231 +3,740 @@ import 'package:flutter/services.dart';
 import 'package:omds/omds.dart';
 
 import 'jeeb_color_roles.dart';
+import 'jeeb_midnight_palette.dart';
+import 'jeeb_radii.dart';
 import 'jeeb_semantic_colors.dart';
+import 'jeeb_text_styles.dart';
 import 'jeeb_tier_colors.dart';
 
-/// Jeeb app theme derived from the Figma design (ZOi3kKtw7sd42ssSVX3Kn4).
-///
-/// Brand palette extracted from Figma node 56535:1525:
-///   - Primary / secondary-container: deep navy `#0B1351`
-///   - Tertiary / accent fills / progress bars: vibrant orange `#D73B00`
-///     (this used to be mapped onto `primaryContainer`; see the tone-pair note
-///     on `_jeebOrangeContainer` for why it is not, and must not be, a
-///     `*Container` role)
-///   - On-secondary-container (muted text): `#777FC0`
-///   - Outline (chip borders): warm brown `#916F66`
-///   - On-surface-variant (subtitle text): `#5C4038`
-///   - Surface-container-high (search bg): `#EAE7EB`
-///   - On-primary: `#FFFFFF`
-///
-/// Typography note: the Figma calls for Roboto (body) and Urbanist (nav
-/// labels), but we override to **Inter** per OMDS standard (audit doc §5.1).
-/// Inter is bundled locally as discrete static instances (Regular/Medium/
-/// SemiBold/Bold, OFL-1.1; see pubspec.yaml + test/inter_font_weight_test.dart)
-/// and applied as a normal Flutter font family — NOT fetched at runtime via
-/// `google_fonts`. Runtime fetching throws a `HandshakeException` on a
-/// no-egress device (no path to `fonts.gstatic.com`), which crashed the theme
-/// build on first frame; the bundled font makes every branded screen render
-/// offline. `Bootstrap.minimal` additionally disables any residual
-/// `google_fonts` runtime fetch as defence-in-depth. See
-/// `flutter-material3-colorscheme-discipline` + `flutter-env-dart-define`.
-///
-/// This file is the **single source of truth** for the Jeeb palette. The
-/// brand seeds are intentionally `private` (`_jeebNavy` etc.) so feature
-/// code cannot reach in and bypass the `ColorScheme` / `OmdsColorTokens` /
-/// `JeebSemanticColors` boundary. If you need a brand color in a feature,
-/// resolve it via:
-///
-///   1. `Theme.of(context).colorScheme.<role>` (M3 roles)
-///   2. `context.omdsColorTokens.<token>` (semantic OMDS tokens)
-///   3. `Theme.of(context).extension<JeebSemanticColors>()!.<role>`
-///   4. `Theme.of(context).extension<JeebTierColors>()!.<tier>`
+/// The one Jeeb theme: MIDNIGHT (token sheet §1, master plan §2.2/§2.4).
+/// [light] and [dark] both return [midnight]; `themeMode` is pinned dark.
 class AppTheme {
   AppTheme._();
 
-  /// Bundled-Inter family name. Must match the `family:` declared under
-  /// `flutter > fonts` in `pubspec.yaml`.
-  static const String _fontFamily = 'Inter';
+  /// Token sheet §1. `surfaceTint` is transparent because M3 elevation tinting
+  /// overlays `primary` and drifts every raised navy surface orange-purple.
+  static const ColorScheme midnightScheme = ColorScheme(
+    brightness: Brightness.dark,
+    primary: JeebMidnight.orange,
+    onPrimary: Color(0xFFFFFFFF),
+    primaryContainer: JeebMidnight.orangeContainer,
+    onPrimaryContainer: JeebMidnight.orangeTint,
+    secondary: JeebMidnight.inkMuted,
+    onSecondary: JeebMidnight.page,
+    secondaryContainer: JeebMidnight.surfaceHigh,
+    onSecondaryContainer: JeebMidnight.inkSoft,
+    // Compat alias of `primary` — pass-1 files reference `.tertiary`.
+    tertiary: JeebMidnight.orange,
+    onTertiary: Color(0xFFFFFFFF),
+    tertiaryContainer: JeebMidnight.orangeContainer,
+    onTertiaryContainer: JeebMidnight.orangeTint,
+    error: JeebMidnight.danger,
+    // NOT white: white on #FF5252 is ~3.1:1 and fails AA; navy is 5.93:1.
+    onError: JeebMidnight.page,
+    errorContainer: JeebMidnight.dangerContainer,
+    onErrorContainer: JeebMidnight.dangerSoft,
+    surface: JeebMidnight.surface,
+    onSurface: JeebMidnight.ink,
+    onSurfaceVariant: JeebMidnight.inkMuted,
+    surfaceDim: JeebMidnight.page,
+    surfaceBright: JeebMidnight.surfaceHighest,
+    surfaceContainerLowest: JeebMidnight.page,
+    surfaceContainerLow: JeebMidnight.surfaceLow,
+    surfaceContainer: JeebMidnight.surface,
+    surfaceContainerHigh: JeebMidnight.surfaceHigh,
+    surfaceContainerHighest: JeebMidnight.surfaceHighest,
+    outline: JeebMidnight.outline,
+    outlineVariant: JeebMidnight.outlineVariant,
+    surfaceTint: Colors.transparent,
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+    // Set so nothing falls back to a Material default light slab.
+    inverseSurface: JeebMidnight.ink,
+    onInverseSurface: JeebMidnight.page,
+    inversePrimary: JeebMidnight.orangeTint,
+  );
 
-  // ───────────────────────────────────────────────────────────────────────
-  // Private brand seeds — only consumed by the ColorScheme below.
-  // Never exposed publicly; do not promote without architectural review.
-  // ───────────────────────────────────────────────────────────────────────
+  /// §2.4. `statusBarBrightness` (iOS) is the BACKGROUND brightness while
+  /// `statusBarIconBrightness` (Android) is the GLYPH brightness — hence dark/light.
+  static const SystemUiOverlayStyle systemOverlayStyle = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: JeebMidnight.page,
+    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarDividerColor: Colors.transparent,
+  );
 
-  static const Color _jeebNavy = Color(0xFF0B1351);
-  static const Color _jeebOrange = Color(0xFFD73B00);
-  static const Color _jeebMutedPurple = Color(0xFF777FC0);
-  static const Color _jeebWarmBrown = Color(0xFF916F66);
-  static const Color _jeebSubtitle = Color(0xFF5C4038);
-  static const Color _jeebSurfaceHigh = Color(0xFFEAE7EB);
-  static const Color _jeebSurfaceHighest = Color(0xFFE5E1E5);
+  /// Named `light()` for API stability only.
+  static ThemeData light() => midnight();
 
-  // ── The `*Container` tone pair for the brand orange ────────────────────────
-  //
-  // b02 chat-header audit. `primaryContainer` used to be `_jeebOrange` itself
-  // (#D73B00, luminance 0.176 — a tone-40 FILL) carrying WHITE ink. That is not
-  // what M3 means by a container role, and it measured badly on real screens:
-  //
-  //   white  on #D73B00 ............................. 4.65:1  (AA by 0.15)
-  //   white@`UIConstants.opacityHigh` on #D73B00 .... 3.85:1  FAIL (AA 4.5)
-  //
-  // The second line is the one that shipped: fading `onPrimaryContainer` to
-  // convey hierarchy (the pinned chat summary did this on its icons and on the
-  // "Pay cash on delivery" reminder) drops a role that was already only 0.15
-  // above the threshold straight through it. A container carrying an ~tone-10
-  // on-colour has ~13:1 of headroom, so the same fade would still pass — the
-  // palette, not the widget, was what made faded text illegal here.
-  //
-  // These are the M3-generated tone-90 / tone-10 pair for the SAME brand seed
-  // (`ColorScheme.fromSeed(seedColor: _jeebOrange)` → #FFDBD1 / #3A0B01), so the
-  // hue is unchanged and only the chroma/tone are corrected. Measured 13.28:1.
-  // The saturated brand fill has NOT been lost: it is `tertiary`, which is
-  // `_jeebOrange` and pairs with white `onTertiary`. Anything that wants to
-  // PAINT with brand orange (a progress bar, an accent icon) must use
-  // `tertiary`, never a `*Container` role.
-  static const Color _jeebOrangeContainer = Color(0xFFFFDBD1);
-  static const Color _jeebOnOrangeContainer = Color(0xFF3A0B01);
+  /// Named `dark()` for API stability only.
+  static ThemeData dark() => midnight();
 
-  // ── The neutral tonal ramp ─────────────────────────────────────────────────
-  //
-  // Same audit: `ColorScheme.light()` derives `surfaceContainerLowest`,
-  // `surfaceContainerLow` and `surfaceContainer` from `surface`, and Jeeb's
-  // surface is pure white — so THREE of the five container tones resolved to
-  // #FFFFFF and "tonal elevation" did not exist below `surfaceContainerHigh`.
-  // A widget asking for `surfaceContainerLow` (e.g. the unselected tier card)
-  // got an invisible white-on-white card. These two steps complete the ramp
-  // between white and the Figma `_jeebSurfaceHigh`, so hierarchy can be
-  // expressed with elevation instead of with blocks of chroma.
-  static const Color _jeebSurfaceLow = Color(0xFFFAF8FA);
-  static const Color _jeebSurfaceContainer = Color(0xFFF5F3F6);
+  /// The one theme.
+  static ThemeData midnight() => _build();
 
-  /// On-surface ink for body text in the light Jeeb scheme. Deep blue tuned
-  /// to read against the warm white surface; not the same as `_jeebNavy`.
-  static const Color _jeebOnSurface = Color(0xFF0B0E53);
+  // Radii ladder §5 — the rungs this theme uses, aliased to the public ladder.
+  static const double _rSm = JeebRadii.sm;
+  static const double _rMd = JeebRadii.md;
+  static const double _rLg = JeebRadii.lg;
+  static const double _rSheet = JeebRadii.sheet;
 
-  static ThemeData light() => _build(Brightness.light);
-  static ThemeData dark() => _build(Brightness.dark);
+  static ThemeData _build() {
+    const ColorScheme scheme = midnightScheme;
 
-  static ThemeData _build(Brightness brightness) {
-    final isLight = brightness == Brightness.light;
+    // Metrics untouched; only the family + Arabic/emoji fallback are applied.
+    final TextTheme baseTextTheme = ThemeData.dark().textTheme.apply(
+          fontFamily: jeebFontFamily,
+          fontFamilyFallback: jeebFontFamilyFallback,
+        );
 
-    final colorScheme = isLight
-        ? const ColorScheme.light(
-            primary: _jeebNavy,
-            onPrimary: Colors.white,
-            primaryContainer: _jeebOrangeContainer,
-            onPrimaryContainer: _jeebOnOrangeContainer,
-            secondary: _jeebNavy,
-            onSecondary: Colors.white,
-            secondaryContainer: _jeebNavy,
-            onSecondaryContainer: _jeebMutedPurple,
-            tertiary: _jeebOrange,
-            onTertiary: Colors.white,
-            // Same correction as the primary pair — `tertiaryContainer` was the
-            // saturated `_jeebOrange` under white ink. It keeps its historical
-            // relationship to `primaryContainer` (they were identical before and
-            // are identical now), so no tier/badge that distinguishes the two
-            // changes meaning.
-            tertiaryContainer: _jeebOrangeContainer,
-            onTertiaryContainer: _jeebOnOrangeContainer,
-            surface: Colors.white,
-            onSurface: _jeebOnSurface,
-            onSurfaceVariant: _jeebSubtitle,
-            outline: _jeebWarmBrown,
-            outlineVariant: _jeebSurfaceHighest,
-            surfaceContainerLowest: Colors.white,
-            surfaceContainerLow: _jeebSurfaceLow,
-            surfaceContainer: _jeebSurfaceContainer,
-            surfaceContainerHighest: _jeebSurfaceHighest,
-            surfaceContainerHigh: _jeebSurfaceHigh,
-          )
-        : ColorScheme.fromSeed(
-            seedColor: _jeebNavy,
-            brightness: Brightness.dark,
-          );
-
-    final baseTextTheme = _interTextTheme(
-      isLight ? ThemeData.light().textTheme : ThemeData.dark().textTheme,
-    );
-
-    final omds = OmdsTheme(baseTextTheme);
-    final base = isLight
-        ? omds.lightWithScheme(colorScheme)
-        : omds.darkWithScheme(colorScheme);
+    final ThemeData base = OmdsTheme(baseTextTheme).darkWithScheme(scheme);
 
     final List<ThemeExtension<dynamic>> extensions = <dynamic>[
       JeebTierColors.standard(),
-      isLight ? JeebSemanticColors.light() : JeebSemanticColors.dark(),
-      // The single semantic color-role layer (success/warning/info). M3 roles
-      // stay in `colorScheme`; this only adds the roles M3 omits. Read via
-      // `context.jeebRoles`. Contrast-gated in color_role_contrast_test.dart.
-      isLight ? JeebColorRoles.light() : JeebColorRoles.dark(),
+      JeebSemanticColors.midnight(),
+      JeebColorRoles.midnight(),
+      JeebTextStyles.midnight(),
       ...base.extensions.values,
     ].cast<ThemeExtension<dynamic>>();
 
+    // ONE frosted box, no box-in-a-box. Replaces the OMDS white-field theme.
+    // Hoisted so `dropdownMenuTheme` can hand the same field to `DropdownMenu`.
+    final InputDecorationThemeData inputTheme = InputDecorationThemeData(
+      filled: true,
+      fillColor: JeebMidnight.glassFill,
+      hintStyle: JeebTextStyles.midnight()
+          .body
+          .copyWith(color: JeebMidnight.inkMuted),
+      labelStyle: JeebTextStyles.midnight()
+          .bodySmall
+          .copyWith(color: JeebMidnight.inkMuted),
+      floatingLabelStyle: JeebTextStyles.midnight()
+          .bodySmall
+          .copyWith(color: JeebMidnight.inkSoft),
+      helperStyle: JeebTextStyles.midnight()
+          .caption
+          .copyWith(color: JeebMidnight.inkMuted),
+      errorStyle: JeebTextStyles.midnight()
+          .caption
+          .copyWith(color: JeebMidnight.dangerSoft),
+      counterStyle: JeebTextStyles.midnight()
+          .caption
+          .copyWith(color: JeebMidnight.inkMuted),
+      prefixIconColor: JeebMidnight.inkMuted,
+      suffixIconColor: JeebMidnight.inkMuted,
+      iconColor: JeebMidnight.inkMuted,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: _inputBorder(JeebMidnight.glassBorder),
+      enabledBorder: _inputBorder(JeebMidnight.glassBorder),
+      disabledBorder: _inputBorder(const Color(0x0FFFFFFF)),
+      focusedBorder: _inputBorder(JeebMidnight.inkMuted, width: 1.5),
+      errorBorder: _inputBorder(JeebMidnight.danger, width: 1.5),
+      focusedErrorBorder: _inputBorder(JeebMidnight.danger, width: 2),
+    );
+
+    // Highest slab so a menu separates from the card underneath. Shared by
+    // `menuTheme` and `dropdownMenuTheme` so the two menu families agree.
+    final MenuStyle menuStyle = MenuStyle(
+      backgroundColor: const WidgetStatePropertyAll<Color>(
+        JeebMidnight.surfaceHighest,
+      ),
+      surfaceTintColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
+      shadowColor: const WidgetStatePropertyAll<Color>(Color(0xFF000000)),
+      elevation: const WidgetStatePropertyAll<double>(8),
+      shape: WidgetStatePropertyAll<OutlinedBorder>(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rMd),
+          side: const BorderSide(color: JeebMidnight.glassBorder),
+        ),
+      ),
+    );
+
     return base.copyWith(
-      // OMDS search bars use the ambient input hint style over
-      // `surfaceContainerHighest`. Pair that surface with the semantic
-      // on-surface-variant role; the default OMDS secondary/periwinkle token
-      // does not meet AA on this field fill in Jeeb's light palette.
-      inputDecorationTheme: base.inputDecorationTheme.copyWith(
-        hintStyle: base.inputDecorationTheme.hintStyle?.copyWith(
-          color: colorScheme.onSurfaceVariant,
-        ),
-      ),
-      appBarTheme: base.appBarTheme.copyWith(
+      // Fallback only — screens mount `JeebMidnightField` (M0-3). OMDS would
+      // default this to the card navy, one step too light.
+      scaffoldBackgroundColor: JeebMidnight.page,
+      canvasColor: JeebMidnight.surface,
+      cardColor: JeebMidnight.surface,
+      dividerColor: JeebMidnight.divider,
+      shadowColor: const Color(0xFF000000),
+      hintColor: JeebMidnight.inkMuted,
+
+      // Unset, a bare `Icon` inherits Material's pure white; §1 makes
+      // `onSurface` the ink. `primaryIconTheme` draws ON orange, so it stays white.
+      iconTheme: const IconThemeData(color: JeebMidnight.ink),
+      primaryIconTheme: IconThemeData(color: scheme.onPrimary),
+      disabledColor: const Color(0x61FFFFFF),
+      unselectedWidgetColor: JeebMidnight.inkMuted,
+
+      // White alpha, never Material purple.
+      splashFactory: InkRipple.splashFactory,
+      splashColor: const Color(0x14FFFFFF),
+      highlightColor: const Color(0x0DFFFFFF),
+      hoverColor: const Color(0x0FFFFFFF),
+      focusColor: const Color(0x1FFFFFFF),
+
+      // Transparent over the field; scrolled-under elevation would tint it.
+      appBarTheme: AppBarThemeData(
         centerTitle: false,
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.primary,
+        backgroundColor: Colors.transparent,
+        foregroundColor: JeebMidnight.ink,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
         elevation: 0,
-        systemOverlayStyle: isLight
-            ? SystemUiOverlayStyle.dark.copyWith(
-                statusBarColor: Colors.transparent,
-                systemNavigationBarColor: Colors.transparent,
-              )
-            : SystemUiOverlayStyle.light.copyWith(
-                statusBarColor: Colors.transparent,
-                systemNavigationBarColor: Colors.transparent,
-              ),
+        scrolledUnderElevation: 0,
+        iconTheme: const IconThemeData(color: JeebMidnight.ink),
+        actionsIconTheme: const IconThemeData(color: JeebMidnight.ink),
+        titleTextStyle: JeebTextStyles.midnight()
+            .h2
+            .copyWith(color: JeebMidnight.ink),
+        systemOverlayStyle: systemOverlayStyle,
       ),
-      scaffoldBackgroundColor: isLight ? colorScheme.surface : null,
-      chipTheme: ChipThemeData(
-        selectedColor: colorScheme.primary,
-        labelStyle: baseTextTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w500,
-        ),
-        shape: const RoundedRectangleBorder(
-          borderRadius: OmdsBorderRadius.xSmall,
-        ),
-      ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-      ),
+
+      // Fallbacks only — the real nav is a kit glass pill (M1). Active tab is
+      // sanctioned orange (R1 caption).
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: colorScheme.surface,
-        // Allowed: `Colors.transparent` is the documented exemption for
-        // hit-testing / overlay intent that has no semantic equivalent.
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
         indicatorColor: Colors.transparent,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
-          final isSelected = states.contains(WidgetState.selected);
-          return baseTextTheme.labelSmall?.copyWith(
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            letterSpacing: 0.2,
-            color: isSelected ? colorScheme.primary : colorScheme.outline,
+          final bool selected = states.contains(WidgetState.selected);
+          return JeebTextStyles.midnight().label.copyWith(
+                color: selected ? JeebMidnight.orange : JeebMidnight.inkMuted,
+              );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final bool selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? JeebMidnight.orange : JeebMidnight.inkMuted,
           );
         }),
       ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: JeebMidnight.surface,
+        selectedItemColor: JeebMidnight.orange,
+        unselectedItemColor: JeebMidnight.inkMuted,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+        showUnselectedLabels: true,
+      ),
+
+      cardTheme: CardThemeData(
+        color: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rLg),
+          side: const BorderSide(color: JeebMidnight.glassBorder),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: const Color(0xFF000000),
+        elevation: 0,
+        iconColor: JeebMidnight.inkMuted,
+        barrierColor: JeebMidnight.scrim,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rSheet),
+          side: const BorderSide(color: JeebMidnight.glassBorder),
+        ),
+        titleTextStyle:
+            JeebTextStyles.midnight().h2.copyWith(color: JeebMidnight.ink),
+        contentTextStyle: JeebTextStyles.midnight()
+            .body
+            .copyWith(color: JeebMidnight.inkSoft),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: JeebMidnight.surface,
+        modalBackgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Color(0xFF000000),
+        elevation: 0,
+        modalElevation: 0,
+        // Unset, every modal sheet fell through to Material's `black54`.
+        modalBarrierColor: JeebMidnight.scrim,
+        dragHandleColor: JeebMidnight.inkMuted,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(_rSheet)),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        // NOT `inverseSurface`: M3 would invert this to a light slab.
+        backgroundColor: JeebMidnight.surfaceHigh,
+        contentTextStyle: JeebTextStyles.midnight()
+            .body
+            .copyWith(color: JeebMidnight.ink),
+        actionTextColor: JeebMidnight.inkSoft,
+        closeIconColor: JeebMidnight.inkMuted,
+        behavior: SnackBarBehavior.floating,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rMd),
+          side: const BorderSide(color: JeebMidnight.glassBorder),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: JeebMidnight.divider,
+        thickness: 1,
+        space: 1,
+      ),
+      listTileTheme: ListTileThemeData(
+        tileColor: Colors.transparent,
+        selectedTileColor: JeebMidnight.glassFill,
+        textColor: JeebMidnight.ink,
+        iconColor: JeebMidnight.inkMuted,
+        selectedColor: JeebMidnight.inkSoft,
+        titleTextStyle:
+            JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+        subtitleTextStyle: JeebTextStyles.midnight()
+            .bodySmall
+            .copyWith(color: JeebMidnight.inkMuted),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rMd),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: JeebMidnight.surfaceHighest,
+          borderRadius: BorderRadius.circular(_rSm),
+          border: const Border.fromBorderSide(
+            BorderSide(color: JeebMidnight.glassBorder),
+          ),
+        ),
+        textStyle: JeebTextStyles.midnight()
+            .bodySmall
+            .copyWith(color: JeebMidnight.ink),
+      ),
+
+      popupMenuTheme: PopupMenuThemeData(
+        color: JeebMidnight.surfaceHighest,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: const Color(0xFF000000),
+        elevation: 8,
+        textStyle:
+            JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rMd),
+          side: const BorderSide(color: JeebMidnight.glassBorder),
+        ),
+      ),
+      menuTheme: MenuThemeData(style: menuStyle),
+      // Unset, `DropdownMenu` draws a BARE `OutlineInputBorder` field and its
+      // own menu slab — neither the frosted field nor the popup navy.
+      dropdownMenuTheme: DropdownMenuThemeData(
+        inputDecorationTheme: inputTheme,
+        menuStyle: menuStyle,
+        textStyle:
+            JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+      ),
+
+      // Frosted capsules, never an orange fill.
+      chipTheme: ChipThemeData(
+        backgroundColor: JeebMidnight.glassFill,
+        selectedColor: JeebMidnight.glassFillPressed,
+        disabledColor: JeebMidnight.glassFill,
+        checkmarkColor: JeebMidnight.ink,
+        surfaceTintColor: Colors.transparent,
+        side: const BorderSide(color: JeebMidnight.glassBorder),
+        labelStyle: JeebTextStyles.midnight()
+            .bodySmall
+            .copyWith(color: JeebMidnight.ink),
+        secondaryLabelStyle: JeebTextStyles.midnight()
+            .bodySmall
+            .copyWith(color: JeebMidnight.inkSoft),
+        // Pill, not an 8px rect — `OmdsChip` already draws itself as a pill and
+        // the two chip families must not disagree side by side.
+        shape: const StadiumBorder(),
+      ),
+
+      inputDecorationTheme: inputTheme,
+      // Periwinkle, not orange: a caret is not brand state (§2.2).
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: JeebMidnight.inkMuted,
+        selectionColor: Color(0x4D8A93D8),
+        selectionHandleColor: JeebMidnight.inkMuted,
+      ),
+
+      // Orange-budget override: OMDS points all four at `primary`. The kit's
+      // accent CTA (M1) is where an orange button comes from.
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: JeebMidnight.inkMuted,
+          foregroundColor: JeebMidnight.page,
+          disabledBackgroundColor: JeebMidnight.glassFillPressed,
+          disabledForegroundColor: JeebMidnight.inkMuted,
+          minimumSize: const Size(64, 48),
+          shape: const StadiumBorder(),
+          textStyle: JeebTextStyles.midnight().button,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: JeebMidnight.inkMuted,
+          foregroundColor: JeebMidnight.page,
+          disabledBackgroundColor: JeebMidnight.glassFillPressed,
+          disabledForegroundColor: JeebMidnight.inkMuted,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          minimumSize: const Size(64, 48),
+          shape: const StadiumBorder(),
+          textStyle: JeebTextStyles.midnight().button,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: JeebMidnight.ink,
+          disabledForegroundColor: JeebMidnight.inkMuted,
+          side: const BorderSide(color: JeebMidnight.glassBorderStrong),
+          minimumSize: const Size(64, 48),
+          shape: const StadiumBorder(),
+          textStyle: JeebTextStyles.midnight().button,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: JeebMidnight.inkSoft,
+          disabledForegroundColor: JeebMidnight.inkMuted,
+          minimumSize: const Size(64, 40),
+          textStyle: JeebTextStyles.midnight().button,
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: JeebMidnight.inkMuted,
+        foregroundColor: JeebMidnight.page,
+        splashColor: Color(0x14FFFFFF),
+        elevation: 0,
+        focusElevation: 0,
+        hoverElevation: 0,
+        highlightElevation: 0,
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: JeebMidnight.inkMuted,
+          disabledForegroundColor: const Color(0x61FFFFFF),
+        ),
+      ),
+
+      // Widget-level `activeColor` still wins, so `OmdsSwitchTile`'s green
+      // availability toggle keeps its explicit color.
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.page
+              : JeebMidnight.inkMuted;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.inkMuted
+              : JeebMidnight.glassFill;
+        }),
+        trackOutlineColor: const WidgetStatePropertyAll<Color>(
+          JeebMidnight.glassBorderStrong,
+        ),
+        overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14FFFFFF)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.inkMuted
+              : Colors.transparent;
+        }),
+        checkColor: const WidgetStatePropertyAll<Color>(JeebMidnight.page),
+        overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14FFFFFF)),
+        side: const BorderSide(
+          color: JeebMidnight.glassBorderStrong,
+          width: 1.5,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.inkMuted
+              : JeebMidnight.glassBorderStrong;
+        }),
+        overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14FFFFFF)),
+      ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: JeebMidnight.inkMuted,
+        inactiveTrackColor: JeebMidnight.glassBorder,
+        thumbColor: JeebMidnight.ink,
+        overlayColor: const Color(0x1F8A93D8),
+        valueIndicatorColor: JeebMidnight.surfaceHigh,
+        activeTickMarkColor: JeebMidnight.page,
+        inactiveTickMarkColor: JeebMidnight.inkMuted,
+        valueIndicatorTextStyle: JeebTextStyles.midnight()
+            .bodySmall
+            .copyWith(color: JeebMidnight.ink),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: JeebMidnight.inkMuted,
+        linearTrackColor: JeebMidnight.glassBorder,
+        circularTrackColor: JeebMidnight.glassBorder,
+        refreshBackgroundColor: JeebMidnight.surfaceHigh,
+      ),
+
+      // The one place Material keeps the orange (R1: mic + active tab).
+      tabBarTheme: TabBarThemeData(
+        labelColor: JeebMidnight.orange,
+        unselectedLabelColor: JeebMidnight.inkMuted,
+        indicatorColor: JeebMidnight.orange,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14FFFFFF)),
+        labelStyle: JeebTextStyles.midnight().cardTitle,
+        unselectedLabelStyle: JeebTextStyles.midnight().cardTitle,
+      ),
+
+      // Material's most stubborn light surfaces.
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: const Color(0xFF000000),
+        elevation: 0,
+        headerBackgroundColor: JeebMidnight.surfaceHigh,
+        headerForegroundColor: JeebMidnight.ink,
+        weekdayStyle: JeebTextStyles.midnight()
+            .caption
+            .copyWith(color: JeebMidnight.inkMuted),
+        dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return JeebMidnight.page;
+          if (states.contains(WidgetState.disabled)) {
+            return const Color(0x61FFFFFF);
+          }
+          return JeebMidnight.ink;
+        }),
+        dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.inkMuted
+              : Colors.transparent;
+        }),
+        // Both background slots were unset and fell through to `primary` —
+        // Material drew today's disc and the selected year ORANGE.
+        todayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.inkMuted
+              : Colors.transparent;
+        }),
+        todayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.page
+              : JeebMidnight.inkSoft;
+        }),
+        todayBorder: const BorderSide(color: JeebMidnight.inkMuted),
+        yearBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.inkMuted
+              : Colors.transparent;
+        }),
+        yearForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return JeebMidnight.page;
+          if (states.contains(WidgetState.disabled)) {
+            return const Color(0x61FFFFFF);
+          }
+          return JeebMidnight.ink;
+        }),
+        rangeSelectionBackgroundColor: JeebMidnight.surfaceHigh,
+        dividerColor: JeebMidnight.divider,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rSheet),
+        ),
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: JeebMidnight.surface,
+        elevation: 0,
+        dialBackgroundColor: JeebMidnight.surfaceHigh,
+        dialHandColor: JeebMidnight.inkMuted,
+        // Typed `Color?` but resolve `WidgetStateColor`, which is a Color.
+        dialTextColor: WidgetStateColor.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.page
+              : JeebMidnight.ink;
+        }),
+        hourMinuteColor: WidgetStateColor.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.surfaceHighest
+              : JeebMidnight.glassFill;
+        }),
+        hourMinuteTextColor: JeebMidnight.ink,
+        dayPeriodColor: JeebMidnight.glassFill,
+        dayPeriodTextColor: JeebMidnight.ink,
+        dayPeriodBorderSide:
+            const BorderSide(color: JeebMidnight.glassBorder),
+        entryModeIconColor: JeebMidnight.inkMuted,
+        helpTextStyle: JeebTextStyles.midnight()
+            .caption
+            .copyWith(color: JeebMidnight.inkMuted),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rSheet),
+        ),
+      ),
+
+      // The route slab behind a push. Unset it is `colorScheme.surface`, the
+      // CARD navy — one rung too light against the field's page navy.
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          // Spread first: iOS/macOS keep the Cupertino slide, which paints no
+          // slab at all, so only the three colour-bearing builders are re-cut.
+          ...const PageTransitionsTheme().builders,
+          // No fallbackColor: it does not exist on CI's Flutter 3.38.9. Keeping
+          // the builder preserves Android 14+ predictive back; the slab tint
+          // returns when CI's SDK catches up.
+          TargetPlatform.android: const PredictiveBackPageTransitionsBuilder(),
+          TargetPlatform.windows: const ZoomPageTransitionsBuilder(
+            backgroundColor: JeebMidnight.page,
+          ),
+          TargetPlatform.linux: const ZoomPageTransitionsBuilder(
+            backgroundColor: JeebMidnight.page,
+          ),
+        },
+      ),
+
+      // ── Theme ruling 5's deferred list, closed here (M6). All nine defaulted
+      // to a navy we never draw (`surfaceContainerLow`) or leaked `primary`.
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        scrimColor: JeebMidnight.scrim,
+        elevation: 0,
+      ),
+      navigationDrawerTheme: NavigationDrawerThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        indicatorColor: JeebMidnight.glassFillPressed,
+        labelTextStyle: WidgetStatePropertyAll<TextStyle>(
+          JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+        ),
+        iconTheme: const WidgetStatePropertyAll<IconThemeData>(
+          IconThemeData(color: JeebMidnight.inkMuted),
+        ),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: JeebMidnight.surface,
+        elevation: 0,
+        indicatorColor: Colors.transparent,
+        selectedIconTheme: const IconThemeData(color: JeebMidnight.orange),
+        unselectedIconTheme: const IconThemeData(color: JeebMidnight.inkMuted),
+        selectedLabelTextStyle: JeebTextStyles.midnight()
+            .label
+            .copyWith(color: JeebMidnight.orange),
+        unselectedLabelTextStyle: JeebTextStyles.midnight()
+            .label
+            .copyWith(color: JeebMidnight.inkMuted),
+      ),
+      bannerTheme: MaterialBannerThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        dividerColor: JeebMidnight.divider,
+        contentTextStyle:
+            JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+      ),
+      searchBarTheme: SearchBarThemeData(
+        backgroundColor: const WidgetStatePropertyAll<Color>(
+          JeebMidnight.glassFill,
+        ),
+        surfaceTintColor: const WidgetStatePropertyAll<Color>(
+          Colors.transparent,
+        ),
+        shadowColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
+        overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14FFFFFF)),
+        elevation: const WidgetStatePropertyAll<double>(0),
+        side: const WidgetStatePropertyAll<BorderSide>(
+          BorderSide(color: JeebMidnight.glassBorder),
+        ),
+        shape: const WidgetStatePropertyAll<OutlinedBorder>(StadiumBorder()),
+        textStyle: WidgetStatePropertyAll<TextStyle>(
+          JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+        ),
+        hintStyle: WidgetStatePropertyAll<TextStyle>(
+          JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.inkMuted),
+        ),
+      ),
+      searchViewTheme: SearchViewThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        dividerColor: JeebMidnight.divider,
+        side: const BorderSide(color: JeebMidnight.glassBorder),
+        headerTextStyle:
+            JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+        headerHintStyle: JeebTextStyles.midnight()
+            .body
+            .copyWith(color: JeebMidnight.inkMuted),
+      ),
+      // M1 ruling 3: the segmented active state is a WHITE fill with navy ink.
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.selected)
+                ? scheme.onPrimary
+                : JeebMidnight.glassFill;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.selected)
+                ? JeebMidnight.surface
+                : JeebMidnight.inkSoft;
+          }),
+          overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14FFFFFF)),
+          side: const WidgetStatePropertyAll<BorderSide>(
+            BorderSide(color: JeebMidnight.glassBorder),
+          ),
+          textStyle: WidgetStatePropertyAll<TextStyle>(
+            JeebTextStyles.midnight().bodySmall,
+          ),
+          shape: const WidgetStatePropertyAll<OutlinedBorder>(StadiumBorder()),
+        ),
+      ),
+      // Material inks the EXPANDED chevron `primary` — orange under Midnight.
+      expansionTileTheme: const ExpansionTileThemeData(
+        backgroundColor: Colors.transparent,
+        collapsedBackgroundColor: Colors.transparent,
+        iconColor: JeebMidnight.inkSoft,
+        collapsedIconColor: JeebMidnight.inkMuted,
+        textColor: JeebMidnight.ink,
+        collapsedTextColor: JeebMidnight.ink,
+      ),
+      // Default thumb is `outline` @80% — white 11% and invisible on navy.
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.dragged)
+              ? JeebMidnight.inkMuted
+              : JeebMidnight.glassBorderVivid;
+        }),
+        trackColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
+        trackBorderColor: const WidgetStatePropertyAll<Color>(
+          Colors.transparent,
+        ),
+        thickness: const WidgetStatePropertyAll<double>(4),
+        radius: const Radius.circular(_rSm),
+      ),
+      badgeTheme: BadgeThemeData(
+        backgroundColor: JeebMidnight.danger,
+        textColor: JeebMidnight.page,
+        textStyle: JeebTextStyles.midnight().label,
+      ),
+
       extensions: extensions,
     );
   }
 
-  /// Applies the bundled [Inter] family to every style in [base].
-  ///
-  /// Drop-in replacement for `GoogleFonts.interTextTheme(base)` that resolves
-  /// the font from local assets only — no network, so it cannot throw a
-  /// `HandshakeException` on a no-egress device. When a glyph is missing from
-  /// Inter, Flutter falls back to the platform font automatically.
-  static TextTheme _interTextTheme(TextTheme base) =>
-      base.apply(fontFamily: _fontFamily);
+  static OutlineInputBorder _inputBorder(Color color, {double width = 1}) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(_rMd),
+        borderSide: BorderSide(color: color, width: width),
+      );
 }

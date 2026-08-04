@@ -2,11 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/registration/application/registration_cubit.dart';
+import 'package:jeeb_mobile/features/registration/application/registration_state.dart';
 import 'package:jeeb_mobile/features/registration/domain/lebanon_phone.dart';
 import 'package:jeeb_mobile/features/registration/domain/otp_service.dart';
 import 'package:jeeb_mobile/features/registration/presentation/registration_screen.dart';
@@ -62,12 +70,6 @@ void main() {
       'value intact, so 8 valid digits stay parseable and Send code stays '
       'enabled (no state↔controller corruption)', (tester) async {
     // The on-device defect: the listener mirrored the cubit's *normalised*
-    // phoneInput back into the field on every keystroke. Typing a 9th digit
-    // made `normalise` front-truncate to the first 8 and overwrite the field,
-    // so erasing the (now-wrong) trailing digit dropped a valid one — the field
-    // stuck below 8 digits, `LebanonPhone.tryParse` returned null, and
-    // `sendCode()` bailed at its guard. No OTP was ever requested → login
-    // impossible on-device.
     when(() => otp.sendCode(any()))
         .thenAnswer((_) async => OtpSendOutcome.sent);
     final cubit = makeCubit();
@@ -78,7 +80,6 @@ void main() {
     final field = find.byKey(const Key('registration.phoneField'));
 
     // 1) Type exactly 8 valid digits — controller and state must agree, and the
-    // field must hold all 8 (no per-keystroke overwrite dropping characters).
     await tester.enterText(field, '71123456');
     await tester.pump();
     expect(cubit.state.phoneInput, '71123456');
@@ -90,15 +91,13 @@ void main() {
     );
 
     // 2) Erase down to 6 digits (a single contiguous edit, never a
-    // corrupted/reordered value). Send code disables because 6 < the 7-digit
-    // minimum (a Lebanese national number is 7 or 8 digits).
     await tester.enterText(field, '711234');
     await tester.pump();
     expect(cubit.state.phoneInput, '711234');
     expect(cubit.state.isPhoneReady, isFalse);
     expect(
       tester
-          .widget<OmdsLoadingButton>(
+          .widget<JeebCtaButton>(
             find.byKey(const Key('registration.sendCode')),
           )
           .isEnabled,
@@ -106,15 +105,13 @@ void main() {
     );
 
     // 3) Re-type the 8th digit → back to a valid 8-digit number. The value is
-    // NOT corrupted, Send code re-enables, and tapping it actually fires the
-    // OTP request (the path that was dead on-device).
     await tester.enterText(field, '71123456');
     await tester.pump();
     expect(cubit.state.phoneInput, '71123456');
     expect(cubit.state.isPhoneReady, isTrue);
     expect(
       tester
-          .widget<OmdsLoadingButton>(
+          .widget<JeebCtaButton>(
             find.byKey(const Key('registration.sendCode')),
           )
           .isEnabled,
@@ -124,7 +121,6 @@ void main() {
     await tester.tap(find.byKey(const Key('registration.sendCode')));
     await tester.pump();
     // The OTP request actually goes out with the correct E.164 number — the
-    // exact step that never happened with the corrupted value.
     verify(() => otp.sendCode('+96171123456')).called(1);
   });
 
@@ -132,10 +128,6 @@ void main() {
       'REGRESSION (Maestro P0): typing a 9th digit then erasing the visible '
       'trailing digit still recovers a sendable number', (tester) async {
     // Pre-fix, typing a 9th digit front-truncated the value to the first 8 and
-    // overwrote the field; erasing the visibly-trailing digit then dropped a
-    // VALID digit, leaving 7 — unrecoverable without clearing the field. This
-    // asserts the field now holds what the user typed so a normal erase
-    // recovers a parseable 8-digit number.
     when(() => otp.sendCode(any()))
         .thenAnswer((_) async => OtpSendOutcome.sent);
     final cubit = makeCubit();
@@ -161,19 +153,6 @@ void main() {
       'CURRENT text, not a stale cubit phoneInput (submit-path divergence fix)',
       (tester) async {
     // On-device defect: "Send code" enabled off a fresh rebuild (which reflects
-    // the field/controller), but `state.phoneInput` could lag the final
-    // committed keystroke (Android IME composing/autocorrect finalisation does
-    // not always re-fire `onChanged` with the last value). So the button looked
-    // valid yet `sendCode()`'s `tryParse(state.phoneInput)` guard saw a stale
-    // value, flipped the field red, and sent NOTHING — login impossible
-    // on-device. The fix re-commits the controller text into the cubit at tap
-    // time, so the value Send validates == the value the user sees/typed.
-    //
-    // Faithful model of the divergence while keeping the button enabled (the
-    // on-device symptom): the cubit holds a VALID-but-STALE 8-digit number
-    // (button enabled) while the controller/display holds a DIFFERENT, current
-    // 8-digit number (what the user actually typed last). Send must use the
-    // CONTROLLER's number — proving the field is the source of truth at submit.
     when(() => otp.sendCode(any()))
         .thenAnswer((_) async => OtpSendOutcome.sent);
     final cubit = makeCubit();
@@ -192,7 +171,6 @@ void main() {
         reason: 'precondition: button is enabled (stale value is still valid)');
 
     // ...while the field/display holds the DIFFERENT number the user last typed,
-    // set WITHOUT routing through `onChanged` (the on-device lag).
     controller.text = '71123456';
     await tester.pump();
     expect(controller.text, '71123456');
@@ -200,8 +178,6 @@ void main() {
         reason: 'precondition: cubit phoneInput is stale, diverged from field');
 
     // Tap Send. Pre-fix it would have sent the STALE +96171000000 (or, when the
-    // stale value was short, bailed entirely). Post-fix it commits the field
-    // first and sends the CURRENT +96171123456 — the field is the one truth.
     await tester.tap(find.byKey(const Key('registration.sendCode')));
     await tester.pump();
 
@@ -216,13 +192,6 @@ void main() {
       'but NOT mirrored into cubit state still sends — Send reads the live '
       'controller text, not a stale state.phoneInput', (tester) async {
     // The on-device divergence: the field owns its text while the user types
-    // (PR #45 stopped mirroring the normalised value back). Any path that sets
-    // the controller text WITHOUT routing through `onChanged`/`phoneChanged`
-    // (programmatic seed, platform autofill, certain paste paths) leaves
-    // `state.phoneInput` empty while the field shows a valid number. The old
-    // `sendCode()` validated the empty `state.phoneInput`, flipped the field red
-    // and emitted ZERO OTP requests. With the fix, Send reads the rendered
-    // controller text, so a valid rendered number sends.
     when(() => otp.sendCode(any()))
         .thenAnswer((_) async => OtpSendOutcome.sent);
     final cubit = makeCubit();
@@ -233,18 +202,10 @@ void main() {
     final field = find.byKey(const Key('registration.phoneField'));
 
     // 1) Type a first valid number normally so state + field agree and the CTA
-    // is live.
     await tester.enterText(field, '71123456');
     await tester.pump();
     expect(cubit.state.phoneInput, '71123456');
 
-    // 2) Now a DIFFERENT valid value lands in the field WITHOUT firing onChanged
-    // (platform autofill / programmatic seed): mutate ONLY the controller. No
-    // rebuild, no `phoneChanged` — so the cubit's `phoneInput` is now STALE
-    // relative to the rendered field. This is the exact divergence that, with
-    // the old `sendCode()` (which read `state.phoneInput`), would either send
-    // the WRONG number or — when state was empty — flip the field red and emit
-    // zero OTP rows.
     final controller = tester.widget<TextField>(field).controller!;
     controller.text = '+9613000002';
 
@@ -255,8 +216,6 @@ void main() {
     );
 
     // The CTA was enabled at the last build; its onTap closure reads the LIVE
-    // controller text. Tapping must fire the OTP request for the number the user
-    // ACTUALLY sees (`3000002`), not the stale state value.
     await tester.tap(find.byKey(const Key('registration.sendCode')));
     await tester.pump();
 
@@ -270,7 +229,7 @@ void main() {
     await tester.pumpWidget(wrapForTest(
       RegistrationScreen(cubit: makeCubit()),
     ));
-    final disabled = tester.widget<OmdsLoadingButton>(
+    final disabled = tester.widget<JeebCtaButton>(
       find.byKey(const Key('registration.sendCode')),
     );
     expect(disabled.isEnabled, isFalse);
@@ -281,7 +240,7 @@ void main() {
     );
     await tester.pump();
 
-    final enabled = tester.widget<OmdsLoadingButton>(
+    final enabled = tester.widget<JeebCtaButton>(
       find.byKey(const Key('registration.sendCode')),
     );
     expect(enabled.isEnabled, isTrue);
@@ -303,7 +262,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // OTP screen is now on top — its OTP-field key is the unambiguous
-    // anchor.
     expect(find.byKey(const Key('registration.otpField')), findsOneWidget);
     expect(find.byKey(const Key('registration.verify')), findsOneWidget);
     verify(() => otp.sendCode('+96171123456')).called(1);
@@ -319,8 +277,6 @@ void main() {
     await tester.pump();
 
     // P1 MOVE: the two super-login affordances now live on the LOGIN screen.
-    // `flutter test` runs under kDebugMode=true, yet neither link is present
-    // here — proving the MOVE removed them from registration (no duplicate).
     expect(kDebugMode, isTrue);
     expect(find.byKey(const Key('registration.superLogin')), findsNothing);
     expect(find.byKey(const Key('registration.superLoginPlus')), findsNothing);
@@ -336,12 +292,122 @@ void main() {
     ));
     await tester.pump();
 
-    // Branded wordmark hero band (interim register hero, FR-P1-3).
+    // Branded wordmark hero band — now the full-bleed navy welcome band
+    // (redesign 02). `_register_hero` is Maestro-frozen (jm-009, jm-018).
+    expect(find.bySemanticsIdentifier('_register_hero'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Jeeb')), findsWidgets);
-    // Welcome heading promoted above the form.
+    // Welcome heading lives inside the band and keeps its key.
     expect(find.byKey(const Key('registration.welcome')), findsOneWidget);
-    // "social — or — phone" divider between social and the phone block.
+    // "phone — or — social" divider below the phone block.
     expect(find.byKey(const Key('registration.orDivider')), findsOneWidget);
+  });
+
+  testWidgets(
+      'the live-valid tick appears at a parseable number and goes again below '
+      'the 7-digit minimum', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    // The tick always occupies its slot (an opacity swap, not a conditional
+    // insert) so the field row never reflows per keystroke.
+    expect(
+      find.bySemanticsIdentifier('register_phone_valid_check'),
+      findsOneWidget,
+    );
+    final tick = find.ancestor(
+      of: find.byIcon(Icons.check),
+      matching: find.byType(Opacity),
+    );
+    expect(tester.widget<Opacity>(tick.first).opacity, 0);
+
+    await tester.enterText(
+      find.byKey(const Key('registration.phoneField')),
+      '71123456',
+    );
+    // ONE frame: M5 R6 moves nothing, so the tick is fully lit immediately.
+    await tester.pump();
+    expect(tester.widget<Opacity>(tick.first).opacity, 1);
+
+    // Six digits is below `LebanonPhone.minNationalDigitCount` — the tick
+    // hides again, agreeing with the now-disabled CTA.
+    await tester.enterText(
+      find.byKey(const Key('registration.phoneField')),
+      '711234',
+    );
+    await tester.pump();
+    expect(tester.widget<Opacity>(tick.first).opacity, 0);
+  });
+
+  // M5 B8: the notes give R6 zero animated elements — "does not move:
+  // anything ... including the phone field".
+  testWidgets('R6 is still: the valid tick does not fade', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    expect(
+      find.ancestor(
+        of: find.byIcon(Icons.check),
+        matching: find.byType(AnimatedOpacity),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.bySemanticsIdentifier('register_phone_valid_check'),
+        matching: find.byType(FadeTransition),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('the docked trust note renders below the form', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    expect(find.bySemanticsIdentifier('register_trust_note'), findsOneWidget);
+    // Cash-on-delivery honesty: no card, and the number is only shared with
+    // the Jeeber the client actually accepts.
+    expect(
+      find.text(
+        'No card needed. Your number is only shared with the Jeeber you '
+        'accept.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'the helper line carries the resting copy and swaps to the invalid-phone '
+      'error (the field no longer owns an InputDecoration errorText)',
+      (tester) async {
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: cubit),
+    ));
+    await tester.pump();
+
+    expect(find.bySemanticsIdentifier('register_phone_helper'), findsOneWidget);
+    expect(
+      find.text('8-digit Lebanese number — we text you a code.'),
+      findsOneWidget,
+    );
+
+    // Submitting with nothing typed is the cubit's invalid path.
+    await cubit.sendCode();
+    await tester.pump();
+
+    expect(cubit.state.phoneError, RegistrationPhoneError.invalid);
+    expect(find.text('Enter a valid Lebanese phone number.'), findsOneWidget);
+    expect(
+      find.text('8-digit Lebanese number — we text you a code.'),
+      findsNothing,
+    );
   });
 
   testWidgets(
@@ -353,27 +419,114 @@ void main() {
     await tester.pump();
 
     // The screen owns a single keyed divider. The social section must NOT
-    // render its own — that produced the two `content-desc="or"` nodes QA saw.
     expect(find.byKey(const Key('registration.orDivider')), findsOneWidget);
     // The divider label ("or", `registrationSocialDivider`) must appear exactly
-    // once — this is the literal QA matched (`content-desc="or"`).
     expect(find.text('or'), findsOneWidget);
   });
 
-  testWidgets('FR-LOGIN: CTA is an OmdsLoadingButton (in-button spinner)',
+  // MIDNIGHT R6 realignment: the board draws an ORANGE pill, which is
+  // `JeebCtaButton.accent`. The in-button spinner (the behaviour this test was
+  // really guarding) moved with it — `isLoading`, not a separate widget.
+  testWidgets('R6: send-code CTA is the kit ACCENT pill and spins in place',
       (tester) async {
-    await tester.pumpWidget(wrapForTest(
-      RegistrationScreen(cubit: makeCubit()),
-    ));
+    final cubit = makeCubit();
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: cubit)));
     await tester.pump();
+
+    final finder = find.byKey(const Key('registration.sendCode'));
+    expect(finder, findsOneWidget);
+    final cta = tester.widget<JeebCtaButton>(finder);
+    expect(cta.variant, JeebCtaVariant.accent);
+    expect(cta.isLoading, isFalse);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    when(() => otp.sendCode(any())).thenAnswer(
+      (_) => Completer<OtpSendOutcome>().future,
+    );
+    await tester.enterText(
+      find.byKey(const Key('registration.phoneField')),
+      '71123456',
+    );
+    await tester.pump();
+    await tester.tap(finder);
+    await tester.pump();
+
+    expect(tester.widget<JeebCtaButton>(finder).isLoading, isTrue);
     expect(
-      find.byKey(const Key('registration.sendCode')),
+      find.descendant(of: finder, matching: find.byType(CircularProgressIndicator)),
       findsOneWidget,
     );
-    expect(
-      tester.widget(find.byKey(const Key('registration.sendCode'))),
-      isA<OmdsLoadingButton>(),
+  });
+
+  // The tile paints the pill `#D73B00` with the ctaOrange lift; a token
+  // re-point that silently reverted to navy would move <5% of the frame and
+  // sail past the golden comparator, so the fill is read off the widget.
+  testWidgets('R6: the send-code pill actually paints accent orange',
+      (tester) async {
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: makeCubit())));
+    await tester.enterText(
+      find.byKey(const Key('registration.phoneField')),
+      '71123456',
     );
+    await tester.pump();
+
+    final decoration = tester
+        .widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byKey(const Key('registration.sendCode')),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        )
+        .decoration as BoxDecoration;
+    expect(decoration.color, JeebColorRoles.midnight().accent);
+    expect(decoration.boxShadow, JeebShadows.ctaOrange);
+  });
+
+  // R6's field rim is the one orange the phone block spends, at the measured
+  // 2px on r14 glass — all three are invisible to a 5%-tolerant golden.
+  testWidgets('R6: the phone field is 2px accent-rimmed r14 glass',
+      (tester) async {
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: makeCubit())));
+    await tester.pump();
+
+    final box = tester.widget<Container>(
+      find.byKey(const Key('registration.phoneFieldBox')),
+    );
+    final decoration = box.decoration! as BoxDecoration;
+    final border = decoration.border! as Border;
+    expect(border.top.color, JeebColorRoles.midnight().accent);
+    expect(border.top.width, 2);
+    expect(
+      decoration.borderRadius,
+      BorderRadius.circular(JeebRadii.md),
+    );
+    expect(decoration.color, JeebSemanticColors.midnight().glassFill);
+  });
+
+  // doc-13 P1: the OMDS input theme injects a fill and per-state borders, so
+  // the inner field drew a SECOND rounded box inside the glass one. Nulling
+  // `border` alone did not do it — the pass-1 screen shipped believing it had.
+  testWidgets('R6: the inner TextField draws no box of its own', (tester) async {
+    await tester.pumpWidget(wrapForTest(RegistrationScreen(cubit: makeCubit())));
+    await tester.pump();
+
+    final decoration = tester
+        .widget<TextField>(find.byKey(const Key('registration.phoneField')))
+        .decoration!;
+    expect(decoration.filled, isFalse);
+    expect(decoration.fillColor, Colors.transparent);
+    for (final border in <InputBorder?>[
+      decoration.border,
+      decoration.enabledBorder,
+      decoration.focusedBorder,
+      decoration.disabledBorder,
+      decoration.errorBorder,
+      decoration.focusedErrorBorder,
+    ]) {
+      expect(border, InputBorder.none);
+    }
   });
 
   testWidgets('FR-LOGIN: register screen lays out RTL under Locale(ar)',
@@ -389,9 +542,36 @@ void main() {
     );
     expect(dir, TextDirection.rtl);
     // The Arabic welcome copy renders (value != key, parity-test backed).
-    expect(find.text('مرحباً بك في جيب'), findsOneWidget);
+    // Redesign 02 replaces "مرحباً بك في جيب" with the board's neighbourly
+    // greeting.
+    expect(find.text('أهلاً بك يا جار'), findsOneWidget);
+    // The bilingual tagline under it leads with Arabic in the `ar` locale.
+    expect(find.text('جيب، مشوارك أسهل · Your errand, made easier'),
+        findsOneWidget);
+  });
+
+  // M6 L14: the screen shipped a raw `SystemUiOverlayStyle.light`, whose
+  // `systemNavigationBarColor` is BLACK — the field bleeds under both bands.
+  testWidgets('both system bands take the ratified Midnight overlay',
+      (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.descendant(
+        of: find.byType(RegistrationScreen),
+        matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+      ),
+    );
+    expect(region.value, AppTheme.systemOverlayStyle);
+    expect(region.value.systemNavigationBarColor, JeebMidnight.page);
+    expect(
+      region.value.systemNavigationBarColor,
+      isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
+    );
   });
 
   // The "Super user login plus" picker→sheet placement tests moved with the
-  // feature to test/login_screen_test.dart (P1 MOVE).
 }

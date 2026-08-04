@@ -1,18 +1,4 @@
 // W2-INT route-resolution gate.
-//
-// Proves the Wave-2 / Wave-2.5 integrator route batch (21_NAV_PLAN §B batch W2
-// + the wallet routes front-loaded; 50_EXECUTION_PLAN §"WAVE 2 (1) S1") is
-// REGISTERED and that each new route resolves to its target widget — the
-// integrator's exit gate ("every new route reaches its target"). These are
-// nav-honesty pins (CTO brief §6.7): before the per-screen engineers wire any
-// W2 call site, the targets must exist.
-//
-//   /jeeber/onboarding/funding → OnboardingFundingScreen   (funding,      JM-041)
-//   /jeeber/offer-gate         → OfferKycGateScreen        (offer-gate,   JM-044)
-//   /kyc/rejected              → KycRejectedScreen         (kyc-rejected, JM-043)
-//   /jeeber/pending-offers     → JeeberPendingOffersScreen (pending,      JM-047)
-//   /wallet                    → WalletHubScreen           (wallet-hub,   JM-053)
-//   /wallet/charge-info        → WalletChargeInfoScreen    (charge-info,  JM-054)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -98,6 +84,12 @@ Widget _harness(_Built built) {
     ],
     child: MaterialApp.router(
       routerConfig: built.router,
+      // JeebEmptyState's E1 illustration loops ∞ by design (02-STUDY-NOTES
+      // §Motion): pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
         SyncAppLocalizationsDelegate(),
         GlobalMaterialLocalizations.delegate,
@@ -114,16 +106,12 @@ void main() {
 
   setUp(() {
     // WalletHubScreen self-provides WalletHubCubit over sl<WalletRepository>().
-    // Register the INTEGRATOR-STUB (CTO-D2) so the hub mounts + renders.
     if (!sl.isRegistered<WalletRepository>()) {
       sl.registerLazySingleton<WalletRepository>(
         () => const StubWalletRepository(),
       );
     }
     // WalletHubScreen (JM-053) also reads sl<JeeberKycStatusGate>() for the AC7
-    // KYC-pending banner. Mirror the production default (injection_container
-    // registers SeamJeeberKycStatusGate) so the /wallet route resolves as it
-    // does in the app.
     if (!sl.isRegistered<JeeberKycStatusGate>()) {
       sl.registerLazySingleton<JeeberKycStatusGate>(
         () => const SeamJeeberKycStatusGate(),

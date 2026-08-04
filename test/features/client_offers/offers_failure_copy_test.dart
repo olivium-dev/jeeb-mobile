@@ -1,10 +1,4 @@
 // F9 — offer-review failure copy is split by phase.
-//
-// The five OffersFailure strings route through a single shared mapping
-// (`offersFailureCopy`). Classified branches share copy across phases; only the
-// unclassified/`unknown` fallback diverges: a LOAD failure must say "Couldn't
-// load offers" and must NEVER mention "accepting" (that copy belongs to a
-// failed accept action only).
 
 import 'dart:io';
 

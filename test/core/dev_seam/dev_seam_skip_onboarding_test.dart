@@ -1,9 +1,4 @@
 // Unit coverage for the FR-P0-1 `DevSeamConfig.skipOnboarding` flag.
-//
-// The flag is the explicit opt-in that lets the DevSeam route pin bypass the
-// first-run (onboarding + session) gate. SECURITY-CRITICAL: it must default to
-// false and must round-trip through every source/merge path so a bare route pin
-// can never silently flip it on.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,7 +27,6 @@ void main() {
 
     test('a route-only config does NOT enable skipOnboarding', () {
       // This is the core bypass-closure invariant: pinning a route must not by
-      // itself grant the onboarding skip.
       const config = DevSeamConfig(route: '/');
       expect(config.skipOnboarding, isFalse);
     });

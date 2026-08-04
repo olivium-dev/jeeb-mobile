@@ -48,7 +48,16 @@ class DisputeStatusL10n {
   // ── Genuinely-missing copy (feature-local until the integrator lands keys). ─
 
   /// `dispute_status_state` label when resolved (D2). Open uses [openLabel].
+  /// Doubles as the third node's label on the lifecycle stepper.
   String get resolvedLabel => _pick('Resolved', 'تم الحل');
+
+  /// First node of the lifecycle stepper — always `done` (the dispute exists,
+  /// so it was submitted). Short by design: a stepper label is 10.5/w700.
+  String get stepSubmittedLabel => _l10n.disputeStatusStepSubmitted;
+
+  /// Second node of the lifecycle stepper — the active step while the dispute
+  /// is open. The short form of [openLabel] ("Open — under review").
+  String get stepUnderReviewLabel => _l10n.disputeStatusStepUnderReview;
 
   /// Outcome note heading shown above the typed outcome line (D2).
   String get outcomeHeading => _pick('Outcome', 'النتيجة');
@@ -113,6 +122,12 @@ class DisputeStatusL10n {
     }
   }
 
+  /// MIDNIGHT M3-32: headline of the inline empty evidence block.
+  /// TODO(midnight): l10n-queued `disputeStatusEvidenceEmpty` —
+  /// docs/redesign-midnight/l10n-queue/M3-32.md.
+  String get evidenceEmptyHeadline =>
+      _pick('No evidence attached', 'لا توجد أدلة مرفقة');
+
   String get evidenceReasonLabel => _pick('Reason', 'السبب');
   String get evidenceCommentLabel => _pick('Your note', 'ملاحظتك');
 
@@ -135,6 +150,13 @@ class DisputeStatusL10n {
       );
 
   // ── D30 error / loading copy. ──────────────────────────────────────────────
+
+  /// MIDNIGHT M3-32: headline of the cold-read `JeebEmptyState`.
+  /// TODO(midnight): l10n-queued `disputeStatusLoading` —
+  /// docs/redesign-midnight/l10n-queue/M3-32.md.
+  String get loadingHeadline =>
+      _pick('Checking this dispute', 'جارٍ التحقق من هذا النزاع');
+
   String get loadError =>
       _pick('Could not load this dispute.', 'تعذّر تحميل هذا النزاع.');
   String get notFoundError => _pick(

@@ -4,12 +4,18 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_shadows.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
-import '../widgets/active_request_card.dart' show ClientHomeTierBadge;
 import '../widgets/client_home_empty_view.dart';
+import '../widgets/client_home_tier_chip.dart';
 
 /// T-MOB-007: Isolated Pending Requests tab widget.
 ///
@@ -83,7 +89,12 @@ class _PendingLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(key: Key('pending-loading'), child: OmdsLoadingState());
+    // §2.7: the wait is the empty illustration's own breathing skeleton.
+    return JeebEmptyState(
+      key: const Key('pending-loading'),
+      status: JeebEmptyStateStatus.loading,
+      headline: AppLocalizations.of(context).homeEmptyTitle,
+    );
   }
 }
 
@@ -95,13 +106,19 @@ class _PendingError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsErrorState(
+    return JeebEmptyState(
       key: const Key('pending-error'),
-      icon: Icons.cloud_off_outlined,
-      title: l10n.homeLoadFailedTitle,
-      message: l10n.homeErrorRetry,
-      retryLabel: l10n.homeLoadFailedRetry,
-      onRetry: onRetry,
+      status: JeebEmptyStateStatus.error,
+      headline: l10n.homeLoadFailedTitle,
+      body: l10n.homeErrorRetry,
+      action: IntrinsicWidth(
+        child: JeebCtaButton.primary(
+          label: l10n.homeLoadFailedRetry,
+          identifier: 'pending_retry_cta',
+          expand: false,
+          onTap: onRetry,
+        ),
+      ),
     );
   }
 }
@@ -114,26 +131,34 @@ class _PendingList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      key: const Key('pending-requests-tab-list'),
-      children: [
-        for (var i = 0; i < requests.length; i++)
-          // JM-023 AC2: the indexed `orders_home_request_row_<n>` identifier is
-          // the QA tap target for a pending request row on the Requests home.
-          // It wraps (does not replace) the per-id `pending_requests_item_<id>`
-          // identifier the card already exposes, so both contracts stay
-          // targetable; tapping routes to `waiting-no-coverage` (JM-026) via
-          // the screen-supplied [onTap].
-          Semantics(
-            identifier: 'orders_home_request_row_$i',
-            container: true,
-            explicitChildNodes: true,
-            child: PendingCountdownCard(
-              request: requests[i],
-              onTap: onTap != null ? () => onTap!(requests[i]) : null,
+    return Padding(
+      // Board gutter 24; glass cards are separated by a 12 gap.
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.xLarge,
+      ),
+      child: Column(
+        key: const Key('pending-requests-tab-list'),
+        children: [
+          for (var i = 0; i < requests.length; i++) ...[
+            if (i > 0) const SizedBox(height: Spacing.small),
+            // JM-023 AC2: the indexed `orders_home_request_row_<n>` identifier
+            // is the QA tap target for a pending request row on the Requests
+            // home. It wraps (does not replace) the per-id
+            // `pending_requests_item_<id>` identifier the card already exposes,
+            // so both contracts stay targetable; tapping routes to
+            // `waiting-no-coverage` (JM-026) via the screen-supplied [onTap].
+            Semantics(
+              identifier: 'orders_home_request_row_$i',
+              container: true,
+              explicitChildNodes: true,
+              child: PendingCountdownCard(
+                request: requests[i],
+                onTap: onTap != null ? () => onTap!(requests[i]) : null,
+              ),
             ),
-          ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 }
@@ -180,24 +205,10 @@ class _PendingCardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.small,
-      ),
-      child: Column(
-        children: [
-          _PendingCardRow(request: request),
-          Padding(
-            padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-            child: Divider(
-              height: UIConstants.dividerWidth,
-              color: colorScheme.outlineVariant,
-            ),
-          ),
-        ],
-      ),
+    // R1's active-request card: rest glass, `lg` radius, pad 16, no lift.
+    return JeebGlassCard(
+      padding: const EdgeInsetsDirectional.all(Spacing.medium),
+      child: _PendingCardRow(request: request),
     );
   }
 }
@@ -210,32 +221,45 @@ class _PendingCardRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final createdAt = request.createdAt;
+    // TODO(midnight): the tile draws a voice waveform mark and a "12 Jeebers
+    // reached" count; neither field is on the wire — omitted, not faked.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _PendingCardHeader(request: request),
         const SizedBox(height: Spacing.twoXSmall),
         _PendingCardSummary(text: request.summaryLine),
-        // Age line — shown ONLY when the server row carried a real `createdAt`.
-        // It is a past-fact "created N ago" (grows over time), NOT a countdown
-        // or expiry; the manufactured-deadline lie stays removed.
-        if (createdAt != null) ...[
-          const SizedBox(height: Spacing.twoXSmall),
-          _PendingCreatedAge(createdAt: createdAt),
-        ],
-        const SizedBox(height: Spacing.xSmall),
-        // Once offers have arrived, surface them prominently instead of the flat
-        // "Searching…" line. NB: on the live client-home path an offer-bearing
-        // request is bucketed into Replies (offerCount>0), so on the Pending tab
-        // this branch lights up for denormalised counts / non-dio repositories;
-        // the searching line remains the default pending state.
-        if (request.offerCount > 0)
-          _PendingOffersBadge(
-            count: request.offerCount,
-            emphasize: request.hasNewOffers,
-          )
-        else
-          const _PendingServerStatus(),
+        const SizedBox(height: Spacing.small),
+        // Meta row: tier chip, live status, then the age on the end edge where
+        // the tile draws its reach count.
+        Row(
+          children: [
+            ClientHomeTierChip(tier: request.tier),
+            const SizedBox(width: Spacing.xSmall),
+            Expanded(
+              // Once offers have arrived, surface them prominently instead of
+              // the flat "Searching…" line. NB: on the live client-home path an
+              // offer-bearing request is bucketed into Replies (offerCount>0),
+              // so on the Pending tab this branch lights up for denormalised
+              // counts / non-dio repositories; the searching line remains the
+              // default pending state.
+              child: request.offerCount > 0
+                  ? _PendingOffersBadge(
+                      count: request.offerCount,
+                      emphasize: request.hasNewOffers,
+                    )
+                  : const _PendingServerStatus(),
+            ),
+            // Age line — shown ONLY when the server row carried a real
+            // `createdAt`. It is a past-fact "created N ago" (grows over time),
+            // NOT a countdown or expiry; the manufactured-deadline lie stays
+            // removed.
+            if (createdAt != null) ...[
+              const SizedBox(width: Spacing.xSmall),
+              Flexible(child: _PendingCreatedAge(createdAt: createdAt)),
+            ],
+          ],
+        ),
       ],
     );
   }
@@ -249,26 +273,13 @@ class _PendingCardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Text(
-            request.displayId ?? request.title,
-            // Role fix: `secondaryContainer` is a CONTAINER (fill) role, not
-            // an ink role — as text it went illegible on dark surfaces. Titles
-            // on surface read in `onSurface`.
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.onSurface,
-              fontWeight: FontWeight.w400,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: Spacing.xSmall),
-        ClientHomeTierBadge(tier: request.tier),
-      ],
+    return Text(
+      request.displayId ?? request.title,
+      style: context.jeebText.cardTitle.copyWith(
+        color: theme.colorScheme.onSurface,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -298,22 +309,35 @@ class _PendingServerStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    // Orange is correct here and nowhere else on this card: a broadcasting
+    // request is the tile's "happening now" accent (budget §2.2). STATIC —
+    // 03-MOTION-NOTES §R1 measures zero animation on this dot.
+    final accent = context.jeebRoles.accent;
     return Row(
       key: const Key('pending-server-status'),
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          Icons.search_rounded,
-          size: Sizes.medium,
-          color: theme.colorScheme.primary,
+        // The tile draws Ø7; Sizes.xSmall (8) is the nearest token.
+        Container(
+          width: Sizes.xSmall,
+          height: Sizes.xSmall,
+          decoration: BoxDecoration(
+            color: accent,
+            shape: BoxShape.circle,
+            boxShadow: JeebShadows.glowDot,
+          ),
         ),
         const SizedBox(width: Spacing.twoXSmall),
-        Text(
-          l10n.pendingTabSearchingLabel,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.w500,
+        Flexible(
+          child: Text(
+            l10n.pendingTabBroadcastingLabel,
+            style: context.jeebText.bodySmall.copyWith(
+              fontWeight: FontWeight.w700,
+              color: accent,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -334,16 +358,16 @@ class _PendingOffersBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     return Align(
       alignment: AlignmentDirectional.centerStart,
-      child: OmdsChip(
+      child: JeebSystemChip(
         key: const Key('pending-offers-badge'),
         label: l10n.pendingCardOffersBadge(count),
-        icon: const Icon(Icons.local_offer_outlined),
-        isSelected: emphasize,
-        unselectedColor: colorScheme.primaryContainer,
-        unselectedTextColor: colorScheme.onPrimaryContainer,
+        // Unseen offers are the live event; a seen count is a settled fact.
+        tone: emphasize
+            ? JeebSystemChipTone.accent
+            : JeebSystemChipTone.filled,
+        center: false,
       ),
     );
   }
@@ -365,9 +389,12 @@ class _PendingCreatedAge extends StatelessWidget {
     return Text(
       pendingCreatedAgeLabel(l10n, createdAt, DateTime.now()),
       key: const Key('pending-created-age'),
-      style: theme.textTheme.labelSmall?.copyWith(
+      style: context.jeebText.caption.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
       ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.end,
     );
   }
 }
@@ -421,14 +448,16 @@ class PendingReconnectBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // OMDS: OmdsLoadingState replaces CircularProgressIndicator (OMDS-only policy).
+          // M4/Q2: §2.7 has no sub-compact form and the kit is frozen, so the
+          // one-line banner keeps a role-tinted mark. Ruling pending.
           OmdsLoadingState(size: Sizes.medium, color: roles.onWarningContainer),
           const SizedBox(width: Spacing.xSmall),
           Text(
             l10n.pendingTabReconnecting,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: roles.onWarningContainer),
+            key: const Key('pending-reconnect-label'),
+            style: context.jeebText.caption.copyWith(
+              color: roles.onWarningContainer,
+            ),
           ),
         ],
       ),

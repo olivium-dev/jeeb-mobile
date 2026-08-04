@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Centered "Today" / "Yesterday" / locale-date separator shown at the top of
-/// a day group in the chat timeline (Figma nodes 56535:6659 + 56546:2382).
+/// a day group in the chat timeline.
 ///
-/// Wraps the OMDS [OmdsDateChip] primitive and owns only the relative-date
-/// label logic so the same chip renders in both the broadcasting (02) and
-/// post-approval (03) chat states. The label resolves through
+/// The chip is the kit's [JeebSystemChip.filled] — a date is a settled fact,
+/// the same tone the "Offer accepted" row uses. This widget owns only the
+/// relative-date label logic so the same chip renders in both the broadcasting
+/// and post-approval chat states. The label resolves through
 /// [AppLocalizations] for "today"/"yesterday" and falls back to a locale-aware
 /// medium date via [DateFormat] — never a string-built date.
 class ChatDateSeparator extends StatelessWidget {
@@ -22,15 +23,12 @@ class ChatDateSeparator extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toLanguageTag();
-    return Semantics(
+    final label = _label(l10n, locale);
+    return JeebSystemChip.filled(
+      key: const Key('chat-date-separator'),
+      label: label,
       identifier: 'chat_detail_date_separator',
-      label: _label(l10n, locale),
-      child: OmdsDateChip(
-        key: const Key('chat-date-separator'),
-        text: _label(l10n, locale),
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
-        textColor: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+      semanticLabel: label,
     );
   }
 

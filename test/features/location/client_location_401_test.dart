@@ -1,15 +1,3 @@
-// JEBV4-108 — honest 401 handling at the create seam.
-//
-// On-device (C3/auto-filed blocker sig:2afb9ae6c5): POST /v1/requests returned
-// 401 (invalid/seam session) and the client showed a generic "check your
-// connection" snackbar and stayed put — a dead end, since retrying with the
-// same session can never succeed. The client must (a) tell the user the
-// session is invalid and (b) route to re-auth. Backend is correct; this is
-// client-only (the ticket's residual defect).
-//
-// Also covers the P2-5 honesty split: a non-auth 4xx/5xx create failure gets
-// the couldn't-create copy — connectivity is only blamed for real network
-// failures.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -115,8 +103,6 @@ void main() {
     view.devicePixelRatio = 1.0;
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
-    // JEBV4-176: the current-location option resolves a REAL device fix so the
-    // Confirm CTA enables (the create-then-401 path under test depends on it).
     sl.registerLazySingleton<CurrentLocationResolver>(
       FakeCurrentLocationResolver.new,
     );
@@ -147,8 +133,6 @@ void main() {
 
     await _typeAndConfirm(tester);
 
-    // The create fired once (real seam), the honest session message showed,
-    // and the user landed on the re-auth surface — NOT a generic dead end.
     expect(submission.submitCount, 1);
     expect(
       find.text('Your session has expired. '
@@ -185,7 +169,6 @@ void main() {
       find.text('We could not create your request. Please try again.'),
       findsOneWidget,
     );
-    // No misleading connectivity copy, no navigation.
     expect(
       find.textContaining('connection', findRichText: true),
       findsNothing,

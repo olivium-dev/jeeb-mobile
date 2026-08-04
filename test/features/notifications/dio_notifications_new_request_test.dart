@@ -1,7 +1,4 @@
 // G3: `new_request` inbox rows must parse to a ROUTABLE typed kind. Before
-// sprint-009 the wire value fell through to NotificationKind.unknown — a
-// mark-read-only row — so a jeeber who dismissed the push had no persistent
-// trail back to the request.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';

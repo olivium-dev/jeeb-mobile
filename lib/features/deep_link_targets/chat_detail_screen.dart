@@ -21,7 +21,11 @@ import '../../core/network/network_reachability_signals.dart';
 import '../../core/notifications/domain/active_chat_thread.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/router/app_route_observer.dart';
+import '../../core/router/app_router.dart';
 import '../../core/role/user_role.dart';
+import '../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/application/order_compose_coordinator.dart';
 import '../chat/data/dev_chat_fixture_gateway.dart';
@@ -58,14 +62,6 @@ import 'dev_chat_detail_fixtures.dart';
 // it was three repeated calls, not one. The pinned status chip is now driven by
 // the `delivery` push (proven arriving on physical hardware) plus one-shot reads
 // on open, on returning to this route, and on foreground resume.
-
-/// Canonical post-delivery blind mutual-rating route (T-MOB-020). Mirrors the
-/// builder the OTP-handover completion uses (`otp_handover_screen.dart`): the
-/// client leg carries no `mode`, the jeeber leg appends `?mode=jeeber`, and the
-/// router resolves `isClient = mode != 'jeeber'`. Kept as a tiny local helper
-/// so this screen never hard-codes the audience suffix in two places.
-String _mutualRateRoute(String deliveryId, {required bool isClient}) =>
-    '/orders/$deliveryId/mutual-rate${isClient ? '' : '?mode=jeeber'}';
 
 /// Deep-link entry point for `/chat/:id` — the `order-chat` surface (JM-025).
 ///
@@ -1234,7 +1230,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // role keeps the leg correct if the observation ever widens.
     // (The summary refresh is only armed for the client-accepted surface.)
     final isJeeber = _readRole(context) == UserRole.jeeber;
-    context.go(_mutualRateRoute(_deliveryId, isClient: !isJeeber));
+    // M2-11 carry-in: of the three mutual-rating call sites this is the ONE
+    // where the counterpart's name is in scope, so the rating screen finally
+    // gets a real `?name=` instead of its role-generic fallback. Never faked —
+    // an empty name is passed as null and the helper drops the param.
+    final name = _summary?.jeeberName.trim().isNotEmpty ?? false
+        ? _summary!.jeeberName
+        : displayNameOrNull(_counterpartName);
+    context.go(
+      mutualRatingLocation(
+        _deliveryId,
+        isClient: !isJeeber,
+        counterpartName: name,
+      ),
+    );
   }
 
   /// True when a delivery lifecycle status is a SUCCESSFUL delivery completion
@@ -1663,20 +1672,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   /// THE THIRD STATE, rendered. We do not know whether this conversation
   /// exists, so we assert nothing about it — no "Waiting for Jeebers", no empty
-  /// thread, no composer that would broadcast a duplicate request. OMDS only
-  /// ([OmdsErrorStatePage]); the copy is the same `chatHistoryError*` family the
-  /// #186 history-read error body uses, because it is the same statement to the
-  /// user ("couldn't load this chat — check your connection and try again").
+  /// thread, no composer that would broadcast a duplicate request. The copy is
+  /// the same `chatHistoryError*` family the #186 history-read error body uses,
+  /// because it is the same statement to the user ("couldn't load this chat —
+  /// check your connection and try again"); the redesign-2026-08 rendering of
+  /// it lives in [ChatResolutionErrorView].
   Widget _buildResolutionError(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final isJeeber = _readRole(context) == UserRole.jeeber;
     return Semantics(
       identifier: 'chat_resolution_error',
-      child: OmdsErrorStatePage(
-        appBar: ChatAppBar(title: _headerTitle(l10n, isJeeber)),
-        title: l10n.chatHistoryErrorTitle,
-        message: l10n.chatHistoryErrorMessage,
-        retryLabel: l10n.chatHistoryErrorRetry,
+      child: ChatResolutionErrorView(
+        title: _headerTitle(l10n, isJeeber),
         onRetry: _retryResolution,
       ),
     );
@@ -1685,7 +1692,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: OmdsLoadingState()));
+      // The resolving frame carries the SAME chrome the resolved thread does.
+      // It used to be a bare `Scaffold(body: Center(OmdsLoadingState()))`: a
+      // blank page with no header, so every chat open flashed a pre-redesign
+      // screen with no way back while up to three sequential gateway reads ran,
+      // and then jumped to a full identity bar. Same top bar, same 24 gutter,
+      // same bubble geometry — only the content is missing, which is the one
+      // thing that is actually still unknown here.
+      return _ChatResolvingView(
+        title: _headerTitle(
+          AppLocalizations.of(context),
+          _readRole(context) == UserRole.jeeber,
+        ),
+      );
     }
     // Checked BEFORE the gateway is dereferenced below: on this branch there is
     // deliberately no gateway, because building one would give a downstream
@@ -1790,6 +1809,107 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               pathParameters: {'id': _deliveryId},
             )
           : null,
+    );
+  }
+}
+
+/// The `/chat/:id` RESOLVING frame — screen 21's chrome with the thread still
+/// unknown.
+///
+/// It is a real screen, not a spinner: the identity [ChatAppBar] means the back
+/// circle (`chat_detail_back_button`) is reachable for the whole resolution,
+/// which the old bare `Center(OmdsLoadingState())` never offered — a user on a
+/// slow network had a blank page and no exit.
+class _ChatResolvingView extends StatelessWidget {
+  const _ChatResolvingView({required this.title});
+
+  /// The same header title the resolved thread will carry (the order reference
+  /// pre-accept), so the bar does not re-label itself under the user.
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: ChatAppBar(title: title),
+      // Same field, same placement as the resolved thread, so the page does
+      // not repaint its background under the user when resolution lands.
+      body: const JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        child: ChatThreadSkeleton(),
+      ),
+    );
+  }
+}
+
+/// The `/chat/:id` resolution-error surface in the redesign-2026-08 language.
+///
+/// Screen 21's board draws no error state, so this borrows the kit's two error
+/// primitives instead of inventing a third: [JeebInfoNote.error] carries the
+/// statement (soft `errorContainer` panel, not the legacy full-bleed red slab)
+/// and the retry is the standard navy [JeebCtaButton] pill. It replaces
+/// `OmdsErrorStatePage`, whose Ø80 red glyph + Material `FilledButton.icon`
+/// was the last pre-redesign surface this route could show.
+///
+/// The `chat_resolution_error` identifier stays on the caller's wrapper — this
+/// widget adds only the new retry id.
+class ChatResolutionErrorView extends StatelessWidget {
+  const ChatResolutionErrorView({
+    super.key,
+    required this.title,
+    required this.onRetry,
+  });
+
+  /// Header title — the resolved counterpart name or the order reference.
+  final String title;
+
+  /// Re-runs the conversation lookup. Never null: an error page whose only
+  /// affordance is dead is the same dead end the old blank loader was.
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: ChatAppBar(title: title),
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        child: SafeArea(
+          top: false,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: Spacing.xLarge,
+                vertical: Spacing.xLarge,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  JeebInfoNote.error(
+                    // The failure this screen can actually name: the lookup
+                    // could not reach the gateway. Never a generic "error".
+                    icon: Icons.wifi_off_rounded,
+                    title: l10n.chatHistoryErrorTitle,
+                    text: l10n.chatHistoryErrorMessage,
+                  ),
+                  const SizedBox(height: Spacing.large),
+                  JeebCtaButton.primary(
+                    label: l10n.chatHistoryErrorRetry,
+                    onTap: onRetry,
+                    identifier: 'chat_detail_resolution_retry',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

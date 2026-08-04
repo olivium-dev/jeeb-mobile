@@ -2,13 +2,16 @@
 # Reached by: Requests tab -> Record a request. Coordinate taps (no semantics).
 # Params:
 #   HOLD_MS — press-and-hold duration in ms for the mic (default 2500).
-# Selectors: MicHold 41.7%,54.9% / Back 8.3%,6.7%.
+# Selectors: MicHold id=voice_request_mic_button / Back 8.3%,6.7%.
 # NOTE: a real hold needs a long-press; Maestro `longPressOn point` holds ~1s, so
 #       we issue swipe-in-place with a duration to emulate a longer hold.
 ---
 - takeScreenshot: r5_voice_request_idle
+# Redesign 05 moved the mic disc from the vertical centre to ~50%,78%, so the
+# old coordinate press landed on empty space and still "passed" (screenshot-only
+# flow, not in CI). The frozen identifier removes the coordinate dependency.
 - longPressOn:
-    point: "41.7%,54.9%"      # hold-to-record mic
+    id: "voice_request_mic_button"   # hold-to-record mic
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: r5_voice_request_after_hold

@@ -4,7 +4,9 @@ import 'package:omds/omds.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/saved_location.dart';
 
-/// Result returned by [AddEditLocationSheet.show].
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+
 class LocationFormResult {
   const LocationFormResult({
     required this.label,
@@ -21,16 +23,6 @@ class LocationFormResult {
   final String? address;
 }
 
-/// Bottom sheet for adding or editing a saved location (T-MOB-025).
-///
-/// When [existing] is null, the sheet is in Add mode.
-/// When [existing] is non-null, the sheet pre-fills the form and is in
-/// Edit mode.
-///
-/// EXEMPT: OmdsBottomSheet does not expose the form-field layout pattern
-/// required here (label text field + category chips + coordinate fields).
-/// This sheet uses Flutter's `showModalBottomSheet` with OMDS design tokens
-/// throughout (T-MOB-025).
 class AddEditLocationSheet extends StatefulWidget {
   const AddEditLocationSheet({super.key, this.existing});
 
@@ -61,9 +53,6 @@ class _AddEditLocationSheetState extends State<AddEditLocationSheet> {
   late final TextEditingController _labelController;
   late final TextEditingController _addressController;
 
-  // Placeholder coordinates — in production a map picker (ofl_geo_capture)
-  // would provide these. For this milestone we use a text input as a
-  // lightweight stand-in, same pattern as T-MOB-012.
   late final TextEditingController _latController;
   late final TextEditingController _lngController;
 
@@ -350,4 +339,171 @@ class _FormActions extends StatelessWidget {
       ],
     );
   }
+}
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// Phone width, and tall enough for the whole form at 1.0 text scale.
+/// The content stack measures 400 pt at 390 pt wide (measured; the production
+const Size _addEditLocationSheetBox = Size(390, 460);
+
+/// Room for the scrim, the backdrop and the sheet's full height.
+const Size _addEditLocationSheetModalBox = Size(390, 700);
+
+Widget _addEditLocationSheetHosted(SavedLocation? existing) =>
+    AddEditLocationSheet(existing: existing);
+
+/// The `has_saved_addresses` seam's default address, verbatim.
+const SavedLocation _addEditLocationSheetSeedHome = SavedLocation(
+  id: 'addr-client-001-home',
+  label: 'Home',
+  latitude: 33.8869,
+  longitude: 35.5131,
+  category: SavedLocationCategory.home,
+  address: 'Sassine Square, Ashrafieh',
+  isDefault: true,
+);
+
+/// The seam's second address with [SavedLocation.address] dropped — the field
+/// is optional on the model and nullable on the wire.
+const SavedLocation _addEditLocationSheetOfficeNoAddress = SavedLocation(
+  id: 'addr-client-001-office',
+  label: 'Office',
+  latitude: 33.8938,
+  longitude: 35.5018,
+  category: SavedLocationCategory.work,
+);
+
+/// Longest plausible content: a label a real user types when "Home" and "Work"
+/// are already taken, plus a full postal line.
+const SavedLocation _addEditLocationSheetLongLabelFixture = SavedLocation(
+  id: 'addr-client-001-long',
+  label: 'Grandmother building, third entrance behind the pharmacy',
+  latitude: 33.8959,
+  longitude: 35.4796,
+  category: SavedLocationCategory.other,
+  address: 'Rue Hamra, Ras Beirut, Beirut Governorate, Lebanon',
+);
+
+/// Coordinates as a map picker actually hands them over: full double precision.
+const SavedLocation _addEditLocationSheetRawGpsFixture = SavedLocation(
+  id: 'addr-client-001-pin',
+  label: 'Dropped pin',
+  latitude: 33.88691234567891,
+  longitude: 35.5130987654321,
+  category: SavedLocationCategory.other,
+);
+
+/// An Arabic label typed into the English UI — the common case for this app's
+/// users, and the one that mixes scripts inside a single LTR field.
+const SavedLocation _addEditLocationSheetArabicLabelFixture = SavedLocation(
+  id: 'addr-client-001-teta',
+  label: 'بيت تيتا',
+  latitude: 33.8892,
+  longitude: 35.5012,
+  category: SavedLocationCategory.other,
+  address: 'شارع الحمرا، بيروت',
+);
+
+/// Add mode: the sheet as it opens from the "+" on Saved locations.
+/// Every controller is empty, so this is the only state where `_isValid` is
+@JeebPreview(group: 'location', name: 'Add · empty', size: _addEditLocationSheetBox)
+Widget addEditLocationSheetAddEmpty() => _addEditLocationSheetHosted(null);
+
+/// Edit mode on the seeded default address.
+/// The happy path, and the reference for everything below: title flips to
+@JeebPreview(group: 'location', name: 'Edit · seeded home', size: _addEditLocationSheetBox)
+Widget addEditLocationSheetEditHome() => _addEditLocationSheetHosted(_addEditLocationSheetSeedHome);
+
+/// Edit mode with no address on file.
+/// `address` is nullable end to end and `_onSave` maps an empty box back to
+@JeebPreview(group: 'location', name: 'Edit · no address', size: _addEditLocationSheetBox)
+Widget addEditLocationSheetNoAddress() => _addEditLocationSheetHosted(_addEditLocationSheetOfficeNoAddress);
+
+/// Layout ceiling: a label longer than the field and a full postal address.
+/// Both fields are `maxLines: 1`, so the text scrolls inside the box instead of
+@JeebPreview(group: 'location', name: 'Edit · long label', size: _addEditLocationSheetBox)
+Widget addEditLocationSheetLongLabel() => _addEditLocationSheetHosted(_addEditLocationSheetLongLabelFixture);
+
+/// The coordinate row fed the precision a map picker really produces.
+/// `initState` seeds these boxes with `e.latitude.toString()`, unformatted, so
+@JeebPreview(group: 'location', name: 'Edit · raw GPS precision', size: _addEditLocationSheetBox)
+Widget addEditLocationSheetRawGpsPrecision() => _addEditLocationSheetHosted(_addEditLocationSheetRawGpsFixture);
+
+/// The sheet as the client actually meets it: pushed by
+/// [AddEditLocationSheet.show] over the dimmed Saved-locations list.
+@JeebPreview(group: 'location', name: 'Modal presentation · Arabic label', size: _addEditLocationSheetModalBox)
+Widget addEditLocationSheetInModalRoute() => Navigator(
+      onGenerateRoute: (RouteSettings settings) => MaterialPageRoute<void>(
+        settings: settings,
+        builder: (_) => const _AddEditLocationSheetOverSavedLocations(existing: _addEditLocationSheetArabicLabelFixture),
+      ),
+    );
+
+/// Opens the sheet through its production entry point on the first frame.
+class _AddEditLocationSheetOverSavedLocations extends StatefulWidget {
+  const _AddEditLocationSheetOverSavedLocations({required this.existing});
+
+  final SavedLocation? existing;
+
+  @override
+  State<_AddEditLocationSheetOverSavedLocations> createState() =>
+      _AddEditLocationSheetOverSavedLocationsState();
+}
+
+class _AddEditLocationSheetOverSavedLocationsState extends State<_AddEditLocationSheetOverSavedLocations> {
+  @override
+  void initState() {
+    super.initState();
+    // Post-frame, because `show()` needs a mounted route to push onto.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _open());
+  }
+
+  Future<void> _open() async {
+    if (!mounted) return;
+    // Returns a LocationFormResult the preview drops on the floor: nothing here
+    await AddEditLocationSheet.show(
+      context: context,
+      existing: widget.existing,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const _AddEditLocationSheetBackdrop();
+}
+
+/// A neutral stand-in for the Saved-locations list behind the sheet — enough
+/// shape to judge the scrim against.
+/// Deliberately text-free, so every string a preview test pins can only have
+class _AddEditLocationSheetBackdrop extends StatelessWidget {
+  const _AddEditLocationSheetBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: colors.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _row(colors),
+            _row(colors),
+            _row(colors),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// One placeholder address tile.
+  Widget _row(ColorScheme colors) => Container(
+        height: 64,
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
+        ),
+      );
 }

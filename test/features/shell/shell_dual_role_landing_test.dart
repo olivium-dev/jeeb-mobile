@@ -22,19 +22,8 @@ import 'package:jeeb_mobile/features/shell/widgets/jeeber_tab_empty_state.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 /// BUG-1 (sprint-008, Lane B / known-bug #1): dual-role shell routing.
-///
 /// A dual-role jeeber (seed `..0002` Karim, `available_roles: [client, jeeber]`)
 /// MUST land on the **Jeeber surface** (the additive Dashboard tab — the
-/// incoming-request feed, Core Flow step 2), NOT the client surface. A plain
-/// client (`available_roles: [client]`) MUST land on the client surface
-/// (Requests). The landing tab is derived from the resolved capabilities
-/// (gateway Auth/Capabilities → [RoleAvailabilityCubit]), never a hardcoded
-/// index — and, per the CORE UX RULE, this is NOT a mode switch: every user
-/// sees the SAME five additive destinations regardless of where they land.
-///
-/// Pre-fix the shell hardcoded the landing index to 0, so Karim opened on the
-/// client Requests tab and the jeeber feed (steps 2-3) was unreachable on
-/// cold-start.
 
 class _StubEarningsRepository implements EarningsRepository {
   @override
@@ -76,10 +65,6 @@ Widget _harness({
   required List<String> availableRoles,
 }) {
   // The shell deliberately does NOT provide a global AvailabilityCubit; the
-  // Jeeber dashboard self-provides one from DI (registered in setUp), exactly
-  // as production does. [availableRoles] seeds the RoleAvailabilityCubit the
-  // additive shell watches — its `jeeber` membership both lights up the live
-  // jeeber bodies AND drives the BUG-1 landing tab.
   return MultiBlocProvider(
     providers: [
       BlocProvider(create: (_) => LocaleCubit(prefs: prefs)),
@@ -102,6 +87,12 @@ Widget _harness({
           GlobalCupertinoLocalizations.delegate,
         ],
         home: const ShellScreen(),
+        // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES
+        // §E1): pumpAndSettle only terminates under reduce motion.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
       ),
     ),
   );
@@ -131,8 +122,6 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     sl.registerFactory<EarningsRepository>(() => _StubEarningsRepository());
     // The live Jeeber dashboard self-provides AvailabilityCubit + RequestFeed
-    // from DI, so the gateway/repo it resolves must be registered — exactly as
-    // production does. In-memory / empty keeps cold-start offline + focused.
     sl.registerLazySingleton<AvailabilityGateway>(
       InMemoryAvailabilityGateway.new,
     );
@@ -154,9 +143,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // The LIVE jeeber dashboard body is the on-screen (onstage) tab — i.e. the
-    // shell landed the jeeber on the Jeeber surface. IndexedStack keeps the
-    // other tabs mounted but offstage, so the default (skipOffstage) finder
-    // only matches when Dashboard is the SELECTED tab.
     expect(
       find.byKey(const Key('dashboard-tab-root')),
       findsOneWidget,
@@ -164,12 +150,10 @@ void main() {
     );
 
     // ...and the bottom-nav reflects it: the Jeeber (Dashboard) tab is selected,
-    // the client Requests tab is not.
     _expectTabSelected(tester, 'dashboard', selected: true);
     _expectTabSelected(tester, 'requests', selected: false);
 
     // CORE UX RULE: this is additive, not a mode switch — the client tabs are
-    // STILL present (just not the landing tab).
     expect(find.bySemanticsIdentifier('shell_tab_requests'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell_tab_delivery'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell_tab_profile'), findsOneWidget);
@@ -196,8 +180,6 @@ void main() {
     _expectTabSelected(tester, 'dashboard', selected: false);
 
     // The additive jeeber tabs are still present, but render their EMPTY STATES
-    // offstage (a non-jeeber never sees a live jeeber body, and never landed
-    // there).
     expect(
       find.byKey(const Key('dashboard-tab-root'), skipOffstage: false),
       findsNothing,
@@ -214,9 +196,6 @@ void main() {
       'a manual tab tap sticks even when capabilities resolve to jeeber later',
       (tester) async {
     // Simulates the cold-start race: the shell first builds with NO resolved
-    // capabilities (getMe pending → client surface), the user taps Delivery,
-    // and only then does getMe resolve to a dual-role jeeber. The user's
-    // explicit choice must NOT be yanked to the Dashboard.
     final availability = RoleAvailabilityCubit();
     addTearDown(availability.close);
     final prefs = await SharedPreferences.getInstance();
@@ -241,6 +220,12 @@ void main() {
               GlobalCupertinoLocalizations.delegate,
             ],
             home: const ShellScreen(),
+            // JeebEmptyState's E1 illustration loops ∞ by design
+            // (03-MOTION-NOTES §E1); pumpAndSettle needs reduce motion.
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: child!,
+            ),
           ),
         ),
       ),
@@ -261,7 +246,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // The user's explicit Delivery choice is preserved (not auto-moved to the
-    // Jeeber Dashboard), while the jeeber tabs DO light up their live bodies.
     _expectTabSelected(tester, 'delivery', selected: true);
     expect(
       find.byKey(const Key('dashboard-tab-root'), skipOffstage: false),

@@ -1,13 +1,4 @@
 // Supplementary tests for batch "J" untested acceptance criteria.
-//
-// Covers ACs not exercised by the original 13 tests:
-//   T-MOB-030 AC6: offer.submitted log includes requestId, priceUsd, etaMinutes.
-//   T-MOB-031 AC7: delivery.status_transition log includes from/to.
-//   T-MOB-032 AC5 (observability): settlement.pdf_exported log includes statementId.
-//   T-MOB-030 AC3 (negative ETA): ETA ≤ 0 blocks submit.
-//   T-MOB-031 AC1: fetchDelivery result contains dropOff address.
-//   T-MOB-032 AC2: tap-row behaviour — onTapStatement callback fires.
-
 
 import 'dart:typed_data';
 
@@ -24,8 +15,6 @@ import 'package:jeeb_mobile/features/settlement/application/settlement_cubit.dar
 import 'package:jeeb_mobile/features/settlement/domain/settlement_repository.dart';
 import 'package:jeeb_mobile/features/settlement/domain/settlement_statement.dart';
 
-// ---------------------------------------------------------------------------
-// Fakes
 // ---------------------------------------------------------------------------
 
 const _dropOff = DropOffAddress(label: 'Hamra', lat: 33.89, lng: 35.50);
@@ -115,8 +104,6 @@ class _FakeSettlementRepo implements SettlementRepository {
 }
 
 // ---------------------------------------------------------------------------
-// T-MOB-030 supplementary
-// ---------------------------------------------------------------------------
 
 void main() {
   group('T-MOB-030 AC3 — negative ETA blocks submit', () {
@@ -175,8 +162,6 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // T-MOB-031 supplementary
-  // ---------------------------------------------------------------------------
 
   group('T-MOB-031 AC1 — fetchDelivery delivers dropOff address', () {
     blocTest<ActiveDeliveryCubit, ActiveDeliveryState>(
@@ -229,8 +214,6 @@ void main() {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // T-MOB-032 supplementary
   // ---------------------------------------------------------------------------
 
   group('T-MOB-032 AC5 (observability) — downloadPdf calls repository', () {

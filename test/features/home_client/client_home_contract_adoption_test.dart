@@ -1,16 +1,4 @@
 // N3 (b02 polling→push). This file used to be titled "AC1: ClientHomeCubit
-// adopts LifecyclePoller lifecycle gating" and proved that the 10 s home poll
-// paused on background and re-armed on foreground.
-//
-// `ClientHomeCubit` no longer adopts `LifecyclePoller` — there is no poll to
-// gate. The contract that replaces it is stronger and is what this file now
-// pins: the cubit reads on a PUSH and on nothing else, so an
-// `AppLifecycleGate` transition — the thing the old poll needed a latch for —
-// cannot produce a read at all.
-//
-// The old test's own foreground CONTROL is kept in spirit: a case that only
-// asserted "zero reads while backgrounded" would pass identically against a
-// cubit nobody wired, so a push is fired in the same window and MUST read.
 
 import 'dart:async';
 

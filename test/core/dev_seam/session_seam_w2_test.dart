@@ -166,8 +166,6 @@ void main() {
   });
 
   // The first-frame DELIVERY-tab/offer gate reads DevSeam.current.kycStatusSeed
-  // synchronously via the integrator's SeamJeeberKycStatusGate — no prefs, no
-  // race. These assert the seam field drives that gate exactly per the contract.
   test('SeamJeeberKycStatusGate maps the seeded kyc status', () {
     if (!kDebugMode) return;
     DevSeam.debugOverride(

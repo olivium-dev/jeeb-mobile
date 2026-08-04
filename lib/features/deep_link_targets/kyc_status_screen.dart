@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
-/// Placeholder restored under T-MOB-FIX-001 (AC1+AC4+AC5). Real implementation
-/// arrives in the per-feature follow-up ticket. Do NOT add behavior here.
-// ORPHAN (JEBV4-227, verified 2026-07-12): superseded by KycWizardScreen — see docs/project-understanding/reconciliation/orphans.md
+import '../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../devtool/catalog/fixtures/kyc_status_screen_fixtures.dart';
+import '../../core/previews/jeeb_preview.dart';
+import '../../l10n/app_localizations.dart';
+import '../kyc/presentation/widgets/kyc_state_art.dart';
+
 class KycStatusScreen extends StatefulWidget {
   const KycStatusScreen({super.key});
 
@@ -22,15 +25,89 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: 'KYC Status coming soon. This screen is not yet available.',
-      child: const OmdsEmptyStatePage(
-        appBar: null,
-        icon: Icons.construction_outlined,
-        title: 'KYC Status coming soon',
-        subtitle: 'This screen is not yet available.',
+    final l10n = AppLocalizations.of(context);
+    // Deliberately still a STUB: `kycStatusPlaceholder` says the status will
+    // appear here, which is the honest reading of an unbuilt deep-link target.
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              child: JeebEmptyState(
+                // The same art the real KYC funnel draws, so the deep-link
+                // target and its destination read as one thing.
+                variant: kycStateVariant,
+                medallions: kycStateMedallions,
+                center: const KycStateMark(),
+                identifier: 'deep_link_kyc_status_root',
+                // No semanticLabel: it restated headline+body, so the container
+                // and its explicit children announced the copy twice.
+                headline: l10n.kycStatusTitle,
+                body: l10n.kycStatusPlaceholder,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+const Size _kycStatusScreenPhoneCanvas = Size(402, 888);
+
+/// The smallest display the app is still expected to look right on.
+const Size _kycStatusScreenCompactCanvas = Size(332, 612);
+
+/// A notched phone (iPhone 15 Pro class) in portrait.
+const Size _kycStatusScreenNotchedCanvas = Size(405, 896);
+
+/// Every state is the same screen in a different window — see the fixture.
+/// The `const KycStatusScreen()` is constructed HERE rather than inside the
+Widget _kycStatusScreenHosted(KycStatusScreenWindow window) =>
+    KycStatusScreenPreviewHost(
+      window: window,
+      screen: const KycStatusScreen(),
+    );
+
+@JeebPreview(
+  group: 'deep_link_targets',
+  name: 'Phone 390 × 844',
+  size: _kycStatusScreenPhoneCanvas,
+  matrix: true,
+)
+Widget kycStatusScreenPhone() =>
+    _kycStatusScreenHosted(KycStatusScreenWindows.phone);
+
+@JeebPreview(
+  group: 'deep_link_targets',
+  name: 'Compact 320 × 568',
+  size: _kycStatusScreenCompactCanvas,
+)
+Widget kycStatusScreenCompact() =>
+    _kycStatusScreenHosted(KycStatusScreenWindows.compact);
+
+@JeebPreview(
+  group: 'deep_link_targets',
+  name: 'Phone · 200% text',
+  size: _kycStatusScreenPhoneCanvas,
+)
+Widget kycStatusScreenPhoneLargeText() =>
+    _kycStatusScreenHosted(KycStatusScreenWindows.phoneLargeText);
+
+@JeebPreview(
+  group: 'deep_link_targets',
+  name: 'Compact · 200% text',
+  size: _kycStatusScreenCompactCanvas,
+)
+Widget kycStatusScreenCompactLargeText() =>
+    _kycStatusScreenHosted(KycStatusScreenWindows.compactLargeText);
+
+@JeebPreview(
+  group: 'deep_link_targets',
+  name: 'Notched · 200% text',
+  size: _kycStatusScreenNotchedCanvas,
+)
+Widget kycStatusScreenNotchedLargeText() =>
+    _kycStatusScreenHosted(KycStatusScreenWindows.notchedLargeText);

@@ -4,6 +4,17 @@ import 'package:get_it/get_it.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_shadows.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/voice_recording_cubit.dart';
 import '../cubit/voice_recording_state.dart';
@@ -12,7 +23,10 @@ import '../domain/audioplayers_voice_player.dart';
 import '../domain/record_voice_recorder.dart';
 import '../domain/voice_player.dart';
 import '../domain/voice_recorder.dart';
-import 'widgets/animated_mic_button.dart';
+import 'widgets/live_transcript_band.dart';
+import 'widgets/mic_cluster.dart';
+import 'widgets/mic_field_rings.dart';
+import 'widgets/recording_readout.dart';
 
 /// Stable widget keys for the voice-request controls. Exposed so Codex QA /
 /// integration tests can target the interactive elements deterministically
@@ -58,7 +72,12 @@ typedef VoiceSentCallback =
 /// via the [cubit] parameter so they can drive state transitions without the
 /// real platform recorder.
 class VoiceRecordingScreen extends StatelessWidget {
-  const VoiceRecordingScreen({super.key, this.cubit, this.onSent});
+  const VoiceRecordingScreen({
+    super.key,
+    this.cubit,
+    this.onSent,
+    this.onSwitchToTyping,
+  });
 
   /// Optional injected cubit. Tests pass a pre-wired one; production builds a
   /// default with the in-memory recorder/player and HTTP repository.
@@ -72,9 +91,17 @@ class VoiceRecordingScreen extends StatelessWidget {
   /// no-op so the screen can also be used as a standalone surface.
   final VoiceSentCallback? onSent;
 
+  /// Hands off to typed input from the keyboard satellite. Null hides the
+  /// satellite entirely — the screen stays router-agnostic and each mounting
+  /// route decides where "type instead" goes.
+  final VoidCallback? onSwitchToTyping;
+
   @override
   Widget build(BuildContext context) {
-    final view = _VoiceRecordingView(onSent: onSent);
+    final view = _VoiceRecordingView(
+      onSent: onSent,
+      onSwitchToTyping: onSwitchToTyping,
+    );
     if (cubit != null) {
       return BlocProvider<VoiceRecordingCubit>.value(
         value: cubit!,
@@ -113,16 +140,23 @@ class VoiceRecordingScreen extends StatelessWidget {
 }
 
 class _VoiceRecordingView extends StatelessWidget {
-  const _VoiceRecordingView({this.onSent});
+  const _VoiceRecordingView({this.onSent, this.onSwitchToTyping});
 
   final VoiceSentCallback? onSent;
+  final VoidCallback? onSwitchToTyping;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(title: l10n.voiceRecordingTitle, centerTitle: false),
-      body: SafeArea(
+      // The field is the background; the tile draws one orange glow on the
+      // floor under the mic and no orbit arcs, wash or twinkles. The alpha is
+      // the §8 hero step, not content's .22 — "the whole floor glows orange
+      // under the mic" is this tile's caption, and the mic IS the light source.
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.bottom,
+        glowColor: context.jeebRoles.accent.withValues(alpha: _kFloorGlowAlpha),
         child: BlocConsumer<VoiceRecordingCubit, VoiceRecordingState>(
           listenWhen: (prev, curr) =>
               prev.phase != curr.phase || prev.error != curr.error,
@@ -154,27 +188,48 @@ class _VoiceRecordingView extends StatelessWidget {
             }
           },
           builder: (context, state) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-              child: Column(
+            // The board docks the composer at the thumb and leaves the space
+            // above it to the transcript band. Only the two designed phases get
+            // that treatment; the undesigned ones stay centred as before.
+            final bool docked = _isDockedPhase(state);
+            return Semantics(
+              identifier: 'voice_request_root',
+              container: true,
+              explicitChildNodes: true,
+              child: Stack(
                 children: [
-                  const SizedBox(height: Spacing.large),
-                  if (state.phase != VoiceRecordingPhase.sent) ...[
-                    Text(
-                      _isReviewPhase(state.phase)
-                          ? l10n.voiceRecordingReviewTitle
-                          : l10n.voiceRecordingSubtitle,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                  if (docked) const Positioned.fill(child: MicFieldRings()),
+                  SafeArea(
+                    child: Column(
+                      children: [
+                        JeebTopBar.back(
+                          title: l10n.voiceRecordingNewRequestTitle,
+                          identifier: 'voice_request_back',
+                          onLeadingPressed: () =>
+                              Navigator.of(context).maybePop(),
+                        ),
+                        if (docked)
+                          Padding(
+                            padding: const EdgeInsetsDirectional.fromSTEB(
+                              Spacing.xLarge,
+                              Spacing.xSmall,
+                              Spacing.xLarge,
+                              0,
+                            ),
+                            child: LiveTranscriptBand(
+                              isRecording: state.isRecording,
+                            ),
+                          ),
+                        Expanded(
+                          child: _PhaseBody(
+                            state: state,
+                            docked: docked,
+                            onSwitchToTyping: onSwitchToTyping,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: Spacing.large),
-                  ],
-                  _TimerLabel(state: state),
-                  const Spacer(),
-                  _PrimarySurface(state: state),
-                  const Spacer(),
-                  _ActionRow(state: state),
-                  const SizedBox(height: Spacing.large),
+                  ),
                 ],
               ),
             );
@@ -185,158 +240,120 @@ class _VoiceRecordingView extends StatelessWidget {
   }
 }
 
-class _TimerLabel extends StatelessWidget {
-  const _TimerLabel({required this.state});
+/// The scrolling half of the screen: composer docked at the thumb when there is
+/// room, scrollable when a 200% text scale takes more than the viewport — the
+/// `Spacer` layout this replaces overflowed by 8px in Arabic at 200%.
+class _PhaseBody extends StatelessWidget {
+  const _PhaseBody({
+    required this.state,
+    required this.docked,
+    this.onSwitchToTyping,
+  });
+
   final VoiceRecordingState state;
+  final bool docked;
+  final VoidCallback? onSwitchToTyping;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    final duration = state.isRecording
-        ? state.elapsed
-        : (state.clip?.duration ?? Duration.zero);
-    final shouldShow =
-        state.isRecording ||
-        state.hasClip ||
-        state.phase == VoiceRecordingPhase.sending;
-    if (state.phase == VoiceRecordingPhase.sent) {
-      return const SizedBox.shrink();
-    }
-    if (!shouldShow) {
-      return Text(
-        '00:00',
-        style: textTheme.displaySmall?.copyWith(
-          fontFeatures: const [FontFeature.tabularFigures()],
-          color: Theme.of(context).colorScheme.outline,
-        ),
-      );
-    }
-    return Column(
-      children: [
-        Text(
-          _formatDuration(duration),
-          style: textTheme.displaySmall?.copyWith(
-            fontFeatures: const [FontFeature.tabularFigures()],
-            color: Theme.of(context).colorScheme.primary,
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.xLarge,
           ),
-        ),
-        const SizedBox(height: Spacing.xSmall),
-        Text(
-          l10n.voiceRecordingTimerLabel(_formatDuration(duration)),
-          style: textTheme.labelMedium,
-        ),
-      ],
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: docked
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.center,
+              children: [
+                _PhaseSurface(
+                  state: state,
+                  onSwitchToTyping: onSwitchToTyping,
+                ),
+                SizedBox(height: docked ? Spacing.twoXSmall : Spacing.large),
+                _ActionRow(state: state),
+                const SizedBox(height: Spacing.medium),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
-class _PrimarySurface extends StatelessWidget {
-  const _PrimarySurface({required this.state});
+class _PhaseSurface extends StatelessWidget {
+  const _PhaseSurface({required this.state, this.onSwitchToTyping});
+
   final VoiceRecordingState state;
+  final VoidCallback? onSwitchToTyping;
 
   @override
   Widget build(BuildContext context) {
+    final cubit = context.read<VoiceRecordingCubit>();
     if (state.hasUploadFailure) {
       return _UploadFailureSurface(error: state.error!);
     }
     switch (state.phase) {
       case VoiceRecordingPhase.idle:
       case VoiceRecordingPhase.recording:
-        return _MicSurface(state: state);
+        if (_isBlocked(state)) {
+          return _BlockedSurface(
+            error: state.error!,
+            onRetry: cubit.startRecording,
+          );
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RecordingReadout(
+              state: state,
+              waveformKey: VoiceRecordingKeys.recordingWaveform,
+            ),
+            const SizedBox(height: Spacing.xSmall),
+            MicCluster(
+              micKey: VoiceRecordingKeys.micButton,
+              cancelKey: VoiceRecordingKeys.cancelButton,
+              isRecording: state.isRecording,
+              progress: state.isRecording ? _elapsedFraction(state) : null,
+              onPressStart: cubit.startRecording,
+              onPressEnd: cubit.stopRecording,
+              onCancel: cubit.cancelRecording,
+              onSwitchToTyping: onSwitchToTyping,
+            ),
+          ],
+        );
       case VoiceRecordingPhase.recorded:
       case VoiceRecordingPhase.playing:
       case VoiceRecordingPhase.sending:
-        return _PlaybackPreview(state: state);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              AppLocalizations.of(context).voiceRecordingReviewTitle,
+              textAlign: TextAlign.center,
+              style: context.jeebText.h2.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: Spacing.large),
+            _PlaybackPreview(state: state),
+          ],
+        );
       case VoiceRecordingPhase.sent:
         return _SentConfirmation();
     }
   }
 }
 
-/// Mic surface: shows [OmdsRecordingInput] with waveform while recording (AC1)
-/// and [AnimatedMicButton] when idle.
-class _MicSurface extends StatelessWidget {
-  const _MicSurface({required this.state});
-
-  final VoiceRecordingState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final cubit = context.read<VoiceRecordingCubit>();
-    if (state.isRecording) {
-      return _buildWaveformBar(context, cubit, l10n);
-    }
-    // Blocking pre-condition (mic permission denied / recorder unavailable):
-    // render a recoverable, OMDS-consistent error surface instead of the idle
-    // mic, so the user gets guidance + a retry rather than a silent no-op or a
-    // transient snackbar dead-end.
-    final error = state.error;
-    if (error != null && _isBlockingError(error)) {
-      return _BlockedSurface(error: error, onRetry: cubit.startRecording);
-    }
-    return _buildIdleMic(context, cubit, l10n);
-  }
-
-  Widget _buildWaveformBar(
-    BuildContext context,
-    VoiceRecordingCubit cubit,
-    AppLocalizations l10n,
-  ) {
-    return Semantics(
-      identifier: 'voice_request_recording_waveform',
-      container: true,
-      label: l10n.voiceRecordingReleaseToStop,
-      child: OmdsRecordingInput(
-        key: VoiceRecordingKeys.recordingWaveform,
-        duration: state.elapsed,
-        isRecording: true,
-        onSend: cubit.stopRecording,
-        onCancel: cubit.cancelRecording,
-      ),
-    );
-  }
-
-  Widget _buildIdleMic(
-    BuildContext context,
-    VoiceRecordingCubit cubit,
-    AppLocalizations l10n,
-  ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Semantics(identifier:) surfaces as the Android resource-id so
-        // uiautomator/Maestro can target the mic. The inner AnimatedMicButton
-        // owns the `button:true` + spoken label; container:true keeps this an
-        // addressable, merged node carrying the id (D2 / VoiceRecordingKeys).
-        Semantics(
-          identifier: 'voice_request_mic_button',
-          container: true,
-          child: AnimatedMicButton(
-            key: VoiceRecordingKeys.micButton,
-            isRecording: false,
-            enabled: true,
-            onPressStart: cubit.startRecording,
-            onPressEnd: cubit.stopRecording,
-            semanticLabel: l10n.voiceRecordingMicSemantic,
-          ),
-        ),
-        const SizedBox(height: Spacing.medium),
-        Text(
-          l10n.voiceRecordingHoldToRecord,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-      ],
-    );
-  }
-}
-
 /// Recoverable blocking state for the mic pre-conditions (permission denied /
-/// recorder unavailable). Uses [OmdsErrorState] for fleet consistency and wires
-/// "Try again" back to [VoiceRecordingCubit.startRecording], which re-requests
-/// the OS permission / re-checks the recorder. Honest: no backend call, no
-/// dead-end — the user can always retry from here once they grant access.
+/// recorder unavailable), on the §2.7 empty-state family in its danger-tinted
+/// `error` status. "Try again" goes back to
+/// [VoiceRecordingCubit.startRecording], which re-requests the OS permission /
+/// re-checks the recorder — no backend call, no dead-end.
 class _BlockedSurface extends StatelessWidget {
   const _BlockedSurface({required this.error, required this.onRetry});
 
@@ -347,26 +364,29 @@ class _BlockedSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final isPermission = error == VoiceRecordingError.permissionDenied;
-    return Semantics(
+    return JeebEmptyState(
+      key: VoiceRecordingKeys.blockedState,
       identifier: 'voice_request_blocked_state',
-      container: true,
-      child: OmdsErrorState(
-        key: VoiceRecordingKeys.blockedState,
-        icon: Icons.mic_off_outlined,
-        iconColor: Theme.of(context).colorScheme.primary,
-        title: isPermission
-            ? l10n.voiceRecordingPermissionTitle
-            : l10n.voiceRecordingUnavailableTitle,
-        message: isPermission
-            ? l10n.voiceRecordingPermissionBody
-            : l10n.voiceRecordingErrorUnavailable,
-        retryLabel: l10n.voiceRecordingRetry,
-        onRetry: onRetry,
+      status: JeebEmptyStateStatus.error,
+      illustrationSize: _kStateIllustrationSize,
+      padding: EdgeInsets.zero,
+      headline: isPermission
+          ? l10n.voiceRecordingPermissionTitle
+          : l10n.voiceRecordingUnavailableTitle,
+      body: isPermission
+          ? l10n.voiceRecordingPermissionBody
+          : l10n.voiceRecordingErrorUnavailable,
+      action: JeebCtaButton.primary(
+        label: l10n.voiceRecordingRetry,
+        onTap: onRetry,
+        identifier: 'voice_request_retry_button',
       ),
     );
   }
 }
 
+/// The replay control, on a rest-glass card — the board never draws 05's
+/// review, so it borrows R1's card recipe rather than inventing a surface.
 class _PlaybackPreview extends StatelessWidget {
   const _PlaybackPreview({required this.state});
   final VoiceRecordingState state;
@@ -376,51 +396,57 @@ class _PlaybackPreview extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cubit = context.read<VoiceRecordingCubit>();
     final colorScheme = Theme.of(context).colorScheme;
+    final semantics = _semanticColors(context);
     final clip = state.clip;
     final total = clip?.duration ?? Duration.zero;
     final position = state.playbackPosition;
     final progress = total.inMilliseconds == 0
         ? 0.0
         : (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          identifier: 'voice_request_playback_toggle',
-          child: OmdsPrimaryButton(
-            key: VoiceRecordingKeys.playbackToggle,
-            text: state.isPlaying
-                ? l10n.voiceRecordingPause
-                : l10n.voiceRecordingPlay,
-            icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-            variant: OmdsButtonVariant.secondary,
-            onTap: state.isSending ? () {} : () => cubit.togglePlayback(),
-            isEnabled: !state.isSending,
-          ),
-        ),
-        const SizedBox(height: Spacing.small),
-        Semantics(
-          identifier: 'voice_request_playback_progress',
-          container: true,
-          value: '${(progress * 100).round()}%',
-          child: IgnorePointer(
-            ignoring: state.isSending,
-            child: OmdsSeekBar(
-              key: VoiceRecordingKeys.playbackProgress,
-              duration: total,
-              position: position,
-              bufferedPosition: Duration.zero,
-              onChangeEnd: cubit.seekPlayback,
-              activeColor: colorScheme.primary,
-              bufferedColor: colorScheme.primary,
-              inactiveColor: colorScheme.onSurfaceVariant,
-              thumbColor: colorScheme.primary,
-              thumbRadius: 8,
-              trackHeight: 4,
+    return JeebGlassCard(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Semantics(
+            identifier: 'voice_request_playback_toggle',
+            child: JeebCtaButton.outline(
+              key: VoiceRecordingKeys.playbackToggle,
+              label: state.isPlaying
+                  ? l10n.voiceRecordingPause
+                  : l10n.voiceRecordingPlay,
+              leadingIcon: state.isPlaying ? Icons.pause : Icons.play_arrow,
+              onTap: state.isSending ? null : () => cubit.togglePlayback(),
+              isEnabled: !state.isSending,
+              expand: true,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: Spacing.small),
+          Semantics(
+            identifier: 'voice_request_playback_progress',
+            container: true,
+            value: '${(progress * 100).round()}%',
+            child: IgnorePointer(
+              ignoring: state.isSending,
+              child: OmdsSeekBar(
+                key: VoiceRecordingKeys.playbackProgress,
+                duration: total,
+                position: position,
+                bufferedPosition: Duration.zero,
+                onChangeEnd: cubit.seekPlayback,
+                // A scrub track is chrome, not live state, so it spends no
+                // accent; three ink rungs keep played/buffered/unplayed apart
+                // while every one of them clears 3:1 on the navy.
+                activeColor: colorScheme.onSurface,
+                bufferedColor: semantics.inkSoft,
+                inactiveColor: colorScheme.onSurfaceVariant,
+                thumbColor: colorScheme.onSurface,
+                thumbRadius: 8,
+                trackHeight: 4,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -433,12 +459,14 @@ class _UploadFailureSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsErrorState(
+    return JeebEmptyState(
       key: VoiceRecordingKeys.uploadErrorState,
-      icon: Icons.cloud_upload_outlined,
-      title: l10n.voiceRecordingUploadErrorTitle,
-      message: _errorCopy(l10n, error),
-      padding: const EdgeInsets.all(Spacing.medium),
+      identifier: 'voice_request_upload_error_state',
+      status: JeebEmptyStateStatus.error,
+      illustrationSize: _kStateIllustrationSize,
+      padding: EdgeInsets.zero,
+      headline: l10n.voiceRecordingUploadErrorTitle,
+      body: _errorCopy(l10n, error),
     );
   }
 }
@@ -449,76 +477,86 @@ class _SentConfirmation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final text = context.jeebText;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildSuccessIcon(colorScheme),
-        const SizedBox(height: Spacing.medium),
-        Text(l10n.voiceRecordingSentTitle, style: textTheme.titleLarge),
+        _SuccessDisc(),
+        const SizedBox(height: Spacing.large),
+        Text(
+          l10n.voiceRecordingSentTitle,
+          textAlign: TextAlign.center,
+          style: text.h1.copyWith(color: scheme.onSurface),
+        ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.voiceRecordingSentBody,
           textAlign: TextAlign.center,
-          style: textTheme.bodyMedium,
+          style: text.body.copyWith(color: _semanticColors(context).mutedText),
         ),
-        const SizedBox(height: Spacing.small),
-        _BroadcastingBanner(l10n: l10n, colorScheme: colorScheme),
+        const SizedBox(height: Spacing.medium),
+        const _BroadcastingChip(),
       ],
     );
   }
+}
 
-  Widget _buildSuccessIcon(ColorScheme colorScheme) {
-    return Container(
-      width: Sizes.tenXLarge,
-      height: Sizes.tenXLarge,
-      decoration: BoxDecoration(
-        color: colorScheme.primary.withValues(alpha: 0.12),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.check_circle,
-        size: Sizes.fiveXLarge,
-        color: colorScheme.primary,
+/// The success mark. Green, not orange: §4.1's budget spends orange on the mic
+/// and the live accents, and a confirmation is neither.
+class _SuccessDisc extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final JeebRoles roles = context.jeebRoles;
+    return SizedBox.square(
+      dimension: Sizes.eightXLarge,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: roles.successContainer,
+        ),
+        child: Icon(
+          Icons.check_rounded,
+          size: Sizes.threeXLarge,
+          color: roles.success,
+        ),
       ),
     );
   }
 }
 
-/// Sub-line shown below the sent confirmation, indicating the request is being
-/// broadcast to nearby Jeebers (SM-1 Broadcasting phase, T-MOB-011 AC3).
-class _BroadcastingBanner extends StatelessWidget {
-  const _BroadcastingBanner({required this.l10n, required this.colorScheme});
-
-  final AppLocalizations l10n;
-  final ColorScheme colorScheme;
+/// The "Broadcasting" line under the sent confirmation — R1's chip recipe:
+/// solid navy pill, orange live dot, orange label. Static, like R1's own.
+class _BroadcastingChip extends StatelessWidget {
+  const _BroadcastingChip();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final JeebRoles roles = context.jeebRoles;
+    return JeebNavySurfaceCard(
+      radius: JeebRadii.pill,
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.medium,
         vertical: Spacing.xSmall,
       ),
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer,
-        borderRadius: OmdsBorderRadius.small,
-      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.broadcast_on_personal,
-            size: Sizes.large,
-            color: colorScheme.onSecondaryContainer,
+          SizedBox.square(
+            dimension: Sizes.xSmall,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: roles.accent,
+                boxShadow: JeebShadows.glowDot,
+              ),
+            ),
           ),
           const SizedBox(width: Spacing.xSmall),
           Text(
             l10n.voiceRecordingBroadcastingHint,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: colorScheme.onSecondaryContainer,
-            ),
+            style: context.jeebText.bodySmall.copyWith(color: roles.accent),
           ),
         ],
       ),
@@ -539,18 +577,14 @@ class _ActionRow extends StatelessWidget {
     }
     switch (state.phase) {
       case VoiceRecordingPhase.idle:
-        return const SizedBox.shrink();
       case VoiceRecordingPhase.recording:
-        return SizedBox(
-          width: double.infinity,
-          child: Semantics(
-            identifier: 'voice_request_cancel_button',
-            container: true,
-            child: OMDSOutlinedButton(
-              key: VoiceRecordingKeys.cancelButton,
-              text: l10n.voiceRecordingCancel,
-              onTap: () => cubit.cancelRecording(),
-            ),
+        // Blocked pre-conditions replace the cluster, so its caption goes too.
+        if (_isBlocked(state)) return const SizedBox.shrink();
+        return Text(
+          l10n.voiceRecordingHoldToRecord,
+          textAlign: TextAlign.center,
+          style: context.jeebText.bodySmall.copyWith(
+            color: _semanticColors(context).mutedText,
           ),
         );
       case VoiceRecordingPhase.recorded:
@@ -561,10 +595,11 @@ class _ActionRow extends StatelessWidget {
               child: Semantics(
                 identifier: 'voice_request_discard_button',
                 container: true,
-                child: OMDSOutlinedButton(
+                child: JeebCtaButton.outline(
                   key: VoiceRecordingKeys.discardButton,
-                  text: l10n.voiceRecordingRecordAgain,
+                  label: l10n.voiceRecordingRecordAgain,
                   onTap: () => cubit.discardClip(),
+                  expand: true,
                 ),
               ),
             ),
@@ -573,36 +608,32 @@ class _ActionRow extends StatelessWidget {
               child: Semantics(
                 identifier: 'voice_request_send_button',
                 container: true,
-                child: OmdsPrimaryButton(
+                child: JeebCtaButton.primary(
                   key: VoiceRecordingKeys.sendButton,
-                  text: l10n.voiceRecordingSubmit,
+                  label: l10n.voiceRecordingSubmit,
                   onTap: () => cubit.send(),
                   isEnabled: state.canSend,
+                  expand: true,
                 ),
               ),
             ),
           ],
         );
       case VoiceRecordingPhase.sending:
-        return SizedBox(
-          width: double.infinity,
-          child: OmdsLoadingButton(
-            text: l10n.voiceRecordingSending,
-            isLoading: true,
-            onTap: () {},
-          ),
+        return JeebCtaButton.primary(
+          label: l10n.voiceRecordingSending,
+          isLoading: true,
+          expand: true,
         );
       case VoiceRecordingPhase.sent:
-        return SizedBox(
-          width: double.infinity,
-          child: Semantics(
-            identifier: 'voice_request_record_another_button',
-            container: true,
-            child: OmdsPrimaryButton(
-              key: VoiceRecordingKeys.recordAnotherButton,
-              text: l10n.voiceRecordingRecordAnother,
-              onTap: () => cubit.reset(),
-            ),
+        return Semantics(
+          identifier: 'voice_request_record_another_button',
+          container: true,
+          child: JeebCtaButton.primary(
+            key: VoiceRecordingKeys.recordAnotherButton,
+            label: l10n.voiceRecordingRecordAnother,
+            onTap: () => cubit.reset(),
+            expand: true,
           ),
         );
     }
@@ -620,20 +651,22 @@ class _UploadFailureActions extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: OMDSOutlinedButton(
+          child: JeebCtaButton.outline(
             key: VoiceRecordingKeys.discardButton,
-            text: l10n.voiceRecordingRecordAgain,
+            label: l10n.voiceRecordingRecordAgain,
             onTap: () => cubit.discardClip(),
+            expand: true,
           ),
         ),
         const SizedBox(width: Spacing.medium),
         Expanded(
           child: Semantics(
             identifier: 'voice_request_retry_upload_button',
-            child: OmdsPrimaryButton(
+            child: JeebCtaButton.primary(
               key: VoiceRecordingKeys.retryUploadButton,
-              text: l10n.voiceRecordingRetryUploadSubmit,
+              label: l10n.voiceRecordingRetryUploadSubmit,
               onTap: () => cubit.send(),
+              expand: true,
             ),
           ),
         ),
@@ -658,10 +691,36 @@ bool _isUploadError(VoiceRecordingError error) =>
 bool _isTransientError(VoiceRecordingError error) =>
     !_isBlockingError(error) && !_isUploadError(error);
 
-bool _isReviewPhase(VoiceRecordingPhase phase) =>
-    phase == VoiceRecordingPhase.recorded ||
-    phase == VoiceRecordingPhase.playing ||
-    phase == VoiceRecordingPhase.sending;
+/// Whether the mic pre-conditions are failing, i.e. the composer is replaced by
+/// a recoverable error surface.
+bool _isBlocked(VoiceRecordingState state) {
+  if (state.isRecording || state.hasUploadFailure) return false;
+  final error = state.error;
+  return error != null && _isBlockingError(error);
+}
+
+/// The two phases the board actually draws — composer docked at the thumb with
+/// real emptiness above it. Everything else stays vertically centred.
+bool _isDockedPhase(VoiceRecordingState state) =>
+    !state.hasUploadFailure &&
+    !_isBlocked(state) &&
+    (state.phase == VoiceRecordingPhase.idle || state.isRecording);
+
+double _elapsedFraction(VoiceRecordingState state) =>
+    (state.elapsed.inMilliseconds /
+            VoiceRecordingState.maxDuration.inMilliseconds)
+        .clamp(0.0, 1.0);
+
+/// The §2.7 illustration scaled to what is left once the top bar and the action
+/// row have their room — the kit's own 300 overflows a 360×640 viewport here.
+const double _kStateIllustrationSize = 208;
+
+/// Token sheet §8's hero glow step. See the field call site.
+const double _kFloorGlowAlpha = 0.40;
+
+JeebSemanticColors _semanticColors(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
 
 String _errorCopy(AppLocalizations l10n, VoiceRecordingError error) {
   switch (error) {
@@ -682,11 +741,4 @@ String _errorCopy(AppLocalizations l10n, VoiceRecordingError error) {
     case VoiceRecordingError.uploadUnknown:
       return l10n.voiceRecordingErrorUploadGeneric;
   }
-}
-
-String _formatDuration(Duration duration) {
-  final clamped = duration.isNegative ? Duration.zero : duration;
-  final minutes = clamped.inMinutes.remainder(60).toString().padLeft(2, '0');
-  final seconds = clamped.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return '$minutes:$seconds';
 }

@@ -12,14 +12,10 @@ import '../data/tier_repository.dart';
 import '../domain/tier.dart';
 import 'tier_card.dart';
 
-/// Hosts the tier selection screen at `/tier-selection`.
-///
-/// One [TierSelectionCubit] per visit, kicked off with [TierSelectionCubit.load]
-/// so the catalog hydrates on first frame. The screen is rendered as a list of
-/// [TierCard]s with a sticky confirm CTA — once confirmed, the host (router /
-/// caller-provided [onConfirmed]) is notified via [TierSelectionState.
-/// confirmedTierId].
-// ORPHAN (JEBV4-227, verified 2026-07-12): legacy route removed; cubit/repo remain live via RequestTypeScreen — see docs/project-understanding/reconciliation/orphans.md
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../core/previews/jeeb_preview.dart';
+import '../../../devtool/catalog/fixtures/tier_selection_screen_fixtures.dart';
+
 class TierSelectionScreen extends StatelessWidget {
   const TierSelectionScreen({
     super.key,
@@ -31,19 +27,10 @@ class TierSelectionScreen extends StatelessWidget {
           'Provide either a cubit or a repository, not both.',
         );
 
-  /// Optional cubit override — production builds a fresh one, widget tests
-  /// inject one with a scripted repository.
   final TierSelectionCubit? cubit;
 
-  /// Optional repository override. Defaults to the GetIt-registered
-  /// [TierRepository], falling back to [FakeTierRepository] so the screen
-  /// still renders during cold boot before DI runs.
   final TierRepository? repository;
 
-  /// Optional confirm callback. The screen always emits
-  /// [TierSelectionState.confirmedTierId] when the user taps confirm; this
-  /// callback is the simplest way for the host to react without subscribing
-  /// to the cubit directly.
   final ValueChanged<Tier>? onConfirmed;
 
   static const Key rootKey = Key('tier-selection-root');
@@ -69,9 +56,6 @@ class TierSelectionScreen extends StatelessWidget {
     );
   }
 
-  /// Resolves from DI if registered (production path: DioTierRepository).
-  /// Falls back to FakeTierRepository only in test environments where DI
-  /// hasn't been initialised — never reachable in release builds.
   TierRepository _resolveRepository() {
     if (sl.isRegistered<TierRepository>()) {
       return sl<TierRepository>();
@@ -204,8 +188,6 @@ class _LoadedView extends StatelessWidget {
   }
 }
 
-/// Soft warning banner shown when the tier catalog fell back to bundled
-/// defaults because the network was unreachable (AC3).
 class _CachedBanner extends StatelessWidget {
   const _CachedBanner({required this.message});
 
@@ -225,7 +207,6 @@ class _CachedBanner extends StatelessWidget {
         vertical: Spacing.xSmall,
       ),
       decoration: BoxDecoration(
-        // Cached-catalog notice is informational -> semantic info role.
         color: context.jeebRoles.infoContainer,
         borderRadius: OmdsBorderRadius.small,
       ),
@@ -326,8 +307,6 @@ class _TierListEntry extends StatelessWidget {
 
   String _slaCopy(AppLocalizations l10n, int? minutes) {
     if (minutes == null) return l10n.tierSelectionSlaNone;
-    // Whole-hour SLAs render as "≤ N hr" so the copy stays readable for the
-    // 2–4hr Standard tier; sub-hour SLAs fall back to minutes.
     if (minutes >= 60 && minutes % 60 == 0) {
       return l10n.tierSelectionSlaHours(minutes ~/ 60);
     }
@@ -361,9 +340,250 @@ class _TierListEntry extends StatelessWidget {
   }
 
   String _formatPrice(int amount, String currency) =>
-      // Lane item 3 (currency unification): the single MoneyFormat used by the
-      // receipt and offer surfaces — "$12.00" for USD, "LBP 15,000.00"
-      // otherwise. Replaces the local "15,000 USD"-style formatter so tiers no
-      // longer disagree with the rest of the app.
       MoneyFormat.format(amount.toDouble(), currency: currency);
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// The phone this screen is designed against.
+const Size _tierSelectionScreenPhoneBox = Size(390, 844);
+
+/// The narrowest phone the app still supports — and roughly what an Android
+/// multi-window split leaves a foreground app. The tier list is a `ListView`, so
+const Size _tierSelectionScreenCompactBox = Size(320, 568);
+
+/// Every tier handed back through `onConfirmed`, in order.
+/// Public because the render test is the only thing that can read it, and what
+final List<String> tierSelectionScreenConfirmations = <String>[];
+
+/// The caption each preview is pinned by.
+/// Public because the render test's `expectedText` map is the reason they exist:
+final class TierSelectionScreenCaptions {
+  TierSelectionScreenCaptions._();
+
+  /// `GET /tiers` has not answered: the first frame of every mount.
+  static const String loading = 'preview · tier read in flight';
+
+  /// The three tiers the delivery service serves, nothing chosen.
+  static const String servedCatalogue = 'preview · served 3 tiers, no selection';
+
+  /// The same list with Express already chosen.
+  static const String selected = 'preview · Express selected';
+
+  /// `200 OK`, zero tiers: loaded, and unusable.
+  static const String emptyCatalogue = 'preview · catalogue answered EMPTY';
+
+  /// The retryable failure.
+  static const String errorNetwork = 'preview · tier read failed · network';
+
+  /// The un-retryable one, wearing the same sentence.
+  static const String errorServer = 'preview · tier read failed · server 5xx';
+
+  /// The banner no production path can raise.
+  static const String cachedFallback =
+      'preview · cached banner · SEEDED, unreachable in app';
+
+  /// All five tiers on the narrowest supported phone.
+  static const String fullCatalogueCompact =
+      'preview · five tiers · 320 x 568 ceiling';
+}
+
+/// Pins the device frame, captions the state, and records the one edge the
+/// screen owns (`onConfirmed`).
+/// Stateful, and the collaborators are built once: a repository rebuilt every
+class _TierSelectionScreenHost extends StatefulWidget {
+  const _TierSelectionScreenHost({
+    required this.caption,
+    this.createRepository,
+    this.createCubit,
+    this.box = _tierSelectionScreenPhoneBox,
+  });
+
+  /// Called once per mount, so each canvas card gets its own fake.
+  final TierRepository Function()? createRepository;
+
+  /// The other seam — for the two states `repository:` cannot reach.
+  final TierSelectionCubit Function()? createCubit;
+
+  /// The line painted above the device frame.
+  final String caption;
+
+  /// The device this card is judged on.
+  final Size box;
+
+  @override
+  State<_TierSelectionScreenHost> createState() =>
+      _TierSelectionScreenHostState();
+}
+
+class _TierSelectionScreenHostState extends State<_TierSelectionScreenHost> {
+  late final TierRepository? _repository = widget.createRepository?.call();
+
+  /// Mounted through `BlocProvider.value`, which does not close it — so the
+  /// host does.
+  late final TierSelectionCubit? _cubit = widget.createCubit?.call();
+
+  @override
+  void initState() {
+    super.initState();
+    tierSelectionScreenConfirmations.clear();
+  }
+
+  @override
+  void dispose() {
+    _cubit?.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        width: widget.box.width,
+        height: widget.box.height,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.small,
+                vertical: Spacing.xSmall,
+              ),
+              child: Text(
+                widget.caption,
+                // Dev chrome: LTR and unscaled, so the AR card still reads it as
+                textDirection: TextDirection.ltr,
+                textScaler: TextScaler.noScaling,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            Expanded(
+              child: TierSelectionScreen(
+                cubit: _cubit,
+                repository: _repository,
+                onConfirmed: (Tier tier) =>
+                    tierSelectionScreenConfirmations.add(tier.id.name),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Widget _tierSelectionScreenHosted(
+  TierRepository Function() createRepository,
+  String caption, {
+  Size box = _tierSelectionScreenPhoneBox,
+}) =>
+    _TierSelectionScreenHost(
+      createRepository: createRepository,
+      caption: caption,
+      box: box,
+    );
+
+/// The first frame of EVERY mount: `load()` fired from `BlocProvider.create` and
+/// `GET /tiers` has not answered.
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Loading · tier read in flight',
+  size: _tierSelectionScreenPhoneBox,
+)
+Widget tierSelectionScreenLoading() => _tierSelectionScreenHosted(
+      TierSelectionScreenPreviewFixtures.stalled,
+      TierSelectionScreenCaptions.loading,
+    );
+
+/// The reference reading, and the state the app opens on: Flash, Express and
+/// Standard, none of them chosen, Confirm disabled.
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Loaded · served catalogue, no selection',
+  size: _tierSelectionScreenPhoneBox,
+  matrix: true,
+)
+Widget tierSelectionScreenServedCatalogue() => _tierSelectionScreenHosted(
+      TierSelectionScreenPreviewFixtures.servedCatalogue,
+      TierSelectionScreenCaptions.servedCatalogue,
+    );
+
+/// The same list with Express chosen — one of the two states `repository:`
+/// cannot produce.
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Selected · Express',
+  size: _tierSelectionScreenPhoneBox,
+)
+Widget tierSelectionScreenSelected() => _TierSelectionScreenHost(
+      createCubit: () => TierSelectionScreenPreviewFixtures.selectedTierCubit(
+        TierSelectionScreenPreviewFixtures.selectedTier,
+      ),
+      caption: TierSelectionScreenCaptions.selected,
+    );
+
+/// `200 OK` with no tiers in it: loaded, and unusable.
+/// The subtitle renders over an empty list and the Confirm button is present and
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Empty · catalogue answered 200 with nothing',
+  size: _tierSelectionScreenPhoneBox,
+)
+Widget tierSelectionScreenEmptyCatalogue() => _tierSelectionScreenHosted(
+      TierSelectionScreenPreviewFixtures.emptyCatalogue,
+      TierSelectionScreenCaptions.emptyCatalogue,
+    );
+
+/// The read failed on the wire — the retryable failure, and the honest one.
+/// `Try again` re-runs `load()`, which is exactly the right advice here. This is
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Error · network',
+  size: _tierSelectionScreenPhoneBox,
+)
+Widget tierSelectionScreenErrorNetwork() => _tierSelectionScreenHosted(
+      () => TierSelectionScreenPreviewFixtures.failing(TierLoadFailure.network),
+      TierSelectionScreenCaptions.errorNetwork,
+    );
+
+/// The read reached Jeeb and Jeeb answered badly — a 5xx, or a body
+/// `_parseResponse` cannot recognise.
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Error · server 5xx (same copy)',
+  size: _tierSelectionScreenPhoneBox,
+)
+Widget tierSelectionScreenErrorServer() => _tierSelectionScreenHosted(
+      () => TierSelectionScreenPreviewFixtures.failing(TierLoadFailure.server),
+      TierSelectionScreenCaptions.errorServer,
+    );
+
+/// The cached-options banner — dead code, drawn.
+/// `_CachedBanner` renders when `state.usingCachedFallback` is true, and NOTHING
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Cached banner · SEEDED, no producer in the app',
+  size: _tierSelectionScreenPhoneBox,
+)
+Widget tierSelectionScreenCachedFallback() => const _TierSelectionScreenHost(
+      createCubit: TierSelectionScreenPreviewFixtures.cachedFallbackCubit,
+      caption: TierSelectionScreenCaptions.cachedFallback,
+    );
+
+/// The layout ceiling: all five tiers the client can render, on the narrowest
+/// phone it supports.
+@JeebPreview(
+  group: 'tier_selection',
+  name: 'Full catalogue · compact 320x568',
+  size: _tierSelectionScreenCompactBox,
+  matrix: true,
+)
+Widget tierSelectionScreenFullCatalogueCompact() => _tierSelectionScreenHosted(
+      TierSelectionScreenPreviewFixtures.fullCatalogue,
+      TierSelectionScreenCaptions.fullCatalogueCompact,
+      box: _tierSelectionScreenCompactBox,
+    );

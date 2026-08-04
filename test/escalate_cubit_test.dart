@@ -1,14 +1,4 @@
 // Tests for EscalateCubit (JM-060 dispute-open-evidence; ex T-MOB-022).
-//
-// Verifies:
-//   - submit transitions inputting → submitting → success with caseId (dispute id).
-//   - submit without reason is a no-op.
-//   - network error emits error phase with network kind.
-//   - 409 already-open emits error with alreadyOpen kind.
-//   - retryFromError restores inputting phase.
-//   - photo cap at 5; voice attach/clear (D53).
-//   - loadEvidence resolves the auto-attached snapshot/timeline (D53) and
-//     degrades to empty on failure.
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';

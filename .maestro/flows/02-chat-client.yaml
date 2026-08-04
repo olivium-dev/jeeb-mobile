@@ -14,9 +14,12 @@
 #       chat_detail_message_dev-offer-2   — offer card #2 (Rana Ahmad); clickable
 #       chat_detail_offer_only_one_note   — orange "Accept only one offer" helper note
 #       chat_detail_message_input         — composer "Send message…" field
-#       chat_detail_attach_button         — composer leading "+" attach affordance
-#       chat_detail_voice_button          — composer mic affordance
+#       chat_detail_attach_button         — composer photo attach affordance
 #       chat_detail_send_button           — composer navy circular send pill
+#   There is NO composer mic: decision B-04 refused replacing send with a voice
+#   affordance, so `chat_detail_voice_button` has not existed on any build since.
+#   The assertion on it was stale and is deleted, never re-added (the Dart guard
+#   is test/features/chat/chat_composer_no_mic_b04_test.dart).
 #   All ids are emitted by Semantics(identifier:) the screen team added to the
 #   chat widgets (lib/features/chat/presentation/...); QA confirmed they surface
 #   as Android resource-id values via `maestro hierarchy` BEFORE this flow was
@@ -166,13 +169,11 @@ appId: ${APP_ID}
 - assertVisible:
     id: "chat_detail_offer_only_one_note"
 
-# Composer affordances: field + attach (+) + mic + send pill.
+# Composer affordances: field + attach + send pill. No mic — see B-04 above.
 - assertVisible:
     id: "chat_detail_message_input"
 - assertVisible:
     id: "chat_detail_attach_button"
-- assertVisible:
-    id: "chat_detail_voice_button"
 - assertVisible:
     id: "chat_detail_send_button"
 

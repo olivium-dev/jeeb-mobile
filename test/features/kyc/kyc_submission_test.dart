@@ -1,7 +1,5 @@
 /// Domain rules for the KYC identity fields (E3/JEBV4-197): `id_number` is
 /// REQUIRED for every [KycIdType]; the `^\d{12}$` shape applies to
-/// `national_id` only (the one shape the live BFF enforces — mirrored, not
-/// invented). Boundary cases pinned per the JEBV4-113 review (finding 6).
 library;
 
 import 'package:flutter_test/flutter_test.dart';

@@ -1,20 +1,4 @@
 // JM-029 — Accept Offer Confirmation sheet (offer-accept-confirm).
-//
-// Proves, against the real ARBs + OMDS theme, that:
-//   AC1: the sheet surfaces every EXACT Semantics identifier from
-//        63_W1_TEST_PLAN §2.9 as its own queryable SemanticsNode
-//        (`offer_accept_sheet`, `_jeeber_name`, `_price_label`,
-//         `_other_offers_note`, `_confirm_cta`, `_cancel_cta`).
-//   AC2: tapping `offer_accept_confirm_cta` accepts the chosen offer via the
-//        repository (capturing the fee + closing losers server-side) and fires
-//        `onConfirmed` with the server `conversationId` (the order-chat target).
-//   AC3: tapping `offer_accept_cancel_cta` fires `onCancelled` (→ dismiss back
-//        to offer-review-list) and does NOT accept.
-//
-// FAIL-WITHOUT: every `bySemanticsIdentifier` assertion `findsNothing` on the
-// pre-JM-029 source (the sheet did not exist). Harness mirrors
-// test/qa_keys_batch_test.dart (synchronous LocalizationsDelegate over the real
-// ARBs + a tall/wide surface so nothing is culled off-screen).
 
 import 'dart:io';
 
@@ -96,7 +80,6 @@ Widget _harness(Widget child) {
       GlobalCupertinoLocalizations.delegate,
     ],
     // The sheet is normally hosted by showModalBottomSheet; here we mount it
-    // directly inside a Scaffold body so the widget tree is the sheet content.
     home: Scaffold(body: child),
   );
 }
@@ -234,7 +217,6 @@ void main() {
       expect(confirmedCount, 1);
       expect(reported?.conversationId, 'conv-journey-accepted');
       // The accept now creates an active delivery; its id is surfaced so the
-      // order-chat "Track order" CTA is reachable.
       expect(reported?.deliveryId, 'delivery-journey-001');
     });
 
@@ -266,7 +248,6 @@ void main() {
       expect(repo.acceptCalls, 1);
       expect(confirmedCount, 1);
       // A gateway that surfaces neither id reports a result with both null —
-      // navigation then falls back to the requestId for the chat target.
       expect(reported?.conversationId, isNull);
       expect(reported?.deliveryId, isNull);
     });
@@ -275,10 +256,6 @@ void main() {
         'T-APP-1 — show() opens chat-detail by the REQUEST id, NOT the '
         'phantom conversationId the accept response carries', (tester) async {
       // SHARED CHAT CONTRACT: after accept there is ONE real conversation keyed
-      // by requestId, joined by BOTH the customer and the winning jeeber. The
-      // accept response may carry a PHANTOM conversationId (`conv-for-<reqId>`)
-      // the gateway mints before the real conversation exists. The app must open
-      // chat by REQUEST id (resolve-or-create), never by trusting that phantom.
       const requestId = 'req-client-001-offers';
       const phantom = 'conv-for-$requestId';
       final repo = _repo(conversationId: phantom, deliveryId: 'dlv-1');
@@ -348,7 +325,6 @@ void main() {
       expect(repo.acceptCalls, 1);
       expect(find.byKey(const Key('chat-screen')), findsOneWidget);
       // The load-bearing assertion: chat opened by the REQUEST id, never the
-      // phantom conversationId from the accept response.
       expect(routedChatId, requestId);
       expect(routedChatId, isNot(phantom));
       // The real delivery id is still forwarded so the Track-order CTA works.
@@ -356,8 +332,6 @@ void main() {
     });
 
     // sprint-009 scenario matrix #7 (P0): a failed accept must render inline
-    // copy — the pre-fix sheet only listened for success, so the 409 race
-    // (another accept closed the auction first) silently stopped the spinner.
     testWidgets(
         'accept-race failure renders "This request is no longer open." '
         'inline (409 request_not_open)', (tester) async {

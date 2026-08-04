@@ -1,0 +1,801 @@
+# MIDNIGHT — Master plan, loop & resume protocol
+
+**Date:** 2026-08-03 · **Owner directive:** the **Rich UI "Midnight" board is now THE spec** — the
+whole app follows it. This supersedes the pass-1 ruling that the base 24-screen board was the spec
+and Rich UI was "reference only".
+
+**Mission:** every production screen and **every empty / loading / error state** ships the Midnight
+design language. No surface keeps the light theme. One branch. No exceptions beyond the ⛔ list.
+
+---
+
+## 0. Ground rules (override everything else)
+
+1. **ONE branch: `feat/redesign-midnight`**, cut from `integration/redesign-ui` @ `90970d89`.
+   All waves commit there. Never a new repo, never a second branch, push to
+   `origin` (olivium-dev/jeeb-mobile) regularly.
+2. **The spec is the Rich UI board**, read three ways:
+   - Tiles (PNG): `/Users/oudaykhaled/Downloads/Jeeb - Marketing-3/export-rich-ui/screens/`
+     — **each tile's bottom caption band is the designer's UX note. Read it; it is part of the spec.**
+   - Live animations: open `file:///Users/oudaykhaled/Downloads/Jeeb%20-%20Marketing-3/Jeeb%20Rich%20UI.dc.html`
+     in Chrome and **watch the tile before implementing its motion**. The PNGs froze one frame;
+     the HTML is the truth for what moves, how fast, and what stays still.
+   - Exact px/hex: the same HTML file, inspected.
+   - The tile frame includes marketing-page backdrop + caption band. **The spec surface is the
+     phone interior only.**
+3. **Model routing:** the orchestrator session runs on **Fable** and makes all critical calls
+   (theme/token cuts, kit API, navigation, ambiguity rulings, accept/reject of screens, deletions).
+   Implementation and mid/light work runs on **Opus** subagents (`Agent` tool, `model: "opus"`),
+   using the prompt template in §7.3. An Opus agent that hits an ambiguity **stops and returns the
+   question** — it never invents design.
+4. **⛔ Never build `L1 Log in` / `L2 Sign up`** (tiles 34–35). The email/password funnel was
+   REMOVED in JEBV4-199 (Q-044 RATIFIED, `app_router.dart:753-758`). Auth = phone-OTP + social only.
+5. **Honest omission policy stands:** a designed fact the wire contract can't carry gets
+   `TODO(midnight): omitted, not faked` — never fake data. The 13 missing gateway fields are ONE
+   backend contract request (`../redesign-2026-08/13-DESIGN-VS-IMPLEMENTATION.md` §Pattern A), not
+   46 mobile hacks.
+6. **Frozen test identifiers** (Maestro/semantics ids) are preserved — **re-home them onto
+   board-drawn elements or zero-size semantics nodes**; then delete the chrome that existed only to
+   host them (standing ruling; kills doc-13 Pattern D everywhere).
+7. **`lottie: 3.3.1` stays an EXACT pin** — `^` resolves to 3.5.1 locally and breaks CI at
+   Flutter 3.38.9.
+8. Validation that counts is the **real-app standard**: real OTP login, real taps, two devices for
+   chat, final pass on the physical S22. Endpoint-200 proofs and harness-only captures don't close
+   the engagement.
+9. Commit discipline: **one commit per completed checklist item**, message
+   `feat(midnight): <item> — <what changed>`; tick the §6 checklist row **in the same commit**;
+   `git push` every ~3 commits.
+10. Before editing any screen: **confirm the file is reachable from `lib/main.dart`**
+    (`../redesign-2026-08/screen-repo-map.md` — 3 of 24 package-map entries pointed at dead code;
+    class-name grep finds the dead copy first).
+
+---
+
+## 1. Sources of truth
+
+| What | Where |
+|---|---|
+| Tile PNGs (35) + index | `~/Downloads/Jeeb - Marketing-3/export-rich-ui/{screens,INDEX.md}` |
+| Live board (animations, px, hex) | `~/Downloads/Jeeb - Marketing-3/Jeeb Rich UI.dc.html` |
+| Design assets to import | `export-rich-ui/assets/delivery-3d.png`, `assets/jeeb-wordmark.svg` |
+| Corrected screen→file map | `docs/redesign-2026-08/screen-repo-map.md` (**wins over any other map**) |
+| Full 71-screen inventory + the 46 remainder | `docs/redesign-2026-08/01-SCREEN-COUNT.md` §3d |
+| Honest audit of pass 1 (carry-ins) | `docs/redesign-2026-08/13-DESIGN-VS-IMPLEMENTATION.md` |
+| Pass-1 motion spec | `docs/redesign-2026-08/08-MOTION-SPEC.md` |
+| Verification baseline + env traps | `docs/redesign-2026-08/_BASELINE.md` |
+| Pass-1 theme/kit (the layer we re-cut) | `lib/core/theme/…`, `lib/core/widgets/jeeb/…` |
+
+---
+
+## 2. The Midnight design contract
+
+### 2.1 Palette (extracted from the board HTML, by frequency of use)
+
+| Token role | Hex | Evidence / usage |
+|---|---|---|
+| `midnight.page` — deepest field | `#070C33` | `body{background}` — the page base |
+| `midnight.surface` — card/nav navy | `#0B1351` | 45× |
+| `midnight.surfaceHigh` — raised navy | `#10175E` | 36× |
+| `midnight.ink` — primary text | `#FFFFFF` / `#EDEFFC` | headings, key figures |
+| `midnight.inkMuted` — the voice of the app | `#8A93D8` | **211×** — dominant secondary ink |
+| `midnight.inkSoft` — brighter muted | `#B9C0F0` | 62× — captions on dark, emphasized muted |
+| `midnight.orange` — THE accent | `#D73B00` | 23× — **strictly budgeted, see 2.2** |
+| `midnight.orangeBright` | `#FF6A2B` | glows, gradient ends |
+| `midnight.orangeSoft` / tints | `#FFB27A`, `#FFB499` | waveform bars, soft accents |
+| `midnight.amber` — stars/ratings | `#FFC107` | 22× |
+| `midnight.success` | `#3BB273` (deep) / `#7BD9A4` (soft) | money-in, positive chips |
+| `midnight.danger` | `#FF5252` / `#FF7B7B` | errors on navy |
+| legacy periwinkle | `#777FC0` | 7× only — superseded by `#8A93D8`; do not propagate |
+| pressed orange shades | `#C23300`, `#B33000` | pressed/darkened CTA states |
+
+Notes: pass-1's brown-for-periwinkle AA stopgap (doc-13 Pattern B) **dies with the light theme** —
+on navy the board's periwinkle IS the ink. Re-cut the guarded contrast test for navy pairs
+(`#8A93D8` on `#0B1351` ≈ AA for body text; verify per-pair in the M0 token test, largest text may
+use lower-contrast tints only where the board does).
+
+### 2.2 The orange budget
+
+R1's designer caption, verbatim: *"orange reserved for the mic and the active tab."* Generalized
+rule: **orange appears only where the tile draws it** — the mic disc/capsule, the active nav tab,
+live/"Broadcasting" accents, primary CTA **when the tile shows it orange**. Everything else defaults
+to frosted glass, periwinkle ink, or navy surfaces. **When in doubt: not orange.**
+Consequence for Material: `colorScheme.primary` may be orange, but every Material widget that
+auto-consumes primary (FAB, filled buttons, progress, selection, focus rings, switches, sliders,
+text cursors, chips) must be checked — either themed to the correct Midnight treatment or
+explicitly styled. Do not let Material spend the orange budget for you.
+
+### 2.3 Background — a WIDGET SYSTEM, not a color (owner flagged this)
+
+A flat `#070C33` scaffold is **wrong**. The board's field is layered — R1 caption: *"layered navy
+field (orange glow top-right, periwinkle wash left), orbit rings, frosted-glass voice capsule,
+cards and floating nav."* Build once in M0:
+
+- `JeebMidnightField` — paints: base vertical wash `#070C33 → #0B1351`-family, a soft **orange
+  radial glow** (placement variant), a **periwinkle wash**, optional **orbit rings** (thin
+  periwinkle arcs, the `jArcPulse` targets), optional twinkle dots. Variants (pick per tile):
+  `hero` (home/onboarding — full treatment), `content` (forms/lists — quieter, no rings),
+  `map` (tracking — dimmed edges over the map), `sheet` (bottom sheets — navy surface + top glow).
+- **Every screen renders on this field.** `scaffoldBackgroundColor` is the base color only as a
+  fallback; screens mount the field widget (via the kit scaffold) so glows/rings are consistent.
+- **Frosted glass** surfaces (voice capsule, cards, nav): translucent white fill (≈6–10%) +
+  1px white ≈12% border + radius; **real `BackdropFilter` blur budget ≤1–2 per screen** (hero
+  surfaces only) — everywhere else use pre-baked translucency. Perf on low-end Android matters.
+- **No white flash**: check route transitions, first frame, dialogs, keyboards — anything that
+  betrays a light Material default underneath.
+
+### 2.4 Material overrides (the owner's explicit caution — do these deliberately in M0)
+
+Re-cut `ThemeData` to `Brightness.dark` with, at minimum, ALL of:
+
+- `ColorScheme`: dark; `surface`/`surfaceContainer*` = navy family; **`surfaceTint: Colors.transparent`**
+  (kill M3 elevation tinting — it turns navy purple); `onSurface`/`onSurfaceVariant` = ink roles;
+  `primary`/`secondary`/`error` per §2.1; check `outline`/`outlineVariant` (periwinkle @ low alpha).
+- `scaffoldBackgroundColor: #070C33`; `canvasColor`, `cardColor`, `dialogBackgroundColor` = navy.
+- Sub-themes: `appBarTheme` (transparent over the field, white ink, no elevation),
+  `bottomNavigationBarTheme`/`navigationBarTheme` (the **floating pill nav** is a kit widget, but
+  theme the fallback), `cardTheme`, `chipTheme` (StadiumBorder stays), `dialogTheme`,
+  `bottomSheetTheme` (navy + top radius), `snackBarTheme`, `dividerTheme` (periwinkle @ ~12%),
+  `inputDecorationTheme` (frosted field, no box-in-a-box), `switchTheme`, `sliderTheme`,
+  `progressIndicatorTheme`, `popupMenuTheme`, `menuTheme`, `datePickerTheme`, `timePickerTheme`,
+  `textSelectionTheme` (cursor + handles periwinkle/orange per board), `tooltipTheme`,
+  `listTileTheme`, `checkboxTheme`, `radioTheme`.
+- `splashFactory` / hover / focus: subtle white-alpha ripple, never Material purple.
+- **System chrome:** `SystemUiOverlayStyle.light` everywhere (white status glyphs on navy),
+  transparent status + nav bars, Android nav bar navy; **iOS keyboard `Brightness.dark`**.
+- Scroll glow/stretch: dark-appropriate (`ColorScheme` handles glow color — verify on Android).
+- **Google Maps needs a dark style JSON asset** (R3/R11 tiles show navy maps) — a light default
+  map would blind the theme. Add `assets/map_styles/midnight.json`, apply on every `GoogleMap`.
+- Images/illustrations: import `delivery-3d.png` + `jeeb-wordmark.svg`; audit existing light-theme
+  assets and Lotties for navy-hostile art (see M5).
+
+### 2.5 Typography
+
+- Sans = **Inter** (already bundled 400/500/600/700). **Add Inter ExtraBold (w800)** — money
+  emphasis was literally invisible without it (doc-13 Pattern C).
+- **Arabic brand face**: the board sets `--font-arabic` (pass-1 identified **Baloo Bhaijaan 2**;
+  M0 must confirm the exact face from the board package `support.js`/HTML before bundling).
+  Bundle it + add `fontFamilyFallback: [<arabic face>, <platform emoji>]` on the ramp — closes
+  the "Arabic never renders in brand face" defect and the emoji-tofu question at once.
+- Re-cut the ramp (`jeeb_text_styles.dart`) against the **Rich UI HTML's actual sizes**: pass-1
+  ran one step small (h1 24 vs board 25–27; body 13.5 vs 14.5–15) and dropped the board's negative
+  tracking (−0.5/−0.6). One ruling in M0, then every screen inherits.
+- Ink colors move to §2.1 roles; sentence case per DS; copy comes from the tile literals.
+
+### 2.6 Motion — the 8 Midnight primitives (extracted from the board CSS, exact)
+
+Implement once in M0 as `lib/core/motion/jeeb_motion.dart` (curves/durations as constants +
+reusable widgets), then screens consume. **Watch each tile live in Chrome before wiring** — the
+PNGs cannot tell you what moves.
+
+| Primitive | Keyframes (exact) | Board timing | Used for |
+|---|---|---|---|
+| `jFloat` | translateY 0 → −7px → 0 | 4s / 4.4s ease-in-out ∞ (delays up to 1.2s) | floating illustrations, walkthrough art |
+| `jTwinkle` | opacity .2→1→.2, scale .7→1.15→.7 | 2.4–3s ease-in-out ∞, staggered .7s/1.3s | star dots around illustrations |
+| `jBreathe` | opacity .45→1→.45 | 1.6–3.6s ease-in-out ∞, staggered | glows, live dots ("Broadcasting"), halos at rest |
+| `jWave` | scaleY .5→1.15→.5 | 1.3s ease-in-out ∞ (per-bar stagger) | **voice waveform bars** |
+| `jDash` | stroke-dashoffset → −40 | 2s linear ∞ | dashed route/orbit lines (map path, rings) |
+| `jHalo` | scale .75→1.6, opacity .8→0 | 2.6s ease-out ∞ | **mic halo pulse** |
+| `jArcPulse` | opacity .15→1(@35%)→.15 | 2.4s ease-in-out ∞, staggered .4s/.8s | orbit-ring arcs behind heroes |
+| `jBlink` | opacity 1↔0 hard cut | 1.1s step-end ∞ | live-transcript caret |
+
+Rules: respect `MediaQuery.disableAnimations` (render the rest frame); no novelty motion the tile
+doesn't show; existing pass-1 Lotties are AUDITED in M5 (recolor/replace navy-hostile art; the 2
+deliberately-unwired ones stay unwired and unregistered).
+
+### 2.7 Empty states — "Empty ≠ dead" (owner emphasized)
+
+E1's caption, verbatim: *"a drawn vector illustration of the brand promise — bring me anything:
+medicine, groceries, documents and a gift orbit the glowing mic on the route-dot ring, waveform
+radiating. Flat two-tone objects in the app's palette (white/periwinkle bodies, orange accents),
+no stock art."*
+
+- Build the pattern once in M1: `JeebEmptyState` = Midnight field + **composed illustration**
+  (icon medallions orbiting on a `jDash` route-dot ring, `jHalo`/`jBreathe` center, `jTwinkle`
+  stars, `jFloat` drift) + white headline + periwinkle body + optional CTA. Prefer composed
+  widgets over baked PNGs; PNG only if fidelity demands.
+- E1–E4 tiles are the four canonical instances; **E1 samples A/B/C** (empty pocket / balcony /
+  beacon) are the approved illustration alternatives for surfaces that need variety.
+- **Every screen's empty, loading, AND error state** uses this pattern family (loading = the
+  illustration skeleton breathing; error = danger-tinted variant). M4 sweeps the app so none is
+  missed — including states the catalog harness can't reach.
+
+---
+
+## 3. Tile → screen → file map (M2 scope)
+
+Files relative to `lib/features/` unless noted. **Carry-ins** = surviving defects from
+`13-DESIGN-VS-IMPLEMENTATION.md` to close while the screen is open (its P0/P1 entries + patterns).
+
+| Tile | Design | Screen file(s) | Notes / carry-ins |
+|---|---|---|---|
+| R1 (01) + E1 (27) | Client home + its empty | `home_client/presentation/client_home_screen.dart` (+ `client_home_empty_view.dart`, `pending_requests_tab.dart`, `replies_card.dart`) | doc-13 P0-6/P0-7 (hold-to-talk promise, single "View offers" pill); waveform/reach are Pattern-A TODOs |
+| R2 (02) | Voice recording | `voice_request/presentation/voice_recording_screen.dart` | **P0-5: LIVE TRANSCRIPT band** — ship the designed awaiting-state card + `jBlink` caret; `jWave` bars, `jHalo` mic |
+| R3 (03) | Live tracking | `live_tracking/presentation/live_tracking_screen.dart` | dark map style; `jDash` route; header meta P1; courier card Pattern-A TODOs |
+| R4 (04) | Wallet | `wallet/presentation/wallet_hub_screen.dart` | P2 tints → new tokens |
+| R5 (05) + W1–W3 (24–26) | Onboarding + 3 walkthrough slides | `onboarding/presentation/onboarding_screen.dart` | slide art gets `jFloat`+`jTwinkle`; copy from tiles; AR retranslation flag |
+| R6 (06) | Registration | `registration/presentation/registration_screen.dart` | fix social-pill labels + box-in-a-box field (P1) |
+| R7 (07) | OTP verify | `registration/presentation/otp_verification_screen.dart` (mounted by R6's file) | delete/re-home Verify pill (P0-carry, Pattern D) |
+| R8 (08) | Transcription review | `transcription/presentation/transcription_screen.dart` | low-confidence underline is Pattern-A; remove injected waveform from scrubber row |
+| R9 (09) | Request type (+ tier catalog section) | `request_type/presentation/request_type_screen.dart` | **P0-3/P0-4: compact radio rows (`JeebTierRow.compact`), badge on Standard, pre-select** |
+| R10 (10) + E2 (28) | Offers + waiting-for-offers empty | `client_offers/presentation/client_offers_screen.dart` (+ waiting state; verify exact surface in STUDY) | P1 row-layout fixes; distance is Pattern-A |
+| R11 (11) | Location picker | `location/presentation/client_location_screen.dart` + `capture_location_screen.dart` | **P0-1/P0-2: wire map builder; DELETE legacy `/location` route + orphan** (`app_router.dart:966-971`); highest-risk item |
+| R12 (12) | Request summary | `request_summary/presentation/request_summary_screen.dart` | **P0-8: fix harness (`standInRouter`) + `canPop` hardening + ICU plural** — screen is UNVERIFIED today |
+| R13 (13) | OTP handover | `otp_handover/presentation/otp_handover_screen.dart` | demote added rating CTA (Pattern D); arrival banner fixture |
+| R14 (14) | Receipt confirm | `delivery_receipt/presentation/delivery_receipt_screen.dart` | money emphasis: w800 + size step |
+| R15 (15) | Mutual rating | `rating/presentation/mutual_rating_screen.dart` | counterpart-name plumbing (3 route builders, P1); star fill P2 |
+| R16 (16) + E3 (29) | Jeeber home + no-requests-nearby empty | `jeeber_home/presentation/jeeber_home_screen.dart` (+ `jeeber_feed_tab_view.dart`, `availability_card.dart`, `jeeber_feed_card.dart`) | P1 cluster: availability strip, rating pill, "Make of…" squeeze |
+| R17 (17) | Offer composer | `offers/presentation/offer_submission_screen.dart` | 3 ETA pills + default; l10n validation strings |
+| R18 (18) | Active delivery — Jeeber | `active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart` | wire `onEnterGoodsCost` or get 2-pill ratified; 4-segment stepper ruling |
+| R19 (19) | Earnings | `earnings/presentation/earnings_dashboard_screen.dart` | hero stat #3; rows Pattern-A |
+| R20 (20) | Order chat | `deep_link_targets/chat_detail_screen.dart` (**the `/chat/:id` container, 1795 LOC**) + `chat/presentation/chat_screen.dart` | **pass-1's zero-diff trap was HERE — assert non-zero diff on the container**; green banner → quiet timeline chip; B-04 no-mic stands |
+| R21 (21) + E4 (30) | Order history + no-orders empty | `order_history/presentation/order_history_screen.dart` | row facts are Pattern-A; expired-row AA ruling pending |
+| R22 (22) | Settings | `settings/presentation/screens/settings_screen.dart` (NOT `live_settings_screen.dart`) | MORE-band restructure (P1); CF rulings stand |
+| R23 (23) | Become a Jeeber | `kyc/presentation/kyc_wizard_screen.dart` | ID-band relocation (P1); encryption clause legal hold |
+| — | **Shell / floating pill nav** (drawn inside R1) | `shell/shell_screen.dart` | **frames all 5 tabs — do early**; orange = active tab only |
+| E1 samples A/B/C (31–33) | approved illustration variants | consumed by §2.7 / M4 | not separate screens |
+| ⛔ L1/L2 (34–35) | Log in / Sign up | **DO NOT BUILD** | JEBV4-199 Q-044 |
+
+---
+
+## 4. Wave plan
+
+| Wave | What | Who | Gate |
+|---|---|---|---|
+| **M0 Foundation** | Token re-cut to §2.1–2.5 (`app_theme.dart`, `jeeb_color_roles`, `jeeb_semantic_colors`, `jeeb_text_styles`, `jeeb_shadows`); Material override sweep §2.4; `JeebMidnightField`; motion module §2.6; dark map style; fonts (w800 + Arabic face + fallbacks); system chrome; AA test re-cut for navy; import board assets; fix capture-harness holes (doc-13 Pattern G: `standInRouter` for R12, star token provider, harness emoji font) | **Fable designs the token sheet; Opus implements** | app boots on navy everywhere kit is used; analyze 0 errors; token tests green |
+| **M1 Kit re-skin** | All 32 kit widgets (`lib/core/widgets/jeeb/`) restyled on the new tokens; add `JeebGlassCard`/glass capsule + **`JeebEmptyState`** (§2.7) + floating pill nav; kit metric fixes (doc-13 Pattern E: chip size classes, `JeebListRow` padding, 48dp hit-test-not-layout); kit tests updated; **kit re-frozen after** | Opus fleet, Fable reviews API changes | 476+ kit tests green; 0 raw hex outside theme |
+| **M2 The 24 mapped surfaces** (§3) | Per-screen loop §7, journey order: shell + R1/E1 first, then client loop R2→R9→R11→R12→R10/E2→R3→R13→R14→R15, jeeber loop R16/E3→R17→R18→R19, then R20, R21/E4, R4, R22, R23, R5+W, R6, R7, R8 | Opus per screen, Fable review each | every screen: §7.5 definition of done |
+| **M3 The 46 remaining screens** | System-derived restyle (no tile: field + tokens + kit + nearest tile pattern; **all states**). Order = `01-SCREEN-COUNT.md` §3d tiers: **Tier 1 (11)** delivery_detail, escalate, no_offer_timeout, cancellation, order_summary, jeeber_request_detail, customer_profile, notifications_list, rating_screen, delivery_man_profile (+shell already done) → **Tier 2 (6)** wallet/earnings subtree → **Tier 3 (6)** KYC funnel → **Tier 4 (7)** settings subtree → **Tier 5 (16)** edge/support. **The 9 `ORPHAN (JEBV4-227)` screens: Fable rules delete-vs-restyle per screen** (default: delete dead routes, like pass-1 did `/location`) | Opus per screen, Fable review + deletion rulings | same as M2 |
+| **M4 Empty/edge-state sweep** | Enumerate EVERY empty/loading/error surface app-wide (grep `OmdsEmptyStatePage`, `EmptyView`, `ErrorView`, error/`loading` builders, `when(`-state branches); each gets the §2.7 pattern (E1-sample variants for variety); kill any remaining light-theme state | Opus sweep, Fable spot-checks | zero light-theme states left; sweep report committed |
+| **M5 Motion pass** | Wire per `03-MOTION-NOTES.md` (AUTHORITATIVE per-element, board-measured — supersedes the examples formerly here: R1/R3/E1-ring are STATIC on the board; jWave is container-level, no per-bar stagger; timing ranges wider than §2.6's column). Audit pass-1 Lotties on navy; reduced-motion verified | Opus, Fable arbitrates taste | motion matches the live board side-by-side |
+| **M6 Global audits** | Raw-hex grep (0 outside theme/motion files); `Colors.` grep; Material-leak checklist §2.4 walked surface-by-surface (dialogs, pickers, snackbars, menus, scroll glow, keyboard, status bar, route transitions — **no white flash anywhere**); RTL sweep; AA re-test; full `flutter analyze` + full test suite vs baseline; catalog re-capture ALL entries incl. states | Opus executes, Fable signs | §5 gates all green |
+| **M7 Device validation** | Build on device; **real-flow standard**: real OTP login (+9613000077 / OTP 1234 jeeber), two-sided journey client↔jeeber incl. chat on 2 devices, door OTP, rating; screenshot key screens next to tiles; final pass on the physical S22 | Fable orchestrates, owner sees results | owner sign-off |
+
+---
+
+## 5. Verification baseline & environment (do not re-derive — measured)
+
+From `docs/redesign-2026-08/_BASELINE.md`:
+
+- `flutter analyze --no-pub`: **5 issues, 0 errors** (5 = `containsSemantics` deprecation infos,
+  local-SDK-only). Bar: **0 errors, no new warnings**.
+- `flutter test`: exactly **4 pre-existing failures** are not ours:
+  `client_offers_screen_test` (inside R10!), `mutual_rating_tag_chips_l10n_test` (inside R15!),
+  `jeeber_feed_card_test`, `gesture_log_test` (local-SDK skew, green in CI). A 5th failure is a
+  regression. If your change alters one of the first two's failure *mode*, say so explicitly.
+- **`jeeb-mobile` main is RED in CI** on 3 of those — don't panic-chase CI red that predates us.
+- Env preconditions (this machine, `oudays-mbp-2`, already corrected): sibling
+  `../omds-flutter` on `origin/main` ≥ `6f9c166` (NOT `iter5-flutter-blankscreen`);
+  `pubspec.lock` dio ≥ **5.11.0**. **On any other machine, re-apply `_BASELINE.md` env fixes
+  first or the gate reports ~155 phantom failures.** Local Flutter 3.44.2 vs CI 3.38.9 (hence the
+  lottie exact pin).
+- Per-screen verification = targeted test suites + catalog capture; full suite at wave gates only.
+- **Per-directory diff assertion:** the screen's primary file(s) MUST show a non-zero diff —
+  pass-1's screen-21 "passed" with a zero-line diff on its most important file.
+
+---
+
+## 6. THE CHECKLIST (living state — tick rows in the same commit as the work)
+
+Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) · `[D]` deleted
+(ORPHAN ruling) · `[!]` blocked → §8 queue.
+
+### Wave gates
+- [x] **G-BOOT** branch `feat/redesign-midnight` created; plan + doc-13 + `actual/` + harness
+  fixes (`test/support/fonts`, `test/tools`) committed; baseline re-measured @8b49108b 2026-08-03.
+  Re-measured analyze on this branch: **0 errors / 0 warnings / 31 infos** (the `_BASELINE.md`
+  "5 infos" figure predates the integration merge; the extra infos are pre-existing test-file
+  deprecations on `integration/redesign-ui`, none ours). Bar stays: 0 errors, no new warnings.
+- [x] **G-M0** foundation gate @2026-08-04 — analyze 0 err/31 infos; token tests green (165 theme + 27 field + 54 motion); full suite minus captures 6234 pass / 61 skip / 48 fail, ALL classified: 18 kit (M1 handoff), ~26 feature/preview assertion+golden churn (their M2 rows), **3 REAL overflow regressions from the bigger ramp** (earnings AR body → M2-15, chat header 320×480@2.0 → M2-16, offer composer 200% → M2-13 — live defects, do not lose), 1 baseline (gesture_log; the other 3 baseline reds now PASS post-re-cut). Captures excluded (light-theme goldens stale by design; re-baselined per-screen in M2). Boot-on-navy evidenced via harness full-app mounts; device boot at M7.
+- [x] **G-M1** kit gate @2026-08-04 — 570/570 kit tests green (was 552/18 red pre-wave); analyze kit+theme 0 issues; greps: 0 raw hex outside palette, 0 `Colors.*` beyond 3 sanctioned field canvas paints + transparent, 0 orange-budget leaks. Workflow: 11 agents / 0 errors / ~21 min.
+- [x] **G-M2** mapped-surfaces gate @2026-08-04 — **24/24 rows done.** analyze **0 err / 30 infos**
+  (= baseline). Full suite **6815 pass / 61 skip / 25 fail**; captures **305/307**. Attribution was
+  MEASURED, not argued: the identical suite was run in a worktree at the handoff commit `fc93ace9`
+  (**6287 / 344 fail**) and the failure sets diffed. Result: **319 pre-existing failures fixed, and
+  ZERO new failures remain** — every one of the 25 predates this session. The 8 that the diff
+  proved new during the wave were all closed before this gate (2 stale `At Door` label pins after
+  the DS sentence-case landing, 4 golden drifts cured by the re-baseline, INV-5's `homeTabPending`
+  name collision, and the OTP preview's disguised padding pin). Remaining 25, none Midnight
+  regressions: **14 `test/previews/*`** pass-1 preview goldens/structure pinned to light-theme
+  values (→ M3/M4/M6) · **5** `chat_header_contrast` (Q-022 → M6) · **2** catalog captures (the
+  known pair: customer-profile network avatar, rating-prompt compact overflow → its M3 row) ·
+  **2** `language_settings` stale pre-Midnight segment-ink pins (→ M3-27) · **2**
+  `dio_tier_repository` gateway-contract · **1** `gesture_log` named baseline red. ·
+  [x] **G-M3** remainder gate @2026-08-04 — **46/46 M3 rows done** (44 restyled, 2 ratified
+  deletions). analyze **0 err / 30 infos**; full suite **7187 pass / 61 skip / 38 fail**; router
+  **131/131**; captures **329/330**. Attribution vs the verified G-M2 failure set: **every new
+  failure was catalog-golden drift** from the 46 screens + new catalog states — re-baselined away.
+  Net known-red **25 → 20** (language_settings ×2, customer-profile and rating-prompt all closed).
+  Found and fixed en route, none of it styling: **9 latent theme-extension crashes** (a bang on a
+  nullable lookup — mine, shipped in Tier 1 and caught two tiers late by a lane attributing OUT of
+  its own scope), a **blank-name bug on Edit Profile that the catalog was masking**, a Retry that
+  threw on every debug tap, and **8+ screens leaking orange** because pass-1 code assumed
+  `colorScheme.primary` was navy. · [ ] **G-M4** states gate · [x] **G-M5** motion gate @2026-08-04 — analyze 0 err/30 infos · router **131/131** · motion+kit+theme
+  **909/909** · captures **343/343** · lottie 3.3.1. Ruling recorded: **the board is a STATIC
+  artifact, so its silence about one-shot transitions is not evidence against them** — a frozen HTML
+  export cannot depict a success beat, but it CAN express idle motion via CSS keyframes, so a tile
+  declaring none IS evidence for stillness. Infinite motion on static tiles removed; user-triggered
+  one-shots kept WITH their reduce-motion contract proved. ·
+  [x] **G-M6** audit gate @2026-08-04 — analyze **0 errors / 26 infos** (BELOW the 30 baseline) ·
+  full suite **7489 pass / 61 skip / 10 fail** with **ZERO new failures vs the G-M2 known-good set
+  and 15 CLOSED** (25 → 10) · router **131/131** · captures **343/343** · lottie 3.3.1. · [ ] **G-M7** S22 sign-off
+
+### M0 Foundation
+- [x] M0-1 Token sheet ratified (Fable) — `01-TOKEN-SHEET.md`: palette→ColorScheme/roles mapping, ramp re-cut (h1 26/−0.6, body 14.5/21, price 22), radii ladder 9/14/18/22/26/34/40/999, glass recipe, field gradients (175deg wash + measured glows), shadow/glow set, Baloo Bhaijaan 2 confirmed from `_ds` tokens @2026-08-03
+- [x] M0-2 Theme re-cut + §2.4 Material sweep (29 sub-themes, orange budget enforced per auto-consumer, OMDS 22-token override, bootstrap/splash/first-frame chrome de-flashed; light()==dark()==midnight; shadow migration map + open items ruled in 02-STUDY-NOTES §Theme) @2026-08-03
+- [x] M0-3 `JeebMidnightField` (hero/content/map/sheet, glow+wash placements RTL-directional, static/animated painter split, pixel-verified vs R1 within ~1%) + public `JeebRadii`; 27 tests @2026-08-04
+- [x] M0-4 Motion module `lib/core/motion/` (8 primitives §2.6, TweenSequence-per-leg keyframes, reduce-motion pins rest frame, 54 tests; defaults ratified in 02-STUDY-NOTES §Motion) @2026-08-03
+- [x] M0-5 Fonts: Inter-ExtraBold w800 + Baloo Bhaijaan 2 (500/600/700) bundled as verified static TTFs (no fvar, correct usWeightClass, Inter metrics match rsms instances; family string exactly "Baloo Bhaijaan 2"); `fontFamilyFallback` wired by M0-2 @2026-08-03
+- [x] M0-6 Dark map style JSON (`assets/map_styles/midnight.json`, measured from R3/R11: land=wash, roads land+0x0F, labels periwinkle ON by ruling, POI/transit off) + `JeebMapStyle` helper + both live `GoogleMap` sites styled via `style:` param @2026-08-03
+- [x] M0-7 Board assets imported → `assets/brand/jeeb_wordmark.svg`, `assets/illustrations/delivery_3d.png` (repo snake_case convention; delivery art flagged navy-hostile for M5) @2026-08-03
+- [x] M0-8 AA tests re-cut for navy — all sheet-§9 pairs PASS (worst body ink 5.17:1), failure-by-design pairs asserted, brown-on-white guard retired; 165 theme tests green @2026-08-03
+- [x] M0-9 Capture-harness fixes — generic GoRouter stand-in (R12 + 8 more crashed captures fixed), shared OMDS tokens (`jeeb_omds_tokens.dart`), Midnight theme + reduce-motion enforced, brand/emoji/Arabic fonts loaded; render failures 18→4 (all pre-existing; rulings in 02-STUDY-NOTES §Harness) @2026-08-03
+
+### M1 Kit
+- [x] M1-1 Kit restyle sweep — 31 widgets via 7-lane parallel workflow + fixup (orange-budget leaks killed, AA fixes, accent selected state, R20 bubble tint, glassBorderVivid; rulings in 02-STUDY-NOTES §M1) @2026-08-04
+- [x] M1-2 `JeebGlassCard` + `JeebGlassCapsule` (pill default, pre-baked translucency) @2026-08-04
+- [x] M1-3 `JeebEmptyState` — E1 canon + 3 sample variants, board-static ring/medallions, loading=jBreathe skeleton, error=danger tint @2026-08-04
+- [x] M1-4 `JeebPillNav` — navy capsule, 5 slots, orange active pill only, 48dp hit targets, RTL @2026-08-04
+- [x] M1-5 Pattern E metric fixes (rode in M1-1: list-row 11/14, size-class overrides deleted, 48dp hit-test nav) + tests → **kit RE-FROZEN** @2026-08-04. API additions this wave (all Fable-sanctioned): JeebCardState.accentSelected, JeebSurfaceToneData.accentSelected, JeebShadows.accentSelected, semantic fields glassBorderVivid/bubbleOutFill/bubbleOutBorder/accentSelectedFill, 3 new widgets. From here kit API changes need a fresh ruling.
+
+### M2 Mapped surfaces (order = exposure)
+- [x] M2-01 Shell / floating nav — JeebPillNav wired, frozen ids re-homed, badge overlay, VIS-P1-2 inset preserved @2026-08-04
+- [x] M2-02 R1+E1 Client home + empty — hero field static (animateDecor knob), capsule promise P0-6, single View-offers P0-7, E1 kit empty @2026-08-04
+- [x] M2-03 R2 Voice recording — live transcript band + jBlink caret (P0-5), container jWave, micActive halo; fixed inherited AR@200% overflow @2026-08-04
+- [x] M2-04 R9 Request type — compact tier rows, accentSelected, Standard pre-selected + badge (P0-3/4) @2026-08-04
+- [x] M2-05 R11 Location picker — real map wired (onCameraIdle gate), /location route + placeholder + devtool twin DELETED per ORPHAN ruling @2026-08-04
+- [x] M2-06 R12 Request summary — ICU plural, canPop hardened, all 4 catalog states render (was 3 RenderErrorBoxes) @2026-08-04
+- [x] M2-07 R10+E2 Offers + waiting empty — lit card = rim+glow (not a fill), glass sibling CTAs, money column un-flexed (P1), E2 waiting/loading/error from one JeebEmptyState block @2026-08-04
+- [x] M2-08 R3 Live tracking — full-bleed dark map + frosted sheet, stepper bar form, pinned header reduced to a semantics carrier (P1 by construction), route STATIC per motion notes; fixed a real 1.6px AR@200% overflow; catalog useLiveMap:false cures 2 of the 4 known harness render failures @2026-08-04
+- [x] M2-09 R13 OTP handover — rating CTA demoted to a text action below the dispute pill (Pattern D), arrival-banner fixture + 8th catalog state (closes a Pattern-G gap), feature-local l10n stopgap deleted now its 9 keys have landed @2026-08-04
+- [x] M2-10 R14 Receipt confirm — money emphasis on the bundled w800 ramp, proof frame on glass, loading state added as a 4th catalog capture; JeebMoneyBreakdown treatment consumed but not the widget (it forbids a fee line on customer surfaces — §3 carry-in line corrected) @2026-08-04
+- [x] M2-11 R15 Mutual rating — stars amber + radial halo, chips re-gapped to the board's 3+2, router half of the counterpart-name carry-in shipped as `mutualRatingLocation()`; the 3 supplying call sites are routed to their owning rows (chat→M2-16, delivery_detail→M3-01, otp_handover parked, see §8 Q-016) @2026-08-04
+- [x] M2-12 R16+E3 Jeeber home + feed empty — 3 orange ink leaks killed (colorScheme.primary IS #D73B00 on Midnight), availability strip composites success when online, "Make of…" squeeze fixed via 1:2 flex, feed CTA moved to JeebCtaButton.accent; E3 shipped on `balcony` pending a `street` variant (§8 Q-015) @2026-08-04
+- [x] M2-13 R17 Offer composer — 3 ETA pills (picker sheet + Other pill deleted), middle pre-selected, money field lit with a real outer halo, CTA on accent; validation copy moved to reason codes; **parked AR@200% overflow FIXED** (JeebInfoNote trailing slot, 5px) @2026-08-04
+- [x] M2-14 R18 Active delivery — Jeeber — 4-segment bar stepper on the new JeebStepperDoneInk, handoff tiles + mark-delivered panel restyled; goods-cost pill left unwired per the tile (Q7); passed-bar ink delta escalated (§8 Q-023) @2026-08-04
+- [x] M2-15 R19 Earnings — third hero stat, success-wash field, money on the w800 ramp; **parked AR overflow FIXED** — and the brief named the wrong file: the red was earnings_dashboard_data_truth_test (1px, semantics node dropped below the fold), not the layout test @2026-08-04
+- [x] M2-16 R20 Order chat — **container non-zero (+56/-123)**, green banner demoted to a quiet timeline chip, no typing indicator, counterpart-name carry-in closed at the one site where the name is in scope; **parked 320x480@2.0 overflow FIXED** (composer, 52px) @2026-08-04
+- [x] M2-17 R21+E4 Order history + empty — rows/status chips/expired dimming per tile, E4 empty on the E1 variant pending a sanctioned `parcel` (§8 Q-025); date-filter sheet still light-theme → wave-C fixup @2026-08-04
+- [x] M2-18 R4 Wallet — hub restyled on the money tokens, balance hero + transaction rows, all 6 catalog states re-captured; wallet subtree stays M3 @2026-08-04
+- [x] M2-19 R22 Settings — content field topEnd, stacked-glass rungs (9%/18% identity over 7%/14%), board toggle geometry replacing the OMDS row (which rendered a PERIWINKLE track — the orange was unreachable through it), MORE band to the navigation rung, destructive on danger-soft @2026-08-04
+- [x] M2-20 R23 Become a Jeeber (KYC wizard) — ID-band relocation (P1), capture tiles + liveness card on the kit, encryption clause preserved verbatim under legal hold @2026-08-04
+- [x] M2-21 R5+W1-3 Onboarding + walkthrough — THE motion row: 19 board-measured animated elements wired with their exact delay ladders (bubble pair 4/4.4s @1.2s, W2 rings 3.2s @.6s offset, W3 the only jDash on any R/W tile); R5 and W1 ship as ONE widget with two placements @2026-08-04
+- [x] M2-22 R6 Registration — hero box DELETED (caption: typography sits straight on the field), orange-rimmed phone field, orange CTA, frosted socials with bare brand labels; L1/L2 never built @2026-08-04
+- [x] M2-23 R7 OTP verify — periwinkle wash top-start (the mirror of R6, measured not assumed), input74 cells with the third active, three-ink subtitle, pass-1 Verify pill DELETED and its frozen id re-homed @2026-08-04
+- [x] M2-24 R8 Transcription review — injected scrubber waveform REMOVED per the board, low-confidence underline as a Pattern-A slot, fully static @2026-08-04
+
+### M3 Remainder (46) — Tier 1
+- [x] M3-01 `deep_link_targets/delivery_detail_screen.dart` (697, `/orders/:id`) — derived from R21; field mounted (was a flat Scaffold), rating star moved off colorScheme.primary — which IS orange on Midnight — onto amber, rating sheet off bare Material, counterpart-name carry-in CLOSED with a role gate (jeeberName names the counterpart only for a client viewer) @2026-08-04
+- [x] M3-02 `escalate/presentation/escalate_screen.dart` (739) — escalate funnel on the content field; destructive ink on onErrorContainer per the R22 ruling, all states through JeebEmptyState @2026-08-04
+- [x] M3-03 `no_offer_timeout/presentation/no_offer_timeout_screen.dart` (567) — no-offer timeout derived from E2 — adopts JeebEmptyStateVariant.radar, the variant built for exactly this waiting/failure subject @2026-08-04
+- [x] M3-04 `cancellation/presentation/cancellation_screen.dart` (317) — cancellation on the content field; picked-row and destructive-CTA gaps reported rather than worked around (see Q-041) — the kit has no danger CTA rung and re-implementing accentSelected locally is the workaround wave-A deleted @2026-08-04
+- [x] M3-05 `order_summary/presentation/order_summary_screen.dart` (152) — order summary carried over from the shipped R12 pattern rather than re-derived; money on the w800 ramp @2026-08-04
+- [x] M3-06 `jeeber_request_detail/…/jeeber_request_detail_screen.dart` (258) — jeeber request detail derived from R16/R17 @2026-08-04
+- [x] M3-07 `customer_profile/presentation/customer_profile_screen.dart` (193) — customer profile derived from R15/R22 identity blocks @2026-08-04
+- [x] M3-08 `notifications/presentation/notifications_list_screen.dart` (326) — notifications list derived from R21 rows; inherits R21's open dimming question rather than inventing a read/unread value @2026-08-04
+- [x] M3-09 `rating/presentation/rating_screen.dart` (308) — single-sided rating inherits the shipped mutual-rating treatment (radial-gradient star halo — a BoxShadow halo paints nothing on the golden canvas); stars stay still @2026-08-04
+- [x] M3-10 `delivery_man_profile/presentation/delivery_man_profile_screen.dart` (150) — delivery-man profile derived from R15 identity + R16 rating pill @2026-08-04
+
+### M3 — Tier 2 (money surfaces)
+- [x] M3-11 `wallet_activity_list_screen.dart` (392) — wallet activity list on the hub's shipped R4 field (glow topStart + wash endMid); 3 orange leaks per ledger row killed @2026-08-04 · [x] M3-12 `transaction_detail_screen.dart` (388) — transaction detail; amount hero was inked onPrimary (white-on-orange) on a navy card @2026-08-04
+- [x] M3-13 `wallet_charge_info_screen.dart` (194) — charge info; 3 rendered step discs were solid orange under a comment claiming navy @2026-08-04 · [x] M3-14 `customer_wallet_stub_screen.dart` (123) — customer wallet stub; headline + mark glyph were orange on a screen with no money act. Catalog entry ADDED — the whole screen was uncapturable @2026-08-04
+- [D] M3-15 `settlement_screen.dart` **DELETED** · [D] M3-16 `settlement_detail_screen.dart` **DELETED** — ratified ORPHAN ruling, evidence re-verified independently first (zero inbound nav, zero deep links, zero Maestro). Disproved a FALSE `// FROZEN identifier` comment before relying on it, and re-homed the D41/D44 'Platform fee' decision lock onto the offer composer rather than letting the deletion silently drop it. Cubit/repo KEPT (still DI-registered) @2026-08-04
+
+### M3 — Tier 3 (KYC funnel)
+- [x] M3-17 `dm_onboarding_screen.dart` (258) — dm onboarding derived from the shipped R23 chrome @2026-08-04 · [x] M3-18 `onboarding_funding_screen.dart` (202) — onboarding funding — R4 money treatment inside R23 funnel chrome @2026-08-04
+- [x] M3-19 `offer_kyc_gate_screen.dart` (260) — offer KYC gate derived from R23 + R17 @2026-08-04 · [x] M3-20 `delivery_register_prompt_screen.dart` (96) — delivery register prompt, same lane as M3-19 @2026-08-04
+- [x] M3-21 `kyc_rejected_screen.dart` (222) — KYC rejected — danger ink on onErrorContainer per the R22 ruling, JeebEmptyState error status @2026-08-04 · [x] M3-22 `account_status_screen.dart` (205) — account status — suspended/locked states on the R22 status-row rung @2026-08-04
+
+### M3 — Tier 4 (settings subtree)
+- [x] M3-23 `profile_edit_screen.dart` (293) **ORPHAN — ruling** — profile edit — field mounted (it had none), loading frame added, and a LIVE DEFECT fixed: every real account opened Edit profile to a BLANK name because the cubit emits isLoading synchronously and initState seeded from the empty profile. The catalog masked it with awaitLoad:true @2026-08-04 · [x] M3-24 `notification_prefs_screen.dart` (324) — notification prefs — R22's toggle geometry carried across @2026-08-04
+- [x] M3-25 `notification_preferences_screen.dart` (31) — verified it merely DELEGATES — zero product diff by design; row evidence is a delegation-contract guard that fails if any chrome appears between wrapper and delegate @2026-08-04 · [x] M3-26 `password_security_screen.dart` (317) — password security @2026-08-04
+- [x] M3-27 `language_settings_screen.dart` (130) — language settings — the 2 known-red tests CLOSED: they pinned a pre-Midnight purple segment ink and receive white, which is the ratified Midnight active treatment. Test was stale, code was right @2026-08-04 · [x] M3-28 `saved_locations_screen.dart` (593) **+ triage its crash with exception visible (doc-13 P0-9)** — saved locations — crash triaged with the exception visible (doc-13 P0-9) @2026-08-04
+- [x] M3-29 `address_detail_form_screen.dart` (493) — address detail form; Q-021 pin-discard left for the product ruling, not papered over @2026-08-04
+
+### M3 — Tier 5 (edge/support)
+- [x] M3-30 `support_ticket_screen.dart` (616) — support ticket derived from R22's stacked form (R20 explicitly rejected — this screen has no thread) @2026-08-04 · [x] M3-31 `reviews_list_screen.dart` (563) **ORPHAN — ruling** — reviews list, BOTH routes verified still resolving @2026-08-04
+- [x] M3-32 `dispute_status_screen.dart` (423) — dispute status — consumes the already-Midnight OrderTrackingStepper rather than hand-painting a bar row @2026-08-04 · [x] M3-33 `display_name_setup_screen.dart` (276) — display name setup derived from R6 @2026-08-04
+- [x] M3-34 `set_password_screen.dart` (244) — set password @2026-08-04 · [x] M3-35 `biometric_lock_screen.dart` (141) — biometric lock derived from R7 @2026-08-04
+- [x] M3-36 `jeeber_pending_offers_screen.dart` (175) **ORPHAN — ruling** — jeeber pending offers (KEEP ruling) — empty state is the common case @2026-08-04 · [x] M3-37 `live_settings_screen.dart` (228) **ORPHAN — ruling** — live settings — loading/error chrome ONLY so R22 is not restyled twice; LIVE DEFECT fixed: Retry called setState with a callback returning a Future, throwing a FlutterError on every tap in debug @2026-08-04
+- [x] M3-38 `diagnostics_screen.dart` (353) **ORPHAN — ruling** — diagnostics — lib/core/diagnostics carve-out; dev surface, no orange spend @2026-08-04 · [x] M3-39 `jeeber_request_unavailable_screen.dart` (62) — jeeber request unavailable @2026-08-04
+- [x] M3-40 `request_summary_unavailable_screen.dart` (29) — request summary unavailable @2026-08-04 · [x] M3-41 `profile_unavailable_screen.dart` (30) — profile unavailable — all three 'unavailable' placeholders now share ONE treatment instead of looking like three different apps @2026-08-04
+- [D] M3-42 `rating_prompt_screen.dart` **DELETED** — screen+previews+fixtures removed, route+redirect KEPT per the ratified ORPHAN ruling; evidence re-verified first @2026-08-04 · [ ] M3-43 `location_picker_screen.dart` placeholder (36) **ORPHAN — deleted with M2-05**
+- [x] M3-44 `dev_chat_preview_screen.dart` (148, debug-gated — style if kept) — dev chat preview (debug-gated) @2026-08-04 · [x] M3-45 `voice_request_screen.dart` (28, shim — verify delegate covers it) — voice request shim — verified pass-through, ZERO product diff by design + a delegation-contract guard @2026-08-04
+
+### M4/M5 sweeps
+- [x] M4-1 State inventory built — 5 independent search angles (widget-name, branch, light-theme-residue, kit, coverage) over all of lib/; **37+ non-conforming state surfaces**, each with file:line, kind, what it renders today, whether a catalog state reaches it, and a verdict. The coverage angle is what earned its keep: a large share were marked *no catalog entry*, i.e. invisible to every capture — exactly the class §4 said gets missed @2026-08-04
+- [x] M4-2 All reachable states restyled onto the §2.7 family; **captures 343/343 — the harness is fully green for the first time.** Kit `_skeleton()` now follows its variant's own geometry (was painting E1's 4-disc board for all seven) and disc count follows the caller; last capture red closed via `sqflite_common_ffi`. 7 inventory items were NOT restyled because their files are production-dead — see §8 Q-043 @2026-08-04
+- [x] M5-1 Motion wiring verified against 03-MOTION-NOTES — the audit re-derived the board census
+  independently (84 declarations, every per-tile count reproducing the notes) and found **ZERO
+  MISSING and ZERO wrong-shape**: all 76 in-scope declarations wired at the exact period AND delay,
+  every ladder correct incl. sample-A's deliberately UNEQUAL 3.4/3.2 and R11's deliberately LOCKED
+  2.6/2.6. `jWave` on the container at all 5 sites, `jHalo` on a ring sibling at all 4. All 18
+  findings were the other direction — motion the board never draws; ruled and closed @2026-08-04
+- [x] M5-2 Lottie/asset navy audit — `JeebLottieMark` (zero call sites) and 4 dead compositions
+  deleted after per-file verification; **`success-check.json` is now the only referenced composition
+  in the app**, and it reads on navy at worst 5.56:1 (green disc `#3BB273`, navy `#070C33` tick,
+  both exact sheet tokens). lottie still pinned EXACTLY 3.3.1 @2026-08-04
+- [x] M5-3 Reduced-motion pass — **found and fixed a real accessibility defect**: the jeeber
+  wrong-code shake fired `forward(from: 0)` unconditionally in `didUpdateWidget`, so it ran under
+  reduce motion. Every kept animation now proves its own reduce-motion contract by test @2026-08-04
+
+---
+
+## 7. THE LOOP (per checklist item)
+
+### 7.1 Session bootstrap (run at the start of EVERY session)
+
+```bash
+cd /Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile
+git status -sb   # expect feat/redesign-midnight, clean-ish
+# First session only:
+#   git switch integration/redesign-ui && git pull
+#   git switch -c feat/redesign-midnight
+#   git add docs/redesign-midnight docs/redesign-2026-08/13-DESIGN-VS-IMPLEMENTATION.md \
+#           docs/redesign-2026-08/actual test/support/fonts test/tools
+#   git commit -m "docs(midnight): master plan + pass-1 audit + capture-harness fixes"
+#   git push -u origin feat/redesign-midnight
+git -C ../omds-flutter log --oneline -1        # must be origin/main ≥ 6f9c166
+grep -A1 '  dio' pubspec.lock | head -3        # must be ≥ 5.11.0
+flutter analyze --no-pub                        # 0 errors (5 infos OK)
+```
+Then open §6, find the first non-`[x]` row, and enter the loop. Never leave the branch.
+
+### 7.2 The loop
+
+```
+PICK    next open checklist item (§6 order).
+STUDY   (Fable, or Opus with Fable spot-check)
+        1. Read the tile PNG(s) — INCLUDING the caption band (designer's note).
+        2. Open the live board in Chrome; watch this tile's motion; note which §2.6
+           primitives appear, on which elements, with what stagger.
+        3. Read the current screen source + its doc-13 carry-ins (§3 row).
+        4. M3 items (no tile): pick the nearest tile pattern; list which field
+           variant, surfaces, and states apply.
+MAP     Confirm file reachability from lib/main.dart (screen-repo-map rules).
+        Ambiguity → Fable rules now, or → §8 queue if it needs the owner.
+IMPL    Spawn Opus implementer with the §7.3 template. It must not touch
+        lib/core/theme, the frozen kit API, or navigation without a Fable ruling.
+VERIFY  (same Opus agent) analyze delta vs §5 · targeted tests · non-zero diff on
+        primary file(s) · catalog capture of ALL states of this screen.
+REVIEW  (Fable) captures side-by-side vs tile; walk §7.5. Accept, or bounce with a
+        concrete fix list. Max 2 bounces → park as [!] in §6 + entry in §8; move on.
+COMMIT  One commit: work + checklist tick (+ capture PNGs under
+        docs/redesign-midnight/captures/<item>/). Push every ~3 commits.
+GATE    At wave boundaries: full analyze + full test vs §5, catalog sweep,
+        push, tick the G-row, update §9 log.
+```
+
+### 7.3 Implementer prompt template (Opus, `model: "opus"`)
+
+```
+You are implementing one screen of the Jeeb MIDNIGHT redesign (dark navy design language).
+Work ONLY on branch feat/redesign-midnight in /Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile.
+
+STEP 0 — MANDATORY. Read these image files with the Read tool NOW, before any code:
+  {TILE_PNG_PATHS}   (the bottom caption band is the designer's spec note — read it)
+Then write down 8+ concrete observations (whatISaw): background layers (glow placement,
+rings), where orange appears (it is BUDGETED — mic/active-tab/live accents only), ink
+hierarchy, glass surfaces, radii, spacing, motion cues (what the static frame implies moves),
+Arabic runs, the empty/loading/error treatment, copy literals.
+MOTION SPEC for this screen: {MOTION_NOTES}  (primitives + timings are in
+docs/redesign-midnight/00-MASTER-PLAN.md §2.6 — consume lib/core/motion/jeeb_motion.dart).
+
+CONSTRAINTS
+- Tokens/kit only: colors via theme roles, text via context.jeebText, surfaces via the kit
+  (JeebMidnightField variant: {FIELD_VARIANT}). ZERO raw hex, zero Colors.*, zero light-theme
+  remnants. Do NOT modify lib/core/theme or kit public APIs — return a question instead.
+- Restyle ALL states: default, loading, empty, error → JeebEmptyState family (§2.7).
+- Preserve frozen test identifiers by re-homing them (board-drawn element or zero-size
+  semantics node); then remove chrome that existed only to host them.
+- Copy comes from the tile literals (sentence case). Missing wire data → render the designed
+  slot with `TODO(midnight): omitted, not faked` — never invent data.
+- RTL-safe (EdgeInsetsDirectional / start-end). Respect MediaQuery.disableAnimations.
+- Files for this item: {SCREEN_FILES}. Carry-ins to close: {DOC13_CARRYINS}.
+
+AFTER IMPLEMENTING — selfCritique: re-Read the tile, list 4+ deltas between your result and
+the tile (px/hex specific), fix what you can, report the rest honestly.
+
+VERIFY: flutter analyze --no-pub (0 errors; 5 known infos OK) · run {TARGETED_TESTS} ·
+git diff --stat (primary file MUST be non-zero) · re-capture this screen's catalog states.
+
+RETURN (raw data, no prose padding): whatISaw list · files+diffstat · what changed per file ·
+selfCritique deltas · test results · TODOs added · open questions.
+```
+
+### 7.4 Model routing
+
+| Decision class | Who |
+|---|---|
+| Token sheet, theme/Material overrides, kit API, navigation/route changes, deletions, ambiguity rulings, screen accept/reject, wave gates, owner communication | **The orchestrator session** (originally Fable; role is model-agnostic per §10 — same discipline on any model) |
+| Screen implementation, state restyles, sweeps, captures, greps, targeted test runs, draft copy passes | **Opus subagents** |
+| Anything an Opus agent is unsure about | It STOPS and returns the question |
+
+### 7.5 Definition of done (per screen — the REVIEW rubric)
+
+1. Midnight field present (correct variant); no white/light flash on entry, exit, keyboard, or dialog.
+2. Zero raw hex / `Colors.*` in screen code; tokens + kit only; no Material default leaking (check: ripple color, surface tint, divider, scroll glow, selection handles).
+3. Orange budget respected — orange only where the tile draws it.
+4. Type ramp roles only; copy matches tile literals; Arabic runs render in the brand face.
+5. Empty + loading + error states exist and use the §2.7 pattern.
+6. Motion: tile-observed primitives present with §2.6 timings; nothing animates that the board doesn't animate; reduced-motion safe.
+7. Frozen identifiers preserved (re-homed is fine); RTL verified.
+8. Non-zero diff on primary file(s); analyze 0 errors; targeted tests green (the 4 named pre-existing reds excepted); capture matches tile in side-by-side.
+9. Checklist row ticked in the same commit.
+
+---
+
+## 8. Owner-questions queue (batch to the owner; don't block the loop)
+
+Seeded from doc-13 §4 — these survive into Midnight:
+
+1. Money formatting: board mixes "$8" / "$6.50" / "$8.00" vs app's always-2-decimals `MoneyFormat`. One ruling, applied in M2.
+2. R11/09 flow shape: board draws two-leg pickup→drop-off; product writes one coordinate to both legs (D-09a). Redraw or product change?
+3. R7/03 auto-verify vs the mandated manual fallback — may the fallback be semantics-only?
+4. Tier lexicon: app tiers (light/bulk) vs the board's five-name emoji lexicon — product owns the mapping table.
+5. R13 post-handover forward path (board draws none; demoted text action proposed).
+6. R21/24 expired-row dimming vs AA (0.65 opacity) — designer sign-off.
+7. R18 "Costs" third pill: wire it or ratify the 2-pill board (escalation was never resolved).
+8. Pattern-A gateway contract request (the 13 fields) — raise as ONE backend ticket with doc-13's table attached.
+9. ORPHAN deletions — RULED 2026-08-04 (evidence-based, see 02-STUDY-NOTES §ORPHAN): DELETE
+   settlement×2 + rating_prompt screen (route redirect kept) + location placeholder/twin;
+   KEEP+restyle profile_edit, reviews_list (both routes), jeeber_pending_offers,
+   live_settings, diagnostics. Owner: confirm the 4 deletions, esp. settlement (designed
+   T-MOB-032, never linked — restorable from git if product wires it later).
+10. `actual/` capture set (9.7 MB) committed for evidence — object if repo weight matters.
+
+11. [Q-011] (M2-01) Earnings tab glyph: no Material filled single-banknote-with-dot exists; shipped `Icons.payments`. Designer: want a custom glyph asset?
+12. [Q-012] (M2-02) Maestro jm-027 AC2: `replies_accept_cta` now opens the accept sheet from the card (behaviour-preserving). QA: confirm, or re-point AC2 to `offer_review_list_root`.
+13. [Q-013] (M2-06) R12 voice replay band has zero pixel evidence (no fixture carries a real audio path). Approve adding a voice-draft catalog state with an on-disk clip (M4).
+14. [Q-014] (l10n merge) **R2 copy contradicts behaviour.** The tile draws "Recording — release to send", but the phase machine is `recording→recorded→playing→sending→sent`: release lands in a local review with playback and an explicit send. Shipped as "release to stop" (prior ruling C-05.1 upheld — we do not ship copy that over-promises). Designer/product: is the board asking for a *send-on-release* flow (a product change), or is the tile literal just loose?
+15. [Q-015] (M2-12) E3 ships on the `balcony` illustration until the sanctioned `street` variant lands in the fixup lane. Confirm the night-street scene (parked scooter, amber streetlamp, listening arcs) is the intended E3 subject.
+16. [Q-016] (M2-11) **Counterpart-name plumbing is only half-closable.** `mutualRatingLocation()` now exists; `chat_detail_screen` (name available → assigned to M2-16) and `delivery_detail_screen` (→ M3-01) are one-line swaps. But `otp_handover_screen.dart:271` has **no name in scope** — `_DoneBody` receives only `deliveryId` + `isClient`, so closing it needs a repo/state change, not plumbing. Approve that state change, or accept the nameless leg there permanently?
+17. [Q-017] ~~(l10n merge) Live defect, pre-existing: `pickOnMap()` resolves null because `_onPin` pops without a value.~~ **WITHDRAWN — misdiagnosed by me, refuted by the fixup lane and verified.** Neither live call site reaches that branch. Superseded by Q-021.
+21. [Q-021] (wave-B fixup) **Live risk, open — a Confirm tap can silently discard the user's pin.** M2-05's ratified JEBV4-176 camera-liveness gate makes both capture-location call sites pop `cameraLive ? centre : null`, and `cameraLive` only becomes true on the first `onCameraIdle`. On a real device a Confirm landing before that first idle returns null, so `address_detail_form_screen.dart:219` ("Edit pin") discards the chosen coordinate with no feedback. Two candidate fixes: disable the CTA until the first settle (needs a liveness signal plumbed into the screen), or treat "the user moved the camera" as the liveness proof instead of "the camera idled". Recommend the latter. **Also worth confirming whether the gate was ever meant to apply to the launcher path at all** — the B-35 test that motivated it only exercises the router path.
+18. [Q-018] (M2-07) E2's "Add details to attract offers" CTA has no destination anywhere in the app. Shipped unmounted. Does product want an edit-request flow, or should the slot stay empty?
+19. [Q-019] (M2-07) R10's third offer card is drawn dimmed with no action row; §7.2-C4 says every offer stays acceptable. Shipped un-dimmed. Frame amendment, or rule change?
+20. [Q-020] (M2-12) R16's ★ rating pill and the shell's header actions want the same corner. Which owns it?
+
+22. [Q-022] (M2-16) `chat_header_contrast_test` is 5-red — **verified pre-existing at 493f588b**, a pass-1 contrast instrument still pinning light-era role values against Midnight. Two rows measure a genuine sub-AA pair: `onPrimary` on an orange-blended chip at **3.87:1**. Needs a large-text determination or a token fix, then the whole instrument re-cut the way M0-8 re-cut the theme gate. Routed to M6.
+23. [Q-023] (M2-14) R18's PASSED stepper bars measure white ~33% (`#626794`); we ship the ratified periwinkle `#8A93D8`, which reads brighter and bluer. Ruled: add a third `JeebStepperDoneInk.washed` rather than open the 7/10/14 glass-fill ladder. Confirm the board reading.
+24. [Q-006 evidence] (M2-17) Expired-row dimming — measurements now attached: the tile is **not a uniform fade** (fill d≈0.41, title d≈0.62, meta + `Re-broadcast` d≈0.80). The briefed 0.65 blanket puts the meta run under 4.5:1. Recommend fill≈0.41 / ink≈0.80. Designer sign-off still needed.
+25. [Q-025] (M2-17) E4 needs its own `JeebEmptyStateVariant.parcel` (open glass parcel box, mic glowing inside). Sanctioned; confirm the subject.
+26. [Q-026] (M2-17) R21's in-motion row measures an orange 10–12% fill inside the accent frame; the kit's frame form is white-7% glass. Sanctioned as a frame-fill rung — **R16/R18/R20 are the other frame consumers and need re-measuring with it.**
+
+27. [Q-027] (wave-C fixup) **Our golden gate does not gate.** `_TolerantGoldenComparator` accepts 5% pixel diff; R18's stepper-ink swap moved 0.097%, so three goldens stayed green while carrying the wrong ink. Any token re-point on a small element is invisible. Standing rule adopted: goldens are evidence, per-element assertions are the gate. Owner/QA: do you want the 5% tolerance tightened at M6, or is a per-element assertion requirement enough?
+28. [Q-028] (M2-14) R18 renders **5** stepper segments where the board draws **4**, because `active_delivery_stage_done` is a frozen identifier. Adjacent to Q7. Re-home the id and drop to 4, or ratify 5?
+
+29. [Q-029] (l10n) R18 mixes sentence case and Title Case — the stepper reads `In transit` while the CTA reads `Mark as In Transit`, because M2-14 queued the title and status labels but not the `activeDeliveryMark*` trio. Queue the trio, or ratify the mix?
+30. [Q-030] (l10n) `activeDeliveryTitle` AR: the queue row says `توصيلة نشطة`, the shipped value is `توصيل نشط`, and the row marks AR "unchanged". The lane kept what shipped. Confirm which is intended.
+31. [Q-031] (M2-18/l10n) `walletHubGiftBadge` restores the word "included". **If the gateway's `giftCredit` is NOT already inside `availableBalance`, that string is a lie and must revert.** Needs one owner sentence on the `GET /v1/jeeb/wallet` contract.
+32. [Q-032] (l10n) Two keys are now zero-reference (`orderHistoryEmptyActive`, `EarningsDashboardL10n.empty`/`earningsEmpty`). Their rows called them interim stand-ins rather than "replaced", so the lane KEPT them rather than silently retiring translator-visible copy. Retire, or keep as the Active/Completed/Cancelled triple's third leg?
+33. [Q-033] (l10n) `active_delivery_jeeber_l10n.dart` can now close — all 9 values are byte-identical to the landed ARB, and M2-14 blocked it on a premise that is no longer true. Approve the ~9-call-site swap.
+34. [Q-034] (M2-21, kit) W2 needs the periwinkle wash at (0.50, 0.32); `JeebFieldWashPlacement` has no `centerUpper` and no feature-safe way to name the wash ink, so it shipped through `glowColor` — right anchor and layer, **wrong hue**. Wants `centerUpper(0.50, 0.32, 0.22, 480/440, 420/480)` or a wash-ink lever.
+35. [Q-035] (M2-21, product) Which placement ships on onboarding slide 1 — **W1** (shipped; the only coherent three-slide set, since W2/W3 have no R-series twin) or **R5**? R5 is reachable via `slideOneVariant` and is captured; switching is one word at `app_router.dart:798`.
+36. [Q-036] (M2-21) Docked-sheet blur: the kit ladder tops at 12, but **R5/W1/W2/W3 all declare 18** — a four-tile cluster, not an outlier, so unlike the R14 border this may genuinely earn a rung. Ratify 18 for docked sheets?
+37. [Q-037] ~~(M2-21, a11y/design) Captures are rest-frame, and `jTwinkle`/`jArcPulse` rest at ~.2 opacity — so W2's *verified badge* is nearly invisible in every still. Should reduce-motion pin **UI badges** at their lit keyframe the way `jBlink` already does, rather than at the low keyframe?~~ **SETTLED at M5 — yes, per ELEMENT, opt-in.** `JMotionRest.{decorative,informative}` on `JTwinkle`/`JArcPulse` (the only two primitives resting below legibility) selects which keyframe reduce motion pins; `JMotionLoop.restPhase` is the seam. Default stays `decorative`, so every sparkle, star field and orbit arc is unchanged and board-faithful. The **one** opt-in app-wide is W2's verified badge, which now stills at opacity 1 / scale 1.15 instead of .2 / .7 — 540 changed pixels, all inside the badge's own 26×26 box. Principle: reduce motion may remove movement, never information; and a still is always a real keyframe of the row, never a value between two.
+38. [Q-038] (M2-22, kit) R6 draws ONE quiet white orbit arc (~7%, r≈0.33W at (0.90, 0.055)). `content` paints none, and `showRings` paints R1's hero PAIR including an orange 15% inner arc R6 does not draw. Shipped ringless. Wants a single-quiet-ring option or an explicit ship-ringless ruling.
+39. [Q-039] (M2-22, kit) `JeebInfoNote` hard-wires its body ink to `surface.mutedInk` and exposes only `iconColor`; R6's trust footer is the **second** consumer wanting `inkSoft`. Cheapest fix is a `textInk` override — deliberately NOT a `JeebSurfaceTone.navy` wrapper, which is the shortcut that produced past drift.
+40. [Q-040] (M2-21) `assets/illustrations/onboarding_trusted_jeebers.svg` and `onboarding_live_tracking.svg` now have zero importers. Left in place (asset deletion is out of row scope) — delete in the M5/M6 sweep?
+
+41. [Q-041] (M3-04, kit — **safety-shaped, not cosmetic**) **The destructive CTA has no destructive ink.** `JeebCtaButton._ink` hard-overwrites any `labelStyle` colour and the kit has no glass-pill + `onErrorContainer` rung, so a cancellation screen's terminal destructive act renders in plain `onSurface` — quieter than every affirmative CTA in the app. The lane refused both workarounds on principle: re-implementing `accentSelected` locally in a different hue is the Theme-swap class wave-A deleted, and a danger `selectedShadow` contradicts the wave-A "glow only where a tile draws it" ruling. **Recommend sanctioning a `JeebCtaButton.danger` rung** in the next kit lane. Until then a destructive action reads like a neutral one.
+42. [Q-042] (M3-01) Terminal order buckets render no identity band, so a delivered order's courier name and amount are on the fixture but not on screen. Extending the band there forces a product call — either duplicate the state ("Delivered" banner + "Delivered" band) or delete the banner body copy the frozen ids carry. Restructuring, not styling; not done.
+
+43. [Q-043] (M4) **THREE new ORPHAN candidates, evidence-complete, awaiting your ratification.** All three are production-dead at the presentation layer, proven by an import graph over lib/ + test/ (relative and package: imports both resolved): `delivery_status/presentation/**` (self-tagged in code; live twin is `live_tracking/`), `tier_selection/presentation/**` (an in-code note at `app_router.dart:1136-1140` records the route was removed as "a dead duplicate of /request-type"), and the `prohibited_acknowledgment` dialog (zero production callers; its repository is a registered-but-never-resolved DI singleton). Ruled: **not restyled** (dead code) and **not deleted yet** — deleting three features with a 10-catalog-state / 20+-test blast radius immediately before device validation is churn for no user-visible gain. On a delete ruling, KEEP `delivery_status/domain/jeeber_summary.dart` and `tier_selection/{cubit,data,domain}` — those are live.
+
+44. [Q-044] (M6) **Every iOS cold start flashed full-screen white** — `LaunchScreen.storyboard` was solid white with 68-byte 1×1 placeholder images. FIXED to page navy. Flagging because **no widget test could ever have caught it** (it precedes Flutter's first frame) and it sits on the exact path M7 exercises — worth confirming on the S22's iOS counterpart during device validation.
+45. [Q-045] (M6) **Q6's recommendation was WRONG and is corrected here.** I advised holding R21's expired-row ink at 0.80; measured, that is **4.22:1 — still below AA**. A blanket 0.65 is 3.22:1. **Only `inkSoft` reaches AA when dimmed** (4.73 @0.65, 6.55 @0.80). Any expired/dimmed-row ruling must change the INK, not just the opacity.
+46. [Q-046] (M6) **The capture PNGs moved another workstream's hygiene metric.** `mb1_doc_residual_receipts_test` guards `skipped < trackedFiles/4`; the ~340 capture PNGs are undecodable by nature, so the tree crossed the ratio (812 vs 811) with the text corpus unchanged. Fixed by excluding binary extensions from both sides rather than raising the bar. Reinforces §8 Q10 — decide whether the 9.7 MB `actual/` set belongs in the repo.
+47. [Q-047] (M6) **5 raw hex are a sanctioned exemption, not a defect** — `social_sign_in_button.dart` carries Google/Facebook brand marks required by Apple App Store review item 4.0 and Google Identity branding (JEEB-57). The M6 gate asserts "≤5 hex outside theme, all in that file" rather than a plain zero. Confirm the exemption.
+
+48. [Q-048] (smoke) **`flutter build apk --debug` FAILS on this repo.** A flavourless build assembles all three flavours and `staging` has no matching client in `android/app/google-services.json` (only `dev` has its own file; `production` matches the root). `--flavor dev` builds fine. Anyone following a plain "run flutter build apk" instruction gets a red build — worth either a root staging client or a documented flavour requirement.
+49. [Q-049] (smoke) **The M6 Android launch-screen fix is DEAD CODE below API 31 — the white flash it claimed to fix is still live there.** `drawable/launch_background.xml` (the navy layer-list) is shadowed by `drawable-v21/launch_background.xml` on every device, since `minSdk 24`; `aapt2 dump resources` on the built APK shows ONE config only, the v21 one, which resolves `?android:colorBackground` under a `Theme.Light` parent = **white**. On API 31+ it is masked by `windowSplashScreenBackground` (verified navy on the S24). **Unverified on a real API 24–30 device — both attached handsets are API 36.** Fix: point `drawable-v21/launch_background.xml` at the navy layer-list and set `NormalTheme`'s `windowBackground` to `@color/jeeb_navy` (also closes the ~350 ms BLACK post-splash gap measured on the S24).
+50. [Q-050] (smoke) **CTA labels clip silently and no test can see it.** `jeeb_cta_button.dart:450-451` sets `maxLines: 1` + `TextOverflow.ellipsis`, so an over-long label ellipsizes instead of overflowing — **no RenderFlex warning, no failing widget test.** Live example on the Delivery tab: `orderHistoryEmptyCta` renders as "Jeeb it — your first req…". Either shorten the strings or let the CTA wrap to two lines.
+51. [Q-051] (smoke) **Arabic money/badge emphasis renders a weight lighter than English, silently.** `pubspec.yaml` states Baloo Bhaijaan 2's w800 is "deliberately absent because the ramp only ever asks Arabic for w500/w600/w700" — that is FALSE: `_statHero`, `_statDisplay`, `_badge`, `_price` and `_codeInput` all carry `FontWeight.w800` AND the Arabic fallback. Latin runs get Inter-ExtraBold; Arabic glyphs fall back to Baloo, which registers no 800, so the matcher settles on 700. These are exactly the five styles the w800 bundling was justified by. Fix: ship a Baloo ExtraBold, or drop those five to w700 for AR.
+
+*(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
+
+---
+
+## 9. Progress log (append one line per session)
+
+- 2026-08-03 · Plan authored (Fable). Branch not yet cut — G-BOOT is the first action of the
+  next session.
+- 2026-08-04 · M0 COMPLETE (9/9) + G-M0 closed. Foundation: token sheet, theme re-cut (29
+  sub-themes, orange budget), field widget (pixel-verified), motion module (54 tests), fonts,
+  dark map, harness fixes. Extra: board-measured motion notes (20/30 tiles STATIC — plan M5
+  amended), ORPHAN rulings (4 delete/5 keep), 3 ramp-overflow regressions flagged to M2 rows.
+  Orchestration: parallel Opus agents per user directive; M1 kit workflow launching.
+- 2026-08-04 · M1 COMPLETE (5/5 + G-M1: 570/570) via 11-agent workflow + fixup. M2 wave A
+  COMPLETE (rows 01–06) via 6-lane workflow: shell/pill-nav, R1+E1, R2 transcript band,
+  R9, R11 (+ratified deletions), R12 (first-ever verified). Kit fixup round 2 applied
+  (accent CTA, waveform inks, drawn medallions, trackless toggle, glass chip, glow opt-in;
+  kit suite now 588). **PAUSED by owner for model handoff — wave B NOT launched.** Resume:
+  §10 (model-agnostic) → workflows/m2-waveB-workflow.js. Known non-green at pause: 30
+  analyze infos (pre-existing) · 3 ramp-overflow regressions parked to M2-13/15/16 (G-M0
+  row) · language_settings_screen_test ×2 pins pre-M1 segment ink → M3-27 ·
+  gesture_log_test baseline red. Owner questions live in §8 (Q1–Q10, Q-011..013).
+- 2026-08-04 · **M2 wave B COMPLETE (rows 07–12) + the wave-A l10n merge**, via the same 7-lane
+  workflow (7 agents / 0 errors / ~55 min). Committed one commit per row, ticks in-commit, pushed.
+  Verification on the settled tree: analyze **0 errors / 30 infos** (= baseline exactly) and
+  **784/784** across the union of every lane's targeted suites. Two script fixes were applied
+  before launch — the l10n lane globbed the queue directory it would then delete (it would have
+  eaten wave-C's queued keys), and nobody owned the two test files the M2-05 queue named as
+  blockers. Rulings recorded in 02-STUDY-NOTES §"Wave-B review rulings"; 7 kit/theme changes
+  sanctioned into a fixup lane, incl. **`_glowRadiusFactor` 1.35 → 1.18** — the token sheet's own
+  §8 parenthetical contradicted its 520px measurement, so every screen's glow was ~14% too wide.
+  Two things wave A had missed, both now measured rather than assumed: `test/core/router/` is
+  **38 red** and is red identically at `fc93ace9` (verified in a worktree — a harness gap, since
+  the E1 empty state loops ∞ by design and `pumpAndSettle` cannot settle), and `pickOnMap()` has
+  long discarded the pinned coordinate. Both go to the fixup lane, not the parking lot.
+  New owner questions Q-014..Q-020.
+- 2026-08-04 · **Wave-B FIXUP complete** (7 agents / 0 errors / ~45 min, 2 phases). All 7 sanctioned
+  kit/theme changes landed and the kit re-froze at **757/757**; `test/core/router/` went
+  **95/38 → 133/133**; R3's stepper duplicate was deleted and came back byte-identical in the
+  captures. Full re-baseline of every Midnight capture (the glow correction moved all of them):
+  **294/296**, and the 2 reds are exactly the known pre-existing pair — the live-tracking ×2 that
+  used to fail are now cured. Two corrections to my own rulings, both from lanes pushing back with
+  evidence: (a) **my capture-location diagnosis was wrong** — the null comes from M2-05's ratified
+  camera-liveness gate, not the valueless pop, which makes it a *wave-A regression* rather than a
+  pre-existing defect, and the real live risk is now Q-021; (b) the periwinkle wash has **no single
+  ratifiable factor** (board draws rx 460–900 with no cluster), so `bottomEnd` keeps 1.0 and
+  adopters measure their own tile. Also learned: the old glow factor had **no test holding it** —
+  28 field tests were all relational, so a wrong constant was invisible; the replacement test was
+  proved discriminating before being accepted. Deferred: E2's loading skeleton is still E1-shaped
+  (M4 owns loading states); kit E3 colour deviations (M6).
+- 2026-08-04 · **M2 wave C COMPLETE (rows 13–18)** + the wave-B l10n merge + the shell-harness half
+  of the pumpAndSettle regression, via an 8-lane workflow (8 agents / 0 errors / ~33 min). Committed
+  one commit per row, ticks in-commit, pushed. **M2 is now 18/24.** Verified on the settled tree:
+  analyze **0 errors / 30 infos**; **1880 pass / 5 fail** across the union of wave-C suites, and all
+  5 reds verified identical at `493f588b` in a worktree (a pass-1 contrast instrument, Q-022) — wave
+  C introduced **zero** regressions. **All three parked ramp-overflow regressions are FIXED, not
+  re-parked**: R17 (JeebInfoNote trailing slot, 5px AR@200%), R19 (1px — and my brief named the
+  wrong file; the lane checked and found the real red in data_truth, where RenderViewport drops a
+  below-the-fold semantics node so nothing throws), R20 (composer, 52px). The R20 zero-diff trap is
+  closed with the container at +56/-123. Shell harnesses +90/-0 — zero deletions, so no assertion
+  was weakened — with the lane empirically probing which files needed the timer drain instead of
+  assuming. **Second correction to my own work this session:** wave-B ruling 6 (`topStart`) was
+  recorded but never transcribed into a lane prompt, so it never shipped; R14 and R17 both hit it.
+  New sanctions Q-022..Q-026 and a wave-C fixup wave to close them.
+- 2026-08-04 · **Wave-C FIXUP complete** (7 agents / 0 errors / ~33 min) + a follow-on glow-anchor
+  wave launched. Landed: 4 kit additions (`topStart` wash, `JeebStepperDoneInk.washed`, `parcel`
+  variant, accent-tint frame) each **mutation-proved**; the frameless-latency default killed at
+  source with a mutation-verified guard test; R14 field anchor, R18 bars, R21 parcel + tint +
+  the light-theme date-filter sheet finally restyled + Completed/Cancelled catalog states, which
+  let the one-off capture harness be deleted. Verified: analyze **0/30**, **1363/1363** green.
+  **Three of my rulings were corrected by lanes measuring the board**: `topStart` fy had the wrong
+  SIGN (+0.03 vs the measured −0.06 — nothing blooms inside the canvas); `washed` was ruled from a
+  screenshot pixel (`#626794`) that appears nowhere in the HTML, where the CSS declares `.35`; and
+  worst, **I conflated the periwinkle *wash* with the orange *glow*** — R7/R14/R21/E4 draw a wash
+  top-start, R4/R9/R17 draw a glow there and declare zero periwinkle, so the wash anchor was
+  unusable for them. Least-squares hue fits settled it (R14 periwinkle rms 0.36 vs orange 15.80;
+  R17 orange rms 0.31 vs periwinkle 17.10). **R9 is drawing its glow at the opposite end of the
+  screen from its tile** — the follow-on wave adds `JeebFieldGlowPlacement.topStart` and fixes all
+  three. Also found: **the golden gate is blind to token changes** (Q-027) — a 0.097% ink swap
+  passed three goldens unchanged.
+- 2026-08-04 · **M4, M5 and M6 COMPLETE; G-M5 and G-M6 CLOSED. Every milestone I can close without
+  devices is done.** Final gate: analyze **0 errors / 26 infos** (below the 30 baseline), full suite
+  **7489 pass / 61 skip / 10 fail** with **zero new failures and 15 closed** (known-red 25 → 10),
+  router 131/131, captures 343/343. The four M6 audits settled three questions open for milestones:
+  the **glow survey** (a single alpha .24 beats the two-value split outright — the split explained
+  5.2% of variance and `hero` was correct for ZERO screens; radius 500/440 and aspect 420/500 must
+  move together because the shipped pair reproduced ry BY ACCIDENT; fade .58, declared by 16 of 29
+  radials against the shipped .60); **Q-022 was a PHANTOM** — the 5 tests red all engagement
+  computed a colour the app never paints; and **R15's chip closes as no-change** because WCAG 2.5.8
+  AA is 24×24, not the 48dp the kit doc demanded. Best find: **unset theme slots are orange no
+  source grep can see** — three slots resolved to #D73B00 having never been written, now gated by a
+  resolved-defaults probe. Also fixed: **every iOS cold start flashed white**. **My repeated
+  failure this stretch: I hardcoded the fan-out grouping in M4 and M5, and shipped a glow ruling to
+  1 of 6 lanes in M6 — three variants of "information that had to reach N lanes reached one", which
+  regressed R1 until paired.** M7 remains: real OTP login, two devices for chat, the physical S22.
+- 2026-08-04 · **M3 COMPLETE (46/46) + G-M3 CLOSED**, run as five tier waves (11+9+6+11 lanes).
+  Numbers in the G-M3 row. The tile-less method held: every lane named a nearest tile, justified it,
+  and traced each decision to a token value or a standing ruling; lanes that could not trace one
+  returned the question instead of inventing. Both ratified deletions re-verified their evidence
+  BEFORE deleting — the settlement lane disproved a documented `// FROZEN identifier` comment that
+  was provably false, and caught that deleting a test would have silently dropped the D41/D44
+  'Platform fee' product lock, re-homing it instead. Two lanes correctly shipped ZERO product diff
+  for pass-through wrappers, with delegation-contract guards as their evidence.
+  **My process failure this milestone:** I ran targeted suites per wave but not `test/core/router/`,
+  which mounts everything — so a null-check crash I introduced in Tier 1 sat red until Tier 5. The
+  router suite now runs at every wave close, not only at gates.
+- 2026-08-04 · **M2 COMPLETE (24/24) + G-M2 CLOSED.** Wave D landed the last 6 rows (R22, R23,
+  R5+W1-3 — the motion row carrying 19 of the board's 76 animated elements — R6+R7 sharing a
+  directory, R8) plus the wave-C l10n merge and the `endMid` anchor that fixed R4's 335px-low wash.
+  Gate numbers above. The headline is the attribution: **344 → 25 failures, 319 fixed, 0 new.**
+  Three lessons worth carrying into M3: (1) a diff against a known commit beats any argument about
+  what is "pre-existing" — it caught a subagent's own mis-attribution of the OTP preview, on top of
+  my two earlier ones; (2) `--reporter failures` is not a valid flutter option and piping a full run
+  through `tail` silently truncates the evidence — capture whole logs to a file and split on `\r`;
+  (3) tests that assert a derived number (`320 - 24 * 2`) become pins on things they do not name,
+  and go red for the wrong reason — assert the claim in the test's own title.
+
+---
+
+## 10. Resume prompt (MODEL-AGNOSTIC — paste into a NEW session on ANY capable model, on ANY machine)
+
+**Updated 2026-08-04. M0–M6 are COMPLETE. What remains is M7, which needs physical devices.**
+
+```
+Resume the Jeeb MIDNIGHT redesign. Repo: olivium-dev/jeeb-mobile, branch
+feat/redesign-midnight (also fast-forwarded to feat/redesign, tag
+midnight-redesign-2026-08-04).
+
+READ FIRST, IN ORDER, under docs/redesign-midnight/:
+  00-MASTER-PLAN.md  — contract, §6 checklist (live state), §8 owner questions, §9 log
+  01-TOKEN-SHEET.md  — every measured value; do NOT re-measure or invent
+  02-STUDY-NOTES.md  — ALL standing rulings. These BIND you; do not re-litigate
+  03-MOTION-NOTES.md — board-measured motion per element. 20 of 30 tiles are STATIC
+
+STATE: M0–M6 complete. All 70 screens carry Midnight. Gates G-BOOT, G-M0, G-M1,
+G-M2, G-M3, G-M5, G-M6 closed. Latest measured: analyze 0 errors, full suite
+7489 pass / 61 skip / 10 fail (ZERO new — every failure predates the work),
+router 131/131, catalog captures 343/343, lottie pinned EXACTLY 3.3.1.
+
+WHAT IS LEFT
+1. M7 — device validation. THE ONLY THING THAT CLOSES THIS ENGAGEMENT. Real OTP
+   login, two-sided client<->jeeber journey, chat on TWO devices, door OTP,
+   rating, final pass on the physical handset. No harness evidence substitutes.
+2. The PR to main (#219) is OPEN and BLOCKED — see "CI" below.
+3. 51 owner questions in §8. Q-031 is the only one with correctness rather than
+   cosmetic risk: walletHubGiftBadge tells users gift credit is "included" in
+   available balance. If the gateway's giftCredit is NOT already inside
+   availableBalance, that string is FALSE and must revert.
+
+CI — READ BEFORE TRYING TO MERGE
+CI runs `dart analyze --fatal-infos .`, so INFOS FAIL THE BUILD. The §5 baseline
+in this plan says "0 errors, no new warnings" with ~30 infos accepted; that was
+never CI's bar and cost a full debugging cycle to discover.
+CI pins Flutter 3.38.9 while pubspec declares `sdk: ">=3.10.8"`. Three distinct
+breakages follow from that skew, all PRE-EXISTING on the integration line:
+  - `isSemantics` does not exist on 3.38.9 (fixed: use containsSemantics)
+  - PredictiveBackPageTransitionsBuilder.fallbackColor does not exist (removed)
+  - Null-aware collection elements (`[?x]`, `{'k': ?v}`) CRASH 3.38.9's analyzer
+    with `Bad state: Missing a visit method for a node of type
+    NullAwareElementImpl` inside use_build_context_synchronously. 35 sites in 13
+    files, ALL pre-existing. 7 rewritten to `if (x case final T v) v`; the rest
+    remain. main has the same syntax but does not crash, because its instances
+    are not inside a BuildContext-carrying widget tree.
+The clean fix is almost certainly to raise CI's FLUTTER_VERSION to match the
+pubspec floor, NOT to keep rewriting call sites. That is an owner decision with
+repo-wide blast radius — ask before doing it.
+
+HOW TO BUILD AND RUN
+  flutter build apk --debug --flavor dev --dart-define=JEEB_DEVTOOL_ENABLED=true
+  --flavor dev is REQUIRED: a flavourless build assembles all three flavours and
+  `staging` has no matching client in android/app/google-services.json.
+  The Dev Tool is a SECOND launcher icon ("Jeeber Dev Tool"), gated by BOTH the
+  dart-define above and the DevToolLauncher activity-alias. Without the
+  dart-define it is compiled out and tapping the icon opens the product app.
+  Accounts: use Super Login (mints a token from userId; no OTP, no phone). See
+  docs/redesign-midnight/smoke/DEVTOOL-AND-ACCOUNTS.md. Roster trap: the flat
+  `role` field under-reports jeebers — trust `roles[]`.
+  Gateway: http://192.168.2.39:10090 (/health/ready -> 200).
+
+ENVIRONMENT TRAPS
+  - Sibling ../omds-flutter must be on origin/main >= 6f9c166, and pubspec.lock
+    dio >= 5.11.0, or the local gate reports ~155 phantom failures.
+  - On any machine other than oudays-mbp-2, re-apply docs/redesign-2026-08/
+    _BASELINE.md env fixes FIRST.
+  - Build/dev work belongs on the Mac Studio, not a MacBook root disk (it fills
+    and freezes the shell for every agent).
+
+WORKING RULES (learned the hard way — all of these cost real time)
+  - Comments: max 2 lines, only when strictly necessary.
+  - Use Workflow fan-outs; lanes own DISJOINT dirs. Exactly ONE lane may touch
+    app_router.dart and exactly ONE lib/l10n/*.arb.
+  - DERIVE the fan-out grouping from audit output. Hardcoding it left whole
+    directories uncovered twice, and shipping a ruling to 1 of 6 lanes regressed
+    a screen a third time.
+  - Goldens are EVIDENCE, NOT GATES: the comparator tolerates 5% pixel diff, so
+    a token re-point on a small element passes unchanged. Assert per-element and
+    PROVE each assertion by reverting the value and confirming red.
+  - Attribute failures by DIFFING against a known-good set (a worktree at a known
+    commit), never by reasoning about which look pre-existing. Three confident
+    attributions this engagement were wrong.
+  - Run test/core/router/ at EVERY wave close, not only at gates — it mounts
+    everything and once caught a crash two tiers late.
+  - An animation is not reduce-motion safe because the module is; only its own
+    call site checking, proved by a test, makes it safe.
+  - Never restyle production-dead code, and never delete on a stale ruling
+    without re-verifying the evidence first.
+```

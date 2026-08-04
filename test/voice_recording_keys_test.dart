@@ -57,7 +57,11 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(VoiceRecordingKeys.cancelButton), findsOneWidget);
-      expect(find.byKey(VoiceRecordingKeys.micButton), findsNothing);
+      // redesign-24: the mic disc IS the recording state (orange fill +
+      // max-duration arc + halo) and stays mounted under the finger — the
+      // hold-to-record gesture depends on it. It used to be swapped out for
+      // OmdsRecordingInput, which is why this once asserted findsNothing.
+      expect(find.byKey(VoiceRecordingKeys.micButton), findsOneWidget);
     });
 
     testWidgets('recorded phase exposes playback toggle, progress, discard, send',

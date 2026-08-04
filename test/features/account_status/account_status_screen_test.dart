@@ -1,21 +1,10 @@
 // Widget tests for AccountStatusScreen (JM-066, D5). Proves:
-//   - the EXACT Semantics identifiers render off an injected repository
-//     (account_status_root, account_status_support_cta, account_status_signout_cta,
-//      account_status_banner, account_status_reason) — 30_BACKLOG JM-066;
-//   - the D30 4-state machine (loading → failed(retry) → loaded);
-//   - the banner distinguishes suspended vs locked (D5 status branch);
-//   - a server-supplied reason wins over the localized default;
-//   - the two exit CTAs land on the REGISTERED targets (support-ticket / settings).
-//
-// A minimal GoRouter with stub destination screens (each carrying a *_root id)
-// backs the CTA nav assertions, since context.goNamed needs a router. This test
-// imports ONLY the account_status feature (not app_router), so it is independent
-// of sibling W4 screens.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/account_status/domain/account_status.dart';
 import 'package:jeeb_mobile/features/account_status/domain/account_status_repository.dart';
 import 'package:jeeb_mobile/features/account_status/presentation/account_status_screen.dart';
@@ -85,6 +74,7 @@ Widget _harness(AccountStatusRepository repo, {Locale locale = const Locale('en'
   return MaterialApp.router(
     routerConfig: router,
     locale: locale,
+    theme: AppTheme.midnight(),
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const [
       SyncAppLocalizationsDelegate(),
@@ -92,6 +82,13 @@ Widget _harness(AccountStatusRepository repo, {Locale locale = const Locale('en'
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): the loading/error
+    // illustrations never settle, so `pumpAndSettle` only terminates under
+    // reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
   );
 }
 
@@ -156,7 +153,14 @@ void main() {
       ),
     );
     expect(find.bySemanticsIdentifier('account_status_root'), findsOneWidget);
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier(AccountStatusScreen.loadErrorIdentifier),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier(AccountStatusScreen.retryIdentifier),
+      findsOneWidget,
+    );
     // No body CTAs while failed.
     expect(find.bySemanticsIdentifier('account_status_support_cta'),
         findsNothing);
@@ -169,7 +173,10 @@ void main() {
     await pump(tester, repo);
 
     // First load failed → error state with retry.
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier(AccountStatusScreen.loadErrorIdentifier),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
 
@@ -193,11 +200,6 @@ void main() {
   testWidgets('signout CTA → logout/delete confirm sheet (both actions)',
       (tester) async {
     // W4 restructure (JM-066 AC3): the signout CTA no longer routes to a
-    // `/settings` host — it opens the shared `LogoutDeleteConfirmSheet` in
-    // `both` mode directly (the same sheet JM-062's profile row raises). The
-    // on-device jm-066 flow asserts `logout_delete_sheet` here; the confirm CTAs
-    // then clear the session → splash → /login (D5). Assert the sheet + both
-    // terminal CTAs open, matching the live behaviour.
     await pump(
       tester,
       _ScriptedRepository(

@@ -1,44 +1,4 @@
 // LATE-COUNTERPART-ROW ORDER regression (chat).
-//
-// THE TRADE THIS FILE POLICES. `ChatCubit._anchorAfter` gives a freshly
-// composed draft an ordering position. It was written as:
-//
-//     return newest == null ? draft.sentAt : newest.add(_anchorStep);
-//
-// — one microsecond past the newest dated row CURRENTLY ON SCREEN. That pins a
-// draft to what the DEVICE HAS SEEN, not to when it was composed, and the two
-// are not the same thing. The chat safety-net poll was demoted from 5s to 60s
-// (`kChatHistorySafetyNetPollInterval`), so a row the server dated between the
-// last fetch and compose time is unseen for up to SIXTY SECONDS. Every such row
-// then sorts BELOW the draft, because the draft was anchored to a moment before
-// the counterpart even spoke.
-//
-// That is strictly worse than what it replaced. The bug it fixed needs a SKEWED
-// device clock to fire; this one fires on a PERFECTLY CORRECT one, on the
-// ordinary "they typed while I was typing" path, every single time.
-//
-// THE FIX: the newest row on screen is a FLOOR, not a pin. A draft is ordered by
-// the local clock, but never earlier than one step past what is already
-// rendered:
-//
-//     max(newestOnScreen + _anchorStep, draft.sentAt)
-//
-// Both defects are then closed at once, and the floor is what closes the skew
-// one: a device running slow cannot pull its draft above traffic it has already
-// rendered, because the floor dominates. A device running normally orders by its
-// own clock, so a counterpart row the server dated BEFORE the compose instant
-// sorts above the draft, which is what actually happened.
-//
-// WHY THE EXISTING SUITE WAS GREEN WHILE THIS WAS LIVE:
-// `chat_interleaved_order_regression_test.dart` T1b covers the SLOW-CLOCK
-// direction only, and every other case lets the server echo the own bubble
-// before checking order — an echoed bubble is ordered by the server's own
-// timestamp and the anchor stops mattering. The case below keeps the draft
-// UN-ECHOED (a 60s poll gap is exactly that window) and dates the counterpart
-// row inside the gap. It is RED before the fix.
-//
-// Everything here runs through the REAL `DioChatGateway` decode and the REAL
-// `ChatCubit` merge paths, off raw wire bodies. Ids/authors are synthetic.
 library;
 
 import 'dart:async';
@@ -151,8 +111,6 @@ ChatCubit _cubit(DioChatGateway gateway, {required _TestClock clock}) {
     gateway: gateway,
     pickerService: StubPhotoPickerService(),
     // Every fold is driven explicitly by `refresh()`. The REAL cadence is 60s,
-    // which is the whole point: the window in which the device has not yet seen
-    // a counterpart row is a minute wide, not a tick wide.
     clock: clock.call,
   );
   addTearDown(cubit.close);
@@ -177,8 +135,6 @@ void main() {
           ],
         );
         // The device clock is CORRECT — no skew anywhere in this case. That is
-        // what makes this defect worse than the one it replaced. The read
-        // happens at 10:30, agreeing with the server to the second.
         final clock = _TestClock(DateTime.utc(2026, 7, 27, 10, 30));
         final cubit = _cubit(_gateway(wire, viewerId: _customerId),
             clock: clock);
@@ -187,15 +143,11 @@ void main() {
         expect(_texts(cubit), <String>['seen at 10:30']);
 
         // A MINUTE PASSES — one whole safety-net poll interval, the window the
-        // 5s → 60s demotion opened. I compose at 10:31. Unknown to this device,
-        // they already sent something at 10:30:30, inside that gap, so it is
-        // not on screen.
         clock.now = DateTime.utc(2026, 7, 27, 10, 31);
         cubit.composerChanged('my reply at 10:31');
         await cubit.sendText();
 
         // The next fold reveals it. My send is still UN-ECHOED, so its anchor
-        // is what orders it — which is exactly the state a 60s gap leaves.
         wire.rows = <Map<String, Object?>>[
           ...wire.rows,
           _datedRow('srv-them-2', _jeeberId, 'late 10:30:30',
@@ -255,13 +207,6 @@ void main() {
       'server dated 12:01 jump above the message it answers',
       () async {
         // Same shape as the first case: a counterpart row lands, dated between
-        // the newest row on screen and what the device clock reads. Here it must
-        // sort BELOW the draft, and there it must sort ABOVE it. Only an anchor
-        // expressed in SERVER time can tell the two apart — which is why the fix
-        // is not simply "fall back to the local clock". This case also lives in
-        // `chat_clock_skew_order_regression_test.dart`; it is repeated here so
-        // the trade is visible in one file and cannot be re-broken by reading
-        // only half of it.
         final wire = _ChatWire(
           initialRows: <Map<String, Object?>>[
             _datedRow('srv-them-1', _jeeberId, 'opening',
@@ -297,7 +242,6 @@ void main() {
       'renders its draft below the reply that prompted it',
       () async {
         // This is the defect the on-screen pin was introduced to fix. The floor
-        // is what keeps it fixed: `newestOnScreen + 1us` dominates a slow clock.
         final wire = _ChatWire(
           initialRows: <Map<String, Object?>>[
             _datedRow('srv-them-1', _jeeberId, 'row-01',
@@ -311,7 +255,6 @@ void main() {
         await cubit.load();
 
         // Their reply, stamped by the SERVER at 12:10 — ten minutes ahead of
-        // what this device believes the time is.
         wire.rows = <Map<String, Object?>>[
           ...wire.rows,
           _datedRow('srv-them-2', _jeeberId, 'their reply',
@@ -349,7 +292,6 @@ void main() {
         await cubit.load();
 
         // Three sends inside the same clock reading — a fast typist on a device
-        // whose clock resolution is coarser than the taps.
         for (final body in <String>['first', 'second', 'third']) {
           cubit.composerChanged(body);
           await cubit.sendText();

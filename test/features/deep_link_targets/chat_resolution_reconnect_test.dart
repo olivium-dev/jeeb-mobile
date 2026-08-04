@@ -1,58 +1,7 @@
-// `_ChatDetailScreenState` is private, so `tester.state(...)` can only be typed
-// as `dynamic` and every `debug*` read below is a dynamic call. Same convention
-// and same reason as `summary_refresh_single_flight_test.dart` and
-// `chat_poll_cadence_test.dart`.
 // ignore_for_file: avoid_dynamic_calls
+// `_ChatDetailScreenState` is private, so `tester.state(...)` can only be typed
 
 // THE RECONNECT MUST BE WHAT HEALS THE SCREEN — not a backoff tick that
-// happens to land nearby.
-//
-// ## The falsified claim this suite exists to replace
-//
-// `chat_resolution_self_heal_test.dart` was merged asserting that the
-// network-down chat resolution "SELF-HEALS on reconnect with no tap and no
-// re-entry". An independent tester falsified it:
-//
-//   * SOURCE FACT — there was no connectivity subscriber anywhere in `lib/`.
-//     Zero hits for `connectivity_plus`, `onConnectivityChanged`,
-//     `ConnectivityResult`, `checkConnectivity`, `InternetAddress.lookup`,
-//     `internet_connection_checker`, `network_info_plus`; none in
-//     `pubspec.yaml`. Nothing in the app was listening for the network coming
-//     back, so nothing could have reacted to it.
-//   * TICK-SPACING IDENTITY — the observed 0.46 s heal tracked the BACKOFF
-//     TIMER'S PHASE. Re-run with an independently-phased backoff, the heal
-//     latency moved with the timer, not with the reconnect instant.
-//
-// The old suite's own DoD case shows exactly how it passed: it flips the
-// network back on and then calls `tester.pump(const Duration(seconds: 3))` —
-// three seconds, past the FIRST 2 s step of `kChatResolutionRetryBackoff`. The
-// backoff heals it. That case passes identically with every connectivity
-// subscriber in the app deleted, which is what makes it no evidence for the
-// claim it was filed under.
-//
-// ## What makes THIS suite different
-//
-// **The fake clock never reaches the first backoff step.** Every wait below is
-// `_settleWellInsideTheFirstBackoffStep`, which elapses 1 ms per frame and
-// accumulates the total into `_elapsed`. Each discriminating assertion is
-// preceded by `_expectBackoffCannotHaveFired()`, which asserts that total
-// against `kChatResolutionRetryBackoff.first` (2 s). Typical totals here are
-// tens of milliseconds — three orders of magnitude short. So when an attempt
-// happens, a backoff tick provably is not what caused it.
-//
-// That the elapsed budget is MEASURED rather than asserted by construction
-// matters: the first draft of this file used zero-duration pumps, on the
-// reasoning that a pump elapsing nothing cannot fire a timer. True, and
-// useless — Dio's request pipeline opens with `Future(() => ...)`, which is
-// `Timer.run`, a zero-duration TIMER rather than a microtask. Measured: 40
-// zero-duration pumps produced `requests=[]` and a screen still on its loading
-// spinner. Had the assertions been written the other way round, that suite
-// would have "passed" against a screen that never issued a single request.
-//
-// And it is corroborated by the NEGATIVE CONTROL: the identical pump budget,
-// with the network fully restored but NO connectivity event delivered, leaves
-// the screen dark and the attempt count unmoved. The event is the only
-// difference between the two cases.
 library;
 
 import 'dart:async';
@@ -71,7 +20,6 @@ import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -79,7 +27,6 @@ import '../../support/sync_app_localizations.dart';
 /// Offline until [healed] is flipped, then serves the live accepted-conversation
 /// wire. When [gate] is non-null every conversation lookup is held open, so a
 /// second trigger lands while the first attempt is genuinely in flight — the
-/// only state in which a coalescing guard means anything.
 class _ReconnectDio {
   _ReconnectDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -153,8 +100,6 @@ class _ReconnectDio {
 
   /// Resolution ATTEMPTS, counted off the wire: the correlation-key lookup is
   /// the first read of every attempt. Counting on the wire rather than off a
-  /// debug counter is deliberate — a debug counter is another instrument that
-  /// could itself be wrong, and the wire is the thing the claim is about.
   int get resolutionAttempts =>
       requests.where((p) => p == '/v1/conversations').length;
 }
@@ -200,13 +145,7 @@ dynamic _chatState(WidgetTester tester) =>
     tester.state(find.byType(ChatDetailScreen));
 
 /// The bus clock, driven independently of the widget-test clock.
-///
 /// The two must not be the same clock. `NetworkReachabilitySignals` throttles
-/// to one signal per [kNetworkReachabilityMinInterval]; if its clock were the
-/// widget-test clock, the only way to deliver a second event would be to
-/// advance fake time past 2 s — which would fire the backoff and destroy the
-/// very discrimination these tests exist to make. Driving the bus clock by hand
-/// lets a flap be delivered at t=0 on the widget clock.
 late DateTime _busNow;
 
 NetworkReachabilitySignals _installBus() {
@@ -224,39 +163,15 @@ void _reconnect(NetworkReachabilitySignals bus) {
 }
 
 /// Pump WITHOUT elapsing the fake clock.
-///
 /// `tester.pump()` with no duration flushes microtasks and produces a frame but
-/// does not advance fake time, so a pending `Timer` cannot fire inside this
-/// helper. Every discriminating assertion in this file is taken after this and
-/// only this — which is what makes "an attempt happened" mean "the EVENT caused
-/// it" rather than "something eventually ticked".
-/// Fake time elapsed so far in the current test, accumulated by
-/// [_settleWellInsideTheFirstBackoffStep]. Asserted against
-/// `kChatResolutionRetryBackoff.first` at every discriminating assertion, so
-/// "the backoff cannot have caused this" is MEASURED rather than assumed.
 late Duration _elapsed;
 
 /// One millisecond per frame.
-///
 /// A pump that elapses literally nothing is not usable here, and the reason is
-/// worth recording because it is exactly the kind of thing that makes a test
-/// silently vacuous: **Dio's request pipeline begins with `Future(() => ...)`,
-/// which is `Timer.run` — a ZERO-DURATION TIMER, not a microtask.** `fakeAsync`
-/// fires timers only when time is elapsed, so under `tester.pump()` with no
-/// duration not one request ever reaches the wire (measured: 40 zero-pumps,
-/// `requests=[]`, screen still `_loading`). A test built on that would have
-/// asserted against a screen that never even tried.
-///
-/// One millisecond is the smallest step that lets those zero-duration timers
-/// cascade, and it is 2000× smaller than the first backoff step.
 const Duration _kPumpStep = Duration(milliseconds: 1);
 
 /// Pump enough for the async resolution to complete, while keeping total
 /// elapsed fake time orders of magnitude below the first backoff step.
-///
-/// The budget is generous rather than tuned (the probe showed ONE frame is
-/// enough); what matters is not the frame count but that [_elapsed] stays under
-/// `kChatResolutionRetryBackoff.first`, which the tests assert directly.
 Future<void> _settleWellInsideTheFirstBackoffStep(
   WidgetTester tester, {
   int frames = 24,
@@ -302,7 +217,6 @@ void main() {
       _register(net.dio);
       final bus = _installBus();
       // The network is already down when the user opens the thread — the exact
-      // scenario the falsified claim was measured in.
       bus.debugObserve(online: false);
       final role = await _roleCubit(UserRole.client);
       addTearDown(role.close);
@@ -311,7 +225,7 @@ void main() {
       await _settleWellInsideTheFirstBackoffStep(tester);
 
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsOneWidget,
         reason: 'network down: the screen says it does not know',
       );
@@ -325,8 +239,6 @@ void main() {
       );
 
       // The network comes back. Nobody taps anything, nobody re-enters the
-      // route, and the clock stays three orders of magnitude short of the
-      // first backoff step.
       final attemptsBeforeEvent = net.resolutionAttempts;
       net.healed = true;
       _reconnect(bus);
@@ -355,7 +267,7 @@ void main() {
             'the negative control',
       );
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsNothing,
         reason: 'the thread renders itself with no tap and no re-entry',
       );
@@ -389,11 +301,10 @@ void main() {
 
       await tester.pumpWidget(_host(role, _ReconnectDio.requestId));
       await _settleWellInsideTheFirstBackoffStep(tester);
-      expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+      expect(find.byType(ChatResolutionErrorView), findsOneWidget);
       expect(net.resolutionAttempts, 1);
 
       // Identical to the discriminator EXCEPT that no event is delivered. The
-      // network itself is perfectly healthy.
       net.healed = true;
       await _settleWellInsideTheFirstBackoffStep(tester);
 
@@ -408,7 +319,7 @@ void main() {
             'pump budget — the two cases differ by exactly one thing',
       );
       expect(
-        find.byType(OmdsErrorStatePage),
+        find.byType(ChatResolutionErrorView),
         findsOneWidget,
         reason: 'still dark, because nothing told it the network was back',
       );
@@ -431,7 +342,6 @@ void main() {
       expect(net.resolutionAttempts, 1);
 
       // Hold the next conversation lookup open so the attempt it belongs to is
-      // genuinely in flight while the next two events arrive.
       final gate = Completer<void>();
       net.gate = gate;
 
@@ -444,7 +354,6 @@ void main() {
       );
 
       // Two more genuine offline→online edges, each past the bus throttle, both
-      // landing while attempt #2 is still on the wire.
       _reconnect(bus);
       await _settleWellInsideTheFirstBackoffStep(tester);
       _reconnect(bus);
@@ -525,8 +434,6 @@ void main() {
       expect(coldAttempts, 1, reason: 'one cold resolution');
 
       // A full minute of continuous failure, no connectivity event at all —
-      // the case a connectivity subscriber CANNOT cover (the router is up and
-      // the gateway is down, so the OS never reports a change).
       for (var i = 0; i < 12; i++) {
         await tester.pump(const Duration(seconds: 5));
       }
@@ -545,7 +452,7 @@ void main() {
             'a 5 s cadence would be 12 in this window. Still a terminating '
             'backoff on a FAILED read, not a poll: attempts=$retries',
       );
-      expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+      expect(find.byType(ChatResolutionErrorView), findsOneWidget);
     },
   );
 
@@ -564,7 +471,6 @@ void main() {
       expect(net.resolutionAttempts, 1);
 
       // Twenty genuine offline→online edges. The gateway stays down throughout:
-      // "the OS reports a transport" is not "the gateway answers".
       for (var i = 0; i < 20; i++) {
         _reconnect(bus);
         await _settleWellInsideTheFirstBackoffStep(tester, frames: 6);
@@ -580,7 +486,7 @@ void main() {
             'budget is spent and the bounded backoff owns the episode. Without '
             'the cap, 20 edges would be 20 reads with the clock frozen',
       );
-      expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+      expect(find.byType(ChatResolutionErrorView), findsOneWidget);
     },
   );
 

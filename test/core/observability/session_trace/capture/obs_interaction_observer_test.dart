@@ -9,10 +9,6 @@ import 'package:jeeb_mobile/core/observability/session_trace/secret_redactor.dar
 
 /// Requires `flutter test --dart-define=JEEB_DEVTOOL_ENABLED=true …` to
 /// exercise the `skip:`-guarded groups below — [kObsCompiledIn] is a hard
-/// compile-time const (frozen, no test override by design, mirroring
-/// `kDevToolEnabled`), so a normal `flutter test` run cannot flip it. The
-/// unconditional top-level tests still give meaningful coverage of the
-/// "compiled out ⇒ zero-cost no-op" guarantee in a plain run.
 String get _needsDevtoolDefine =>
     'requires --dart-define=JEEB_DEVTOOL_ENABLED=true';
 
@@ -34,7 +30,6 @@ class _FakeSink implements ObservabilitySink {
 
 /// Routes a synthetic tap-family (down→up) gesture straight through the
 /// REAL global pointer router — the exact path [ObsInteractionObserver]
-/// listens on — without needing a rendered widget tree.
 void _sendTap(
   Offset position, {
   int pointer = 1,
@@ -285,10 +280,6 @@ void main() {
       'redacting a secret-shaped label',
       (tester) async {
         // Disposed synchronously at the end of THIS test body (not via
-        // addTearDown/tearDown): TestWidgetsFlutterBinding verifies every
-        // SemanticsHandle is disposed as part of the test body's own
-        // finally-block, which runs BEFORE package:test's deferred
-        // teardown callbacks get a turn.
         final handle = tester.ensureSemantics();
         const secretLabel = 'Submit Bearer abc123def456ghi789jkl012';
 
@@ -385,8 +376,6 @@ void main() {
         await tester.pump();
         await tester.enterText(find.byType(TextField).last, 'hunter2');
         // A settle frame so the semantics tree reflects the new text BEFORE
-        // the focus change that reads it — matches real usage, where typing
-        // and the eventual blur are naturally many frames apart.
         await tester.pump();
         fields.email.requestFocus();
         await tester.pump();
@@ -412,8 +401,6 @@ void main() {
         await tester.pump();
         await tester.enterText(find.byType(TextField).first, 'hello');
         // A settle frame so the semantics tree reflects the new text BEFORE
-        // the focus change that reads it — matches real usage, where typing
-        // and the eventual blur are naturally many frames apart.
         await tester.pump();
         fields.password.requestFocus();
         await tester.pump();
@@ -435,7 +422,6 @@ void main() {
 /// A tiny email/password form used only by the focus-based tests. Bundles
 /// its externally-owned [FocusNode]s so each test can request focus
 /// directly (bypassing pointer taps, which would ALSO emit a confounding
-/// `tap` interaction event) and dispose them safely afterward.
 class _LoginForm {
   const _LoginForm(this.email, this.password);
 
@@ -467,8 +453,6 @@ class _LoginForm {
 
   /// Unfocuses both nodes and pumps BEFORE disposing, so `dispose()`'s
   /// internal `unfocus()` cascade has nothing pending to notify — disposing
-  /// a still-focused node schedules a microtask that can otherwise fire
-  /// during the NEXT test and crash on an already-disposed FocusManager.
   Future<void> disposeCleanly(WidgetTester tester) async {
     email.unfocus();
     password.unfocus();

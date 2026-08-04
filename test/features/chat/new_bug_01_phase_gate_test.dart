@@ -1,23 +1,5 @@
 /// NEW-BUG-01 anti-drift guard (Sprint-2 Contract 5c).
-///
 /// The bug: the app rendered "Offer accepted! You are now chatting" + the
-/// counterpart header for a conversation that was still `broadcasting` (request
-/// pending, no winner) because three layers defaulted/hard-coded to
-/// [ConversationPhase.accepted]:
-///   1. `DioChatGateway.loadPhase` returned a constant `accepted` (no network).
-///   2. the abstract `ChatGateway.loadPhase` default returned `accepted`.
-///   3. `ChatState.phase` defaulted to `accepted`.
-///
-/// These tests pin the FROZEN fix:
-///   * `DioChatGateway.loadPhase` READS the real conversation aggregate
-///     (`GET /v1/conversations?correlationKey={id}`) and only returns `accepted`
-///     when the wire phase is `accepted` AND an active `jeeber_winner`
-///     participant is present; it degrades to `broadcasting` on any failure.
-///   * the abstract default + the `ChatState` default are `broadcasting`.
-///   * the "Offer accepted!" banner renders for an `accepted` phase and NOT for
-///     a `broadcasting` phase.
-///
-/// Revert any one of the three to `accepted` and a test here FAILS.
 library;
 
 import 'dart:async';
@@ -43,8 +25,6 @@ import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_ser
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 void main() {
-  // -------------------------------------------------------------------------
-  // 1) DioChatGateway.loadPhase — REAL network read + jeeber_winner gating.
   // -------------------------------------------------------------------------
   group('DioChatGateway.loadPhase — reads the conversation aggregate', () {
     late _RecordingAdapter adapter;
@@ -135,12 +115,6 @@ void main() {
     test('a flag-off 503 THROWS ChatReadUnavailableException instead of '
         'claiming broadcasting (and still never claims accepted)', () async {
       // UPDATED (chat-resolution tri-state). This used to assert
-      // `503 → broadcasting`. NEW-BUG-01's requirement is "NEVER a false
-      // accepted", and a throw satisfies it — but returning `broadcasting`
-      // ALSO manufactured a false POSITIVE in the other direction: a server
-      // fault was reported to the user as "this request is still broadcasting,
-      // no offers yet", over deliveries that were already accepted and in
-      // transit. "Could not find out" is now its own outcome.
       adapter.getStatus = 503;
 
       await expectLater(
@@ -152,8 +126,6 @@ void main() {
     test('a transport failure with NO response (network down) THROWS — it is '
         'not evidence of any phase', () async {
       // The adapter itself blows up with no HTTP response at all — Dio wraps
-      // this as a DioException with `response == null`, which is exactly what
-      // "the phone has no network" looks like on the wire.
       adapter.onGet = (_) => throw const SocketException('Network unreachable');
 
       await expectLater(
@@ -163,8 +135,6 @@ void main() {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // 2) Production defaults must NOT be `accepted`.
   // -------------------------------------------------------------------------
   group('phase defaults (revert→FAIL guards)', () {
     test('ChatState default phase is broadcasting, not accepted', () {
@@ -177,8 +147,6 @@ void main() {
     });
   });
 
-  // -------------------------------------------------------------------------
-  // 3) Widget: the accepted banner gates on phase==accepted.
   // -------------------------------------------------------------------------
   group('OfferAcceptedBanner gating (widget)', () {
     setUpAll(_loadArb);
@@ -205,8 +173,6 @@ void main() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
 // ---------------------------------------------------------------------------
 
 ChatCubit _makeCubit(ConversationPhase phase) {
@@ -242,8 +208,6 @@ Widget _app(ChatCubit cubit) => MaterialApp(
       ),
     );
 
-/// A minimal gateway that returns a fixed phase and no live events — exercises
-/// the real cubit/widget render path without a backend.
 class _PhaseGateway extends ChatGateway {
   _PhaseGateway(this._phase);
   final ConversationPhase _phase;
@@ -262,7 +226,6 @@ class _PhaseGateway extends ChatGateway {
   Stream<ChatEvent> subscribe(String id) => const Stream<ChatEvent>.empty();
 }
 
-/// A gateway that does NOT override loadPhase — exposes the abstract default.
 class _BareGateway extends ChatGateway {
   @override
   Future<List<DeliveryChatMessage>> loadHistory(String id) async => const [];

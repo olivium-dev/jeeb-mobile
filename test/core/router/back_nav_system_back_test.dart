@@ -1,25 +1,4 @@
 // Sprint 5 Stream B — system-BACK navigation defect regression guard.
-//
-// DEFECT: pressing the SYSTEM back gesture (Android hardware/gesture back, the
-// `BackButtonDispatcher`/`PopScope` path — distinct from the AppBar back BUTTON
-// covered by `back_button_blank_surface_test.dart`) on `order-detail` or
-// `Saved-addresses` EXITED the app to the launcher instead of popping to the
-// parent. (The `Login` case was removed with the email/password funnel in
-// JEBV4-199; `/register` is a shell root, exempt from the wrap.)
-//
-// ROOT CAUSE (go vs push): those screens can become the ROOT of the navigation
-// stack — reached via `context.go(...)`/`goNamed(...)` (customer-profile →
-// `/settings/addresses`) or via an inbound delivery push-notification / deep
-// link (`GoRouter.go('/orders/:id')`). `go` REPLACES the stack, so there is
-// nothing beneath the screen; the system BACK gesture has no pop target and
-// propagates to the OS, exiting the app. (`context.push(...)` keeps the parent
-// on the stack and does not exhibit this.)
-//
-// FIX: each screen is wrapped in `RootAwareBackScope`, which pops normally when
-// a back stack exists and otherwise redirects BACK to the screen's logical
-// parent (`/` for order-detail, `/settings` for saved-addresses) instead of
-// exiting. This test drives the REAL screens via a router and the REAL
-// system-back gesture (the `popRoute` platform message).
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,7 +16,6 @@ import '../../support/sync_app_localizations.dart';
 
 /// Dispatches the platform `popRoute` message — the exact channel the OS uses
 /// for the Android system BACK gesture, routed through the Router's
-/// `BackButtonDispatcher` → the top route's `PopScope`.
 Future<void> systemBack(WidgetTester tester) async {
   await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'flutter/navigation',
@@ -76,8 +54,6 @@ class _EmptySavedRepo implements SavedLocationRepository {
 
 void main() {
   // A router that mounts the THREE real defect screens plus light placeholders
-  // for their parent destinations. Mirrors `app.dart`'s null-child collapse so
-  // an over-pop would surface as a blank `SizedBox.shrink()` (it must not).
   GoRouter buildRouter() => GoRouter(
         initialLocation: '/',
         routes: [
@@ -104,8 +80,12 @@ void main() {
         ],
       );
 
-  Widget collapseNullChild(BuildContext context, Widget? child) =>
-      child ?? const SizedBox.shrink();
+  // `JeebEmptyState`'s illustrations loop ∞ by design (02-STUDY-NOTES §Motion),
+  // so pumpAndSettle only terminates under reduce motion.
+  Widget collapseNullChild(BuildContext context, Widget? child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child ?? const SizedBox.shrink(),
+      );
 
   Future<GoRouter> pump(WidgetTester tester) async {
     final router = buildRouter();

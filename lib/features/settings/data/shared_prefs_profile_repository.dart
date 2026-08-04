@@ -5,12 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../domain/profile_repository.dart';
 import '../domain/user_profile.dart';
 
-/// [ProfileRepository] backed by [SharedPreferences].
-///
-/// Stores the profile as a single JSON blob under [_kProfileKey]. This keeps
-/// the schema lock-step with [UserProfile] without requiring a migration each
-/// time a new field is added, and lets the sign-out path drop the whole
-/// record with one key delete.
 class SharedPrefsProfileRepository implements ProfileRepository {
   const SharedPrefsProfileRepository({required SharedPreferences prefs})
       : _prefs = prefs;

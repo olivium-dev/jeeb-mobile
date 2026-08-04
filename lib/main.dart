@@ -6,45 +6,19 @@ import 'package:flutter/services.dart';
 
 import 'app/jeeb_bootstrap.dart';
 import 'core/dev_flags.dart';
+import 'core/theme/app_theme.dart';
 import 'devtool/devtool_shell.dart' as devtool;
 
-/// Retained for the process lifetime so the semantics tree stays published for
-/// Maestro/a11y. Flutter only publishes its accessibility/semantics tree while
-/// a client holds a [SemanticsHandle]; storing it in this top-level field keeps
-/// it from being garbage-collected (a bare `ensureSemantics()` call would be
-/// eligible for GC, dropping the tree and breaking id-based assertions).
 // ignore: unused_element
 SemanticsHandle? _semanticsHandle;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Force the semantics tree ON for the app's entire lifetime. Flutter only
-  // publishes its accessibility/semantics tree when a client requests it (an
-  // a11y service is active, or someone holds a SemanticsHandle). Maestro reads
-  // the platform accessibility tree, so without this the tree is empty and
-  // `maestro hierarchy` returns nodes with no text/identifier — making every
-  // id-based assertion impossible. Holding this handle (never disposing it)
-  // keeps semantics published so Maestro can see Semantics(identifier:) values.
-  // Flutter 3.44.2: SemanticsBinding.instance.ensureSemantics() returns a
-  // SemanticsHandle; we intentionally retain it for the process lifetime.
   _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarDividerColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-    ),
-  );
-  // Jeeber Dev Tool second-launcher path: the `.DevToolLauncher` activity-alias
-  // makes MainActivity.getInitialRoute() return "/devtool", so
-  // PlatformDispatcher's defaultRouteName is "/devtool" here. When the Dev Tool
-  // is compiled in (dev/staging via --dart-define=JEEB_DEVTOOL_ENABLED=true),
-  // boot the full-access Dev Tool shell instead of the product app. In a
-  // production build kDevToolEnabled is a compile-time false, so the tree-shaker
-  // strips this branch (and DevToolApp) entirely.
+  // Also set in `appBarTheme`; this one covers the first frame, before any
+  // AppBar exists.
+  SystemChrome.setSystemUIOverlayStyle(AppTheme.systemOverlayStyle);
   if (kDevToolEnabled &&
       ui.PlatformDispatcher.instance.defaultRouteName == '/devtool') {
     runApp(const devtool.DevToolApp());

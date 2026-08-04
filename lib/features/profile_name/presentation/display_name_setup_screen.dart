@@ -1,10 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/session/profile_refresh_signals.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/display_name_cubit.dart';
 import '../data/dio_display_name_repository.dart';
@@ -22,6 +27,22 @@ import '../domain/display_name_repository.dart';
 /// Hosted by [RegistrationScreen]'s production verify path (pushed between
 /// OTP-verified and `_navigateHome`). Localized en+ar; layout uses
 /// directional paddings + start alignment so RTL mirrors correctly.
+///
+/// MIDNIGHT M3-33: nearest tile is R6 registration (already shipped at M2-22),
+/// the screen this step is pushed from and the only other single-field capture
+/// in the funnel. Carried over verbatim: the `content` field with the ORANGE
+/// glow at `topEnd` and NO periwinkle wash (wave-D measured R6's bloom as
+/// orange top-end), the transparent scaffold, the light status-bar overlay for
+/// a field that bleeds under it, the 24px gutter, and R6's forward-CTA
+/// treatment — `JeebCtaButton.accent` at [JeebCtaButton.primaryHeightTall].
+/// R6 is board-still, so nothing here animates.
+///
+/// NOT carried: R6's 2px accent rim on its input box. That is documented at
+/// `registration_screen.dart` as a per-tile measurement of the R6 phone field
+/// ("R6 tile, y 319–385"), not a system rule; the ratified generic field is
+/// `app_theme`'s `inputDecorationTheme` (glassFill + glassBorder, focused
+/// `inkMuted` 1.5), and theme ruling 3 governs an untraced element ("when in
+/// doubt: not orange"). The step's one orange moment is its Continue pill.
 ///
 /// Semantics ids: `profile_name_root` · `profile_name_input` ·
 /// `profile_name_submit_cta` · `profile_name_skip_cta`.
@@ -134,14 +155,36 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
       identifier: 'profile_name_root',
       container: true,
       explicitChildNodes: true,
-      child: Scaffold(
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsetsDirectional.all(Spacing.medium),
-            child: _NameStepBody(
-              controller: _nameController,
-              state: state,
-              onSkip: _finish,
+      // R6: the field bleeds under BOTH bands; raw `.light` paints the
+      // Android nav bar black instead of page navy.
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: AppTheme.systemOverlayStyle,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          // R6's field, carried across unchanged: one orange radial top-end,
+          // no periwinkle wash, board-still.
+          body: JeebMidnightField(
+            variant: JeebFieldVariant.content,
+            glowPlacement: JeebFieldGlowPlacement.topEnd,
+            animateDecor: false,
+            child: SafeArea(
+              // R6's construction: the field's Stack is `passthrough`, so a
+              // bare scroll view would shrink-wrap and leave the band unpainted.
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    // Top-aligned; the residual band below the skip exit is the
+                    // field's own glow — no Center, nothing stretched to fill.
+                    child: _NameStepBody(
+                      controller: _nameController,
+                      state: state,
+                      onSkip: _finish,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -151,7 +194,8 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
 }
 
 /// Heading → subtitle → name field → Continue → Skip, start-aligned so the
-/// column mirrors under RTL.
+/// column mirrors under RTL. Everything below the Skip exit is R6's real empty
+/// band — the glowing field, never filled.
 class _NameStepBody extends StatelessWidget {
   const _NameStepBody({
     required this.controller,
@@ -166,30 +210,43 @@ class _NameStepBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: Spacing.xLarge),
-        Text(
-          l10n.profileNameStepTitle,
-          key: const Key('profile-name.title'),
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: Spacing.xSmall),
-        Text(
-          l10n.profileNameStepSubtitle,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-        ),
-        const SizedBox(height: Spacing.xLarge),
-        _NameField(controller: controller, enabled: !state.isSaving),
-        const SizedBox(height: Spacing.xLarge),
-        _SubmitButton(controller: controller, state: state),
-        const SizedBox(height: Spacing.small),
-        _SkipButton(enabled: !state.isSaving, onSkip: onSkip),
-      ],
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      // 24px gutters (§5); the top inset stands in for the top bar this one-way
+      // step deliberately does not have — there is no back affordance.
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.twoXLarge,
+        Spacing.xLarge,
+        Spacing.xLarge,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l10n.profileNameStepTitle,
+            key: const Key('profile-name.title'),
+            // Heading ink is `onSurface` app-wide (wave-B standing ruling); the
+            // pass-1 `primary` here rendered ORANGE under Midnight.
+            style: context.jeebText.h1.copyWith(color: colorScheme.onSurface),
+          ),
+          const SizedBox(height: Spacing.xSmall),
+          Text(
+            l10n.profileNameStepSubtitle,
+            // `onSurfaceVariant` IS the Midnight muted-ink role (#8A93D8).
+            style: context.jeebText.body
+                .copyWith(color: colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: Spacing.xLarge),
+          _NameField(controller: controller, enabled: !state.isSaving),
+          // R6's rhythm: field → 16 → CTA. The pair stays INLINE rather than
+          // docked, so the skip exit never sits under the save-error snackbar.
+          const SizedBox(height: Spacing.medium),
+          _SubmitButton(controller: controller, state: state),
+          const SizedBox(height: Spacing.xSmall),
+          _SkipButton(enabled: !state.isSaving, onSkip: onSkip),
+        ],
+      ),
     );
   }
 }
@@ -237,11 +294,16 @@ class _SubmitButton extends StatelessWidget {
           identifier: 'profile_name_submit_cta',
           button: true,
           container: true,
-          child: OmdsLoadingButton(
+          // The id stays on this wrapper (frozen for Maestro), so the kit pill
+          // is left without one — a nested duplicate would shadow it.
+          // R6's forward CTA: the funnel's one orange act, h58 with the
+          // `ctaOrange` lift. This step is the only orange on the screen.
+          child: JeebCtaButton.accent(
             key: const Key('profile-name.submit'),
-            text: l10n.profileNameStepCta,
+            label: l10n.profileNameStepCta,
             isLoading: state.isSaving,
             isEnabled: hasText && !state.isSaving,
+            height: JeebCtaButton.primaryHeightTall,
             onTap: () =>
                 context.read<DisplayNameCubit>().submit(controller.text),
           ),
@@ -264,10 +326,11 @@ class _SkipButton extends StatelessWidget {
       identifier: 'profile_name_skip_cta',
       button: true,
       container: true,
-      child: OmdsPrimaryButton(
+      // The optional-step exit keeps the bare `text` variant — it must read as
+      // the quieter of the two affordances, never as a second pill.
+      child: JeebCtaButton.text(
         key: const Key('profile-name.skip'),
-        text: l10n.profileNameStepSkip,
-        variant: OmdsButtonVariant.text,
+        label: l10n.profileNameStepSkip,
         isEnabled: enabled,
         onTap: onSkip,
       ),

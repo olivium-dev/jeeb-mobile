@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -23,9 +22,6 @@ DeliveryTrackingInfo _info({
 
 void main() {
   // T-MOB-017: the marker + polyline + camera are built from the SAME
-  // DeliveryTrackingInfo the cubit parses from GET /deliveries/{id}/tracking.
-  // These pure builders are the live GoogleMap's data layer and are unit-green
-  // without a platform view.
   group('trackingMarkers', () {
     test('renders one Jeeber marker at the courier position', () {
       final markers = trackingMarkers(
@@ -71,8 +67,6 @@ void main() {
     });
 
     // JEBV4-218 / Q-061 (pilot fidelity): the route is drawn as a STRAIGHT LINE
-    // between pickup and drop-off — `geodesic: false` — not a great-circle or
-    // road-snapped path. Locks the pilot straight-line rendering contract.
     test('draws a straight line (geodesic:false) pickup→dropoff', () {
       const pickup = GpsPoint(lat: 33.8938, lng: 35.5018);
       const dropoff = GpsPoint(lat: 33.8869, lng: 35.5131);
@@ -130,7 +124,9 @@ void main() {
 
       expect(find.byKey(TrackingMapSurface.rootKey), findsOneWidget);
       expect(find.byType(TrackingGoogleMap), findsNothing);
-      expect(find.byIcon(Icons.navigation_outlined), findsOneWidget);
+      // MIDNIGHT R3: the placeholder is the drawn night-map frame (static
+      // dotted route + courier disc), not a single Material glyph.
+      expect(find.byType(TrackingMapPlaceholder), findsOneWidget);
     });
 
     testWidgets('renders the placeholder when there is no tracking info yet',

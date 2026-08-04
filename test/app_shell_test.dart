@@ -69,6 +69,12 @@ Widget _shellHarness(SharedPreferences prefs) {
           GlobalCupertinoLocalizations.delegate,
         ],
         home: const ShellScreen(),
+        // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES
+        // §E1): pumpAndSettle only terminates under reduce motion.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
       ),
     ),
   );
@@ -92,7 +98,6 @@ void main() {
       expect(find.text('Delivery'), findsWidgets);
       expect(find.text('Profile'), findsWidgets);
       // UX LAW (S0-E2E-08): the jeeber tabs are additive — present for every
-      // user, even a non-jeeber (who sees their empty-state bodies).
       expect(find.text('Dashboard'), findsWidgets);
       expect(find.text('Earnings'), findsWidgets);
     });
@@ -107,14 +112,14 @@ void main() {
       expect(dark.useMaterial3, isTrue);
     });
 
-    testWidgets('light and dark themes produce distinct brightness',
+    testWidgets('light and dark both resolve to the one Midnight theme',
         (_) async {
       final light = AppTheme.light();
       final dark = AppTheme.dark();
 
-      expect(light.brightness, Brightness.light);
+      expect(light.brightness, Brightness.dark);
       expect(dark.brightness, Brightness.dark);
-      expect(light.colorScheme.surface, isNot(dark.colorScheme.surface));
+      expect(light.colorScheme.surface, dark.colorScheme.surface);
     });
 
     testWidgets('supported locales include English and Arabic', (_) async {
@@ -135,7 +140,6 @@ void main() {
       expect(find.text('Delivery'), findsWidgets);
       expect(find.text('Profile'), findsWidgets);
       // No RoleAvailabilityCubit in this harness → non-jeeber, but the jeeber
-      // tabs are additive and remain present (with empty-state bodies).
       expect(find.text('Dashboard'), findsWidgets);
       expect(find.text('Earnings'), findsWidgets);
     });
@@ -166,6 +170,12 @@ void main() {
               GlobalCupertinoLocalizations.delegate,
             ],
             home: const ShellScreen(),
+            // JeebEmptyState's E1 illustration loops ∞ by design
+            // (03-MOTION-NOTES §E1); pumpAndSettle needs reduce motion.
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: child!,
+            ),
           ),
         ),
       );

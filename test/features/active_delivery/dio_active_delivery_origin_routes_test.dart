@@ -1,26 +1,4 @@
 // Sprint-3 S0-OAD-04/05 — Delivery-leg contract test (Leg 5, L1 s3/delivery).
-//
-// Locks Contract 8 (delivery lifecycle state machine + frozen origin-only
-// `:10090` routes) at the WIRE level, with a recording HttpClientAdapter — no
-// host hardcoded, no deploy needed. [LIVE-NOW via fixtures]; the live `:10090`
-// round-trip is [DEPLOY-GATED] behind S0-BE-07.
-//
-// Proves:
-//  - Origin `:10090` reads via the plural  GET   /v1/deliveries/{id}   (8c).
-//  - Origin `:10090` writes via            PATCH /v1/deliveries/{id}/status
-//    body { to, evidenceUrl } — deliveryId in PATH not body, `to` CapitalCase
-//    matching the frozen forward machine, evidenceUrl explicit-null when absent
-//    (8b).
-//  - EVERY forward edge Ordered→Picked→InTransit→AtDoor→Done emits the exact
-//    CapitalCase `to` on the PATCH (the FROZEN single-source-of-truth machine).
-//  - AtDoor→Done without a verified door OTP comes back 422 {otp_required} →
-//    ActiveDeliveryFailure.otpRequired (8d gate), distinct from a bad-transition
-//    422 → ActiveDeliveryFailure.invalidTransition.
-//  - The door-OTP close-tail POST /v1/deliveries/{id}/otp/verify {code} drives
-//    AtDoor→Done (8d) on the origin base.
-//  - The legacy `:4010` mock routes (GET /v1/delivery/{id},
-//    POST /v1/delivery/status/transition with deliveryId in body) are PRESERVED
-//    when originGateway:false — additive, no regression.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -44,7 +22,6 @@ void main() {
     adapter = _RecordingAdapter();
     cdn = _RecordingCdnAssetGateway();
     // ORIGIN-ONLY base (ARCH-01): host is irrelevant to the contract — the
-    // recording adapter never opens a socket. Path-shape is what we assert.
     dio = Dio(BaseOptions(baseUrl: 'http://origin.test'))
       ..httpClientAdapter = adapter;
   });
@@ -71,7 +48,6 @@ void main() {
         bytes: payload,
       );
       // The bytes handed to the broker are the actual image payload — never a
-      // filename/path string.
       expect(cdn.lastBytes, equals(payload));
       expect(cdn.lastSlot, CdnUploadSlot.proofOfDelivery);
       expect(ref, cdn.returnedRef);
@@ -126,7 +102,6 @@ void main() {
       expect(adapter.lastPath, '/v1/deliveries/$_deliveryId/status');
       final body = adapter.lastBody! as Map;
       // FROZEN byte-shape: only { to, evidenceUrl }. No deliveryId/senderId/
-      // trigger leaks into the origin body.
       expect(body.keys.toSet(), {'to', 'evidenceUrl'});
       expect(body['to'], 'Picked');
       expect(body['evidenceUrl'], isNull);
@@ -135,10 +110,6 @@ void main() {
     });
 
     // P6/B1: the app no longer DRIVES the atDoor→Done edge (markDelivered stops
-    // at AtDoor and hands over to the OTP verify). The repository method still
-    // supports the edge — the devtool and any future admin path may need it —
-    // so the wire shape stays pinned here; only the "final-step proof" framing
-    // is obsolete: the proof evidenceUrl now rides InTransit→AtDoor.
     test('evidenceUrl is carried on the body when present', () async {
       adapter.onPatch = (path, data) => _json({'status': 'Done'});
 
@@ -155,7 +126,6 @@ void main() {
     });
 
     // The FROZEN forward machine, edge by edge — each `to` must serialize to the
-    // exact CapitalCase wire value the gateway SM table matches against (8a).
     final forwardEdges = <(JeeberDeliveryStatus, JeeberDeliveryStatus, String)>[
       (JeeberDeliveryStatus.ordered, JeeberDeliveryStatus.picked, 'Picked'),
       (JeeberDeliveryStatus.picked, JeeberDeliveryStatus.inTransit, 'InTransit'),
@@ -240,9 +210,6 @@ void main() {
     });
 
     // LIVE :10090 ground truth (request driven to Done): the handover sequence
-    // is GET /v1/deliveries/{id}/otp (issue/trigger) → POST .../otp/verify
-    // { code }. Pin the EXACT verb+path of BOTH calls so a future refactor can't
-    // silently drop the issue-on-demand GET or drift the verify verb/body.
     test('verifyDoorOtp issues GET /v1/deliveries/{id}/otp THEN POSTs '
         'otp/verify {code} — exact verbs+paths, in order', () async {
       adapter.onGet = (path) => _json({'triggered': true, 'code': '1234'});
@@ -261,9 +228,6 @@ void main() {
     });
 
     // The legacy POST /v1/deliveries/{id}/verify-otp is DEAD on the live
-    // upstream-flagged binary (400 otp-not-in-handover-state). Guard against any
-    // regression back to that suffix: NO call may target `verify-otp`, and the
-    // verify must use the `otp/verify` suffix.
     test('verifyDoorOtp never touches the DEAD legacy verify-otp route',
         () async {
       adapter.onGet = (path) => _json({'triggered': true, 'code': '1234'});
@@ -284,8 +248,6 @@ void main() {
   });
 
   // P6/B3 + P6/B4 — the transition-error mapper reads the STRUCTURED `reason`
-  // token, and 400 (the gateway's own body resolver) is no longer laundered
-  // into the state-machine verdict `invalidTransition`.
   group('P6 — structured reason match, 400 ≠ 422', () {
     Future<ActiveDeliveryFailure> failureFor({
       required int status,

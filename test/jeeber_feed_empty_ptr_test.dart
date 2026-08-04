@@ -1,8 +1,4 @@
 // JEBV4-13 P2-6: the jeeber empty-feed state promises "Pull down to refresh"
-// (requestFeedEmptySubtitle) but the online/empty variant was never wrapped in
-// a refresh indicator — pulling fired NO feed GET (wave-1 J3). This suite
-// drives the REAL pull gesture on the empty state and asserts the repository
-// refresh (the feed GET) actually fires.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -68,6 +64,12 @@ Widget _host({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // E3's illustration loops ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion, which is also the capture rest frame.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: BlocProvider<AvailabilityCubit>.value(
       value: availability,
       child: JeeberHomeScreen(requestFeedCubit: feed),
@@ -97,13 +99,11 @@ void main() {
 
     await tester.pumpWidget(_host(availability: availability, feed: feed));
     // Bounded pumps (not pumpAndSettle): the availability surface hosts
-    // continuously repainting chrome in some states; a settle wait can hang.
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
 
     // Online + zero requests → the empty state whose copy says "Pull down to
-    // refresh" is on screen; start() already pulled the initial snapshot.
     expect(find.byKey(JeeberNoRequestsView.rootKey), findsOneWidget);
     final callsBeforePull = repository.refreshCalls;
     expect(callsBeforePull, greaterThanOrEqualTo(1));
@@ -129,9 +129,6 @@ void main() {
     );
 
     // Close in-body: the cubit owns a periodic sweep Timer which must be
-    // cancelled before the framework's pending-timer invariant runs. Run it
-    // under real async (runAsync) — the transport async* generator's cancel
-    // future does not resolve inside the fake-async test zone.
     await tester.runAsync(feed.close);
     await tester.pump(const Duration(seconds: 1));
   });

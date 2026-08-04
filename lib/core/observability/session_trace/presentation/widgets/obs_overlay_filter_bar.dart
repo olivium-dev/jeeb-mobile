@@ -5,8 +5,6 @@ import '../../model/obs_event.dart';
 import '../obs_overlay_controller.dart';
 import '../obs_overlay_event_formatter.dart';
 
-/// Filter row for the live list — "All" plus one chip per signal type, each
-/// showing how many buffered events currently match it.
 class ObsOverlayFilterBar extends StatelessWidget {
   const ObsOverlayFilterBar({super.key, required this.controller});
 

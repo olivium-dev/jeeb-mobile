@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_stepper.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/jeeber_delivery_status.dart';
+import '../active_delivery_muted_ink.dart';
 
 /// Horizontal stepper showing the successful delivery stages for the Jeeber.
 ///
-/// OMDS owns the stage circles, connectors, and completed/current/upcoming
-/// colors through [OmdsStepIndicator]. This feature layer supplies only the
-/// delivery-specific icons, labels, and accessibility copy.
+/// redesign-2026-08: the OMDS node/connector indicator is replaced by
+/// [JeebStepper.bars] — five `flex:1` h5 segments with the label row beneath
+/// (`18-active-delivery-jeeber.html` `tpl 1047-1056`). The kit paints the bars;
+/// this layer still owns every stage label, its frozen Semantics identifier and
+/// its accessibility state copy.
 class DeliveryStatusStepper extends StatelessWidget {
   const DeliveryStatusStepper({
     super.key,
@@ -40,14 +47,18 @@ class DeliveryStatusStepper extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _DeliveryProgress(currentStatus: currentStatus, l10n: l10n),
-        const SizedBox(height: Spacing.large),
-        if (showAdvance)
+        // The gap is part of the advance block: at InTransit/AtDoor the bars
+        // are the last thing in the widget and the drop-off card owns the air
+        // beneath them (the board's `margin-top: 16`).
+        if (showAdvance) ...[
+          const SizedBox(height: Spacing.large),
           _AdvanceButton(
             nextStatus: currentStatus.next!,
             isLoading: isTransitioning,
             onAdvance: onAdvance,
             l10n: l10n,
           ),
+        ],
       ],
     );
   }
@@ -62,46 +73,33 @@ class _DeliveryProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentIndex = jeeberDeliveryProgressStages.indexOf(currentStatus);
-    final colors = Theme.of(context).colorScheme;
     return Column(
       children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            OmdsStepIndicator(
-              currentStep: currentIndex + 1,
-              totalSteps: jeeberDeliveryProgressStages.length,
-              completedColor: colors.primary,
-              // Accent PAINT, not a container fill — see the tone-pair note in
-                // `app_theme.dart`. `tertiary` is the same #D73B00 this line
-                // rendered before the palette fix.
-                activeColor: colors.tertiary,
-              pendingColor: colors.surfaceContainerHighest,
-              lineColor: colors.outlineVariant,
-              stepSize: Sizes.threeXLarge,
-              lineHeight: Sizes.threeXSmall,
-              showNumbers: false,
-              showCheckmark: false,
-            ),
-            ExcludeSemantics(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  for (
-                    var index = 0;
-                    index < jeeberDeliveryProgressStages.length;
-                    index++
-                  )
-                    _StageIcon(
-                      status: jeeberDeliveryProgressStages[index],
-                      state: _stateAt(index, currentIndex),
-                    ),
-                ],
+        // TODO(midnight): the tile draws 4 segments; this renders 5 because
+        // `active_delivery_stage_done` is frozen — owner ruling pending.
+        JeebStepper.bars(
+          stepCount: jeeberDeliveryProgressStages.length,
+          currentIndex: currentIndex,
+          // Board `tpl 1085-1087` washes R18's passed run white (R3 runs it
+          // orange); the labels beneath stay periwinkle.
+          doneInk: JeebStepperDoneInk.washed,
+          // The frozen per-stage ValueKeys are re-homed from the deleted stage
+          // icons onto the bar segments, so `find.byKey` keeps resolving.
+          segmentKeys: <Key>[
+            for (
+              var index = 0;
+              index < jeeberDeliveryProgressStages.length;
+              index++
+            )
+              ValueKey<String>(
+                'active_delivery_stage_'
+                '${jeeberDeliveryProgressStages[index].name.toLowerCase()}_'
+                '${_stateAt(index, currentIndex).name}',
               ),
-            ),
           ],
         ),
-        const SizedBox(height: Spacing.small),
+        // The board's `padding: 7px 24px 0` on the label row; 8 is the rung.
+        const SizedBox(height: Spacing.xSmall),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -131,30 +129,6 @@ class _DeliveryProgress extends StatelessWidget {
 }
 
 enum _DeliveryStageState { completed, current, upcoming }
-
-class _StageIcon extends StatelessWidget {
-  const _StageIcon({required this.status, required this.state});
-
-  final JeeberDeliveryStatus status;
-  final _DeliveryStageState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final color = switch (state) {
-      _DeliveryStageState.completed => colors.onPrimary,
-      _DeliveryStageState.current => colors.onPrimaryContainer,
-      _DeliveryStageState.upcoming => colors.onSurfaceVariant,
-    };
-    return SizedBox.square(
-      key: ValueKey<String>(
-        'active_delivery_stage_${status.name.toLowerCase()}_${state.name}',
-      ),
-      dimension: Sizes.threeXLarge,
-      child: Icon(status.stepIcon, size: Sizes.large, color: color),
-    );
-  }
-}
 
 class _StageLabel extends StatelessWidget {
   const _StageLabel({
@@ -190,22 +164,19 @@ class _StageLabel extends StatelessWidget {
     _DeliveryStageState.upcoming => l10n.activeDeliveryStageUpcomingState,
   };
 
-  TextStyle? _textStyle(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
+  /// The board draws passed and upcoming labels in the SAME periwinkle
+  /// (`tpl 1052-1056`); only the current one is accent + w800. Stage state is
+  /// still fully announced — it lives in the Semantics label above, not in a
+  /// colour a screen reader cannot see.
+  TextStyle _textStyle(BuildContext context) {
+    final mutedText = jeebMutedInk(context);
     return switch (state) {
-      _DeliveryStageState.completed => theme.textTheme.labelSmall?.copyWith(
-        color: colors.primary,
-        fontWeight: FontWeight.w600,
+      _DeliveryStageState.current => context.jeebText.label.copyWith(
+        fontWeight: FontWeight.w800,
+        color: context.jeebRoles.accent,
       ),
-      _DeliveryStageState.current => theme.textTheme.labelSmall?.copyWith(
-        color: colors.onSurface,
-        fontWeight: FontWeight.w700,
-      ),
-      _DeliveryStageState.upcoming => theme.textTheme.labelSmall?.copyWith(
-        color: colors.onSurfaceVariant,
-        fontWeight: FontWeight.w400,
-      ),
+      _DeliveryStageState.completed || _DeliveryStageState.upcoming =>
+        context.jeebText.label.copyWith(color: mutedText),
     };
   }
 }
@@ -230,8 +201,9 @@ class _AdvanceButton extends StatelessWidget {
       identifier: 'mark_delivered_advance_cta',
       container: true,
       button: true,
-      child: OmdsLoadingButton(
-        text: label,
+      // Periwinkle, not accent: 18 spends its orange on the at-door panel.
+      child: JeebCtaButton.primary(
+        label: label,
         isLoading: isLoading,
         onTap: onAdvance,
       ),
@@ -259,25 +231,6 @@ class _AdvanceButton extends StatelessWidget {
 }
 
 extension on JeeberDeliveryStatus {
-  IconData get stepIcon {
-    switch (this) {
-      case JeeberDeliveryStatus.ordered:
-        return Icons.receipt_long_outlined;
-      case JeeberDeliveryStatus.picked:
-        return Icons.inventory_2_outlined;
-      case JeeberDeliveryStatus.inTransit:
-        return Icons.local_shipping_outlined;
-      case JeeberDeliveryStatus.atDoor:
-        return Icons.home_outlined;
-      case JeeberDeliveryStatus.done:
-        return Icons.check_circle_outline;
-      case JeeberDeliveryStatus.cancelled:
-      case JeeberDeliveryStatus.expired:
-      case JeeberDeliveryStatus.disputed:
-        throw StateError('Terminal deliveries are not progress stages');
-    }
-  }
-
   String statusLabel(AppLocalizations l10n) {
     switch (this) {
       case JeeberDeliveryStatus.ordered:

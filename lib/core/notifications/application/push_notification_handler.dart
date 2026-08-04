@@ -16,7 +16,6 @@ import 'badge_count_cubit.dart';
 import 'offer_lifecycle_signals.dart';
 import 'push_refresh_signals.dart';
 
-/// View-model state surfaced to [PushBannerHost] and the dispatcher.
 class PushNotificationState extends Equatable {
   const PushNotificationState({
     this.banner,
@@ -25,12 +24,8 @@ class PushNotificationState extends Equatable {
     this.token,
   });
 
-  /// The currently-displayed foreground banner. `null` when there's
-  /// nothing to show (initial state, or after a dismiss/timeout).
   final NotificationMessage? banner;
 
-  /// Recently-received foreground messages, newest first. Capped by the
-  /// handler so memory doesn't grow unbounded.
   final List<NotificationMessage> history;
 
   final PushPermissionStatus permission;
@@ -58,15 +53,6 @@ class PushNotificationState extends Equatable {
   static const _sentinel = Object();
 }
 
-/// Cubit that fans the transport's streams into UI-ready state.
-///
-/// - Listens to [PushTransport.onForegroundMessage] and emits a banner +
-///   pushes a copy onto the history ring, deduplicating by message id.
-/// - Surfaces [PushTransport.onMessageOpenedApp] as the [opens] stream so
-///   the dispatcher can route to the right screen without having to know
-///   about the transport.
-/// - Owns badge-count side-effects (so the cubit-to-cubit coupling lives
-///   in one place; the shell just reads `BadgeCountCubit`).
 class PushNotificationHandler extends Cubit<PushNotificationState> {
   PushNotificationHandler({
     required PushTransport transport,
@@ -91,8 +77,6 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
         super(const PushNotificationState()) {
     _foregroundSub = transport.onForegroundMessage.listen(_onForeground);
     _openedSub = transport.onMessageOpenedApp.listen(_opensCtl.add);
-    // PUSH-FIX (iter6): on every token rotation, re-register the new token
-    // with the backend so server-side pushes keep targeting this install.
     _tokenSub = transport.onTokenRefresh.listen((token) {
       emit(state.copyWith(token: token));
       _registerToken(token);
@@ -107,42 +91,22 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
   final OfferLifecycleSignals? _offerLifecycleSignals;
   final LocalPushInbox? _localInbox;
 
-  /// P1 (b01-20260725) defence-in-depth: returns the role(s) this session
-  /// currently holds, so a foreground push whose `audience_role` doesn't
-  /// match can be suppressed before it touches banner/badge/inbox state.
-  /// `null` (not wired) or an empty result means "unknown" and the matcher
-  /// fails OPEN — see `domain/push_audience.dart`.
   final Set<String> Function()? _localRoles;
 
-  /// b02 fg-suppression: the chat thread currently ON SCREEN. Used for exactly
-  /// one thing — deciding whether this push may raise the in-app banner. The
-  /// OS-shade half of the same decision lives in the transport; both call the
-  /// same pure [shouldShowForegroundPush] so they cannot drift.
   final Set<String> Function() _openChatThreadIds;
   final _opensCtl = StreamController<NotificationMessage>.broadcast();
   final _seenIds = Queue<String>();
-  // Bound the dedup set so a noisy server can't grow this without limit.
   static const int _seenIdsLimit = 128;
 
   StreamSubscription<NotificationMessage>? _foregroundSub;
   StreamSubscription<NotificationMessage>? _openedSub;
   StreamSubscription<String>? _tokenSub;
 
-  /// Stream of messages opened from the system tray. The dispatcher
-  /// subscribes here; UI widgets should not.
   Stream<NotificationMessage> get opens => _opensCtl.stream;
 
-  /// Request permission + fetch the current token. Called by the
-  /// dispatcher during init so failures here don't crash the cubit's
-  /// constructor path.
   Future<void> bootstrap() async {
     final permission = await _transport.requestPermission();
     final token = await _transport.getToken();
-    // Diagnostic seam (diag-persistence lane): surface push-permission state
-    // transitions (notDetermined → granted/denied, and any later change on a
-    // re-bootstrap) so a device run explains "why did no push arrive". Only
-    // the enum name is logged — never the token (that would violate the
-    // redaction contract; the token is scrubbed by Diag anyway).
     if (permission != state.permission) {
       Diag.event('push_permission', <String, Object?>{
         'from': state.permission.name,
@@ -150,31 +114,22 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       });
     }
     emit(state.copyWith(permission: permission, token: token));
-    // PUSH-FIX (iter6): register the freshly-fetched token with the backend
-    // so the push-notification service has a (device -> token) row to send to.
     if (token != null) {
       await _registerToken(token);
     }
   }
 
-  /// Best-effort backend registration hop. Never throws — a failure (e.g. the
-  /// user is not authenticated yet) is swallowed by [_onToken]; the token is
-  /// re-registered on the next bootstrap / refresh.
   Future<void> _registerToken(String token) async {
     final reg = _onToken;
     if (reg == null || token.isEmpty) return;
     await reg(token);
   }
 
-  /// Dismiss the foreground banner without performing the deep-link.
   void dismissBanner() {
     if (state.banner == null) return;
     emit(state.copyWith(banner: null));
   }
 
-  /// User tapped the foreground banner. Clears the banner and routes
-  /// the tap through [opens] so the dispatcher handles navigation in
-  /// exactly one place.
   void tapBanner() {
     final banner = state.banner;
     if (banner == null) return;
@@ -182,8 +137,6 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     _opensCtl.add(banner);
   }
 
-  /// Clear the in-app badge count. Called when the user enters the
-  /// inbox / notifications screen.
   void clearBadge() => _badgeCount.clear();
 
   void _onForeground(NotificationMessage message) {
@@ -193,19 +146,9 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       'category': message.category.name,
     });
     // Session-trace observability tool (devtool-only, Module 3): richer,
-    // redacted RECEIVED event alongside the `[jeeb-diag]` line above. Runs
-    // ALONGSIDE it, never replacing it; a hard no-op (tree-shaken out) in a
-    // production build.
     if (kObsCompiledIn) {
       ObsNotificationRecorder.recordReceived(message, mode: 'foreground');
     }
-    // P1 (b01-20260725) defence-in-depth: drop a push whose audience_role
-    // this session's roles don't match, BEFORE any dedup/badge/inbox/banner
-    // state is touched. Display-level only — the gateway fan-out is the
-    // authoritative fix; this never suppresses a background-isolate OS tray
-    // banner (FCM renders that before Dart runs) and never drops a
-    // non-newRequest category (the matcher fails open on payloads with no
-    // audience hint, which is every other push type today).
     final roles = _localRoles?.call() ?? const <String>{};
     if (!isPushAudienceMatch(message.data, roles)) {
       Diag.event('push_suppressed', <String, Object?>{
@@ -225,25 +168,9 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     if (history.length > _historyLimit) {
       history.removeRange(_historyLimit, history.length);
     }
-    // G3: tag new-request pushes so the shell's Dashboard-tab badge counts
-    // exactly the unseen open requests (chat/offer pushes only bump the
-    // inbox total).
     final isNewRequest = message.category == NotificationCategory.newRequest;
     _badgeCount.increment(isNewRequest: isNewRequest);
-    // G3: mirror the background-isolate persistence for a FOREGROUND new_request
-    // so the durable inbox row + badge survive an app kill BEFORE the jeeber
-    // acts (the server inbox has no new_request source to re-pull it from).
     if (isNewRequest) _persistNewRequest(message);
-    // b02 fg-suppression: the OS shade is not the only way a foreground push
-    // interrupts the user — `PushBannerHost` (wired at `app/app.dart:606`)
-    // renders `state.banner` as an in-app overlay. Suppressing the shade entry
-    // while this still popped would satisfy the letter of "silent" and none of
-    // its intent, so the SAME pure predicate gates both.
-    //
-    // Deliberately narrow: only the banner is gated. `history`, the badge, the
-    // durable `new_request` inbox row and the refresh signals below all run
-    // exactly as before — a silent push exists to drive those, and the badge /
-    // G3 inbox semantics are owned by other lanes.
     final showBanner = shouldShowForegroundPush(
       category: message.category,
       data: message.data,
@@ -256,9 +183,6 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     _maybeSignalOfferLifecycle(message);
   }
 
-  /// Best-effort durable write of a `new_request` push to the on-device inbox
-  /// store (G3). Fire-and-forget — a storage failure must never disrupt the
-  /// banner/badge path. No-op when no store is wired (unit tests).
   void _persistNewRequest(NotificationMessage message) {
     final inbox = _localInbox;
     if (inbox == null) return;
@@ -272,11 +196,6 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     )));
   }
 
-  /// A foreground `offer_accepted` / `offer_lost` push carrying a flat `offerId`
-  /// is a customer decision on one of this jeeber's submitted offers. Signal the
-  /// lifecycle bus so the pending-offers list flips that row's badge and
-  /// re-pulls (sprint-009). No id → no signal (the tap still routes to the list
-  /// via [deepLinkForMessage], which needs no id).
   void _maybeSignalOfferLifecycle(NotificationMessage message) {
     final bus = _offerLifecycleSignals;
     if (bus == null) return;
@@ -288,73 +207,9 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     bus.signal(OfferLifecycleEvent(offerId: offerId, accepted: accepted));
   }
 
-  /// A foreground order-ish push (gateway `type=delivery|accept|offer|
-  /// request_expired|try_expand_tier`)
-  /// carrying an order/delivery/request id is an order status change. Signal the
-  /// refresh bus so the customer's In Progress list and any live tracking
-  /// surface re-pull promptly — instead of waiting up to the 10s home poll.
-  ///
-  /// PUSH-UI-REACTION (2026-07-05): an `offer_accepted` push ALSO fires this bus.
-  /// When the customer accepts this jeeber's offer, the jeeber now owns an ACTIVE
-  /// delivery — the Dashboard "Your active deliveries" card must re-pull
-  /// immediately. On-device evidence: the jeeber received the `offer_accepted`
-  /// push in the foreground yet the card did not appear until a force-restart,
-  /// because the ActiveDeliveriesCubit backing that card reacted to NO push and
-  /// leaned solely on its slow 10s wall-clock poll. No id is required here — the
-  /// card just re-pulls its own snapshot (`GET /v1/deliveries?role=jeeber`); the
-  /// tap-time deep-link keeps its own id handling in [deepLinkForMessage].
-  ///
-  /// JEBV4-342 (b02): a `new_request` push ALSO fires this bus. Until now the
-  /// gateway's `NewRequestPushNotifier` fan-out arrived on the jeeber's device
-  /// and drove nothing — `RequestFeedCubit` took no push input at all and leaned
-  /// entirely on its wall-clock poll, so the "finding jeebers" auction opened on
-  /// screen only when the next poll tick happened to land. A publisher with no
-  /// subscriber is indistinguishable from a working system in review, because
-  /// the poll eventually paints the same pixels.
-  ///
-  /// b02 chat-push-drives-chat: a `chat` push ALSO fires this bus, and it is the
-  /// last publisher this bus was missing. `ChatCubit` took NO push input, so on
-  /// the deployed build a chat push landed and drove nothing at all while
-  /// `GET /v1/conversations/{id}/messages` kept ticking on a fixed 60s phase —
-  /// the same "publisher with no subscriber" shape JEBV4-342 describes above,
-  /// one surface over. The subscriber is `ChatCubit._refreshFromPush`, which
-  /// re-pulls the ONE conversation it renders.
-  ///
-  /// NOTE this fires even when the push is for a DIFFERENT conversation than
-  /// the one on screen (the bus is payload-less). That costs one extra targeted
-  /// read of the open thread and is the deliberate trade for not standing up a
-  /// second, chat-shaped bus: a parallel bus is how one subscriber silently
-  /// keeps polling while its twin goes push-driven. It never costs a MISSED
-  /// message, which is the failure that matters once the poll is gone.
-  ///
-  /// b02 wave D — THE SIGNAL IS NOW CLASSIFIED. It still carries no id; what it
-  /// gained is a [RefreshTopic] set saying what KIND of thing changed, and each
-  /// subscriber declares the kinds it renders. See [_topicsFor] for the mapping
-  /// and why an unclassified category still wakes everyone.
   void _maybeSignalStatusChange(NotificationMessage message) {
     if (_refreshSignals == null) return;
-    // JEBV4-342 (b02): `newRequest` joins `offerAccepted` on the NO-ID-REQUIRED
-    // branch, deliberately, and not the id-guarded `orderish` set below.
-    //
-    // The signal is payload-less by design (`PushRefreshSignals.signalStatusChange`
-    // carries no id — each subscriber re-pulls its own snapshot), and the jeeber
-    // feed subscriber calls `RequestFeedCubit.refresh()`, which re-pulls the whole
-    // `GET /v1/requests` snapshot. So an id is not merely unnecessary here, using
-    // one would make a whole-list refetch hostage to a field it never reads.
-    //
-    // The live payload does carry it either way — verified at the emit site,
-    // `jeeb-gateway/src/JeebGateway/Notifications/NewRequestPushNotifier.cs:469-470`,
-    // which stamps BOTH `requestId` and `request_id` — so this branch choice is
     // robustness, not a workaround for a missing field. Routing it past the guard
-    // means a future payload trim cannot silently re-inert this path (the exact
-    // failure mode that let the push arrive and drive nothing all through b01).
-    //
-    // `chat` joins them for the same reason and one more: the chat payload's
-    // id keys are `conversationId` / `requestId` / `request_id`
-    // (`jeeb-gateway/src/JeebGateway/Notifications/ChatMessagePushNotifier.cs:182-189`),
-    // and the guard below reads `delivery_id`/`order_id` FIRST — routing chat
-    // through it would make the open thread's only inbound path depend on
-    // whichever id alias the notifier happens to stamp next.
     const idless = <NotificationCategory>{
       NotificationCategory.offerAccepted,
       NotificationCategory.newRequest,
@@ -364,12 +219,6 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       _refreshSignals.signal(_topicsFor(message.category));
       return;
     }
-    // P2: `offer` and the expiry events used to arrive here inside the
-    // `delivery` bucket, so splitting them out MUST preserve the refresh
-    // signal — otherwise the customer's Home/Replies surface stops re-pulling
-    // on a foreground new-offer push and falls back to the slow wall-clock
-    // poll (`home_tab.dart:54-56` → ClientHomeCubit). Behaviour for every
-    // payload is byte-identical to pre-P2.
     const orderish = <NotificationCategory>{
       NotificationCategory.delivery,
       NotificationCategory.newOffer,
@@ -385,38 +234,6 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     _refreshSignals.signal(_topicsFor(message.category));
   }
 
-  /// Push category → the [RefreshTopic]s that category can actually change.
-  ///
-  /// Read this as "what could a surface possibly need to re-pull because of
-  /// THIS event", never as "who currently subscribes" — the second reading rots
-  /// the instant a subscriber is added.
-  ///
-  ///   * `chat` → `{chat}` ONLY. A message changes no order status, no offer
-  ///     set and no feed row. This single line is what stops one inbound
-  ///     message from firing `ChatDetailScreen._refreshSummary` (3 gateway
-  ///     reads), `DeliveryDetailScreen._loadStatus`, `ClientHomeCubit.refresh`,
-  ///     `ActiveDeliveriesCubit.refresh` and `RequestFeedCubit.refresh` — the
-  ///     measured wave-C fan-out, now that the trigger rate is the MESSAGE rate
-  ///     rather than a clock.
-  ///   * `new_request` → `{feed}` ONLY. A broadcast auction opening is visible
-  ///     to jeebers on the feed; it is not any one device's order or offer.
-  ///   * `offer_accepted` → `{order, offers}`. The jeeber now OWNS a delivery
-  ///     (the active-deliveries card, `order`) and its submitted-offer row
-  ///     flips (`offers`).
-  ///   * `offer` (a new bid) and the expiry events → `{order, offers}`. The bid
-  ///     changes the auction (`offers`) and the customer home summary's
-  ///     Replies/pending counts, which are painted by an `order`-topic surface.
-  ///   * `delivery` → `{order}`.
-  ///
-  /// Every remaining category falls through to EVERY topic. Note what that
-  /// does and does not mean: those categories DO NOT REACH THIS METHOD today,
-  /// because [_maybeSignalStatusChange] returns before calling it for anything
-  /// outside its `idless` and `orderish` sets — that predates wave D and is
-  /// unchanged by it. The branch is the default for the case that WILL happen:
-  /// a category added to one of those sets and forgotten here. It fails toward
-  /// over-waking on purpose. Over-waking costs a redundant read, which shows up
-  /// in a capture; under-waking shows stale data with no error at all — silent
-  /// on the device, silent in the journal, invisible to a screenshot.
   static Set<RefreshTopic> _topicsFor(NotificationCategory category) {
     switch (category) {
       case NotificationCategory.chat:
@@ -450,8 +267,5 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     return super.close();
   }
 
-  /// Alias for [close]. The root widget (`JeebApp`) calls `dispose()` on
-  /// every owned object during teardown — exposing it here keeps the
-  /// cleanup path uniform with the other non-Cubit handlers it owns.
   Future<void> dispose() => close();
 }

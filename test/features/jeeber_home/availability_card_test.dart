@@ -1,10 +1,11 @@
 // Jeeber Dashboard availability hierarchy regression proof.
 //
 // Proves:
-//   1. Offline state: a full OMDS section with Switch OFF + status copy.
-//   2. Online state: one compact OMDS switch row, with the semantic success role
-//      (`JeebColorRoles`) and no delivery-count/idle supporting lines.
-//   3. The compact copy says "You're online — receiving requests", en + ar.
+//   1. Offline state: the navy strip with Switch OFF + status copy.
+//   2. Online state: the SAME navy strip (redesign-2026-08: one shape for every
+//      state), with the semantic success role (`JeebColorRoles`) driving the
+//      on-track and no delivery-count/idle supporting lines.
+//   3. The compact copy says "Online" (MIDNIGHT R16), en + ar.
 //   4. Toggling forwards to the cubit wiring (onToggle) and the in-flight
 //      frame swaps the switch for the legacy-keyed spinner (tap-blocked).
 //   5. §SW-23 persistence: the card also renders in the FEED state
@@ -21,6 +22,7 @@ import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import 'package:jeeb_mobile/features/jeeber_home/application/availability_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_home/application/availability_state.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/entities/availability_status.dart';
@@ -57,6 +59,12 @@ Widget _host(Widget child, {Locale locale = const Locale('en')}) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // E3's illustration loops ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion, which is also the capture rest frame.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(body: child),
   );
 }
@@ -73,7 +81,7 @@ class _ExpandedOnlineCopyDelegate
   @override
   Future<AppLocalizations> load(Locale locale) async =>
       AppLocalizations(locale, {
-        'availabilityStatusOnline': onlineCopy,
+        'availabilityStatusOnlineShort': onlineCopy,
         'availabilityIndicatorSemanticOnline': onlineCopy,
       });
 
@@ -98,7 +106,9 @@ Widget _contractHost({TextScaler textScaler = TextScaler.noScaling}) {
       GlobalCupertinoLocalizations.delegate,
     ],
     builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: textScaler, disableAnimations: true),
       child: child!,
     ),
     home: Scaffold(
@@ -111,6 +121,20 @@ Widget _contractHost({TextScaler textScaler = TextScaler.noScaling}) {
 }
 
 void _noop() {}
+
+/// The fill the online strip paints (the lit skin is a `DecoratedBox`, not the
+/// navy kit card).
+Color? _stripFill(WidgetTester tester) {
+  final box = tester.widget<DecoratedBox>(
+    find
+        .descendant(
+          of: find.byKey(AvailabilityCard.rootKey),
+          matching: find.byType(DecoratedBox),
+        )
+        .first,
+  );
+  return (box.decoration as BoxDecoration).color;
+}
 
 void _expectOnlineCopyWithinTwoLineBudget(WidgetTester tester) {
   final textFinder = find.text(_expandedOnlineCopy);
@@ -137,7 +161,7 @@ void _expectOnlineCopyWithinTwoLineBudget(WidgetTester tester) {
 
 void main() {
   group('AvailabilityCard — state-aware density', () {
-    testWidgets('offline: full OMDS section, switch OFF, offline copy', (
+    testWidgets('offline: navy strip, switch OFF, offline copy', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -150,17 +174,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final switchWidget = tester.widget<OmdsSwitchTile>(
+      final switchWidget = tester.widget<Switch>(
         find.byKey(AvailabilityCard.toggleKey),
       );
       expect(switchWidget.value, isFalse);
-      expect(find.byType(OMDSSectionCard), findsOneWidget);
+      expect(find.byType(JeebNavySurfaceCard), findsOneWidget);
 
       expect(find.text("You're offline"), findsOneWidget);
       expect(find.text('Auto-offline after 8 h idle'), findsNothing);
     });
 
-    testWidgets('online: one compact OMDS row uses the success role and omits '
+    testWidgets('online: the navy strip uses the success role and omits '
         'supporting availability lines', (tester) async {
       await tester.pumpWidget(
         _host(
@@ -175,26 +199,25 @@ void main() {
       final context = tester.element(find.byKey(AvailabilityCard.rootKey));
       final roles = Theme.of(context).extension<JeebColorRoles>()!;
 
-      final switchWidget = tester.widget<OmdsSwitchTile>(
+      final switchWidget = tester.widget<Switch>(
         find.byKey(AvailabilityCard.toggleKey),
       );
       expect(switchWidget.value, isTrue);
       expect(
-        switchWidget.activeColor,
+        switchWidget.activeTrackColor,
         roles.success,
         reason:
             'Online track color must resolve from the semantic success '
             'role of the active theme.',
       );
 
-      expect(find.text("You're online — receiving requests"), findsOneWidget);
+      expect(find.text('Online'), findsOneWidget);
       expect(find.text('2 active deliveries'), findsNothing);
       expect(find.text('Auto-offline after 8 h idle'), findsNothing);
-      expect(
-        find.byType(OMDSSectionCard),
-        findsNothing,
-        reason: 'The full section is reserved for offline/toggling states.',
-      );
+      // MIDNIGHT R16: "the availability card glows green when online" — the
+      // geometry is the offline strip's, the SKIN is success-tinted glass.
+      expect(find.byType(JeebNavySurfaceCard), findsNothing);
+      expect(_stripFill(tester), roles.success.withValues(alpha: 0.14));
       expect(
         tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,
         lessThanOrEqualTo(Sizes.sevenXLarge),
@@ -202,7 +225,7 @@ void main() {
       );
     });
 
-    testWidgets('arabic copy: online status says تستقبل الطلبات (requests)', (
+    testWidgets('arabic copy: online status says متصل (online)', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -216,8 +239,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('أنت متصل — تستقبل الطلبات'), findsOneWidget);
-      expect(find.byType(OMDSSectionCard), findsNothing);
+      expect(find.text('متصل'), findsOneWidget);
+      expect(find.byType(JeebNavySurfaceCard), findsNothing);
       expect(
         tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,
         lessThanOrEqualTo(Sizes.sevenXLarge),
@@ -283,9 +306,9 @@ void main() {
       );
       expect(find.text('Updating…'), findsOneWidget);
       expect(
-        find.byType(OMDSSectionCard),
+        find.byType(JeebNavySurfaceCard),
         findsOneWidget,
-        reason: 'Toggling needs the full progress section.',
+        reason: 'The strip does not change shape while the PUT is in flight.',
       );
     });
 

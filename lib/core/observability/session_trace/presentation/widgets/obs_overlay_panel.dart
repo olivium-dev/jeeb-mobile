@@ -8,13 +8,6 @@ import 'obs_overlay_export_button.dart';
 import 'obs_overlay_filter_bar.dart';
 import 'obs_overlay_panel_header.dart';
 
-/// Expanded state of the devtool overlay: a frosted floating card with the
-/// live event list, the type filter, the session controls, and the
-/// export/share action. OMDS has no token for "how much of the screen a
-/// floating devtool panel should occupy" (a layout decision, not a spacing
-/// /color/radius/duration design value), so [_kMaxWidth]/[_kHeightFraction]
-/// are this panel's own named, commented constants rather than bare
-/// literals sprinkled through `build()`.
 class ObsOverlayPanel extends StatelessWidget {
   const ObsOverlayPanel({super.key, required this.controller});
 
@@ -50,9 +43,6 @@ class _PanelShell extends StatelessWidget {
       ),
       borderRadius: OMDSBorderRadius.lg,
       padding: const EdgeInsets.all(Spacing.medium),
-      // `ListTile`-based OMDS rows (used by the event list) expect a
-      // `Material` ancestor for ink/selection; `OMDSGlassCard` is a
-      // blur+container, not a `Material`, so this provides one invisibly.
       child: Material(
         type: MaterialType.transparency,
         child: _PanelBody(controller: controller),

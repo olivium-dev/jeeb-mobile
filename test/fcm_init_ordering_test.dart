@@ -10,19 +10,6 @@ import 'package:jeeb_mobile/core/session/session_gate.dart';
 import 'support/sync_app_localizations.dart';
 
 /// S14 cold-start init-ordering regression.
-///
-/// The bug: `_initPushChainAsync` constructed/initialized the real
-/// [FirebaseMessagingTransport] (whose ctor reaches `FirebaseMessaging.instance`
-/// → `Firebase.app()`) BEFORE the deferred `Firebase.initializeApp()` had
-/// completed. On a cold/slow boot that threw `[core/no-app]`, the catch silently
-/// degraded to [FakePushTransport], and the app got no real FCM token and
-/// received no push.
-///
-/// These tests pin the ordering through the [JeebApp.firebaseInitializer] and
-/// [JeebApp.fcmTransportBuilder] seams: the FCM transport must NOT be built
-/// until the Firebase-init guard has resolved. The first test FAILS against the
-/// pre-fix ordering (transport built immediately, before the guard) and PASSES
-/// once the chain awaits the guard first.
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{
@@ -49,13 +36,11 @@ void main() {
         localizationsDelegateOverride: const SyncAppLocalizationsDelegate(),
         sessionGate: const AlwaysAuthenticatedSessionGate(),
         // pushTransport intentionally NOT injected → exercises the real FCM
-        // branch of _initPushChainAsync.
         firebaseInitializer: () =>
             firebaseGate.future.then((_) => firebaseInitialized = true),
         fcmTransportBuilder: () async {
           builderCalled = true;
           // Models the `[core/no-app]` precondition: building the FCM transport
-          // before Firebase init is the defect.
           if (!firebaseInitialized) builtBeforeFirebaseInit = true;
           return FakePushTransport(token: 'fcm-real-token');
         },
@@ -68,8 +53,6 @@ void main() {
     await tester.pump();
 
     // CORE ORDERING ASSERTION: with Firebase init still pending, the FCM
-    // transport must not have been built yet. Pre-fix, the chain builds it
-    // immediately and this fails.
     expect(
       builderCalled,
       isFalse,
@@ -91,7 +74,6 @@ void main() {
     );
 
     // Drain the client-home snapshot timer (150ms in-memory load) the
-    // authenticated shell schedules, so the binding tears down cleanly.
     await tester.pump(const Duration(milliseconds: 250));
   });
 
@@ -99,8 +81,6 @@ void main() {
       'a genuine FCM build failure still degrades to the fake fallback',
       (tester) async {
     // Guards the catch-branch: the fix must not remove the legitimate
-    // FakePushTransport fallback for real errors (only stop it firing merely
-    // because init had not finished yet).
     final prefs = await SharedPreferences.getInstance();
 
     await tester.pumpWidget(

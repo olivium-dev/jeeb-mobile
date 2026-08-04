@@ -31,10 +31,11 @@ enum ClientRequestStatus {
   cancelled,
 }
 
-/// Tier badge the card renders (Flash red / Express orange / Standard blue).
-/// `unknown` falls back to a neutral chip so the screen never crashes when
-/// the backend introduces a new tier mid-deploy.
-enum ClientRequestTier { flash, express, standard, unknown;
+/// Tier badge the card renders — the five-tier lexicon the redesign board
+/// draws (⚡ Flash / 🚀 Express / 🟦 Standard / 🤝 On-the-Way / 🌿 Eco).
+/// `unknown` renders nothing so the screen never crashes when the backend
+/// introduces a new tier mid-deploy.
+enum ClientRequestTier { flash, express, standard, onTheWay, eco, unknown;
 
   static ClientRequestTier parse(String? raw) {
     switch (raw) {
@@ -44,6 +45,14 @@ enum ClientRequestTier { flash, express, standard, unknown;
         return ClientRequestTier.express;
       case 'standard':
         return ClientRequestTier.standard;
+      // The gateway has been observed spelling this tier three ways; all three
+      // are the same tier, so none of them may fall through to `unknown`.
+      case 'ontheway':
+      case 'on-the-way':
+      case 'on_the_way':
+        return ClientRequestTier.onTheWay;
+      case 'eco':
+        return ClientRequestTier.eco;
       default:
         return ClientRequestTier.unknown;
     }
@@ -79,6 +88,8 @@ class ClientHomeRequest extends Equatable {
     this.chatCorrelationId,
     this.createdAt,
     this.hasNewOffers = false,
+    this.lowestOfferFee,
+    this.offerCurrency,
   });
 
   /// Server-side identifier; also used as the deep-link key.
@@ -208,6 +219,21 @@ class ClientHomeRequest extends Equatable {
   /// false. The live list row sets `hasNewOffers`/`has_new_offers` when known.
   final bool hasNewOffers;
 
+  /// Lowest fee quoted across this request's live offers — the "from $8" floor
+  /// on the Replies card. Computed from the SAME `/v1/offers` probe payload the
+  /// offer count is derived from, so it costs zero extra network.
+  ///
+  /// NULL is the honest default and is common by construction: a row bucketed
+  /// into Replies by its payload `offersCount` is never probed (the probe-skip
+  /// in `_resolveOfferCounts`), and an offer that carries no `fee` contributes
+  /// nothing to the minimum. The card then renders the plain offers count.
+  final double? lowestOfferFee;
+
+  /// ISO currency of [lowestOfferFee], as the offer row reported it. Null when
+  /// there is no floor or the offer omitted a currency (callers default to
+  /// USD, which is what the gateway treats a blank code as).
+  final String? offerCurrency;
+
   ClientHomeRequest copyWith({
     String? id,
     String? title,
@@ -227,6 +253,8 @@ class ClientHomeRequest extends Equatable {
     Object? chatCorrelationId = _sentinel,
     Object? createdAt = _sentinel,
     bool? hasNewOffers,
+    Object? lowestOfferFee = _sentinel,
+    Object? offerCurrency = _sentinel,
   }) {
     return ClientHomeRequest(
       id: id ?? this.id,
@@ -265,6 +293,12 @@ class ClientHomeRequest extends Equatable {
           ? this.createdAt
           : createdAt as DateTime?,
       hasNewOffers: hasNewOffers ?? this.hasNewOffers,
+      lowestOfferFee: identical(lowestOfferFee, _sentinel)
+          ? this.lowestOfferFee
+          : lowestOfferFee as double?,
+      offerCurrency: identical(offerCurrency, _sentinel)
+          ? this.offerCurrency
+          : offerCurrency as String?,
     );
   }
 
@@ -288,6 +322,8 @@ class ClientHomeRequest extends Equatable {
         chatCorrelationId,
         createdAt,
         hasNewOffers,
+        lowestOfferFee,
+        offerCurrency,
       ];
 }
 

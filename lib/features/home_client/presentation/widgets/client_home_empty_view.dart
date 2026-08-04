@@ -1,82 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Pending-list empty content for the client Requests screen.
+/// E1 — "Empty ≠ dead" for the client Requests screen.
 ///
-/// The greeting, top create button, filter chips, and bottom navigation remain
-/// owned by the surrounding screen. This widget supplies only the branded Jeeb
-/// application illustration, localized empty copy, and first-request CTA.
+/// The composed kit illustration (mic on the route-dot ring, four medallions,
+/// waveform ears, twinkles), the tile's white headline and its muted body. The
+/// header, the segmented control and the voice capsule below stay owned by the
+/// surrounding screen — the capsule IS this state's call to action, so the
+/// separate "Create your first request" button the board never drew is gone and
+/// its frozen identifier moved onto the capsule (doc-13 Pattern D).
 class ClientHomeEmptyView extends StatelessWidget {
   const ClientHomeEmptyView({super.key, this.onNewOrder});
 
-  /// Starts the new-order flow from the primary CTA.
+  /// Retained for API compatibility with the tabs that mount this view; the
+  /// create affordance now lives on the screen's voice capsule.
   final VoidCallback? onNewOrder;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      identifier: '_request_empty_state_root',
-      container: true,
-      explicitChildNodes: true,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.medium,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            OmdsEmptyState(
-              illustration: const _ApplicationIllustration(),
-              title: AppLocalizations.of(context).homeEmptyTitle,
-              subtitle: AppLocalizations.of(context).homePendingEmpty,
-              padding: const EdgeInsetsDirectional.symmetric(
-                vertical: Spacing.medium,
-              ),
-            ),
-            _NewOrderButton(onPressed: onNewOrder),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Decorative Jeeb application illustration. Screen readers use the localized
-/// title and subtitle instead of receiving an unhelpful image announcement.
-class _ApplicationIllustration extends StatelessWidget {
-  const _ApplicationIllustration();
-
-  @override
-  Widget build(BuildContext context) {
-    return ExcludeSemantics(
-      child: Image.asset(
-        'assets/illustrations/empty_orders.png',
-        width: Sizes.twoHundredLarge,
-        height: Sizes.twoHundredLarge,
-        fit: BoxFit.contain,
-      ),
-    );
-  }
-}
-
-class _NewOrderButton extends StatelessWidget {
-  const _NewOrderButton({required this.onPressed});
-
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: '_request_empty_state_new_order_button',
-      button: true,
-      child: OmdsPrimaryButton(
-        text: l10n.homeEmptyCta,
-        borderRadius: OmdsBorderRadius.uiSmall,
-        onTap: () => onPressed?.call(),
-      ),
+    return JeebEmptyState(
+      identifier: '_request_empty_state_root',
+      headline: l10n.homeEmptyTitle,
+      body: l10n.homePendingEmptyMidnight,
     );
   }
 }

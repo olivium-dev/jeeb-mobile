@@ -2,17 +2,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Regression guard for the ACTUAL root cause of the "plain navy square" splash.
-///
-/// The QA screenshot was the Android OS cold-start splash, not the Flutter
-/// [BrandedSplash]. On API 31+ the platform SplashScreen API centres the app's
-/// `android:icon` (a flat navy `ic_launcher` square) on the white LaunchTheme
-/// window — "white screen + navy square". Editing the Flutter SVG could never
-/// fix it because that SVG is never on the native cold-start path.
-///
-/// These assertions lock the native fix: a navy splash window + the Jeeb
-/// wordmark as the SplashScreen icon, in both light and dark, on both pre-12
-/// and 12+ paths.
 void main() {
   const resRoot = 'android/app/src/main/res';
 
@@ -48,7 +37,6 @@ void main() {
     expect(launch, contains('@color/jeeb_navy'),
         reason: 'cold-start window must be brand navy, not @android:color/white');
     // Inspect only the active <item> drawable refs, not the documentary comment
-    // (which legitimately names the old @android:color/white window).
     final drawableRefs = RegExp(r'android:drawable="([^"]+)"')
         .allMatches(launch)
         .map((m) => m.group(1))

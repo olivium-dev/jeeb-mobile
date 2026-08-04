@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
@@ -7,6 +8,8 @@ import '../../core/dev_seam/dev_seam.dart';
 import '../../core/lifecycle/route_visibility.dart';
 import '../../core/notifications/application/badge_count_cubit.dart';
 import '../../core/role/role_availability_cubit.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/jeeb/jeeb_pill_nav.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/domain/customer_profile_view_data.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
@@ -48,9 +51,10 @@ import 'widgets/shell_header_actions.dart';
 /// user manually taps a tab their choice sticks, so a late getMe resolution
 /// never yanks the page out from under them.
 ///
-/// The bottom bar uses the surface color with a soft top shadow, the Jeeb
-/// navy/brown color scheme, and per-tab stable Semantics ids (`shell_tab_*`)
-/// so QA can target tabs without matching localized labels.
+/// MIDNIGHT M2-01: the bar is the kit's [JeebPillNav] — a detached navy capsule
+/// FLOATING over each tab's own `JeebMidnightField` (the shell paints no field
+/// of its own). Slot order is R1's: Requests · Delivery · Dashboard · Earnings ·
+/// Profile, carrying the frozen `shell_tab_*` Semantics ids.
 class ShellScreen extends StatefulWidget {
   const ShellScreen({
     super.key,
@@ -107,46 +111,51 @@ class _ShellScreenState extends State<ShellScreen> {
     );
     final landingIndex = _landingIndex(tabs, isJeeber: showJeeberContent);
     final safeIndex = (_selectedIndex ?? landingIndex).clamp(0, tabs.length - 1);
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        // Reserve the persistent bottom-nav bar's height as bottom content
-        // inset for every tab (VIS-P1-2) so a tab's last scrollable row — e.g.
-        // Profile's Sign out / Rate the app — clears the bar instead of sitting
-        // clipped under it. Injected once here, not per-screen.
-        //
-        // b02 READ ECONOMICS — [RouteVisibilityScope]. `TabVisibility` answers
-        // "am I the selected tab", which is NOT the same as "can the user see
-        // me": pushing `/delivery/:id` or `/chat/:id` on top of the shell leaves
-        // every tab mounted and still selected, so their push-bus subscribers
-        // kept reading underneath the pushed route. That was seven of the ten
-        // wire reads one `delivery` push produced on the customer phone. ONE
-        // scope, mounted on the shell's own route, so every tab can AND
-        // route-visibility into its own gate.
-        child: RouteVisibilityScope(
-          child: _NavBarContentInset(
-            child: IndexedStack(
-              index: safeIndex,
-              // Wrap each child in a TabVisibility so a tab body can react to
-              // (re)becoming the selected page even though IndexedStack keeps
-              // every child mounted. Used by ClientHomeScreen to silently
-              // re-pull on refocus. updateShouldNotify only fires for the tab
-              // whose visibility actually flips.
-              children: [
-                for (var i = 0; i < tabs.length; i++)
-                  TabVisibility(
-                    isVisible: i == safeIndex,
-                    child: tabs[i].page,
-                  ),
-              ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // White status glyphs over navy on EVERY tab, whatever a tab body does.
+      value: AppTheme.systemOverlayStyle,
+      child: Scaffold(
+        // The nav floats OVER the tab content, so the body runs full height and
+        // Scaffold grows its bottom inset by the nav's painted height.
+        extendBody: true,
+        body: SafeArea(
+          bottom: false,
+          // b02 READ ECONOMICS — [RouteVisibilityScope]. `TabVisibility` answers
+          // "am I the selected tab", which is NOT the same as "can the user see
+          // me": pushing `/delivery/:id` or `/chat/:id` on top of the shell leaves
+          // every tab mounted and still selected, so their push-bus subscribers
+          // kept reading underneath the pushed route. That was seven of the ten
+          // wire reads one `delivery` push produced on the customer phone. ONE
+          // scope, mounted on the shell's own route, so every tab can AND
+          // route-visibility into its own gate.
+          child: RouteVisibilityScope(
+            child: _NavBarContentInset(
+              child: IndexedStack(
+                index: safeIndex,
+                // Wrap each child in a TabVisibility so a tab body can react to
+                // (re)becoming the selected page even though IndexedStack keeps
+                // every child mounted. Used by ClientHomeScreen to silently
+                // re-pull on refocus. updateShouldNotify only fires for the tab
+                // whose visibility actually flips.
+                children: [
+                  for (var i = 0; i < tabs.length; i++)
+                    TabVisibility(
+                      isVisible: i == safeIndex,
+                      child: tabs[i].page,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-      bottomNavigationBar: _JeebBottomBar(
-        tabs: tabs,
-        selectedIndex: safeIndex,
-        onTap: (i) => setState(() => _selectedIndex = i),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: _FloatingTabNav(
+            tabs: tabs,
+            selectedIndex: safeIndex,
+            onSelected: (i) => setState(() => _selectedIndex = i),
+          ),
+        ),
       ),
     );
   }
@@ -195,8 +204,7 @@ class _ShellScreenState extends State<ShellScreen> {
       _Tab(
         id: 'requests',
         label: l10n.navRequests,
-        icon: Icons.move_to_inbox_outlined,
-        selectedIcon: Icons.move_to_inbox,
+        icon: Icons.move_to_inbox,
         // Persistent header wallet chip + bell on the Requests header
         // (`orders_home_wallet_chip`/`orders_home_bell`), overlaid by the shell
         // so the per-screen HomeTab surface stays untouched.
@@ -208,8 +216,7 @@ class _ShellScreenState extends State<ShellScreen> {
       _Tab(
         id: 'delivery',
         label: l10n.navDelivery,
-        icon: Icons.local_shipping_outlined,
-        selectedIcon: Icons.local_shipping,
+        icon: Icons.local_shipping,
         page: OrdersTab(repository: widget.ordersRepository),
       ),
       // ADDITIVE jeeber tab #1 — the Jeeber dashboard (availability + feed).
@@ -218,8 +225,7 @@ class _ShellScreenState extends State<ShellScreen> {
       _Tab(
         id: _jeeberLandingTabId,
         label: l10n.navDashboard,
-        icon: Icons.dashboard_outlined,
-        selectedIcon: Icons.dashboard,
+        icon: Icons.dashboard,
         // G3: unseen open requests badge the tab icon so a dismissed push
         // still leaves a visible trail to the feed.
         badgeCount: requestBadgeCount,
@@ -235,8 +241,7 @@ class _ShellScreenState extends State<ShellScreen> {
       _Tab(
         id: 'earnings',
         label: l10n.navEarnings,
-        icon: Icons.payments_outlined,
-        selectedIcon: Icons.payments,
+        icon: Icons.payments,
         page: showJeeberContent
             ? const EarningsTab()
             : const JeeberTabEmptyState.earnings(),
@@ -244,8 +249,7 @@ class _ShellScreenState extends State<ShellScreen> {
       _Tab(
         id: 'profile',
         label: l10n.navProfile,
-        icon: Icons.person_outline,
-        selectedIcon: Icons.person,
+        icon: Icons.person,
         // The real CustomerProfileScreen surface + header actions. Shared by
         // every user (a jeeber's per-role rating/rows are the profile screen's
         // own concern). Header ids stay `customer_profile_*` (screen-scoped).
@@ -261,17 +265,10 @@ class _ShellScreenState extends State<ShellScreen> {
   }
 }
 
-/// Re-seeds the bottom system inset for every tab body with the visual height
-/// of the persistent [_JeebBottomBar] ([Sizes.fiveXLarge]), so a tab's last
-/// scrollable row clears the bar rather than sitting clipped beneath it
-/// (VIS-P1-2). RTL-agnostic — a vertical inset only.
-///
-/// The outer [Scaffold] already consumes the real system bottom inset for the
-/// nav bar, so inside a tab body both `padding.bottom` and `viewPadding.bottom`
-/// collapse to `0` and each screen's own `SafeArea` / [BottomInsetX] reserves
-/// nothing above the bar. Re-adding the bar height to BOTH insets lets that
-/// same double-pad-safe machinery reserve it exactly once, whichever mechanism
-/// a given tab uses (a bottom `SafeArea`, `scrollBodyBottomInset`, or neither).
+/// `extendBody: true` already grew `padding.bottom` to the floating nav's
+/// painted height; this mirrors that into `viewPadding.bottom` so the tabs that
+/// reserve space via [BottomInsetX.scrollBodyBottomInset] clear the nav too
+/// (VIS-P1-2). No arithmetic of our own — Scaffold measured the real widget.
 class _NavBarContentInset extends StatelessWidget {
   const _NavBarContentInset({required this.child});
 
@@ -280,12 +277,10 @@ class _NavBarContentInset extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
+    if (mq.viewPadding.bottom >= mq.padding.bottom) return child;
     return MediaQuery(
       data: mq.copyWith(
-        padding:
-            mq.padding.copyWith(bottom: mq.padding.bottom + Sizes.fiveXLarge),
-        viewPadding: mq.viewPadding
-            .copyWith(bottom: mq.viewPadding.bottom + Sizes.fiveXLarge),
+        viewPadding: mq.viewPadding.copyWith(bottom: mq.padding.bottom),
       ),
       child: child,
     );
@@ -342,108 +337,111 @@ class _CustomerProfileTabBody extends StatelessWidget {
   }
 }
 
-class _JeebBottomBar extends StatelessWidget {
-  const _JeebBottomBar({
+// ── The floating pill nav (MIDNIGHT M2-01, R1 `tpl 108-130`) ───────────────
+// All geometry lives in the frozen kit widget; the shell only maps product
+// tabs onto its five slots and re-homes the G3 badge over the right one.
+
+/// Maps the shell's five [_Tab]s onto [JeebPillNav], keeping the frozen
+/// `shell_tab_<id>` identifiers and R1's slot order.
+class _FloatingTabNav extends StatelessWidget {
+  const _FloatingTabNav({
     required this.tabs,
     required this.selectedIndex,
-    required this.onTap,
+    required this.onSelected,
   });
 
   final List<_Tab> tabs;
   final int selectedIndex;
-  final void Function(int) onTap;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withAlpha(13),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+    final Widget nav = JeebPillNav(
+      items: <JeebPillNavItem>[
+        for (final _Tab tab in tabs)
+          JeebPillNavItem(
+            icon: tab.icon,
+            label: tab.label,
+            identifier: 'shell_tab_${tab.id}',
           ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: Sizes.fiveXLarge,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              for (var i = 0; i < tabs.length; i++)
-                _BarItem(
-                  tab: tabs[i],
-                  isSelected: i == selectedIndex,
-                  onTap: () => onTap(i),
-                ),
-            ],
+      ],
+      selectedIndex: selectedIndex,
+      onSelected: onSelected,
+    );
+    final int badged = tabs.indexWhere((_Tab t) => t.badgeCount > 0);
+    if (badged < 0) return nav;
+    return Stack(
+      children: <Widget>[
+        nav,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: _TabBadgeOverlay(
+              tab: tabs[badged],
+              slot: badged,
+              slotCount: tabs.length,
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
 
-class _BarItem extends StatelessWidget {
-  const _BarItem({
+/// G3 unseen-request count. The kit's slot takes an `IconData`, not a widget,
+/// so the badge is laid over the nav on the same 5-way split the kit uses.
+class _TabBadgeOverlay extends StatelessWidget {
+  const _TabBadgeOverlay({
     required this.tab,
-    required this.isSelected,
-    required this.onTap,
+    required this.slot,
+    required this.slotCount,
   });
 
   final _Tab tab;
-  final bool isSelected;
-  final VoidCallback onTap;
+  final int slot;
+  final int slotCount;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
-    final color = isSelected ? colorScheme.primary : colorScheme.outline;
-    final icon = Icon(
-      isSelected ? tab.selectedIcon : tab.icon,
-      size: Sizes.xLarge,
-      color: color,
-    );
-    return Semantics(
-      identifier: 'shell_tab_${tab.id}',
-      button: true,
-      selected: isSelected,
-      label: tab.label,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // G3: M3 count badge (theme error/onError roles — OMDS ships no
-            // badge primitive) over the tab glyph when the tab has unseen
-            // items; plain glyph otherwise. Carries `shell_tab_<id>_badge`
-            // so QA can assert presence/absence without matching the count
-            // text.
-            if (tab.badgeCount > 0)
-              Semantics(
-                identifier: 'shell_tab_${tab.id}_badge',
-                container: true,
-                child: Badge.count(count: tab.badgeCount, child: icon),
-              )
-            else
-              icon,
-            const SizedBox(height: Sizes.threeXSmall),
-            Text(
-              tab.label,
-              style: textTheme.labelSmall?.copyWith(
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                letterSpacing: 0.2,
-                color: color,
-              ),
-            ),
-          ],
+    return Padding(
+      padding: JeebPillNav.defaultMargin.add(
+        const EdgeInsets.symmetric(
+          horizontal: JeebPillNav.horizontalPadding,
         ),
+      ),
+      child: Row(
+        children: <Widget>[
+          for (int i = 0; i < slotCount; i++)
+            Expanded(
+              child: i == slot
+                  ? Align(
+                      alignment: AlignmentDirectional.topCenter,
+                      child: Padding(
+                        // +1 clears the capsule's hairline border.
+                        padding: const EdgeInsets.only(
+                          top: JeebPillNav.slotVerticalPadding + 1,
+                        ),
+                        child: SizedBox(
+                          height: JeebPillNav.iconRowHeight,
+                          child: Center(
+                            child: Semantics(
+                              identifier: 'shell_tab_${tab.id}_badge',
+                              container: true,
+                              // Hugs the glyph box, not the 50-wide active
+                              // pill, so it can never float off detached.
+                              child: Badge.count(
+                                count: tab.badgeCount,
+                                child: const SizedBox.square(
+                                  dimension: JeebPillNav.iconSize,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+        ],
       ),
     );
   }
@@ -454,7 +452,6 @@ class _Tab {
     required this.id,
     required this.label,
     required this.icon,
-    required this.selectedIcon,
     required this.page,
     this.badgeCount = 0,
   });
@@ -463,8 +460,10 @@ class _Tab {
   /// QA (Maestro) can target tabs without matching on localized labels.
   final String id;
   final String label;
+
+  /// ONE glyph per tab, filled in both states — R1 draws the same solid shape
+  /// selected or not; only the ink (and the orange pill) change.
   final IconData icon;
-  final IconData selectedIcon;
   final Widget page;
 
   /// Unseen-item count rendered as an M3 badge over the tab icon; `0` hides

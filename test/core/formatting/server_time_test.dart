@@ -1,8 +1,4 @@
 // Unit tests for ServerTime — the shared gateway-timestamp normalizer
-// (cycle-5 T11 / SW-03 centralization). Proves the zone-less→UTC rule that
-// stops UTC wall clocks leaking as device-local across feed, order history,
-// wallet and tracking. Host-timezone-independent by construction (all
-// assertions are on absolute UTC instants).
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,7 +11,6 @@ void main() {
       expect(parsed, isNotNull);
       expect(parsed!.isUtc, isTrue);
       // Wall-clock digits are preserved AS UTC (12:31 UTC) — NOT shifted to the
-      // device zone. Downstream toLocal() then becomes a real conversion.
       expect(parsed, DateTime.utc(2026, 7, 3, 12, 31));
     });
 

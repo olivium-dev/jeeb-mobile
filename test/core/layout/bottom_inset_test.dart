@@ -21,17 +21,11 @@ class _FakeSuperLoginService implements SuperLoginService {
       const SuperLoginFailure(SuperLoginError.unknown);
 }
 
-/// Simulated soft-button navigation bar inset (3-button nav is ~48dp; this is a
-/// representative value that any correct fix must reserve at the bottom). The
-/// FlutterView reports insets in PHYSICAL pixels, so multiply by the device
-/// pixel ratio when seeding `tester.view`.
+/// Simulated soft-button navigation bar inset (3-button nav is 
 const double _kNavBarInsetDp = 48;
 
 void main() {
   group('BottomInsetX.sheetBottomInset', () {
-    // Seeds the FlutterView's nav-bar inset (where the helper reads it from —
-    // NOT MediaQuery, which a modal route consumes) and injects the keyboard
-    // inset via the propagated MediaQuery (which IS preserved inside sheets).
     Future<double> resolveInset(
       WidgetTester tester, {
       required double keyboardDp,
@@ -71,9 +65,6 @@ void main() {
 
     testWidgets('nav-bar inset is reserved when the keyboard is closed',
         (tester) async {
-      // The exact regression: keyboard closed (viewInsets.bottom == 0) must
-      // still reserve the nav-bar inset. The buggy code reserved 0 here, so
-      // content rendered flush behind the nav bar.
       final inset = await resolveInset(
         tester,
         keyboardDp: 0,
@@ -115,9 +106,6 @@ void main() {
     testWidgets(
         'submit button clears the soft-button nav bar inset',
         (tester) async {
-      // Soft-button nav bar reported by the device under edge-to-edge. Seeded on
-      // the FlutterView so it survives the modal-sheet route (which strips the
-      // MediaQuery padding).
       final dpr = tester.view.devicePixelRatio;
       tester.view.viewPadding =
           FakeViewPadding(bottom: _kNavBarInsetDp * dpr);
@@ -129,7 +117,6 @@ void main() {
 
       await tester.pumpWidget(host(cubit));
       await tester.tap(find.byKey(const Key('open')));
-      // pump() not pumpAndSettle() — OmdsLoadingButton has a live ticker.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -138,10 +125,6 @@ void main() {
       final submitRect =
           tester.getRect(find.byKey(const Key('superLogin.submit')));
 
-      // The CTA's bottom edge must sit at least one nav-bar inset above the
-      // screen bottom. Pre-fix (viewInsets-only padding) this gap was ~20dp
-      // (the sheet's own content padding) and the button rendered behind the
-      // soft buttons.
       final gapBelowButton = screenHeight - submitRect.bottom;
       expect(
         gapBelowButton,

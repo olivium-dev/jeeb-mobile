@@ -6,10 +6,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_cubit.dart';
 import 'package:jeeb_mobile/features/kyc/application/kyc_wizard_state.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
+import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_state_art.dart';
 import 'package:jeeb_mobile/features/kyc/presentation/widgets/kyc_submitting_view.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -146,21 +148,60 @@ Future<void> _disposePollingHost(
 void main() {
   setUpAll(_loadArbFromDisk);
 
-  testWidgets('renders headline, body, upload icon, and spinner (English)', (
+  testWidgets('renders headline, body and the §2.7 loading state (English)', (
     tester,
   ) async {
     await tester.pumpWidget(_host());
     await tester.pump();
 
     expect(find.byKey(KycSubmittingView.rootKey), findsOneWidget);
-    expect(find.byKey(KycSubmittingView.titleKey), findsOneWidget);
-    expect(find.byKey(KycSubmittingView.spinnerKey), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier(KycSubmittingView.titleIdentifier),
+      findsOneWidget,
+    );
     expect(find.text('Submitting your documents'), findsOneWidget);
     // D20: the KYC submit copy no longer references vehicle details (the
-    // vehicle step was removed; the stale "vehicle" wording was dropped).
     expect(find.textContaining('uploading your ID and selfie'), findsOneWidget);
     expect(find.textContaining('vehicle'), findsNothing);
-    expect(find.byIcon(Icons.cloud_upload_outlined), findsOneWidget);
+  });
+
+  testWidgets('M4: the wait is JeebEmptyState.loading on the KYC art', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host());
+    await tester.pump();
+
+    final JeebEmptyState block =
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+    expect(block.status, JeebEmptyStateStatus.loading);
+    expect(block.status, isNot(JeebEmptyStateStatus.empty));
+    expect(block.variant, kycStateVariant);
+    expect(block.variant, JeebEmptyStateVariant.radar);
+    expect(block.medallions, kycStateMedallions);
+    expect(block.headlineIdentifier, KycSubmittingView.titleIdentifier);
+    // The mark and the separate spinner row this row deleted.
+    expect(find.byIcon(Icons.cloud_upload_outlined), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('M4: no `colorScheme.primary` ink is left on the headline', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host());
+    await tester.pump();
+
+    final BuildContext context = tester.element(find.byType(JeebEmptyState));
+    final Color primary = Theme.of(context).colorScheme.primary;
+    final Text headline = tester.widget<Text>(
+      find.text('Submitting your documents'),
+    );
+    // Was `jeebText.h1.copyWith(color: colorScheme.primary)` — under Midnight
+    // that role is #D73B00, not the navy the pass-1 comment claimed.
+    expect(headline.style?.color?.toARGB32(), isNot(primary.toARGB32()));
+    expect(
+      headline.style?.color?.toARGB32(),
+      Theme.of(context).colorScheme.onSurface.toARGB32(),
+    );
   });
 
   testWidgets('renders Arabic copy when locale is ar', (tester) async {

@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:open_file/open_file.dart';
+import 'package:omds/omds.dart' show Spacing;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -33,7 +33,6 @@ import '../../features/delivery_man_profile/data/dev_delivery_man_profile_fixtur
 import '../../features/delivery_man_profile/domain/delivery_man_profile_view_data.dart';
 import '../../features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
 import '../../features/deep_link_targets/delivery_detail_screen.dart';
-import '../../features/deep_link_targets/rating_prompt_screen.dart';
 import '../../features/kyc/presentation/kyc_wizard_screen.dart';
 import '../../features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import '../../features/jeeber_onboarding_funding/presentation/onboarding_funding_screen.dart';
@@ -72,22 +71,22 @@ import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
+import '../../features/location/data/location_repository.dart' show LocationPoint;
 import '../../features/location/presentation/screens/address_detail_form_screen.dart';
-import '../../features/location/presentation/screens/location_picker_screen.dart';
+import '../../features/location/presentation/widgets/capture_picker_sheet.dart';
+import '../../features/location/presentation/widgets/google_map_capture_view.dart';
+import '../../features/location/presentation/widgets/map_capture_controller.dart';
 import '../../features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import '../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
 import '../../features/background_gps/application/background_gps_cubit.dart';
+import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
 import '../../features/offers/presentation/offer_submission_screen.dart';
-import '../../features/settlement/domain/settlement_repository.dart';
-import '../../features/settlement/domain/settlement_statement.dart';
-import '../../features/settlement/presentation/settlement_detail_screen.dart';
-import '../../features/settlement/presentation/settlement_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/otp_handover/application/otp_handover_cubit.dart';
 import '../../features/otp_handover/domain/handover_code_store.dart';
@@ -120,36 +119,64 @@ import '../diagnostics/diagnostics_screen.dart';
 import '../observability/session_trace/session_trace.dart';
 import '../onboarding/onboarding_cubit.dart';
 
-/// `/capture-location` route host (B-35).
+/// `/capture-location` route host (B-35, MIDNIGHT M2-05 P0-1).
 ///
-/// JEBV4-176: this placeholder route has NO live draggable map injected yet
-/// (B-23, Maps SDK key owner-gated), so there is NO real user-picked coordinate
-/// to return. It therefore refuses to fabricate one. Previously it seeded a
-/// `MapCaptureController` with a hardcoded Beirut-downtown centre
-/// (`33.8938, 35.5018`) and popped THAT back on "Pin Location", so — because
-/// the neutral [CaptureMapViewport] placeholder never pans — every confirmed
-/// pin silently collapsed to downtown Beirut and could create a Beirut-pinned
-/// request. That silent fabrication is exactly what JEBV4-176 removes.
+/// The route now injects the SAME live `GoogleMap` surface
+/// `GoogleMapPickerLauncher` builds — `JeebMapStyle`-dark, panning under the
+/// screen's fixed centre pin — and pops the camera centre the customer can
+/// actually see. Before this it mounted the neutral placeholder and popped with
+/// no coordinate (JEBV4-176), because a viewport that cannot pan would have
+/// collapsed every pin to the seeded Beirut centre; a real map removes that
+/// fabrication risk without re-introducing the default.
 ///
-/// Now "Pin Location" pops with NO coordinate. client-location's `markPinned`
-/// then records the pinned CHOICE but no point, and [LocationSelectState]
-/// keeps that choice un-confirmable (Confirm stays disabled) — the same honest
-/// gating the GPS-recovery path uses, so no fabricated coordinate can reach a
-/// created request. Once B-23 injects a live `GoogleMap` `mapBuilder` here,
-/// wire a `MapCaptureController` whose camera-idle writes the REAL point and
-/// pop that instead.
+/// The controller is owned by the State so a rebuild cannot reset the camera
+/// centre the map has already reported, and the pop stays gated on a camera
+/// that really settled: a map that never initialised still pops with NO
+/// coordinate, so the seed can never masquerade as the customer's choice.
 @visibleForTesting
-class CaptureLocationRoute extends StatelessWidget {
+class CaptureLocationRoute extends StatefulWidget {
   const CaptureLocationRoute({super.key});
+
+  /// Camera seed — Beirut downtown, the same point the launcher starts from.
+  /// It is a VIEWPORT seed, never a returned answer: the map reports its own
+  /// centre on the first frame and every pan after it.
+  static const LocationPoint initialCentre = LocationPoint(
+    latitude: 33.8938,
+    longitude: 35.5018,
+  );
+
+  @override
+  State<CaptureLocationRoute> createState() => _CaptureLocationRouteState();
+}
+
+class _CaptureLocationRouteState extends State<CaptureLocationRoute> {
+  final MapCaptureController _controller = MapCaptureController(
+    initial: CaptureLocationRoute.initialCentre,
+  );
+  final GeolocatorGeocaptureGateway _gateway = GeolocatorGeocaptureGateway();
+
+  /// True once the live camera has settled at least once.
+  bool _cameraLive = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return CaptureLocationScreen(
-      // JEBV4-176: no live map → no real picked point → pop WITHOUT a
-      // coordinate rather than fabricate the old Beirut default. Once a live
-      // map is injected, pass its `mapBuilder` and pop the real camera centre.
+      controller: _controller,
+      mapBuilder: (_) => GoogleMapCaptureView(
+        controller: _controller,
+        gateway: _gateway,
+        onCameraSettled: () => _cameraLive = true,
+        bottomInset: CapturePickerSheet.dockedClearance + Spacing.large,
+      ),
       onPinned: () {
-        if (context.canPop()) context.pop();
+        if (!context.canPop()) return;
+        context.pop(_cameraLive ? _controller.center : null);
       },
     );
   }
@@ -187,6 +214,31 @@ String? normalizeChatDeepLink(Uri uri) {
   if (uri.host != 'chat') return null;
   final id = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : '';
   return id.isEmpty ? null : '/chat/$id';
+}
+
+/// The counterpart display name both rating terminals read off the URL.
+const String kRateeNameParam = 'name';
+
+/// Canonical location of the blind mutual-rating terminal (T-MOB-020).
+///
+/// [counterpartName] is the person being rated. Passing it is what turns 15's
+/// personalised headline, avatar initial and blind-reveal sentence on; omitting
+/// it leaves the finished role-aware fallback, never a fabricated name. Callers
+/// that hold a name (chat summary, delivery detail, OTP handover) should build
+/// their location here rather than re-deriving the `?mode=jeeber` suffix.
+String mutualRatingLocation(
+  String deliveryId, {
+  required bool isClient,
+  String? counterpartName,
+}) {
+  final String name = counterpartName?.trim() ?? '';
+  final Map<String, String> query = <String, String>{
+    if (!isClient) 'mode': 'jeeber',
+    if (name.isNotEmpty) kRateeNameParam: name,
+  };
+  final String suffix =
+      query.isEmpty ? '' : '?${Uri(queryParameters: query).query}';
+  return '/orders/$deliveryId/mutual-rate$suffix';
 }
 
 /// Resolves the id the live-tracking surface should load (S9 P0, restored
@@ -455,8 +507,8 @@ class AppRouter {
   ///   * screens that ALREADY self-wrap in [RootAwareBackScope]
   ///     (`delivery-detail`, `settings-addresses`, `jeeber-offer-submission`):
   ///     wrapping again is redundant and would shadow their tuned fallbacks.
-  ///   * `rating-prompt` (a redirect-only Type-A placeholder) and `dev-chat`
-  ///     (debug-only) — never a real user destination.
+  ///   * `rating-prompt` (redirect-only) and `dev-chat` (debug-only) — never a
+  ///     real user destination.
   @visibleForTesting
   static const Map<String, String> backFallbacks = {
     // ── set-password (JM-061 password-security; the email/password sign-in
@@ -473,7 +525,6 @@ class AppRouter {
     'jeeber-onboarding': '/',
     'customer-profile': '/',
     'delivery-man-profile': '/',
-    'location-picker': '/',
     'settings': '/',
     'settings-profile': '/settings',
     'address-detail': '/settings/addresses',
@@ -495,8 +546,6 @@ class AppRouter {
     'escalate': '/',
     // ── W2 / W2.5 jeeber + wallet.
     'jeeber-active-delivery': '/',
-    'jeeber-settlement': '/',
-    'jeeber-settlement-detail': '/jeeber/settlement',
     'onboarding-funding': '/',
     'offer-kyc-gate': '/',
     'delivery-register-prompt': '/',
@@ -864,14 +913,10 @@ class AppRouter {
         GoRoute(
           path: '/orders/:id/rate',
           name: 'rating-prompt',
-          // B-3: the `rating-prompt` placeholder is superseded by the real
-          // blind mutual-rating screen (T-MOB-020). Redirect this route — hit
-          // from the post-delivery "rate" notification deep link
-          // (notification_deep_link.dart) — to `/orders/:id/mutual-rate`,
-          // carrying the delivery id (and any `mode` query param) through. The
-          // [RatingPromptScreen] builder below is retained only as an
-          // unreachable fallback so the placeholder file stays under the
-          // Type-A discipline gate until T-MOB-RATING-001 formally lifts it.
+          // B-3: the live post-delivery "rate" push deep link
+          // (notification_deep_link.dart) lands here and is redirected to the
+          // real blind mutual-rating screen (T-MOB-020), carrying the delivery
+          // id and any `mode` query param through.
           redirect: (context, state) {
             final id = state.pathParameters['id'] ?? '';
             if (id.isEmpty) return null;
@@ -879,8 +924,9 @@ class AppRouter {
             final suffix = query.isEmpty ? '' : '?$query';
             return '/orders/$id/mutual-rate$suffix';
           },
-          builder: (context, state) =>
-              RatingPromptScreen(deliveryId: state.pathParameters['id'] ?? ''),
+          // Unreachable: `:id` cannot match an empty segment, so the redirect
+          // above always fires. Present only to satisfy GoRoute.
+          builder: (context, state) => const Scaffold(),
         ),
         GoRoute(
           path: '/chat/:id',
@@ -963,11 +1009,6 @@ class AppRouter {
             }
             return const ProfileUnavailableScreen();
           },
-        ),
-        GoRoute(
-          path: '/location',
-          name: 'location-picker',
-          builder: (context, state) => const LocationPickerScreen(),
         ),
         GoRoute(
           path: '/settings',
@@ -1083,6 +1124,13 @@ class AppRouter {
                 localAudioPath: localAudioPath,
               ),
             ),
+            // Redesign 05 "Type" satellite: the transcription route already
+            // renders a typeable field for an empty clip, so switching to
+            // typing is a push with a blank clip — never a fabricated one.
+            onSwitchToTyping: () => context.push(
+              '/voice-request/transcription',
+              extra: const VoiceClip(audioPath: '', durationMs: 0),
+            ),
           ),
         ),
         // The legacy `/tier-selection` route (TierSelectionScreen) was removed
@@ -1162,6 +1210,11 @@ class AppRouter {
                   description: text,
                   transcription: text,
                   audioUrl: audioPath.isEmpty ? null : audioPath,
+                  // Redesign 10: the summary's voice replay band plays the
+                  // ON-DEVICE file, not the gateway audioId. Both fields are
+                  // local-only and are never serialized onto the create body.
+                  audioLocalPath: clip.localAudioPath,
+                  audioDurationMs: clip.durationMs,
                 ),
               ),
               onReRecord: () {
@@ -1202,6 +1255,11 @@ class AppRouter {
                 context.pop(clip);
               }
             },
+            // Redesign 05 "Type" satellite on the dictation leg: the compose
+            // field the user dictates into is one pop away. Pushing the
+            // transcription review here would bypass the dictation return
+            // contract.
+            onSwitchToTyping: () => context.pop(),
           ),
         ),
         GoRoute(
@@ -1411,6 +1469,11 @@ class AppRouter {
                 repository: sl<OtpHandoverRepository>(),
                 deliveryId: deliveryId,
                 isClient: isClient,
+                // 13: best-effort arrival banner (name/vehicle/cash/stage),
+                // read from the delivery the app already fetches. Optional —
+                // every other call site renders no banner. No new endpoint,
+                // no new DI registration.
+                deliveryInfo: sl<LiveTrackingRepository>(),
                 // G4: local-first code sourcing — the accept-time persisted
                 // code renders instantly (and restart-safe) without hitting
                 // the SMS-trigger endpoint.
@@ -1427,8 +1490,8 @@ class AppRouter {
         ),
         // Feedback / rating screen (Figma 56614:20132). `mode=jeeber` flips the
         // audience so the delivery man rates the client; `name` seeds the
-        // ratee for capture. Distinct from the frozen `/orders/:id/rate`
-        // placeholder (RatingPromptScreen, Type-A CI gate).
+        // ratee for capture. Distinct from `/orders/:id/rate`, which redirects
+        // to `mutual-rating`.
         GoRoute(
           path: '/orders/:id/feedback',
           name: 'feedback',
@@ -1438,7 +1501,7 @@ class AppRouter {
             return RatingScreen(
               deliveryId: deliveryId,
               isClient: isClient,
-              rateeName: state.uri.queryParameters['name'] ?? '',
+              rateeName: state.uri.queryParameters[kRateeNameParam] ?? '',
             );
           },
         ),
@@ -1457,7 +1520,12 @@ class AppRouter {
                 deliveryId: deliveryId,
                 isClient: isClient,
               ),
-              child: const MutualRatingScreen(),
+              // 15: optional `?name=` counterpart display name, built by
+              // [mutualRatingLocation]. Absent → the screen's role-aware
+              // fallback headline.
+              child: MutualRatingScreen(
+                rateeName: state.uri.queryParameters[kRateeNameParam] ?? '',
+              ),
             );
           },
         ),
@@ -1515,46 +1583,17 @@ class AppRouter {
               // missing leg: the screen fired `onMarkedDelivered` but the route
               // passed no callback, so mark-delivered completed (stepper filled)
               // yet never opened the rating screen (`rating_submit_cta`).
+              // TODO(midnight): omitted — the ACTIVE-delivery route holds no
+              // customer display name, so 15 falls back to its role-aware
+              // headline on this leg (carry-in P1, see mutualRatingLocation).
               onMarkedDelivered: () {
-                context.go('/orders/$deliveryId/mutual-rate?mode=jeeber');
+                context.go(mutualRatingLocation(deliveryId, isClient: false));
               },
               // T-MOB-031 AC4: open destination in Google Maps via url_launcher.
               mapsUrlBuilder: (url) => launchUrl(
                 Uri.parse(url),
                 mode: LaunchMode.externalApplication,
               ),
-            );
-          },
-        ),
-
-        // T-MOB-032: Settlement statement list.
-        GoRoute(
-          path: '/jeeber/settlement',
-          name: 'jeeber-settlement',
-          builder: (context, state) => SettlementScreen(
-            repository: sl<SettlementRepository>(),
-            onTapStatement: (statement) {
-              context.push(
-                '/jeeber/settlement/${statement.id}',
-                extra: statement,
-              );
-            },
-            // T-MOB-032 AC3: open downloaded PDF using open_file package.
-            onOpenPdf: (path) => OpenFile.open(path),
-          ),
-        ),
-
-        // T-MOB-032: Settlement statement detail (per-delivery breakdown).
-        GoRoute(
-          path: '/jeeber/settlement/:id',
-          name: 'jeeber-settlement-detail',
-          builder: (context, state) {
-            final extra = state.extra;
-            if (extra is SettlementStatement) {
-              return SettlementDetailScreen(statement: extra);
-            }
-            return const Scaffold(
-              body: Center(child: Text('Statement not found')),
             );
           },
         ),

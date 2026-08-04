@@ -42,6 +42,12 @@ Widget _host(VoidCallback onRegister, {Locale locale = const Locale('en')}) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // MIDNIGHT M4: the upsell hero is now a `JeebEmptyState`, whose E3
+    // illustration loops ∞ — `pumpAndSettle` settles only under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(
       body: JeeberUnregisteredView(onRegister: onRegister, profileName: 'Kamal'),
     ),
@@ -83,35 +89,17 @@ void main() {
     expect(find.text('سجّل الآن'), findsOneWidget);
   });
 
-  // CAP-3 Semantics auto-merge regression (screen 19 / Figma 56614:18920).
-  //
-  // The root `Semantics(container: true, identifier: 'jeeber_unregistered_root')`
-  // had no `explicitChildNodes: true`, so `container: true` still merged the
-  // subtree's semantics into the root node and the nested
-  // `jeeber_unregistered_register_button` identifier was SWALLOWED — Maestro
-  // flow 19 (`assertVisible`/`tapOn` on that id) and screen readers could no
-  // longer address it. This is a genuine reproducing swallow, not a lock:
-  // probed pre-fix the root surfaces (1) but the button id is absent (0).
-  //
-  // The fix adds `explicitChildNodes: true` to the root, making it a
-  // NON-merging boundary so BOTH ids surface as their own SemanticsNode. These
-  // assertions FAIL on the pre-fix source (button id `findsNothing`) and PASS
-  // after. They enumerate exactly the two ids Maestro flow
-  // `19-delivery-screen-user-not-registered-as-del.yaml` asserts on this view.
   testWidgets(
       'surfaces BOTH the root id and the register-button id as distinct nodes',
       (tester) async {
     await tester.pumpWidget(_host(() {}));
     await tester.pumpAndSettle();
 
-    // Outer root id preserved.
     expect(
       find.bySemanticsIdentifier('jeeber_unregistered_root'),
       findsOneWidget,
       reason: 'The upsell-root identifier must remain queryable.',
     );
-    // Previously-swallowed register-CTA id now surfaces — this is the id the
-    // Maestro flow targets with assertVisible + tapOn.
     expect(
       find.bySemanticsIdentifier('jeeber_unregistered_register_button'),
       findsOneWidget,

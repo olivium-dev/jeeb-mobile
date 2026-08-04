@@ -1,17 +1,4 @@
 // N4 (b02 polling→push). This file used to assert that the 60 s chat history
-// poll "keeps its unconditional lifecycle degrade when no gate is installed" —
-// i.e. that with no `AppLifecycleGate` on the root, a started poller ticks
-// exactly like a bare `Timer.periodic`.
-//
-// That poll is DELETED. The property worth keeping from the original is the
-// root-free one: `ChatCubit` must behave identically with and without a gate
-// installed, because bare `test()` bodies and fixture hosts have no root. What
-// it must now do in BOTH cases is arm NOTHING.
-//
-// The inverted assertion is deliberate and is the point: `async.periodicTimerCount`
-// is checked WHILE THE THREAD IS HEALTHY, not only after `close()`. A check that
-// only runs post-dispose cannot tell "there was never a timer" from "the timer
-// was cleaned up properly", and leg 1 of the four-leg bar asks for the first.
 
 import 'dart:async';
 
@@ -87,7 +74,6 @@ void main() {
       );
 
       // POSITIVE CONTROL — the harness can still observe a read, so the zero
-      // above is silence and not a dead double.
       bus.add(null);
       async.flushMicrotasks();
       expect(gateway.loadHistoryCalls, 2);

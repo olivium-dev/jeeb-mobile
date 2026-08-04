@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Per-role rating chip on the customer-profile header (JM-035 AC1, D6).
+/// Per-role rating line on the customer-profile identity card (JM-035 AC1, D6).
 ///
 /// Always rendered (with the `customer_profile_rating` identifier) so the
 /// Maestro presence assertion holds for every account — a rated account shows
 /// "★ 4.9 · 312 Reviews", an unrated account shows a deterministic "No reviews
 /// yet" state. The id is presence-only (i18n-safe); the value is never asserted.
+///
+/// MIDNIGHT M3-07: the star is `JeebSemanticColors.amber` (`#FFC107`), the
+/// token sheet §3 field whose stated use is "stars/ratings" — R15's caption is
+/// explicit that the board's stars shine amber on the night field. The count
+/// run stays `mutedText`; amber is the glyph only.
 ///
 /// Copy reuses the existing `deliveryManProfile*` rating keys (same rating-row
 /// semantics) — no new ARB keys (l10n is integrator-owned). A dedicated
@@ -28,9 +35,9 @@ class CustomerProfileRating extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final colorScheme = theme.colorScheme;
+    final semantics = Theme.of(context).extension<JeebSemanticColors>();
+    final muted = semantics?.mutedText;
 
     final ratingText = (rating ?? 0).toStringAsFixed(1);
     final label = _hasRating
@@ -52,17 +59,15 @@ class CustomerProfileRating extends StatelessWidget {
         children: [
           Icon(
             _hasRating ? Icons.star_rounded : Icons.star_border_rounded,
-            size: Sizes.large,
-            color: colorScheme.primary,
+            size: Sizes.medium,
+            // R15 draws the unearned star muted, never a dim amber.
+            color: _hasRating ? semantics?.amber : muted,
           ),
           const SizedBox(width: Spacing.twoXSmall),
           Flexible(
             child: Text(
               label,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
+              style: context.jeebText.bodySmall.copyWith(color: muted),
               overflow: TextOverflow.ellipsis,
             ),
           ),

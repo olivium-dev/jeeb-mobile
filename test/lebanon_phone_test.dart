@@ -43,7 +43,6 @@ void main() {
 
     test('accepts the +9613000002 seed phone (7 national digits)', () {
       // The valid seed phone the gateway issues OTP for — its national part is
-      // only 7 digits, which the old "exactly 8" gate wrongly rejected.
       final p = LebanonPhone.tryParse('+9613000002');
       expect(p, isNotNull);
       expect(p!.e164, '+9613000002');

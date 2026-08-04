@@ -1,71 +1,139 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../../core/widgets/directional_icons.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 
-/// The "Location" section row on the Request type screen (Figma 56535:2392):
-/// a start-aligned "Current Location" label and an end-aligned "Change
-/// Location" text action with a trailing chevron. The action area is the tap
-/// target and navigates to the location picker.
+/// The "Deliver to" card on the Request type screen (MIDNIGHT · R9): a rest
+/// glass card holding a pin glyph, the destination line (plus an optional
+/// qualifier under it) and a bare orange "Change" word at the end. Only the
+/// word is the tap target.
+///
+/// The constructor stays source-compatible with the pre-redesign row —
+/// `semantics_identifier_surfacing_test.dart` constructs it directly with the
+/// original three named arguments.
 class RequestLocationRow extends StatelessWidget {
   const RequestLocationRow({
     super.key,
     required this.currentLabel,
     required this.changeLabel,
     required this.onChange,
+    this.addressLabel,
+    this.qualifierLabel,
+    this.changeCtaLabel,
   });
 
+  /// Fallback for the primary line and the label the a11y node keeps when no
+  /// resolved [addressLabel] exists yet.
   final String currentLabel;
+
+  /// The spoken label of the change action ("Change Location"). Stays the
+  /// accessible name even though the board draws the shorter [changeCtaLabel].
   final String changeLabel;
+
+  /// Opens the location picker.
   final VoidCallback onChange;
+
+  /// The resolved destination line ("Home — Achrafieh, Beirut") when the flow
+  /// has one. Null on 07 today: the destination is picked on the NEXT screen.
+  final String? addressLabel;
+
+  /// Secondary line under the address ("Current location"). Rendered only when
+  /// non-null, so the card collapses to one line rather than showing a stub.
+  final String? qualifierLabel;
+
+  /// The visible action word ("Change"). Falls back to [changeLabel].
+  final String? changeCtaLabel;
 
   @override
   Widget build(BuildContext context) {
-    // `explicitChildNodes` makes this row a Semantics *boundary*: without it the
-    // ambient merge folds the label's `request_type_current_location_label` and
-    // the action's `request_type_change_location_button` into one node and the
-    // button identifier is swallowed (Maestro/screen-reader can't address it).
-    // The boundary keeps both inner identifiers as their own queryable nodes.
+    // `explicitChildNodes` makes this card a Semantics *boundary*: without it
+    // the ambient merge folds the label's `request_type_current_location_label`
+    // and the action's `request_type_change_location_button` into one node and
+    // the button identifier is swallowed (Maestro/screen-reader can't address
+    // it). The boundary keeps both inner identifiers as their own nodes.
     return Semantics(
       explicitChildNodes: true,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(child: _CurrentLabel(text: currentLabel)),
-          const SizedBox(width: Spacing.medium),
-          _ChangeAction(label: changeLabel, onTap: onChange),
-        ],
+      child: JeebGlassCard(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.medium,
+          vertical: Spacing.medium,
+        ),
+        child: Row(
+          children: [
+            // Tile-drawn orange: R9 paints the pin warm against the glass, the
+            // one glyph on the screen that is not white or periwinkle.
+            Icon(
+              Icons.location_on,
+              size: Sizes.large,
+              color: context.jeebRoles.accent,
+            ),
+            const SizedBox(width: Spacing.small),
+            Expanded(child: _AddressBlock(row: this)),
+            _ChangeAction(
+              label: changeLabel,
+              ctaLabel: changeCtaLabel ?? changeLabel,
+              onTap: onChange,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _CurrentLabel extends StatelessWidget {
-  const _CurrentLabel({required this.text});
+class _AddressBlock extends StatelessWidget {
+  const _AddressBlock({required this.row});
 
-  final String text;
+  final RequestLocationRow row;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      identifier: 'request_type_current_location_label',
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: scheme.primary,
-              fontWeight: FontWeight.w700,
-            ),
-        overflow: TextOverflow.ellipsis,
-      ),
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    final qualifier = row.qualifierLabel;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          identifier: 'request_type_current_location_label',
+          child: Text(
+            row.addressLabel ?? row.currentLabel,
+            style: context.jeebText.cardTitle.copyWith(color: scheme.onSurface),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (qualifier != null)
+          Text(
+            qualifier,
+            style: context.jeebText.bodySmall
+                .copyWith(color: semantics.mutedText),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
     );
   }
 }
 
 class _ChangeAction extends StatelessWidget {
-  const _ChangeAction({required this.label, required this.onTap});
+  const _ChangeAction({
+    required this.label,
+    required this.ctaLabel,
+    required this.onTap,
+  });
 
+  /// The spoken name — deliberately longer than the drawn word.
   final String label;
+
+  /// The word the board draws.
+  final String ctaLabel;
+
   final VoidCallback onTap;
 
   @override
@@ -77,37 +145,23 @@ class _ChangeAction extends StatelessWidget {
       child: InkWell(
         borderRadius: OmdsBorderRadius.uiSmall,
         onTap: onTap,
-        child: _ActionContent(label: label),
-      ),
-    );
-  }
-}
-
-class _ActionContent extends StatelessWidget {
-  const _ActionContent({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final style = Theme.of(context)
-        .textTheme
-        .labelLarge
-        ?.copyWith(color: scheme.primary);
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.xSmall,
-        vertical: Spacing.small,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label, style: style),
-          const SizedBox(width: Spacing.twoXSmall),
-          Icon(DirectionalIcons.disclosure(context),
-              size: Sizes.large, color: scheme.primary),
-        ],
+        child: Padding(
+          // Keeps a real tap target around a bare 13.5px word; the board draws
+          // no chevron and no pill here.
+          padding: const EdgeInsetsDirectional.symmetric(
+            horizontal: Spacing.xSmall,
+            vertical: Spacing.small,
+          ),
+          child: Text(
+            ctaLabel,
+            style: context.jeebText.body.copyWith(
+              fontWeight: FontWeight.w700,
+              color: context.jeebRoles.accent,
+            ),
+            maxLines: 1,
+            softWrap: false,
+          ),
+        ),
       ),
     );
   }

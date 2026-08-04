@@ -1,17 +1,3 @@
-// POST-PROOF hardening (Fix 3) — offer-composer system-BACK regression guard.
-//
-// DEFECT: the offer composer (`/jeeber/requests/:id/offer`) is reachable as a
-// stack ROOT — a jeeber can arrive from a push-notification / deep-link tap
-// (`GoRouter.go('/jeeber/requests/:id/offer')`), which REPLACES the stack. The
-// system BACK gesture then had no pop target and propagated to the OS, exiting
-// the app to the launcher instead of returning to the shell.
-//
-// FIX: the route wraps `OfferSubmissionScreen` in `RootAwareBackScope(
-// fallbackLocation: '/')`, so BACK — and the withdraw / request-gone callbacks
-// — resolve to the shell instead of exiting. This test drives the REAL screen
-// via a router and the REAL system-back gesture (the `popRoute` platform
-// message), mirroring `back_nav_system_back_test.dart`.
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -50,7 +36,6 @@ class _FakeOfferRepo implements OfferSubmissionRepository {
 
 void main() {
   // A router that mounts the REAL offer composer wrapped exactly as
-  // `app_router.dart` wraps it, plus a light shell placeholder for `/`.
   GoRouter buildRouter() => GoRouter(
         initialLocation: '/',
         routes: [

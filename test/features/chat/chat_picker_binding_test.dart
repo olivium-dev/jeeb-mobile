@@ -1,18 +1,4 @@
 // P4 + P5 (b01-20260725) — THE pin for the root cause.
-//
-// TC-C1 / TC-C2. The production `/chat/:id` surface ([ChatDetailScreen]) handed
-// [ChatScreen] a bare `StubPhotoPickerService()`, and [ChatScreen]'s own
-// fallback for an omitted `pickerService` was the same bare stub. So tapping
-// "+ → Camera" or "+ → Gallery" produced SYNTHETIC bytes and NEVER opened the
-// OS camera or the OS gallery — on either role, on either device. The real
-// `ImagePickerPhotoPickerService` had been registered in DI the whole time
-// (`injection_container.dart`); these two surfaces simply never asked for it.
-//
-// Both tests register a SPY [PhotoPickerService] in `GetIt.instance`, drive the
-// real attachment sheet through the real composer, and assert the SPY — not the
-// stub — was the thing that got called. TC-C1 fails on the pre-fix tree
-// (`pickerService: StubPhotoPickerService()` at the ChatDetailScreen call site):
-// the spy's counters stay at zero because the stub silently answers instead.
 
 import 'dart:async';
 import 'dart:typed_data';
@@ -123,7 +109,6 @@ void main() {
     spy = _SpyPickerService();
     gateway = _InertGateway();
     // `reset()` is ASYNC — awaiting it matters, or the registration below is
-    // silently torn down mid-test.
     await GetIt.instance.reset();
     GetIt.instance.registerSingleton<PhotoPickerService>(spy);
   });
@@ -154,7 +139,6 @@ void main() {
       );
       expect(spy.cameraCalls, 0);
       // The stub's synthetic gallery payload is a 3 MB block of 0xA0. The spy's
-      // is 4 tagged bytes. Asserting on the bytes proves WHICH service answered.
       final sent = tester
           .widget<ChatScreen>(find.byType(ChatScreen));
       expect(sent.pickerService, same(spy));
@@ -215,7 +199,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The unregistered path must not throw — widget tests and the dev catalog
-      // depend on the stub fallback.
       await _tapAttachThen(tester, camera: true);
       expect(spy.cameraCalls, 0);
     });

@@ -4,15 +4,6 @@ import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 
 /// b02 P0 regression: ONE `delivery` push produced 60 gateway reads on
 /// `RFCX306JSRT` (diag session `2026-07-28T02-30-02-867Z-jeeber.jsonl`,
-/// seq 57..116) — 20 identical rotations of `/v1/users/me` +
-/// `/v1/jeebers/me/feed` + `/v1/deliveries/{id}` in 2.08 s, ended by two 429s.
-///
-/// Those three paths are the three `AppLifecycleState.resumed` observers that
-/// were alive on that route, each firing an unguarded refetch on EVERY `resumed`
-/// notification. The reads never overlapped (≈20 ms each, ≈105 ms apart), so the
-/// in-flight latches two of them already carried collapsed nothing.
-///
-/// The unit under test is the gate that makes the observed input harmless.
 void main() {
   late DateTime now;
   late AppResumeSignals signals;
@@ -52,10 +43,6 @@ void main() {
     signals.stream.listen((_) => fired++);
 
     // The measured shape. `client_home_screen` — the one resume observer on
-    // that build with an edge guard — contributed ZERO reads to the capture,
-    // which is what establishes there was no non-resumed state in between:
-    // had there been one, its guard would have re-armed and `/requests` +
-    // `/deliveries` would appear in the diag rows. They do not.
     paused();
     for (var i = 0; i < 20; i++) {
       resumed();
@@ -72,7 +59,6 @@ void main() {
     signals.stream.listen((_) => fired++);
 
     // A heads-up notification, the shade, a permission dialog, an edge panel.
-    // The user never left the screen, so there is nothing to catch up on.
     for (var i = 0; i < 5; i++) {
       inactive();
       resumed();
@@ -98,8 +84,6 @@ void main() {
     expect(fired, 1);
 
     // A second real trip 200 ms later: suppressed by the rate floor, but a
-    // trailing timer is armed. Coalescing DELAYS a refetch; it must never
-    // cancel one, or the screen silently keeps the pre-trip snapshot.
     now = now.add(const Duration(milliseconds: 200));
     paused();
     resumed();
@@ -128,8 +112,6 @@ void main() {
 
   test('the very first resumed at cold start emits nothing', () async {
     // The app is already `resumed` at start-up and no notification fires for
-    // it; the cold-start reads belong to initState. A stray `resumed` with no
-    // preceding background is by definition not "the user came back".
     var fired = 0;
     signals.stream.listen((_) => fired++);
 

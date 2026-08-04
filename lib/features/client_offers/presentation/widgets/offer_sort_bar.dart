@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
 import '../../../../core/accessibility/accessibility.dart';
+import '../../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_offers_state.dart';
 
-/// Sort toggle: price (default) ↔ rating. Two OMDS chips so the active
-/// selection reads as "selected" to screen readers via the underlying
-/// FilterChip semantics.
+/// Sort bar: **Best** (default) · **Lowest price** · **Top rated**.
+///
+/// The board draws three bare pills with no "Sort by" prefix — the chips label
+/// themselves — so the prefix is gone. Each capsule is a kit
+/// `JeebSelectChip(role: sort)`, which deliberately carries **no** minimum
+/// height: the 48dp target is the surrounding [MinTapTarget], and
+/// `client_offers_screen_test` asserts the visible capsule stays strictly
+/// shorter than it.
+///
+/// The chips are inert on their own (`onTap: null`) because [MinTapTarget]
+/// wraps its child in an `IgnorePointer` and owns the whole target — a second
+/// gesture inside would be dead weight.
 ///
 /// Semantics identifiers (EXACT, 63_W1_TEST_PLAN §2.8 — the AC's
-/// `offer_review_sort_<key>` pattern, `price` coined as the primary key):
+/// `offer_review_sort_<key>` pattern):
+///   - `offer_review_sort_best`
 ///   - `offer_review_sort_price`
 ///   - `offer_review_sort_rating`
 class OfferSortBar extends StatelessWidget {
@@ -26,52 +36,70 @@ class OfferSortBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    return Row(
+    return JeebChipRow(
       children: [
-        Padding(
-          padding: const EdgeInsetsDirectional.only(end: Spacing.small),
-          child: Text(
-            l10n.offersSortLabel,
-            style: theme.textTheme.labelLarge,
-          ),
+        _SortChip(
+          identifier: 'offer_review_sort_best',
+          chipKey: const Key('offer-sort-best'),
+          label: l10n.offersSortByBest,
+          selected: mode == OfferSortMode.best,
+          onTap: () => onChanged(OfferSortMode.best),
         ),
-        Semantics(
+        _SortChip(
           identifier: 'offer_review_sort_price',
-          button: true,
-          selected: mode == OfferSortMode.byPrice,
+          chipKey: const Key('offer-sort-price'),
           label: l10n.offersSortByPrice,
+          selected: mode == OfferSortMode.byPrice,
           onTap: () => onChanged(OfferSortMode.byPrice),
-          child: ExcludeSemantics(
-            child: MinTapTarget(
-              key: const Key('offer-sort-price'),
-              onTap: () => onChanged(OfferSortMode.byPrice),
-              child: OmdsChip(
-                label: l10n.offersSortByPrice,
-                isSelected: mode == OfferSortMode.byPrice,
-              ),
-            ),
-          ),
         ),
-        const SizedBox(width: Spacing.xSmall),
-        Semantics(
+        _SortChip(
           identifier: 'offer_review_sort_rating',
-          button: true,
-          selected: mode == OfferSortMode.byRating,
+          chipKey: const Key('offer-sort-rating'),
           label: l10n.offersSortByRating,
+          selected: mode == OfferSortMode.byRating,
           onTap: () => onChanged(OfferSortMode.byRating),
-          child: ExcludeSemantics(
-            child: MinTapTarget(
-              key: const Key('offer-sort-rating'),
-              onTap: () => onChanged(OfferSortMode.byRating),
-              child: OmdsChip(
-                label: l10n.offersSortByRating,
-                isSelected: mode == OfferSortMode.byRating,
-              ),
-            ),
-          ),
         ),
       ],
+    );
+  }
+}
+
+/// One sort pill: the frozen `Semantics → ExcludeSemantics → MinTapTarget`
+/// idiom the Maestro flow keys on, around a kit capsule.
+class _SortChip extends StatelessWidget {
+  const _SortChip({
+    required this.identifier,
+    required this.chipKey,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String identifier;
+  final Key chipKey;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: identifier,
+      button: true,
+      selected: selected,
+      label: label,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: MinTapTarget(
+          key: chipKey,
+          onTap: onTap,
+          child: JeebSelectChip(
+            role: JeebChipRole.sort,
+            label: label,
+            selected: selected,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -1,12 +1,5 @@
 /// Widget tests for the Jeeber "Start delivery" entry point inside
 /// [OfferAcceptedBanner] (jeeber active-delivery reachability fix).
-///
-/// Tests cover:
-///   - Jeeber variant (onStartActiveDelivery != null) renders the CTA with its
-///     stable Semantics identifier.
-///   - Client variant (onStartActiveDelivery == null) does NOT render the CTA.
-///   - Tapping the CTA invokes the callback exactly once (the host wires this
-///     to `context.push('/jeeber/deliveries/$deliveryId/active')`).
 library;
 
 import 'dart:io';
@@ -17,8 +10,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/offer_accepted_banner.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-// ---------------------------------------------------------------------------
-// Localization helper (mirrors chat_screen_m1plus_widget_test.dart)
 // ---------------------------------------------------------------------------
 
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {

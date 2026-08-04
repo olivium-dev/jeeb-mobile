@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../../core/jeeb_commission.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/wallet_repository.dart';
 
@@ -8,9 +9,12 @@ import '../domain/wallet_repository.dart';
 /// precedent).
 ///
 /// The shared ARB files + the hand-authored `AppLocalizations` getter layer are
-/// integrator-owned (50_EXECUTION_PLAN §S4). The W2 integrator batched FIVE
-/// wallet-hub keys (title / available-balance / top-up / load-error / retry),
-/// but the rest of the hub copy — the gift badge (D42), the four affordability
+/// integrator-owned (50_EXECUTION_PLAN §S4). The W2 integrator batched five
+/// wallet-hub keys, of which THREE are still read from the ARB layer (title /
+/// load-error / retry) — the redesign-24 restyle rewrote the available-balance
+/// and top-up labels, so both now resolve here until the integrator lands the
+/// batch in `docs/redesign-2026-08/wiring/23-wallet.md`. The rest of the hub
+/// copy — the gift badge (D42), the four affordability
 /// states (D43), reserved-now (D1), the how-fees explainer (D41/D44), the
 /// earnings + activity rows, and the KYC-pending banner (D38/D39) — is NOT yet
 /// present. Per the JM-031/JM-045 precedent, this resolver reuses the EXISTING
@@ -44,30 +48,63 @@ class WalletHubL10n {
 
   // ── Present keys (integrator-landed). ─────────────────────────────────────
   String get title => _l10n.walletHubTitle;
-  String get availableBalanceLabel => _l10n.walletAvailableBalanceLabel;
-  String get topUpCta => _l10n.walletTopUpCta;
   String get loadError => _l10n.walletHubLoadError;
   String get retry => _l10n.walletHubRetry;
 
+  // ── Redesign-24 copy (§E folds these into the ARB layer; the call-site
+  //    names do not change when it does). ──────────────────────────────────
+  //
+  // `walletAvailableBalanceLabel` is a value change (one consumer), so the ARB
+  // request below can land it in place. `walletTopUpCta` is SHARED with the KYC
+  // status view and the offer composer, so the hub asks for its own key rather
+  // than restyling everybody's short label.
+  String get availableBalanceLabel => _pick('Available to bid', 'متاح للمزايدة');
+  String get topUpCta => _pick('Top up wallet', 'اشحن المحفظة');
+
+  /// A11y label for the top bar's back circle (`wallet_back`).
+  String get back => _pick('Back', 'رجوع');
+
+  /// The docked trust line (D41/D44 — cash never touches this wallet).
+  String get cashDisclaimer => _pick(
+        'Customer cash never passes through this wallet.',
+        'نقود العميل لا تمر أبداً عبر هذه المحفظة.',
+      );
+
   // ── Gift / starter-credit badge (D42). ────────────────────────────────────
-  String giftBadge(String amount, String currency) => _pick(
-        '$amount $currency starter credit',
-        'رصيد بداية $amount $currency',
+  //
+  // [amount] arrives pre-formatted by `MoneyFormat` (no currency parameter).
+  // "included" restored per doc-13 P1; the wire still does not state whether
+  // `giftCredit` composes `availableBalance` — raised as an owner question.
+  String giftBadge(String amount) => _pick(
+        '$amount starter credit included',
+        'رصيد بداية $amount مُضمَّن',
       );
 
   // ── Reserved-now (sum of live 10% reserves, D1). ──────────────────────────
   String get reservedNowLabel => _pick('Reserved now', 'محجوز الآن');
   String get reservedNowHint => _pick(
-        'Held against your live offers — released when each offer is decided.',
-        'محجوز مقابل عروضك النشطة — يُعاد عند البتّ في كل عرض.',
+        "Released if you're not picked.",
+        'يُعاد إليك إذا لم يقع الاختيار عليك.',
       );
 
+  /// The card's second stat column (R4). No wire count exists yet, so the
+  /// label ships with the slot rather than with a fabricated number.
+  String get liveOffersLabel => _pick('Live offers', 'عروض نشطة');
+
   // ── How fees work explainer (fee-only economics, D41/D44). ────────────────
-  String get howFeesWork => _pick('How fees work', 'كيف تعمل الرسوم');
+  //
+  // Every percentage below derives from [kJeebCommissionPercent] — the app has
+  // exactly one copy of the rate (§7.2), so no string may spell it out.
+  String get howFeesWork => _pick(
+        'How fees work — the $kJeebCommissionPercent%, explained',
+        'كيف تعمل الرسوم — شرح الـ$kJeebCommissionPercent٪',
+      );
   String get feesExplainerTitle => _pick('How fees work', 'كيف تعمل الرسوم');
   String get feesExplainerLine1 => _pick(
-        'You only pay a flat 10% fee on offers you win.',
-        'تدفع رسوماً ثابتة ١٠٪ فقط على العروض التي تفوز بها.',
+        'You only pay a flat $kJeebCommissionPercent% platform fee on offers '
+            'you win.',
+        'تدفع رسوم منصة ثابتة $kJeebCommissionPercent٪ فقط على العروض التي '
+            'تفوز بها.',
       );
   String get feesExplainerLine2 => _pick(
         'The fee is taken from your pre-charged wallet balance — never in-app.',
@@ -80,15 +117,15 @@ class WalletHubL10n {
   String get feesExplainerGotIt => _pick('Got it', 'حسناً');
 
   // ── Earnings + activity rows (cross-wave, AP-9). ──────────────────────────
-  String get earningsRow => _pick('Earnings & fees', 'الأرباح والرسوم');
+  String get earningsRow => _pick('Earnings', 'الأرباح');
   String get earningsRowSubtitle => _pick(
-        'Your net cash and the fees you’ve paid.',
-        'صافي النقد والرسوم التي دفعتها.',
+        'Cash collected, fees paid',
+        'النقد المُحصَّل والرسوم المدفوعة',
       );
-  String get seeAllActivity => _pick('See all activity', 'عرض كل النشاط');
+  String get seeAllActivity => _pick('All activity', 'كل النشاط');
   String get seeAllActivitySubtitle => _pick(
-        'Reserves, fees, refunds and top-ups.',
-        'الحجوزات والرسوم والمستردات والشحن.',
+        'Top-ups, reserves, releases',
+        'الشحن والحجوزات والإفراجات',
       );
 
   // ── KYC-pending banner (D38/D39). ─────────────────────────────────────────
@@ -113,7 +150,7 @@ class WalletHubL10n {
   String affordabilityTitle(WalletAffordability a) {
     switch (a) {
       case WalletAffordability.enough:
-        return _pick('Ready to bid', 'جاهز للمزايدة');
+        return _pick("You're set to bid", 'أنت جاهز للمزايدة');
       case WalletAffordability.low:
         return _pick('Running low', 'الرصيد منخفض');
       case WalletAffordability.empty:
@@ -127,8 +164,8 @@ class WalletHubL10n {
     switch (a) {
       case WalletAffordability.enough:
         return _pick(
-          'You have enough to place offers.',
-          'لديك ما يكفي لتقديم العروض.',
+          'Enough for the $kJeebCommissionPercent% reserve on typical offers.',
+          'يكفي لحجز الـ$kJeebCommissionPercent٪ على العروض المعتادة.',
         );
       case WalletAffordability.low:
         return _pick(

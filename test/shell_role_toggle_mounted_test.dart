@@ -23,8 +23,6 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 /// UX LAW (S0-E2E-08): the jeeber surfaces are ADDITIVE tabs, not a mode the
 /// user flips into. The in-app role *switch* (the old DEFECT-C RoleToggleSetting
 /// mounted in the Profile tab) was DELETED in JEBV4-204 — neither a single-role
-/// client nor a dual-role user sees it. The dual-role user simply gets the LIVE
-/// jeeber tab bodies; the single-role user gets the same tabs with EMPTY STATES.
 
 class _StubEarningsRepository implements EarningsRepository {
   @override
@@ -85,6 +83,12 @@ Widget _harness({
         GlobalCupertinoLocalizations.delegate,
       ],
       home: const ShellScreen(),
+      // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES
+      // §E1): pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
     ),
   );
 }
@@ -125,9 +129,6 @@ void main() {
     await _openProfile(tester);
 
     // The role SWITCH is gone (UX LAW: additive tabs, no mode flip).
-    // JEBV4-204: RoleToggleSetting was DELETED; assert against its former key
-    // literal so this stays a live regression guard against a role switch
-    // reappearing in the Profile tab.
     expect(find.byKey(const Key('role-toggle-setting-root')), findsNothing);
   });
 
@@ -141,8 +142,6 @@ void main() {
     await _openProfile(tester);
 
     // JEBV4-204: RoleToggleSetting was DELETED; assert against its former key
-    // literal so this stays a live regression guard against a role switch
-    // reappearing in the Profile tab.
     expect(find.byKey(const Key('role-toggle-setting-root')), findsNothing);
   });
 
@@ -155,7 +154,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // The additive Dashboard tab is kept offstage while Requests is selected,
-    // so include offstage in the match.
     expect(
       find.byKey(const Key('dashboard-tab-root'), skipOffstage: false),
       findsOneWidget,
@@ -175,8 +173,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Both additive jeeber tab bodies (Dashboard + Earnings) show the
-    // become-a-jeeber empty state; the live dashboard is absent. They are kept
-    // offstage by the IndexedStack while Requests is selected.
     expect(
       find.byType(JeeberTabEmptyState, skipOffstage: false),
       findsNWidgets(2),

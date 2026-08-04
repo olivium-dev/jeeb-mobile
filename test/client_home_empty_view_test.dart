@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_empty_view.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -47,6 +48,12 @@ Widget _harness({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // E1's illustration loops ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion, which is also the capture rest frame.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(body: ClientHomeEmptyView(onNewOrder: onNewOrder)),
   );
 }
@@ -55,7 +62,6 @@ void main() {
   setUpAll(_loadArbs);
 
   // Pin a realistic phone window so the list-empty content is exercised at a
-  // representative mobile width.
   setUp(() {
     final view =
         TestWidgetsFlutterBinding.instance.platformDispatcher.implicitView!;
@@ -71,36 +77,50 @@ void main() {
   });
 
   group('ClientHomeEmptyView', () {
-    testWidgets('renders localized pending copy and first-request CTA (EN)', (
-      tester,
-    ) async {
+    testWidgets('renders the E1 headline and body (EN)', (tester) async {
       await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
 
+      // MIDNIGHT E1 draws the headline INSIDE the empty block; the screen drops
+      // its own prompt in this composition, so it is still printed once.
       expect(find.text('What do you need?'), findsOneWidget);
       expect(
-        find.text('No pending requests — broadcast a new one to get offers.'),
+        find.text(
+          'No pending requests — say it, and offers from nearby Jeebers '
+          'arrive in minutes.',
+        ),
         findsOneWidget,
       );
-      expect(find.text('Create your first request'), findsOneWidget);
       expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
     });
 
-    testWidgets('renders the hero illustration asset', (tester) async {
+    testWidgets('draws the composed kit illustration, not a Lottie or PNG', (
+      tester,
+    ) async {
       await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
 
-      final image = tester.widget<Image>(find.byType(Image));
-      expect(image.image, isA<AssetImage>());
+      expect(find.byType(JeebEmptyState), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+      final state = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      expect(state.variant, JeebEmptyStateVariant.e1);
+      expect(state.status, JeebEmptyStateStatus.empty);
+    });
+
+    testWidgets('the board draws no CTA button in this block', (tester) async {
+      // doc-13 Pattern D: `_request_empty_state_new_order_button` moved onto
+      // the screen's voice capsule, which is E1's own create affordance.
+      await tester.pumpWidget(_harness(onNewOrder: () {}));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create your first request'), findsNothing);
       expect(
-        (image.image as AssetImage).assetName,
-        'assets/illustrations/empty_orders.png',
+        find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
+        findsNothing,
       );
     });
 
-    testWidgets('exposes Semantics identifiers on root and CTA', (
-      tester,
-    ) async {
+    testWidgets('exposes the frozen root Semantics identifier', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
@@ -109,22 +129,7 @@ void main() {
         find.bySemanticsIdentifier('_request_empty_state_root'),
         findsOneWidget,
       );
-      expect(
-        find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
-        findsOneWidget,
-      );
       handle.dispose();
-    });
-
-    testWidgets('tapping the CTA invokes onNewOrder', (tester) async {
-      var taps = 0;
-      await tester.pumpWidget(_harness(onNewOrder: () => taps++));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Create your first request'));
-      await tester.pumpAndSettle();
-
-      expect(taps, 1);
     });
 
     testWidgets('renders mirrored Arabic strings under ar locale', (
@@ -137,10 +142,11 @@ void main() {
 
       expect(find.text('ماذا تحتاج؟'), findsOneWidget);
       expect(
-        find.text('لا توجد طلبات معلّقة — أنشئ طلبًا جديدًا لتلقّي العروض.'),
+        find.text(
+          'لا توجد طلبات معلّقة — قلها، وستصلك عروض من جيبرز قريبين خلال دقائق.',
+        ),
         findsOneWidget,
       );
-      expect(find.text('أنشئ أول طلب لك'), findsOneWidget);
       expect(
         Directionality.of(tester.element(find.byType(ClientHomeEmptyView))),
         TextDirection.rtl,

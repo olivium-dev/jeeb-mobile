@@ -1,22 +1,3 @@
-// JM-031 — Order Summary + Pinned Price widget (order-summary-pinned).
-//
-// Proves, against the real ARBs + OMDS theme, that:
-//   AC1: OrderSummaryPinned surfaces every EXACT Semantics identifier from
-//        63_W1_TEST_PLAN §2.11 as its own queryable SemanticsNode
-//        (`order_summary_pinned`, `_price`, `_jeeber_name`, `_eta`, `_tier`,
-//         `_cash_label`) + the CTAs (`_open_chat`, `_track`).
-//   AC2: tapping `order_summary_open_chat` / `order_summary_track` fires the
-//        host callbacks (the chat / tracking nav edges).
-//   AC4: the SAME widget is what the chat (JM-025) + tracking (JM-032) hosts
-//        inject — so its ids are context-agnostic (asserted here in isolation,
-//        which is what both contexts mount).
-//   D6:  the rating chip is mounted ONLY when a real score exists (cold-start
-//        jeebers show the name alone) — name id is always present.
-//
-// FAIL-WITHOUT: every `bySemanticsIdentifier` assertion `findsNothing` before
-// the widget existed. Harness mirrors offer_accept_sheet_test.dart (synchronous
-// LocalizationsDelegate over the real ARBs + a tall/wide surface).
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -157,7 +138,6 @@ void main() {
     testWidgets(
         'AC4 — a null callback hides its CTA (never a dead end) but the '
         'core summary ids stay present', (tester) async {
-      // Tracking-host injection: onTrack null (already on tracking).
       await tester.pumpWidget(
         _harness(
           OrderSummaryPinned(
@@ -189,7 +169,6 @@ void main() {
 
       expect(find.bySemanticsIdentifier('order_summary_jeeber_name'),
           findsOneWidget);
-      // ETA pending renders when null rather than a misleading "0 min".
       await tester.pumpWidget(
         _harness(
           OrderSummaryPinned(

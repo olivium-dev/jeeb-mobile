@@ -9,14 +9,8 @@ import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 
 /// S0-CHAT-04 hardening — deterministic chronological ordering.
-///
 /// Two regressions are locked here:
 ///   1. Equal `sentAt` messages must sort by a SERVER-STABLE key (the message
-///      id), NOT by arrival position — so the timeline is identical whether a
-///      pair landed via the WS frame, the HTTP poll, or the cold-load history.
-///   2. The `acceptOffer` re-fetch path must run history through the SAME
-///      `_ordered` sort the `load`/poll paths use — it previously appended the
-///      server rows verbatim, so an unsorted backend read painted out of order.
 class _OrderingGateway extends ChatGateway {
   _OrderingGateway({this.history = const <DeliveryChatMessage>[]});
 
@@ -75,7 +69,6 @@ ChatCubit _build(_OrderingGateway gw) {
 void main() {
   group('S0-CHAT-04 — equal-timestamp messages sort by stable id', () {
     // Same instant, ids out of order in the backing list. The sort must put
-    // them in id order regardless of how they were appended.
     final tie = DateTime.utc(2026, 5, 17, 10, 30);
 
     test('cold-load history with an equal-`sentAt` pair sorts by id', () async {

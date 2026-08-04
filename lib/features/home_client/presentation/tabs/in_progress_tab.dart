@@ -1,33 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
 import '../widgets/active_request_card.dart';
 
-/// T-MOB-006: Isolated In Progress tab widget.
-///
-/// Renders the list of active deliveries. Each row uses [ActiveOrderCard]
-/// with a status pill, ETA, and Track CTA wired to `/delivery/<id>/track`.
-/// Pulls from the cubit's [ClientHomeState.inProgress] list; the cubit owns
-/// loading and pull-to-refresh (hoisted to [ClientHomeScreen]).
-///
-/// Mock endpoint: GET /v1/delivery/active  (Mockoon :3055, useMockPrefixes=false)
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import 'dart:async';
+import '../../../../core/previews/jeeb_preview.dart';
+import '../../domain/client_home_repository.dart';
+
 class InProgressTab extends StatelessWidget {
   const InProgressTab({super.key, this.onTrack, this.onOpenChat});
 
-  /// Called when the Track CTA is tapped. If null the tab navigates to the
-  /// tracking route directly via GoRouter; pass a callback in tests to avoid
-  /// the router dependency.
   final void Function(ClientHomeRequest request)? onTrack;
 
-  /// Called when the "Open chat" CTA is tapped. If null the tab navigates to
-  /// the order-chat route directly via GoRouter; pass a callback in tests to
-  /// avoid the router dependency.
   final void Function(ClientHomeRequest request)? onOpenChat;
 
   @override
@@ -45,22 +37,10 @@ class InProgressTab extends StatelessWidget {
   static bool _rebuildWhen(ClientHomeState prev, ClientHomeState next) =>
       prev.status != next.status || prev.inProgress != next.inProgress;
 
-  /// S9 P0 (restored on feat/request-scenarios — the cycle-1 merge dropped the
-  /// query-param threading while keeping its test): tracking must poll by the
-  /// SERVER delivery id. The card's row id may be the REQUEST id, which 404s
-  /// on `GET /v1/deliveries/<id>`; when the row carries a delivery id it rides
-  /// along as `?deliveryId=` and the route resolver prefers it (mirrors
-  /// [_navigateToChat]).
   static void _navigateToTracking(
     BuildContext context,
     ClientHomeRequest request,
   ) {
-    // S9 live-tracking fix (mirrors home_tab.dart): navigate with the SERVER
-    // delivery id (`delivery-<offerId>`) so `GET /v1/delivery/<id>` resolves
-    // instead of 404'ing on a request id. The router prefers `?deliveryId=`
-    // over `:id` (resolveTrackingDeliveryId); we still set the path id
-    // (delivery id when known, else request id as a best-effort fallback via
-    // [ClientHomeRequest.trackingId]).
     GoRouter.of(context).pushNamed(
       'live-tracking',
       pathParameters: {'id': request.trackingId},
@@ -71,14 +51,6 @@ class InProgressTab extends StatelessWidget {
     );
   }
 
-  /// Opens the accepted order's EXISTING conversation. Routes by the parent
-  /// REQUEST/correlation id ([ClientHomeRequest.chatThreadId]) — NEVER a
-  /// (possibly phantom) conversationId or a delivery row id — mirroring the
-  /// accept-sheet CHAT-CONTRACT: `ChatDetailScreen` resolves the thread via
-  /// `GET /v1/conversations?correlationKey={requestId}`, so passing a
-  /// conversationId guarantees a 404 on that first lookup (BUG-17 chat-load
-  /// 404 storm). The delivery id rides along as `?deliveryId=` so the in-chat
-  /// "Track order" CTA still resolves.
   static void _navigateToChat(
     BuildContext context,
     ClientHomeRequest request,
@@ -137,13 +109,20 @@ class _InProgressLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      key: Key('in-progress-loading'),
-      child: OmdsLoadingState(),
+    // §2.7: the wait is the SAME parcel tile as the empty and error arms,
+    // breathing — the tab must not change subject between states.
+    return JeebEmptyState(
+      key: const Key('in-progress-loading'),
+      variant: JeebEmptyStateVariant.parcel,
+      status: JeebEmptyStateStatus.loading,
+      identifier: 'in_progress_loading_state',
+      headline: AppLocalizations.of(context).homeEmptyTitle,
     );
   }
 }
 
+/// Same `parcel` subject as the empty arm, danger-tinted — the failure is of
+/// the parcel list, so the tile must not change identity between states.
 class _InProgressError extends StatelessWidget {
   const _InProgressError({required this.onRetry});
 
@@ -152,17 +131,27 @@ class _InProgressError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsErrorState(
+    return JeebEmptyState(
       key: const Key('in-progress-error'),
-      icon: Icons.cloud_off_outlined,
-      title: l10n.homeLoadFailedTitle,
-      message: l10n.homeErrorRetry,
-      retryLabel: l10n.homeLoadFailedRetry,
-      onRetry: onRetry,
+      variant: JeebEmptyStateVariant.parcel,
+      status: JeebEmptyStateStatus.error,
+      identifier: 'in_progress_error_state',
+      headline: l10n.homeLoadFailedTitle,
+      body: l10n.homeErrorRetry,
+      action: IntrinsicWidth(
+        child: JeebCtaButton.primary(
+          label: l10n.homeLoadFailedRetry,
+          identifier: 'in_progress_retry_cta',
+          expand: false,
+          onTap: onRetry,
+        ),
+      ),
     );
   }
 }
 
+/// E4 `parcel` — an in-progress row IS a parcel in flight, so its absence is
+/// the empty box, not E1's "bring me anything" (that is the Pending tab's).
 class _InProgressEmpty extends StatelessWidget {
   const _InProgressEmpty({required this.onCreateRequest});
 
@@ -171,13 +160,22 @@ class _InProgressEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsEmptyState(
+    return JeebEmptyState(
       key: const Key('in-progress-empty'),
-      icon: Icons.local_shipping_outlined,
-      title: l10n.homeEmptyTitle,
-      subtitle: l10n.homeInProgressEmpty,
-      buttonText: l10n.homeEmptyCta,
-      onButtonTap: onCreateRequest,
+      variant: JeebEmptyStateVariant.parcel,
+      identifier: 'in_progress_empty_state',
+      headline: l10n.homeEmptyTitle,
+      body: l10n.homeInProgressEmpty,
+      headlineIdentifier: 'in_progress_empty_title',
+      bodyIdentifier: 'in_progress_empty_body',
+      action: IntrinsicWidth(
+        child: JeebCtaButton.primary(
+          label: l10n.homeEmptyCta,
+          identifier: 'in_progress_create_cta',
+          expand: false,
+          onTap: onCreateRequest,
+        ),
+      ),
     );
   }
 }
@@ -204,9 +202,6 @@ class _InProgressList extends StatelessWidget {
             child: ActiveOrderCard(
               request: r,
               onTap: () => onTrack(r),
-              // Post-accept conversation re-entry (JM-025). Routes by the
-              // parent request/correlation id (chatThreadId), NEVER the
-              // conversationId — see [InProgressTab._navigateToChat] (BUG-17).
               onOpenChat: () => onOpenChat(r),
             ),
           ),
@@ -239,9 +234,184 @@ class _InProgressList extends StatelessWidget {
       case ClientRequestStatus.delivered:
         return l10n.deliveryStageDelivered;
       case ClientRequestStatus.cancelled:
-        // Terminal; filtered out of In Progress upstream, so this is a
-        // defensive label only (keeps the switch exhaustive).
         return l10n.deliveryStageCancelled;
     }
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// Phone width, matching the `ListView` the tab is a child of in production.
+const double _inProgressTabPhoneWidth = 390;
+
+/// One order card is ~150 pt tall; these boxes leave room for the EN 200%-text
+/// rendering of the matrix to grow into before the scroll view takes over.
+const Size _inProgressTabOneCardBox = Size(_inProgressTabPhoneWidth, 340);
+const Size _inProgressTabTwoCardBox = Size(_inProgressTabPhoneWidth, 620);
+const Size _inProgressTabPlaceholderBox = Size(_inProgressTabPhoneWidth, 360);
+
+/// Canned snapshot, resolved on the next microtask like a real (fast) load.
+class _InProgressTabSeededHomeRepository implements ClientHomeRepository {
+  const _InProgressTabSeededHomeRepository(this.inProgress);
+
+  final List<ClientHomeRequest> inProgress;
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      ClientHomeSnapshot(inProgress: inProgress);
+}
+
+/// A cold load that never returns — the cubit stays in
+/// [ClientHomeStatus.loading] forever, which is the only way to hold the
+/// loading sub-state still long enough to look at it.
+class _InProgressTabNeverResolvingHomeRepository
+    implements ClientHomeRepository {
+  const _InProgressTabNeverResolvingHomeRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() =>
+      Completer<ClientHomeSnapshot>().future;
+}
+
+/// A cold load that throws. The cubit only emits [ClientHomeStatus.failed] when
+/// nothing is cached yet, so this fake must fail on the FIRST call — a fake that
+/// succeeded once and then threw would render the list, not the error.
+class _InProgressTabFailingHomeRepository implements ClientHomeRepository {
+  const _InProgressTabFailingHomeRepository();
+
+  @override
+  Future<ClientHomeSnapshot> loadSnapshot() async =>
+      throw StateError('preview fixture: cold home load failed');
+}
+
+/// The tab as `client_home_screen.dart` mounts it: an ambient [ClientHomeCubit]
+/// above it and unbounded height below it (the canvas box supplies the width —
+Widget _inProgressTabHosted(ClientHomeRepository repository) =>
+    BlocProvider<ClientHomeCubit>(
+      create: (_) => ClientHomeCubit(
+        repository: repository,
+        greetingNameProvider: () => null,
+      )..load(),
+      child: SingleChildScrollView(
+        child: InProgressTab(
+          onTrack: (ClientHomeRequest _) {},
+          onOpenChat: (ClientHomeRequest _) {},
+        ),
+      ),
+    );
+
+/// One in-progress row, shaped like `_activeRequest` in
+/// `test/features/home_client/in_progress_tab_test.dart`.
+ClientHomeRequest _inProgressTabRow({
+  required String id,
+  required String title,
+  ClientRequestStatus status = ClientRequestStatus.enRoute,
+  int progressStep = 2,
+  ClientRequestTier tier = ClientRequestTier.flash,
+  String destinationLabel = 'Ashrafieh, Beirut',
+  String? itemsSummary,
+  int? etaMinutes,
+}) =>
+    ClientHomeRequest(
+      id: id,
+      title: title,
+      status: status,
+      destinationLabel: destinationLabel,
+      itemsSummary: itemsSummary,
+      etaMinutes: etaMinutes,
+      progressStep: progressStep,
+      tier: tier,
+    );
+
+/// The happy path: two live deliveries at different points of the same journey.
+/// Two rows rather than one because the card is a `Column` of stacked `Row`s
+@JeebPreview(
+  group: 'home_client',
+  name: 'Two active rows',
+  size: _inProgressTabTwoCardBox,
+)
+Widget inProgressTabTwoRows() => _inProgressTabHosted(
+      _InProgressTabSeededHomeRepository(<ClientHomeRequest>[
+        _inProgressTabRow(
+          id: 'ip-1',
+          title: 'Pharmacy run',
+          etaMinutes: 12,
+        ),
+        _inProgressTabRow(
+          id: 'ip-2',
+          title: 'Grocery run',
+          status: ClientRequestStatus.accepted,
+          progressStep: 0,
+          tier: ClientRequestTier.express,
+        ),
+      ]),
+    );
+
+/// AC2: nothing in flight.
+/// The `JeebEmptyState` here is the tab's *whole* surface — E4 parcel, headline,
+@JeebPreview(
+  group: 'home_client',
+  name: 'Empty · no active deliveries',
+  size: _inProgressTabPlaceholderBox,
+)
+Widget inProgressTabEmpty() => _inProgressTabHosted(
+      const _InProgressTabSeededHomeRepository(<ClientHomeRequest>[]),
+    );
+
+/// AC6: the cold load failed.
+/// Worth its own preview because the tab's error copy is NOT the screen's:
+@JeebPreview(
+  group: 'home_client',
+  name: 'Failed · cold load',
+  size: _inProgressTabPlaceholderBox,
+)
+Widget inProgressTabFailed() =>
+    _inProgressTabHosted(const _InProgressTabFailingHomeRepository());
+
+/// The load is still in flight — the parcel tile's own breathing skeleton.
+/// Held open by a future that never completes, so it is the one preview that
+@JeebPreview(
+  group: 'home_client',
+  name: 'Loading · skeleton',
+  size: Size(_inProgressTabPhoneWidth, 200),
+)
+Widget inProgressTabLoading() =>
+    _inProgressTabHosted(const _InProgressTabNeverResolvingHomeRepository());
+
+/// JEBV4-218 / Q-085 (ratified): a still-`searching` row — no Jeeber engaged —
+/// STILL shows "Track my order", and must NOT show "Open chat".
+@JeebPreview(
+  group: 'home_client',
+  name: 'Searching · track without chat',
+  size: _inProgressTabOneCardBox,
+)
+Widget inProgressTabSearching() => _inProgressTabHosted(
+      _InProgressTabSeededHomeRepository(<ClientHomeRequest>[
+        _inProgressTabRow(
+          id: 'ip-searching',
+          title: 'Birthday cake, Hamra',
+          status: ClientRequestStatus.searching,
+          progressStep: 0,
+          tier: ClientRequestTier.standard,
+        ),
+      ]),
+    );
+
+/// The layout ceiling: the longest plausible title and subtitle a real request
+/// produces, on a row that shows BOTH action pills.
+@JeebPreview(
+  group: 'home_client',
+  name: 'Long title + both CTAs',
+  size: _inProgressTabOneCardBox,
+)
+Widget inProgressTabLongContent() => _inProgressTabHosted(
+      _InProgressTabSeededHomeRepository(<ClientHomeRequest>[
+        _inProgressTabRow(
+          id: 'ip-long',
+          title: 'Prescription refill from Pharmacie Al-Muhandis Ashrafieh',
+          itemsSummary:
+              '2 boxes paracetamol, 1 kilo potato, water gallon, coffee blend',
+          etaMinutes: 47,
+        ),
+      ]),
+    );

@@ -1,0 +1,2408 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import '../../motion/jeeb_motion.dart';
+import '../../theme/jeeb_color_roles.dart';
+import '../../theme/jeeb_semantic_colors.dart';
+import '../../theme/jeeb_text_styles.dart';
+import 'jeeb_avatar.dart';
+
+/// The composed illustration a [JeebEmptyState] draws — all four of §2.7's
+/// canonical tiles, plus E1's three approved alternates.
+enum JeebEmptyStateVariant {
+  /// E1: mic on the route-dot ring, four medallions, waveform ears.
+  e1,
+
+  /// E2: the waiting radar — three pulsing rings walking inward, the broadcast
+  /// core at the centre, jeeber initials fading in and out of range.
+  radar,
+
+  /// E3: the night street — a parked scooter listening under a breathing
+  /// streetlamp. Distinct from [balcony], which draws a request bubble and a
+  /// `jDash` route E3 does not (wave-B ruling 2).
+  street,
+
+  /// E4: the open glass parcel box with the mic glowing inside — "nothing in
+  /// the box until you speak". Distinct from [e1], which keeps E4's exact glow
+  /// and sparkle timings but over-draws the waveform ears and two star dots,
+  /// and from [pocket], which has no orbit ring and adds a `jFloat` E4 does not
+  /// draw (wave-C ruling 9).
+  parcel,
+
+  /// Sample A: the empty pocket, mic peeking out.
+  pocket,
+
+  /// Sample B: a neighbour asking off the balcony, scooter turning in.
+  balcony,
+
+  /// Sample C: the mic as a lighthouse, headlights converging.
+  beacon,
+}
+
+/// Which of the three states of the pattern family is showing.
+enum JeebEmptyStateStatus {
+  /// The drawn illustration at rest.
+  empty,
+
+  /// Illustration skeleton breathing; the CTA is withheld.
+  loading,
+
+  /// Same illustration, danger-tinted centre.
+  error,
+}
+
+/// The four drawn subjects of E1's ring — "bring me anything".
+///
+/// Flat two-tone art (white/periwinkle bodies, orange accents), traced from the
+/// E1 SVG. The caption is explicit: **no stock art**, so these are drawn rather
+/// than picked from a Material set.
+enum JeebEmptyMedallionArt {
+  /// Pill bottle: white body, accent cap, periwinkle label with a white cross.
+  medicine,
+
+  /// Grocery bag: white body, periwinkle handle, orangeSoft baguette, greens.
+  groceries,
+
+  /// Envelope: white body, periwinkle flap, accent seal.
+  document,
+
+  /// Gift box: white body, periwinkle lid, accent ribbon and bow.
+  gift,
+}
+
+/// One medallion on a [JeebEmptyState] ring — drawn [art], a consumer glyph, or
+/// an [initial].
+@immutable
+class JeebEmptyMedallion {
+  /// A Material glyph, for a subject the four drawn defaults do not cover.
+  const JeebEmptyMedallion({
+    required IconData this.icon,
+    this.tint,
+    this.semanticLabel,
+  })  : art = null,
+        initial = null;
+
+  /// One of E1's four drawn subjects. [tint] does not apply: the art is
+  /// two-tone by construction.
+  const JeebEmptyMedallion.art(this.art, {this.semanticLabel})
+      : icon = null,
+        tint = null,
+        initial = null;
+
+  /// A letter — E2's "K" / "N" / "R" jeeber discs. Accepts either the letter or
+  /// the name it comes from: [JeebAvatar.initialFrom] resolves both, so one
+  /// derivation serves the avatar kit and the illustrations.
+  const JeebEmptyMedallion.letter(String this.initial, {
+    this.tint,
+    this.semanticLabel,
+  })  : icon = null,
+        art = null;
+
+  /// The glyph inside the glass disc, or null when [art] or [initial] is set.
+  final IconData? icon;
+
+  /// The drawn subject, or null when [icon] or [initial] is set.
+  final JeebEmptyMedallionArt? art;
+
+  /// The letter (or the name it derives from), or null when [icon] or [art] is
+  /// set.
+  final String? initial;
+
+  /// Glyph or letter ink. Null reads `onSurface`; pass an accent only where a
+  /// tile draws one, per the orange budget.
+  final Color? tint;
+
+  /// Announced label. Null leaves the medallion decorative.
+  final String? semanticLabel;
+
+  @override
+  bool operator ==(Object other) =>
+      other is JeebEmptyMedallion &&
+      other.icon == icon &&
+      other.art == art &&
+      other.initial == initial &&
+      other.tint == tint &&
+      other.semanticLabel == semanticLabel;
+
+  @override
+  int get hashCode => Object.hash(icon, art, initial, tint, semanticLabel);
+}
+
+/// "Empty ≠ dead" — the Midnight empty / loading / error pattern (master plan
+/// §2.7, study-notes ruling 1).
+///
+/// Draws a composed vector illustration, a white headline, a muted body and an
+/// optional CTA. It never paints a `JeebMidnightField`: the field belongs to the
+/// screen. Motion is exactly what `03-MOTION-NOTES.md` measured per element —
+/// the route-dot ring and the medallions are STATIC.
+class JeebEmptyState extends StatelessWidget {
+  const JeebEmptyState({
+    super.key,
+    required this.headline,
+    this.body,
+    this.variant = JeebEmptyStateVariant.e1,
+    this.status = JeebEmptyStateStatus.empty,
+    this.center,
+    this.medallions,
+    this.action,
+    this.illustrationSize = defaultIllustrationSize,
+    this.padding = defaultPadding,
+    this.identifier,
+    this.headlineIdentifier,
+    this.bodyIdentifier,
+    this.semanticLabel,
+  }) : compact = false;
+
+  /// The inline form — a half-size illustration, tighter gaps and the `h2`
+  /// headline, for an empty block sitting INSIDE a form or a card rather than
+  /// owning the screen.
+  const JeebEmptyState.compact({
+    super.key,
+    required this.headline,
+    this.body,
+    this.variant = JeebEmptyStateVariant.e1,
+    this.status = JeebEmptyStateStatus.empty,
+    this.center,
+    this.medallions,
+    this.action,
+    this.illustrationSize = compactIllustrationSize,
+    this.padding = compactPadding,
+    this.identifier,
+    this.headlineIdentifier,
+    this.bodyIdentifier,
+    this.semanticLabel,
+  }) : compact = true;
+
+  /// The board's illustration width (E1 draws a 300×280 viewBox at 300px).
+  static const double defaultIllustrationSize = 300;
+
+  /// The inline illustration width — half the board's, the point at which the
+  /// medallion art still reads at a glance.
+  static const double compactIllustrationSize = 150;
+
+  /// E1's own block gutter — wider than the 24 screen default, as measured.
+  static const EdgeInsetsGeometry defaultPadding = EdgeInsets.symmetric(
+    horizontal: 36,
+  );
+
+  /// Inline gutter — the host form already owns the screen gutter.
+  static const EdgeInsetsGeometry compactPadding = EdgeInsets.symmetric(
+    horizontal: 16,
+  );
+
+  /// Gap under the illustration (board `margin:8px 0 0`).
+  static const double headlineGap = 8;
+
+  /// Gap between headline and body (board `margin:9px 0 0`).
+  static const double bodyGap = 9;
+
+  /// Gap above the CTA.
+  static const double actionGap = 24;
+
+  /// [JeebEmptyState.compact]'s gaps.
+  static const double compactHeadlineGap = 4;
+  static const double compactBodyGap = 5;
+  static const double compactActionGap = 16;
+
+  /// E1's four drawn subjects: medicine · groceries · documents · gift.
+  static const List<JeebEmptyMedallion> defaultMedallions =
+      <JeebEmptyMedallion>[
+        JeebEmptyMedallion.art(JeebEmptyMedallionArt.medicine),
+        JeebEmptyMedallion.art(JeebEmptyMedallionArt.groceries),
+        JeebEmptyMedallion.art(JeebEmptyMedallionArt.document),
+        JeebEmptyMedallion.art(JeebEmptyMedallionArt.gift),
+      ];
+
+  /// E2's three jeebers fading in and out of range. A consumer with real names
+  /// passes its own three; extra entries past the three ring anchors are
+  /// ignored, exactly as on E1.
+  static const List<JeebEmptyMedallion> radarMedallions = <JeebEmptyMedallion>[
+    JeebEmptyMedallion.letter('K'),
+    JeebEmptyMedallion.letter('N'),
+    JeebEmptyMedallion.letter('R'),
+  ];
+
+  /// The medallions [variant] draws when the caller passes none.
+  static List<JeebEmptyMedallion> medallionsFor(JeebEmptyStateVariant variant) =>
+      variant == JeebEmptyStateVariant.radar
+          ? radarMedallions
+          : defaultMedallions;
+
+  /// White headline, `h1` centred.
+  final String headline;
+
+  /// Muted body, `body` centred. Null draws no second line.
+  final String? body;
+
+  /// Which illustration to compose.
+  final JeebEmptyStateVariant variant;
+
+  /// Empty, loading or error.
+  final JeebEmptyStateStatus status;
+
+  /// Replaces the centre disc of [JeebEmptyStateVariant.e1] (the Ø94 mic),
+  /// [JeebEmptyStateVariant.radar] (the Ø58 broadcast core),
+  /// [JeebEmptyStateVariant.parcel] (the Ø34 mic in the box),
+  /// [JeebEmptyStateVariant.pocket] (the Ø48 floating mic, which keeps its
+  /// float) or [JeebEmptyStateVariant.beacon] (the Ø72 lighthouse mic).
+  /// Everything around it — halo, rings, arcs, waveform, box — stays.
+  ///
+  /// Ignored by [JeebEmptyStateVariant.street] and
+  /// [JeebEmptyStateVariant.balcony]: neither tile has a centre subject, and
+  /// while [status] is loading the skeleton is painted over the whole frame.
+  final Widget? center;
+
+  /// The ring medallions. Null uses [medallionsFor]; extra entries past the
+  /// variant's anchors (four on E1, three on the radar) are ignored.
+  final List<JeebEmptyMedallion>? medallions;
+
+  /// Optional CTA, hidden while loading.
+  final Widget? action;
+
+  /// Illustration width, clamped to the incoming constraints.
+  final double illustrationSize;
+
+  /// Block padding.
+  final EdgeInsetsGeometry padding;
+
+  /// Maestro / `find.bySemanticsIdentifier` id for the whole block.
+  final String? identifier;
+
+  /// Identifier slot on the headline.
+  final String? headlineIdentifier;
+
+  /// Identifier slot on the body.
+  final String? bodyIdentifier;
+
+  /// Accessibility label for the block.
+  final String? semanticLabel;
+
+  /// True for [JeebEmptyState.compact] — the inline density.
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final _Ink ink = _Ink.of(context, status);
+    final JeebTextStyles text = context.jeebText;
+    final String? bodyText = body;
+    final Widget? cta = status == JeebEmptyStateStatus.loading ? null : action;
+    final TextStyle headlineStyle = compact ? text.h2 : text.h1;
+
+    return Semantics(
+      identifier: identifier,
+      label: semanticLabel,
+      container: true,
+      explicitChildNodes: true,
+      child: Padding(
+        padding: padding,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            _Illustration(
+              variant: variant,
+              status: status,
+              ink: ink,
+              center: center,
+              medallions: medallions ?? medallionsFor(variant),
+              size: illustrationSize,
+            ),
+            SizedBox(height: compact ? compactHeadlineGap : headlineGap),
+            Semantics(
+              identifier: headlineIdentifier,
+              header: true,
+              child: Text(
+                headline,
+                textAlign: TextAlign.center,
+                style: headlineStyle.copyWith(color: ink.scheme.onSurface),
+              ),
+            ),
+            if (bodyText != null) ...<Widget>[
+              SizedBox(height: compact ? compactBodyGap : bodyGap),
+              Semantics(
+                identifier: bodyIdentifier,
+                child: Text(
+                  bodyText,
+                  textAlign: TextAlign.center,
+                  style: text.body.copyWith(color: ink.semantic.mutedText),
+                ),
+              ),
+            ],
+            if (cta != null) ...<Widget>[
+              SizedBox(height: compact ? compactActionGap : actionGap),
+              cta,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────── ink ──
+
+/// Resolved palette for the illustration. White-alpha décor derives from
+/// `onSurface`; only the glass discs use the §4 glass ladder.
+@immutable
+class _Ink {
+  const _Ink({
+    required this.scheme,
+    required this.semantic,
+    required this.accent,
+    required this.accentBright,
+    required this.accentDeep,
+    required this.accentSoft,
+    required this.onAccent,
+    required this.periwinkle,
+    required this.produce,
+  });
+
+  factory _Ink.of(BuildContext context, JeebEmptyStateStatus status) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final JeebSemanticColors semantic =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
+    final JeebRoles roles = context.jeebRoles;
+    final bool danger = status == JeebEmptyStateStatus.error;
+    return _Ink(
+      scheme: scheme,
+      semantic: semantic,
+      accent: danger ? scheme.error : roles.accent,
+      accentBright: danger ? scheme.onErrorContainer : semantic.orangeBright,
+      accentDeep: danger ? scheme.errorContainer : semantic.orangePressed,
+      accentSoft: danger ? scheme.onErrorContainer : semantic.orangeSoft,
+      onAccent: roles.onAccent,
+      // The medallion art's second tone. Midnight periwinkle `#8A93D8`, not the
+      // board SVG's retired `#777FC0` (token sheet §10).
+      periwinkle: scheme.secondary,
+      produce: roles.onSuccessContainer,
+    );
+  }
+
+  final ColorScheme scheme;
+  final JeebSemanticColors semantic;
+  final Color accent;
+  final Color accentBright;
+  final Color accentDeep;
+  final Color accentSoft;
+  final Color onAccent;
+  final Color periwinkle;
+  final Color produce;
+
+  Color white(double alpha) => scheme.onSurface.withValues(alpha: alpha);
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Ink &&
+      other.scheme == scheme &&
+      identical(other.semantic, semantic) &&
+      other.accent == accent &&
+      other.accentBright == accentBright &&
+      other.accentDeep == accentDeep &&
+      other.accentSoft == accentSoft &&
+      other.onAccent == onAccent &&
+      other.periwinkle == periwinkle &&
+      other.produce == produce;
+
+  @override
+  int get hashCode => Object.hash(
+    scheme,
+    semantic,
+    accent,
+    accentBright,
+    accentDeep,
+    accentSoft,
+    onAccent,
+    periwinkle,
+    produce,
+  );
+}
+
+// ────────────────────────────────────────────────────── geometry ──
+
+const Size _e1ViewBox = Size(300, 280);
+const Size _sampleViewBox = Size(300, 270);
+
+/// E2's radar board is the square 300×300 div (lines 1759–1774).
+const Size _radarViewBox = Size(300, 300);
+
+/// E3's SVG viewBox (line 1817).
+const Size _streetViewBox = Size(300, 260);
+
+/// E4's illustration stack is a 270×250 div (board lines 1899–1917).
+const Size _parcelViewBox = Size(270, 250);
+
+/// The route-dot pattern of token sheet §8 — `1 9`, period 10, which divides
+/// `jDash`'s −40 travel exactly.
+const double _dotDash = 1;
+const double _dotGap = 9;
+
+const List<Offset> _medallionAnchors = <Offset>[
+  Offset(64, 76),
+  Offset(236, 82),
+  Offset(60, 204),
+  Offset(238, 198),
+];
+
+const double _medallionRadius = 27;
+const double _medallionGlyph = 26;
+
+// ── E1 · lines 1637–1745 ──
+
+const Offset _e1Centre = Offset(150, 140);
+const double _e1HaloRadius = 132;
+const double _e1DotRingRadius = 97;
+
+/// The Ø94 mic disc — also E1's centre slot.
+const double _e1MicRadius = 47;
+
+// ── E2 · radar (board lines 1759–1774) ──
+
+const Offset _radarCentre = Offset(150, 150);
+
+/// Ø300 / Ø216 / Ø132 with a 1px CSS border, i.e. inset half a stroke.
+const List<double> _radarRingRadii = <double>[149.5, 107.5, 65.5];
+const List<double> _radarRingAlphas = <double>[0.12, 0.20, 0.32];
+
+/// Outward-to-inward, so the pulse reads as travelling toward the centre.
+const List<Duration> _radarRingDelays = <Duration>[
+  Duration(seconds: 1),
+  Duration(milliseconds: 500),
+  Duration.zero,
+];
+const Duration _radarRingPeriod = Duration(seconds: 3);
+const Duration _radarGlowPeriod = Duration(seconds: 3);
+const Duration _radarDiscPeriod = Duration(milliseconds: 2600);
+
+const double _radarGlowRadius = 75;
+const double _radarCoreRadius = 29;
+const double _radarBloomWidth = 8;
+const double _radarBloomAlpha = 0.22;
+const double _radarSatelliteRadius = 3;
+const Offset _radarSatellite = Offset(267, 201);
+
+const double _radarDiscDiameter = 36;
+const List<Offset> _radarAnchors = <Offset>[
+  Offset(56, 92),
+  Offset(238, 138),
+  Offset(92, 230),
+];
+
+/// Fill, border and ink step down together — the three read as one jeeber
+/// nearer than the next.
+const List<double> _radarDiscFills = <double>[0.12, 0.09, 0.06];
+const List<double> _radarDiscBorders = <double>[0.25, 0.18, 0.12];
+const List<double> _radarDiscInks = <double>[1, 0.7, 0.45];
+const List<Duration> _radarDiscDelays = <Duration>[
+  Duration.zero,
+  Duration(milliseconds: 800),
+  Duration(milliseconds: 1600),
+];
+
+// ── E3 · street (board lines 1817–1888) ──
+
+const Offset _streetHaloCentre = Offset(150, 128);
+const double _streetHaloRadius = 122;
+
+/// E3 draws no centre disc: the skeleton stands in for the parked scooter —
+/// wheelbase centre (x 102 → 196), half the wheelbase across.
+const Offset _streetSubjectCentre = Offset(149, 150);
+const double _streetSubjectRadius = 47;
+
+const Duration _streetLampPeriod = Duration(milliseconds: 3600);
+const Duration _streetArcPeriod = Duration(milliseconds: 2200);
+const List<Duration> _streetArcDelays = <Duration>[
+  Duration.zero,
+  Duration(milliseconds: 450),
+];
+
+// ── E4 · parcel (board lines 1899–1917) ──
+
+const Offset _parcelCentre = Offset(135, 125);
+
+/// The 250px orbit ring — 1px white 7%, and it does NOT pulse (motion §E4).
+const double _parcelRingRadius = 125;
+
+/// The 170px centre glow, the tile's only breathing element.
+const double _parcelGlowRadius = 85;
+const double _parcelGlowAlpha = 0.22;
+const Duration _parcelGlowPeriod = Duration(milliseconds: 3200);
+
+/// Ø34 orange disc with a `0 0 0 6px` bloom, centred on the open box mouth.
+const Offset _parcelMicCentre = Offset(135, 130);
+const double _parcelMicRadius = 17;
+const double _parcelMicBloom = 6;
+const double _parcelMicBloomAlpha = 0.2;
+
+/// The board's 17px mic glyph, traced from its own 24-unit icon box.
+const double _parcelMicGlyph = 17;
+
+/// The three sparkles, board-space centre · radius · ink alpha (null = accent).
+const List<(Offset, double, double?)> _parcelSparkles =
+    <(Offset, double, double?)>[
+      (Offset(46.5, 46.5), 2.5, null),
+      (Offset(227, 73), 3, 0.4),
+      (Offset(203.5, 207.5), 2.5, 0.3),
+    ];
+
+/// The three-sparkle ladder E1 and E4 share verbatim — motion-notes
+/// cheat-sheet, "reuse one widget". Re-deriving it per tile is how they drift.
+const List<Duration> _sparkleLadderPeriods = <Duration>[
+  Duration(milliseconds: 2400),
+  Duration(milliseconds: 2800),
+  Duration(seconds: 3),
+];
+const List<Duration> _sparkleLadderDelays = <Duration>[
+  Duration.zero,
+  Duration(milliseconds: 700),
+  Duration(milliseconds: 1300),
+];
+
+/// Inner-to-outer radius of the board's 4-point sparkle (3 / 11 diagonal).
+const double _starInnerRatio = 0.386;
+
+// ── Sample A · pocket (board lines 1933–1971) ──
+
+const Offset _pocketRingCentre = Offset(150, 135);
+const double _pocketHaloRadius = 120;
+const double _pocketDotRingRadius = 88;
+
+/// The Ø48 floating mic — Sample A's centre slot.
+const Offset _pocketMicCentre = Offset(150, 86);
+const double _pocketMicRadius = 24;
+
+// ── Sample B · balcony (board lines 1972–2025) ──
+
+/// Sample B has no centre disc either: the skeleton takes the request bubble's
+/// own 94×50 slot, inscribed.
+const Offset _balconyBubbleCentre = Offset(173, 117);
+const double _balconyBubbleRadius = 25;
+
+// ── Sample C · beacon (board lines 2026–2079) ──
+
+/// The Ø72 lighthouse mic — Sample C's centre slot.
+const Offset _beaconMicCentre = Offset(150, 112);
+const double _beaconMicRadius = 36;
+
+/// One still hairline of a skeleton, in its variant's own board units.
+@immutable
+class _SkeletonRing {
+  const _SkeletonRing(
+    this.centre,
+    this.radius,
+    this.alpha, {
+    this.width = 1.5,
+    this.dotted = false,
+  });
+
+  final Offset centre;
+  final double radius;
+
+  /// White alpha: a skeleton keeps the geometry and drops the colour identity.
+  final double alpha;
+  final double width;
+  final bool dotted;
+}
+
+/// What a variant's loading skeleton traces: the still rings THAT variant
+/// draws, the footprint of its centre subject, and its own disc anchors.
+@immutable
+class _Skeleton {
+  const _Skeleton({
+    required this.rings,
+    required this.centre,
+    required this.centreRadius,
+    this.discs = const <Offset>[],
+    this.discRadius = 0,
+  });
+
+  final List<_SkeletonRing> rings;
+  final Offset centre;
+  final double centreRadius;
+
+  /// Empty where the variant draws no medallions — E1's four are E1's alone.
+  final List<Offset> discs;
+  final double discRadius;
+}
+
+_Skeleton _skeletonFor(JeebEmptyStateVariant variant) => switch (variant) {
+  JeebEmptyStateVariant.e1 => const _Skeleton(
+    rings: <_SkeletonRing>[
+      _SkeletonRing(_e1Centre, _e1HaloRadius, 0.07),
+      _SkeletonRing(_e1Centre, _e1DotRingRadius, 0.16, dotted: true),
+    ],
+    centre: _e1Centre,
+    centreRadius: _e1MicRadius,
+    discs: _medallionAnchors,
+    discRadius: _medallionRadius,
+  ),
+  JeebEmptyStateVariant.radar => _Skeleton(
+    rings: <_SkeletonRing>[
+      for (int i = 0; i < _radarRingRadii.length; i++)
+        _SkeletonRing(
+          _radarCentre,
+          _radarRingRadii[i],
+          _radarRingAlphas[i],
+          width: 1,
+        ),
+    ],
+    centre: _radarCentre,
+    centreRadius: _radarCoreRadius,
+    discs: _radarAnchors,
+    discRadius: _radarDiscDiameter / 2,
+  ),
+  JeebEmptyStateVariant.street => const _Skeleton(
+    rings: <_SkeletonRing>[
+      _SkeletonRing(_streetHaloCentre, _streetHaloRadius, 0.07),
+    ],
+    centre: _streetSubjectCentre,
+    centreRadius: _streetSubjectRadius,
+  ),
+  JeebEmptyStateVariant.parcel => const _Skeleton(
+    rings: <_SkeletonRing>[
+      _SkeletonRing(_parcelCentre, _parcelRingRadius, 0.07, width: 1),
+    ],
+    centre: _parcelMicCentre,
+    centreRadius: _parcelMicRadius,
+  ),
+  JeebEmptyStateVariant.pocket => const _Skeleton(
+    rings: <_SkeletonRing>[
+      _SkeletonRing(_pocketRingCentre, _pocketHaloRadius, 0.07),
+      _SkeletonRing(_pocketRingCentre, _pocketDotRingRadius, 0.13, dotted: true),
+    ],
+    centre: _pocketMicCentre,
+    centreRadius: _pocketMicRadius,
+  ),
+  JeebEmptyStateVariant.balcony => const _Skeleton(
+    rings: <_SkeletonRing>[],
+    centre: _balconyBubbleCentre,
+    centreRadius: _balconyBubbleRadius,
+  ),
+  JeebEmptyStateVariant.beacon => const _Skeleton(
+    rings: <_SkeletonRing>[],
+    centre: _beaconMicCentre,
+    centreRadius: _beaconMicRadius,
+  ),
+};
+
+Paint _strokePaint(Color color, double width, [StrokeCap cap = StrokeCap.round]) =>
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = cap
+      ..color = color;
+
+Paint _fillPaint(Color color) => Paint()..color = color;
+
+Path _dotted(Path source, {double dash = _dotDash, double gap = _dotGap}) =>
+    JDashedPathPainter.dashed(source, dashLength: dash, gapLength: gap);
+
+// ────────────────────────────────────────────────── illustration ──
+
+class _Illustration extends StatelessWidget {
+  const _Illustration({
+    required this.variant,
+    required this.status,
+    required this.ink,
+    required this.center,
+    required this.medallions,
+    required this.size,
+  });
+
+  final JeebEmptyStateVariant variant;
+  final JeebEmptyStateStatus status;
+  final _Ink ink;
+  final Widget? center;
+  final List<JeebEmptyMedallion> medallions;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool skeleton = status == JeebEmptyStateStatus.loading;
+    final Size viewBox = _viewBoxFor(variant);
+
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double width = constraints.maxWidth.isFinite
+            ? math.min(size, constraints.maxWidth)
+            : size;
+        return SizedBox(
+          width: width,
+          height: width * viewBox.height / viewBox.width,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox.fromSize(
+              size: viewBox,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: skeleton ? _skeleton() : _layers(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// The skeleton is the VARIANT's own geometry, breathing — never E1's.
+  List<Widget> _skeleton() => <Widget>[
+    Positioned.fill(
+      child: JBreathe(
+        child: _vector(
+          'skeleton-${variant.name}-${medallions.length}',
+          ink,
+          (Canvas canvas) =>
+              _paintSkeleton(canvas, ink, variant, medallions.length),
+        ),
+      ),
+    ),
+  ];
+
+  static Size _viewBoxFor(JeebEmptyStateVariant variant) => switch (variant) {
+    JeebEmptyStateVariant.e1 => _e1ViewBox,
+    JeebEmptyStateVariant.radar => _radarViewBox,
+    JeebEmptyStateVariant.street => _streetViewBox,
+    JeebEmptyStateVariant.parcel => _parcelViewBox,
+    _ => _sampleViewBox,
+  };
+
+  List<Widget> _layers() => switch (variant) {
+    JeebEmptyStateVariant.e1 => _e1Layers(),
+    JeebEmptyStateVariant.radar => _radarLayers(),
+    JeebEmptyStateVariant.street => _streetLayers(),
+    JeebEmptyStateVariant.parcel => _parcelLayers(),
+    JeebEmptyStateVariant.pocket => _pocketLayers(),
+    JeebEmptyStateVariant.balcony => _balconyLayers(),
+    JeebEmptyStateVariant.beacon => _beaconLayers(),
+  };
+
+  // E1 · lines 1637–1745. Animated: centre glow, waveform ears, 5 twinkles.
+  List<Widget> _e1Layers() => <Widget>[
+    Positioned.fill(child: _vector('e1-rings', ink, (Canvas canvas) => _paintE1Rings(canvas, ink))),
+    Positioned(
+      left: 76,
+      top: 66,
+      width: 148,
+      height: 148,
+      child: JBreathe(
+        duration: const Duration(milliseconds: 3200),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: <Color>[
+                ink.accent.withValues(alpha: 0.5),
+                ink.accent.withValues(alpha: 0),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+    for (int i = 0; i < math.min(medallions.length, _medallionAnchors.length); i++)
+      Positioned(
+        left: _medallionAnchors[i].dx - _medallionRadius,
+        top: _medallionAnchors[i].dy - _medallionRadius,
+        width: _medallionRadius * 2,
+        height: _medallionRadius * 2,
+        child: _Medallion(
+          medallion: medallions[i],
+          ink: ink,
+          diameter: _medallionRadius * 2,
+        ),
+      ),
+    Positioned.fill(child: _vector('e1-arcs', ink, (Canvas canvas) => _paintE1Arcs(canvas, ink))),
+    if (center == null)
+      Positioned.fill(child: _vector('e1-mic', ink, (Canvas canvas) => _paintE1Mic(canvas, ink)))
+    else
+      Positioned(
+        left: _e1Centre.dx - _e1MicRadius,
+        top: _e1Centre.dy - _e1MicRadius,
+        width: _e1MicRadius * 2,
+        height: _e1MicRadius * 2,
+        child: center!,
+      ),
+    Positioned.fill(
+      child: JWaveBar(
+        duration: const Duration(milliseconds: 1400),
+        child: _vector('e1-wave', ink, (Canvas canvas) => _paintE1Waveform(canvas, ink)),
+      ),
+    ),
+    _Twinkle(
+      center: const Offset(150, 37),
+      radius: 11,
+      color: ink.accentSoft,
+      duration: _sparkleLadderPeriods[0],
+      delay: _sparkleLadderDelays[0],
+    ),
+    _Twinkle(
+      center: const Offset(262, 148),
+      radius: 8,
+      color: ink.white(0.55),
+      duration: _sparkleLadderPeriods[1],
+      delay: _sparkleLadderDelays[1],
+    ),
+    _Twinkle(
+      center: const Offset(36, 153),
+      radius: 7,
+      color: ink.white(0.4),
+      duration: _sparkleLadderPeriods[2],
+      delay: _sparkleLadderDelays[2],
+    ),
+    _Twinkle(
+      center: const Offset(112, 52),
+      radius: 3,
+      color: ink.accent,
+      dot: true,
+      duration: const Duration(milliseconds: 2200),
+      delay: const Duration(milliseconds: 1700),
+    ),
+    _Twinkle(
+      center: const Offset(196, 236),
+      radius: 3,
+      color: ink.white(0.5),
+      dot: true,
+      duration: const Duration(milliseconds: 2600),
+      delay: const Duration(milliseconds: 400),
+    ),
+  ];
+
+  // E2 · lines 1746–1794. Animated: 3 rings, centre glow, 3 avatar discs.
+  // STATIC: the orange core with its bloom ring, and the satellite dot.
+  List<Widget> _radarLayers() => <Widget>[
+    for (int i = 0; i < _radarRingRadii.length; i++)
+      Positioned.fill(
+        child: JArcPulse(
+          duration: _radarRingPeriod,
+          delay: _radarRingDelays[i],
+          child: _vector(
+            'radar-ring-$i',
+            ink,
+            (Canvas canvas) => _drawRadarRing(canvas, ink, i),
+          ),
+        ),
+      ),
+    Positioned(
+      left: _radarCentre.dx - _radarGlowRadius,
+      top: _radarCentre.dy - _radarGlowRadius,
+      width: _radarGlowRadius * 2,
+      height: _radarGlowRadius * 2,
+      child: JBreathe(
+        duration: _radarGlowPeriod,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: <Color>[
+                ink.accent.withValues(alpha: 0.35),
+                ink.accent.withValues(alpha: 0),
+              ],
+              stops: const <double>[0, 0.7],
+            ),
+          ),
+        ),
+      ),
+    ),
+    if (center == null)
+      Positioned.fill(
+        child: _vector(
+          'radar-core',
+          ink,
+          (Canvas canvas) => _paintRadarCore(canvas, ink),
+        ),
+      )
+    else
+      Positioned(
+        left: _radarCentre.dx - _radarCoreRadius,
+        top: _radarCentre.dy - _radarCoreRadius,
+        width: _radarCoreRadius * 2,
+        height: _radarCoreRadius * 2,
+        child: center!,
+      ),
+    for (int i = 0; i < math.min(medallions.length, _radarAnchors.length); i++)
+      Positioned(
+        left: _radarAnchors[i].dx - _radarDiscDiameter / 2,
+        top: _radarAnchors[i].dy - _radarDiscDiameter / 2,
+        width: _radarDiscDiameter,
+        height: _radarDiscDiameter,
+        child: JBreathe(
+          duration: _radarDiscPeriod,
+          delay: _radarDiscDelays[i],
+          child: _Medallion(
+            medallion: medallions[i],
+            ink: ink,
+            diameter: _radarDiscDiameter,
+            fill: ink.white(_radarDiscFills[i]),
+            border: ink.white(_radarDiscBorders[i]),
+            letterInk: ink.white(_radarDiscInks[i]),
+          ),
+        ),
+      ),
+    Positioned.fill(
+      child: _vector(
+        'radar-satellite',
+        ink,
+        (Canvas canvas) => _paintRadarSatellite(canvas, ink),
+      ),
+    ),
+  ];
+
+  // E3 · lines 1817–1888. Animated: lamp bulb + cone as ONE element, 2 arcs.
+  // STATIC: the box, ground, road dashes, emitter dot and BOTH sparkles.
+  List<Widget> _streetLayers() => <Widget>[
+    Positioned.fill(
+      child: _vector(
+        'street-back',
+        ink,
+        (Canvas canvas) => _paintStreetBack(canvas, ink),
+      ),
+    ),
+    Positioned.fill(
+      child: _vector(
+        'street-post',
+        ink,
+        (Canvas canvas) => _paintStreetPost(canvas, ink),
+      ),
+    ),
+    Positioned.fill(
+      child: JBreathe(
+        duration: _streetLampPeriod,
+        child: _vector(
+          'street-lamp',
+          ink,
+          (Canvas canvas) => _paintStreetLamp(canvas, ink),
+        ),
+      ),
+    ),
+    Positioned.fill(
+      child: _vector(
+        'street-ground',
+        ink,
+        (Canvas canvas) => _paintStreetGround(canvas, ink),
+      ),
+    ),
+    Positioned.fill(
+      child: _vector(
+        'street-scooter',
+        ink,
+        (Canvas canvas) => _paintStreetScooter(canvas, ink),
+      ),
+    ),
+    for (int i = 0; i < _streetArcDelays.length; i++)
+      Positioned.fill(
+        child: JArcPulse(
+          duration: _streetArcPeriod,
+          delay: _streetArcDelays[i],
+          child: _vector(
+            'street-arc-$i',
+            ink,
+            (Canvas canvas) => _drawStreetArc(canvas, ink, i),
+          ),
+        ),
+      ),
+    Positioned.fill(
+      child: _vector(
+        'street-specks',
+        ink,
+        (Canvas canvas) => _paintStreetSpecks(canvas, ink),
+      ),
+    ),
+  ];
+
+  // E4 · lines 1899–1917. Animated: the 170px centre glow and E1's own
+  // three-sparkle ladder. STATIC: the 250px orbit ring, the box, lid and mic.
+  List<Widget> _parcelLayers() => <Widget>[
+    Positioned.fill(
+      child: _vector(
+        'parcel-ring',
+        ink,
+        (Canvas canvas) => _paintParcelRing(canvas, ink),
+      ),
+    ),
+    Positioned(
+      left: _parcelCentre.dx - _parcelGlowRadius,
+      top: _parcelCentre.dy - _parcelGlowRadius,
+      width: _parcelGlowRadius * 2,
+      height: _parcelGlowRadius * 2,
+      child: JBreathe(
+        duration: _parcelGlowPeriod,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: <Color>[
+                ink.accent.withValues(alpha: _parcelGlowAlpha),
+                ink.accent.withValues(alpha: 0),
+              ],
+              stops: const <double>[0, 0.7],
+            ),
+          ),
+        ),
+      ),
+    ),
+    Positioned.fill(
+      child: _vector(
+        'parcel-box',
+        ink,
+        (Canvas canvas) => _paintParcelBox(canvas, ink),
+      ),
+    ),
+    if (center == null)
+      Positioned.fill(
+        child: _vector(
+          'parcel-mic',
+          ink,
+          (Canvas canvas) => _paintParcelMic(canvas, ink),
+        ),
+      )
+    else
+      Positioned(
+        left: _parcelMicCentre.dx - _parcelMicRadius,
+        top: _parcelMicCentre.dy - _parcelMicRadius,
+        width: _parcelMicRadius * 2,
+        height: _parcelMicRadius * 2,
+        child: center!,
+      ),
+    for (int i = 0; i < _parcelSparkles.length; i++)
+      _Twinkle(
+        center: _parcelSparkles[i].$1,
+        radius: _parcelSparkles[i].$2,
+        color: _parcelSparkles[i].$3 == null
+            ? ink.accent
+            : ink.white(_parcelSparkles[i].$3!),
+        dot: true,
+        duration: _sparkleLadderPeriods[i],
+        delay: _sparkleLadderDelays[i],
+      ),
+  ];
+
+  // Sample A · lines 1933–1971. Animated: ground glow, floating mic, 4 twinkles.
+  List<Widget> _pocketLayers() => <Widget>[
+    Positioned.fill(child: _vector('pocket-back', ink, (Canvas canvas) => _paintPocketBack(canvas, ink))),
+    Positioned(
+      left: 84,
+      top: 80,
+      width: 132,
+      height: 24,
+      child: JBreathe(
+        duration: const Duration(milliseconds: 3200),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.all(Radius.elliptical(66, 12)),
+            gradient: RadialGradient(
+              colors: <Color>[
+                ink.accent.withValues(alpha: 0.55),
+                ink.accent.withValues(alpha: 0),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+    Positioned.fill(child: _vector('pocket-band', ink, (Canvas canvas) => _paintPocketBand(canvas, ink))),
+    Positioned(
+      left: _pocketMicCentre.dx - _pocketMicRadius,
+      top: _pocketMicCentre.dy - _pocketMicRadius,
+      width: _pocketMicRadius * 2,
+      height: _pocketMicRadius * 2,
+      child: JFloat(
+        duration: const Duration(milliseconds: 3400),
+        // A replaced centre still floats: the mic leaving the pocket IS the
+        // tile's story, and a pasted-still mark reads as broken.
+        child: center ??
+            _vector(
+              'pocket-mic',
+              ink,
+              (Canvas canvas) => _paintPocketMic(canvas, ink),
+              origin: Offset(
+                _pocketMicCentre.dx - _pocketMicRadius,
+                _pocketMicCentre.dy - _pocketMicRadius,
+              ),
+            ),
+      ),
+    ),
+    _Twinkle(
+      center: const Offset(104, 64.4),
+      radius: 8.4,
+      color: ink.accentSoft,
+      duration: const Duration(milliseconds: 2400),
+    ),
+    _Twinkle(
+      center: const Offset(204, 51),
+      radius: 7,
+      color: ink.white(0.55),
+      duration: const Duration(milliseconds: 2800),
+      delay: const Duration(milliseconds: 600),
+    ),
+    _Twinkle(
+      center: const Offset(180, 60),
+      radius: 3,
+      color: ink.accent,
+      dot: true,
+      duration: const Duration(milliseconds: 2200),
+      delay: const Duration(milliseconds: 1100),
+    ),
+    _Twinkle(
+      center: const Offset(122, 38),
+      radius: 2.5,
+      color: ink.white(0.4),
+      dot: true,
+      duration: const Duration(seconds: 3),
+      delay: const Duration(milliseconds: 1600),
+    ),
+  ];
+
+  // Sample B · lines 1972–2025. Animated: lit window, floating bubble + wave,
+  // jDash route, headlight.
+  List<Widget> _balconyLayers() => <Widget>[
+    Positioned.fill(child: _vector('balcony-back', ink, (Canvas canvas) => _paintBalconyBack(canvas, ink))),
+    Positioned.fill(
+      child: JBreathe(
+        duration: const Duration(milliseconds: 3400),
+        child: _vector('balcony-window', ink, (Canvas canvas) => _paintBalconyWindow(canvas, ink)),
+      ),
+    ),
+    Positioned.fill(child: _vector('balcony-mid', ink, (Canvas canvas) => _paintBalconyMid(canvas, ink))),
+    Positioned.fill(
+      child: JDashedPath(
+        pathBuilder: (Size _) => _balconyRoutePath(),
+        color: ink.accent.withValues(alpha: 0.85),
+        strokeWidth: 3,
+        dashLength: _dotDash,
+        gapLength: _dotGap,
+        duration: const Duration(milliseconds: 2400),
+      ),
+    ),
+    Positioned.fill(child: _vector('balcony-scooter', ink, (Canvas canvas) => _paintBalconyScooter(canvas, ink))),
+    Positioned.fill(
+      child: JBreathe(
+        duration: const Duration(milliseconds: 1800),
+        child: _vector('balcony-lamp', ink, (Canvas canvas) => _paintBalconyHeadlight(canvas, ink)),
+      ),
+    ),
+    Positioned(
+      left: 126,
+      top: 92,
+      width: 94,
+      height: 50,
+      child: JFloat(
+        duration: const Duration(milliseconds: 3600),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Positioned.fill(
+              child: _vector(
+                'balcony-bubble',
+                ink,
+                (Canvas canvas) => _paintBalconyBubble(canvas, ink),
+                origin: const Offset(126, 92),
+              ),
+            ),
+            Positioned(
+              left: 22.25,
+              top: 8,
+              width: 43.5,
+              height: 22,
+              child: JWaveBar(
+                duration: const Duration(milliseconds: 1300),
+                child: _vector(
+                  'balcony-wave',
+                  ink,
+                  (Canvas canvas) => _paintBalconyWave(canvas, ink),
+                  origin: const Offset(148.25, 100),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ];
+
+  // Sample C · lines 2026–2079. Animated: 3 twinkles, jHalo ring, 6 jArcPulse
+  // arcs, 2 jDash routes, 2 breathing headlights.
+  List<Widget> _beaconLayers() => <Widget>[
+    Positioned.fill(child: _vector('beacon-back', ink, (Canvas canvas) => _paintBeaconBack(canvas, ink))),
+    Positioned(
+      left: 112,
+      top: 72,
+      width: 76,
+      height: 76,
+      child: JHalo(
+        color: ink.accentSoft,
+        strokeWidth: 2,
+        child: const SizedBox.shrink(),
+      ),
+    ),
+    if (center == null)
+      Positioned.fill(child: _vector('beacon-mic', ink, (Canvas canvas) => _paintBeaconMic(canvas, ink)))
+    else
+      Positioned(
+        left: _beaconMicCentre.dx - _beaconMicRadius,
+        top: _beaconMicCentre.dy - _beaconMicRadius,
+        width: _beaconMicRadius * 2,
+        height: _beaconMicRadius * 2,
+        child: center!,
+      ),
+    for (int i = 0; i < 6; i++)
+      Positioned.fill(
+        child: JArcPulse(
+          delay: Duration(milliseconds: (i % 3) * 400),
+          child: _vector('beacon-arc-$i', ink, (Canvas c) => _drawBeaconArc(c, ink, i)),
+        ),
+      ),
+    Positioned.fill(
+      child: JDashedPath(
+        pathBuilder: (Size _) => _beaconRoutePaths(),
+        color: ink.accent,
+        strokeWidth: 3,
+        dashLength: _dotDash,
+        gapLength: _dotGap,
+      ),
+    ),
+    Positioned.fill(
+      child: JBreathe(
+        duration: const Duration(milliseconds: 1600),
+        child: _vector(
+          'beacon-lamp-start',
+          ink,
+          (Canvas c) => _drawBeaconHeadlight(c, ink, start: true),
+        ),
+      ),
+    ),
+    Positioned.fill(
+      child: JBreathe(
+        duration: const Duration(milliseconds: 1600),
+        delay: const Duration(milliseconds: 800),
+        child: _vector(
+          'beacon-lamp-end',
+          ink,
+          (Canvas c) => _drawBeaconHeadlight(c, ink, start: false),
+        ),
+      ),
+    ),
+    _Twinkle(
+      center: const Offset(88, 30),
+      radius: 2,
+      color: ink.white(0.45),
+      dot: true,
+      duration: const Duration(milliseconds: 2600),
+    ),
+    _Twinkle(
+      center: const Offset(228, 40),
+      radius: 2.5,
+      color: ink.white(0.35),
+      dot: true,
+      duration: const Duration(seconds: 3),
+      delay: const Duration(milliseconds: 900),
+    ),
+    _Twinkle(
+      center: const Offset(256, 73),
+      radius: 7,
+      color: ink.white(0.5),
+      duration: const Duration(milliseconds: 2400),
+      delay: const Duration(milliseconds: 1400),
+    ),
+  ];
+}
+
+class _Medallion extends StatelessWidget {
+  const _Medallion({
+    required this.medallion,
+    required this.ink,
+    required this.diameter,
+    this.fill,
+    this.border,
+    this.letterInk,
+  });
+
+  final JeebEmptyMedallion medallion;
+  final _Ink ink;
+
+  /// Disc width in board units — the letter scales off it.
+  final double diameter;
+
+  /// Radar discs step their own glass; null keeps E1's §4 glass rungs.
+  final Color? fill;
+  final Color? border;
+  final Color? letterInk;
+
+  @override
+  Widget build(BuildContext context) {
+    final JeebEmptyMedallionArt? art = medallion.art;
+    final String? initial = medallion.initial;
+    final Widget content;
+    if (art != null) {
+      content = Semantics(
+        label: medallion.semanticLabel,
+        child: CustomPaint(painter: _MedallionArt(art: art, ink: ink)),
+      );
+    } else if (initial != null) {
+      final Widget letter = Center(
+        child: Text(
+          JeebAvatar.initialFrom(initial),
+          maxLines: 1,
+          textScaler: TextScaler.noScaling,
+          style: context.jeebText.h2.copyWith(
+            fontSize: diameter * JeebAvatar.initialSizeRatio,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+            height: 1,
+            color: medallion.tint ?? letterInk ?? ink.scheme.onSurface,
+          ),
+        ),
+      );
+      content = medallion.semanticLabel == null
+          ? ExcludeSemantics(child: letter)
+          : Semantics(
+              label: medallion.semanticLabel,
+              excludeSemantics: true,
+              child: letter,
+            );
+    } else {
+      content = Center(
+        child: Icon(
+          medallion.icon,
+          size: _medallionGlyph,
+          color: medallion.tint ?? ink.scheme.onSurface,
+          semanticLabel: medallion.semanticLabel,
+        ),
+      );
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: fill ?? ink.semantic.glassFillEmphasis,
+        border: Border.all(color: border ?? ink.semantic.glassBorderStrong),
+      ),
+      child: content,
+    );
+  }
+}
+
+/// The drawn medallion subjects, traced from E1's SVG into the disc's own
+/// 54×54 box (board anchor − 27 on both axes).
+class _MedallionArt extends CustomPainter {
+  const _MedallionArt({required this.art, required this.ink});
+
+  final JeebEmptyMedallionArt art;
+  final _Ink ink;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Traced at Ø54; a compact illustration scales the whole disc down.
+    final double scale = size.shortestSide / (_medallionRadius * 2);
+    canvas.scale(scale);
+    switch (art) {
+      case JeebEmptyMedallionArt.medicine:
+        _paintMedicine(canvas, ink);
+      case JeebEmptyMedallionArt.groceries:
+        _paintGroceries(canvas, ink);
+      case JeebEmptyMedallionArt.document:
+        _paintDocument(canvas, ink);
+      case JeebEmptyMedallionArt.gift:
+        _paintGift(canvas, ink);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MedallionArt oldDelegate) =>
+      oldDelegate.art != art || oldDelegate.ink != ink;
+}
+
+RRect _rrect(double l, double t, double w, double h, double r) =>
+    RRect.fromRectAndRadius(
+      Rect.fromLTWH(l, t, w, h),
+      Radius.circular(r),
+    );
+
+/// Pill bottle — white body, accent cap, periwinkle label, white cross.
+void _paintMedicine(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(_rrect(18, 19, 18, 23, 4), _fillPaint(ink.scheme.onSurface))
+    ..drawRRect(_rrect(17, 12, 20, 8, 3), _fillPaint(ink.accent))
+    ..drawRRect(_rrect(22, 25, 10, 10, 2), _fillPaint(ink.periwinkle))
+    ..drawPath(
+      Path()
+        ..moveTo(25, 30)
+        ..relativeLineTo(4, 0)
+        ..moveTo(27, 28)
+        ..relativeLineTo(0, 4),
+      _strokePaint(ink.scheme.onSurface, 1.6),
+    );
+}
+
+/// Grocery bag — white body, periwinkle handle, orangeSoft loaf, green produce.
+void _paintGroceries(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawPath(
+      Path()
+        ..moveTo(17, 19)
+        ..relativeLineTo(20, 0)
+        ..relativeLineTo(-2.5, 22)
+        ..relativeLineTo(-15, 0)
+        ..close(),
+      _fillPaint(ink.scheme.onSurface),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(21, 19)
+        ..relativeLineTo(0, -4)
+        ..arcToPoint(
+          const Offset(33, 15),
+          radius: const Radius.circular(6),
+        )
+        ..relativeLineTo(0, 4),
+      _strokePaint(ink.periwinkle, 2.2),
+    )
+    ..save()
+    ..translate(32, 15)
+    ..rotate(24 * math.pi / 180)
+    ..translate(-32, -15)
+    ..drawRRect(_rrect(29, 7, 6, 16, 3), _fillPaint(ink.accentSoft))
+    ..restore()
+    ..drawCircle(const Offset(22, 15), 4.5, _fillPaint(ink.produce));
+}
+
+/// Envelope — white body, periwinkle flap, accent seal.
+void _paintDocument(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(_rrect(15, 17, 25, 18, 2.5), _fillPaint(ink.scheme.onSurface))
+    ..drawPath(
+      Path()
+        ..moveTo(15, 19.5)
+        ..lineTo(27, 29)
+        ..lineTo(40, 19.5),
+      _strokePaint(ink.periwinkle, 2, StrokeCap.butt),
+    )
+    ..drawCircle(const Offset(27, 31), 3.4, _fillPaint(ink.accent));
+}
+
+/// Gift box — white body, periwinkle lid, accent ribbon and bow.
+void _paintGift(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(_rrect(15, 21, 24, 19, 2.5), _fillPaint(ink.scheme.onSurface))
+    ..drawRRect(_rrect(13, 15, 28, 7, 2.5), _fillPaint(ink.periwinkle))
+    ..drawRect(
+      const Rect.fromLTWH(25, 15, 4.5, 25),
+      _fillPaint(ink.accent),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(27, 14)
+        ..relativeCubicTo(-7, -1, -9, -8, -4, -9)
+        ..relativeCubicTo(4, -1, 5, 5, 4, 9)
+        ..close()
+        ..moveTo(27, 14)
+        ..relativeCubicTo(7, -1, 9, -8, 4, -9)
+        ..relativeCubicTo(-4, -1, -5, 5, -4, 9)
+        ..close(),
+      _fillPaint(ink.accent),
+    );
+}
+
+/// A `jTwinkle` sparkle or star dot placed by its board-space centre.
+class _Twinkle extends StatelessWidget {
+  const _Twinkle({
+    required this.center,
+    required this.radius,
+    required this.color,
+    required this.duration,
+    this.delay = Duration.zero,
+    this.dot = false,
+  });
+
+  final Offset center;
+  final double radius;
+  final Color color;
+  final Duration duration;
+  final Duration delay;
+  final bool dot;
+
+  @override
+  Widget build(BuildContext context) => Positioned(
+    left: center.dx - radius,
+    top: center.dy - radius,
+    width: radius * 2,
+    height: radius * 2,
+    child: JTwinkle(
+      duration: duration,
+      delay: delay,
+      child: dot
+          ? DecoratedBox(
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+            )
+          : CustomPaint(painter: _StarPainter(color)),
+    ),
+  );
+}
+
+class _StarPainter extends CustomPainter {
+  const _StarPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double outer = size.shortestSide / 2;
+    final Offset middle = size.center(Offset.zero);
+    final Path path = Path();
+    for (int i = 0; i < 8; i++) {
+      final double angle = -math.pi / 2 + i * math.pi / 4;
+      final double radius = i.isEven ? outer : outer * _starInnerRatio;
+      final Offset point =
+          middle + Offset(math.cos(angle) * radius, math.sin(angle) * radius);
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    canvas.drawPath(path..close(), _fillPaint(color));
+  }
+
+  @override
+  bool shouldRepaint(_StarPainter oldDelegate) => oldDelegate.color != color;
+}
+
+// ────────────────────────────────────────────────────── painting ──
+
+typedef _Draw = void Function(Canvas canvas);
+
+CustomPaint _vector(
+  String id,
+  _Ink ink,
+  _Draw draw, {
+  Offset origin = Offset.zero,
+}) => CustomPaint(
+  painter: _Vector(id: id, ink: ink, draw: draw, origin: origin),
+);
+
+/// One painter for every static layer: the draw callbacks work in board
+/// coordinates, [origin] shifts them into a sub-rect of the viewBox.
+class _Vector extends CustomPainter {
+  const _Vector({
+    required this.id,
+    required this.ink,
+    required this.draw,
+    required this.origin,
+  });
+
+  final String id;
+  final _Ink ink;
+  final _Draw draw;
+  final Offset origin;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.translate(-origin.dx, -origin.dy);
+    draw(canvas);
+  }
+
+  @override
+  bool shouldRepaint(_Vector oldDelegate) =>
+      oldDelegate.id != id ||
+      oldDelegate.ink != ink ||
+      oldDelegate.origin != origin;
+}
+
+// ── E1 ──
+
+void _paintE1Rings(Canvas canvas, _Ink ink) {
+  canvas.drawCircle(
+    _e1Centre,
+    _e1HaloRadius,
+    _strokePaint(ink.white(0.07), 1.5),
+  );
+  final Path ring = Path()
+    ..addOval(Rect.fromCircle(center: _e1Centre, radius: _e1DotRingRadius));
+  canvas.drawPath(_dotted(ring), _strokePaint(ink.white(0.16), 1.5));
+}
+
+void _paintE1Arcs(Canvas canvas, _Ink ink) {
+  final Paint paint = _strokePaint(ink.accent.withValues(alpha: 0.4), 2.5);
+  final Path top = Path()
+    ..moveTo(84, 96)
+    ..arcToPoint(
+      const Offset(216, 98),
+      radius: const Radius.circular(97),
+    );
+  final Path bottom = Path()
+    ..moveTo(82, 186)
+    ..arcToPoint(
+      const Offset(216, 184),
+      radius: const Radius.circular(97),
+      clockwise: false,
+    );
+  canvas
+    ..drawPath(_dotted(top), paint)
+    ..drawPath(_dotted(bottom), paint);
+}
+
+void _paintE1Mic(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(_e1Centre, _e1MicRadius, _fillPaint(ink.accentDeep))
+    ..drawCircle(
+      const Offset(150, 138),
+      45,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[ink.accentBright, ink.accentDeep],
+        ).createShader(
+          Rect.fromCircle(center: const Offset(150, 138), radius: 45),
+        ),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(118, 118)
+        ..arcToPoint(const Offset(148, 96), radius: const Radius.circular(45)),
+      _strokePaint(ink.onAccent.withValues(alpha: 0.45), 4),
+    )
+    ..drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(141, 114, 18, 32),
+        const Radius.circular(9),
+      ),
+      _fillPaint(ink.onAccent),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(133, 138)
+        ..arcToPoint(
+          const Offset(167, 138),
+          radius: const Radius.circular(17),
+          clockwise: false,
+        ),
+      _strokePaint(ink.onAccent, 4),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(150, 156)
+        ..lineTo(150, 165)
+        ..moveTo(141, 166)
+        ..lineTo(159, 166),
+      _strokePaint(ink.onAccent, 4),
+    );
+}
+
+void _paintE1Waveform(Canvas canvas, _Ink ink) {
+  final Paint paint = _strokePaint(ink.accentSoft, 3.5);
+  const List<List<double>> bars = <List<double>>[
+    <double>[205, 128, 24],
+    <double>[214, 122, 36],
+    <double>[223, 132, 16],
+    <double>[95, 128, 24],
+    <double>[86, 122, 36],
+    <double>[77, 132, 16],
+  ];
+  for (final List<double> bar in bars) {
+    canvas.drawLine(
+      Offset(bar[0], bar[1]),
+      Offset(bar[0], bar[1] + bar[2]),
+      paint,
+    );
+  }
+}
+
+/// [discs] is what the CALLER composed, capped at the variant's own anchors: a
+/// tile that draws no medallions must not load four.
+void _paintSkeleton(
+  Canvas canvas,
+  _Ink ink,
+  JeebEmptyStateVariant variant,
+  int discs,
+) {
+  final _Skeleton spec = _skeletonFor(variant);
+  for (final _SkeletonRing ring in spec.rings) {
+    final Paint paint = _strokePaint(ink.white(ring.alpha), ring.width);
+    if (ring.dotted) {
+      canvas.drawPath(
+        _dotted(
+          Path()
+            ..addOval(
+              Rect.fromCircle(center: ring.centre, radius: ring.radius),
+            ),
+        ),
+        paint,
+      );
+    } else {
+      canvas.drawCircle(ring.centre, ring.radius, paint);
+    }
+  }
+  canvas
+    ..drawCircle(
+      spec.centre,
+      spec.centreRadius,
+      _fillPaint(ink.semantic.glassFillEmphasis),
+    )
+    ..drawCircle(
+      spec.centre,
+      spec.centreRadius,
+      _strokePaint(ink.semantic.glassBorderStrong, 1),
+    );
+  for (int i = 0; i < math.min(discs, spec.discs.length); i++) {
+    canvas
+      ..drawCircle(
+        spec.discs[i],
+        spec.discRadius,
+        _fillPaint(ink.semantic.glassFill),
+      )
+      ..drawCircle(
+        spec.discs[i],
+        spec.discRadius,
+        _strokePaint(ink.semantic.glassBorder, 1),
+      );
+  }
+}
+
+// ── E2 · the waiting radar ──
+
+void _drawRadarRing(Canvas canvas, _Ink ink, int index) {
+  canvas.drawCircle(
+    _radarCentre,
+    _radarRingRadii[index],
+    _strokePaint(
+      ink.accent.withValues(alpha: _radarRingAlphas[index]),
+      1,
+      StrokeCap.butt,
+    ),
+  );
+}
+
+/// The "your request" core: an orange disc inside a bloom ring, both still.
+void _paintRadarCore(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(
+      _radarCentre,
+      _radarCoreRadius + _radarBloomWidth / 2,
+      _strokePaint(
+        ink.accent.withValues(alpha: _radarBloomAlpha),
+        _radarBloomWidth,
+        StrokeCap.butt,
+      ),
+    )
+    ..drawCircle(_radarCentre, _radarCoreRadius, _fillPaint(ink.accent));
+
+  // The broadcast glyph, traced from the board's 24-unit icon at 26px.
+  const double unit = _medallionGlyph / 24;
+  canvas.drawCircle(_radarCentre, 2 * unit, _fillPaint(ink.onAccent));
+  final Rect sweep = Rect.fromCircle(center: _radarCentre, radius: 8 * unit);
+  final Paint arc = _strokePaint(ink.onAccent, 2 * unit);
+  canvas
+    ..drawArc(sweep, -math.pi / 4, math.pi / 2, false, arc)
+    ..drawArc(sweep, math.pi * 3 / 4, math.pi / 2, false, arc);
+}
+
+void _paintRadarSatellite(Canvas canvas, _Ink ink) {
+  canvas.drawCircle(
+    _radarSatellite,
+    _radarSatelliteRadius,
+    _fillPaint(ink.accent),
+  );
+}
+
+// ── E3 · the quiet street ──
+
+void _paintStreetBack(Canvas canvas, _Ink ink) {
+  const Rect glow = Rect.fromLTWH(54, 44, 192, 172);
+  canvas
+    ..drawCircle(
+      _streetHaloCentre,
+      _streetHaloRadius,
+      _strokePaint(ink.white(0.07), 1.5),
+    )
+    ..drawOval(
+      glow,
+      Paint()
+        ..shader = RadialGradient(
+          colors: <Color>[
+            ink.periwinkle.withValues(alpha: 0.35),
+            ink.periwinkle.withValues(alpha: 0),
+          ],
+        ).createShader(glow),
+    );
+}
+
+void _paintStreetPost(Canvas canvas, _Ink ink) {
+  canvas.drawPath(
+    Path()
+      ..moveTo(236, 196)
+      ..lineTo(236, 78)
+      ..quadraticBezierTo(236, 64, 222, 64)
+      ..lineTo(212, 64),
+    _strokePaint(ink.white(0.3), 4),
+  );
+}
+
+/// Bulb and cone breathe as ONE element (motion notes §E3).
+void _paintStreetLamp(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(const Offset(208, 64), 7, _fillPaint(ink.semantic.amber))
+    ..drawPath(
+      Path()
+        ..moveTo(208, 64)
+        ..lineTo(184, 118)
+        ..relativeLineTo(48, 0)
+        ..close(),
+      _fillPaint(ink.semantic.amber.withValues(alpha: 0.12)),
+    );
+}
+
+void _paintStreetGround(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawLine(
+      const Offset(46, 196),
+      const Offset(254, 196),
+      _strokePaint(ink.white(0.22), 3),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(62, 210)
+        ..lineTo(120, 210)
+        ..moveTo(136, 210)
+        ..lineTo(168, 210),
+      _strokePaint(ink.white(0.1), 3),
+    )
+    // The board's `rgba(0,0,0,.35)` pool, taken from the page navy so the kit
+    // stays token-only.
+    ..drawOval(
+      const Rect.fromLTWH(68, 192, 156, 14),
+      _fillPaint(ink.scheme.surfaceContainerLowest.withValues(alpha: 0.45)),
+    );
+}
+
+void _paintStreetScooter(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(_rrect(70, 102, 40, 34, 7), _fillPaint(ink.white(0.16)))
+    ..drawRRect(_rrect(70, 102, 40, 34, 7), _strokePaint(ink.white(0.35), 1.5))
+    ..drawCircle(const Offset(90, 119), 7.5, _fillPaint(ink.accent))
+    ..drawPath(
+      Path()
+        ..moveTo(90, 115)
+        ..relativeLineTo(0, 8)
+        ..moveTo(86.5, 119)
+        ..relativeLineTo(7, 0),
+      _strokePaint(ink.onAccent, 2),
+    )
+    ..drawRect(const Rect.fromLTWH(84, 140, 12, 26), _fillPaint(ink.white(0.22)))
+    ..drawRRect(_rrect(70, 132, 50, 13, 6.5), _fillPaint(ink.accent))
+    ..drawPath(
+      Path()
+        ..moveTo(96, 166)
+        ..relativeQuadraticBezierTo(-14, 2, -12, 14)
+        ..relativeQuadraticBezierTo(1, 10, 14, 10)
+        ..relativeLineTo(20, 0)
+        ..relativeQuadraticBezierTo(16, 2, 30, 2),
+      _strokePaint(ink.white(0.35), 5),
+    )
+    ..drawRRect(_rrect(118, 172, 58, 9, 4.5), _fillPaint(ink.white(0.2)))
+    ..drawLine(
+      const Offset(206, 118),
+      const Offset(182, 176),
+      _strokePaint(ink.white(0.35), 9),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(200, 122)
+        ..relativeQuadraticBezierTo(-20, 24, -14, 54),
+      _strokePaint(ink.white(0.16), 12),
+    )
+    ..drawLine(
+      const Offset(200, 118),
+      const Offset(222, 118),
+      _strokePaint(ink.white(0.5), 5),
+    )
+    ..drawLine(
+      const Offset(204, 116),
+      const Offset(200, 102),
+      _strokePaint(ink.white(0.4), 3),
+    )
+    ..drawCircle(const Offset(199, 98), 4.5, _fillPaint(ink.white(0.55)))
+    ..drawCircle(const Offset(224, 124), 5.5, _fillPaint(ink.semantic.amber));
+  for (final double cx in const <double>[102, 196]) {
+    canvas
+      ..drawCircle(Offset(cx, 190), 17, _fillPaint(ink.scheme.surface))
+      ..drawCircle(Offset(cx, 190), 17, _strokePaint(ink.white(0.65), 4.5))
+      ..drawCircle(Offset(cx, 190), 4, _fillPaint(ink.white(0.7)));
+  }
+  canvas.drawLine(
+    const Offset(120, 186),
+    const Offset(112, 200),
+    _strokePaint(ink.white(0.4), 3.5),
+  );
+}
+
+/// The two listening arcs rising off the delivery box.
+void _drawStreetArc(Canvas canvas, _Ink ink, int index) {
+  final Path path = index == 0
+      ? (Path()
+          ..moveTo(64, 96)
+          ..arcToPoint(const Offset(76, 72), radius: const Radius.circular(34)))
+      : (Path()
+          ..moveTo(52, 92)
+          ..arcToPoint(const Offset(69, 58), radius: const Radius.circular(48)));
+  canvas.drawPath(path, _strokePaint(ink.accent, 3.5));
+}
+
+/// Emitter dot and both sparkles — static on this tile, unlike E1/E4.
+void _paintStreetSpecks(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(const Offset(66, 70), 3.5, _fillPaint(ink.accent))
+    ..drawCircle(const Offset(44, 140), 3, _fillPaint(ink.white(0.35)))
+    ..drawPath(
+      Path()
+        ..moveTo(256, 44)
+        ..relativeLineTo(2.5, 6.5)
+        ..relativeLineTo(6.5, 2.5)
+        ..relativeLineTo(-6.5, 2.5)
+        ..relativeLineTo(-2.5, 6.5)
+        ..relativeLineTo(-2.5, -6.5)
+        ..relativeLineTo(-6.5, -2.5)
+        ..relativeLineTo(6.5, -2.5)
+        ..close(),
+      _fillPaint(ink.white(0.5)),
+    );
+}
+
+// ── E4 · the open parcel ──
+
+void _paintParcelRing(Canvas canvas, _Ink ink) {
+  canvas.drawCircle(
+    _parcelCentre,
+    _parcelRingRadius,
+    _strokePaint(ink.white(0.07), 1, StrokeCap.butt),
+  );
+}
+
+/// The open glass box: a body, and a lid tipped -4° off it.
+void _paintParcelBox(Canvas canvas, _Ink ink) {
+  final RRect body = _rrect(70, 95, 130, 78, 14);
+  final RRect lid = _rrect(60, 77, 150, 26, 8);
+  canvas
+    ..drawRRect(body, _fillPaint(ink.semantic.glassFillEmphasis))
+    ..drawRRect(body, _strokePaint(ink.semantic.glassBorderVivid, 1))
+    ..save()
+    ..translate(135, 90)
+    ..rotate(-4 * math.pi / 180)
+    ..translate(-135, -90)
+    ..drawRRect(lid, _fillPaint(ink.white(0.16)))
+    ..drawRRect(lid, _strokePaint(ink.white(0.28), 1))
+    ..restore();
+}
+
+/// The mic glowing inside the box — the tile's whole story.
+void _paintParcelMic(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(
+      _parcelMicCentre,
+      _parcelMicRadius + _parcelMicBloom / 2,
+      _strokePaint(
+        ink.accent.withValues(alpha: _parcelMicBloomAlpha),
+        _parcelMicBloom,
+        StrokeCap.butt,
+      ),
+    )
+    ..drawCircle(_parcelMicCentre, _parcelMicRadius, _fillPaint(ink.accent))
+    ..save()
+    ..translate(
+      _parcelMicCentre.dx - _parcelMicGlyph / 2,
+      _parcelMicCentre.dy - _parcelMicGlyph / 2,
+    )
+    ..scale(_parcelMicGlyph / 24)
+    ..drawRRect(_rrect(8.8, 2, 6.4, 12.5, 3.2), _fillPaint(ink.onAccent))
+    ..drawPath(
+      Path()
+        ..moveTo(5.5, 11.3)
+        ..arcToPoint(
+          const Offset(18.5, 11.3),
+          radius: const Radius.circular(6.5),
+          clockwise: false,
+        ),
+      _strokePaint(ink.onAccent, 1.8),
+    )
+    // The board's glyph has a stem and NO base bar, unlike E1's drawn mic.
+    ..drawLine(
+      const Offset(12, 18.6),
+      const Offset(12, 21.5),
+      _strokePaint(ink.onAccent, 1.8, StrokeCap.butt),
+    )
+    ..restore();
+}
+
+// ── Sample A · the empty pocket ──
+
+Path _pocketBodyPath() => Path()
+  ..moveTo(78, 88)
+  ..lineTo(222, 88)
+  ..quadraticBezierTo(228, 88, 227.4, 94)
+  ..lineTo(216, 168)
+  ..quadraticBezierTo(150, 218, 84, 168)
+  ..lineTo(72.6, 94)
+  ..quadraticBezierTo(72, 88, 78, 88)
+  ..close();
+
+void _paintPocketBack(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(
+      _pocketRingCentre,
+      _pocketHaloRadius,
+      _strokePaint(ink.white(0.07), 1.5),
+    )
+    ..drawPath(
+      _dotted(
+        Path()
+          ..addOval(
+            Rect.fromCircle(
+              center: _pocketRingCentre,
+              radius: _pocketDotRingRadius,
+            ),
+          ),
+      ),
+      _strokePaint(ink.white(0.13), 1.5),
+    )
+    ..drawPath(_pocketBodyPath(), _fillPaint(ink.semantic.glassFillEmphasis))
+    ..drawPath(_pocketBodyPath(), _strokePaint(ink.white(0.28), 2))
+    ..drawPath(
+      _dotted(
+        Path()
+          ..moveTo(88, 100)
+          ..lineTo(212, 100)
+          ..lineTo(202, 162)
+          ..quadraticBezierTo(150, 204, 98, 162)
+          ..close(),
+        dash: 5,
+        gap: 6,
+      ),
+      _strokePaint(ink.semantic.mutedText.withValues(alpha: 0.8), 2.2),
+    );
+}
+
+void _paintPocketBand(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(78, 84, 144, 10),
+        const Radius.circular(5),
+      ),
+      _fillPaint(ink.white(0.18)),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(143, 143)
+        ..lineTo(157, 157)
+        ..moveTo(157, 143)
+        ..lineTo(143, 157),
+      _strokePaint(ink.white(0.22), 2.5),
+    );
+}
+
+void _paintPocketMic(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(_pocketMicCentre, _pocketMicRadius, _fillPaint(ink.accent))
+    ..drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(144.5, 72, 11, 19),
+        const Radius.circular(5.5),
+      ),
+      _fillPaint(ink.onAccent),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(139, 82)
+        ..arcToPoint(
+          const Offset(161, 82),
+          radius: const Radius.circular(11),
+          clockwise: false,
+        ),
+      _strokePaint(ink.onAccent, 3),
+    );
+}
+
+// ── Sample B · ask from the balcony ──
+
+void _paintBalconyBack(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(const Offset(238, 46), 16, _fillPaint(ink.white(0.14)))
+    ..drawCircle(const Offset(232, 42), 14, _fillPaint(ink.scheme.surface))
+    ..drawCircle(const Offset(60, 34), 2, _fillPaint(ink.white(0.5)))
+    ..drawCircle(const Offset(196, 24), 2.5, _fillPaint(ink.white(0.35)))
+    ..drawCircle(const Offset(270, 96), 2, _fillPaint(ink.white(0.4)))
+    ..drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(40, 52, 92, 158),
+        const Radius.circular(6),
+      ),
+      _fillPaint(ink.semantic.glassFill),
+    )
+    ..drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(40, 52, 92, 158),
+        const Radius.circular(6),
+      ),
+      _strokePaint(ink.white(0.2), 1.5),
+    );
+  for (final Offset window in const <Offset>[
+    Offset(54, 68),
+    Offset(96, 68),
+    Offset(54, 152),
+    Offset(96, 152),
+  ]) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(window.dx, window.dy, 20, 24),
+        const Radius.circular(3),
+      ),
+      _fillPaint(ink.white(0.1)),
+    );
+  }
+}
+
+void _paintBalconyWindow(Canvas canvas, _Ink ink) {
+  const Rect glow = Rect.fromLTWH(52, 106, 66, 34);
+  canvas
+    ..drawRRect(
+      RRect.fromRectAndRadius(glow, const Radius.circular(4)),
+      Paint()
+        ..shader = RadialGradient(
+          colors: <Color>[
+            ink.semantic.amber.withValues(alpha: 0.5),
+            ink.semantic.amber.withValues(alpha: 0),
+          ],
+        ).createShader(glow),
+    )
+    ..drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(54, 108, 62, 30),
+        const Radius.circular(3.5),
+      ),
+      _fillPaint(ink.semantic.amber.withValues(alpha: 0.28)),
+    );
+}
+
+void _paintBalconyMid(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(const Offset(78, 122), 6.5, _fillPaint(ink.scheme.surface))
+    ..drawPath(
+      Path()
+        ..moveTo(68, 138)
+        ..quadraticBezierTo(78, 126, 88, 138)
+        ..close(),
+      _fillPaint(ink.scheme.surface),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(46, 140)
+        ..lineTo(124, 140)
+        ..moveTo(52, 140)
+        ..lineTo(52, 150)
+        ..moveTo(66, 140)
+        ..lineTo(66, 150)
+        ..moveTo(80, 140)
+        ..lineTo(80, 150)
+        ..moveTo(94, 140)
+        ..lineTo(94, 150)
+        ..moveTo(108, 140)
+        ..lineTo(108, 150)
+        ..moveTo(46, 150)
+        ..lineTo(124, 150),
+      _strokePaint(ink.white(0.35), 2.5),
+    )
+    ..drawLine(
+      const Offset(28, 212),
+      const Offset(272, 212),
+      _strokePaint(ink.white(0.22), 3),
+    );
+}
+
+Path _balconyRoutePath() => Path()
+  ..moveTo(210, 132)
+  ..quadraticBezierTo(236, 162, 218, 200);
+
+void _paintBalconyScooter(Canvas canvas, _Ink ink) {
+  final Paint rim = _strokePaint(ink.white(0.6), 3);
+  canvas
+    ..drawCircle(const Offset(212, 200), 10, _fillPaint(ink.scheme.surface))
+    ..drawCircle(const Offset(212, 200), 10, rim)
+    ..drawCircle(const Offset(252, 200), 10, _fillPaint(ink.scheme.surface))
+    ..drawCircle(const Offset(252, 200), 10, rim)
+    ..drawPath(
+      Path()
+        ..moveTo(208, 192)
+        ..quadraticBezierTo(222, 176, 242, 184)
+        ..lineTo(250, 190),
+      _strokePaint(ink.white(0.4), 5),
+    )
+    ..drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(216, 176, 22, 9),
+        const Radius.circular(4.5),
+      ),
+      _fillPaint(ink.accent),
+    );
+}
+
+void _paintBalconyHeadlight(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(const Offset(258, 188), 4, _fillPaint(ink.semantic.amber))
+    ..drawPath(
+      Path()
+        ..moveTo(262, 188)
+        ..lineTo(288, 194)
+        ..lineTo(288, 182)
+        ..close(),
+      _fillPaint(ink.semantic.amber.withValues(alpha: 0.14)),
+    );
+}
+
+void _paintBalconyBubble(Canvas canvas, _Ink ink) {
+  final Path bubble = Path()
+    ..moveTo(136, 92)
+    ..lineTo(210, 92)
+    ..quadraticBezierTo(220, 92, 220, 102)
+    ..lineTo(220, 120)
+    ..quadraticBezierTo(220, 130, 210, 130)
+    ..lineTo(158, 130)
+    ..lineTo(146, 142)
+    ..lineTo(146, 130)
+    ..lineTo(136, 130)
+    ..quadraticBezierTo(126, 130, 126, 120)
+    ..lineTo(126, 102)
+    ..quadraticBezierTo(126, 92, 136, 92)
+    ..close();
+  canvas
+    ..drawPath(bubble, _fillPaint(ink.white(0.12)))
+    ..drawPath(bubble, _strokePaint(ink.white(0.3), 1.5));
+}
+
+void _paintBalconyWave(Canvas canvas, _Ink ink) {
+  final Paint paint = _strokePaint(ink.accent, 3.5);
+  const List<List<double>> bars = <List<double>>[
+    <double>[150, 106, 10],
+    <double>[160, 102, 18],
+    <double>[170, 108, 7],
+    <double>[180, 100, 22],
+    <double>[190, 106, 10],
+  ];
+  for (final List<double> bar in bars) {
+    canvas.drawLine(
+      Offset(bar[0], bar[1]),
+      Offset(bar[0], bar[1] + bar[2]),
+      paint,
+    );
+  }
+}
+
+// ── Sample C · the beacon ──
+
+void _paintBeaconBack(Canvas canvas, _Ink ink) {
+  final Path hill = Path()
+    ..moveTo(20, 232)
+    ..quadraticBezierTo(150, 168, 280, 232)
+    ..close();
+  const Rect glow = Rect.fromLTWH(70, 40, 160, 140);
+  canvas
+    ..drawPath(hill, _fillPaint(ink.white(0.07)))
+    ..drawPath(hill, _strokePaint(ink.white(0.2), 2))
+    ..drawOval(
+      glow,
+      Paint()
+        ..shader = RadialGradient(
+          colors: <Color>[
+            ink.accent.withValues(alpha: 0.5),
+            ink.accent.withValues(alpha: 0),
+          ],
+        ).createShader(glow),
+    )
+    ..drawLine(
+      const Offset(150, 148),
+      const Offset(150, 182),
+      _strokePaint(ink.white(0.4), 5),
+    );
+}
+
+void _paintBeaconMic(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(_beaconMicCentre, _beaconMicRadius, _fillPaint(ink.accentDeep))
+    ..drawCircle(
+      const Offset(150, 110),
+      34,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[ink.accentBright, ink.accentDeep],
+        ).createShader(
+          Rect.fromCircle(center: const Offset(150, 110), radius: 34),
+        ),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(126, 96)
+        ..arcToPoint(const Offset(148, 79), radius: const Radius.circular(34)),
+      _strokePaint(ink.onAccent.withValues(alpha: 0.45), 3.5),
+    )
+    ..drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(143.5, 92, 13, 24),
+        const Radius.circular(6.5),
+      ),
+      _fillPaint(ink.onAccent),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(137, 110)
+        ..arcToPoint(
+          const Offset(163, 110),
+          radius: const Radius.circular(13),
+          clockwise: false,
+        ),
+      _strokePaint(ink.onAccent, 3.2),
+    );
+}
+
+/// The six broadcast arcs: two mirrored fans of three, radii 52 / 72 / 94.
+void _drawBeaconArc(Canvas canvas, _Ink ink, int index) {
+  const List<List<double>> fan = <List<double>>[
+    <double>[196, 88, 52, 46],
+    <double>[212, 76, 72, 70],
+    <double>[228, 64, 94, 94],
+  ];
+  final List<double> arc = fan[index % 3];
+  final bool startSide = index >= 3;
+  final double x = startSide ? 300 - arc[0] : arc[0];
+  canvas.drawPath(
+    Path()
+      ..moveTo(x, arc[1])
+      ..arcToPoint(
+        Offset(x, arc[1] + arc[3]),
+        radius: Radius.circular(arc[2]),
+        clockwise: !startSide,
+      ),
+    _strokePaint(ink.accentSoft, 4),
+  );
+}
+
+Path _beaconRoutePaths() => Path()
+  ..moveTo(42, 236)
+  ..quadraticBezierTo(84, 216, 118, 196)
+  ..moveTo(258, 236)
+  ..quadraticBezierTo(216, 216, 182, 196);
+
+void _drawBeaconHeadlight(Canvas canvas, _Ink ink, {required bool start}) {
+  final double sign = start ? 1 : -1;
+  final double cx = start ? 46 : 254;
+  canvas
+    ..drawCircle(Offset(cx, 234), 6, _fillPaint(ink.semantic.amber))
+    ..drawPath(
+      Path()
+        ..moveTo(cx + 6 * sign, 232)
+        ..lineTo(cx + 36 * sign, 220)
+        ..lineTo(cx + 32 * sign, 234)
+        ..close(),
+      _fillPaint(ink.semantic.amber.withValues(alpha: 0.15)),
+    );
+}

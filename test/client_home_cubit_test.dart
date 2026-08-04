@@ -175,12 +175,6 @@ void main() {
 
   group('live refresh — push signal (Lane C; N3 retired the poll)', () {
     // The two cases that stood here — "startPolling re-pulls the snapshot on
-    // each tick" and "stopPolling halts further re-pulls" — tested a start/stop
-    // pair that no longer exists. Their replacement is the property that
-    // matters after N3: real wall-clock time passes and the cubit reads
-    // nothing. Deliberately a REAL delay rather than `FakeAsync`, mirroring
-    // what the deleted cases did, so a surviving `Timer.periodic` in any zone
-    // would still be caught.
     test('no amount of wall-clock time re-pulls the snapshot', () async {
       when(() => repo.loadSnapshot())
           .thenAnswer((_) async => const ClientHomeSnapshot());
@@ -206,10 +200,6 @@ void main() {
     });
 
     // b02 wave D: the poll and the push bus are two INDEPENDENTLY-timed
-    // triggers on one cubit, and only the poller ever coordinated with itself
-    // (LifecyclePoller skips a tick while the previous one is outstanding).
-    // `state.status == loading` is not this guard either — refresh() is the
-    // SILENT path and never sets `loading`, so it could not see itself.
     test('SINGLE FLIGHT: two signals inside one round trip produce one read',
         () async {
       final gate = Completer<void>();

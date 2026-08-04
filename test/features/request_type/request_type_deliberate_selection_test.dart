@@ -1,3 +1,8 @@
+// MIDNIGHT · R9 (doc-13 P0-3/P0-4): the picker rows are the COMPACT radio
+// variant again — `checked`, not `selected` — and the board loads with the
+// recommended tier already lit, so "nothing is chosen until the customer taps"
+// is retired. What survives: exactly one row is ever chosen, a tap moves the
+// choice, and the choice survives a back-return.
 import 'dart:ui' show CheckedState;
 
 import 'package:flutter/material.dart';
@@ -7,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/request_type/presentation/request_type_screen.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -15,7 +21,7 @@ import '../../support/sync_app_localizations.dart';
 
 void main() {
   testWidgets(
-    'requires a deliberate tier tap and preserves it on back-return',
+    'loads with the recommended tier lit and preserves a tap on back-return',
     (tester) async {
       final router = GoRouter(
         initialLocation: '/request-type',
@@ -43,11 +49,14 @@ void main() {
               .getSemantics(find.bySemanticsIdentifier(id))
               .flagsCollection
               .isChecked,
-          CheckedState.isFalse,
-          reason: '$id must not be selected on first paint',
+          id == 'request_type_standard_radio'
+              ? CheckedState.isTrue
+              : CheckedState.isFalse,
+          reason: '$id: only the recommended tier is lit on first paint',
         );
       }
-      expect(_continueButton(tester).isEnabled, isFalse);
+      // R9 loads ready to advance.
+      expect(_continueButton(tester).isEnabled, isTrue);
 
       final express = find.bySemanticsIdentifier('request_type_express_radio');
       await tester.tap(express);
@@ -56,6 +65,15 @@ void main() {
       expect(
         tester.getSemantics(express).flagsCollection.isChecked,
         CheckedState.isTrue,
+      );
+      expect(
+        tester
+            .getSemantics(
+              find.bySemanticsIdentifier('request_type_standard_radio'),
+            )
+            .flagsCollection
+            .isChecked,
+        CheckedState.isFalse,
       );
       expect(_continueButton(tester).isEnabled, isTrue);
 
@@ -89,11 +107,14 @@ const _tierSemanticsIds = [
   'request_type_eco_radio',
 ];
 
-OmdsPrimaryButton _continueButton(WidgetTester tester) => tester
-    .widget<OmdsPrimaryButton>(find.byKey(const Key('request-type-continue')));
+// The redesign swaps the footer CTA to the frozen kit's `JeebCtaButton`, which
+// paints its own pill rather than composing `OmdsPrimaryButton`. The assertion
+// is unchanged — `isEnabled` read off the widget behind the same frozen Key.
+JeebCtaButton _continueButton(WidgetTester tester) => tester
+    .widget<JeebCtaButton>(find.byKey(const Key('request-type-continue')));
 
 Widget _harness(GoRouter router) => MaterialApp.router(
-  theme: AppTheme.light(),
+  theme: AppTheme.midnight(),
   routerConfig: router,
   localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
     SyncAppLocalizationsDelegate(),

@@ -1,12 +1,4 @@
-// S0-OAD-03 identity-cleanup regression: on a cold deep-link with NO `?jeeberId=`
-// the reviews-list must resolve the REAL AUTHENTICATED SESSION user's own id
-// from AuthTokenStore — NEVER the hardcoded `user-jeeber-002` fixture default.
-//
-// Failing-first proof: before the fix `_defaultJeeberId = 'user-jeeber-002'` was
-// fed straight into ReviewsCubit, so a cold deep-link always queried the mock
-// fixture jeeber. This test captures the jeeberId the cubit hands the repository
-// and pins it to the session id.
-
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
@@ -56,6 +48,15 @@ class _CapturingReviewsRepository implements ReviewsRepository {
   Future<void> reportReview(String reviewId) async {}
 }
 
+/// MIDNIGHT: the empty frame now mounts `JeebEmptyState`, whose illustration
+/// loops ∞ by design — `pumpAndSettle` can never settle without reduce motion.
+Widget _reduceMotion(Widget child) => Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child,
+      ),
+    );
+
 void main() {
   testWidgets(
       'cold deep-link (no ?jeeberId=) resolves the REAL session id, '
@@ -64,9 +65,11 @@ void main() {
 
     await tester.pumpWidget(
       wrapForTest(
-        ReviewsListScreen(
-          repository: repo,
-          authTokenStore: _FakeTokenStore('jeeber-session-88'),
+        _reduceMotion(
+          ReviewsListScreen(
+            repository: repo,
+            authTokenStore: _FakeTokenStore('jeeber-session-88'),
+          ),
         ),
       ),
     );
@@ -82,10 +85,12 @@ void main() {
 
     await tester.pumpWidget(
       wrapForTest(
-        ReviewsListScreen(
-          jeeberId: 'jeeber-viewed-123',
-          repository: repo,
-          authTokenStore: _FakeTokenStore('jeeber-session-88'),
+        _reduceMotion(
+          ReviewsListScreen(
+            jeeberId: 'jeeber-viewed-123',
+            repository: repo,
+            authTokenStore: _FakeTokenStore('jeeber-session-88'),
+          ),
         ),
       ),
     );

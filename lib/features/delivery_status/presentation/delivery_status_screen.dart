@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/delivery_status_cubit.dart';
 import '../application/delivery_status_state.dart';
@@ -13,6 +16,10 @@ import 'widgets/delivery_eta_badge.dart';
 import 'widgets/delivery_jeeber_card.dart';
 import 'widgets/delivery_lifecycle_banner.dart';
 import 'widgets/delivery_stage_indicator.dart';
+
+/// The board's block rhythm (`_ds/readme.md` — "24px side gutters, ~28px block
+/// rhythm"). Between the banner, the ETA strip, the stepper and the two cards.
+const double _kBlockRhythm = 28;
 
 /// Public callback the screen invokes when the user taps the contact CTA.
 ///
@@ -99,39 +106,53 @@ class _Scaffold extends StatelessWidget {
       container: true,
       child: Scaffold(
         key: rootKey,
-        appBar: OMDSAppBar(
-          title: l10n.deliveryStatusTitle,
-          showBackButton: true,
-          centerTitle: false,
-        ),
+        backgroundColor: Theme.of(context).colorScheme.surface,
         body: SafeArea(
-          child: BlocConsumer<DeliveryStatusCubit, DeliveryStatusState>(
-            listenWhen: (prev, curr) =>
-                prev.error != curr.error && curr.error != null,
-            listener: _surfaceError,
-            builder: (context, state) {
-              switch (state.mode) {
-                case DeliveryStatusViewMode.loading:
-                  return _LoadingView(l10n: l10n);
-                case DeliveryStatusViewMode.error:
-                  return _ErrorView(
-                    l10n: l10n,
-                    onRetry: () =>
-                        context.read<DeliveryStatusCubit>().retry(),
-                  );
-                case DeliveryStatusViewMode.ready:
-                  final snapshot = state.snapshot;
-                  if (snapshot == null) {
-                    return _LoadingView(l10n: l10n);
-                  }
-                  return _ReadyView(
-                    snapshot: snapshot,
-                    isCancelling: state.isCancelling,
-                    deliveryId: deliveryId,
-                    onContactJeeber: onContactJeeber,
-                  );
-              }
-            },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // redesign-2026-08: the Material app bar is gone — the back
+              // affordance is the kit's in-body circle, mounted above the
+              // builder so every view state (loading, error, ready) keeps a way
+              // out. The delivery id rides along as the bar's subtitle, which is
+              // 12's title/meta pattern, instead of a grey line floating over
+              // the stepper.
+              JeebTopBar.back(
+                identifier: 'delivery_status_back',
+                title: l10n.deliveryStatusTitle,
+                titleScale: JeebTopBarTitleScale.compact,
+                subtitle: l10n.deliveryStatusIdSubtitle(deliveryId),
+              ),
+              Expanded(
+                child: BlocConsumer<DeliveryStatusCubit, DeliveryStatusState>(
+                  listenWhen: (prev, curr) =>
+                      prev.error != curr.error && curr.error != null,
+                  listener: _surfaceError,
+                  builder: (context, state) {
+                    switch (state.mode) {
+                      case DeliveryStatusViewMode.loading:
+                        return _LoadingView(l10n: l10n);
+                      case DeliveryStatusViewMode.error:
+                        return _ErrorView(
+                          l10n: l10n,
+                          onRetry: () =>
+                              context.read<DeliveryStatusCubit>().retry(),
+                        );
+                      case DeliveryStatusViewMode.ready:
+                        final snapshot = state.snapshot;
+                        if (snapshot == null) {
+                          return _LoadingView(l10n: l10n);
+                        }
+                        return _ReadyView(
+                          snapshot: snapshot,
+                          isCancelling: state.isCancelling,
+                          onContactJeeber: onContactJeeber,
+                        );
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -190,7 +211,8 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       key: rootKey,
-      padding: const EdgeInsets.all(Spacing.large),
+      // The board's 24px side gutter.
+      padding: const EdgeInsets.all(Spacing.xLarge),
       child: Center(
         // OMDS's OmdsErrorState owns the visual layout — we only feed it
         // localized copy. The retry button is OMDS-internal so we attach the
@@ -211,13 +233,11 @@ class _ReadyView extends StatelessWidget {
   const _ReadyView({
     required this.snapshot,
     required this.isCancelling,
-    required this.deliveryId,
     this.onContactJeeber,
   });
 
   final DeliverySnapshot snapshot;
   final bool isCancelling;
-  final String deliveryId;
   final ContactJeeberHandler? onContactJeeber;
 
   static const Key contactButtonKey = Key('delivery-status-contact-cta');
@@ -225,52 +245,46 @@ class _ReadyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return SingleChildScrollView(
-      key: _Scaffold.bodyScrollKey,
-      padding: const EdgeInsets.fromLTRB(
-        Spacing.large,
-        Spacing.medium,
-        Spacing.large,
-        Spacing.xLarge,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          DeliveryLifecycleBanner(lifecycle: snapshot.lifecycle),
-          if (snapshot.lifecycle != DeliveryLifecycle.active)
-            const SizedBox(height: Spacing.medium),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.deliveryStatusIdSubtitle(deliveryId),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ),
-              if (snapshot.isEtaVisible)
-                DeliveryEtaBadge(minutes: snapshot.etaMinutes!),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            key: _Scaffold.bodyScrollKey,
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.medium,
+              Spacing.xLarge,
+              Spacing.xLarge,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (snapshot.lifecycle != DeliveryLifecycle.active) ...[
+                  DeliveryLifecycleBanner(lifecycle: snapshot.lifecycle),
+                  const SizedBox(height: _kBlockRhythm),
+                ],
+                if (snapshot.isEtaVisible) ...[
+                  DeliveryEtaBadge(minutes: snapshot.etaMinutes!),
+                  const SizedBox(height: _kBlockRhythm),
+                ],
+                DeliveryStageIndicator(snapshot: snapshot),
+                const SizedBox(height: _kBlockRhythm),
+                DeliveryDetailsCard(snapshot: snapshot),
+                const SizedBox(height: _kBlockRhythm),
+                DeliveryJeeberCard(jeeber: snapshot.jeeber),
+              ],
+            ),
           ),
-          const SizedBox(height: Spacing.medium),
-          DeliveryStageIndicator(snapshot: snapshot),
-          const SizedBox(height: Spacing.large),
-          DeliveryDetailsCard(snapshot: snapshot),
-          const SizedBox(height: Spacing.medium),
-          DeliveryJeeberCard(jeeber: snapshot.jeeber),
-          const SizedBox(height: Spacing.large),
-          _ActionBar(
-            snapshot: snapshot,
-            isCancelling: isCancelling,
-            onContactJeeber: onContactJeeber,
-          ),
-        ],
-      ),
+        ),
+        // The CTAs dock at the foot of the screen (12 `tpl 781-783`) instead of
+        // trailing the scroll — same two actions, same gating, same order.
+        _ActionBar(
+          snapshot: snapshot,
+          isCancelling: isCancelling,
+          onContactJeeber: onContactJeeber,
+        ),
+      ],
     );
   }
 }
@@ -318,39 +332,44 @@ class _ActionBar extends StatelessWidget {
       // upstream rate-prompt screen owns the next user action.
       return const SizedBox.shrink();
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (snapshot.canContactJeeber)
-          Semantics(
+    final contact = snapshot.canContactJeeber
+        ? Semantics(
             identifier: 'delivery_status_contact_cta',
             container: true,
             button: true,
-            child: OmdsPrimaryButton(
+            child: JeebCtaButton.primary(
               key: _ReadyView.contactButtonKey,
-              text: l10n.deliveryActionContact,
-              icon: const Icon(Icons.phone, size: 18),
+              label: l10n.deliveryActionContact,
+              leadingIcon: Icons.phone,
               onTap: () => _onContactPressed(context),
             ),
-          ),
-        if (snapshot.canContactJeeber && snapshot.canCancel)
-          const SizedBox(height: Spacing.small),
-        if (snapshot.canCancel)
-          Semantics(
+          )
+        : null;
+    final cancel = snapshot.canCancel
+        ? Semantics(
             identifier: 'delivery_status_cancel_cta',
             container: true,
             button: true,
-            child: OmdsPrimaryButton(
+            child: JeebCtaButton.outline(
               key: _ReadyView.cancelButtonKey,
-              text: isCancelling
+              // The label swap stays the progress signal (not `isLoading`):
+              // "Cancelling…" is the one word the user needs while the gateway
+              // decides, and a spinner would swallow it.
+              label: isCancelling
                   ? l10n.deliveryActionCancellingLabel
                   : l10n.deliveryActionCancel,
-              variant: OmdsButtonVariant.outlined,
               isEnabled: !isCancelling,
               onTap: () => _onCancelPressed(context),
             ),
-          ),
-      ],
+          )
+        : null;
+    final primary = contact ?? cancel;
+    if (primary == null) return const SizedBox.shrink();
+    return JeebCtaFooter.single(
+      // Contact leads when both are live; cancel is the quieter second line —
+      // the same precedence the stacked column had.
+      below: contact == null ? null : cancel,
+      child: primary,
     );
   }
 }

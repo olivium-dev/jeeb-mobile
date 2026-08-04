@@ -1,17 +1,9 @@
-// P2 polish — Jeeber request-detail summary enrichment (DEF-2).
-//
-// The summary used to render a single flat `Text(shortLabel)` under a
-// "What the client says" header — sparse, and semantically wrong (the
-// shortLabel the feed row sets is the PICKUP label, not the client's item
-// description). These tests pin the enriched layout: the two genuinely-present
-// FeedRequest fields (`shortLabel` → pickup, `id` → request reference) laid
-// out with the OMDS `OMDSSectionCard` + detail-row idiom. No invented fields,
-// no network calls — only data actually present on the model.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_section_label.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/entities/feed_request.dart';
 import 'package:jeeb_mobile/features/jeeber_request_detail/domain/services/prohibited_item_report_service.dart';
 import 'package:jeeb_mobile/features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart';
@@ -35,7 +27,7 @@ void main() {
         locale: locale,
       );
 
-  testWidgets('summary renders an OMDS section card (not a flat Text block)',
+  testWidgets('summary renders a carded section (not a flat Text block)',
       (tester) async {
     await tester.pumpWidget(harness());
     await tester.pumpAndSettle();
@@ -44,7 +36,11 @@ void main() {
       find.byKey(const Key('jeeber-request-detail-summary')),
       findsOneWidget,
     );
-    expect(find.byType(OMDSSectionCard), findsOneWidget);
+    // redesign-2026-08: the OMDSSectionCard became the kit's grouped outlined
+    // card + a JeebSectionLabel above it. The assertion still is "the summary
+    // is a card, not loose text" — only the card widget changed.
+    expect(find.byType(JeebOutlinedCard), findsOneWidget);
+    expect(find.byType(JeebSectionLabel), findsOneWidget);
   });
 
   testWidgets(
@@ -54,12 +50,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // shortLabel is the pickup, now under the "Pickup" row (was mislabelled
-    // under the description header).
     expect(find.text('Pickup'), findsOneWidget);
     expect(find.text('2kg tomatoes from the souq'), findsOneWidget);
 
     // FAIL-WITHOUT: the prior flat layout showed only shortLabel — it never
-    // surfaced the request reference. This asserts the id is now visible.
     expect(find.text('Request reference'), findsOneWidget);
     expect(find.text('REQ-001'), findsOneWidget);
   });
@@ -69,7 +63,16 @@ void main() {
     await tester.pumpAndSettle();
 
     // Both CTAs still present (enrichment must not regress the action bar).
-    expect(find.byType(OmdsPrimaryButton), findsNWidgets(2));
+    // redesign-2026-08: OmdsPrimaryButton → the kit's docked footer pair.
+    expect(find.byType(JeebCtaButton), findsNWidgets(2));
+    expect(
+      find.bySemanticsIdentifier('jeeber-request-detail-make-offer'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('jeeber-request-detail-decline'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Arabic locale renders the localized field labels',
@@ -83,7 +86,6 @@ void main() {
   });
 
   // ── G1 (sprint-009 P0) — the FULL description is what the jeeber agrees to
-  //    buy/deliver, so it renders first, complete and untruncated. ───────────
 
   const g1Request = FeedRequest(
     id: 'REQ-001',
@@ -138,5 +140,21 @@ void main() {
     // jeeberRequestDetailSectionDescription (ar).
     expect(find.text('ما يقوله العميل'), findsOneWidget);
     expect(find.text(g1Request.description!), findsOneWidget);
+  });
+
+  // ── redesign-2026-08: the docked footer is two stacked pills of fixed
+  //    height, so a large text scale is the realistic overflow risk. ─────────
+
+  testWidgets('redesign: no overflow at 200% text scale with a long request',
+      (tester) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: harness(request: g1Request),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
   });
 }

@@ -1,15 +1,3 @@
-// iter6 B11 — the create gating fix.
-//
-// REGRESSION LOCK for the on-device defect: the create flow used to hand off
-// the literal placeholder id `'new'` from `location-select` to `order-chat`,
-// which then broadcast `requestId='new'` WITHOUT ever calling `POST /requests`
-// → no request was ever created on-device (matching 422 / chat 404). This test
-// drives the REAL `AppRouter.create(...)` graph to `/client-location`, taps the
-// Confirm CTA, and proves:
-//   1. the location-confirm step CALLS RequestSubmissionService.submit()
-//      (i.e. POST /requests is invoked — submitCount == 1), and
-//   2. it routes order-chat with the REAL server-minted id, NEVER `'new'`.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -96,6 +84,12 @@ Widget _harness(
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
+      // MIDNIGHT M3-03: this flow lands on the waiting screen, whose E2 radar
+      // loops ∞ by design — pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
     ),
   );
 }
@@ -116,21 +110,10 @@ void main() {
       sl.registerLazySingleton<LocationSelectRepository>(
         FakeLocationSelectRepository.new,
       );
-      // The request-type step resolves TierRepository via sl; the customer's
-      // tier tap enables Continue.
-      // JEBV4-176: current-location resolves a REAL device fix (non-Beirut).
       sl.registerLazySingleton<CurrentLocationResolver>(
         FakeCurrentLocationResolver.new,
       );
       sl.registerLazySingleton<TierRepository>(FakeTierRepository.new);
-      // Post-create nav fix: Confirm now routes to the WAITING screen
-      // (`waiting-no-coverage` → NoOfferTimeoutScreen). Its self-provided
-      // ticker WaitingCubit attaches `Stream.periodic` poll/clock timers on a
-      // SUCCESSFUL load, which would leak into the headless binding. Register a
-      // WaitingRepository whose cold-load read FAILS so the screen mounts in its
-      // (timer-free) error state — enough to assert the navigation target
-      // without leaking timers. The waiting screen's own happy-path copy is
-      // covered by waiting_screen_test.dart.
       sl.registerLazySingleton<WaitingRepository>(
         () => FakeWaitingRepository(
           failure: const WaitingException(WaitingFailure.network),
@@ -147,7 +130,6 @@ void main() {
       'WAITING screen with the REAL request id (never the placeholder "new")',
       (tester) async {
         final built = await _buildRouter();
-        // Drive the REAL on-device path: request-type → Continue → location.
         built.router.go('/request-type');
         await tester.pumpWidget(
           _harness(
@@ -159,7 +141,6 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Step 1: deliberately pick Flash + Continue → location-select.
         await tester.tap(
           find.bySemanticsIdentifier('request_type_flash_radio'),
         );
@@ -172,16 +153,12 @@ void main() {
         await tester.tap(continueCta);
         await tester.pumpAndSettle();
 
-        // Step 2 (G1): type the request CONTENT — required before Confirm
-        // enables. This is the customer's own words, the exact string the
-        // jeeber feed/detail must render.
         await tester.enterText(
           find.byKey(const Key('clientLocation.descriptionField')),
           '2 shawarma + cola from Barbar',
         );
         await tester.pump();
 
-        // Step 3: confirm the location → must CREATE the request (B11 fix).
         final confirm = find.bySemanticsIdentifier(
           'location_select_confirm_cta',
         );
@@ -190,7 +167,6 @@ void main() {
         await tester.tap(confirm);
         await tester.pumpAndSettle();
 
-        // (1) POST /requests was actually called — exactly once.
         expect(
           submission.submitCount,
           1,
@@ -200,17 +176,12 @@ void main() {
         );
         expect(submission.lastDraft, isNotNull);
 
-        // (2) The draft submitted carried the create payload (so a real
-        //     `POST /requests` body was assembled — not a `'new'` broadcast).
         expect(
           submission.lastDraft!.tierName,
           isNotNull,
           reason: 'the submitted draft must carry the chosen tier',
         );
 
-        // (2b) G1 payload lock: the POST body description IS the user's text —
-        // verbatim — and the old hardcoded '"{Tier} delivery request"'
-        // placeholder is gone for good.
         expect(
           submission.lastDraft!.description,
           '2 shawarma + cola from Barbar',
@@ -226,10 +197,6 @@ void main() {
               'sent when the customer typed content.',
         );
 
-        // (3) POST-CREATE UX FIX (run-8 Step-2): the customer now lands on the
-        //     "Finding a Jeeber" WAITING screen (NoOfferTimeoutScreen) for the
-        //     freshly-created request — NOT the order-chat compose screen. It is
-        //     bound to the REAL server-minted id, NEVER the literal "new".
         final waitingScreen = tester.widget<NoOfferTimeoutScreen>(
           find.byType(NoOfferTimeoutScreen),
         );

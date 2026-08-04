@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../domain/offer.dart';
+import '../domain/offer_ranking.dart';
 import '../domain/offers_repository.dart';
 import 'client_offers_state.dart';
 
@@ -365,13 +366,29 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     final sorted = _sortOffers(snapshot.offers, state.sortMode);
     final shouldClearError =
         clearLoadError && state.errorSource == OffersErrorSource.load;
+    final now = _now();
+    final deadline = snapshot.windowExpiresAt;
+    // The meter's denominator. The gateway sends a DEADLINE, never a window
+    // length, so the only honest 100% is the largest remaining this session has
+    // actually observed — see `ClientOffersState.windowTotal`.
+    final observed = deadline?.difference(now);
+    final total = state.windowTotal;
+    final nextTotal = (observed == null || observed.isNegative)
+        ? total
+        : (total == null || observed > total ? observed : total);
     emit(
       state.copyWith(
         status: statusOverride ?? OffersScreenStatus.loaded,
         offers: sorted,
-        windowExpiresAt: snapshot.windowExpiresAt,
-        clearWindowExpiresAt: snapshot.windowExpiresAt == null,
-        now: _now(),
+        windowExpiresAt: deadline,
+        clearWindowExpiresAt: deadline == null,
+        windowTotal: nextTotal,
+        // A deadline that disappears takes its denominator with it; a stale
+        // total would paint a fraction for a window that no longer exists.
+        clearWindowTotal: deadline == null,
+        requestTitle: snapshot.requestTitle,
+        clearRequestTitle: snapshot.requestTitle == null,
+        now: now,
         requestIsOpen: snapshot.requestIsOpen,
         requestIsExpired: snapshot.requestIsExpired,
         clearError: shouldClearError,
@@ -386,14 +403,19 @@ class ClientOffersCubit extends Cubit<ClientOffersState> {
     _clockSubscription = null;
   }
 
-  /// Stable ordering: price asc (then newest first) or rating desc (then
-  /// newest first). The newest-first tiebreak prevents two equal-fee offers
-  /// from churning their positions every poll.
+  /// Stable ordering: the composite best-value rank, price asc, or rating desc
+  /// — each with newest-first as the tiebreak so two equal-fee offers don't
+  /// churn their positions on every push.
   List<Offer> _sortOffers(List<Offer> input, OfferSortMode mode) {
+    if (mode == OfferSortMode.best) return rankByBestValue(input);
     final out = List<Offer>.of(input);
     out.sort((a, b) {
       int primary;
       switch (mode) {
+        case OfferSortMode.best:
+          // Unreachable — handled above; kept for switch exhaustiveness.
+          primary = 0;
+          break;
         case OfferSortMode.byPrice:
           primary = a.fee.compareTo(b.fee);
           break;

@@ -138,24 +138,29 @@ void main() {
         locale: const Locale('en'),
       ));
       await tester.pump();
-      expect(find.byIcon(Icons.arrow_back_ios), findsOneWidget);
-      expect(find.byIcon(Icons.arrow_forward_ios), findsNothing);
+      // redesign-2026-08: the leading circle is the kit's, and it resolves its
+      // glyph through `DirectionalIcons.back` — `arrow_back`/`arrow_forward`
+      // rather than the old chevrons. The DIRECTIONAL INTENT this test exists
+      // for is unchanged and still asserted in both directions.
+      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_forward), findsNothing);
 
       await tester.pumpWidget(_scaffold(
         const ChatAppBar(title: 'Sami Fawaz', showAvatar: true),
         locale: const Locale('ar'),
       ));
       await tester.pump();
-      // RTL: the chevron mirrors so it still reads as "back" (points to the
+      // RTL: the glyph mirrors so it still reads as "back" (points to the
       // start/right edge) — no stray forward-arrow leaks into the header.
-      expect(find.byIcon(Icons.arrow_forward_ios), findsOneWidget);
-      expect(find.byIcon(Icons.arrow_back_ios), findsNothing);
+      expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_back), findsNothing);
     });
   });
 
-  group('ChatMessageBubble — D3 incoming timestamp', () {
-    testWidgets('incoming bubble shows no timestamp; outgoing shows one',
+  group('ChatMessageBubble — D3 incoming timestamp (REVERSED)', () {
+    testWidgets('BOTH bubbles show a time; only the sender carries a status',
         (tester) async {
+      final handle = tester.ensureSemantics();
       await tester.pumpWidget(_body(
         Column(
           children: [
@@ -166,9 +171,18 @@ void main() {
       ));
       await tester.pump();
 
-      // Exactly one "09:41" — the sender's. The counterpart slot is empty
-      // (Figma 56560:1605 leaves the incoming timestamp blank).
-      expect(find.text('09:41'), findsOneWidget);
+      // D3 IS REVERSED, on the design's authority: redesign-2026-08 screen 21
+      // draws `9:24` on the incoming bubble (`21-order-chat.html`, tpl 1252).
+      // The rule that survives is the narrower one — a timestamp is a fact
+      // about any message, a DELIVERY STATUS is only ever a fact about your
+      // own.
+      expect(find.text('09:41'), findsNWidgets(2));
+      expect(
+        find.bySemanticsIdentifier('chat_detail_message_read'),
+        findsOneWidget,
+        reason: 'the read state belongs to the sender bubble alone',
+      );
+      handle.dispose();
     });
   });
 

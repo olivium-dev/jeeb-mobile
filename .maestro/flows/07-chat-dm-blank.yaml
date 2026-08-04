@@ -44,10 +44,11 @@
 #   chat_detail_date_separator        (chat_date_separator.dart)
 #   chat_detail_message_dev-dm-in-1   (seeded incoming client request bubble)
 #   chat_detail_message_dev-dm-out-1  (seeded outgoing Jeeber price/time offer)
-#   chat_detail_message_input         (chat_composer.dart _ComposerField)
-#   chat_detail_attach_button         (chat_composer.dart _AttachButton)
-#   chat_detail_voice_button          (chat_composer.dart _VoiceButton)
-#   chat_detail_send_button           (chat_composer.dart _SendButton)
+#   chat_detail_message_input         (chat_composer.dart -> JeebChatComposer)
+#   chat_detail_attach_button         (chat_composer.dart -> JeebChatComposer)
+#   chat_detail_send_button           (chat_composer.dart -> JeebChatComposer)
+#   NO chat_detail_voice_button — decision B-04 refused a composer mic, so that
+#   id has never been emitted; the assertion on it below was stale and is gone.
 #   chat_detail_message_msg-dev-chat-dm-0  (optimistic outgoing bubble appended by
 #                                      ChatCubit._nextId() = 'msg-' + deliveryId
 #                                      ('dev-chat-dm') + '-0' on the first send)
@@ -114,9 +115,9 @@ appId: ${APP_ID}
 #   a Maestro id assertion. The outgoing bubble assertion above already proves the
 #   outgoing message rendered.
 
-# ── COMPOSER (BLANK STATE): input + attach + voice + send all present ─────────
+# ── COMPOSER (BLANK STATE): input + attach + send all present ─────────────────
 # The composer is rendered with an empty field and the "Price / time" hint; the
-# send pill is present but reduced-emphasis (ChatComposerIconButton exposes
+# send pill is present but reduced-emphasis (JeebChatComposer exposes
 # Semantics(enabled:false) while ChatState.canSendText is false). We assert the
 # affordances are present; the disabled→enabled transition is proven below by the
 # send actually succeeding only after text is entered.
@@ -124,8 +125,6 @@ appId: ${APP_ID}
     id: "chat_detail_message_input"
 - assertVisible:
     id: "chat_detail_attach_button"
-- assertVisible:
-    id: "chat_detail_voice_button"
 - assertVisible:
     id: "chat_detail_send_button"
 

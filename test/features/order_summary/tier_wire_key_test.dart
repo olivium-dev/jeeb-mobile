@@ -1,45 +1,4 @@
 // Regression gate for "Tier field renders empty", seen on real hardware during
-// the live COD run.
-//
-// It was NOT a widget bug and it was NOT a gateway gap. It was three parsers
-// reading a key the gateway does not emit on those routes.
-//
-// PROVENANCE OF THE FIXTURE (this is the whole point of the file — the payload
-// below is not invented, it is the gateway's own shape):
-//
-//   jeeb-gateway `src/JeebGateway/Requests/RequestsDtos.cs:420` declares
-//     `public class DeliveryRequestDto { … public string? TierId { get; init; } … }`
-//   and it is the declared 200 body of BOTH
-//     `Controllers/DeliveriesController.cs`  GET /v1/deliveries/{id}
-//     `Controllers/RequestsController.cs:350` GET /v1/requests/{requestId}
-//       ([ProducesResponseType(typeof(DeliveryRequestDto), 200)]).
-//   The gateway sets no PropertyNamingPolicy on its MVC JSON options, so
-//   ASP.NET Core's camelCase default puts `TierId` on the wire as `tierId`.
-//   `git grep 'JsonPropertyName("tier")'` over jeeb-gateway `origin/main`
-//   returns exactly ONE hit — `Controllers/V1/JeebOrdersListController.cs:432`,
-//   the ORDERS-LIST row, a different route mobile parses elsewhere.
-//
-// So `tier` is never present on the two routes these three parsers read, and
-// all three produced '' / null on every real response:
-//
-//   order_summary/data/dio_order_summary_repository.dart   -> blank Tier field
-//                                                             on /orders/:id/summary
-//   chat/data/dio_order_chat_summary_repository.dart       -> the chat header's
-//                                                             tier chip stuck on
-//                                                             its "Pending" placeholder
-//   live_tracking/domain/delivery_tracking_info.dart       -> the tracking
-//                                                             header's tier row
-//                                                             hidden entirely
-//
-// Controls this file runs:
-//   POSITIVE — each parser resolves the tier from a `tierId` payload.
-//   NEGATIVE — `oldRead()` reproduces the pre-fix key read and is asserted to
-//              come back EMPTY on the very same payload, so the positive
-//              assertions cannot be passing for some unrelated reason.
-//   LEGACY   — a `tier`-only payload (the `:4010` mock alias and the
-//              orders-list shape) still parses, so the fix is additive.
-//   RENDER   — the customer-visible cell shows the localized tier name, and an
-//              absent tier shows "Pending" rather than a labelled blank.
 
 import 'dart:convert';
 import 'dart:io';
@@ -79,7 +38,6 @@ Map<String, Object?> _gatewayDeliveryBody({String tierId = 'flash'}) => {
 
 /// NEGATIVE CONTROL: the key read every one of these parsers used before the
 /// fix. Kept executable so "the old code really did come back empty on this
-/// payload" is demonstrated, not asserted in prose.
 String oldRead(Map<String, Object?> json) => (json['tier'] as String?) ?? '';
 
 ResponseBody _json(Map<String, Object?> body) => ResponseBody.fromString(

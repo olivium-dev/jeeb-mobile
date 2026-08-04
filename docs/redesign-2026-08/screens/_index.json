@@ -1,0 +1,170 @@
+[
+  {
+    "n": 1,
+    "id": "01-onboarding",
+    "label": "01 Onboarding",
+    "caption": "01 · Onboarding",
+    "note": "Enhanced: abstract slide art replaced with a live marketplace preview — a real voice note, a request and a Jeeber offer float around the mic; AR headline pairs the EN copy; Skip and Next share one row."
+  },
+  {
+    "n": 2,
+    "id": "02-registration",
+    "label": "02 Registration",
+    "caption": "02 · Registration",
+    "note": "Enhanced: phone-first — the field and Send code lead (the app's only working auth), social demoted to compact secondary pills; brand hero folds the welcome + bilingual tagline into one navy band; live-valid check on the field; trust footer replaces fine print."
+  },
+  {
+    "n": 3,
+    "id": "03-otp-verify",
+    "label": "03 OTP verify",
+    "caption": "03 · OTP verify",
+    "note": "Enhanced: in-screen keypad (no OS keyboard covering the code), active cell with live caret in orange, auto-verify on the 4th digit, inline Edit-number instead of a buried text button, resend timer kept in view."
+  },
+  {
+    "n": 4,
+    "id": "04-client-home",
+    "label": "04 Client home",
+    "caption": "04 · Client home",
+    "note": "Enhanced: the buried \"+\" becomes a mic-first create hero (\"hold to talk\"); voice requests show their waveform on the card; broadcasting state shows live reach (12 Jeebers); replies show the offer floor ($8) with Jeeber avatars and a direct View offers action; chips carry counts."
+  },
+  {
+    "n": 5,
+    "id": "05-voice-recording",
+    "label": "05 Voice recording",
+    "caption": "05 · Voice recording",
+    "note": "Enhanced: one-handed layout — the hold-to-record mic sits in the bottom thumb zone with slide-to-cancel (left) and switch-to-typing (right) in reach; live transcript reads at the top while you speak; max-duration ring shows the time budget."
+  },
+  {
+    "n": 6,
+    "id": "06-transcription-review",
+    "label": "06 Transcription review",
+    "caption": "06 · Transcription review",
+    "note": "Enhanced: low-confidence words get a tappable orange underline (fix one word, not the whole text), detected language surfaced as a chip, quick-add chips for quantity/brand/budget, replay card with scrubber kept above the text."
+  },
+  {
+    "n": 7,
+    "id": "07-request-type",
+    "label": "07 Request type",
+    "caption": "07 · Request type",
+    "note": "Enhanced: the 5-tier spectrum reads as one scannable list — selected tier snaps to solid navy with an orange check, \"Most picked\" nudge on Standard, speed + price value on every row, and the delivery location is confirmed on the same step with a one-tap Change."
+  },
+  {
+    "n": 8,
+    "id": "08-tier-catalog",
+    "label": "08 Tier catalog",
+    "caption": "08 · Tier catalog",
+    "note": "Enhanced: honest price signal — a relative price-level meter per tier (urgent = pays more, relaxed = pays less) instead of unpredictable dollar figures; SLA chip and vehicle class on every card, Recommended pre-selected, and a note making clear Jeebers set the price via offers."
+  },
+  {
+    "n": 9,
+    "id": "09-location-picker",
+    "label": "09 Location picker",
+    "caption": "09 · Location picker",
+    "note": "Enhanced: map-first with a draggable pin (the shipped picker is a form with the map behind a button), pickup→drop-off progress as chips, GPS accuracy stated on the address card, saved places (Home/Work/Mama's) one tap away."
+  },
+  {
+    "n": 10,
+    "id": "10-request-summary",
+    "label": "10 Request summary",
+    "caption": "10 · Request summary",
+    "note": "Enhanced: six loose cards become one request ticket — voice replay on top, transcript with inline Edit, tier / route / photos as rows each with its own Change link, route drawn as a pickup→drop-off timeline, and the CTA renamed to what actually happens: Broadcast. Typed request? The audio bar simply isn't rendered — the ticket leads with the text: TYPED REQUEST Edit Panadol Extra, one box — from the pharmacy next to my building ⚡ Flash…rest of the ticket identical"
+  },
+  {
+    "n": 11,
+    "id": "11-offers",
+    "label": "11 Offers",
+    "caption": "11 · Offers",
+    "note": "Enhanced: Best-value pick surfaced with a badge (price × rating × distance), \"Fastest\" tagged so speed shoppers see it instantly, offer-window countdown with progress bar, review count next to stars, and the cash-on-delivery amount spelled out per card before accepting."
+  },
+  {
+    "n": 12,
+    "id": "12-live-tracking",
+    "label": "12 Live tracking",
+    "caption": "12 · Live tracking",
+    "note": "Enhanced: order context pinned up top (what + tier + cash due), the 4-step stepper with a pulsing live step, ETA chip on the map, the door code always visible from accept time (the shipped app could hide it), and no-show / dispute recovery actions kept one tap away."
+  },
+  {
+    "n": 13,
+    "id": "13-otp-handover",
+    "label": "13 OTP handover",
+    "caption": "13 · OTP handover",
+    "note": "Enhanced: at-door moment made unmissable — orange arrival banner with cash due, the 4 digits as giant navy tiles readable at arm's length (screen auto-brightens), \"say it or show it\" instruction, safety copy (\"never by phone\"), SMS fallback and dispute exit both honest and visible."
+  },
+  {
+    "n": 14,
+    "id": "14-receipt-confirm",
+    "label": "14 Receipt confirm",
+    "caption": "14 · Receipt confirm",
+    "note": "Enhanced: the Jeeber's proof photo leads with timestamp + zoom, the cash line is a single navy statement (\"Pay $8 cash to Karim — no card, no fees\"), and the fork is plain-spoken: \"Yes, I got it\" vs \"Not yet — something's wrong\" (→ dispute). Deliberately no commission line — platform economics never show on customer surfaces."
+  },
+  {
+    "n": 15,
+    "id": "15-mutual-rating",
+    "label": "15 Mutual rating",
+    "caption": "15 · Mutual rating",
+    "note": "Enhanced: the blind two-way mechanic is explained in one line (ratings reveal together), delivery context recapped under the avatar (what · time · price), star labels (\"Great\") confirm the tap, and the tag taxonomy matches the gateway's five. Mandatory by design — no skip, no back."
+  },
+  {
+    "n": 16,
+    "id": "16-jeeber-home",
+    "label": "16 Jeeber home",
+    "caption": "16 · Jeeber home",
+    "note": "Enhanced: the auto-offline timer is visible on the availability card (\"goes offline in 1h 40m\" + Extend) instead of silently kicking Jeebers offline, the just-won delivery is pinned above the feed with cash due, feed cards lead with distance + neighbourhood, and voice requests keep their waveform mark."
+  },
+  {
+    "n": 17,
+    "id": "17-offer-composer",
+    "label": "17 Offer composer",
+    "caption": "17 · Offer composer",
+    "note": "Enhanced: the money math is the hero — offer → 10% fee → \"you keep $7.20\" computed live and repeated on the CTA; ETA is picked from the tier's allowed band (no free-typing an impossible time); ±$1 steppers for fast pricing; wallet balance + top-up inline so a 402 never surprises."
+  },
+  {
+    "n": 18,
+    "id": "18-active-delivery-jeeber",
+    "label": "18 Active delivery Jeeber",
+    "caption": "18 · Active delivery — Jeeber",
+    "note": "Enhanced: the at-door moment is one orange panel — proof photo ✓, optional note, door-code entry and the complete CTA together (the shipped app scatters them); the drop-off card states what to collect ($8 fee + $6.50 goods); Maps / Chat / goods-Costs quick actions pinned in the thumb zone."
+  },
+  {
+    "n": 19,
+    "id": "19-earnings",
+    "label": "19 Earnings",
+    "caption": "19 · Earnings",
+    "note": "Enhanced: one navy hero card answers \"how did I do\" (cash collected + deliveries + avg kept + rating) instead of four equal grey cards; \"never through Jeeb\" trust line kept; per-delivery rows show tier, cash in and fee out together; wallet balance and PDF export pinned at the bottom."
+  },
+  {
+    "n": 20,
+    "id": "20-settings",
+    "label": "20 Settings",
+    "caption": "20 · Settings",
+    "note": "Enhanced: profile promoted to a navy identity card, \"Become a Jeeber\" surfaced as the one growth action (orange outline), EN/عربي as a live segmented toggle, notification toggles grouped in one outlined card with door-codes honestly marked always-on, destructive actions demoted to the bottom."
+  },
+  {
+    "n": 21,
+    "id": "21-order-chat",
+    "label": "21 Order chat",
+    "caption": "21 · Order chat",
+    "note": "Enhanced: the order rides pinned above the thread (status + cash + Track) so chat never loses context; voice notes and photos are first-class WhatsApp-style bubbles; system events (accepted, ETA) render as quiet timeline chips; one-tap quick replies incl. Arabic; mic kept primary in the composer."
+  },
+  {
+    "n": 22,
+    "id": "22-become-a-jeeber",
+    "label": "22 Become a Jeeber",
+    "caption": "22 · Become a Jeeber",
+    "note": "Enhanced: the 2-step wizard shows what's next (\"then Selfie\"), each capture card carries live quality feedback (\"looks sharp ✓\" / glare hint), the selfie step visibly locked until the ID is done, review-time expectation + encryption promise up front, and the terms line spells out the 10% deal in plain words."
+  },
+  {
+    "n": 23,
+    "id": "23-wallet",
+    "label": "23 Wallet",
+    "caption": "23 · Wallet",
+    "note": "Enhanced: the balance hero says what it's for (\"Available to bid\"), the starter credit is celebrated on the card, affordability is honest state copy (\"You're set to bid\") not a fake capacity number, the reserve is explained as released-if-not-picked, and the footer reaffirms cash never passes through Jeeb."
+  },
+  {
+    "n": 24,
+    "id": "24-order-history",
+    "label": "24 Order history",
+    "caption": "24 · Order history",
+    "note": "Enhanced: the active order stands out with an orange frame + live ETA + Track; completed rows earn a one-tap \"Jeeb it again\" re-order (the killer retention action the shipped list lacks); expired requests offer Re-broadcast instead of a dead end; tab counts and a readable date-range chip replace the bare filter icon."
+  }
+]

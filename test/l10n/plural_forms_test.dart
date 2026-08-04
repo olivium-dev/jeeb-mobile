@@ -1,10 +1,4 @@
 // Plural-forms dispatch test for T-MOB-FIX-002 (JEB-2).
-// Authoritative spec: JEB-2 LEAD comment 14782 §4 (AC6).
-//
-// Arabic CLDR requires six plural forms — zero, one, two, few, many, other —
-// and the dispatch must pick the right one for the given integer count.
-// Sample counts cover every CLDR bucket and several edge cases (boundary
-// values at the mod-100 transitions: 3, 10, 11, 99, 100, 101, 110, 111).
 
 import 'dart:io';
 
@@ -49,6 +43,11 @@ const _arabicCases = <_PluralCase>[
     'requestSummaryFindingNotified',
     _finding,
   ),
+  _PluralCase(
+    'requestSummaryPhotosAttached',
+    'requestSummaryPhotosAttached',
+    _photos,
+  ),
 ];
 
 String _availability(AppLocalizations l, int n) =>
@@ -59,6 +58,7 @@ String _nearby(AppLocalizations l, int n) => l.dashboardNearbyRequestsCount(n);
 String _today(AppLocalizations l, int n) => l.dashboardTodayEarningsCompleted(n);
 String _finding(AppLocalizations l, int n) =>
     l.requestSummaryFindingNotifiedCount(n);
+String _photos(AppLocalizations l, int n) => l.requestSummaryPhotosAttached(n);
 
 String _expectedForm(int n) {
   if (n == 0) return 'Zero';
@@ -109,7 +109,6 @@ void main() {
       }
 
       // All 6 AR forms exist in the ARB for every plural set
-      // (mirrors `ar_plurals_check.sh` at runtime).
       for (final c in _arabicCases) {
         test('${c.name} declares all 6 CLDR forms in ${locale.languageCode}',
             () {

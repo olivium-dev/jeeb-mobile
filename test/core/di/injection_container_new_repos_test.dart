@@ -1,8 +1,4 @@
 // Tests for T-MOB-001: new repo/gateway registrations.
-//
-// Verifies that every repository mandated by the guardrail is resolvable from
-// GetIt after [configureDependencies] runs. No screen may self-construct
-// these outside DI in release builds.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -103,10 +99,6 @@ void main() {
   });
 
   // T-MOB-FIX-001: the jeeber-request-detail route builder resolves
-  // ProhibitedItemReportService from GetIt. It was never registered, so
-  // tapping a Jeeber feed card threw `Bad state: GetIt: Object/factory with
-  // type ProhibitedItemReportService is not registered inside GetIt.` and
-  // red-screened the whole Jeeber leg. This pins the registration.
   test('ProhibitedItemReportService is registered and resolves', () {
     expect(GetIt.I.isRegistered<ProhibitedItemReportService>(), isTrue);
     expect(() => GetIt.I<ProhibitedItemReportService>(), returnsNormally);
@@ -117,7 +109,6 @@ void main() {
   });
 
   // ── WAVE 3 (S2): wallet balance + ledger + transaction — all REAL Dio now
-  //    that gateway PR #196 added GET /v1/jeeb/wallet, /ledger, /ledger/:id. ──
 
   test('WalletRepository is registered and binds REAL Dio (gateway #196 live)',
       () {
@@ -151,22 +142,17 @@ void main() {
   });
 
   // ── WAVE 4 (S2): notifications (real Dio, LIVE) + dispute-status (real Dio,
-  //    LIVE) + support (real Dio, S1 live, gateway #200) + reviews (real Dio,
-  //    R1m live). ────
 
   test('NotificationsRepository binds the G3 local-merging decorator (over '
       'REAL Dio + the durable LocalPushInbox)', () {
     expect(GetIt.I.isRegistered<NotificationsRepository>(), isTrue);
     expect(() => GetIt.I<NotificationsRepository>(), returnsNormally);
     // G3: the inbox now UNIONS the server inbox with the on-device push store so
-    // a `new_request` dismissed while backgrounded still shows a durable row.
-    // The decorator wraps the REAL DioNotificationsRepository (still LIVE :4010).
     expect(
       GetIt.I<NotificationsRepository>(),
       isA<LocalMergingNotificationsRepository>(),
     );
     // The durable store is registered as a shared singleton so the merging repo
-    // and the app-level BadgeCountCubit read/write the SAME rows.
     expect(GetIt.I.isRegistered<LocalPushInbox>(), isTrue);
     expect(() => GetIt.I<LocalPushInbox>(), returnsNormally);
   });
@@ -194,13 +180,6 @@ void main() {
   });
 
   // BUG-6 create-payload regression: the compose controller MUST be registered
-  // so the customer create flow (request-type tier picker → client-location
-  // confirm) threads the selected tier UUID (Tier.wireId) + real pickup into
-  // POST /v1/requests. It was previously registered ONLY in tests, so on device
-  // `setTier` was a no-op and the location-confirm step fell back to the `'new'`
-  // sentinel, creating a tier-less / pickup-less request (tierId:null, pickup:{})
-  // that the gateway could not materialize into a delivery aggregate. This pins
-  // the production wiring so the create path can never silently go dead again.
   test('ComposeRequestController is registered and resolves (BUG-6)', () {
     expect(GetIt.I.isRegistered<ComposeRequestController>(), isTrue);
     expect(() => GetIt.I<ComposeRequestController>(), returnsNormally);
@@ -208,10 +187,6 @@ void main() {
   });
 
   // JEBV4-285: the `view summary` → order-summary screen fell back to the
-  // FakeOrderSummaryRepository (hardcoded Kamal Hajj / Spinneys / 9.00 demo
-  // data) on real deliveries because OrderSummaryRepository was NEVER bound in
-  // DI. Pin the LIVE Dio binding so the standalone summary reads the real
-  // delivery aggregate and can never regress to demo data.
   test('OrderSummaryRepository is registered and binds REAL Dio (JEBV4-285)',
       () {
     expect(GetIt.I.isRegistered<OrderSummaryRepository>(), isTrue);

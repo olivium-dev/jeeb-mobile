@@ -1,8 +1,4 @@
 // JEBV4-218 (E23) — Q-061 pilot tracking fidelity DoD:
-//   * the map draws a STRAIGHT-LINE route (geodesic:false), and
-//   * the LOCKED D18 deadline is displayed on the tracking panel.
-// This single suite asserts BOTH, per the ticket DoD ("widget test asserts
-// both"), plus the domain parse of the deadline off the delivery row.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -40,7 +36,6 @@ void main() {
       handle.dispose();
 
       // The localized "Arrives by <time>" copy renders (time is locale-formatted
-      // from the LOCAL wall clock, so assert the invariant prefix only).
       expect(
         find.textContaining('Arrives by'),
         findsOneWidget,

@@ -3,14 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Countdown strip shown at the top of the broadcasting-phase chat.
+/// Countdown chip shown at the top of the broadcasting-phase chat.
 ///
 /// Displays the seconds remaining in the offer window. When [expiresAt] is
-/// null or already past, the strip is hidden. The timer updates every second
+/// null or already past, the chip is hidden. The timer updates every second
 /// via an internal [Timer.periodic] so the widget is self-contained — the
 /// cubit doesn't need to manage ticking.
+///
+/// The full-bleed `tertiaryContainer` slab is gone: a countdown is exactly
+/// "what is expiring right now", which is the one thing R5 rations the accent
+/// for, so it is the kit's [JeebSystemChip.accent] — an outline pill in the
+/// orange, not a band of it.
 class BroadcastTtlIndicator extends StatefulWidget {
   const BroadcastTtlIndicator({
     super.key,
@@ -66,34 +72,11 @@ class _BroadcastTtlIndicatorState extends State<BroadcastTtlIndicator> {
     final expires = widget.expiresAt;
     if (expires == null || _secondsLeft <= 0) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      key: const Key('broadcast-ttl-indicator'),
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.xSmall,
-      ),
-      color: colorScheme.tertiaryContainer,
-      child: Row(
-        children: [
-          Icon(
-            Icons.timer_outlined,
-            size: Sizes.medium,
-            color: colorScheme.onTertiaryContainer,
-          ),
-          const SizedBox(width: Spacing.xSmall),
-          Expanded(
-            child: Text(
-              l10n.chatBroadcastTtlLabel(_secondsLeft),
-              style: textTheme.labelMedium?.copyWith(
-                color: colorScheme.onTertiaryContainer,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Spacing.xSmall),
+      child: JeebSystemChip.accent(
+        key: const Key('broadcast-ttl-indicator'),
+        label: l10n.chatBroadcastTtlLabel(_secondsLeft),
       ),
     );
   }

@@ -1,8 +1,4 @@
 // F9 — delivery-man profile header location/availability row.
-//
-// Guards the "· Available" stray-dot regression: the location + availability
-// separator must render ONLY when a location is actually present. With an empty
-// location the row shows the availability label alone (no leading separator).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,7 +30,6 @@ void main() {
     // The availability label stands alone — no leading separator dot.
     expect(find.text('Available'), findsOneWidget);
     // Neither the "· Available" (middle-dot) nor the " . Available" (ARB
-    // template period) stray-separator variants may render.
     expect(find.textContaining('· Available'), findsNothing);
     expect(find.textContaining('. Available'), findsNothing);
   });

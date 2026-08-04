@@ -5,7 +5,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../cubit/request_feed_cubit.dart';
 import '../cubit/request_feed_state.dart';
@@ -88,12 +91,25 @@ class _RequestFeedViewState extends State<_RequestFeedView> {
       identifier: 'request_feed_root',
       container: true,
       child: Scaffold(
-        appBar: OMDSAppBar(title: l10n.requestFeedTitle, centerTitle: false),
+        // The redesign's header is an in-BODY row, not a Material app bar —
+        // no elevation, no surface tint, start-aligned h2 title. It sits
+        // above the BlocConsumer so feed state changes never rebuild it.
         body: SafeArea(
-          child: BlocConsumer<RequestFeedCubit, RequestFeedState>(
-            listenWhen: (prev, curr) => prev.lastEffect != curr.lastEffect,
-            listener: _onEffect,
-            builder: (context, state) => _FeedColumn(state: state, now: _now),
+          child: Column(
+            children: [
+              JeebTopBar(
+                title: l10n.requestFeedTitle,
+                identifier: 'request_feed_back',
+              ),
+              Expanded(
+                child: BlocConsumer<RequestFeedCubit, RequestFeedState>(
+                  listenWhen: (prev, curr) => prev.lastEffect != curr.lastEffect,
+                  listener: _onEffect,
+                  builder: (context, state) =>
+                      _FeedColumn(state: state, now: _now),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -152,18 +168,62 @@ class _FeedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Illustration skeleton only on the first cold read; a refresh over rows
+    // keeps the board and reports through the snackbar instead.
     if (state.status == RequestFeedStatus.loading && state.requests.isEmpty) {
-      return const Center(child: OmdsLoadingState());
+      return _CenteredBlock(
+        child: JeebEmptyState(
+          identifier: 'request_feed_loading_state',
+          status: JeebEmptyStateStatus.loading,
+          variant: JeebEmptyStateVariant.street,
+          // Byte-identical to the LIVE twin of this feed
+          // (`jeeber_home_screen.dart::_FeedLoadingView`) — one cold-read
+          // rendering whichever host reaches it.
+          headline: l10n.requestFeedEmptyTitle,
+        ),
+      );
     }
     if (state.status == RequestFeedStatus.error && state.requests.isEmpty) {
-      return OmdsErrorState(
-        title: l10n.requestFeedErrorTitle,
-        message: l10n.requestFeedErrorLoad,
-        retryLabel: l10n.requestFeedErrorRetry,
-        onRetry: () => context.read<RequestFeedCubit>().refresh(),
+      return _CenteredBlock(
+        child: JeebEmptyState(
+          identifier: 'request_feed_error_state',
+          status: JeebEmptyStateStatus.error,
+          variant: JeebEmptyStateVariant.street,
+          headline: l10n.requestFeedErrorTitle,
+          body: l10n.requestFeedErrorLoad,
+          action: IntrinsicWidth(
+            child: JeebCtaButton.primary(
+              label: l10n.requestFeedErrorRetry,
+              identifier: 'request_feed_retry_cta',
+              expand: false,
+              onTap: () => context.read<RequestFeedCubit>().refresh(),
+            ),
+          ),
+        ),
       );
     }
     return _FeedListOrEmpty(state: state, now: now, l10n: l10n);
+  }
+}
+
+/// Vertically centres a state block and keeps it scrollable, so it survives a
+/// large text scale AND satisfies `OmdsPullToRefresh`'s scrollable-child rule.
+class _CenteredBlock extends StatelessWidget {
+  const _CenteredBlock({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(child: child),
+        ),
+      ),
+    );
   }
 }
 
@@ -181,6 +241,9 @@ class _FeedListOrEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OmdsPullToRefresh(
+      // Unset, the indicator inks from `colorScheme.primary` — orange under
+      // Midnight. A refresh spinner is chrome, not a do-it-now moment.
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
       onRefresh: () => context.read<RequestFeedCubit>().refresh(),
       child: state.requests.isEmpty
           ? _EmptyFeed(l10n: l10n)
@@ -247,6 +310,10 @@ class _FeedListRow extends StatelessWidget {
   }
 }
 
+/// Reconnecting is a transient attention state — self-recovering, not a
+/// failure — so it keeps the warning role but stops behaving like a full-bleed
+/// system error bar: an inset kit note on the page's own 24px gutter, exactly
+/// as the live dashboard feed renders its offline banner.
 class _ReconnectingBanner extends StatelessWidget {
   const _ReconnectingBanner({required this.message});
 
@@ -254,49 +321,24 @@ class _ReconnectingBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      key: const Key('requestFeed.reconnectingBanner'),
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.xSmall,
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.xSmall,
+        Spacing.xLarge,
+        0,
       ),
-      // Reconnecting is a transient attention state -> semantic warning role.
-      color: context.jeebRoles.warningContainer,
-      child: _ReconnectingRow(message: message),
+      child: JeebInfoNote.warning(
+        key: const Key('requestFeed.reconnectingBanner'),
+        icon: Icons.wifi_off_outlined,
+        text: message,
+      ),
     );
   }
 }
 
-class _ReconnectingRow extends StatelessWidget {
-  const _ReconnectingRow({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(
-          Icons.wifi_off_outlined,
-          size: Sizes.medium,
-          color: context.jeebRoles.onWarningContainer,
-        ),
-        const SizedBox(width: Spacing.xSmall),
-        Expanded(
-          child: Text(
-            message,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: context.jeebRoles.onWarningContainer,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
+/// An empty feed is not an error — "Empty ≠ dead": E3's night street, the same
+/// block the live dashboard feed already draws for this exact condition.
 class _EmptyFeed extends StatelessWidget {
   const _EmptyFeed({required this.l10n});
 
@@ -304,21 +346,15 @@ class _EmptyFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // OmdsPullToRefresh's child must be scrollable for the gesture to fire,
-    // so the empty state is wrapped in a single-child scroll view sized to
-    // the viewport.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: OmdsEmptyState(
-            key: const Key('requestFeed.empty'),
-            icon: Icons.inbox_outlined,
-            title: l10n.requestFeedEmptyTitle,
-            subtitle: l10n.requestFeedEmptySubtitle,
-          ),
-        ),
+    // FROZEN key re-homed onto the kit block; the Padding/Column that hosted it
+    // existed only to carry the two hand-styled lines.
+    return _CenteredBlock(
+      key: const Key('requestFeed.empty'),
+      child: JeebEmptyState(
+        identifier: 'request_feed_empty_state',
+        variant: JeebEmptyStateVariant.street,
+        headline: l10n.requestFeedEmptyTitle,
+        body: l10n.requestFeedEmptySubtitle,
       ),
     );
   }

@@ -128,11 +128,6 @@ void main() {
     });
 
     // BUG-6 create-payload contract: the POST /v1/requests body MUST carry the
-    // tier UUID (Tier.wireId, resolved onto RequestDraft.tierId) — NOT the tier
-    // slug — and REAL (non-zero) pickup coordinates + address. The gateway
-    // resolves the tier by the exact UUID it minted (a slug like "express"
-    // resolves to null → the delivery aggregate is never materialized → the
-    // handover/DELIVERED steps 404). This pins the wire shape end-to-end.
     test('serializes the tier UUID (never the slug) + real non-zero pickup',
         () async {
       Map<String, dynamic>? capturedBody;
@@ -155,7 +150,6 @@ void main() {
       const uuidDraft = RequestDraft(
         description: 'Parcel to Hamra',
         // The wire-side tier id ComposeRequestController resolves from
-        // Tier.wireId — the live gateway UUID, NOT the "express" slug.
         tierId: '2bd0d5df-db76-5d14-9e4d-741d60b2fa12',
         tierName: 'express',
         pickupLat: 33.8886,
@@ -209,10 +203,6 @@ void main() {
     });
 
     // BUG-7 handover-OTP fix: the POST /v1/requests body MUST carry a non-empty
-    // E.164 `recipientPhone`. Without it the gateway request-store row is
-    // recipient_phone=null and BOTH GET /v1/deliveries/{id}/otp and
-    // POST /v1/deliveries/{id}/otp/verify short-circuit 400
-    // `recipient-phone-missing` BEFORE the mocked `1234` is ever evaluated.
     test('emits the compose-form recipientPhone (E.164) when the draft has one',
         () async {
       Map<String, dynamic>? capturedBody;
@@ -268,7 +258,6 @@ void main() {
       );
 
       // _draft carries no recipientPhone → the injected resolver (signed-in
-      // client's own profile phone) supplies the default.
       await _service(dio, defaultPhone: '+96171999999').submit(_draft);
 
       final phone = capturedBody?['recipientPhone'] as String?;
@@ -298,7 +287,6 @@ void main() {
       );
 
       // No draft phone AND resolver miss (defaultPhone null) → field omitted,
-      // preserving the pre-fix behaviour (the gateway field is optional).
       await _service(dio).submit(_draft);
 
       expect(capturedBody?.containsKey('recipientPhone'), isFalse);

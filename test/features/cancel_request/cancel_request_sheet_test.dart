@@ -1,23 +1,4 @@
 // JM-030 — Cancel Request Confirm sheet (cancel-request-confirm, pre-accept).
-//
-// Proves, against the real ARBs + OMDS theme, that:
-//   AC1: the sheet surfaces every EXACT Semantics identifier from
-//        63_W1_TEST_PLAN §2.10 as its own queryable SemanticsNode
-//        (`cancel_request_sheet`, `_free_note`, `_confirm_cta`, `_keep_cta`).
-//   AC2: tapping `cancel_request_confirm_cta` cancels the request via the
-//        repository and fires `onCancelled` (the host then routes to
-//        customer-orders-home).
-//   AC3: tapping `cancel_request_keep_cta` fires `onKept` (→ dismiss) and does
-//        NOT cancel.
-//   AC4: a network failure keeps the sheet open and surfaces `cancel_request_error`
-//        (D30); confirm is NOT reported as succeeded.
-//
-// Harness mirrors test/features/client_offers/offer_accept_sheet_test.dart
-// (synchronous LocalizationsDelegate over the real ARBs + a tall surface so
-// nothing is culled). The intended-but-not-yet-landed key `cancelRequestFreeNote`
-// (filed in 50_ROUTE_REQUESTS, integrator-owned ARB) is injected into the test
-// ARB map so the test is green independent of the integrator batch; production
-// references the same getter and goes green the moment the key lands.
 
 import 'dart:convert';
 import 'dart:io';
@@ -82,7 +63,6 @@ Widget _harness(Widget child) {
       GlobalCupertinoLocalizations.delegate,
     ],
     // Normally hosted by showModalBottomSheet; mounted directly here so the
-    // widget tree under test is the sheet content (matches OfferAcceptSheet).
     home: Scaffold(body: child),
   );
 }
@@ -252,7 +232,6 @@ void main() {
       await tester.pump();
 
       // Regression flip: the old behaviour upgraded soft failures to success
-      // while the server still had the request live (P0 silent failure).
       expect(cancelledCount, 0,
           reason: 'a cancel the server did not confirm must never route home');
       expect(find.bySemanticsIdentifier('cancel_request_error'), findsOneWidget);

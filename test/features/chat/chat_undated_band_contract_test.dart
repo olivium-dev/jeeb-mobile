@@ -1,34 +1,3 @@
-// THE UNDATED-BAND CONTRACT — what `ChatCubit` actually guarantees about the
-// order of rows the server did not date.
-//
-// WHY THIS FILE EXISTS. `_reconciledWithHistory`'s doc used to say the rendered
-// order for undated rows "is the server's array order". `_withRebasedAnchors`
-// does something narrower: it collects EVERY undated row into ONE CONTIGUOUS
-// BAND immediately below the earliest DATED row, whatever position those rows
-// held in the server's array. A server array that interleaves dated and undated
-// rows therefore does NOT render as that array. Two readers of the same file
-// could not both be right, and the one who believed the doc would ship an
-// ordering bug.
-//
-// THIS IS A CHARACTERIZATION SUITE, NOT A REGRESSION SUITE. Every assertion
-// below passed BEFORE the doc was corrected and passes after — that is the
-// point: the code was never the thing that changed. What was RED before is the
-// DOC, and a doc cannot be run. Stating that plainly matters, because this batch
-// has already shipped a test whose green was mistaken for proof of a fix.
-//
-// WHY THE DOC WAS CORRECTED RATHER THAN THE CODE. Honouring "the server's array
-// order" literally means dropping the chronological sort (S0-CHAT-04), which
-// exists because the backend may return rows unsorted, may page them
-// newest-first, and may append a system row out of band. Trading a real ordering
-// guarantee for a doc sentence is a worse deal than fixing the sentence.
-//
-// PRODUCTION REACHABILITY, stated honestly: after jeeb-gateway #326 every row on
-// the live wire carries `created_at`, and chat-service's own
-// `ChatService.Persistence/BaseModel.cs` initialises it to `DateTime.UtcNow`, so
-// a mixed dated/undated array is not currently known to be producible in
-// production. It is producible on the LEGACY wire (a pre-#326 gateway, a paged
-// read that predates it, a projection that omits the field), which is why the
-// behaviour is pinned rather than assumed away.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -49,8 +18,7 @@ DeliveryChatMessage _dated(String id, String text, DateTime at,
       text: text,
     );
 
-/// A row the server returned with no usable timestamp: the decoder hands it a
-/// PROVISIONAL anchor and flags it, exactly as `DioChatGateway` does.
+/// A row the server returned with no usable timestamp: the deco
 DeliveryChatMessage _undated(String id, String text, int arrayPosition,
         {ChatAuthor author = ChatAuthor.them}) =>
     DeliveryChatMessage.text(
@@ -62,8 +30,7 @@ DeliveryChatMessage _undated(String id, String text, int arrayPosition,
       hasServerTimestamp: false,
     );
 
-/// Serves a fixed history. Polling stays OFF (the `supportsPolling` default) so
-/// nothing ticks behind the assertions.
+/// Serves a fixed history. Polling stays OFF (the `supportsPoll
 class _FixedHistoryGateway extends ChatGateway {
   _FixedHistoryGateway(this.history);
 
@@ -132,9 +99,6 @@ void main() {
       'a counterpart row the server did not date sinks below MY dated row, even '
       'though the server put theirs first',
       () async {
-        // The user-visible shape of the same rule, and the reason it is worth
-        // pinning rather than shrugging at: on a legacy wire this is how their
-        // opening message ends up underneath the reply to it.
         final cubit = _cubit(<DeliveryChatMessage>[
           _dated('a', 'them dated 12:00', DateTime.utc(2026, 7, 27, 12, 0)),
           _undated('b', 'me undated', 1, author: ChatAuthor.me),
@@ -198,8 +162,6 @@ void main() {
       'CONTROL — an ALL-DATED thread is sorted by the server clock, so a wire '
       'that pages newest-first still renders oldest-first',
       () async {
-        // Proves the chronological sort the doc fix declines to remove is doing
-        // real work: without it this array would render backwards.
         final cubit = _cubit(<DeliveryChatMessage>[
           _dated('c', 'newest', DateTime.utc(2026, 7, 27, 12, 2)),
           _dated('b', 'middle', DateTime.utc(2026, 7, 27, 12, 1)),

@@ -13,49 +13,14 @@ import 'app.dart';
 import 'bootstrap.dart';
 import 'branded_splash.dart';
 
-/// Debug-only flag that keeps the branded splash on screen after bootstrap
-/// resolves, resolved at RUNTIME from [DevSeam] (replaces the compile-time
-/// `JEEB_HOLD_SPLASH`; the dart-define still feeds it via the seam fallback).
-/// Renders the *production* [BrandedSplash] under the production theme + l10n —
-/// it never changes what ships. No-op in release builds.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import 'package:flutter/services.dart';
+import '../core/previews/jeeb_preview.dart';
+
 bool get _holdSplash => kDebugMode && DevSeam.current.holdSplash;
 
-/// Debug-only locale override, resolved at RUNTIME from [DevSeam] (replaces the
-/// compile-time `JEEB_FORCE_LOCALE`). Used to capture the RTL splash on an
-/// emulator that can't change its system locale without root. Honored only in
-/// debug builds; the production locale resolution is untouched.
 String get _forcedLocale => kDebugMode ? DevSeam.current.forcedLocale : '';
 
-// JM-006 (D79/D85): the branded splash has NO artificial display dwell.
-//
-// History — an earlier change (FR-D1D2 / D1) added a fixed ~1.3 s floor on the
-// splash so a first-time user (and a post-launch QA screenshot) could register
-// the Jeeb logo. `20_GAP_MAP.md §splash` flags that exact "cosmetic 1.3 s host"
-// as the JM-006 gap, and `22_DESIGN_NOTES.md` fixes the splash contract as
-// "auto-route by session … no UI dwell". JM-006 is the later, more specific
-// ruling and supersedes the cosmetic floor: the splash is a passive boot frame
-// that must hand off to [JeebApp] — and therefore to the session-aware
-// `_firstRunRedirect` in `app_router.dart` — the instant [Bootstrap.minimal]
-// resolves, so the redirect is never delayed by a fabricated timer.
-//
-// Production therefore uses NO hold (`minSplashHold == null` → no floor). A
-// non-zero [JeebBootstrap.minSplashHold] is honored only as a debug/test opt-in
-// (deterministic widget-test pumping); the debug-only `holdSplash` dev seam
-// still pins the splash for screenshot-evidence flows. Neither path ships a
-// default dwell, so the production splash never fights the redirect (D79/D85).
-
-/// Cold-start host (T-mobile-047; JM-006 removed the FR-D1D2 splash floor).
-///
-/// Runs [Bootstrap.minimal] while the branded splash paints and swaps in
-/// [JeebApp] the moment bootstrap resolves — with no artificial floor in front
-/// of the router's session-aware redirect (JM-006, D79/D85). It then triggers
-/// [Bootstrap.deferred] from a post-first-frame callback so non-critical work
-/// never blocks first paint.
-///
-/// Splitting the bootstrap into two phases (instead of `await`ing everything
-/// in `main()`) is the single biggest cold-start win: the user sees branded
-/// pixels in one frame instead of waiting for `initializeDateFormatting()` to
-/// page in every locale.
 class JeebBootstrap extends StatefulWidget {
   const JeebBootstrap({
     super.key,
@@ -64,16 +29,8 @@ class JeebBootstrap extends StatefulWidget {
   })  : _override = bootstrapFuture,
         _minSplashHold = minSplashHold;
 
-  /// Test seam — lets unit tests supply a pre-resolved [BootstrapResult]
-  /// instead of touching the real [SharedPreferences] platform channel.
   final Future<BootstrapResult>? _override;
 
-  /// Debug/test-only opt-in hold. Production passes `null` (and `main.dart`
-  /// constructs `const JeebBootstrap()`), so there is **no** display floor and
-  /// the splash hands straight off to the router once bootstrap resolves
-  /// (JM-006, D79/D85). A non-null value lets a widget test pin the splash for a
-  /// deterministic number of `tester.pump` frames; [Duration.zero] (or null)
-  /// means "swap as soon as bootstrap is done". Never set in release.
   final Duration? _minSplashHold;
 
   @override
@@ -84,10 +41,6 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
   late final Future<BootstrapResult> _bootstrap =
       widget._override ?? Bootstrap.minimal();
 
-  /// Flips true once any opt-in [JeebBootstrap._minSplashHold] has elapsed.
-  /// Production sets no hold, so this is `true` from the first frame and the
-  /// app shows the instant bootstrap completes — the only thing the splash ever
-  /// waits on is real init, never a fabricated floor (JM-006, D79/D85).
   bool _minHoldElapsed = false;
   Timer? _holdTimer;
 
@@ -96,11 +49,6 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
   @override
   void initState() {
     super.initState();
-    // JM-006 (D79/D85): no production dwell. The hold is null in production, so
-    // _minHoldElapsed is already satisfied and the splash hands off to the
-    // router (and _firstRunRedirect) as soon as Bootstrap.minimal() resolves.
-    // A non-zero hold is a debug/test opt-in only; it runs concurrently with
-    // bootstrap so it never adds latency on top of real init.
     final hold = widget._minSplashHold;
     if (hold == null || hold <= Duration.zero) {
       _minHoldElapsed = true;
@@ -122,11 +70,6 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
     if (_deferredScheduled) return;
     _deferredScheduled = true;
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      // Fire-and-forget — failures here must not crash the app since this is,
-      // by definition, non-critical init. Pass the bootstrap crash reporter so
-      // the deferred phase can upgrade its delegate from Noop to Crashlytics
-      // once the (off-critical-path, timeboxed) Firebase init resolves — the
-      // cold-start ANR fix keeps that native call out of [Bootstrap.minimal].
       Bootstrap.deferred(crashReporter: result.crashReporter);
     });
   }
@@ -136,21 +79,11 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
     return FutureBuilder<BootstrapResult>(
       future: _bootstrap,
       builder: (context, snapshot) {
-        // An error must surface immediately — never trap a broken boot behind
-        // the splash.
         if (snapshot.hasError) {
-          // Bootstrap failure is unrecoverable (SharedPreferences platform
-          // channel is broken). Surface it so it isn't silently swallowed.
           return _BootstrapErrorApp(error: snapshot.error!);
         }
         final bootstrapping =
             snapshot.connectionState != ConnectionState.done;
-        // Show the branded splash ONLY while real init is in flight (JM-006,
-        // D79/D85: no artificial dwell). In production _minHoldElapsed is true
-        // from frame one, so the splash hands off to the router the instant
-        // bootstrap resolves and _firstRunRedirect fires with no delay. The
-        // !_minHoldElapsed term covers the debug/test opt-in hold; _holdSplash
-        // is the debug-only screenshot-evidence seam.
         if (bootstrapping || !_minHoldElapsed || _holdSplash) {
           return const _SplashApp();
         }
@@ -165,11 +98,6 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
   }
 }
 
-/// Pre-bootstrap host for [BrandedSplash]. Wires the production OMDS theme and
-/// the [AppLocalizations] delegates so the splash consumes `colorScheme` roles
-/// and ARB strings — never literals. Locale resolves from the device locale
-/// (constrained to supported locales) so an Arabic device renders the splash
-/// mirrored from the very first frame, before prefs are loaded.
 class _SplashApp extends StatelessWidget {
   const _SplashApp();
 
@@ -187,9 +115,11 @@ class _SplashApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      // Pinned: the splash is the first painted surface, so `system` here is
+      // where a light-mode device flashes white.
+      theme: AppTheme.midnight(),
+      darkTheme: AppTheme.midnight(),
+      themeMode: ThemeMode.dark,
       locale: _initialLocale(),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
@@ -212,6 +142,10 @@ class _BootstrapErrorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      // An unthemed MaterialApp renders stock Material white.
+      theme: AppTheme.midnight(),
+      darkTheme: AppTheme.midnight(),
+      themeMode: ThemeMode.dark,
       home: Scaffold(
         body: Center(
           child: Padding(
@@ -226,3 +160,74 @@ class _BootstrapErrorApp extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// This widget owns the whole viewport, so the canvas box is a phone, not a
+/// component slot: 390×844 is the iPhone 14 / Galaxy S22 logical frame the
+const Size jeebBootstrapPreviewBox = Size(390, 844);
+
+/// A bootstrap future that never completes — the honest model of "init is still
+/// running", and the only way to hold the splash on screen indefinitely without
+Widget _jeebBootstrapBootstrapping() =>
+    JeebBootstrap(bootstrapFuture: Completer<BootstrapResult>().future);
+
+/// A bootstrap future that rejects with [error], which routes straight to the
+/// error host: `FutureBuilder` reports `hasError` before it reports `done`, so
+Widget _jeebBootstrapFailed(Object error) {
+  final Future<BootstrapResult> rejected = Future<BootstrapResult>.error(error);
+  rejected.ignore();
+  return JeebBootstrap(bootstrapFuture: rejected);
+}
+
+/// The payload behind [jeebBootstrapFailedOpaque].
+/// Exported (like the three below) so the render test can assert the exact
+final Object jeebBootstrapOpaqueError = Exception();
+
+/// The payload behind [jeebBootstrapFailedMissingPlugin].
+final Object jeebBootstrapMissingPluginError = MissingPluginException(
+  'No implementation found for method getAll on channel '
+  'plugins.flutter.io/shared_preferences',
+);
+
+/// The payload behind [jeebBootstrapFailedVerbose].
+final Object jeebBootstrapVerboseError = PlatformException(
+  code: 'channel-error',
+  message: 'Unable to establish connection on channel: '
+      '"dev.flutter.pigeon.shared_preferences_android'
+      '.SharedPreferencesApi.getAll".',
+  details: 'Lost connection to device before the reply was received.',
+  stacktrace: 'java.lang.IllegalStateException: Reply already submitted\n'
+      '\tat io.flutter.plugin.common.BasicMessageChannel.reply\n'
+      '\tat io.flutter.embedding.engine.dart.DartMessenger.handleMessage',
+);
+
+/// The payload behind [jeebBootstrapFailedArabicPayload].
+final Object jeebBootstrapArabicError =
+    Exception('تعذّر الوصول إلى مساحة التخزين المحلية');
+
+/// Cold start: the branded splash, held while `Bootstrap.minimal()` runs.
+/// The state every launch passes through. Worth a preview because the splash
+@JeebPreview(group: 'app', name: 'Cold start (splash)', size: jeebBootstrapPreviewBox)
+Widget jeebBootstrapColdStart() => _jeebBootstrapBootstrapping();
+
+/// Shortest plausible failure: something threw a bare `Exception`.
+/// Renders "App failed to start: Exception" — a dead end with no cause, no
+@JeebPreview(group: 'app', name: 'Boot failed · opaque', size: jeebBootstrapPreviewBox)
+Widget jeebBootstrapFailedOpaque() => _jeebBootstrapFailed(jeebBootstrapOpaqueError);
+
+/// The documented failure mode: the `SharedPreferences` platform channel is
+/// gone, so `Bootstrap.minimal()` rejects.
+@JeebPreview(group: 'app', name: 'Boot failed · plugin missing', size: jeebBootstrapPreviewBox)
+Widget jeebBootstrapFailedMissingPlugin() =>
+    _jeebBootstrapFailed(jeebBootstrapMissingPluginError);
+
+/// Longest plausible content: a native `PlatformException` carrying details AND
+/// a stack trace, which is what the platform actually hands back on a failed
+@JeebPreview(group: 'app', name: 'Boot failed · verbose', size: jeebBootstrapPreviewBox)
+Widget jeebBootstrapFailedVerbose() => _jeebBootstrapFailed(jeebBootstrapVerboseError);
+
+/// A failure whose message is not Latin script.
+/// Native layers localize their own messages, so an Arabic device can put
+@JeebPreview(group: 'app', name: 'Boot failed · Arabic payload', size: jeebBootstrapPreviewBox)
+Widget jeebBootstrapFailedArabicPayload() => _jeebBootstrapFailed(jeebBootstrapArabicError);

@@ -1,46 +1,3 @@
-// THE GATE for the Firestore realtime chat transport (b02).
-//
-// The claim under test, in the owner's words: *"The mobile should subscribe to
-// Firestore and the backend should never subscribe to firestore, the backend
-// should only store in firestore and that will automatically updated on the
-// mobile."*
-//
-// Operationally that means ONE thing has to be true and it is the thing every
-// previous chat "fix" got wrong: **the message CONTENT arrives in the stream, so
-// the client renders from the snapshot and never refetches.** A transport that
-// notifies and then re-reads over HTTP is the push→refetch path this work
-// exists to delete — it cost one whole `GET /v1/conversations/{id}/messages` per
-// inbound message.
-//
-// So the load-bearing assertion in this file is a CONJUNCTION, and both halves
-// matter:
-//
-//     the text is on screen   AND   loadHistory was not called again
-//
-// Asserting only the first half is I-06 in reverse: "the row rendered" says
-// nothing about what paid for it. Asserting only the second is I-15's blind
-// spot: "no fetch happened" is equally true of a transport that delivered
-// nothing at all.
-//
-// WHAT IS REAL AND WHAT IS FAKED. The Firestore SDK boundary is faked and
-// NOTHING ELSE is. `_FakeRealtimeSource` hands raw PascalCase documents — the
-// exact shape `FirestoreConversationStore.AddMessageAsync` writes — to the REAL
-// `FirestoreChatMessageMapper` and the REAL `ChatRealtimeProjector`, and the
-// events go through the REAL `RealtimeChatGateway`, the REAL `ChatCubit` and the
-// REAL `ChatScreen`. If the PascalCase→wire normalisation is wrong, or the
-// payload-string decode is wrong, or the codec drops the kind, these tests fail.
-//
-// NEGATIVE CONTROLS. I-14: a green suite proves nothing about a test's POWER.
-// Every positive assertion here is paired with a case that must fail if the
-// transport is doing nothing:
-//   * `renders NOTHING when the stream is silent` — the same screen, the same
-//     nonce, no document emitted. If this ever finds the text, the text is
-//     coming from somewhere other than the stream and the gate is vacuous.
-//   * `a push DOES drive a re-pull once the stream reports itself dead` — proves
-//     the suppression is conditional on liveness and not just switched off,
-//     which is exactly the failure mode I-13 recorded (`debugPositionStreamWired`
-//     read `true` on a dead SSE stream, so its guard never fired again).
-
 library;
 
 import 'dart:async';
@@ -62,9 +19,6 @@ const _them = 'user-jeeber-002';
 const _conversationId = 'conv-fs-1';
 
 /// A chat-service message document, in the shape
-/// `FirestoreConversationStore.AddMessageAsync` writes it: the native
-/// `[FirestoreData]` POCO mapper, so the Firestore field names ARE the C#
-/// property names (`ConversationMessage` + `BaseModel`).
 Map<String, Object?> _doc({
   required String id,
   required String authorId,
@@ -90,8 +44,6 @@ Map<String, Object?> _doc({
     };
 
 /// Stands in for `FirestoreChatRealtimeSource` at exactly one seam: instead of
-/// `cloud_firestore` producing the snapshot, the test does. Everything after
-/// that point — mapping, validation, decode, event shape — is production code.
 class _FakeRealtimeSource implements ChatRealtimeSource {
   _FakeRealtimeSource({String currentUserId = _me})
       : _projector = ChatRealtimeProjector(
@@ -112,7 +64,6 @@ class _FakeRealtimeSource implements ChatRealtimeSource {
   }
 
   /// The channel reports that a snapshot has ARRIVED — the only thing that may
-  /// set liveness (I-13: arming a listener is not evidence it works).
   void goLive() =>
       _events.add(const RealtimeTransportChanged(live: true, reason: 'first_snapshot'));
 
@@ -141,7 +92,6 @@ class _FakeRealtimeSource implements ChatRealtimeSource {
 }
 
 /// The HTTP half. Counts every wire read so a test can assert what a rendered
-/// message COST, not merely that it rendered.
 class _CountingHttpGateway extends ChatGateway {
   _CountingHttpGateway([this.history = const <DeliveryChatMessage>[]]);
 
@@ -173,11 +123,6 @@ class _CountingHttpGateway extends ChatGateway {
       message.copyWith(status: MessageStatus.sent);
 
   /// Reached exactly ONCE through [RealtimeChatGateway], which MERGES this leg
-  /// rather than replacing it — the decorator swaps the message TRANSPORT, but
-  /// this stream is also the only carrier for the gateway's synthetic
-  /// `PhaseChanged(accepted)`. `subscribeCalls` is therefore an open-count, not
-  /// a "was HTTP used" signal; what proves the realtime source is carrying the
-  /// thread is [loadHistoryCalls] not moving while messages arrive.
   @override
   Stream<ChatEvent> subscribe(String conversationId) {
     subscribeCalls++;
@@ -232,23 +177,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The cold mount reads history over HTTP exactly once. That read is the
-      // BASELINE every later assertion is measured against; the thread is empty
-      // so it cannot be the source of the nonce.
       expect(h.http.loadHistoryCalls, 1, reason: 'cold mount');
       expect(find.text(nonce), findsNothing, reason: 'nothing has arrived yet');
-      // CHANGED, and deliberately — this assertion used to demand 0 and that was
-      // pinning a bug. `RealtimeChatGateway.subscribe` now MERGES both legs
-      // instead of replacing the inner one, because the inner stream is the only
-      // carrier for `DioChatGateway`'s synthetic
-      // `PhaseChanged(accepted, deliveryId:…)` (`dio_chat_gateway.dart:470-474`)
-      // and dropping it turns the customer's Accept tap into a no-op.
-      //
-      // What the old 0 was REALLY defending — "the realtime source, not HTTP, is
-      // carrying the thread" — is not measured by this counter at all: opening a
-      // stream costs nothing and delivers nothing. It is measured by
-      // `loadHistoryCalls` staying at its cold-mount baseline while the nonce
-      // arrives, which is asserted above and below and is untouched.
       expect(
         h.http.subscribeCalls,
         1,
@@ -256,8 +186,6 @@ void main() {
       );
       expect(h.realtime.subscribeCalls, 1);
 
-      // The backend wrote the document. Firestore pushed it. Nothing on the
-      // device asked for it.
       h.realtime.goLive();
       h.realtime.deliver(_doc(id: 'm-1', authorId: _them, body: nonce));
       await tester.pumpAndSettle();
@@ -276,12 +204,6 @@ void main() {
       expect(h.http.loadPhaseCalls, 1, reason: 'also unchanged');
     });
 
-    // NEGATIVE CONTROL / MUTATION PROOF, permanent.
-    //
-    // Identical to the case above except the stream emits nothing. If the nonce
-    // is ever found here, it is not the stream that put it on screen and the
-    // gate above proves nothing. This is the "stub the stream to emit nothing;
-    // the test must fail" mutation, kept in the suite so it cannot rot.
     testWidgets('renders NOTHING when the stream is silent', (tester) async {
       const nonce = 'FS-GATE-4417 on my way';
       final h = _harness();
@@ -298,7 +220,6 @@ void main() {
       await tester.pumpAndSettle();
 
       h.realtime.goLive();
-      // …and no `deliver`.
       await tester.pumpAndSettle();
 
       expect(
@@ -311,11 +232,6 @@ void main() {
 
     testWidgets('a structured payload arrives whole — no refetch to resolve it',
         (tester) async {
-      // `ConversationMessage.Payload` is `public string`: a structured message
-      // is stored as JSON TEXT. The HTTP hop parses it back into an object; the
-      // document does not, so the mapper must. If this decode were missing the
-      // bubble would render empty and the only way to fill it would be — a
-      // refetch.
       final h = _harness();
 
       await tester.pumpWidget(
@@ -338,7 +254,12 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('FS-GATE-SYSTEM-9001'), findsOneWidget);
+      // `textContaining`, not `text`: since redesign-2026-08 the system chip
+      // appends the message's own ` · HH:mm` when the row carries a server
+      // timestamp (the board draws "Offer accepted · 9:12"). The SUBJECT of
+      // this test is that the decoded payload reached the bubble at all, which
+      // a substring match still pins exactly.
+      expect(find.textContaining('FS-GATE-SYSTEM-9001'), findsOneWidget);
       expect(h.http.loadHistoryCalls, 1, reason: 'zero wire reads');
     });
   });
@@ -359,8 +280,6 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(cubit.debugRealtimeLive, isTrue);
 
-      // Three inbound messages, each with its own FCM push. Before this change
-      // that was three whole-thread `GET /v1/conversations/{id}/messages`.
       for (var i = 1; i <= 3; i++) {
         h.realtime.deliver(_doc(
           id: 'm-$i',
@@ -386,10 +305,6 @@ void main() {
       expect(cubit.debugPushRefreshCount, 0);
     });
 
-    // The other direction. Without this the suppression above is
-    // indistinguishable from having deleted the fallback outright — which is
-    // exactly the state that would leave a thread with no inbound path at all
-    // when the channel cannot open (today: no Firebase identity).
     test('a push DOES drive a re-pull once the stream reports itself dead',
         () async {
       final h = _harness();
@@ -429,9 +344,6 @@ void main() {
     });
 
     test('a gateway with no realtime transport is unaffected', () async {
-      // The degradation that matters most: every existing host still gets the
-      // push-driven read, because a gateway that never emits
-      // RealtimeTransportChanged leaves `debugRealtimeLive` false forever.
       final http = _CountingHttpGateway();
       addTearDown(http.dispose);
       final bus = StreamController<void>.broadcast();
@@ -452,9 +364,6 @@ void main() {
   group('the stream folds into the SAME reconciliation as every other path',
       () {
     test('the sender own-echo does not double the bubble', () async {
-      // Firestore fans the sender's OWN document back down their own channel.
-      // It carries the SERVER id, which never equals the optimistic local id, so
-      // an id-only check would append a second copy of the user's own message.
       final h = _harness();
       final cubit = _cubit(h.gateway);
       await cubit.load();
@@ -481,8 +390,6 @@ void main() {
     });
 
     test('a document redelivered in a later snapshot is a no-op', () async {
-      // `docChanges` re-reports a document on `modified`. The cubit's id-dedupe
-      // is what stops that becoming a duplicate bubble.
       final h = _harness();
       final cubit = _cubit(h.gateway);
       await cubit.load();
@@ -517,7 +424,6 @@ void main() {
       await cubit.load();
       h.realtime.goLive();
 
-      // No author — fails `ChatMessageCodec.isValidRow`.
       h.realtime.deliver(<String, Object?>{
         'Guid': 'm-bad',
         'Kind': 'text',

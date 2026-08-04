@@ -22,17 +22,11 @@ import '../../support/settings_fakes.dart';
 
 /// Representative 3-button soft-nav inset (~48dp). Any correct edge-to-edge
 /// fix must reserve at least this much at the bottom of a scroll body so the
-/// last item clears the soft buttons / bottom nav bar. The FlutterView reports
-/// insets in PHYSICAL pixels, so multiply by the device pixel ratio when
-/// seeding `tester.view`.
 const double _kNavBarInsetDp = 48;
 
 void main() {
   group('BottomInsetX.scrollBodyBottomInset', () {
     // Seeds the system nav-bar inset on the FlutterView and reads it back
-    // through the MediaQuery the helper consumes. A pushed page route does NOT
-    // strip MediaQuery padding (only modal sheets do), so MediaQuery carries
-    // the true nav-bar inset for scroll bodies.
     Future<double> resolveInset(
       WidgetTester tester, {
       required double navBarDp,
@@ -78,7 +72,6 @@ void main() {
     testWidgets('is double-pad safe — returns 0 once SafeArea consumes it',
         (tester) async {
       // If an ancestor SafeArea already reserved the bottom inset, the helper
-      // must add NOTHING more (MediaQuery.viewPadding.bottom is consumed to 0).
       final inset = await resolveInset(
         tester,
         navBarDp: _kNavBarInsetDp,
@@ -192,9 +185,6 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       // Mirror the proven client_home_screen_test harness: create the cubit
-      // INSIDE the tree (BlocProvider.create, so the tree owns its lifecycle)
-      // and use a zero-latency fixture repo so pumpAndSettle does not chase a
-      // pending load. Reuses the dev-seam Figma fixtures for a populated list.
       final repo = InMemoryClientHomeRepository.fromSnapshot(
         DevClientHomeFixtures.snapshot(),
         latency: Duration.zero,

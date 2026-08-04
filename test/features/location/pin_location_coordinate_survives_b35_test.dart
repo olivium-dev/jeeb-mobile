@@ -1,27 +1,3 @@
-// JEBV4-176 — the capture-location placeholder must NOT fabricate a coordinate.
-//
-// The capture-location route used to seed its map controller with a hardcoded
-// Beirut-downtown centre (33.8938, 35.5018) and pop THAT back on "Pin Location".
-// Because the neutral placeholder viewport never pans (no live map is injected
-// yet — B-23, Maps key owner-gated), every confirmed pin silently collapsed to
-// downtown Beirut and could create a Beirut-pinned request. JEBV4-176 removes
-// that silent fabrication: the placeholder route now pops WITHOUT a coordinate,
-// so `markPinned(null, null)` leaves the pinned choice un-confirmable (Confirm
-// stays disabled) exactly like the GPS-recovery path — no fabricated pickup can
-// reach `POST /requests`.
-//
-// This test drives the REAL production `AppRouter` end-to-end:
-//   request-type → location-select → capture-location (the ACTUAL
-//   `CaptureLocationRoute` builder) → Pin Location → back to location-select →
-//   attempt Confirm.
-// It asserts that after the placeholder pin, NO create draft is submitted (the
-// Confirm CTA is gated off) — and therefore the old Beirut default never
-// reaches a request. It deliberately exercises `AppRouter`'s own
-// `/capture-location` builder (NOT a hand-rolled stub GoRouter), so it FAILS if
-// that builder ever regresses to fabricating a coordinate on pop. Once B-23
-// injects a live `GoogleMap` mapBuilder, the pop will carry a real user-picked
-// point and the choice becomes confirmable again.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -118,7 +94,6 @@ void main() {
 
     setUp(() async {
       // A tall viewport so the below-the-fold add-location row is laid out
-      // (the lazy ListView builds no element for off-screen rows).
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       final view = binding.platformDispatcher.views.first;
       view.physicalSize = const Size(1080, 3200);
@@ -179,26 +154,30 @@ void main() {
         await tester.pumpAndSettle();
 
         // Open the map picker via the screen's OWN handler (the router no longer
-        // overrides it) — this pushes the REAL `CaptureLocationRoute`.
         await tester.tap(
           find.bySemanticsIdentifier('location_select_new_location_cta'),
         );
-        await tester.pumpAndSettle();
+        // MIDNIGHT R11: the capture route's centre pin floats/breathes forever,
+        // so this surface never settles — advance it by hand (M0-4 ruling).
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
         expect(
           find.bySemanticsIdentifier('capture_location_pin_cta'),
           findsOneWidget,
         );
 
-        // Confirm the pin — the production builder pops WITHOUT a coordinate
-        // (JEBV4-176: no fabricated Beirut default).
+        // Confirm the pin. MIDNIGHT M2-05 wired the live map here, but the pop
+        // is gated on a camera that really settled: a platform view that never
+        // rendered (this harness, a missing SDK key) still pops WITHOUT a
+        // coordinate, so the seed can never masquerade as the customer's pick.
         await tester.tap(
           find.bySemanticsIdentifier('capture_location_pin_cta'),
         );
         await tester.pumpAndSettle();
 
+
         // Back on location-select: supply the G1 description, then attempt to
-        // confirm. The pinned choice has NO real coordinate, so `canConfirm` is
-        // false and the Confirm CTA is disabled — the tap is a no-op.
         await tester.enterText(
           find.byKey(const Key('clientLocation.descriptionField')),
           'A cake from Sea Sweet',
@@ -210,9 +189,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // No create draft was submitted: the placeholder pin fabricated nothing,
-        // so `POST /requests` was never called. A regression that re-fabricated
-        // a coordinate on pop would make the choice confirmable and submit a
-        // draft carrying the removed Beirut default — failing here.
         expect(submission.submitCount, 0);
         expect(submission.lastDraft, isNull);
       },

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_cubit.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_state.dart';
 import 'package:jeeb_mobile/features/voice_request/data/voice_recording_repository.dart';
@@ -57,11 +59,11 @@ void main() {
 
       expect(find.byType(VoiceRecordingScreen), findsOneWidget);
       // In idle state the waveform widget is NOT shown.
-      expect(find.byType(OmdsRecordingInput), findsNothing);
+      expect(find.byKey(VoiceRecordingKeys.recordingWaveform), findsNothing);
     });
 
     testWidgets(
-      'shows OmdsRecordingInput waveform bar when cubit is in recording phase (AC1)',
+      'shows the live waveform mark when cubit is in recording phase (AC1)',
       (tester) async {
         final cubit = _buildCubit();
         addTearDown(cubit.close);
@@ -73,8 +75,11 @@ void main() {
         await cubit.startRecording();
         await tester.pump();
 
-        // While recording, OmdsRecordingInput (with animated waveform) is shown.
-        expect(find.byType(OmdsRecordingInput), findsOneWidget);
+        // While recording, the JeebWaveform.live mark is shown.
+        expect(
+          find.byKey(VoiceRecordingKeys.recordingWaveform),
+          findsOneWidget,
+        );
       },
     );
 
@@ -126,9 +131,11 @@ void main() {
         await tester.pump();
 
         final seekBar = tester.widget<OmdsSeekBar>(find.byType(OmdsSeekBar));
-        final background = Theme.of(
-          tester.element(find.byType(OmdsSeekBar)),
-        ).colorScheme.surface;
+        // Relational, not literal: `wrapForTest` themes with `ThemeData.light()`,
+        // so a Midnight hex read here would measure the harness, not the app.
+        final scheme =
+            Theme.of(tester.element(find.byType(OmdsSeekBar))).colorScheme;
+        final background = scheme.surface;
         expect(
           _contrastRatio(seekBar.activeColor!, background),
           greaterThanOrEqualTo(3),
@@ -140,6 +147,23 @@ void main() {
         expect(seekBar.onChangeEnd, isNotNull);
         expect(seekBar.thumbColor, seekBar.activeColor);
         expect(seekBar.thumbRadius, greaterThanOrEqualTo(5));
+
+        // A scrub track is chrome on a review surface, so it spends no accent —
+        // and played/buffered/unplayed must be three DISTINCT rungs.
+        expect(seekBar.activeColor, scheme.onSurface);
+        expect(seekBar.bufferedColor, JeebMidnight.inkSoft);
+        expect(seekBar.inactiveColor, scheme.onSurfaceVariant);
+        expect(seekBar.bufferedColor, isNot(seekBar.activeColor));
+        expect(seekBar.inactiveColor, isNot(seekBar.activeColor));
+        for (final Color? rung in <Color?>[
+          seekBar.activeColor,
+          seekBar.bufferedColor,
+          seekBar.inactiveColor,
+          seekBar.thumbColor,
+        ]) {
+          expect(rung, isNot(scheme.primary));
+          expect(rung, isNot(JeebMidnight.orange));
+        }
 
         final slider = find.descendant(
           of: find.byType(OmdsSeekBar),
@@ -175,7 +199,13 @@ void main() {
 
         expect(cubit.state.error, VoiceRecordingError.uploadServer);
         expect(find.byKey(VoiceRecordingKeys.uploadErrorState), findsOneWidget);
-        expect(find.byType(OmdsErrorState), findsOneWidget);
+        // MIDNIGHT M2-03: the OMDS error state is retired for the §2.7
+        // empty-state family in its danger-tinted `error` status.
+        expect(find.byType(JeebEmptyState), findsOneWidget);
+        expect(
+          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+          JeebEmptyStateStatus.error,
+        );
         expect(find.text("Couldn't submit your recording"), findsOneWidget);
         expect(find.text('Record again'), findsOneWidget);
         expect(find.text('Retry upload & submit'), findsOneWidget);
@@ -223,7 +253,6 @@ void main() {
       tester,
     ) async {
       // Pre-seed a cubit already in the sent state to verify the
-      // post-send UI: no raw "Send" button, "Record another" visible.
       final cubit = _buildCubit();
       addTearDown(cubit.close);
 
@@ -246,7 +275,6 @@ void main() {
       await tester.pump();
 
       // In sent phase, there should be no Send button (send is disabled AC3).
-      // "Record another" CTA replaces the send button.
       expect(find.text('إرسال'), findsNothing); // AR: send
       expect(find.text('Send'), findsNothing); // EN: send
     });

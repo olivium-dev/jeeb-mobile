@@ -9,27 +9,8 @@ import 'package:jeeb_mobile/core/notifications/data/push_transport.dart';
 import 'package:jeeb_mobile/core/session/session_cubit.dart';
 
 /// JEBV4-159 — session-role-sync seam (mirrors `JeebApp._wireSessionRoleSync`).
-///
 /// The existing `device_token_registrar_login_test.dart` proves the registrar
 /// re-registers when `notifyLogin()` / `notifySignedOut()` are called directly.
-/// This test closes the seam ABOVE that: it proves that the REAL [SessionCubit]
-/// stream — the exact object `JeebApp` listens to — drives a (re)registration
-/// PUT on every login / user-switch, using the SAME predicate wiring app.dart
-/// uses (authenticated → notifyLogin, unauthenticated → notifySignedOut).
-///
-/// It exists because the widget-level push test injects an
-/// `AlwaysAuthenticatedSessionGate` (a bare [SessionGate] with no stream), which
-/// makes `_wireSessionRoleSync` early-return — so the session-stream → register
-/// path had NO coverage. A regression there (dropping `notifyLogin()`, flipping
-/// the predicate, or a `SessionState` de-dup swallowing a real transition) would
-/// silently reintroduce the exact JEBV4-159 bug — a switched-in jeeber with zero
-/// server-side device tokens, receiving no targeted `offer_accepted` push — while
-/// every direct-call unit test stayed green.
-///
-/// All-reals: real [SessionCubit], real [DeviceTokenRegistrar], real
-/// [AuthTokenStore] over an in-memory keystore, real [SharedPreferences] mock.
-/// The only fakes are the keystore channel and the Dio transport (which records
-/// the wire calls) — there is no mock of the code under test.
 
 class _RecordingDio extends Fake implements Dio {
   final List<String> paths = <String>[];
@@ -109,7 +90,6 @@ void main() {
 
   /// Reproduces `JeebApp._wireSessionRoleSync` verbatim for the push leg: the
   /// owned [SessionCubit]'s stream drives the registrar on every transition.
-  /// Returns the subscription so the test can cancel it.
   Future<void> wirePushToSession(
     SessionCubit session,
     DeviceTokenRegistrar registrar,
@@ -159,9 +139,6 @@ void main() {
     expect(dio.bodies.single['fcmToken'], 'fcm-shared-token');
 
     // --- Sign out (authenticated → unauthenticated) ------------------------
-    // The logout flow fires DELETE /api/PushNotification/device server-side; the
-    // stream transition must clear the registrar dedup so the NEXT login is not
-    // skipped as a duplicate.
     await tokenStore.clear();
     await session.refresh(); // emits unauthenticated → notifySignedOut()
     await Future<void>.delayed(Duration.zero);
@@ -170,8 +147,6 @@ void main() {
         reason: 'sign-out itself must not hit the register endpoint');
 
     // --- Login as a DIFFERENT user B (the crux of JEBV4-159) ---------------
-    // Same OS process, same install, same FCM token — the pre-fix one-shot
-    // latch left user B with zero device tokens (targeted pushes no-op'd).
     await tokenStore.save(
       accessToken: 'mock-jwt-access-userB',
       refreshToken: 'mock-refresh-userB',

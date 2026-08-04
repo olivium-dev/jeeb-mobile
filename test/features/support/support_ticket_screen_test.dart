@@ -1,10 +1,4 @@
 // Widget tests for SupportTicketScreen (JM-063).
-//
-// Asserts the exact Semantics(identifier:) contract from 30_BACKLOG JM-063 is
-// present, the submit gate, the submit → confirmation → customer-profile flow,
-// the dispute-link edge, and the typed error → retry path. Maestro keys on the
-// identifiers (CTO brief §6.6), so these assert on `find.bySemanticsIdentifier`,
-// never visible text.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -57,6 +51,12 @@ Widget _host() {
   );
   return MaterialApp.router(
     routerConfig: router,
+    // MIDNIGHT: the phase views mount JeebEmptyState, whose illustration loops
+    // ∞ by design — without reduce motion `pumpAndSettle` can never settle.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child ?? const SizedBox.shrink(),
+    ),
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
       _delegate,
@@ -91,7 +91,6 @@ void main() {
   testWidgets('resolves with NO DI registered (nav-honesty fallback)',
       (tester) async {
     // The route-resolution pin builds the router with no GetIt setup; the
-    // screen must still render (falls back to StubSupportRepository).
     await pumpScreen(tester);
     expect(find.byType(SupportTicketScreen), findsOneWidget);
     expect(find.bySemanticsIdentifier('support_root'), findsOneWidget);

@@ -1,14 +1,4 @@
 // VOICE-D2 addressability locks.
-//
-// `Key()` does NOT surface as an Android `resource-id` to uiautomator/Maestro —
-// only `Semantics(identifier:)` maps onto
-// `AccessibilityNodeInfo.viewIdResourceName`. These tests prove every
-// voice-composer control carries the expected `voice_request_*` identifier as
-// an independently queryable `SemanticsNode`, using the repo's canonical
-// `find.bySemanticsIdentifier(...)` finder (see
-// test/semantics_identifier_surfacing_test.dart). They FAIL on the pre-fix
-// source (no `Semantics(identifier:)` wrapper → `findsNothing`) and PASS after,
-// verified via `git stash push -- lib/features/voice_request/...`.
 
 import 'dart:typed_data';
 

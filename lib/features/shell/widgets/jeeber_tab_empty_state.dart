@@ -1,81 +1,76 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
 
-/// Empty-state scaffolding shown on the additive jeeber tabs (Dashboard /
-/// Earnings) to a regular user who is NOT (yet) a jeeber.
-///
-/// UX LAW (consolidated-lessons §12): a jeeber is also a user — EVERY user
-/// sees the full jeeber-tab scaffolding, but a non-jeeber sees the tab's
-/// EMPTY STATE inviting them to become a jeeber, NOT a role switch. There is
-/// no mode-switch: the tabs are additive and always present; only their body
-/// differs based on whether the signed-in user already has the `jeeber` role
-/// (resolved from getMe `available_roles`, never an in-app role flip).
-///
-/// The CTA routes to the become-a-jeeber / KYC flow (the same `kyc-status`
-/// target the Profile-tab `BecomeJeeberCard` uses), guarded by
-/// [GoRouter.maybeOf] so it degrades to a no-op in a router-less widget test.
+import '../../../core/previews/jeeb_preview.dart';
+
+/// M4 §2.7 `empty` on the LIT street tile: E3's parked scooter under a
+/// streetlamp is the invitation. The old `IconData` slot is gone with OMDS.
 class JeeberTabEmptyState extends StatelessWidget {
   const JeeberTabEmptyState({
     super.key,
     required this.identifier,
-    required this.icon,
+    this.variant = JeebEmptyStateVariant.street,
     this.title,
     this.subtitle,
   });
 
-  /// Empty state for the additive jeeber DASHBOARD tab (availability + feed).
-  /// A non-jeeber sees a "Become a Jeeber" invitation instead of the live
-  /// availability toggle + request feed.
   const JeeberTabEmptyState.dashboard({super.key})
       : identifier = dashboardIdentifier,
-        icon = Icons.two_wheeler_outlined,
+        variant = JeebEmptyStateVariant.street,
         title = null,
         subtitle = null;
 
-  /// Empty state for the additive jeeber EARNINGS tab. A non-jeeber sees the
-  /// same "Become a Jeeber" invitation instead of an empty earnings dashboard.
   const JeeberTabEmptyState.earnings({super.key})
       : identifier = earningsIdentifier,
-        icon = Icons.payments_outlined,
+        variant = JeebEmptyStateVariant.street,
         title = null,
         subtitle = null;
 
-  /// Stable screen-level Semantics id for the dashboard-tab empty state so QA
-  /// (Maestro / adb ui-tree) can assert a non-jeeber lands here.
   static const String dashboardIdentifier = 'jeeber_dashboard_empty_state';
 
-  /// Stable screen-level Semantics id for the earnings-tab empty state.
   static const String earningsIdentifier = 'jeeber_earnings_empty_state';
 
-  /// Screen-level Semantics identifier for this empty state.
+  /// Identifier on the CTA pill — the invitation's one act.
+  static const String ctaIdentifier = 'jeeber_tab_empty_state_cta';
+
   final String identifier;
 
-  /// Leading icon for the invitation card.
-  final IconData icon;
+  /// Which §2.7 illustration composes the block. Defaults to the street.
+  final JeebEmptyStateVariant variant;
 
-  /// Optional explicit title override; defaults to the become-a-jeeber title.
   final String? title;
 
-  /// Optional explicit subtitle override; defaults to the become-a-jeeber copy.
   final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      container: true,
-      explicitChildNodes: true,
-      identifier: identifier,
-      child: Center(
-        child: OmdsEmptyState(
-          icon: icon,
-          title: title ?? l10n.becomeJeeberCardTitle,
-          subtitle: subtitle ?? l10n.becomeJeeberCardSubtitle,
-          buttonText: l10n.becomeJeeberCardCta,
-          onButtonTap: () => _openBecomeJeeber(context),
+    // The shell paints no field of its own (`shell_screen.dart`), so the tab
+    // body owns one — matching the live Dashboard/Earnings surfaces it replaces.
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      animateDecor: false,
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            child: JeebEmptyState(
+              variant: variant,
+              headline: title ?? l10n.becomeJeeberCardTitle,
+              body: subtitle ?? l10n.becomeJeeberCardSubtitle,
+              medallions: const <JeebEmptyMedallion>[],
+              identifier: identifier,
+              action: JeebCtaButton.accent(
+                label: l10n.becomeJeeberCardCta,
+                identifier: ctaIdentifier,
+                onTap: () => _openBecomeJeeber(context),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -85,3 +80,97 @@ class JeeberTabEmptyState extends StatelessWidget {
     GoRouter.maybeOf(context)?.goNamed('kyc-status');
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+const Size _jeeberTabEmptyStatePhoneBody = Size(390, 680);
+
+/// The narrowest device the app still supports.
+const Size _jeeberTabEmptyStateCompactBox = Size(320, 600);
+
+/// A short body — a small phone in a locale with a tall system 
+const Size _jeeberTabEmptyStateShortBody = Size(390, 420);
+
+/// One state, optionally pinned to a device width. `height: dou
+Widget _jeeberTabEmptyStateHosted(Widget state, {double? width}) {
+  if (width == null) return state;
+  return Center(
+    child: SizedBox(width: width, height: double.infinity, child: state),
+  );
+}
+
+/// The `title` / `subtitle` overrides take raw [String]s, not A
+Widget _jeeberTabEmptyStateWithCopy({
+  required String identifier,
+  required JeebEmptyStateVariant variant,
+  required String Function(AppLocalizations) title,
+  required String Function(AppLocalizations) subtitle,
+}) {
+  return Builder(
+    builder: (BuildContext context) {
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      return JeeberTabEmptyState(
+        identifier: identifier,
+        variant: variant,
+        title: title(l10n),
+        subtitle: subtitle(l10n),
+      );
+    },
+  );
+}
+
+/// Exactly how `shell_screen.dart` builds the Dashboard tab for
+@JeebPreview(
+  group: 'shell',
+  name: 'Dashboard tab · non-jeeber',
+  size: _jeeberTabEmptyStatePhoneBody,
+)
+Widget jeeberTabEmptyStateDashboard() =>
+    _jeeberTabEmptyStateHosted(const JeeberTabEmptyState.dashboard());
+
+/// The Earnings tab for the same user — the SAME invitation, de
+@JeebPreview(
+  group: 'shell',
+  name: 'Earnings tab · non-jeeber',
+  size: _jeeberTabEmptyStatePhoneBody,
+)
+Widget jeeberTabEmptyStateEarnings() =>
+    _jeeberTabEmptyStateHosted(const JeeberTabEmptyState.earnings());
+
+/// **The state that breaks.** The production invitation on a 32
+@JeebPreview(
+  group: 'shell',
+  name: 'Compact 320pt phone',
+  size: _jeeberTabEmptyStateCompactBox,
+)
+Widget jeeberTabEmptyStateCompactPhone() => _jeeberTabEmptyStateHosted(
+      const JeeberTabEmptyState.dashboard(),
+      width: 320,
+    );
+
+/// The override API, driven with real ARB copy: a KYC applicant
+@JeebPreview(
+  group: 'shell',
+  name: 'KYC resubmit copy',
+  size: _jeeberTabEmptyStatePhoneBody,
+)
+Widget jeeberTabEmptyStateKycResubmit() => _jeeberTabEmptyStateWithCopy(
+      identifier: JeeberTabEmptyState.earningsIdentifier,
+      // Documents to send back — E4's open glass parcel box, not the street.
+      variant: JeebEmptyStateVariant.parcel,
+      title: (AppLocalizations l10n) => l10n.kycStatusResubmitTitle,
+      subtitle: (AppLocalizations l10n) => l10n.kycStatusResubmitBody,
+    );
+
+/// The longest ARB copy in a 420pt body — the only state that c
+@JeebPreview(
+  group: 'shell',
+  name: 'KYC pending · short body',
+  size: _jeeberTabEmptyStateShortBody,
+)
+Widget jeeberTabEmptyStateKycPendingShortBody() =>
+    _jeeberTabEmptyStateWithCopy(
+      identifier: JeeberTabEmptyState.dashboardIdentifier,
+      // Waiting on a reviewer to answer — E2's radar, per §2.7.
+      variant: JeebEmptyStateVariant.radar,
+      title: (AppLocalizations l10n) => l10n.kycStatusPendingTitle,
+      subtitle: (AppLocalizations l10n) => l10n.kycStatusPendingBody,
+    );

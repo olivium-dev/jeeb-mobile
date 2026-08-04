@@ -1,18 +1,4 @@
 // Regression locks for the live decision-violation fixes carried on
-// `temp-overall-run-1` (catalog FEATURE_CATALOG.md §F.4 + iter3-dispatch-plan
-// mobile-1 items P5/P7/P8/P9). Each test pins one decision so a future edit
-// cannot silently reintroduce the violation:
-//
-//   * D56  — the mandatory rating offers NO close/skip/dismiss affordance and
-//            the system back gesture is suppressed (PopScope canPop:false).
-//   * D52  — a FINAL KYC rejection offers NO resubmit CTA (appeal via support
-//            only); `kyc_rejected_resubmit_cta` must never surface.
-//   * D20  — the personal-details + KYC contract no longer carries any
-//            "Vehicle number" string (the stale per-screen contract strings
-//            were removed to align with the removed field).
-//   * Earnings framing — the per-delivery settlement line is framed fee-only
-//            ("Platform fee", D41/D44), never the misleading "Commission"
-//            (platform-takes-a-cut) framing.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -21,14 +7,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
+import 'package:jeeb_mobile/devtool/catalog/fixtures/kyc_rejected_screen_fixtures.dart';
 import 'package:jeeb_mobile/features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import 'package:jeeb_mobile/features/rating/application/mutual_rating_cubit.dart';
 import 'package:jeeb_mobile/features/rating/domain/entities/rating_status.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
 import 'package:jeeb_mobile/features/rating/presentation/mutual_rating_screen.dart';
-import 'package:jeeb_mobile/features/settlement/domain/settlement_statement.dart';
-import 'package:jeeb_mobile/features/settlement/presentation/settlement_detail_screen.dart';
+import 'package:jeeb_mobile/core/jeeb_commission.dart';
+import 'package:jeeb_mobile/features/offers/presentation/offer_composer_l10n.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
@@ -125,12 +111,28 @@ void main() {
   group('D52 — final KYC rejection has no resubmit CTA', () {
     testWidgets('KycRejectedScreen shows appeal + back, never a resubmit CTA',
         (tester) async {
+      // The body is a lazy ListView: on the default 800x600 viewport the reason
+      // note is never built, so the resubmit assertions below cannot see it.
+      final view = tester.view;
+      view.physicalSize = const Size(440, 956);
+      view.devicePixelRatio = 1.0;
+      addTearDown(view.resetPhysicalSize);
+      addTearDown(view.resetDevicePixelRatio);
+
+      // KycRejectionReason.other is the branch that renders the shared
+      // "…and resubmit" string. FakeKycGateway() returns a NON-rejected
+      // submission, so the note never mounted and this gate passed vacuously.
       await tester.pumpWidget(
-        _routerHarness(KycRejectedScreen(gateway: FakeKycGateway())),
+        _routerHarness(
+          KycRejectedScreen(gateway: KycRejectedScreenFixtures.other()),
+        ),
       );
+      // Twice: the second settles the async status read that mounts the note.
+      await tester.pump();
       await tester.pump();
 
       expect(find.bySemanticsIdentifier('kyc_rejected_root'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('kyc_rejected_reason'), findsOneWidget);
 
       // The only forward paths are appeal-via-support and back-to-profile.
       expect(
@@ -157,7 +159,6 @@ void main() {
       final en = File('lib/l10n/app_en.arb').readAsStringSync();
       final ar = File('lib/l10n/app_ar.arb').readAsStringSync();
       // The stale per-screen contract keys were removed to align with the
-      // already-removed field (catalog line 53).
       for (final key in const [
         'dmOnboardingAddressVehicleNumberLabel',
         'dmOnboardingAddressVehicleNumberHint',
@@ -174,37 +175,35 @@ void main() {
   });
 
   group('Earnings framing — fee-only, not gross/commission', () {
-    testWidgets('settlement detail labels the per-delivery cut as a platform fee',
-        (tester) async {
-      const statement = SettlementStatement(
-        id: 'stmt-1',
-        weekLabel: 'Week 1',
-        totalPayout: 90.0,
-        currency: 'USD',
-        status: SettlementStatus.paid,
-        deliveries: [
-          SettlementDeliveryLine(
-            deliveryId: 'd-1',
-            date: '2026-06-18',
-            tier: 'Express',
-            fare: 100.0,
-            commission: 10.0,
-            net: 90.0,
-            currency: 'USD',
-          ),
-        ],
-      );
+    // RE-HOMED from the deleted SettlementDetailScreen (M3-15/16 orphan
+    // deletion) onto the offer composer — the one shipped screen still drawing
+    // a platform-fee line, which is the "already-shipped screen" leg the kit's
+    // JeebMoneyBreakdown asserts cannot cover on their own.
+    AppLocalizations arb(String tag) => debugLoadAppLocalizationsSync(
+          Locale(tag),
+          File('lib/l10n/app_$tag.arb').readAsStringSync(),
+        );
 
-      await tester.pumpWidget(
-        wrapForTest(const SettlementDetailScreen(statement: statement)),
-      );
-      await tester.pump();
+    test('the composer fee line reads "Platform fee", never "Commission"', () {
+      final en = OfferComposerL10n(arb('en'), false);
+      final ar = OfferComposerL10n(arb('ar'), true);
 
-      // Fee-only framing (D41/D44): the line reads "Platform fee", and the
-      // misleading "Commission" framing must not appear.
-      expect(find.textContaining('Platform fee'), findsOneWidget);
-      expect(find.textContaining('Commission'), findsNothing);
-      expect(find.text('Total cash kept'), findsOneWidget);
+      for (final label in [en.feeRowLabel, en.feeLinePending]) {
+        expect(label, contains('Platform fee'));
+        expect(label.toLowerCase(), isNot(contains('commission')));
+      }
+      // AR: "رسوم المنصة" (platform fee), never "عمولة" (commission).
+      for (final label in [ar.feeRowLabel, ar.feeLinePending]) {
+        expect(label, contains('رسوم المنصة'));
+        expect(label, isNot(contains('عمولة')));
+      }
+    });
+
+    test('the fee percentage derives from kJeebCommissionPercent', () {
+      expect(
+        OfferComposerL10n(arb('en'), false).feeRowLabel,
+        contains('$kJeebCommissionPercent%'),
+      );
     });
   });
 }

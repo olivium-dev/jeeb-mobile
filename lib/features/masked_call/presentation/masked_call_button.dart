@@ -4,6 +4,9 @@ import 'package:omds/omds.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/masked_call_cubit.dart';
 
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../core/previews/jeeb_preview.dart';
+
 // ORPHAN (JEBV4-227, verified 2026-07-12): zero refs; gateway carries an equally-uncalled twin endpoint — see docs/project-understanding/reconciliation/orphans.md
 class MaskedCallButton extends StatelessWidget {
 
@@ -12,8 +15,6 @@ class MaskedCallButton extends StatelessWidget {
 
   /// Optional cubit override. Defaults to null (unchanged production
   /// behavior: a fresh [MaskedCallCubit] is created). Lets the Dev Tool
-  /// screen catalog (DT-04) seed a specific designed state (e.g. mid-call)
-  /// without a network dependency — no existing call site passes this.
   final MaskedCallCubit? cubit;
 
   @override
@@ -55,3 +56,124 @@ class _MaskedCallButtonView extends StatelessWidget {
     }
   }
 }
+
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED.
+
+/// The canvas box for a full-bleed CTA: phone width, one 48 dp pill, and enough
+const Size _maskedCallButtonCtaBox = Size(390, 120);
+
+/// Taller box for the state that ends in a floating snackbar, which is laid out
+const Size _maskedCallButtonSnackbarBox = Size(390, 260);
+
+/// The same order id the Screen Catalog uses for this widget
+const String _maskedCallButtonOrderId = 'DLV-9001';
+
+class _MaskedCallButtonSeededCubit extends MaskedCallCubit {
+  _MaskedCallButtonSeededCubit([MaskedCallState? seed]) {
+    if (seed != null) emit(seed);
+  }
+
+  /// Emits [state] later, once a caller decides the consumer is listening.
+  /// `emit` is `@protected`, so a host that wants to drive this cubit after
+  void seedLater(MaskedCallState state) {
+    if (!isClosed) emit(state);
+  }
+}
+
+Widget _maskedCallButtonSeeded(MaskedCallState seed) => TickerMode(
+      enabled: false,
+      child: MaskedCallButton(
+        orderId: _maskedCallButtonOrderId,
+        cubit: _MaskedCallButtonSeededCubit(seed),
+      ),
+    );
+
+class _MaskedCallButtonFailOnMount extends StatefulWidget {
+  const _MaskedCallButtonFailOnMount({required this.outcome});
+
+  final MaskedCallState outcome;
+
+  @override
+  State<_MaskedCallButtonFailOnMount> createState() =>
+      _MaskedCallButtonFailOnMountState();
+}
+
+class _MaskedCallButtonFailOnMountState
+    extends State<_MaskedCallButtonFailOnMount> {
+  final _MaskedCallButtonSeededCubit _cubit = _MaskedCallButtonSeededCubit();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _cubit.seedLater(widget.outcome);
+    });
+  }
+
+  /// The local [ScaffoldMessenger] is what makes this self-contained: the
+  /// widget presents its error through `ScaffoldMessenger.of(context)`, and a
+  @override
+  Widget build(BuildContext context) => ScaffoldMessenger(
+        child: Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(Spacing.large),
+                child: MaskedCallButton(
+                  orderId: _maskedCallButtonOrderId,
+                  cubit: _cubit,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+@JeebPreview(
+  group: 'masked_call',
+  name: 'Idle · ready to call',
+  size: _maskedCallButtonCtaBox,
+  matrix: true,
+)
+Widget maskedCallButtonIdle() => const TickerMode(
+      enabled: false,
+      child: MaskedCallButton(orderId: _maskedCallButtonOrderId),
+    );
+
+@JeebPreview(
+  group: 'masked_call',
+  name: 'Placing the call',
+  size: _maskedCallButtonCtaBox,
+)
+Widget maskedCallButtonPlacing() =>
+    _maskedCallButtonSeeded(const MaskedCallState(isLoading: true));
+
+@JeebPreview(
+  group: 'masked_call',
+  name: 'Session live · nothing changed',
+  size: _maskedCallButtonCtaBox,
+)
+Widget maskedCallButtonSessionLive() => _maskedCallButtonSeeded(
+      const MaskedCallState(sessionId: 'session-$_maskedCallButtonOrderId'),
+    );
+
+@JeebPreview(
+  group: 'masked_call',
+  name: 'Failure before subscribe · no trace',
+  size: _maskedCallButtonCtaBox,
+)
+Widget maskedCallButtonFailedSilently() =>
+    _maskedCallButtonSeeded(const MaskedCallState(failed: true));
+
+@JeebPreview(
+  group: 'masked_call',
+  name: 'Failed · error snackbar',
+  size: _maskedCallButtonSnackbarBox,
+  matrix: true,
+)
+Widget maskedCallButtonFailedSnackbar() => const _MaskedCallButtonFailOnMount(
+      outcome: MaskedCallState(failed: true),
+    );

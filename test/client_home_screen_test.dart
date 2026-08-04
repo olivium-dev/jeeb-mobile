@@ -1,17 +1,25 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_glass_card.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_mic_hero.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_state.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
+import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_request_hero.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -60,6 +68,12 @@ Widget _harness({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(
       body: BlocProvider(
         create: (_) => ClientHomeCubit(
@@ -158,11 +172,29 @@ void main() {
 
       expect(find.text('Hello, Layla'), findsOneWidget);
       expect(find.text('Everything, One Place'), findsNothing);
+      // The create surface is the mic hero's body now (the "+" icon button is
+      // gone), but the frozen id — and a live tap handler on it — survive.
       expect(
         find.bySemanticsIdentifier('orders_create_request_button'),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('client-home-greeting-add')), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(
+              find.bySemanticsIdentifier('orders_create_request_button'),
+            )
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+        reason:
+            'the create surface must be tappable, not a decorative pane — a '
+            'null host callback is the defect this guards',
+      );
+      // And the mic itself is its own, newly coined target.
+      expect(
+        find.bySemanticsIdentifier('client_home_mic_cta'),
+        findsOneWidget,
+      );
       expect(
         find.bySemanticsIdentifier('orders_filter_pendingRequests'),
         findsOneWidget,
@@ -194,24 +226,21 @@ void main() {
       expect(find.bySemanticsIdentifier('orders_search_bar'), findsNothing);
       handle.dispose();
 
-      expect(find.text('Pending Requests'), findsOneWidget);
+      expect(find.text('Pending'), findsOneWidget);
       expect(find.text('Replies'), findsOneWidget);
       expect(find.text('What do you need?'), findsOneWidget);
       expect(
-        find.text('No pending requests — broadcast a new one to get offers.'),
-        findsOneWidget,
-      );
-      expect(find.text('Create your first request'), findsOneWidget);
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Image &&
-              widget.image is AssetImage &&
-              (widget.image as AssetImage).assetName ==
-                  'assets/illustrations/empty_orders.png',
+        find.text(
+          'No pending requests — say it, and offers from nearby Jeebers '
+          'arrive in minutes.',
         ),
         findsOneWidget,
       );
+      // MIDNIGHT E1: the CTA is the voice capsule, which now carries the empty
+      // state's frozen identifier and its label. No button, no Lottie.
+      expect(find.text('Create your first request'), findsNothing);
+      expect(find.byType(JeebEmptyState), findsOneWidget);
+      expect(find.byType(LottieBuilder), findsNothing);
 
       expect(find.text('No orders yet'), findsNothing);
       expect(find.text('New Order'), findsNothing);
@@ -246,8 +275,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Create your first request'));
-      await tester.tap(find.text('Create your first request'));
+      final cta = find.bySemanticsIdentifier(
+        '_request_empty_state_new_order_button',
+      );
+      await tester.ensureVisible(cta);
+      await tester.tap(cta);
       await tester.pumpAndSettle();
 
       expect(taps, 1);
@@ -349,10 +381,18 @@ void main() {
 
       expect(find.text('ماذا تحتاج؟'), findsOneWidget);
       expect(
-        find.text('لا توجد طلبات معلّقة — أنشئ طلبًا جديدًا لتلقّي العروض.'),
+        find.text(
+          'لا توجد طلبات معلّقة — قلها، وستصلك عروض من جيبرز قريبين خلال دقائق.',
+        ),
         findsOneWidget,
       );
-      expect(find.text('أنشئ أول طلب لك'), findsOneWidget);
+      // The empty CTA is the capsule now; its Arabic label rides the frozen
+      // Semantics node rather than a drawn button.
+      expect(find.text('أنشئ أول طلب لك'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
+        findsOneWidget,
+      );
     });
   });
 
@@ -407,8 +447,8 @@ void main() {
     );
 
     testWidgets(
-      'Replies (screen 14 / JM-027) shows the order id, +N overflow, and '
-      'BOTH CTAs (Check Offers + Accept) with contract identifiers',
+      'Replies (screen 14 / JM-027) shows the order id, +N overflow, and the '
+      'SINGLE View-offers pill with both contract identifiers',
       (tester) async {
         await tester.pumpWidget(
           _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.replies),
@@ -417,9 +457,11 @@ void main() {
 
         expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
         expect(find.text('+6'), findsOneWidget);
-        expect(find.text('Check Offers'), findsOneWidget);
-        // JM-027 added the per-card Accept CTA (→ offer-accept-confirm, JM-029).
-        expect(find.byKey(const Key('replies-accept-rep-1')), findsOneWidget);
+        expect(find.text('View offers'), findsOneWidget);
+        // doc-13 P0-7: the second inline Accept button is gone; the board draws
+        // one pill. `replies_accept_cta` is re-homed onto the card surface.
+        expect(find.byKey(const Key('replies-accept-rep-1')), findsNothing);
+        expect(find.text('Accept'), findsNothing);
 
         // JM-027 AC1/AC2: both CTAs carry the contract Semantics identifiers.
         // (No tap here — the Replies tab now navigates via GoRouter internally,
@@ -463,6 +505,12 @@ void main() {
         );
         expect(
           find.bySemanticsIdentifier('orders_filter_replies'),
+          findsOneWidget,
+        );
+        // JM-027's coined alias, re-homed off the kit segment (which carries
+        // one identifier) onto its own node.
+        expect(
+          find.bySemanticsIdentifier('orders_home_replies_tab'),
           findsOneWidget,
         );
         handle.dispose();
@@ -634,11 +682,15 @@ void main() {
       );
 
       // End-aligned: right edge sits at the trailing gutter, flush with the
-      // card's right edge minus the horizontal padding.
+      // card's inner edge. `replies-card-<id>` keys the full-bleed row, so the
+      // budget is the redesign's screen gutter (24) + the outlined card's own
+      // padding + stroke (16 + 1.5) = 41.5. A centered or start-aligned CTA
+      // lands ~300px away, which is what this still catches.
+      const trailingGutterBudget = 42.0;
       final btnRight = tester.getTopRight(btn).dx;
       final cardRight = tester.getTopRight(card).dx;
       expect(
-        (cardRight - btnRight) < 24,
+        (cardRight - btnRight) < trailingGutterBudget,
         isTrue,
         reason:
             'Check Offers right edge should sit at the trailing gutter; '
@@ -677,14 +729,11 @@ void main() {
       );
     });
 
-    // DEFECT 1 — the create-request top plus must be the filled-navy CTA with a
-    // WHITE icon (Figma 56535:1783), NOT a low-emphasis gray circle. The button
-    // is correct-as-is: it derives fill from colorScheme.primary (navy #0B1351)
-    // and the icon from colorScheme.onPrimary (white) via
-    // OmdsButtonStyles.iconButtonFilled. This locks that role choice so a future
-    // edit to secondaryContainer/onSecondaryContainer (which would render a
-    // muted-purple icon) is caught.
-    testWidgets('top create-request plus uses primary fill + onPrimary icon', (
+    // DEFECT 1 (carried onto MIDNIGHT's voice capsule) — the create surface must
+    // be the frosted-glass capsule with the ORANGE mic, never a low-emphasis
+    // slab. The capsule fill is `glassFillEmphasis` and the mic disc is
+    // `jeebRoles.accent`, so a disabled-gray regression is still caught.
+    testWidgets('create-request capsule uses hero glass + accent mic', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -692,24 +741,56 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final context = tester.element(
-        find.byKey(const Key('client-home-greeting-add')),
-      );
-      final scheme = Theme.of(context).colorScheme;
+      final heroFinder = find.byType(ClientHomeRequestHero);
+      expect(heroFinder, findsOneWidget);
+      final context = tester.element(heroFinder);
+      final accent = context.jeebRoles.accent;
+      final glass =
+          Theme.of(context).extension<JeebSemanticColors>()!;
 
-      final iconButton = tester.widget<IconButton>(
-        find.byKey(const Key('client-home-greeting-add')),
+      expect(
+        find.descendant(
+          of: heroFinder,
+          matching: find.byType(JeebGlassCapsule),
+        ),
+        findsOneWidget,
       );
-      final style = iconButton.style!;
-      const lightStates = <WidgetState>{};
-      final bg = style.backgroundColor!.resolve(lightStates);
-      final fg = style.foregroundColor!.resolve(lightStates);
+      final fills = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: heroFinder,
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .map((decoration) => decoration.color)
+          .toList();
+      expect(
+        fills,
+        contains(glass.glassFillEmphasis),
+        reason: 'the create capsule must render on the hero glass fill',
+      );
 
-      // Navy fill from primary, white icon from onPrimary — matches Figma.
-      expect(bg, scheme.primary);
-      expect(fg, scheme.onPrimary);
-      // And NOT the muted-purple onSecondaryContainer the reviewer proposed.
-      expect(fg, isNot(scheme.onSecondaryContainer));
+      // The mic disc is the one rationed orange on this screen.
+      // `DecoratedBox`, not `Container`: the kit's JeebMicHero paints the disc
+      // with a bare DecoratedBox. Same assertion, current paint node.
+      final micFills = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: find.byType(JeebMicHero),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .map((decoration) => decoration.color)
+          .toList();
+      expect(
+        micFills,
+        contains(accent),
+        reason: 'the mic disc must be jeebRoles.accent, not a disabled gray',
+      );
     });
   });
 }

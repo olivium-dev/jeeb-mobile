@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_man_profile_view_data.dart';
 
-/// Wraps a [DeliveryReviewData] in the shared [OmdsReviewCard] (reuse-table.md:
-/// Ratings/Feedback → feedback-service, use-as-is). Supplies brand-orange stars
-/// ([ColorScheme.primary]) and the verified-client subtitle. Bordered + rounded
-/// to match the Figma card; index drives the Semantics ids QA/Maestro target.
+/// A single review, rendered on the board's white card: [JeebOutlinedCard]
+/// (1.5px `colorScheme.outline`, r16, **no shadow** — outline over shadow) with
+/// a kit [JeebAvatar] identity disc and the `context.jeebText` ramp. The index
+/// drives the Semantics ids QA/Maestro target.
 ///
-/// JM-067: read-only. Helpful/Reply actions are suppressed (`showActions:
-/// false`, D57 — immutable reviews); the reviewer is attributed by first name
-/// only (`reviewerFirstName`, D58).
+/// JM-067: read-only. Helpful/Reply actions are suppressed (D57 — immutable
+/// reviews); the reviewer is attributed by first name only
+/// (`reviewerFirstName`, D58).
 class DeliveryReviewCard extends StatelessWidget {
   const DeliveryReviewCard({
     super.key,
@@ -24,20 +28,13 @@ class DeliveryReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // The frozen wrapper stays at the call site (the kit's documented consumer
+    // idiom) so the node shape QA reads is unchanged by the re-skin.
     return Semantics(
       identifier: 'delivery_man_profile_review_card_$index',
       container: true,
       explicitChildNodes: true,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(Sizes.small),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: _ReviewCardBody(review: review),
-      ),
+      child: JeebOutlinedCard(child: _ReviewCardBody(review: review)),
     );
   }
 }
@@ -51,78 +48,76 @@ class _ReviewCardBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final semantic = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final firstName = review.reviewerFirstName;
     final isAnonymous = firstName.isEmpty;
     final displayName = isAnonymous ? l10n.reviewerAnonymousLabel : firstName;
-    return Padding(
-      padding: const EdgeInsets.all(Spacing.medium),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // OmdsReviewCard derives "?" for every non-Latin initial. Using
-              // the OMDS avatar directly lets an Arabic anonymous label remain
-              // visible while its privacy-safe neutral initial stays stable.
-              OmdsProfileAvatar(
-                initial: isAnonymous ? 'J' : firstName,
-                profilePicUrl: isAnonymous ? null : review.reviewerAvatarUrl,
-                size: Sizes.large * 2,
-              ),
-              const SizedBox(width: Spacing.small),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface,
-                      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // A reviewer with no name on file gets the kit's honest `dormant`
+            // mark rather than a fabricated identity; the neutral 'J' initial
+            // keeps a non-Latin anonymous label from degrading to "?".
+            JeebAvatar.thread(
+              initial: isAnonymous ? 'J' : firstName,
+              imageUrl: isAnonymous ? null : review.reviewerAvatarUrl,
+              fill: isAnonymous
+                  ? JeebAvatarFill.dormant
+                  : JeebAvatarFill.primary,
+            ),
+            const SizedBox(width: Spacing.small),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    style: context.jeebText.cardTitle.copyWith(
+                      color: theme.colorScheme.onSurface,
                     ),
-                    if (review.isVerified) ...[
-                      const SizedBox(height: Spacing.twoXSmall),
-                      Text(
-                        l10n.reviewerVerifiedBadge,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontSize: Sizes.small,
-                        ),
-                      ),
-                    ],
+                  ),
+                  if (review.isVerified) ...[
                     const SizedBox(height: Spacing.twoXSmall),
-                    _ReviewStars(
-                      rating: review.rating,
-                      semanticsLabel: l10n.reviewRatingStarsLabel(
-                        _formatRating(review.rating),
+                    Text(
+                      l10n.reviewerVerifiedBadge,
+                      style: context.jeebText.caption.copyWith(
+                        color: semantic.mutedText,
                       ),
                     ),
                   ],
-                ),
+                  const SizedBox(height: Spacing.twoXSmall),
+                  _ReviewStars(
+                    rating: review.rating,
+                    semanticsLabel: l10n.reviewRatingStarsLabel(
+                      _formatRating(review.rating),
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                l10n.reviewRelativeDaysAgo(review.daysAgo),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: Sizes.small,
-                ),
-              ),
-            ],
-          ),
-          if (review.body.isNotEmpty) ...[
-            const SizedBox(height: Spacing.small),
+            ),
             Text(
-              review.body,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface,
-                height: 1.5,
+              l10n.reviewRelativeDaysAgo(review.daysAgo),
+              // R16's card timestamp, measured: 11.5/w600 `#8A93D8`.
+              style: context.jeebText.caption.copyWith(
+                color: semantic.mutedText,
               ),
             ),
           ],
+        ),
+        if (review.body.isNotEmpty) ...[
+          const SizedBox(height: Spacing.small),
+          Text(
+            review.body,
+            style: context.jeebText.body.copyWith(
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -136,8 +131,12 @@ class _ReviewStars extends StatelessWidget {
   final double rating;
   final String semanticsLabel;
 
+  /// R15's own star pair: `amber` filled, white 22 % (`glassBorderVivid`)
+  /// empty, and never a hollow glyph — the board draws none.
   @override
   Widget build(BuildContext context) {
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Semantics(
       label: semanticsLabel,
       container: true,
@@ -146,19 +145,18 @@ class _ReviewStars extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: List.generate(5, (index) {
             final value = index + 1;
-            final icon = rating >= value
-                ? Icons.star
-                : rating >= value - 0.5
-                ? Icons.star_half
-                : Icons.star_border;
+            final filled = rating >= value;
+            final half = !filled && rating >= value - 0.5;
             return Padding(
               padding: EdgeInsetsDirectional.only(
                 end: index < 4 ? Sizes.threeXSmall : 0,
               ),
               child: Icon(
-                icon,
+                half ? Icons.star_half : Icons.star,
                 size: Sizes.small,
-                color: Theme.of(context).colorScheme.primary,
+                color: filled || half
+                    ? semantic.amber
+                    : semantic.glassBorderVivid,
               ),
             );
           }),

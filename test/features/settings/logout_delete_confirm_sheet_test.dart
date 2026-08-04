@@ -1,30 +1,14 @@
 // JM-062 — Logout / Delete Account confirm sheet (logout-delete-account).
-//
-// Proves, against the real ARBs + OMDS theme, that:
-//   AC1: the sheet surfaces every EXACT Semantics identifier the JM-062 AC names
-//        as its own queryable SemanticsNode — `logout_confirm_cta` (logout mode)
-//        and `delete_confirm_cta` (delete mode) — plus the root + cancel ids.
-//   AC2: tapping `logout_confirm_cta` clears the session via the terminator and
-//        fires `onCompleted` (the host then refreshes SessionCubit + go('/') →
-//        splash → /login, D5).
-//   AC3: tapping `delete_confirm_cta` deletes the account via the terminator and
-//        fires `onCompleted`.
-//   AC4: tapping `logout_delete_cancel_cta` fires `onCancelled` (dismiss) and
-//        does NOT clear the session.
-//
-// Harness mirrors test/features/cancel_request/cancel_request_sheet_test.dart
-// (synchronous LocalizationsDelegate over the real ARBs + a tall surface so
-// nothing is culled). All JM-062 copy keys already exist in the shipped ARBs
-// (signOutDialog*, accountDelete*, appBarSignOut, actionCancel), so no key
-// injection is needed.
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'package:jeeb_mobile/features/settings/domain/account_deletion_policy.dart';
@@ -80,7 +64,6 @@ Widget _harness(Widget child) {
       GlobalCupertinoLocalizations.delegate,
     ],
     // Normally hosted by showModalBottomSheet; mounted directly here so the
-    // widget tree under test is the sheet content (matches CancelRequestSheet).
     home: Scaffold(body: child),
   );
 }
@@ -95,6 +78,38 @@ void main() {
     view.devicePixelRatio = 1.0;
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
+  });
+
+  // MIDNIGHT M3-23/37 lane: `primary` IS #D73B00, so the grabber was drawing a
+  // bright orange bar over a sign-out sheet. Inert chrome takes the .22 rung.
+  testWidgets('the drag handle spends no orange budget', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        LogoutDeleteConfirmSheet(
+          mode: LogoutDeleteMode.logout,
+          terminator: _FakeTerminator(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final BuildContext context =
+        tester.element(find.byType(LogoutDeleteConfirmSheet));
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>()!;
+
+    final Finder handle = find.byWidgetPredicate((Widget w) {
+      if (w is! Container) return false;
+      final Decoration? d = w.decoration;
+      return d is BoxDecoration && d.borderRadius == OmdsBorderRadius.pill;
+    });
+    expect(handle, findsOneWidget);
+    final BoxDecoration decoration =
+        tester.widget<Container>(handle).decoration! as BoxDecoration;
+
+    expect(decoration.color, semantics.glassBorderVivid);
+    expect(decoration.color, isNot(scheme.primary));
   });
 
   group('JM-062 LogoutDeleteConfirmSheet', () {
@@ -144,9 +159,6 @@ void main() {
         'E20 (JEBV4-215) — delete mode communicates the scheduled-purge SLA',
         (tester) async {
       // Proves the soft-delete + scheduled-purge SLA copy renders from the
-      // SHIPPED en ARB (not a fixture): the confirm body must name the purge
-      // grace window (kAccountPurgeGraceDays) and the sign-in-again reversal so
-      // the user knows the deletion is scheduled + cancellable, not immediate.
       await tester.pumpWidget(
         _harness(
           LogoutDeleteConfirmSheet(

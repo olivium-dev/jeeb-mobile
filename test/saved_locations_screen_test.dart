@@ -1,13 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/saved_locations_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:omds/omds.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -84,6 +89,15 @@ class _FlakyRepo extends _FakeRepo {
   }
 }
 
+/// Never resolves, so the first frame is the loading state.
+class _SlowRepo extends _FakeRepo {
+  _SlowRepo() : super(const []);
+
+  @override
+  Future<List<SavedLocation>> fetchSavedLocations() =>
+      Completer<List<SavedLocation>>().future;
+}
+
 /// Sentinel form screen so the `address-detail` route is assertable + carries
 /// the destination id the jm-049 flow expects (`address_form_save_cta`).
 class _FormSentinel extends StatelessWidget {
@@ -134,6 +148,7 @@ GoRouter _router(SavedLocationRepository repo) {
 Widget _harness(GoRouter router, {Locale locale = const Locale('en')}) {
   return MaterialApp.router(
     routerConfig: router,
+    theme: AppTheme.midnight(),
     locale: locale,
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const [
@@ -142,6 +157,12 @@ Widget _harness(GoRouter router, {Locale locale = const Locale('en')}) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // `JeebEmptyState`'s illustrations loop ∞ by design (02-STUDY-NOTES
+    // §Motion), so pumpAndSettle only terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child ?? const SizedBox.shrink(),
+    ),
   );
 }
 
@@ -220,19 +241,46 @@ void main() {
       );
     });
 
-    // Sprint-6 Stream-B polish: empty/error states use the OMDS feedback
-    // widgets (was hand-rolled Icon+Text columns) for fleet consistency.
-    testWidgets('empty state uses OmdsEmptyState with honest zero-state copy',
+    // MIDNIGHT M3-28: empty/error/loading are the §2.7 family, not OMDS.
+    testWidgets('empty state uses JeebEmptyState with honest zero-state copy',
         (tester) async {
       await tester.pumpWidget(_harness(_router(_FakeRepo(const []))));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('saved-locations-empty')), findsOneWidget);
-      expect(find.byType(OmdsEmptyState), findsOneWidget);
+      final empty = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      // `radar` is the one variant that draws no microphone — the settings
+      // subtree's convention. `e1`/`pocket` would put a mic on an address list.
+      expect(empty.variant, JeebEmptyStateVariant.radar);
+      expect(empty.status, JeebEmptyStateStatus.empty);
+      // The ring is the three real SavedLocationCategory glyphs, not radar's
+      // default jeeber initials.
+      expect(
+        empty.medallions?.map((m) => m.icon).toList(),
+        <IconData>[Icons.home, Icons.work, Icons.place],
+      );
       expect(find.text('No saved addresses yet'), findsOneWidget);
     });
 
-    testWidgets('error state uses OmdsErrorState and retry re-runs the load',
+    testWidgets('loading state is the §2.7 loading member, not a bare spinner',
+        (tester) async {
+      await tester.pumpWidget(_harness(_router(_SlowRepo())));
+      await tester.pump();
+
+      expect(find.byKey(const Key('saved-locations-loading')), findsOneWidget);
+      final loading =
+          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      expect(loading.status, JeebEmptyStateStatus.loading);
+      expect(loading.variant, JeebEmptyStateVariant.radar);
+      // The Add CTA stays reachable in every non-fatal state, but disabled
+      // while the first load is in flight.
+      expect(
+        find.bySemanticsIdentifier('saved_address_add_cta'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('error state uses JeebEmptyState and retry re-runs the load',
         (tester) async {
       final repo = _FlakyRepo(
         recoverWith: const [
@@ -248,18 +296,77 @@ void main() {
       await tester.pumpWidget(_harness(_router(repo)));
       await tester.pumpAndSettle();
 
-      // First load threw → OMDS error surface with retry.
+      // First load threw → the §2.7 error member with retry.
       expect(find.byKey(const Key('saved-locations-error')), findsOneWidget);
-      expect(find.byType(OmdsErrorState), findsOneWidget);
+      final error = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      expect(error.status, JeebEmptyStateStatus.error);
+      // The shipped `savedLocationsError` sentence, split at its own full stop.
+      expect(error.headline, 'Could not load saved locations');
+      expect(error.body, 'Please try again.');
       expect(find.text('Try again'), findsOneWidget);
 
       // Retry re-runs the real load (no fabricated data); second load recovers.
-      await tester.tap(find.text('Try again'));
+      // The §2.7 block is taller than a 600pt test viewport, so scroll first.
+      final retry = find.bySemanticsIdentifier('saved_address_error_retry_cta');
+      await tester.ensureVisible(retry);
+      await tester.pumpAndSettle();
+      await tester.tap(retry);
       await tester.pumpAndSettle();
 
       expect(repo.fetchCalls, 2);
       expect(find.byKey(const Key('saved-locations-error')), findsNothing);
       expect(find.text('Home'), findsOneWidget);
     });
+  });
+
+  group('SavedLocationsScreen — MIDNIGHT M3-28', () {
+    testWidgets('mounts the content field with R22\'s top-end glow, still',
+        (tester) async {
+      await tester.pumpWidget(_harness(_router(_FakeRepo.seamSeed())));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<JeebMidnightField>(
+        find.byType(JeebMidnightField).first,
+      );
+      expect(field.variant, JeebFieldVariant.content);
+      expect(field.glowPlacement, JeebFieldGlowPlacement.topEnd);
+      expect(field.animateDecor, isFalse);
+      // Transparent scaffold, so the field is what paints (no navy slab on top).
+      final scaffold = tester.widget<Scaffold>(find.byType(Scaffold).first);
+      expect(scaffold.backgroundColor, Colors.transparent);
+    });
+
+    testWidgets('rows are ONE grouped glass band, R22\'s MORE-card shape',
+        (tester) async {
+      await tester.pumpWidget(_harness(_router(_FakeRepo.seamSeed())));
+      await tester.pumpAndSettle();
+
+      // Two addresses, one card — a card per row was the pass-1 shape.
+      expect(find.byType(JeebOutlinedCard), findsOneWidget);
+      final card = tester.widget<JeebOutlinedCard>(
+        find.byType(JeebOutlinedCard),
+      );
+      expect(card.children.length, 2);
+      expect(card.dividers, isTrue);
+      expect(card.state, JeebCardState.normal);
+    });
+
+    testWidgets(
+      'row glyph and title carry NO orange — colorScheme.primary is #D73B00',
+      (tester) async {
+        await tester.pumpWidget(_harness(_router(_FakeRepo.seamSeed())));
+        await tester.pumpAndSettle();
+
+        final scheme = AppTheme.midnight().colorScheme;
+        final glyph = tester.widget<Icon>(find.byIcon(Icons.home));
+        expect(glyph.color, isNot(scheme.primary));
+        expect(glyph.color, scheme.onSurface);
+
+        final title = tester.widget<Text>(find.text('Home'));
+        expect(title.style?.color, isNot(scheme.primary));
+        expect(title.style?.color, scheme.onSurface);
+        expect(title.style?.fontWeight, FontWeight.w700);
+      },
+    );
   });
 }

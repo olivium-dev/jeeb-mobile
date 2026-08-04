@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
-import '../live_tracking_l10n.dart';
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_stepper.dart';
+import '../../../../l10n/app_localizations.dart';
 
-/// JM-032 AC1: the canonical 4-step order-tracking stepper — Ordered → Picked →
-/// In Transit → Delivered (D70) — the PRIMARY visual of the tracking screen.
+/// JM-032 AC1: the 4-step order-tracking stepper — Ordered → Picked → In
+/// Transit → Delivered (D70) — and the owner of `tracking_stepper` + the four
+/// frozen `tracking_step_*` identifiers.
 ///
-/// Carries the signature id `tracking_stepper` (root) and one assertable
-/// Semantics node per step (`tracking_step_ordered/_picked/_in_transit/
-/// _delivered`, all coined in 63_W1_TEST_PLAN §2.12). The OMDS stepper progress
-/// bar drives the visual fill; the per-step nodes carry the labels + a
-/// done/active/pending state for QA + a11y.
+/// MIDNIGHT R3 draws the kit's BAR form over a `space-between` label row, with
+/// [JeebStepperDoneInk.accent] for R3's orange fill-through.
 class OrderTrackingStepper extends StatelessWidget {
   const OrderTrackingStepper({
     super.key,
@@ -21,14 +22,13 @@ class OrderTrackingStepper extends StatelessWidget {
   /// 0-based index of the CURRENT step (0=Ordered … 3=Delivered).
   final int currentStep;
 
-  /// **Recorded product decision (P6/A5).** Keep the customer's 4-step
-  /// blueprint stepper (Ordered → Picked → In Transit → Delivered, D70).
-  /// At-Door does NOT get a fifth step. Instead, when the row is at the door
-  /// the third step's *label* reads "At Door" — so the state is legible —
-  /// while the semantics identifiers stay `tracking_step_in_transit` (no
-  /// Maestro/E2E churn). This is an explicit decision, not a side effect of
-  /// `trackingStepIndex4`'s collapse.
+  /// **Recorded product decision (P6/A5).** At-Door does NOT get a fifth step:
+  /// the third step's *label* reads "At Door" while its identifier stays
+  /// `tracking_step_in_transit` (no Maestro/E2E churn).
   final bool atDoor;
+
+  /// Gap between the bar row and the label row (board 8).
+  static const double labelGap = 8;
 
   static const _stepIds = <String>[
     'tracking_step_ordered',
@@ -39,99 +39,82 @@ class OrderTrackingStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = LiveTrackingL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     final labels = <String>[
-      l10n.stepOrdered,
-      l10n.stepPicked,
-      // P6/A5: the third step reads "At Door" while the jeeber is at the door.
-      atDoor ? l10n.stepAtDoor : l10n.stepInTransit,
-      l10n.stepDelivered,
+      l10n.trackingStepOrdered,
+      l10n.trackingStepPicked,
+      atDoor ? l10n.activeDeliveryStatusAtDoor : l10n.trackingStepInTransit,
+      l10n.trackingStepCompleted,
     ];
-    final theme = Theme.of(context);
 
     return Semantics(
       identifier: 'tracking_stepper',
       container: true,
+      // Without this the four per-step nodes fold into the root and the frozen
+      // `tracking_step_*` identifiers stop being addressable.
+      explicitChildNodes: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // OMDS progress bar (visual fill). `showStepNumbers: false` — the
-          // labels are rendered as the assertable per-step nodes below so each
-          // step id surfaces as its own Semantics node.
-          OMDSStepperProgress(
-            totalSteps: _stepIds.length,
-            completedSteps: currentStep + 1,
-            progressColor: theme.colorScheme.primary,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          JeebStepper.bars(
+            stepCount: labels.length,
+            currentIndex: currentStep,
+            doneInk: JeebStepperDoneInk.accent,
           ),
-          const SizedBox(height: Spacing.medium),
-          Row(
-            children: [
-              for (var i = 0; i < _stepIds.length; i++)
-                Expanded(
-                  child: _StepNode(
-                    identifier: _stepIds[i],
-                    label: labels[i],
-                    isDone: i < currentStep,
-                    isActive: i == currentStep,
-                  ),
-                ),
-            ],
-          ),
+          const SizedBox(height: labelGap),
+          _LabelRow(labels: labels, currentStep: currentStep),
         ],
       ),
     );
   }
 }
 
-class _StepNode extends StatelessWidget {
-  const _StepNode({
-    required this.identifier,
-    required this.label,
-    required this.isDone,
-    required this.isActive,
-  });
+/// The `space-between` label row — and the owner of the frozen per-step ids.
+class _LabelRow extends StatelessWidget {
+  const _LabelRow({required this.labels, required this.currentStep});
 
-  final String identifier;
-  final String label;
-  final bool isDone;
-  final bool isActive;
+  final List<String> labels;
+  final int currentStep;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final reached = isDone || isActive;
-    final color =
-        reached ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant;
-    return Semantics(
-      identifier: identifier,
-      container: true,
-      selected: isActive,
-      value: label,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isDone
-                ? Icons.check_circle
-                : (isActive
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked),
-            size: Sizes.large,
-            color: color,
-          ),
-          const SizedBox(height: Spacing.xSmall),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: color,
-              fontWeight: reached ? FontWeight.w600 : FontWeight.w400,
+    final accent = context.jeebRoles.accent;
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    final base = context.jeebText.caption;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        for (var index = 0; index < labels.length; index++)
+          Flexible(
+            child: Semantics(
+              identifier: OrderTrackingStepper._stepIds[index],
+              // `value` + `selected` are the frozen contract read by
+              // `tracking_lifecycle_bodies_test.dart` d/e.
+              value: labels[index],
+              selected: index == currentStep,
+              container: true,
+              child: Text(
+                labels[index],
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: index == currentStep
+                    ? base.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w800,
+                      )
+                    : base.copyWith(
+                        color: semantics.mutedText,
+                        fontWeight: FontWeight.w700,
+                      ),
+              ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

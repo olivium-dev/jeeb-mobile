@@ -5,11 +5,32 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_stepper.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/dispute_status_cubit.dart';
 import '../application/dispute_status_state.dart';
 import '../data/empty_dispute_status_repository.dart';
 import '../domain/dispute_status_repository.dart';
 import 'dispute_status_l10n.dart';
+
+/// Board gutter + block rhythm (redesign-2026-08 §4.3): 24px sides, 16px above
+/// the first block. The docked footer owns the bottom edge, so the list only
+/// needs to clear it.
+const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.medium,
+  Spacing.xLarge,
+  Spacing.medium,
+);
 
 /// dispute-status (JM-065). The status screen for a submitted dispute, reached
 /// from dispute-open-evidence (`dispute_submit_cta` → here, JM-060), a
@@ -22,6 +43,23 @@ import 'dispute_status_l10n.dart';
 /// `dispute_status_support` → support-ticket (D76); `dispute_status_back` →
 /// order-chat (the originating thread when the dispute carries a ref, else a
 /// safe pop).
+///
+/// redesign-2026-08: re-skinned onto the Jeeb kit — [JeebTopBar] in-body
+/// header, the lifecycle as a [JeebStepper] (the neighbouring live-tracking
+/// screen's signature band), the state as a role-coloured [JeebInfoNote], the
+/// outcome and evidence as [JeebSectionLabel] + [JeebOutlinedCard] blocks, and
+/// the two edges docked in a [JeebCtaFooter]. Same flow, same copy, same
+/// identifiers.
+///
+/// MIDNIGHT (M3-32) — this screen has no tile of its own; it is derived from
+/// **R3** (live tracking) for the lifecycle band and **R13** (OTP handover) for
+/// the field and the glass strips. R13's board field is
+/// `radial-gradient(520px 440px at 50% 42%, rgba(215,59,0,.26) … 62%)` over the
+/// canonical 175° wash and declares **no periwinkle wash**, so this screen
+/// mounts [JeebFieldVariant.content] anchored [JeebFieldGlowPlacement.centerUpper]
+/// with no `washPlacement` (wave-C ruling: glow and wash are separate layers).
+/// R3's band is the kit's BAR form with [JeebStepperDoneInk.accent]; the three
+/// pre-load frames are the [JeebEmptyState] family.
 ///
 /// Reads the LIVE compliment-service via `sl<DisputeStatusRepository>()`
 /// (DioDisputeStatusRepository; `GET /v1/disputes/:disputeId` mock-ready on
@@ -53,6 +91,17 @@ class DisputeStatusScreen extends StatelessWidget {
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final DisputeStatusRepository? repository;
 
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider<DisputeStatusCubit>(
+      create: (_) => DisputeStatusCubit(
+        repository: _resolveRepository(),
+        disputeId: disputeId,
+      )..load(),
+      child: const _DisputeStatusView(),
+    );
+  }
+
   /// Resolves the repo: an explicit override (tests) → the registered LIVE
   /// `DioDisputeStatusRepository` → an empty fallback when GetIt is not
   /// configured. Mirrors `NotificationsListScreen._resolveRepository()`.
@@ -63,17 +112,6 @@ class DisputeStatusScreen extends StatelessWidget {
       return sl<DisputeStatusRepository>();
     }
     return const EmptyDisputeStatusRepository();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider<DisputeStatusCubit>(
-      create: (_) => DisputeStatusCubit(
-        repository: _resolveRepository(),
-        disputeId: disputeId,
-      )..load(),
-      child: const _DisputeStatusView(),
-    );
   }
 }
 
@@ -86,26 +124,47 @@ class _DisputeStatusView extends StatelessWidget {
     return Semantics(
       identifier: 'dispute_status_root',
       container: true,
-      child: Scaffold(
-        appBar: OMDSAppBar(
-          title: copy.title,
-          showBackButton: true,
-          // The app-bar leading back honours the same edge as the explicit
-          // `dispute_status_back` CTA (→ order-chat / safe pop).
-          onBackPressed: () => _back(context),
-        ),
-        body: BlocBuilder<DisputeStatusCubit, DisputeStatusState>(
-          builder: (context, state) {
-            switch (state.status) {
-              case DisputeStatusViewStatus.initial:
-              case DisputeStatusViewStatus.loading:
-                return const _LoadingBody();
-              case DisputeStatusViewStatus.failed:
-                return _ErrorBody(copy: copy, failure: state.error);
-              case DisputeStatusViewStatus.loaded:
-                return _LoadedBody(copy: copy, dispute: state.dispute!);
-            }
-          },
+      // R13's field: one orange radial at 50%/42% and no periwinkle wash.
+      child: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.centerUpper,
+        animateDecor: false,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          // The board's header is an in-body row, not a Material app bar, so it
+          // renders in every state (loading / failed / loaded) identically.
+          body: SafeArea(
+            child: Column(
+              children: [
+                JeebTopBar(
+                  title: copy.title,
+                  // The bar's back circle honours the same edge as the explicit
+                  // `dispute_status_back` CTA (→ order-chat / safe pop). The id
+                  // stays on that CTA — the contract names one node, not two.
+                  leadingTooltip: copy.backCta,
+                  onLeadingPressed: () => _back(context),
+                ),
+                Expanded(
+                  child: BlocBuilder<DisputeStatusCubit, DisputeStatusState>(
+                    builder: (context, state) {
+                      switch (state.status) {
+                        case DisputeStatusViewStatus.initial:
+                        case DisputeStatusViewStatus.loading:
+                          return _LoadingBody(copy: copy);
+                        case DisputeStatusViewStatus.failed:
+                          return _ErrorBody(copy: copy, failure: state.error);
+                        case DisputeStatusViewStatus.loaded:
+                          return _LoadedBody(
+                            copy: copy,
+                            dispute: state.dispute!,
+                          );
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -130,19 +189,33 @@ class _DisputeStatusView extends StatelessWidget {
   }
 }
 
+/// The cold read. The empty family's `radar` — a case listening for a back
+/// office ruling, with no second party to name, so the identity discs drop
+/// (the M3-22 / M3-37 precedent).
 class _LoadingBody extends StatelessWidget {
-  const _LoadingBody();
+  const _LoadingBody({required this.copy});
+
+  final DisputeStatusL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      identifier: 'dispute_status_loading',
-      container: true,
-      child: const Center(child: OmdsLoadingState()),
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          variant: JeebEmptyStateVariant.radar,
+          status: JeebEmptyStateStatus.loading,
+          medallions: const <JeebEmptyMedallion>[],
+          identifier: 'dispute_status_loading',
+          headline: copy.loadingHeadline,
+        ),
+      ),
     );
   }
 }
 
+/// The failed read. Same illustration, danger-tinted centre (kit ruling 1 —
+/// `JeebEmptyState` resolves error ink to `error` / `onErrorContainer`), and a
+/// glass retry: R13's one non-orange act is the glass pill, never a lit CTA.
 class _ErrorBody extends StatelessWidget {
   const _ErrorBody({required this.copy, required this.failure});
 
@@ -151,39 +224,27 @@ class _ErrorBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(Spacing.large),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline,
-                size: 64, color: theme.colorScheme.error),
-            const SizedBox(height: Spacing.medium),
-            Semantics(
-              identifier: 'dispute_status_error',
-              container: true,
-              child: Text(
-                _message(copy, failure),
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          variant: JeebEmptyStateVariant.radar,
+          status: JeebEmptyStateStatus.error,
+          medallions: const <JeebEmptyMedallion>[],
+          identifier: 'dispute_status_error',
+          headline: _message(copy, failure),
+          action: Semantics(
+            identifier: 'dispute_status_retry_cta',
+            button: true,
+            container: true,
+            child: JeebCtaButton.outline(
+              label: copy.retry,
+              leadingIcon: Icons.refresh,
+              // R13's glass pill runs the full content box; the pass-1
+              // `expand: false` never hugged (see the kit note in the report).
+              expand: true,
+              onTap: () => context.read<DisputeStatusCubit>().refresh(),
             ),
-            const SizedBox(height: Spacing.large),
-            Semantics(
-              identifier: 'dispute_status_retry_cta',
-              button: true,
-              container: true,
-              child: FilledButton.icon(
-                onPressed: () => context.read<DisputeStatusCubit>().refresh(),
-                icon: const Icon(Icons.refresh),
-                label: Text(copy.retry),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -211,50 +272,56 @@ class _LoadedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.medium,
-        Spacing.large,
-        Spacing.medium,
-        Spacing.xLarge,
-      ),
+    return Column(
       children: [
-        _StateCard(copy: copy, dispute: dispute),
-        const SizedBox(height: Spacing.large),
-        // JM-065 AC1: the outcome note ALWAYS renders — a resolved dispute shows
-        // the refund/penalty outcome (D2); an OPEN dispute shows the pending
-        // outcome (the flow asserts `dispute_status_outcome_note` on the open
-        // dispute it seeds). Coined id `dispute_status_outcome_note`.
-        _OutcomeCard(copy: copy, dispute: dispute),
-        const SizedBox(height: Spacing.large),
-        // JM-065 AC1: the evidence summary ALWAYS renders (D53). Coined id
-        // `dispute_status_evidence_summary`.
-        _EvidenceCard(copy: copy, evidence: dispute.evidence),
-        const SizedBox(height: Spacing.xLarge),
-        Semantics(
-          identifier: 'dispute_status_support',
-          button: true,
-          container: true,
-          // EDGE → support-ticket (JM-063, D76). Seed the order ref via `extra`
-          // so the support form can pre-fill the linked order (the support
-          // screen reads a String `extra`).
-          child: OmdsPrimaryButton(
-            text: copy.supportCta,
-            onTap: () => context.goNamed(
-              'support-ticket',
-              extra: dispute.orderRef,
-            ),
+        Expanded(
+          child: ListView(
+            padding: _kBodyPadding,
+            children: [
+              _StatusStepper(copy: copy, dispute: dispute),
+              const SizedBox(height: Spacing.large),
+              _StateCard(copy: copy, dispute: dispute),
+              const SizedBox(height: Spacing.large),
+              // JM-065 AC1: the outcome note ALWAYS renders — a resolved dispute
+              // shows the refund/penalty outcome (D2); an OPEN dispute shows the
+              // pending outcome (the flow asserts `dispute_status_outcome_note`
+              // on the open dispute it seeds). Coined id
+              // `dispute_status_outcome_note`.
+              _OutcomeCard(copy: copy, dispute: dispute),
+              const SizedBox(height: Spacing.large),
+              // JM-065 AC1: the evidence summary ALWAYS renders (D53). Coined id
+              // `dispute_status_evidence_summary`.
+              _EvidenceCard(copy: copy, evidence: dispute.evidence),
+            ],
           ),
         ),
-        const SizedBox(height: Spacing.small),
-        Semantics(
-          identifier: 'dispute_status_back',
-          button: true,
-          container: true,
-          // EDGE → order-chat (back).
-          child: TextButton(
-            onPressed: () => _DisputeStatusView._back(context),
-            child: Text(copy.backCta),
+        // The board docks the two edges (12 `tpl 782`) instead of letting them
+        // scroll: support is reachable without reading to the bottom.
+        JeebCtaFooter.single(
+          below: Semantics(
+            identifier: 'dispute_status_back',
+            button: true,
+            container: true,
+            // EDGE → order-chat (back).
+            child: JeebCtaButton.text(
+              label: copy.backCta,
+              onTap: () => _DisputeStatusView._back(context),
+            ),
+          ),
+          child: Semantics(
+            identifier: 'dispute_status_support',
+            button: true,
+            container: true,
+            // EDGE → support-ticket (JM-063, D76). Seed the order ref via
+            // `extra` so the support form can pre-fill the linked order (the
+            // support screen reads a String `extra`).
+            child: JeebCtaButton(
+              label: copy.supportCta,
+              onTap: () => context.goNamed(
+                'support-ticket',
+                extra: dispute.orderRef,
+              ),
+            ),
           ),
         ),
       ],
@@ -262,8 +329,109 @@ class _LoadedBody extends StatelessWidget {
   }
 }
 
-/// `dispute_status_state` — the Open / Resolved indicator (JM-065 AC). A chip
-/// + label keyed off the dispute lifecycle state.
+/// The dispute lifecycle as **R3's** band — the kit's bar form over a
+/// `space-between` label row, which is what makes this screen read as its
+/// live-tracking neighbour.
+///
+/// Three steps, all derived from data the dispute already carries: it exists,
+/// so it was **submitted**; `isResolved` decides whether review is still the
+/// active step. Nothing here claims a stage the API does not report — an
+/// `unknown` state rests on "under review", exactly as the state label already
+/// does.
+class _StatusStepper extends StatelessWidget {
+  const _StatusStepper({required this.copy, required this.dispute});
+
+  final DisputeStatusL10n copy;
+  final DisputeStatus dispute;
+
+  /// Board `margin-top: 7px` under R3's bar row; 8 is the rung.
+  static const double labelGap = Spacing.xSmall;
+
+  static const List<String> _stepIds = <String>[
+    'dispute_status_step_submitted',
+    'dispute_status_step_review',
+    'dispute_status_step_resolved',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final currentIndex = dispute.isResolved ? 2 : 1;
+    final labels = <String>[
+      copy.stepSubmittedLabel,
+      copy.stepUnderReviewLabel,
+      copy.resolvedLabel,
+    ];
+    return Semantics(
+      identifier: 'dispute_status_stepper',
+      container: true,
+      // Without this the per-step labels fold into the root and their
+      // identifiers stop being addressable (the OrderTrackingStepper rule).
+      explicitChildNodes: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          JeebStepper.bars(
+            stepCount: labels.length,
+            currentIndex: currentIndex,
+            // R3 runs the passed segments ORANGE so the fill reads as one
+            // continuous bar up to and including the active one.
+            doneInk: JeebStepperDoneInk.accent,
+          ),
+          const SizedBox(height: labelGap),
+          _StepLabelRow(labels: labels, currentIndex: currentIndex),
+        ],
+      ),
+    );
+  }
+}
+
+/// R3's `space-between` label row, and the owner of the three per-step
+/// identifiers the bars deliberately exclude.
+class _StepLabelRow extends StatelessWidget {
+  const _StepLabelRow({required this.labels, required this.currentIndex});
+
+  final List<String> labels;
+  final int currentIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final accent = context.jeebRoles.accent;
+    // Board `font-size:10.5px` — the `label` rung, not `caption` (11.5).
+    final base = context.jeebText.label;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        for (var index = 0; index < labels.length; index++)
+          Flexible(
+            child: Semantics(
+              identifier: _StatusStepper._stepIds[index],
+              value: labels[index],
+              selected: index == currentIndex,
+              container: true,
+              child: Text(
+                labels[index],
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: index == currentIndex
+                    ? base.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w800,
+                      )
+                    : base.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// `dispute_status_state` — the Open / Resolved indicator (JM-065 AC), as the
+/// board's strip note. A tone + glyph + label keyed off the dispute lifecycle.
 class _StateCard extends StatelessWidget {
   const _StateCard({required this.copy, required this.dispute});
 
@@ -272,33 +440,22 @@ class _StateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final resolved = dispute.isResolved;
     // Semantic roles: resolved = success, open = warning (attention pending).
-    // Previously primary/tertiary brand hues were doing state duty.
-    final roles = context.jeebRoles;
-    final color = resolved ? roles.success : roles.warning;
+    // The kit's success/warning tones keep their role colours on every surface
+    // — here the state IS the message, so it never re-tones to a quiet grey.
     return Semantics(
       identifier: 'dispute_status_state',
       container: true,
-      child: Row(
-        children: [
-          Icon(
-            resolved ? Icons.check_circle_outline : Icons.hourglass_top_outlined,
-            color: color,
-          ),
-          const SizedBox(width: Spacing.small),
-          Expanded(
-            child: Text(
-              resolved ? copy.resolvedLabel : copy.openLabel,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
+      child: resolved
+          ? JeebInfoNote.success(
+              icon: Icons.check_circle,
+              text: copy.resolvedLabel,
+            )
+          : JeebInfoNote.warning(
+              icon: Icons.hourglass_top,
+              text: copy.openLabel,
             ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -312,34 +469,43 @@ class _OutcomeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final text = context.jeebText;
     final amount = _formattedAmount(dispute);
     final resolved = dispute.isResolved;
+    final note = dispute.note;
     return Semantics(
       identifier: 'dispute_status_outcome_note',
       container: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            copy.outcomeHeading,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          JeebSectionLabel(copy.outcomeHeading),
+          const SizedBox(height: Spacing.small),
+          JeebOutlinedCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  // Resolved → the refund/penalty outcome line (D2); open → the
+                  // pending-outcome body (the dispute is still under review).
+                  resolved
+                      ? copy.outcomeLine(dispute.outcome, amount: amount)
+                      : copy.openBody,
+                  style: text.body.copyWith(color: scheme.onSurface),
+                ),
+                if (note != null && note.isNotEmpty) ...[
+                  const SizedBox(height: Spacing.xSmall),
+                  Text(
+                    note,
+                    style: text.bodySmall.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: Spacing.xSmall),
-          Text(
-            // Resolved → the refund/penalty outcome line (D2); open → the
-            // pending-outcome body (the dispute is still under review).
-            resolved
-                ? copy.outcomeLine(dispute.outcome, amount: amount)
-                : copy.openBody,
-            style: theme.textTheme.bodyMedium,
-          ),
-          if (dispute.note != null && dispute.note!.isNotEmpty) ...[
-            const SizedBox(height: Spacing.small),
-            Text(dispute.note!, style: theme.textTheme.bodySmall),
-          ],
         ],
       ),
     );
@@ -364,42 +530,40 @@ class _EvidenceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final lines = <Widget>[];
+    final rows = <Widget>[];
 
-    void addLine(IconData icon, String text) {
-      lines.add(Padding(
-        padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: Sizes.medium, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: Spacing.small),
-            Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
-          ],
+    void addRow(IconData icon, String title, {String? subtitle}) {
+      rows.add(
+        JeebListRow(
+          icon: icon,
+          title: title,
+          subtitle: subtitle,
+          // Read-only summary: nothing here opens anything, so no chevron
+          // promises a tap that does not exist.
+          showChevron: false,
         ),
-      ));
+      );
     }
 
     final reason = evidence.reason;
     if (reason != null && reason.isNotEmpty) {
-      addLine(Icons.flag_outlined, copy.reasonLabel(reason));
+      addRow(Icons.flag, copy.reasonLabel(reason));
     }
     final comment = evidence.comment;
     if (comment != null && comment.isNotEmpty) {
-      addLine(Icons.notes_outlined, '${copy.evidenceCommentLabel}: $comment');
+      addRow(Icons.notes, copy.evidenceCommentLabel, subtitle: comment);
     }
     if (evidence.photoCount > 0) {
-      addLine(Icons.photo_outlined, copy.photosLabel(evidence.photoCount));
+      addRow(Icons.photo, copy.photosLabel(evidence.photoCount));
     }
     if (evidence.hasVoice) {
-      addLine(Icons.mic_none_outlined, copy.voiceLabel);
+      addRow(Icons.mic, copy.voiceLabel);
     }
     if (evidence.hasChatSnapshot) {
-      addLine(Icons.chat_bubble_outline, copy.chatLabel(evidence.chatMessageCount));
+      addRow(Icons.chat_bubble, copy.chatLabel(evidence.chatMessageCount));
     }
     if (evidence.timelineCount > 0) {
-      addLine(Icons.timeline_outlined, copy.timelineLabel(evidence.timelineCount));
+      addRow(Icons.timeline, copy.timelineLabel(evidence.timelineCount));
     }
 
     return Semantics(
@@ -408,14 +572,20 @@ class _EvidenceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            copy.evidenceHeading,
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
+          JeebSectionLabel(copy.evidenceHeading),
           const SizedBox(height: Spacing.small),
-          ...lines,
+          // Still no CARD for an empty set (an outlined box with nothing in it
+          // implies evidence we do not have) — E4's inline form instead.
+          if (rows.isEmpty)
+            Center(
+              child: JeebEmptyState.compact(
+                variant: JeebEmptyStateVariant.parcel,
+                headline: copy.evidenceEmptyHeadline,
+                identifier: 'dispute_status_evidence_empty',
+              ),
+            )
+          else
+            JeebOutlinedCard.grouped(children: rows),
         ],
       ),
     );

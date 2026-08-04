@@ -8,13 +8,10 @@ import '../../data/location_repository.dart';
 import '../../domain/saved_location.dart';
 import '../../domain/saved_location_repository.dart';
 
-/// Chip row showing the user's saved locations above the map (T-MOB-012 AC3).
-///
-/// Fetches `GET /api/users/me/saved-locations` (live; via the repository) on
-/// first build and renders each
-/// as an [OmdsChip]. Tapping a chip commits the point to the draft and jumps
-/// the map. If no saved locations exist the row is hidden so the map is not
-/// pushed down.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+import 'dart:async';
+
 class SavedLocationsChipRow extends StatefulWidget {
   const SavedLocationsChipRow({
     super.key,
@@ -26,13 +23,10 @@ class SavedLocationsChipRow extends StatefulWidget {
 
   final SavedLocationRepository repository;
 
-  /// Callback fired after the user saves a new location via the bottom sheet.
   final VoidCallback? onLocationSaved;
 
-  /// When non-null, the "save this location" bottom sheet may be offered.
   final (double, double)? pendingLatLng;
 
-  /// Address for the pending pin (may be null if reverse-geocode is in flight).
   final String? pendingAddress;
 
   @override
@@ -177,3 +171,188 @@ class _LocationChip extends StatelessWidget {
   }
 }
 
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED.
+
+/// The canvas box for the picker header: phone width, and tall enough that the
+const Size _savedLocationsChipRowBox = Size(390, 200);
+
+/// Marks the map stand-in so the render test can measure where the map starts.
+/// Whether the row pushed the map down is the whole of AC3, and measuring this
+const Key savedLocationsChipRowPreviewMapKey =
+    Key('saved-locations-chip-row-preview-map');
+
+class _SavedLocationsChipRowMapStandIn extends StatelessWidget {
+  const _SavedLocationsChipRowMapStandIn({required this.fixture});
+
+  /// Which fake fed [SavedLocationsChipRow] — `home + work`, `empty list`,
+  /// `fetch never lands`, … Rendered so a preview wired to the wrong fake
+  final String fixture;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Container(
+      key: savedLocationsChipRowPreviewMapKey,
+      width: double.infinity,
+      color: theme.colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.all(12),
+      alignment: Alignment.topLeft,
+      child: Text(
+        // Forced LTR: this line is diagnostic, not shipped copy, and a latin
+        'fixture: $fixture',
+        textDirection: TextDirection.ltr,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+class _SavedLocationsChipRowFakeRepository implements SavedLocationRepository {
+  const _SavedLocationsChipRowFakeRepository(this.locations);
+
+  final List<SavedLocation> locations;
+
+  @override
+  Future<List<SavedLocation>> fetchSavedLocations() async => locations;
+
+  @override
+  Future<SavedLocation> saveLocation({
+    required double latitude,
+    required double longitude,
+    required String label,
+    required SavedLocationCategory category,
+    String? address,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<SavedLocation> updateLocation({
+    required String id,
+    required double latitude,
+    required double longitude,
+    required String label,
+    required SavedLocationCategory category,
+    String? address,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> deleteLocation(String id) => throw UnimplementedError();
+}
+
+class _SavedLocationsChipRowPendingRepository extends _SavedLocationsChipRowFakeRepository {
+  const _SavedLocationsChipRowPendingRepository() : super(const <SavedLocation>[]);
+
+  @override
+  Future<List<SavedLocation>> fetchSavedLocations() =>
+      Completer<List<SavedLocation>>().future;
+}
+
+class _SavedLocationsChipRowFailingRepository extends _SavedLocationsChipRowFakeRepository {
+  const _SavedLocationsChipRowFailingRepository() : super(const <SavedLocation>[]);
+
+  @override
+  Future<List<SavedLocation>> fetchSavedLocations() async =>
+      throw const SavedLocationException('GET saved-locations failed');
+}
+
+/// The `has_saved_addresses` seam seed (63_W1_TEST_PLAN §4.1), reused verbatim
+/// from `test/saved_locations_screen_test.dart` so the canvas and the existing
+const SavedLocation _savedLocationsChipRowHome = SavedLocation(
+  id: 'addr-client-001-home',
+  label: 'Home',
+  latitude: 33.8869,
+  longitude: 35.5131,
+  category: SavedLocationCategory.home,
+  address: 'Sassine Square, Ashrafieh',
+  isDefault: true,
+);
+
+const SavedLocation _savedLocationsChipRowOffice = SavedLocation(
+  id: 'addr-client-001-office',
+  label: 'Office',
+  latitude: 33.8938,
+  longitude: 35.5018,
+  category: SavedLocationCategory.work,
+  address: 'Downtown Beirut',
+);
+
+Widget _savedLocationsChipRowHosted(SavedLocationRepository repository, {required String fixture}) {
+  return BlocProvider<LocationPickerCubit>(
+    // Chip taps call `context.read<LocationPickerCubit>().selectSearchResult`,
+    create: (_) => LocationPickerCubit(repository: InMemoryLocationRepository()),
+    child: Column(
+      mainAxisSize: MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        SavedLocationsChipRow(repository: repository),
+        Expanded(child: _SavedLocationsChipRowMapStandIn(fixture: fixture)),
+      ],
+    ),
+  );
+}
+
+Widget _savedLocationsChipRowWithLocations(List<SavedLocation> locations, {required String fixture}) =>
+    _savedLocationsChipRowHosted(_SavedLocationsChipRowFakeRepository(locations), fixture: fixture);
+
+@JeebPreview(group: 'location', name: 'Home + Work', size: _savedLocationsChipRowBox)
+Widget savedLocationsChipRowHomeAndWork() => _savedLocationsChipRowWithLocations(
+      const <SavedLocation>[_savedLocationsChipRowHome, _savedLocationsChipRowOffice],
+      fixture: 'home + work',
+    );
+
+@JeebPreview(group: 'location', name: 'Other · long + unnamed', size: _savedLocationsChipRowBox)
+Widget savedLocationsChipRowOtherLabels() => _savedLocationsChipRowWithLocations(
+      const <SavedLocation>[
+        SavedLocation(
+          id: 'addr-client-001-souks',
+          label: 'Beirut Souks — Parking Level B2, Weygand Street',
+          latitude: 33.8975,
+          longitude: 35.5062,
+          category: SavedLocationCategory.other,
+          address: 'Beirut Souks, Weygand Street',
+        ),
+        SavedLocation(
+          id: 'addr-client-001-unnamed',
+          label: '',
+          latitude: 33.8912,
+          longitude: 35.4955,
+          category: SavedLocationCategory.other,
+          address: 'Hamra Street',
+        ),
+      ],
+      fixture: 'long + unnamed',
+    );
+
+@JeebPreview(group: 'location', name: 'Ten saved · at the cap', size: _savedLocationsChipRowBox)
+Widget savedLocationsChipRowAtCap() => _savedLocationsChipRowWithLocations(
+      <SavedLocation>[
+        _savedLocationsChipRowHome,
+        _savedLocationsChipRowOffice,
+        for (int i = 1; i <= 8; i++)
+          SavedLocation(
+            id: 'addr-client-001-other-$i',
+            label: 'Address $i',
+            latitude: 33.88 + i / 1000,
+            longitude: 35.50 + i / 1000,
+            category: SavedLocationCategory.other,
+            address: 'Beirut $i',
+          ),
+      ],
+      fixture: 'ten at the cap',
+    );
+
+@JeebPreview(group: 'location', name: 'Empty · row hidden', size: _savedLocationsChipRowBox)
+Widget savedLocationsChipRowEmpty() =>
+    _savedLocationsChipRowWithLocations(const <SavedLocation>[], fixture: 'empty list');
+
+@JeebPreview(group: 'location', name: 'Loading · row hidden', size: _savedLocationsChipRowBox)
+Widget savedLocationsChipRowLoading() =>
+    _savedLocationsChipRowHosted(const _SavedLocationsChipRowPendingRepository(), fixture: 'fetch never lands');
+
+@JeebPreview(group: 'location', name: 'Fetch failed · row hidden', size: _savedLocationsChipRowBox)
+Widget savedLocationsChipRowFetchFailed() =>
+    _savedLocationsChipRowHosted(const _SavedLocationsChipRowFailingRepository(), fixture: 'fetch throws');

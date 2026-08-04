@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_chat_bubble.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_chat_message.dart';
 import 'chat_bubble_timestamp.dart';
 
-/// Offer card landing in the broadcasting chat (Figma node 56535:6659).
-///
-/// Mirrors the Figma layout: a grey incoming-style card carrying the Jeeber's
-/// name + inline star rating on the header row, the offer note as the body,
-/// and a footer with the timestamp, a navy "Accept Offer" pill, and a Decline
-/// button. The screen hands [onAccept]/[onDecline] to the cubit.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+
 class OfferCardBubble extends StatelessWidget {
   const OfferCardBubble({
     super.key,
@@ -65,7 +67,10 @@ class OfferCardBubble extends StatelessWidget {
   }
 }
 
-/// Accept + Decline row in the offer card footer.
+/// In-bubble actions sit at the 48 dp a11y floor, not at the screen-CTA rungs:
+/// a h50/h56 pill inside a chat bubble is out of scale and grows the card.
+const double _kInBubbleCtaHeight = 48;
+
 class _OfferActions extends StatelessWidget {
   const _OfferActions({
     required this.payload,
@@ -83,25 +88,31 @@ class _OfferActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Wrap, not Row: at 320 pt the two pills do not fit on one line inside the
+    // bubble, and a clipped Accept is worse than a stacked pair. IntrinsicWidth
+    // because a kit CTA fills any BOUNDED width it is handed, and Wrap bounds.
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: Spacing.small,
+      runSpacing: Spacing.twoXSmall,
       children: [
-        if (onDecline != null) ...[
-          _DeclineButton(payload: payload, onDecline: onDecline!),
-          const SizedBox(width: Spacing.small),
-        ],
-        _AcceptButton(
-          payload: payload,
-          isAccepting: isAccepting,
-          acceptDisabled: acceptDisabled,
-          onAccept: onAccept,
+        if (onDecline != null)
+          IntrinsicWidth(
+            child: _DeclineButton(payload: payload, onDecline: onDecline!),
+          ),
+        IntrinsicWidth(
+          child: _AcceptButton(
+            payload: payload,
+            isAccepting: isAccepting,
+            acceptDisabled: acceptDisabled,
+            onAccept: onAccept,
+          ),
         ),
       ],
     );
   }
 }
 
-/// Navy "Accept Offer" pill in the offer card footer.
 class _AcceptButton extends StatelessWidget {
   const _AcceptButton({
     required this.payload,
@@ -124,20 +135,22 @@ class _AcceptButton extends StatelessWidget {
       label: '${l10n.chatOfferAccept}: ${payload.jeeberName}, '
           '${payload.fee} ${payload.currency}, '
           '${l10n.chatOfferEtaMinutes(payload.etaMinutes)}',
-      child: OmdsPrimaryButton(
+      // The one orange act on the card; the label swaps rather than collapsing
+      // to a spinner, because AC1 pins the "Accepting…" text.
+      child: JeebCtaButton.accent(
         key: Key('chat-offer-accept-${payload.offerId}'),
-        text: isAccepting ? l10n.chatOfferAccepting : l10n.chatOfferAccept,
+        label: isAccepting ? l10n.chatOfferAccepting : l10n.chatOfferAccept,
+        expand: false,
+        height: _kInBubbleCtaHeight,
         onTap: () {
           if (acceptDisabled || isAccepting) return;
           onAccept(payload.offerId);
         },
-        borderRadius: OmdsBorderRadius.pill,
       ),
     );
   }
 }
 
-/// Outlined "Decline" button in the offer card footer.
 class _DeclineButton extends StatelessWidget {
   const _DeclineButton({
     required this.payload,
@@ -154,18 +167,18 @@ class _DeclineButton extends StatelessWidget {
       identifier: 'chat_detail_decline_${payload.offerId}',
       button: true,
       label: '${l10n.chatOfferDecline}: ${payload.jeeberName}',
-      child: OmdsPrimaryButton(
+      child: JeebCtaButton(
         key: Key('chat-offer-decline-${payload.offerId}'),
-        text: l10n.chatOfferDecline,
+        label: l10n.chatOfferDecline,
+        variant: JeebCtaVariant.outline,
+        expand: false,
+        height: _kInBubbleCtaHeight,
         onTap: () => onDecline(payload.offerId),
-        borderRadius: OmdsBorderRadius.pill,
-        variant: OmdsButtonVariant.outlined,
       ),
     );
   }
 }
 
-/// Small circular counterpart avatar pinned outside the card, leading edge.
 class _OfferAvatar extends StatelessWidget {
   const _OfferAvatar({required this.payload});
 
@@ -173,18 +186,13 @@ class _OfferAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return OmdsProfileAvatar(
-      initial: payload.jeeberName.isEmpty ? 'J' : payload.jeeberName.characters.first,
-      profilePicUrl: payload.jeeberAvatarUrl,
-      size: Sizes.threeXLarge,
-      backgroundColor: colorScheme.surfaceContainer,
-      initialColor: colorScheme.primary,
+    return JeebAvatar.thread(
+      initial: payload.jeeberName.isEmpty ? 'J' : payload.jeeberName,
+      imageUrl: payload.jeeberAvatarUrl,
     );
   }
 }
 
-/// Grey card body: header (name + stars), note, then footer (time + CTA).
 class _OfferCardBody extends StatelessWidget {
   const _OfferCardBody({required this.message, required this.child});
 
@@ -193,17 +201,19 @@ class _OfferCardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final payload = message.offerPayload!;
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: const BorderRadiusDirectional.only(
-          topStart: Radius.circular(Spacing.twoXSmall),
-          topEnd: Radius.circular(Spacing.small),
-          bottomStart: Radius.circular(Spacing.small),
-          bottomEnd: Radius.circular(Spacing.small),
+        // The offer card IS an incoming bubble: same rest-glass rung and same
+        // tail corner as every other counterpart message on the thread.
+        color: JeebChatBubble.fillOf(context, JeebChatBubbleSide.incoming),
+        border: Border.all(
+          color: JeebChatBubble.borderInkOf(
+            context,
+            JeebChatBubbleSide.incoming,
+          ),
         ),
+        borderRadius: JeebChatBubble.radiusOf(JeebChatBubbleSide.incoming),
       ),
       padding: const EdgeInsets.all(Spacing.medium),
       child: Column(
@@ -225,7 +235,6 @@ class _OfferCardBody extends StatelessWidget {
   }
 }
 
-/// Header row: Jeeber name (start) + inline star rating (end).
 class _OfferHeader extends StatelessWidget {
   const _OfferHeader({required this.payload});
 
@@ -234,31 +243,30 @@ class _OfferHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
           child: Text(
             payload.jeeberName,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
+            style: context.jeebText.cardTitle.copyWith(
+              color: theme.colorScheme.onSurface,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ),
         if (payload.rating > 0)
-          // a11y (JEBV4-98 / F13): the display suppresses the numeric value and
-          // review count, so — unlike offer_card.dart — the bare stars announce
-          // nothing to a screen reader. A Semantics label carries the rating.
           Semantics(
             label: l10n.chatOfferRatingA11y(payload.rating.toStringAsFixed(1)),
             child: ExcludeSemantics(
               child: OmdsStarRatingDisplay(
                 averageRating: payload.rating,
                 starSize: Sizes.medium,
-                activeColor: theme.colorScheme.tertiary,
+                // §3: stars are amber, deliberately off the accent budget.
+                activeColor: semantics.amber,
                 showRatingValue: false,
                 showReviewCount: false,
               ),
@@ -269,7 +277,6 @@ class _OfferHeader extends StatelessWidget {
   }
 }
 
-/// The free-text offer note (Figma copy carries the price inline).
 class _OfferNote extends StatelessWidget {
   const _OfferNote({required this.payload});
 
@@ -277,16 +284,139 @@ class _OfferNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final note = payload.note.isNotEmpty
         ? payload.note
         : AppLocalizations.of(context)
             .chatOfferEtaMinutes(payload.etaMinutes);
     return Text(
       note,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        color: theme.colorScheme.onSurface,
-      ),
+      style: JeebChatBubble.bodyStyleOf(context, JeebChatBubbleSide.incoming),
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+// Widget previews for [OfferCardBubble] — run with
+
+/// A phone-width card box. Height covers header + note + clock + CTA row.
+const Size _offerCardBubbleCardBox = Size(390, 220);
+
+/// Builds the card exactly the way `chat_screen.dart` `_MessageRow` does.
+/// [declined] collapses the three things production changes at once when the
+Widget _offerCardBubbleHosted({
+  required String offerId,
+  required String jeeberName,
+  String note = 'Fast delivery guaranteed',
+  double fee = 35.0,
+  String currency = 'USD',
+  int etaMinutes = 20,
+  double rating = 4.8,
+  bool isAccepting = false,
+  bool acceptDisabled = false,
+  bool declined = false,
+  bool hasServerTimestamp = true,
+}) {
+  final Widget card = OfferCardBubble(
+    message: DeliveryChatMessage.offerCard(
+      id: 'msg-$offerId',
+      author: ChatAuthor.them,
+      sentAt: DateTime(2026, 6, 1, 12, 34),
+      status: MessageStatus.delivered,
+      hasServerTimestamp: hasServerTimestamp,
+      payload: OfferCardPayload(
+        offerId: offerId,
+        jeeberId: 'j-$offerId',
+        jeeberName: jeeberName,
+        fee: fee,
+        currency: currency,
+        etaMinutes: etaMinutes,
+        note: note,
+        rating: rating,
+      ),
+    ),
+    onAccept: (_) {},
+    onDecline: declined ? null : (_) {},
+    isAccepting: isAccepting,
+    acceptDisabled: acceptDisabled || declined,
+  );
+  return declined ? Opacity(opacity: 0.4, child: card) : card;
+}
+
+/// The happy path: a live offer in a broadcasting chat, both actions armed.
+/// This is the reference rendering every other state is read against — and the
+@JeebPreview(group: 'chat', name: 'Live offer', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleLiveOffer() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-live',
+      jeeberName: 'Kamal Hajj',
+    );
+
+/// Accept tapped, saga in flight (`state.acceptingOfferId == offerId`).
+/// Two things to check. The label swaps to "Accepting…" — a *shorter* string in
+@JeebPreview(group: 'chat', name: 'Accept in flight', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleAccepting() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-accepting',
+      jeeberName: 'Rami Aoun',
+      isAccepting: true,
+    );
+
+/// A rival offer is being accepted, so THIS card's Accept is locked
+/// (`acceptingOfferId != null && !isAccepting`).
+@JeebPreview(group: 'chat', name: 'Accept locked (rival winning)', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleAcceptLocked() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-locked',
+      jeeberName: 'Nour Haddad',
+      fee: 42.0,
+      etaMinutes: 35,
+      acceptDisabled: true,
+    );
+
+/// Declined: the 40%-opacity, Accept-only card the timeline keeps in place
+/// after the client turns the offer down.
+@JeebPreview(group: 'chat', name: 'Declined', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleDeclined() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-declined',
+      jeeberName: 'Layla Nasr',
+      note: 'I can be there in 15 minutes.',
+      fee: 28.0,
+      etaMinutes: 15,
+      rating: 4.9,
+      declined: true,
+    );
+
+/// The bare payload a brand-new jeeber sends: no note, no rating yet.
+/// Two fallbacks fire at once and both are load-bearing:
+@JeebPreview(group: 'chat', name: 'No note, no rating', size: _offerCardBubbleCardBox)
+Widget offerCardBubbleBarePayload() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-bare',
+      jeeberName: 'Nadine Khoury',
+      note: '',
+      fee: 12.0,
+      etaMinutes: 12,
+      rating: 0,
+    );
+
+/// Longest plausible content: a full tripartite Arabic-transliterated name and
+/// a two-sentence note.
+@JeebPreview(group: 'chat', name: 'Long name + long note', size: Size(390, 320))
+Widget offerCardBubbleLongContent() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-long',
+      jeeberName: 'Abdulrahman Al-Muhandis Al-Trabulsi',
+      note: 'I am two streets away and can take the parcel right now, but the '
+          'building has no lift so please meet me at the door.',
+      fee: 120.0,
+      etaMinutes: 90,
+      rating: 5.0,
+    );
+
+/// A history row the server returned with no usable timestamp
+/// (`hasServerTimestamp: false`).
+@JeebPreview(group: 'chat', name: 'Undated row (no clock)', size: Size(390, 200))
+Widget offerCardBubbleUndated() => _offerCardBubbleHosted(
+      offerId: 'offer-preview-undated',
+      jeeberName: 'Ziad Sfeir',
+      note: 'Still available if you need it.',
+      etaMinutes: 25,
+      rating: 4.2,
+      hasServerTimestamp: false,
+    );

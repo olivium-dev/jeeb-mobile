@@ -1,41 +1,4 @@
 // BILATERAL EMPTY-THREAD regression.
-//
-// SYMPTOM (both participants, physical devices): an existing conversation with
-// dozens of messages rendered as the "start the conversation" empty state. The
-// jeeber's thread was empty from the moment it opened; the customer's thread
-// showed only its own optimistic bubbles and collapsed to empty on the first
-// app resume.
-//
-// ROOT CAUSE: `GET /v1/conversations/{id}/messages` answers 200 with the whole
-// thread, but the gateway's message projection carries NO timestamp field, and
-// `DioChatGateway._isValidHistoryRow` hard-rejected every row that lacked one:
-//
-//     if (rawTimestamp is! String) return false;   // ← rejected 100% of rows
-//
-// so the decode produced ZERO messages on every read, for both viewers. Two
-// client-side amplifiers made it silent and unrecoverable:
-//   * `loadHistory` discarded `ChatHistoryBatch.malformedCount`, so 44 rejected
-//     rows reached the UI as "the conversation is empty", logged nowhere;
-//   * `ChatCubit.refresh()` (bound to `AppLifecycleState.resumed`) did
-//     `messages: List.unmodifiable(history)` — a full replace — so the empty
-//     decode wiped the customer's optimistic bubbles.
-//
-// WHAT THIS TEST PINS. The wire SHAPE below is the shape of a real captured 200
-// body: the exact key union (`message_id, kind, subtype, author_id, audience,
-// payload, body` — and nothing else), `payload: null` + string `body` for text,
-// `body: null` + `payload: {url}` for an image, and no timestamp on any row.
-// Ids/authors are synthetic; the raw capture with its real ids stays in the
-// local evidence file for this batch and is deliberately not reproduced here.
-//
-// Covered, per the DoD, through the REAL `DioChatGateway` + REAL `ChatCubit` +
-// REAL `ChatScreen`:
-//   1. on open                       — `load()` renders every row, in server order
-//   2. after a push-driven re-pull   — no loss, no duplication
-//   3. after background → resume     — `refresh()` keeps the thread AND the
-//                                      sender's own messages
-//   4. after an inbound push/frame   — the new message is added, nothing is lost
-//   5. NEGATIVE CONTROLS             — the render check can go red, and identity
-//                                      rows are still rejected
 library;
 
 import 'dart:async';
@@ -56,9 +19,6 @@ const _conversationId = 'conv-empty-thread';
 const _customerId = 'user-customer-0001';
 const _jeeberId = 'user-jeeber-0002';
 
-// ---------------------------------------------------------------------------
-// The wire: a 200 body in the projection shape that caused the bug — every row
-// timestamp-less. `_row` never emits a timestamp key of any alias.
 // ---------------------------------------------------------------------------
 
 Map<String, Object?> _textRow(String id, String author, String body) =>
@@ -113,7 +73,6 @@ class _ChatWire {
           final path = options.path;
           Object? body;
           // Both the full-history read and the (unused-in-prod) delta read
-          // live under `.../messages`.
           if (options.method == 'GET' && path.contains('/messages')) {
             historyReads++;
             body = <String, Object?>{'messages': rows};
@@ -203,8 +162,6 @@ Future<void> _settle(WidgetTester tester) => tester.pumpAndSettle(
 
 void main() {
   // b02 P0: the resume bus is a process-wide singleton with a coalescing floor;
-  // reset it per test so one case's window does not swallow the next case's
-  // genuine resume.
   setUp(() async => AppResumeSignals.debugReset());
 
   group('a timestamp-less 200 body renders as a thread, not as empty', () {
@@ -251,8 +208,6 @@ void main() {
     });
 
     // N4: was "STATE 2 (poll tick) — a safety-net poll neither loses nor
-    // duplicates". The poll is deleted; the merge it exercised is not, and the
-    // merge is what this case is about. Trigger swapped, assertions identical.
     test('STATE 2 (push re-pull) — a push-driven re-pull neither loses nor '
         'duplicates', () async {
       final wire = _ChatWire();
@@ -290,8 +245,6 @@ void main() {
         expect(cubit.state.messages, hasLength(12));
 
         // The customer sends two messages. The server accepts them but has not
-        // echoed them into the history read yet, so they exist only as the
-        // optimistic bubbles the send path appended.
         cubit.composerChanged('own-message-A');
         await cubit.sendText();
         cubit.composerChanged('own-message-B');
@@ -336,7 +289,6 @@ void main() {
         expect(cubit.state.messages, hasLength(13));
 
         // The server now returns that message, with a SERVER id that can never
-        // match the optimistic client id.
         wire.rows = [
           ..._thread(),
           _textRow('srv-echo-A', _customerId, 'own-message-A'),
@@ -361,10 +313,6 @@ void main() {
       'already rendered is lost',
       () async {
         // Scoped claim: no chat push path calls back into ChatCubit today
-        // (searched lib/core/notifications/**), so a push reaches the open
-        // thread only as an app resume (STATE 3) or as the next inbound
-        // frame/poll merge. This pins the merge half: the inbound path is
-        // additive over a thread decoded from timestamp-less rows.
         final wire = _ChatWire();
         final cubit = _cubit(
           _gateway(wire, viewerId: _jeeberId),
@@ -378,7 +326,6 @@ void main() {
           _textRow('srv-pushed', _customerId, 'pushed message'),
         ];
         // A push wakes the thread; the refetch it triggers must ADD the pushed
-        // message, not swap the thread for it.
         await cubit.refresh();
 
         expect(cubit.state.messages, hasLength(13));
@@ -392,8 +339,6 @@ void main() {
       (tester) async {
         final wire = _ChatWire();
         // The screen owns the cubit here (production wiring): inside
-        // `testWidgets` the clock is faked, so Dio's internal timers only fire
-        // while the tester pumps — awaiting a hand-rolled `load()` would block.
         await tester.pumpWidget(
           wrapForTest(
             ChatScreen(
@@ -413,8 +358,6 @@ void main() {
         );
         expect(find.byKey(ChatScreen.messageListKey), findsOneWidget);
         // The list auto-scrolls to the newest message, so assert on rows that
-        // are actually laid out (a ListView.builder never builds off-screen
-        // children).
         expect(find.text('row-12 customer'), findsOneWidget);
         expect(find.text('row-11 jeeber'), findsOneWidget);
         // No fabricated clock/date over timestamp-less rows.
@@ -422,8 +365,6 @@ void main() {
         expect(find.text('00:00'), findsNothing);
 
         // b02 P0: a bare `inactive → resumed` is now a FOCUS FLAP that
-        // deliberately refetches nothing. This test means a real background
-        // trip, so drive the full legal transition chain through `paused`.
         for (final s in const <AppLifecycleState>[
           AppLifecycleState.inactive,
           AppLifecycleState.hidden,

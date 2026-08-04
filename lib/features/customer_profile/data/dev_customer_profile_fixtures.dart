@@ -1,19 +1,15 @@
 import '../domain/customer_profile_view_data.dart';
 
-/// Deterministic fixture for the Customer Profile dev-seam capture path
-/// (`jeeb.route=/profile/customer`). Mirrors the Figma comp (Sami Fawaz, a
-/// verified, not-yet-Jeeber customer) so a single dev APK renders screen 18
-/// without a rebuild. The router only instantiates this under `kDebugMode`;
-/// release builds render `ProfileUnavailableScreen` instead of this PII.
 abstract final class DevCustomerProfileFixtures {
+  /// No `avatarUrl`: the old `i.pravatar.cc` value reached the network from
+  /// every harness that mounted it (`CachedNetworkImage` → `path_provider`,
+  /// which throws `MissingPluginException` under `flutter test`). The disc
+  /// draws the designed initial instead — nothing is faked.
   static const CustomerProfileViewData sample = CustomerProfileViewData(
     name: 'Sami Fawaz',
     email: 'kamalhaaj@gmail.com',
-    avatarUrl: 'https://i.pravatar.cc/150?img=12',
     isVerified: true,
     isJeeber: false,
-    // Per-role rating (D6) so the dev capture path renders the rated header
-    // chip; the live getMe refresh (JM-035) replaces it with the real value.
     rating: 4.8,
     ratingCount: 27,
   );

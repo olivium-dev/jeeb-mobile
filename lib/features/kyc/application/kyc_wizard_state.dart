@@ -125,6 +125,20 @@ class KycWizardState extends Equatable {
     }
   }
 
+  /// The 1-based capture step the user is currently ON — the header label and
+  /// the segmented progress bar both read this, so the two can never disagree
+  /// (they used to: the label clamped [completedCaptureSteps] to 1 while the
+  /// bar rendered the raw count). [completedCaptureSteps] is deliberately
+  /// unchanged — `KycStatusView` still reads it.
+  int get currentCaptureStep =>
+      (completedCaptureSteps + 1).clamp(1, totalCaptureSteps);
+
+  /// Presentation-only gate for the selfie row: step 2 opens once both ID
+  /// sides exist. NEVER enforce this in the cubit — six wizard tests and the
+  /// JM-040 Maestro flow drive `captureSelfie()` directly because the OS
+  /// camera is not scriptable (JEBV4-295).
+  bool get isSelfieUnlocked => submission.hasIdFront && submission.hasIdBack;
+
   /// Whether the identity screen has everything it needs to submit: both ID
   /// sides, a selfie, a contract-valid ID number (E3/JEBV4-197 — required for
   /// every [KycIdType]), and the ToS acceptance — and no capture in flight.

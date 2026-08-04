@@ -7,24 +7,54 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/friendly_reference.dart';
 import '../../../core/jeeb_commission.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_money_breakdown.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_surface_tone.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../wallet/domain/wallet_repository.dart';
 import '../application/offer_submission_cubit.dart';
 import '../domain/offer_eta_band.dart';
 import '../domain/offer_submission_repository.dart';
 import 'offer_composer_l10n.dart';
+import 'widgets/jeeb_money_field.dart';
 
 /// Structured Offer Composer — JM-045 (blueprint `offer-composer`, economics
 /// layer G3). Route `/jeeber/requests/:id/offer` (name `jeeber-offer-submission`).
 ///
 /// Replaces the old plain price/ETA/note form with the D-decided economics
-/// surface (root id `offer_composer_root`):
-///   * `offer_composer_order_ref`   — "Your offer · ORD-…" header (AC3).
+/// surface (root id `offer_composer_root`), rebuilt on the MIDNIGHT board
+/// (R17): in-body [JeebTopBar], money field with `±1` steppers, three inline
+/// ETA pills, placeholder-only note, an untitled money breakdown, the wallet
+/// strip and a docked ORANGE CTA that restates what the Jeeber keeps.
+///
+/// MIDNIGHT: R17 has **zero animated elements** (03-MOTION-NOTES), so the field
+/// renders its rest frame (`animateDecor: false`). The orange budget is the
+/// four moments the tile draws and no more: the price field's 2px stroke +
+/// halo, the `You keep` figure (`onAccentContainer`, painted by
+/// [JeebMoneyBreakdown]), the wallet strip's `Top up` link, and the CTA.
+///   * `offer_composer_order_ref`   — "ORD-…" header subtitle (AC3).
 ///   * `offer_composer_price_field` — the Jeeber's offer price.
+///   * `offer_composer_offer_line`  — the bid, echoed in the breakdown.
 ///   * `offer_composer_fee_line`    — exact 10% platform fee (D37/D44).
-///   * `offer_composer_net_line`    — "You earn (cash)" net-per-offer (D44).
+///   * `offer_composer_net_line`    — **"You keep" = price − platform fee**
+///     (redesign C2; it used to read "You earn (cash)" = the full price. The
+///     cash the customer hands over is still the full offer — the fee is taken
+///     from the prepaid wallet — but the net is now framed the way the board
+///     and `netPerOffer` (`earnings_summary.dart:170`) already frame it, so the
+///     composer and Earnings no longer disagree).
 ///   * `offer_composer_reserve_note`— reserve/charge/release copy (D1).
-///   * `offer_composer_eta_dropdown`— pickup ETA bounded by the tier SLA band
-///     (D14), options `offer_composer_eta_option_<i>` — NOT free minutes.
+///   * `offer_composer_eta_dropdown`— the ETA row, bounded by the tier SLA band
+///     (D14); exactly three inline options `offer_composer_eta_option_<i>` —
+///     NOT free minutes.
+///   * `offer_composer_wallet_strip`/`_wallet_topup_cta` — the balance strip.
 ///   * `offer_composer_send_cta`    — submit.
 ///
 /// On send (`POST /v1/offers`, O1):
@@ -139,6 +169,11 @@ class _OfferComposer extends StatefulWidget {
 }
 
 class _OfferComposerState extends State<_OfferComposer> {
+  /// Digits and one decimal point — the gateway takes a decimal amount, and a
+  /// keypad-typed `,` would fail `double.tryParse`.
+  static final List<TextInputFormatter> _priceFormatters =
+      <TextInputFormatter>[FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))];
+
   final _priceController = TextEditingController();
 
   /// Optional free-text offer description (wire field `note`). The trim /
@@ -163,6 +198,10 @@ class _OfferComposerState extends State<_OfferComposer> {
   @override
   void initState() {
     super.initState();
+    // The board opens with the MIDDLE pill lit. A composer that opens with no
+    // ETA fails its own validation on the first Send for no reason.
+    final quick = _etaBand.quickOptions;
+    _selectedEta = quick.isEmpty ? null : quick[quick.length ~/ 2];
     _loadWallet();
   }
 
@@ -200,6 +239,10 @@ class _OfferComposerState extends State<_OfferComposer> {
   String get _currency => _wallet?.currency ?? 'USD';
 
   String _fmt(double v) => v.toStringAsFixed(2);
+
+  /// A price is only "entered" once it is a positive number — the CTA label,
+  /// the breakdown and the `−1` floor all key off this.
+  bool get _hasPrice => _price != null && _price! > 0;
 
   @override
   Widget build(BuildContext context) {
@@ -259,56 +302,282 @@ class _OfferComposerState extends State<_OfferComposer> {
       identifier: 'offer_composer_root',
       explicitChildNodes: true,
       child: Scaffold(
-        appBar: OMDSAppBar(
+        backgroundColor: Colors.transparent,
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topStart,
+          // R17 draws 0 animated elements (03-MOTION-NOTES): rest frame only.
+          animateDecor: false,
+          child: SafeArea(child: _buildContent(context, l10n, state)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    OfferComposerL10n l10n,
+    OfferFormState state,
+  ) {
+    return Column(
+      children: [
+        // TODO(midnight): omitted — the board's subtitle is
+        // `ORD-… · Pharmacy run · ⚡ Flash`. This route carries only `:id`
+        // (both call sites push pathParameters alone), so the items
+        // summary and the tier are omitted rather than faked — see
+        // wiring request WR-6.
+        JeebTopBar.close(
           title: l10n.title,
-          leading: Semantics(
-            identifier: 'offer_composer_close_cta',
-            button: true,
-            container: true,
-            child: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: widget.onWithdrawn,
-              tooltip: l10n.closeTooltip,
+          subtitle: _displayRef,
+          subtitleIdentifier: 'offer_composer_order_ref',
+          identifier: 'offer_composer_close_cta',
+          leadingTooltip: l10n.closeTooltip,
+          onLeadingPressed: widget.onWithdrawn,
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.large,
+              Spacing.xLarge,
+              0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                JeebSectionLabel(l10n.priceSectionLabel),
+                const SizedBox(height: Spacing.small),
+                JeebMoneyField(
+                  controller: _priceController,
+                  currencyMark: l10n.currencyMark(_currency),
+                  placeholder: l10n.pricePlaceholder,
+                  errorText: state.priceError == null
+                      ? null
+                      : l10n.priceRequiredError,
+                  inputFormatters: _priceFormatters,
+                  canDecrement: _hasPrice,
+                  onChanged: (v) =>
+                      setState(() => _price = double.tryParse(v)),
+                  onStep: _stepPrice,
+                  identifier: 'offer_composer_price_field',
+                  decrementIdentifier: 'offer_composer_price_decrement',
+                  incrementIdentifier: 'offer_composer_price_increment',
+                  decrementSemanticLabel: l10n.priceDecrementLabel,
+                  incrementSemanticLabel: l10n.priceIncrementLabel,
+                ),
+                const SizedBox(height: Spacing.medium),
+                JeebSectionLabel(
+                  l10n.etaSectionLabel,
+                  hint: l10n.etaCeilingHint(_etaBand.options.last),
+                ),
+                const SizedBox(height: Spacing.small),
+                _buildEtaRow(context, l10n, state),
+                const SizedBox(height: Spacing.medium),
+                _NoteField(controller: _noteController),
+                const SizedBox(height: Spacing.medium),
+                _buildBreakdown(l10n),
+                // JEBV4-176: no wallet snapshot → no strip. Never render
+                // a $0.00 balance the Jeeber might act on.
+                if (_wallet != null) ...[
+                  const SizedBox(height: Spacing.small),
+                  _buildWalletStrip(context, l10n, _wallet!),
+                ],
+              ],
             ),
           ),
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(Spacing.medium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _OrderRefHeader(reference: _displayRef),
-              const SizedBox(height: Spacing.medium),
-              _PriceField(
-                controller: _priceController,
-                error: state.priceError,
-                onChanged: (v) => setState(() => _price = double.tryParse(v)),
-              ),
-              const SizedBox(height: Spacing.medium),
-              _EtaDropdown(
-                band: _etaBand,
-                selected: _selectedEta,
-                error: state.etaError,
-                onPick: (m) => setState(() => _selectedEta = m),
-              ),
-              const SizedBox(height: Spacing.medium),
-              _NoteField(controller: _noteController),
-              const SizedBox(height: Spacing.large),
-              _EconomicsCard(
-                reserve: _reserve,
-                price: _price,
-                currency: _currency,
-                fmt: _fmt,
-              ),
-              const SizedBox(height: Spacing.xLarge),
-              _SendButton(
-                isLoading: state.isSubmitting,
-                onTap: () => _onSendTapped(context),
-              ),
-            ],
+        // The board draws this pill ORANGE (`#D73B00`, h58) with the
+        // ctaOrange glow — the tile-drawn act, so `.accent`, not primary.
+        JeebCtaFooter.single(
+          child: JeebCtaButton.accent(
+            label: _sendLabel(l10n),
+            height: JeebCtaButton.primaryHeightTall,
+            isLoading: state.isSubmitting,
+            onTap: () => _onSendTapped(context),
+            identifier: 'offer_composer_send_cta',
           ),
         ),
+      ],
+    );
+  }
+
+  /// `offer_composer_eta_dropdown` — the bounded ETA row (D14).
+  ///
+  /// EXACTLY the three [OfferEtaBand.quickOptions], as
+  /// `offer_composer_eta_option_<i>`. The `Other` pill and its full-band sheet
+  /// are gone: the board draws three pills and no fourth affordance, and
+  /// neither `offer_composer_eta_more_cta` nor `_eta_sheet_option_<i>` was ever
+  /// frozen (both were coined by the pass-1 lane; no test or Maestro flow
+  /// names either). The band still bounds the offer — `quickOptions` is derived
+  /// from it, so nothing unselectable is ever offered.
+  Widget _buildEtaRow(
+    BuildContext context,
+    OfferComposerL10n l10n,
+    OfferFormState state,
+  ) {
+    final quick = _etaBand.quickOptions;
+    final pills = <Widget>[
+      for (var i = 0; i < quick.length; i++)
+        JeebSelectChip(
+          role: JeebChipRole.choice,
+          label: l10n.etaOption(quick[i]),
+          selected: quick[i] == _selectedEta,
+          onTap: () => setState(() => _selectedEta = quick[i]),
+          identifier: 'offer_composer_eta_option_$i',
+        ),
+    ];
+
+    // Equal-width pills are the board's shape, but a `choice` chip does not
+    // ellipsize inside a tight Expanded — at large text scales three of them
+    // cannot hold "40 min" / "٤٠ دقيقة". Past ~130% the row keeps the pills at
+    // their natural width and scrolls instead (still a non-lazy Row, so every
+    // identifier stays findable).
+    final isTight = _isTightText(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          identifier: 'offer_composer_eta_dropdown',
+          container: true,
+          explicitChildNodes: true,
+          // The frozen flows tap the row itself before tapping an option, so
+          // the container stays hit-testable whatever falls under its centre.
+          // Colors.transparent is the one sanctioned literal.
+          child: ColoredBox(
+            color: Colors.transparent,
+            child: isTight
+                ? JeebChipRow.scrollable(children: pills)
+                : JeebChipRow.expanded(children: pills),
+          ),
+        ),
+        if (state.etaError != null) ...[
+          const SizedBox(height: Spacing.xSmall),
+          _EtaError(message: l10n.etaRequiredError),
+        ],
+      ],
+    );
+  }
+
+  /// The economics card. Before a price is entered the rows render explanatory
+  /// sentences (no amounts) so the card reads as deliberate, never blank.
+  Widget _buildBreakdown(OfferComposerL10n l10n) {
+    if (!_hasPrice) {
+      return JeebMoneyBreakdown(
+        rows: [
+          JeebMoneyLine(
+            label: l10n.feeLinePending,
+            identifier: 'offer_composer_fee_line',
+          ),
+        ],
+        total: JeebMoneyLine(
+          label: l10n.netLinePending,
+          identifier: 'offer_composer_net_line',
+        ),
+        footnote: l10n.reserveNotePending,
+        footnoteIdentifier: 'offer_composer_reserve_note',
+      );
+    }
+
+    final price = _price!;
+    final fee = _reserve!;
+    final currency = _currency;
+    return JeebMoneyBreakdown(
+      rows: [
+        JeebMoneyLine(
+          label: l10n.offerRowLabel,
+          value: l10n.money(price, currency),
+          identifier: 'offer_composer_offer_line',
+        ),
+        JeebMoneyLine(
+          label: l10n.feeRowLabel,
+          value: l10n.negativeMoney(fee, currency),
+          identifier: 'offer_composer_fee_line',
+        ),
+      ],
+      total: JeebMoneyLine(
+        label: l10n.keepRowLabel,
+        value: l10n.money(price - fee, currency),
+        identifier: 'offer_composer_net_line',
       ),
+      footnote: l10n.reserveNote(l10n.money(fee, currency)),
+      footnoteIdentifier: 'offer_composer_reserve_note',
+    );
+  }
+
+  /// `offer_composer_wallet_strip` — the board's glass strip, whose trailing
+  /// `Top up` link is one of this screen's four orange moments (D92/D93 →
+  /// wallet-charge-info). The snapshot is not re-fetched after a top-up
+  /// round-trip; the 402 path stays authoritative.
+  ///
+  /// [JeebInfoNote]'s trailing slot takes its NATURAL width beside an
+  /// `Expanded` body, so at 200% AR the Ø17 glyph + `إضافة رصيد` alone are
+  /// wider than the strip and the kit's `Row` overflows. Past ~130% the copy
+  /// and the link therefore move into the body slot as a `Wrap`, which lets
+  /// the link fall to a second run instead of truncating either string.
+  Widget _buildWalletStrip(
+    BuildContext context,
+    OfferComposerL10n l10n,
+    WalletBalance wallet,
+  ) {
+    final isTight = _isTightText(context);
+    final balance = l10n.walletStrip(
+      l10n.money(wallet.availableBalance, wallet.currency),
+    );
+    void openTopUp() => context.goNamed('wallet-charge-info');
+
+    return JeebInfoNote.accent(
+      icon: Icons.account_balance_wallet,
+      text: isTight ? null : balance,
+      label: isTight
+          ? _WalletStripWrap(
+              balance: balance,
+              linkLabel: l10n.walletTopUpCta,
+              onTopUp: openTopUp,
+            )
+          : null,
+      linkLabel: isTight ? null : l10n.walletTopUpCta,
+      onLink: isTight ? null : openTopUp,
+      padding: isTight
+          ? const EdgeInsetsDirectional.all(Spacing.small)
+          : null,
+      gap: isTight ? Spacing.xSmall : null,
+      identifier: 'offer_composer_wallet_strip',
+      linkIdentifier: isTight ? null : 'offer_composer_wallet_topup_cta',
+    );
+  }
+
+  /// True when the ambient text scale has outgrown the board's single-line
+  /// rows (~130%). Read from the `choice` pill size, the smallest of the two
+  /// rows that break first.
+  bool _isTightText(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(_kEtaPillFontSize) >
+          _kEtaPillFontSize * 1.3;
+
+  /// The CTA restates what the Jeeber keeps once a price exists (board
+  /// `tpl 1031`); before that it is the plain submit label.
+  String _sendLabel(OfferComposerL10n l10n) {
+    if (!_hasPrice) return l10n.sendCta;
+    return l10n.sendCtaWithNet(l10n.money(_price! - _reserve!, _currency));
+  }
+
+  /// `±1` from the stepper pills. Floors at 0 — clearing the field rather than
+  /// showing a zero bid; there is no ceiling (the gateway validates `> 0` only,
+  /// so inventing one here would fabricate a product rule).
+  void _stepPrice(int delta) {
+    final next = (_price ?? 0) + delta;
+    if (next <= 0) {
+      setState(() => _price = null);
+      _priceController.clear();
+      return;
+    }
+    setState(() => _price = next);
+    final text = _fmt(next);
+    // Set the whole value (not just `.text`) so the caret lands after the
+    // digits instead of collapsing to an invalid offset.
+    _priceController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 
@@ -364,44 +633,9 @@ class _OfferComposerState extends State<_OfferComposer> {
   }
 }
 
-/// `offer_composer_order_ref` — "Your offer · ORD-…" header (AC3).
-class _OrderRefHeader extends StatelessWidget {
-  const _OrderRefHeader({required this.reference});
-
-  final String reference;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = OfferComposerL10n.of(context);
-    final theme = Theme.of(context);
-    return Semantics(
-      identifier: 'offer_composer_order_ref',
-      header: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.orderRef(reference),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: Spacing.twoXSmall),
-          Text(
-            l10n.intro,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Max length of the optional offer note — mirrors the gateway `MaxNoteLength`
-/// (`CreateOfferBody.note`, 500 chars). Enforced client-side so the character
-/// counter stops the Jeeber before the gateway would 400 on note-too-long.
+/// (`CreateOfferBody.note`, 500 chars). Enforced client-side so the Jeeber is
+/// stopped before the gateway would 400 on note-too-long.
 const int kOfferNoteMaxLength = 500;
 
 /// The note input grows from [_kNoteFieldMinLines] up to [_kNoteFieldMaxLines]
@@ -409,11 +643,33 @@ const int kOfferNoteMaxLength = 500;
 const int _kNoteFieldMinLines = 2;
 const int _kNoteFieldMaxLines = 4;
 
+/// `JeebChipRole.choice`'s label size — read here only to decide when the ETA
+/// row must stop being equal-width (see `_buildEtaRow`), never to style a chip.
+const double _kEtaPillFontSize = 13.5;
+
+/// The gateway `MaxNoteLength` guard, as a keystroke filter. It replaces
+/// `maxLength:` because that also renders a character counter, which the board
+/// does not draw. `LengthLimitingTextInputFormatter` has no const constructor,
+/// so this is built once here rather than per build.
+final List<TextInputFormatter> _noteFormatters = <TextInputFormatter>[
+  LengthLimitingTextInputFormatter(kOfferNoteMaxLength),
+];
+
 /// `offer_composer_note_field` — the optional free-text offer description the
-/// Jeeber attaches to the bid (wire field `note`). Multiline OMDS text field,
-/// bounded at [kOfferNoteMaxLength] chars; label/hint are localized (EN/AR,
-/// RTL-safe) via [OfferComposerL10n]. The trim / empty→null normalization
-/// happens at [_OfferComposerState._onSendTapped], so this widget stays dumb.
+/// Jeeber attaches to the bid (wire field `note`).
+///
+/// The board draws a placeholder-only block with **no label and no character
+/// counter**, so the length cap rides an input formatter (the gateway guard is
+/// unchanged) and the label becomes the field's a11y name on the wrapper.
+///
+/// MIDNIGHT: fill / border / hint ink now come from the Midnight OMDS token set
+/// (`glassFill` + 1px `glassBorder` + `inkMuted`) — the R15 recipe — so the
+/// screen no longer overrides `fillColor` or blanks the border token.
+///
+/// **R17 does not draw this block at all**, but the `note` field is real wire
+/// capability (`CreateOfferBody.note`) with a frozen identifier, and study-notes
+/// ground rule 6 puts frozen identifiers above tile-count fidelity (the R16
+/// extra-bands ruling). It stays, restyled.
 class _NoteField extends StatelessWidget {
   const _NoteField({required this.controller});
 
@@ -425,13 +681,14 @@ class _NoteField extends StatelessWidget {
     return Semantics(
       identifier: 'offer_composer_note_field',
       textField: true,
+      label: l10n.noteLabel,
       child: OmdsTextField(
         controller: controller,
-        labelText: l10n.noteLabel,
         hintText: l10n.noteHint,
-        maxLength: kOfferNoteMaxLength,
+        borderRadius: JeebRadii.lg,
         minLines: _kNoteFieldMinLines,
         maxLines: _kNoteFieldMaxLines,
+        inputFormatters: _noteFormatters,
         keyboardType: TextInputType.multiline,
         textInputAction: TextInputAction.newline,
         textCapitalization: TextCapitalization.sentences,
@@ -440,254 +697,76 @@ class _NoteField extends StatelessWidget {
   }
 }
 
-/// `offer_composer_price_field` — the Jeeber's offer price.
-class _PriceField extends StatelessWidget {
-  const _PriceField({
-    required this.controller,
-    required this.onChanged,
-    this.error,
+/// The balance + `Top up` link folded into [JeebInfoNote]'s body slot at large
+/// text scales, so the link wraps to its own run instead of overflowing the
+/// kit's `Row` (see `_buildWalletStrip`). Ink and weights mirror the note's own
+/// `accent` tone so the two forms read identically.
+class _WalletStripWrap extends StatelessWidget {
+  const _WalletStripWrap({
+    required this.balance,
+    required this.linkLabel,
+    required this.onTopUp,
   });
 
-  final TextEditingController controller;
-  final void Function(String) onChanged;
-  final String? error;
+  final String balance;
+  final String linkLabel;
+  final VoidCallback onTopUp;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = OfferComposerL10n.of(context);
-    return Semantics(
-      identifier: 'offer_composer_price_field',
-      textField: true,
-      child: OmdsTextField(
-        controller: controller,
-        labelText: l10n.priceLabel,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-        textInputAction: TextInputAction.done,
-        prefixIcon: const Icon(Icons.attach_money),
-        errorText: error,
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-
-/// `offer_composer_eta_dropdown` — pickup ETA bounded by the tier SLA band
-/// (D14). Tapping it opens a modal whose options each carry
-/// `offer_composer_eta_option_<i>` (NOT free-form integer minutes).
-class _EtaDropdown extends StatelessWidget {
-  const _EtaDropdown({
-    required this.band,
-    required this.selected,
-    required this.onPick,
-    this.error,
-  });
-
-  final OfferEtaBand band;
-  final int? selected;
-  final ValueChanged<int> onPick;
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = OfferComposerL10n.of(context);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final label = selected == null
-        ? l10n.etaPlaceholder
-        : l10n.etaOption(selected!);
-
-    return Semantics(
-      identifier: 'offer_composer_eta_dropdown',
-      button: true,
-      child: InkWell(
-        borderRadius: OmdsBorderRadius.medium,
-        onTap: () => _openPicker(context),
-        child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: l10n.etaLabel,
-            prefixIcon: const Icon(Icons.timer_outlined),
-            suffixIcon: const Icon(Icons.arrow_drop_down),
-            errorText: error,
-            border: const OutlineInputBorder(),
-          ),
-          child: Text(
-            label,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: selected == null
-                  ? colorScheme.onSurfaceVariant
-                  : colorScheme.onSurface,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openPicker(BuildContext context) async {
-    final l10n = OfferComposerL10n.of(context);
-    final picked = await showModalBottomSheet<int>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.medium,
-                  vertical: Spacing.small,
-                ),
-                child: Text(
-                  l10n.etaSheetTitle,
-                  style: Theme.of(sheetContext).textTheme.titleMedium,
-                ),
-              ),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: band.options.length,
-                  itemBuilder: (itemContext, i) {
-                    final minutes = band.options[i];
-                    return Semantics(
-                      identifier: 'offer_composer_eta_option_$i',
-                      button: true,
-                      child: ListTile(
-                        title: Text(l10n.etaOption(minutes)),
-                        trailing: minutes == selected
-                            ? const Icon(Icons.check)
-                            : null,
-                        onTap: () => Navigator.of(itemContext).pop(minutes),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-    if (picked != null) onPick(picked);
-  }
-}
-
-/// The economics block: fee (10%), net-per-offer, and the reserve note. Each
-/// line carries its own Semantics identifier (AC1).
-class _EconomicsCard extends StatelessWidget {
-  const _EconomicsCard({
-    required this.reserve,
-    required this.price,
-    required this.currency,
-    required this.fmt,
-  });
-
-  final double? reserve;
-  final double? price;
-  final String currency;
-  final String Function(double) fmt;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = OfferComposerL10n.of(context);
-    final theme = Theme.of(context);
-    final hasPrice = price != null && price! > 0;
-
-    final feeText = hasPrice
-        ? l10n.feeLine(fmt(reserve!), currency)
-        : l10n.feeLinePending;
-    final netText = hasPrice
-        ? l10n.netLine(fmt(price!), currency)
-        : l10n.netLinePending;
-    final reserveText = hasPrice
-        ? l10n.reserveNote(fmt(reserve!), currency)
-        : l10n.reserveNotePending;
-
-    return OMDSSectionCard(
-      title: l10n.title,
-      showDivider: false,
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            identifier: 'offer_composer_fee_line',
-            child: _EconLine(
-              icon: Icons.percent,
-              text: feeText,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-          const SizedBox(height: Spacing.small),
-          Semantics(
-            identifier: 'offer_composer_net_line',
-            child: _EconLine(
-              icon: Icons.payments_outlined,
-              text: netText,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(height: Spacing.small),
-          Semantics(
-            identifier: 'offer_composer_reserve_note',
-            child: _EconLine(
-              icon: Icons.lock_clock_outlined,
-              text: reserveText,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EconLine extends StatelessWidget {
-  const _EconLine({required this.icon, required this.text, this.style});
-
-  final IconData icon;
-  final String text;
-  final TextStyle? style;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final text = context.jeebText;
+    final tone = JeebSurfaceTone.of(context);
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: Spacing.small,
+      runSpacing: Spacing.twoXSmall,
       children: [
-        Icon(
-          icon,
-          size: Spacing.medium,
-          color: Theme.of(context).colorScheme.primary,
+        Text(
+          balance,
+          style: text.bodySmall.copyWith(
+            fontWeight: FontWeight.w600,
+            color: tone.titleInk,
+            height: JeebInfoNote.bodyLineHeight,
+          ),
         ),
-        const SizedBox(width: Spacing.xSmall),
-        Expanded(child: Text(text, style: style)),
+        Semantics(
+          identifier: 'offer_composer_wallet_topup_cta',
+          button: true,
+          container: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTopUp,
+            child: Text(
+              linkLabel,
+              style: text.bodySmall.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.jeebRoles.accent,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
-/// `offer_composer_send_cta` — submit the offer.
-class _SendButton extends StatelessWidget {
-  const _SendButton({required this.isLoading, required this.onTap});
+/// The ETA validation message. The `InputDecorator` that used to render it went
+/// with the dropdown, so the row owns its own error line.
+class _EtaError extends StatelessWidget {
+  const _EtaError({required this.message});
 
-  final bool isLoading;
-  final VoidCallback onTap;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = OfferComposerL10n.of(context);
-    return Semantics(
-      identifier: 'offer_composer_send_cta',
-      button: true,
-      child: OmdsLoadingButton(
-        text: l10n.sendCta,
-        isLoading: isLoading,
-        onTap: onTap,
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: Spacing.twoXSmall),
+      child: Text(
+        message,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.error,
+        ),
       ),
     );
   }
@@ -732,15 +811,16 @@ class _InsufficientBalanceSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = OfferComposerL10n.of(context);
-    final theme = Theme.of(context);
+    final text = context.jeebText;
+    final tone = JeebSurfaceTone.of(context);
     return Semantics(
       identifier: 'insufficient_balance_sheet',
       explicitChildNodes: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          Spacing.medium,
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
           Spacing.xSmall,
-          Spacing.medium,
+          Spacing.xLarge,
           Spacing.large,
         ),
         child: Column(
@@ -749,16 +829,12 @@ class _InsufficientBalanceSheet extends StatelessWidget {
           children: [
             Text(
               l10n.insufficientTitle,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: text.h2.copyWith(color: tone.titleInk),
             ),
             const SizedBox(height: Spacing.xSmall),
             Text(
               l10n.insufficientBody,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: text.body.copyWith(color: tone.mutedInk),
             ),
             const SizedBox(height: Spacing.medium),
             Semantics(
@@ -778,29 +854,21 @@ class _InsufficientBalanceSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: Spacing.large),
-            Semantics(
+            // EDGE: insufficient-balance → wallet-charge-info (D92/D93, JM-046
+            // AC2). Pop first so a back from charge-info keeps the draft.
+            JeebCtaButton.accent(
+              label: l10n.insufficientTopUpCta,
+              onTap: () {
+                Navigator.of(context).pop();
+                context.goNamed('wallet-charge-info');
+              },
               identifier: 'insufficient_topup_cta',
-              button: true,
-              child: OmdsPrimaryButton(
-                text: l10n.insufficientTopUpCta,
-                // EDGE: insufficient-balance → wallet-charge-info (D92/D93,
-                // JM-046 AC2). Pop the sheet first so a back from charge-info
-                // returns to the composer with the draft intact.
-                onTap: () {
-                  Navigator.of(context).pop();
-                  context.goNamed('wallet-charge-info');
-                },
-              ),
             ),
             const SizedBox(height: Spacing.small),
-            Semantics(
+            JeebCtaButton.outline(
+              label: l10n.insufficientKeepEditingCta,
+              onTap: () => Navigator.of(context).pop(),
               identifier: 'insufficient_keep_editing_cta',
-              button: true,
-              child: OmdsPrimaryButton(
-                text: l10n.insufficientKeepEditingCta,
-                variant: OmdsButtonVariant.outlined,
-                onTap: () => Navigator.of(context).pop(),
-              ),
             ),
           ],
         ),
@@ -822,16 +890,17 @@ class _AmountRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final tone = JeebSurfaceTone.of(context);
     return Row(
       children: [
-        Icon(icon, size: Spacing.medium, color: theme.colorScheme.primary),
+        Icon(icon, size: Spacing.medium, color: tone.mutedInk),
         const SizedBox(width: Spacing.xSmall),
         Expanded(
           child: Text(
             text,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w400,
+            style: context.jeebText.body.copyWith(
+              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
+              color: emphasize ? tone.titleInk : tone.mutedInk,
             ),
           ),
         ),

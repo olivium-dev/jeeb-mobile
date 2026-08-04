@@ -7,8 +7,13 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:jeeb_mobile/features/onboarding/presentation/widgets/walkthrough_tracking_art.dart';
+import 'package:jeeb_mobile/features/onboarding/presentation/widgets/walkthrough_trust_art.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
@@ -23,14 +28,27 @@ Widget _harness({
   required LocaleCubit localeCubit,
   VoidCallback? onComplete,
   Locale locale = const Locale('en'),
+  double textScale = 1.0,
 }) {
+  final screen = MultiBlocProvider(
+    providers: [
+      BlocProvider<OnboardingCubit>.value(value: cubit),
+      BlocProvider<LocaleCubit>.value(value: localeCubit),
+    ],
+    child: OnboardingScreen(onComplete: onComplete),
+  );
   return wrapForTest(
-    MultiBlocProvider(
-      providers: [
-        BlocProvider<OnboardingCubit>.value(value: cubit),
-        BlocProvider<LocaleCubit>.value(value: localeCubit),
-      ],
-      child: OnboardingScreen(onComplete: onComplete),
+    // Midnight motion loops ∞ by design (19 animated elements across the four
+    // tiles this screen draws), so every harness pins reduce motion: it parks
+    // each primitive on its first keyframe AND lets `pumpAndSettle` terminate.
+    Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          disableAnimations: true,
+          textScaler: TextScaler.linear(textScale),
+        ),
+        child: screen,
+      ),
     ),
     locale: locale,
   );
@@ -90,8 +108,17 @@ void main() {
       reason: 'walkthrough status-bar icons must be light on the navy hero',
     );
     // statusBarBrightness is the iOS counterpart of the same intent: a DARK
-    // bar background expects light content (SystemUiOverlayStyle.light).
+    // bar background expects light content.
     expect(region.value.statusBarBrightness, Brightness.dark);
+
+    // M6 L14: this used to be a raw `.light` + copyWith. The one ratified
+    // style is what both bands take now.
+    expect(region.value, AppTheme.systemOverlayStyle);
+    expect(region.value.systemNavigationBarColor, JeebMidnight.page);
+    expect(
+      region.value.systemNavigationBarColor,
+      isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
+    );
   });
 
   testWidgets('slide copy + Skip flow through OMDS components (OMDS upgrade)',
@@ -99,9 +126,10 @@ void main() {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
-    // Slide copy is rendered by OmdsWalkthroughStep via OmdsWalkthroughSwitcher
-    // (was hand-rolled Text), matching the fleet reference walkthrough layout.
-    expect(find.byType(OmdsWalkthroughSwitcher), findsOneWidget);
+    // Slide copy is rendered by OmdsWalkthroughStep inside the redesign's own
+    // `_SlideCopy` block (the fixed-height OmdsWalkthroughSwitcher box was
+    // dropped so the docked sheet keeps a constant height across slides).
+    expect(find.byKey(const Key('onboarding.slideCopy')), findsOneWidget);
     expect(find.byType(OmdsWalkthroughStep), findsWidgets);
     // Full-bleed swipeable illustration carousel is the back layer.
     expect(find.byKey(const Key('onboarding.pager')), findsOneWidget);
@@ -128,7 +156,7 @@ void main() {
     // The Arabic slide-1 title renders (proves ARB ar parity + RTL tree).
     // OmdsWalkthroughStep draws the label via RichText, so findRichText.
     expect(
-      find.text('توصيل بالصوت أولًا', findRichText: true),
+      find.text('قول شو بدك', findRichText: true),
       findsWidgets,
     );
     expect(
@@ -180,22 +208,20 @@ void main() {
 
   // ---- FR-P1-1: real slide illustrations wired ----
 
-  String? svgAssetName(WidgetTester tester) {
-    final svg = tester.widget<SvgPicture>(find.byType(SvgPicture));
-    final loader = svg.bytesLoader;
-    return loader is SvgAssetLoader ? loader.assetName : null;
-  }
-
-  testWidgets('slide 1 renders the real voice-first SVG illustration',
+  testWidgets('slide 1 renders the decorative marketplace-preview collage',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
-    // Slide 1 is showing on first frame; its artwork is the exported SVG.
-    expect(find.byType(SvgPicture), findsOneWidget);
+    // Redesign 01: slide 1's artwork is the static marketplace collage (voice
+    // note → request → offer), not an exported illustration SVG.
+    expect(find.byKey(const Key('onboarding.preview')), findsOneWidget);
     expect(
-      svgAssetName(tester),
-      'assets/illustrations/onboarding_voice_first.svg',
+      find.descendant(
+        of: find.byKey(const Key('onboarding.illustration')),
+        matching: find.byType(SvgPicture),
+      ),
+      findsNothing,
     );
     // The illustration is announced to screen readers as an image.
     final semantics = tester.widget<Semantics>(
@@ -205,34 +231,7 @@ void main() {
     expect(semantics.properties.label, isNotEmpty);
   });
 
-  testWidgets(
-      'slide 3 title keeps "end to end" unbreakable so it wraps cleanly',
-      (tester) async {
-    // Bug fix: the headline previously wrapped as "Live tracking, end to / end",
-    // orphaning a trailing "end". Non-breaking spaces (U+00A0) bind "end to end"
-    // into one unit so the break falls after the comma instead.
-    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
-    await tester.pump();
-
-    final l10n = AppLocalizations.of(
-      tester.element(find.byType(OnboardingScreen)),
-    );
-    const nbsp = '\u00A0';
-    expect(
-      l10n.onboardingSlide3Title,
-      'Live tracking, end${nbsp}to${nbsp}end',
-      reason: 'slide-3 headline must bind "end to end" with non-breaking spaces',
-    );
-    // Guard against a regression that reintroduces breakable spaces in the
-    // bound phrase (which is what caused the orphaned "end").
-    expect(
-      l10n.onboardingSlide3Title.contains('end to end'),
-      isFalse,
-      reason: 'plain-space "end to end" reintroduces the awkward orphan wrap',
-    );
-  });
-
-  testWidgets('slide 3 renders the real live-tracking SVG illustration',
+  testWidgets('slide 3 renders W3 night-map art, not an exported SVG',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
@@ -243,15 +242,18 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.next')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SvgPicture), findsOneWidget);
+    // MIDNIGHT W3 draws its own night map; the generic brand vector is gone.
+    expect(find.byType(WalkthroughTrackingArt), findsOneWidget);
     expect(
-      svgAssetName(tester),
-      'assets/illustrations/onboarding_live_tracking.svg',
+      find.descendant(
+        of: find.byKey(const Key('onboarding.illustration')),
+        matching: find.byType(SvgPicture),
+      ),
+      findsNothing,
     );
   });
 
-  testWidgets(
-      'slide 2 renders the real trusted-Jeebers SVG illustration (FR-D1D2)',
+  testWidgets('slide 2 renders W2 trust art, not an exported SVG',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
@@ -260,21 +262,19 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.next')));
     await tester.pumpAndSettle();
 
-    // FR-D1D2: slide 2's placeholder shield/check glyph was replaced with a
-    // real exported brand vector, matching slides 1 and 3. The illustration
-    // slot now hosts the trusted-Jeebers SvgPicture, NOT a Material Icon.
-    final illustration = find.byKey(const Key('onboarding.illustration'));
-    expect(
-      find.descendant(of: illustration, matching: find.byType(SvgPicture)),
-      findsOneWidget,
+    // MIDNIGHT W2 draws a real Jeeber identity card with the trust mechanics
+    // floating around it; the generic brand vector is gone.
+    expect(find.byType(WalkthroughTrustArt), findsOneWidget);
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(OnboardingScreen)),
     );
+    expect(find.text(l10n.walkthroughTrustName), findsOneWidget);
     expect(
-      find.descendant(of: illustration, matching: find.byType(Icon)),
+      find.descendant(
+        of: find.byKey(const Key('onboarding.illustration')),
+        matching: find.byType(SvgPicture),
+      ),
       findsNothing,
-    );
-    expect(
-      svgAssetName(tester),
-      'assets/illustrations/onboarding_trusted_jeebers.svg',
     );
   });
 
@@ -289,11 +289,11 @@ void main() {
     expect(toggle, findsOneWidget);
     expect(
       tester.widget(toggle),
-      isA<OmdsFilterChips<String>>(),
+      isA<OnboardingLanguageToggle>(),
     );
-    // Both options are present (native Arabic script + English).
-    expect(find.text('English'), findsOneWidget);
-    expect(find.text('العربية'), findsOneWidget);
+    // Both segments are present (short labels on the navy top bar).
+    expect(find.text('EN'), findsOneWidget);
+    expect(find.text('عربي'), findsOneWidget);
   });
 
   testWidgets(
@@ -304,8 +304,8 @@ void main() {
 
     expect(localeCubit.state.languageCode, 'en');
 
-    // Tap the Arabic chip.
-    await tester.tap(find.text('العربية'));
+    // Tap the Arabic segment.
+    await tester.tap(find.text('عربي'));
     await tester.pumpAndSettle();
 
     // The toggle's contract: it flips the LocaleCubit + persists the choice.
@@ -333,10 +333,111 @@ void main() {
     );
     await tester.pump();
 
-    final toggle = tester.widget<OmdsFilterChips<String>>(
+    final toggle = tester.widget<OnboardingLanguageToggle>(
       find.byKey(const Key('onboarding.languageToggle')),
     );
-    // The chip bound to the active locale is the selected one.
+    // The segment bound to the active locale is the selected one.
     expect(toggle.selectedValue, 'ar');
+  });
+
+  // ---- Redesign 01: the rebuilt three-band layout ----
+
+  testWidgets('emits the redesign Semantics identifiers for the new chrome',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+    await tester.pump();
+
+    // Top bar: the wordmark is an image node; the toggle is a labelled
+    // container over two selectable segments.
+    expect(find.bySemanticsIdentifier('onboarding_wordmark'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('onboarding_language_toggle'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsIdentifier('onboarding_language_en'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('onboarding_language_ar'), findsOneWidget);
+    // The dots carry the only "step N of M" announcement on the screen.
+    expect(find.bySemanticsIdentifier('onboarding_page_dots'), findsOneWidget);
+    // The screen root is unchanged by the rebuild. (The CTA/headline/skip ids
+    // are asserted through their own merge-shape contracts in
+    // `gesture_log_test.dart` and the Maestro flows — they are deliberately
+    // NOT re-asserted here, because the outer/inner CTA pair merges into a
+    // single node and this finder would read only one of the two ids.)
+    expect(find.bySemanticsIdentifier('onboarding_root'), findsOneWidget);
+
+    handle.dispose();
+  });
+
+  testWidgets(
+      'slide 2 swaps the collage for its SVG (collage is slide 1 only)',
+      (tester) async {
+    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+    await tester.pump();
+
+    expect(find.byKey(const Key('onboarding.preview')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('onboarding.next')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('onboarding.preview')), findsNothing);
+    expect(find.byType(WalkthroughTrustArt), findsOneWidget);
+  });
+
+  testWidgets('mirrors the CTA arrow and keeps the toggle live under RTL',
+      (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        cubit: cubit,
+        localeCubit: localeCubit,
+        locale: const Locale('ar'),
+      ),
+    );
+    await tester.pump();
+
+    // `Icon` never auto-mirrors. The kit's `mirrorIcons` flips the glyph in
+    // paint, so the IconData stays `arrow_forward` and a Transform turns it
+    // around — assert the flip itself, not the codepoint.
+    final cta = tester.widget<JeebCtaButton>(
+      find.byKey(const Key('onboarding.next')),
+    );
+    expect(cta.trailingIcon, Icons.arrow_forward);
+    expect(cta.mirrorIcons, isTrue);
+    final flip = tester.widgetList<Transform>(
+      find.descendant(
+        of: find.byKey(const Key('onboarding.next')),
+        matching: find.byType(Transform),
+      ),
+    ).where((t) => t.transform.storage[0] == -1.0);
+    expect(
+      flip,
+      isNotEmpty,
+      reason: 'the advance arrow must be horizontally flipped under RTL',
+    );
+
+    // The mirrored top bar still drives the locale.
+    await tester.tap(find.text('EN'));
+    await tester.pumpAndSettle();
+    expect(localeCubit.state.languageCode, 'en');
+  });
+
+  testWidgets('survives a 200% text scale with the CTA still tappable',
+      (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        cubit: cubit,
+        localeCubit: localeCubit,
+        textScale: 2.0,
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    // The sheet scrolls internally rather than squeezing the stage away, so
+    // the primary CTA stays hit-testable at the largest supported scale.
+    expect(
+      find.byKey(const Key('onboarding.next')).hitTestable(),
+      findsOneWidget,
+    );
   });
 }

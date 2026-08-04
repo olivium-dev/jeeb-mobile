@@ -1,19 +1,11 @@
 // Widget tests for EscalateScreen / dispute-open-evidence (JM-060; ex T-MOB-022).
-//
-// Verifies:
-//   - Reason options + the blueprint identifiers render (dispute_reason,
-//     dispute_photos, dispute_voice, dispute_submit_cta, dispute_support_link,
-//     dispute_back).
-//   - Submit disabled until a reason is selected.
-//   - A successful submit routes to dispute-status (JM-065) with the dispute id.
-//   - Error view shows a retry option.
-//   - Arabic locale renders RTL.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/escalate/application/escalate_cubit.dart';
 import 'package:jeeb_mobile/features/escalate/domain/escalate_repository.dart';
 import 'package:jeeb_mobile/features/escalate/presentation/escalate_screen.dart';
@@ -48,7 +40,6 @@ class _FakeRepo implements EscalateRepository {
 }
 
 // A GoRouter so the success listener (goNamed dispute-status) + support link
-// (pushNamed support-ticket) resolve. The escalate screen is the initial route.
 GoRouter _router({EscalateRepository? repo}) {
   return GoRouter(
     initialLocation: '/orders/dlv-1/escalate',
@@ -97,10 +88,16 @@ void main() {
   Widget build({EscalateRepository? repo, Locale locale = const Locale('en')}) {
     final router = _router(repo: repo);
     return MaterialApp.router(
-      theme: ThemeData.light(),
+      theme: AppTheme.midnight(),
       locale: locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: delegates,
+      // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+      // terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       routerConfig: router,
     );
   }

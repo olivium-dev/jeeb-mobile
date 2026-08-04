@@ -14,13 +14,8 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'support/sync_app_localizations.dart';
 
 /// JEEBER-LOOP F1 + F2 — close the two-party delivery loop.
-///
 /// These are navigation tests, so they need a real [GoRouter] (not a bare
 /// [MaterialApp]) — `context.go` is a no-op without one. Each test routes from
-/// the OTP screen and then asserts the *resolved location*, which is the
-/// router's contract surface (`isClient = mode != 'jeeber'`). They fail on the
-/// pre-fix source: F1 because `_DoneBody` went to `/feedback` with no `mode`,
-/// F2 because the client display had no CTA at all.
 class _MockRepo extends Mock implements OtpHandoverRepository {}
 
 GoRouter _router(OtpHandoverCubit cubit, {required bool isClient}) {
@@ -35,7 +30,6 @@ GoRouter _router(OtpHandoverCubit cubit, {required bool isClient}) {
         ),
       ),
       // Stub destinations — we assert on the landed URI, not their contents,
-      // so they render nothing and pull in no DI.
       GoRoute(
         path: '/orders/:id/mutual-rate',
         builder: (context, state) =>
@@ -45,6 +39,13 @@ GoRouter _router(OtpHandoverCubit cubit, {required bool isClient}) {
         path: '/orders/:id/feedback',
         builder: (context, state) =>
             const Scaffold(body: Center(child: Text('FEEDBACK_STUB'))),
+      ),
+      // redesign-2026-08 screen 13's docked exit. The real route exists in
+      // app_router.dart; this stub keeps the harness DI-free.
+      GoRoute(
+        path: '/orders/:id/escalate',
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('ESCALATE_STUB'))),
       ),
     ],
   );
@@ -114,8 +115,6 @@ void main() {
     testWidgets('Client done → /orders/DLV-770001/mutual-rate (no mode param)',
         (tester) async {
       // Client done state is exercised directly by toggling the cubit; the
-      // client constructor would otherwise load a display code, but the done
-      // body is identical regardless of role except for the route suffix.
       when(() =>
               repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
           .thenAnswer((_) async => const OtpFetchResult(code: '1234'));
@@ -169,8 +168,10 @@ void main() {
       await tester.pumpWidget(_app(router));
       await tester.pump(); // resolve the display-code fetch → ready
 
-      // The code display is up (the client is parked here pre-fix).
-      expect(find.text('1234'), findsOneWidget);
+      // The code display is up (the client is parked here pre-fix). Addressed
+      // by key: redesign-2026-08 renders the code as one tile per digit, so
+      // there is no single `'1234'` string any more.
+      expect(find.byKey(const Key('otpHandover.codeDisplay')), findsOneWidget);
 
       // The new addressable CTA exists by its accessibility identifier.
       final rateNow = find.byKey(const Key('otpHandover.clientRateNow'));
@@ -218,6 +219,43 @@ void main() {
         find.byKey(const Key('otpHandover.clientRateNow')),
       );
       expect(semantics.identifier, 'client_otp_rate_now');
+      await cubit.close();
+    });
+  });
+
+  group('13: the docked dispute exit', () {
+    testWidgets('otp_handover_dispute pushes /orders/:id/escalate',
+        (tester) async {
+      when(() =>
+              repo.fetchHandoverCode(deliveryId: any(named: 'deliveryId')))
+          .thenAnswer((_) async => const OtpFetchResult(code: '1234'));
+
+      final cubit = OtpHandoverCubit(
+        repository: repo,
+        deliveryId: 'DLV-770001',
+        isClient: true,
+      );
+      final router = _router(cubit, isClient: true);
+
+      await tester.pumpWidget(_app(router));
+      await tester.pump();
+
+      final dispute = find.bySemanticsIdentifier('otp_handover_dispute');
+      expect(dispute, findsOneWidget);
+
+      await tester.tap(dispute);
+      await tester.pumpAndSettle();
+
+      expect(find.text('ESCALATE_STUB'), findsOneWidget);
+
+      // `push`, not `go`: the handoff screen is still on the stack, so BACK
+      // returns the customer to the code they were reading at the door.
+      // (An imperative push deliberately leaves `currentConfiguration.uri` at
+      // the base location, so the stack — not the URI — is the assertion.)
+      expect(_location(router), '/otp');
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('otpHandover.codeDisplay')), findsOneWidget);
       await cubit.close();
     });
   });

@@ -1,11 +1,4 @@
 // The gate's own contract, both directions, planted.
-//
-// Per I-14/G23.1 (`docs/batches/b02-20260726/TESTING-INSTRUMENTS.md`): a pair
-// proves a test checks both directions; only a mutation proves it can fail. The
-// mutation transcripts for the two ADOPTERS live beside this file's evidence
-// (RED-01 client-home, RED-03 chat-summary). What is asserted here is the
-// mechanism itself, so that a future change to an adopter cannot be blamed on
-// mystery behaviour in the gate.
 library;
 
 import 'dart:async';

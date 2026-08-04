@@ -1,15 +1,5 @@
 /// JM-025 — Order Chat (compose=broadcast, pinned summary, dispute link).
-///
 /// Locks the three order-chat states the W1 flow drives (63_W1_TEST_PLAN §2.5):
-///   AC1: compose state — the FIRST message fires `onFirstMessageBroadcast`
-///        (the host then routes to waiting-no-coverage), one-shot.
-///   AC2: accepted state — `order_chat_pinned_summary` + `order_chat_view_summary_link`
-///        render and the link invokes `onViewSummary`.
-///   AC3: accepted/active state — `order_chat_open_dispute` renders and invokes
-///        `onOpenDispute`.
-///   + the order-chat composer exposes `order_chat_composer_input` /
-///     `order_chat_composer_send` (isOrderChat: true) while the legacy 1:1 chat
-///     keeps `chat_detail_message_input` / `chat_detail_send_button`.
 library;
 
 import 'dart:async';
@@ -29,8 +19,6 @@ import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_ser
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 
-// ---------------------------------------------------------------------------
-// Localization host (sync ARB load), mirroring offer_accept_track_test.dart.
 // ---------------------------------------------------------------------------
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncLocDelegate(this._arbByTag);
@@ -103,7 +91,6 @@ class _AcceptedGateway extends ChatGateway {
 /// Active-delivery gateway: an in-flight delivery whose CONVERSATION reports a
 /// phase the chat-service contract does not enumerate (`fromWire` → `unknown`).
 /// Drives the JM-025 AC3 active-delivery seam where the dispute affordance must
-/// still render even though the phase is not literally `accepted`.
 class _ActiveDeliveryGateway extends ChatGateway {
   final _controller = StreamController<ChatEvent>.broadcast();
 
@@ -184,9 +171,6 @@ const _summary = OrderChatSummary(
 
 void main() {
   // b02: the pinned header's expand choice is SESSION state and widget
-  // tests share one process — reset it so a test that expands cannot make
-  // the next test's collapsed-by-default assertion pass (or fail) for the
-  // wrong reason.
   setUp(ChatHeaderExpansionStore.instance.reset);
   setUpAll(_loadArb);
 
@@ -209,7 +193,6 @@ void main() {
       expect(find.bySemanticsIdentifier('order_chat_pinned_summary'),
           findsOneWidget);
       // b02 chat-header redesign: the strip is collapsed by default; the
-      // disclosed field ids are behind `order_chat_summary_expand`.
       await t.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
       await t.pump();
       final link = find.bySemanticsIdentifier('order_chat_view_summary_link');
@@ -261,12 +244,9 @@ void main() {
       await t.pumpAndSettle();
 
       // b02 chat-header redesign: the strip is collapsed by default; the
-      // disclosed field ids are behind `order_chat_summary_expand`.
       await t.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
       await t.pump();
       // The chat-context rendering of order-summary-pinned (CTO-D3) carries the
-      // JM-031 signature id + the asserted field ids so the same pinned summary
-      // is visible in BOTH the chat and tracking surfaces (W1 EXIT checklist).
       expect(find.bySemanticsIdentifier('order_summary_pinned'),
           findsOneWidget);
       expect(find.bySemanticsIdentifier('order_summary_price'), findsOneWidget);
@@ -277,7 +257,6 @@ void main() {
       expect(find.bySemanticsIdentifier('order_summary_cash_label'),
           findsOneWidget);
       // P3/M18: the new initial-requirement row joins the JM-031 field-id set
-      // under its sibling id — the existing ids are unchanged.
       expect(find.bySemanticsIdentifier('order_summary_item'), findsOneWidget);
       expect(find.bySemanticsIdentifier('order_chat_request_description'),
           findsOneWidget);
@@ -303,7 +282,6 @@ void main() {
       expect(find.bySemanticsIdentifier('order_chat_pinned_summary'),
           findsOneWidget);
       // b02 chat-header redesign: the strip is collapsed by default; the
-      // disclosed field ids are behind `order_chat_summary_expand`.
       await t.tap(find.bySemanticsIdentifier('order_chat_summary_expand'));
       await t.pump();
       expect(find.bySemanticsIdentifier('order_chat_view_summary_link'),
@@ -393,7 +371,6 @@ void main() {
         cubit: _cubit(gw, id: 'req-client-001-new')..load(),
         isOrderChat: true,
         // New signature: (requestId, firstMessage) -> Future<bool>. Returning
-        // true keeps the one-shot guard armed (mirrors a successful create).
         onFirstMessageBroadcast: (requestId, firstMessage) async {
           broadcasts.add(requestId);
           messages.add(firstMessage);
@@ -409,7 +386,6 @@ void main() {
           findsOneWidget);
 
       // Type into the composer + send (interact via the stable widget keys; the
-      // EditableText lives under the OmdsTextField the Semantics id wraps).
       await t.enterText(find.byKey(ChatComposer.textFieldKey),
           'I need standard delivery from downtown to airport');
       await t.pump();
@@ -419,7 +395,6 @@ void main() {
 
       expect(broadcasts, ['req-client-001-new']);
       // AC1: the composed first message is forwarded as the request
-      // description (the create-leg's only required field).
       expect(messages, ['I need standard delivery from downtown to airport']);
 
       // A second send must NOT re-broadcast (one-shot guard).

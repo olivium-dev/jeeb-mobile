@@ -46,7 +46,6 @@ void main() {
       await tester.pump();
 
       // JEBV4-300: no fallback catalog is served — no tier cards render, so no
-      // serverId-less tier can ever be confirmed onto the wire.
       expect(
         find.byKey(TierSelectionScreen.cardKey(TierId.flash)),
         findsNothing,
@@ -105,7 +104,7 @@ void main() {
       expect(confirmed?.id, TierId.express);
     });
 
-    testWidgets('does not pre-select the recommended tier on first load', (
+    testWidgets('pre-selects the recommended tier on first load', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -116,11 +115,11 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // A recommendation is display metadata, not a customer choice.
+      // MIDNIGHT R9 / doc-13 P0-4: the board loads with a row already lit.
       final btn = tester.widget<OmdsPrimaryButton>(
         find.byKey(TierSelectionScreen.confirmButtonKey),
       );
-      expect(btn.isEnabled, isFalse);
+      expect(btn.isEnabled, isTrue);
     });
 
     testWidgets('retry button re-fetches and recovers to loaded (JEBV4-300)', (
@@ -153,8 +152,6 @@ void main() {
       );
 
       // Tapping Retry re-runs GET /tiers; the second fetch succeeds → loaded.
-      // OmdsErrorState renders its retry as a FilledButton.icon (see
-      // jeeber_pending_offers_screen_test): match the FilledButton supertype.
       await tester.tap(find.byWidgetPredicate((w) => w is FilledButton));
       await tester.pump();
       await tester.pump();

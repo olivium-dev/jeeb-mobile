@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'jeeber_home_greeting.dart';
 
@@ -8,11 +10,13 @@ import 'jeeber_home_greeting.dart';
 /// User not registered as delivery man"): the user has not yet completed the
 /// delivery-man registration.
 ///
-/// Visual: shared greeting header → large scooter-out-of-phone hero illo →
-/// "Register as a delivery man" headline → "Start earning money" subtitle →
-/// "Register now" primary button pinned toward the bottom. The illustration is
-/// rendered as a themed placeholder until the branded scooter asset ships
-/// through `omds-flutter`.
+/// Visual (redesign-2026-08): the shared `JeeberHomeGreeting` band → a centred
+/// accent-tinted hero disc → the `h1` headline → a muted subtitle → the docked
+/// `JeebCtaFooter` carrying the navy "Register now" pill. The illustration is
+/// still a themed placeholder until the branded scooter asset ships through
+/// `omds-flutter`; it is now painted from the sanctioned orange tokens
+/// (12% tint + 30% ring) instead of an ad-hoc `tertiary` alpha, so the accent
+/// stays rationed to the glyph and its halo.
 ///
 /// `onRegister` is wired to the host's delivery-man onboarding route — the home
 /// screen itself stays route-agnostic per the existing `onOpenFeedRequest`
@@ -64,11 +68,12 @@ class JeeberUnregisteredView extends StatelessWidget {
           children: [
             JeeberHomeGreeting(name: profileName),
             const Expanded(child: _UnregisteredHero()),
+            // The footer owns the board's 24px gutters + 32px bottom inset, so
+            // no trailing spacer is needed below it.
             _UnregisteredCta(
               onRegister: onRegister,
               extraIdentifier: ctaIdentifier,
             ),
-            const SizedBox(height: Spacing.large),
           ],
         ),
       ),
@@ -76,55 +81,32 @@ class JeeberUnregisteredView extends StatelessWidget {
   }
 }
 
+/// The upsell hero is the same "Empty ≠ dead" block the rest of the jeeber home
+/// draws: E3's night street — the parked scooter waiting to be ridden is
+/// literally what this screen is asking the user to become. The CTA stays in
+/// the docked footer (its two frozen ids live there), so the block passes none.
 class _UnregisteredHero extends StatelessWidget {
   const _UnregisteredHero();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsEmptyState(
-      illustration: const _UnregisteredIllustration(),
-      title: l10n.jeeberRegisterTitle,
-      subtitle: l10n.jeeberRegisterSubtitle,
-    );
-  }
-}
-
-class _UnregisteredIllustration extends StatelessWidget {
-  const _UnregisteredIllustration();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Semantics(
-      label: l10n.jeeberRegisterHeroSemantic,
-      image: true,
-      child: const _UnregisteredIllustrationArt(),
-    );
-  }
-}
-
-class _UnregisteredIllustrationArt extends StatelessWidget {
-  const _UnregisteredIllustrationArt();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      width: Sizes.twoHundredLarge,
-      height: Sizes.twoHundredLarge,
-      decoration: BoxDecoration(
-        // Accent PAINT + its own tint halo, not a container fill — same
-        // #D73B00 as before the palette fix.
-        color: colorScheme.tertiary.withValues(
-          alpha: UIConstants.opacityPrimaryLight,
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: JeebEmptyState(
+              identifier: 'jeeber_unregistered_empty_state',
+              variant: JeebEmptyStateVariant.street,
+              headline: l10n.jeeberRegisterTitle,
+              body: l10n.jeeberRegisterSubtitle,
+              // TODO(midnight): l10n-queued — `jeeberRegisterStreetSemantic`;
+              // this key still describes the retired scooter-from-phone glyph.
+              semanticLabel: l10n.jeeberRegisterHeroSemantic,
+            ),
+          ),
         ),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.delivery_dining,
-        size: Sizes.elevenXLarge,
-        color: colorScheme.tertiary,
       ),
     );
   }
@@ -148,9 +130,9 @@ class _UnregisteredCta extends StatelessWidget {
     Widget cta = Semantics(
       identifier: 'jeeber_unregistered_register_button',
       button: true,
-      child: OmdsPrimaryButton(
+      child: JeebCtaButton.primary(
         key: JeeberUnregisteredView.registerButtonKey,
-        text: l10n.jeeberRegisterCta,
+        label: l10n.jeeberRegisterCta,
         onTap: onRegister,
       ),
     );
@@ -163,9 +145,6 @@ class _UnregisteredCta extends StatelessWidget {
         child: cta,
       );
     }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.medium),
-      child: cta,
-    );
+    return JeebCtaFooter.single(child: cta);
   }
 }

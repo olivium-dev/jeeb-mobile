@@ -6,13 +6,6 @@ import '../domain/delivery_snapshot.dart';
 import '../domain/delivery_status_gateway.dart';
 import 'delivery_status_state.dart';
 
-/// Drives the delivery status screen.
-///
-/// Subscribes to [DeliveryStatusGateway.watch] for live updates and
-/// translates user-initiated actions (cancel, contact) into gateway calls +
-/// one-shot UI surfaces. The cubit is intentionally thin — all happy-path
-/// branching lives on the snapshot itself (`isInFlight`, `canCancel`,
-/// `isEtaVisible`), so the view never has to reason about lifecycle rules.
 class DeliveryStatusCubit extends Cubit<DeliveryStatusState> {
   DeliveryStatusCubit({
     required this.deliveryId,
@@ -22,8 +15,6 @@ class DeliveryStatusCubit extends Cubit<DeliveryStatusState> {
     _subscribe();
   }
 
-  /// The id the cubit is bound to. Exposed so the view can use it as a key
-  /// when navigating between deliveries.
   final String deliveryId;
 
   final DeliveryStatusGateway _gateway;
@@ -47,9 +38,7 @@ class DeliveryStatusCubit extends Cubit<DeliveryStatusState> {
         ));
       },
       onDone: () {
-        // Stream closing while the delivery is still in flight is a
-        // transport-level failure — flip to error so the view can offer a
-        // retry. A clean close on a terminal snapshot is fine.
+        // Stream closing mid-flight = transport failure.
         final current = state.snapshot;
         final inFlight = current?.isInFlight ?? false;
         if (inFlight) {
@@ -62,8 +51,6 @@ class DeliveryStatusCubit extends Cubit<DeliveryStatusState> {
     );
   }
 
-  /// User tapped retry after a stream failure. Re-subscribes and flips the
-  /// view back to its loading state until the first snapshot lands.
   void retry() {
     emit(state.copyWith(
       mode: DeliveryStatusViewMode.loading,
@@ -72,9 +59,7 @@ class DeliveryStatusCubit extends Cubit<DeliveryStatusState> {
     _subscribe();
   }
 
-  /// User tapped Cancel. Honours [DeliverySnapshot.canCancel] so a stale
-  /// button tap (race between the courier picking up and the user tapping)
-  /// surfaces the same toast the gateway would have returned.
+  /// Honors canCancel to handle race (courier picked up while user tapping).
   Future<void> cancel() async {
     if (state.isCancelling) return;
     final snapshot = state.snapshot;
@@ -86,7 +71,6 @@ class DeliveryStatusCubit extends Cubit<DeliveryStatusState> {
     final outcome = await _gateway.cancel(deliveryId);
     switch (outcome) {
       case CancellationOutcome.success:
-        // The terminal snapshot will arrive via the watch stream.
         emit(state.copyWith(isCancelling: false));
       case CancellationOutcome.tooLate:
         emit(state.copyWith(
@@ -101,10 +85,7 @@ class DeliveryStatusCubit extends Cubit<DeliveryStatusState> {
     }
   }
 
-  /// User tapped Contact Jeeber. The cubit only surfaces the
-  /// `contactUnavailable` error — the actual `tel:` launch is the view's
-  /// responsibility (kept there so this layer stays platform-agnostic and
-  /// trivially testable).
+  /// Only surfaces contactUnavailable error; tel: launch is view's responsibility.
   String? requestContactNumber() {
     final snapshot = state.snapshot;
     if (snapshot == null || !snapshot.canContactJeeber) {

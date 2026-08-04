@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-/// "New Location" row on the Client Location screen (Figma 56539:1444): a
-/// start-aligned label and a trailing circular navy add button. The whole row
-/// is the tap target (mirrors the card behaviour); the circular button is a
-/// navy filled circle with a peach-tinted "+" in Figma — here the glyph is
-/// `onPrimary` on the navy circle (token-driven, see comparison.md).
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+
+/// "New Location" row on the Client Location screen: a start-aligned label and
+/// a trailing circular add button, inside a [JeebOutlinedCard] so it reads as a
+/// peer of the address card above it. The board draws no such row at all, so
+/// this is a minimum restyle, not a rebuild — and the disc is PERIWINKLE, not
+/// orange: the orange budget covers tile-drawn CTAs only (kit ruling 3).
 class ClientLocationAddRow extends StatelessWidget {
   const ClientLocationAddRow({
     super.key,
@@ -31,12 +34,10 @@ class ClientLocationAddRow extends StatelessWidget {
       identifier: identifier,
       button: true,
       label: addSemanticLabel,
+      // The tap lives on the card so the ripple paints INSIDE the white fill;
+      // an outer InkWell would splash underneath it and never be seen.
       child: ExcludeSemantics(
-        child: InkWell(
-          borderRadius: OmdsBorderRadius.uiMedium,
-          onTap: onTap,
-          child: _RowContent(label: label, onTap: onTap),
-        ),
+        child: _RowContent(label: label, onTap: onTap),
       ),
     );
   }
@@ -51,16 +52,24 @@ class _RowContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final style =
-        Theme.of(context).textTheme.bodyLarge?.copyWith(color: scheme.primary);
-    return Padding(
-      padding:
-          const EdgeInsetsDirectional.symmetric(vertical: Spacing.xSmall),
+    return JeebOutlinedCard(
+      onTap: onTap,
+      // The trailing disc already carries a 48dp box, so the card's own 13px
+      // vertical inset would push the row past 70px — trim it back.
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.medium,
+        vertical: Spacing.twoXSmall,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
-            child: Text(label, style: style, overflow: TextOverflow.ellipsis),
+            child: Text(
+              label,
+              style: context.jeebText.cardTitle
+                  .copyWith(color: scheme.onSurface),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           const SizedBox(width: Spacing.medium),
           _AddButton(onTap: onTap),
@@ -86,12 +95,13 @@ class _AddButton extends StatelessWidget {
           height: Sizes.threeXLarge,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: scheme.primary,
+            color: scheme.secondary,
           ),
+          // R10 — 20px is the board's content-circle glyph size.
           child: Icon(
             Icons.add,
-            size: Sizes.xLarge,
-            color: scheme.onPrimary,
+            size: Sizes.large,
+            color: scheme.onSecondary,
           ),
         ),
       ),

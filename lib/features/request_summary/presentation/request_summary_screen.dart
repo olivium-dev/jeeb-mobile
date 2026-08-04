@@ -3,17 +3,31 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../transcription/domain/transcript_audio_player.dart';
 import '../application/request_summary_cubit.dart';
+import 'widgets/broadcast_footer.dart';
+import 'widgets/request_ticket.dart';
+
+/// Board `margin:22px` above the ticket, less the top bar's 4dp tap overhang.
+const double _kTicketTopGap = 18;
 
 class RequestSummaryScreen extends StatelessWidget {
-  const RequestSummaryScreen({super.key});
+  const RequestSummaryScreen({super.key, this.audioPlayer});
+
+  /// Test override for the voice replay band. Production leaves it null and the
+  /// band constructs the `audioplayers` adapter itself, so playback needs no
+  /// DI registration and no router change.
+  final TranscriptAudioPlayer? audioPlayer;
 
   @override
   Widget build(BuildContext context) {
     // On a successful submit, return to the Requests tab (`/`). The submit
     // cubit only flips isSubmitted once, so listenWhen fires exactly on the
-    // false → true edge. A failed submit surfaces an OMDS error snackbar on
+    // false → true edge. A failed submit surfaces a Midnight danger snackbar on
     // the null → non-null `error` edge and leaves the screen in place so the
     // user can retry.
     return MultiBlocListener(
@@ -25,126 +39,93 @@ class RequestSummaryScreen extends StatelessWidget {
         BlocListener<RequestSummaryCubit, RequestSummaryState>(
           listenWhen: (p, c) => p.error == null && c.error != null,
           listener: (context, state) =>
-              showOmdsErrorSnackbar(context, message: state.error!),
+              _showSubmitError(context, state.error!),
         ),
       ],
       child: BlocBuilder<RequestSummaryCubit, RequestSummaryState>(
         builder: (context, state) {
+          final l10n = AppLocalizations.of(context);
           final draft = state.draft;
-          if (draft == null) return const OmdsLoadingState();
           return Scaffold(
-            appBar: OMDSAppBar(title: AppLocalizations.of(context).requestSummaryTitle),
-            body: _RequestSummaryBody(state: state),
+            backgroundColor: Colors.transparent,
+            body: JeebMidnightField(
+              variant: JeebFieldVariant.content,
+              child: SafeArea(
+                child: Semantics(
+                  identifier: 'request_summary_root',
+                  // Both flags or this node swallows every nested identifier.
+                  container: true,
+                  explicitChildNodes: true,
+                  child: Column(
+                    children: [
+                      JeebTopBar.back(
+                        title: l10n.requestSummaryTitle,
+                        identifier: 'request_summary_back',
+                        // Mirrors `backFallbacks['request-summary'] = '/'`; the
+                        // route is already wrapped, so no RootAwareBackScope.
+                        onLeadingPressed: () {
+                          if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.go('/');
+                          }
+                        },
+                      ),
+                      if (draft == null)
+                        Expanded(
+                          child: Center(
+                            child: SingleChildScrollView(
+                              child: JeebEmptyState(
+                                status: JeebEmptyStateStatus.loading,
+                                headline: l10n.requestSummaryTitle,
+                                identifier: 'request_summary_loading',
+                              ),
+                            ),
+                          ),
+                        )
+                      else ...[
+                        // Expanded + scroll view (never a bare Spacer)
+                        // reproduces the board's flex-1 gap AND survives 200%
+                        // text scale.
+                        Expanded(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsetsDirectional.fromSTEB(
+                              Spacing.xLarge,
+                              _kTicketTopGap,
+                              Spacing.xLarge,
+                              0,
+                            ),
+                            child: RequestTicket(
+                              draft: draft,
+                              audioPlayer: audioPlayer,
+                            ),
+                          ),
+                        ),
+                        BroadcastFooter(isSubmitting: state.isSubmitting),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
           );
         },
       ),
     );
   }
-}
 
-class _RequestSummaryBody extends StatelessWidget {
-  const _RequestSummaryBody({required this.state});
-
-  final RequestSummaryState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final draft = state.draft!;
-    final l10n = AppLocalizations.of(context);
-    return ListView(
-      padding: const EdgeInsets.all(Spacing.medium),
-      children: [
-        _SectionCard(
-          title: l10n.requestSummarySectionDescription,
-          child: Text(draft.description),
+  /// The OMDS error snackbar paints white ink on `colorScheme.error` (#FF5252),
+  /// which fails AA on navy; §9's ratified danger pair is the container quartet.
+  static void _showSubmitError(BuildContext context, String message) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: TextStyle(color: scheme.onErrorContainer),
         ),
-        if (draft.transcription != null)
-          _SectionCard(
-            title: l10n.requestSummarySectionTranscription,
-            child: Text(draft.transcription!),
-          ),
-        if (draft.photoUrls.isNotEmpty)
-          _SectionCard(
-            title: l10n.requestSummarySectionPhotos,
-            child: Text(l10n.requestSummaryPhotosAttached(draft.photoUrls.length)),
-          ),
-        if (draft.tierName != null)
-          _SectionCard(
-            title: l10n.requestSummarySectionTier,
-            child: Text(draft.tierName!),
-          ),
-        if (draft.pickupAddress != null)
-          _SectionCard(
-            title: l10n.requestSummarySectionPickup,
-            child: Text(draft.pickupAddress!),
-          ),
-        if (draft.dropoffAddress != null)
-          _SectionCard(
-            title: l10n.requestSummarySectionDropoff,
-            child: Text(draft.dropoffAddress!),
-          ),
-        const SizedBox(height: Spacing.xLarge),
-        _SubmitButton(isSubmitting: state.isSubmitting),
-      ],
-    );
-  }
-}
-
-class _SubmitButton extends StatelessWidget {
-  const _SubmitButton({required this.isSubmitting});
-
-  final bool isSubmitting;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      identifier: 'request_summary_submit',
-      button: true,
-      child: OmdsLoadingButton(
-        key: const Key('request_summary.submit'),
-        text: AppLocalizations.of(context).requestSummarySubmit,
-        isLoading: isSubmitting,
-        onTap: () => context.read<RequestSummaryCubit>().submit(),
+        backgroundColor: scheme.errorContainer,
       ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.child});
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(bottom: Spacing.small),
-      child: Card(
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.medium),
-          child: _SectionCardContent(title: title, child: child),
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionCardContent extends StatelessWidget {
-  const _SectionCardContent({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: Spacing.xSmall),
-        child,
-      ],
     );
   }
 }

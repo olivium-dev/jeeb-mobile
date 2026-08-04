@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../l10n/app_localizations.dart';
 import 'social_provider.dart';
 
@@ -38,21 +41,24 @@ const Color _facebookBrandBlue = Color(0xFF1877F2);
 /// Pure white "f" glyph on the Facebook-blue button — Facebook Brand Guidelines.
 const Color _facebookGlyphForeground = Color(0xFFFFFFFF);
 
-/// Pure black for the Apple glyph when it sits on a white button.
-const Color _appleBrandBlack = Color(0xFF000000);
-
-/// Pure white for the Apple glyph when it sits on a black button.
+/// Pure white for the Apple glyph. MIDNIGHT R6 makes the button a dark glass
+/// pill, which is exactly the HIG's white-on-dark case; the pre-Midnight black
+/// glyph was for OMDS's white pill and would now be invisible.
 const Color _appleBrandWhite = Color(0xFFFFFFFF);
+
+/// Board-measured social pill: h54 at [JeebRadii.lg] (R6 tile y 560–619, corner
+/// 19 at the 1.1 export scale).
+const double _kSocialPillHeight = 54;
 
 /// Apple HIG specifies a 17pt glyph in a 44pt button; we ship a 22dp
 /// raster glyph which keeps the visual weight inside the OMDS 48dp
 /// button container. Cannot be mapped to `Sizes.*` (no 22dp token).
 const double _appleGlyphIconSize = 22.0;
 
-/// Renders a single OMDS-styled social sign-in button. Hosts the Apple
-/// platform gate (the Apple button is hidden on Android per UX direction —
-/// Apple's Sign-In on Android requires a separate web fallback the gateway
-/// does not host yet).
+/// Renders a single social sign-in button as a MIDNIGHT frosted pill (R6:
+/// "socials go frosted"). Hosts the Apple platform gate (the Apple button is
+/// hidden on Android per UX direction — Apple's Sign-In on Android requires a
+/// separate web fallback the gateway does not host yet).
 class SocialSignInButton extends StatelessWidget {
   const SocialSignInButton({
     super.key,
@@ -61,12 +67,20 @@ class SocialSignInButton extends StatelessWidget {
     this.isBusy = false,
     this.isEnabled = true,
     this.identifier,
+    this.compact = false,
   });
 
   final SocialProvider provider;
   final VoidCallback onTap;
   final bool isBusy;
   final bool isEnabled;
+
+  /// Renders the bare brand name ("Google") instead of "Continue with Google".
+  ///
+  /// doc-13 P1: in the two-up row the long label clipped to "Continue with" on
+  /// BOTH pills, so the provider — the only thing that distinguishes them —
+  /// was the part that disappeared. The a11y label keeps the full sentence.
+  final bool compact;
 
   /// Screen-scoped Maestro/accessibility identifier the caller stamps on the
   /// button's own interactive node (e.g. `login_social_google`). Null leaves
@@ -85,63 +99,85 @@ class SocialSignInButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final brightness = Theme.of(context).brightness;
-    final effectiveOnTap = (isEnabled && !isBusy) ? onTap : () {};
+    final live = isEnabled && !isBusy;
+    // EXEMPT(flutter-omds-design-system-usage): `OmdsSocialButtons` paints
+    // every provider as a WHITE pill in both brightnesses (see the wiring-02
+    // note that used to live here), which is the one thing a Midnight screen
+    // cannot host. The pill is now the kit's rest glass; the brand marks and
+    // their guideline colours are unchanged.
+    return Semantics(
+      identifier: identifier,
+      container: true,
+      button: true,
+      enabled: live,
+      label: _accessibleLabel(l10n),
+      child: JeebGlassCard(
+        radius: JeebRadii.lg,
+        padding: EdgeInsets.zero,
+        onTap: live ? onTap : null,
+        child: SizedBox(
+          height: _kSocialPillHeight,
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _glyph(live),
+                const SizedBox(width: Spacing.xSmall),
+                Flexible(
+                  child: Text(
+                    isBusy ? '…' : _visibleLabel(l10n),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.jeebText.cardTitle.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
+  Widget _glyph(bool live) {
     switch (provider) {
       case SocialProvider.google:
-        return Semantics(
-          identifier: identifier,
-          container: true,
-          button: true,
-          enabled: isEnabled && !isBusy,
-          label: l10n.registrationContinueWithGoogle,
-          child: OmdsSocialButtons.google(
-            icon: _GoogleGlyph(enabled: isEnabled && !isBusy),
-            text: isBusy ? '…' : l10n.registrationContinueWithGoogle,
-            onTap: effectiveOnTap,
-          ),
-        );
+        return _GoogleGlyph(enabled: live);
       case SocialProvider.facebook:
-        return Semantics(
-          identifier: identifier,
-          container: true,
-          button: true,
-          enabled: isEnabled && !isBusy,
-          // Visible label reuses the locale-safe generic `actionContinue`
-          // ("Continue") — no dedicated Facebook key exists yet (requested in
-          // 50_ROUTE_REQUESTS.md for a copy-polish swap to
-          // `socialContinueWithFacebook`). Maestro asserts on the caller's
-          // `*_social_facebook` identifier, never this text.
-          label: l10n.actionContinue,
-          child: OmdsSocialButtons.facebook(
-            // Facebook brand "f" mark on the brand-blue button. White glyph per
-            // the Facebook Brand Guidelines — see the EXEMPT block at top.
-            icon: _FacebookGlyph(enabled: isEnabled && !isBusy),
-            text: isBusy ? '…' : l10n.actionContinue,
-            onTap: effectiveOnTap,
-          ),
-        );
+        return _FacebookGlyph(enabled: live);
       case SocialProvider.apple:
-        final isDark = brightness == Brightness.dark;
-        return Semantics(
-          identifier: identifier,
-          container: true,
-          button: true,
-          enabled: isEnabled && !isBusy,
-          label: l10n.registrationContinueWithApple,
-          child: OmdsSocialButtons.apple(
-            // Apple HIG mandates a black glyph on the light "Sign in with
-            // Apple" button and a white glyph on the dark variant — see
-            // the brand-color EXEMPT block at the top of this file.
-            icon: _AppleGlyph(
-              color: isDark ? _appleBrandBlack : _appleBrandWhite,
-            ),
-            text: isBusy ? '…' : l10n.registrationContinueWithApple,
-            onTap: effectiveOnTap,
-            isDark: isDark,
-          ),
-        );
+        // HIG white-on-dark: the pill is dark glass now, so the mark is white.
+        return const _AppleGlyph(color: _appleBrandWhite);
+    }
+  }
+
+  /// Always the full sentence — shortening the visible label must not shorten
+  /// what a screen reader announces.
+  String _accessibleLabel(AppLocalizations l10n) {
+    switch (provider) {
+      case SocialProvider.google:
+        return l10n.registrationContinueWithGoogle;
+      case SocialProvider.facebook:
+        // No dedicated Facebook key exists yet (50_ROUTE_REQUESTS.md).
+        return l10n.actionContinue;
+      case SocialProvider.apple:
+        return l10n.registrationContinueWithApple;
+    }
+  }
+
+  String _visibleLabel(AppLocalizations l10n) {
+    if (!compact) return _accessibleLabel(l10n);
+    switch (provider) {
+      case SocialProvider.google:
+        return l10n.registrationSocialGoogleShort;
+      case SocialProvider.facebook:
+        // Still no Facebook key (see _accessibleLabel); the brand name is the
+        // same latin proper noun in every shipped locale.
+        return 'Facebook';
+      case SocialProvider.apple:
+        return l10n.registrationSocialAppleShort;
     }
   }
 }

@@ -3,38 +3,25 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/super_login_demo_user.dart';
 
-/// Opens the "Super user login plus" demo-user picker (debug-only).
-///
-/// Fetches ALL live users from `GET /api/User/super-login/users` via
-/// [SuperLoginDemoUserService] and lists each user (name + role badge) with a
-/// search box to filter the full roster. When the user taps a row the sheet
-/// pops with the chosen [SuperLoginDemoUser];
-/// the caller then opens the existing super-login sheet pre-filled with that
-/// user's `userId` + the single real SuperAdmin passcode (from `AppConfig`).
-/// Returns `null` if dismissed.
-///
-/// Pass [service] from tests; production resolves it from DI.
 Future<SuperLoginDemoUser?> showSuperLoginPicker(
   BuildContext context, {
   SuperLoginDemoUserService? service,
 }) {
   final resolved = service ?? sl<SuperLoginDemoUserService>();
+  // No backgroundColor/shape override: `bottomSheetTheme` already carries the
+  // navy surface and the ratified sheet rung (26), which `topLarge` (20) is not.
   return showModalBottomSheet<SuperLoginDemoUser>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: OmdsBorderRadius.topLarge,
-    ),
     builder: (sheetContext) => _SuperLoginPickerBody(service: resolved),
   );
 }
 
-/// Owns the async fetch lifecycle (loading → data | error) and renders the
-/// matching body. Kept stateful so a Retry re-issues the fetch in place.
 class _SuperLoginPickerBody extends StatefulWidget {
   const _SuperLoginPickerBody({required this.service});
 
@@ -62,12 +49,9 @@ class _SuperLoginPickerBodyState extends State<_SuperLoginPickerBody> {
 
   @override
   Widget build(BuildContext context) {
-    // Keyboard inset + system nav-bar inset so the bottom-most picker row stays
-    // clear of the soft-button nav bar under edge-to-edge (was keyboard-only).
+    // Keyboard + system nav-bar inset for bottom row visibility under edge-to-edge.
     final bottomInset = context.sheetBottomInset;
-    // The entire sheet is ONE SingleChildScrollView so an isScrollControlled
-    // modal sizes to min(content, viewport) and scrolls — content can never
-    // overflow the bottom of the screen (the trap a `Column(min)` falls into).
+    // Sheet's outer SingleChildScrollView owns scrolling; this list lays out inline.
     return Semantics(
       identifier: 'super_login_plus_picker',
       container: true,
@@ -88,8 +72,6 @@ class _SuperLoginPickerBodyState extends State<_SuperLoginPickerBody> {
   }
 }
 
-/// Drag handle + header + the async-resolved list/loading/error region, as a
-/// shrink-wrapping column inside the sheet's single scroll view.
 class _SuperLoginPickerContent extends StatelessWidget {
   const _SuperLoginPickerContent({
     required this.future,
@@ -132,8 +114,7 @@ class _PickerDragHandle extends StatelessWidget {
         width: Sizes.fourXLarge,
         height: Spacing.xSmall,
         decoration: BoxDecoration(
-          color:
-              colorScheme.onSurface.withValues(alpha: UIConstants.opacityLow),
+          color: colorScheme.onSurfaceVariant,
           borderRadius: OmdsBorderRadius.small,
         ),
       ),
@@ -154,22 +135,22 @@ class _PickerHeader extends StatelessWidget {
         Text(
           l10n.superLoginPickerTitle,
           key: const Key('superLoginPlus.pickerTitle'),
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: context.jeebText.h2.copyWith(
+            color: theme.colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.superLoginPickerSubtitle,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: context.jeebText.body.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
   }
 }
 
-/// Resolves [future] to one of: loading spinner, error state (with Retry), or
-/// the scrollable user list.
 class _PickerAsyncRegion extends StatelessWidget {
   const _PickerAsyncRegion({
     required this.future,
@@ -200,17 +181,12 @@ class _PickerAsyncRegion extends StatelessWidget {
   }
 }
 
-/// The full roster (~84 live users) with an OMDS search box on top. Filters the
-/// list case-insensitively by name, active role, or userId as the user types, so
-/// the large roster stays navigable. The search box only appears once the roster
-/// is big enough to warrant it (the 3-row demo case renders as a plain list).
 class _PickerFilterableList extends StatefulWidget {
   const _PickerFilterableList({required this.users, required this.onSelect});
 
   final List<SuperLoginDemoUser> users;
   final ValueChanged<SuperLoginDemoUser> onSelect;
 
-  /// Above this row count the search box is worth showing.
   static const int _searchThreshold = 8;
 
   @override
@@ -264,8 +240,6 @@ class _PickerFilterableListState extends State<_PickerFilterableList> {
   }
 }
 
-/// Empty-search-result state — distinct from the fetch-error state (no Retry;
-/// the roster loaded fine, the query just matched nothing).
 class _PickerNoMatches extends StatelessWidget {
   const _PickerNoMatches({required this.message});
 
@@ -282,25 +256,22 @@ class _PickerNoMatches extends StatelessWidget {
           message,
           key: const Key('superLoginPlus.pickerNoMatches'),
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: context.jeebText.body.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ),
     );
   }
 }
 
-/// Loading state. EXEMPT(flutter-omds-design-system-usage): the raw
-/// [CircularProgressIndicator] is acceptable here — the state is purely
-/// non-interactive, matching the `_PhoneField` exemption pattern. Tracked
-/// under JEEB-57 alongside the OMDS-loader promotion.
+/// EXEMPT(flutter-omds-design-system-usage): raw CircularProgressIndicator acceptable (non-interactive state only; tracked under JEEB-57).
 class _PickerLoading extends StatelessWidget {
   const _PickerLoading();
 
   @override
   Widget build(BuildContext context) {
-    // Semantics has no const constructor, so this tree cannot be a const
-    // literal; only the leaf CircularProgressIndicator is const.
+    // Semantics has no const constructor; only the leaf CircularProgressIndicator is const.
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: Spacing.threeXLarge),
       child: Center(
@@ -335,9 +306,6 @@ class _PickerError extends StatelessWidget {
   }
 }
 
-/// Scrollable list of demo-user rows. Fills the [Flexible] slot its parent
-/// allots (bounded to the height-capped sheet) and scrolls when the roster is
-/// taller than that slot — so the sheet never overflows the viewport.
 class _PickerList extends StatelessWidget {
   const _PickerList({required this.users, required this.onSelect});
 
@@ -348,8 +316,7 @@ class _PickerList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.separated(
       key: const Key('superLoginPlus.pickerList'),
-      // Shrink-wrapped + non-scrolling: the sheet's outer SingleChildScrollView
-      // owns scrolling, so this list just lays its rows out inline.
+      // Shrink-wrapped + non-scrolling: sheet's outer SingleChildScrollView owns scrolling.
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: users.length,
@@ -360,9 +327,6 @@ class _PickerList extends StatelessWidget {
   }
 }
 
-/// One tappable demo-user row: avatar + name + role badge. Composed from OMDS
-/// primitives via [InkWell] + [Row] (not [ListTile]) so the [OmdsChip] trailing
-/// badge lays out without the ListTile height assert.
 class _DemoUserRow extends StatelessWidget {
   const _DemoUserRow({required this.user, required this.onTap});
 
@@ -402,9 +366,11 @@ class _DemoUserRowContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        OmdsProfileAvatar(
+        // OmdsProfileAvatar defaults to `primaryContainer` — burnt orange, and
+        // now the same fill as the jeeber badge two columns over.
+        JeebAvatar(
           initial: user.name.isEmpty ? '?' : user.name.characters.first,
-          size: Sizes.fiveXLarge,
+          diameter: JeebAvatar.threadDiameter,
         ),
         const SizedBox(width: Spacing.medium),
         Expanded(child: _DemoUserName(name: user.name)),
@@ -424,17 +390,16 @@ class _DemoUserName extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       name,
-      style: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(fontWeight: FontWeight.w600),
+      style: context.jeebText.cardTitle.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
       overflow: TextOverflow.ellipsis,
     );
   }
 }
 
-/// Colour-coded role badge: client → primaryContainer, jeeber →
-/// tertiaryContainer (M3 roles, dark-mode safe).
+/// Jeeber → accent container, client → raised navy. Under Midnight `tertiary`
+/// is an alias of `primary`, so the old primary/tertiary pair rendered alike.
 class _RoleBadge extends StatelessWidget {
   const _RoleBadge({required this.isJeeber});
 
@@ -449,11 +414,11 @@ class _RoleBadge extends StatelessWidget {
           ? l10n.superLoginPickerRoleJeeber
           : l10n.superLoginPickerRoleClient,
       selectedColor: isJeeber
-          ? colorScheme.tertiaryContainer
-          : colorScheme.primaryContainer,
+          ? colorScheme.primaryContainer
+          : colorScheme.secondaryContainer,
       selectedTextColor: isJeeber
-          ? colorScheme.onTertiaryContainer
-          : colorScheme.onPrimaryContainer,
+          ? colorScheme.onPrimaryContainer
+          : colorScheme.onSecondaryContainer,
       isSelected: true,
     );
   }

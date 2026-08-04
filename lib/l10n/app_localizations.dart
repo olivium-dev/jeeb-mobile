@@ -4,13 +4,6 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-/// Hand-authored localizations layer for Jeeb. ARB files at
-/// `lib/l10n/app_{en,ar}.arb` are the source of truth and are bundled as
-/// assets; this class parses them at load time and exposes typed getters.
-///
-/// When the team adopts `flutter gen-l10n`, this file can be deleted and the
-/// generated class swapped in without changing call sites — every getter name
-/// matches the ARB key.
 class AppLocalizations {
   AppLocalizations(this.locale, this._strings);
 
@@ -49,17 +42,14 @@ class AppLocalizations {
     return value ?? key;
   }
 
-  /// Test-only accessor over the loaded ARB map. Used by
-  /// `test/l10n/runtime_parity_test.dart` (JEB-2 LEAD §3) to assert that no
-  /// rendered value equals its key. Returns `null` for unknown keys.
   @visibleForTesting
   String? byKey(String key) => _strings[key];
 
-  /// Test-only snapshot of the loaded ARB map.
   @visibleForTesting
   Map<String, String> get allStrings => Map.unmodifiable(_strings);
 
   String get appTitle => _get('appTitle');
+
 
   String get navHome => _get('navHome');
   String get navOrders => _get('navOrders');
@@ -276,7 +266,6 @@ class AppLocalizations {
   String get profileSaving => _get('profileSaving');
   String get profileSaved => _get('profileSaved');
 
-  // Post-OTP display-name onboarding step (profile-name lane).
   String get profileNameStepTitle => _get('profileNameStepTitle');
   String get profileNameStepSubtitle => _get('profileNameStepSubtitle');
   String get profileNameStepCta => _get('profileNameStepCta');
@@ -298,7 +287,6 @@ class AppLocalizations {
   String get notificationPreferencesDisableOffersConfirm =>
       _get('notificationPreferencesDisableOffersConfirm');
 
-  // T-MOB-026: server-wired notification prefs (GET/PATCH /users/me/notification-preferences).
   String get notificationPrefsSaveError => _get('notificationPrefsSaveError');
   String get notificationPrefsLoadError => _get('notificationPrefsLoadError');
   String get notificationPrefsRetry => _get('notificationPrefsRetry');
@@ -349,6 +337,7 @@ class AppLocalizations {
 
   String get useBiometrics => _get('useBiometrics');
   String get biometricNotAvailable => _get('biometricNotAvailable');
+  String get biometricPromptSubtitle => _get('biometricPromptSubtitle');
   String get biometricRowTitle => _get('biometricRowTitle');
   String get biometricRowSubtitle => _get('biometricRowSubtitle');
   String get biometricLockTitle => _get('biometricLockTitle');
@@ -568,10 +557,8 @@ class AppLocalizations {
   ).replaceFirst('{minutes}', minutes).replaceFirst('{seconds}', seconds);
   String get registrationChangePhone => _get('registrationChangePhone');
 
-  // FR-LOGIN: branded register hero + welcome heading.
   String get registrationWelcome => _get('registrationWelcome');
 
-  // FR-P0-4: super-login credential bottom sheet.
   String get superLoginTitle => _get('superLoginTitle');
   String get superLoginSubtitle => _get('superLoginSubtitle');
   String get superLoginUserId => _get('superLoginUserId');
@@ -582,7 +569,6 @@ class AppLocalizations {
   String get superLoginError => _get('superLoginError');
   String get superLoginNetworkError => _get('superLoginNetworkError');
 
-  // "Super user login plus": demo-user picker that pre-fills the sheet.
   String get superLoginPlusTitle => _get('superLoginPlusTitle');
   String get superLoginPickerTitle => _get('superLoginPickerTitle');
   String get superLoginPickerSubtitle => _get('superLoginPickerSubtitle');
@@ -646,7 +632,6 @@ class AppLocalizations {
   String get tierSelectionOnTheWayMvpNote =>
       _get('tierSelectionOnTheWayMvpNote');
 
-  // Request type screen (Figma 56535:2392)
   String get requestTypeTitle => _get('requestTypeTitle');
   String get requestTypeChooseHeading => _get('requestTypeChooseHeading');
   String get requestTypeLocationHeading => _get('requestTypeLocationHeading');
@@ -678,15 +663,12 @@ class AppLocalizations {
       .replaceFirst('{value}', value);
   String get requestTypeTierSelectedHint => _get('requestTypeTierSelectedHint');
 
-  // Client Location screen (Figma 56539:1444)
   String get clientLocationTitle => _get('clientLocationTitle');
   String get clientLocationHeading => _get('clientLocationHeading');
   String get clientLocationCurrentOption => _get('clientLocationCurrentOption');
   String get clientLocationNewOption => _get('clientLocationNewOption');
   String get clientLocationAddSemantic => _get('clientLocationAddSemantic');
 
-  // JEBV4-176 (Q-060) — honest GPS-acquisition + recovery on the Current
-  // Location option (no silent Beirut fallback).
   String get clientLocationGpsResolving => _get('clientLocationGpsResolving');
   String get clientLocationGpsResolved => _get('clientLocationGpsResolved');
   String get clientLocationGpsPermissionDeniedTitle =>
@@ -707,14 +689,11 @@ class AppLocalizations {
   String get clientLocationGpsOpenLocationSettings =>
       _get('clientLocationGpsOpenLocationSettings');
 
-  // Recipient-phone capture on the location-confirm step (iter6 OTP-phone v2).
   String get recipientPhoneLabel => _get('recipientPhoneLabel');
   String get recipientPhoneHint => _get('recipientPhoneHint');
   String get recipientPhoneHelper => _get('recipientPhoneHelper');
   String get recipientPhoneInvalid => _get('recipientPhoneInvalid');
 
-  // G1 (sprint-009 P0): "What do you need?" compose block on the
-  // location-confirm step — the customer's request content.
   String get composeDescriptionHeading => _get('composeDescriptionHeading');
   String get composeDescriptionHint => _get('composeDescriptionHint');
   String get composeDescriptionHelper => _get('composeDescriptionHelper');
@@ -722,19 +701,14 @@ class AppLocalizations {
   String get composeDescriptionMicSemantic =>
       _get('composeDescriptionMicSemantic');
 
-  // G1: customer-side echo of the request content on the waiting screen.
   String get waitingRequestSummaryLabel => _get('waitingRequestSummaryLabel');
 
-  // Capture Location screen (Figma 56546:2303)
   String get captureLocationTitle => _get('captureLocationTitle');
-  String get captureLocationPinCta => _get('captureLocationPinCta');
   String get captureLocationMapSemantic => _get('captureLocationMapSemantic');
   String get captureLocationPinSemantic => _get('captureLocationPinSemantic');
   String get captureLocationMapPreview => _get('captureLocationMapPreview');
-  // T-MOB-012: "centre map on current GPS" button (maps wiring).
   String get captureLocationMyLocation => _get('captureLocationMyLocation');
 
-  // T-MOB-012: GPS denied + outside service area (AC4/AC5)
   String get captureLocationGpsDeniedTitle =>
       _get('captureLocationGpsDeniedTitle');
   String get captureLocationGpsDeniedBody =>
@@ -744,7 +718,6 @@ class AppLocalizations {
   String get captureLocationOutsideServiceArea =>
       _get('captureLocationOutsideServiceArea');
 
-  // T-MOB-012: Saved locations chip row
   String get savedLocationsTitle => _get('savedLocationsTitle');
   String get savedLocationsChipHome => _get('savedLocationsChipHome');
   String get savedLocationsChipWork => _get('savedLocationsChipWork');
@@ -756,7 +729,6 @@ class AppLocalizations {
   String get savedLocationsSaveSheetSkip => _get('savedLocationsSaveSheetSkip');
   String get savedLocationsNameHint => _get('savedLocationsNameHint');
 
-  // KYC wizard
   String get kycWizardTitle => _get('kycWizardTitle');
   String kycWizardProgressLabel({required int current, required int total}) =>
       _get(
@@ -828,7 +800,6 @@ class AppLocalizations {
   String get kycRejectionReasonExpired => _get('kycRejectionReasonExpired');
   String get kycRejectionReasonOther => _get('kycRejectionReasonOther');
 
-  // T-MOB-013: schema-driven KYC — ToS step + new error strings.
   String get kycTosStepTitle => _get('kycTosStepTitle');
   String get kycTosStepSubtitle => _get('kycTosStepSubtitle');
   String kycTosVersionLabel({required String version}) =>
@@ -855,7 +826,6 @@ class AppLocalizations {
   String get kycErrorSubmitFailed => _get('kycErrorSubmitFailed');
   String get kycErrorSubmitValidationFailed =>
       _get('kycErrorSubmitValidationFailed');
-  String get kycScrollForSelfieHint => _get('kycScrollForSelfieHint');
 
   String get profileKycSectionTitle => _get('profileKycSectionTitle');
   String get profileKycStatusNotSubmitted =>
@@ -866,7 +836,6 @@ class AppLocalizations {
   String get profileKycStartCta => _get('profileKycStartCta');
   String get profileKycViewCta => _get('profileKycViewCta');
 
-  // Jeeber dashboard (T-mobile-039).
   String get dashboardTodayEarningsTitle => _get('dashboardTodayEarningsTitle');
   String get dashboardTodayEarningsEmpty => _get('dashboardTodayEarningsEmpty');
   String dashboardTodayEarningsTips(String amount) =>
@@ -935,7 +904,6 @@ class AppLocalizations {
   String get dashboardNearbyRequestsOfflineHint =>
       _get('dashboardNearbyRequestsOfflineHint');
 
-  // Jeeber request feed + incoming match prompt (T-mobile-013)
   String get jeeberFeedSectionTitle => _get('jeeberFeedSectionTitle');
   String get jeeberFeedEmpty => _get('jeeberFeedEmpty');
   String jeeberFeedDistance(String distance) =>
@@ -949,6 +917,57 @@ class AppLocalizations {
   String get jeeberFeedFilterReplies => _get('jeeberFeedFilterReplies');
   String get jeeberFeedIgnoreAction => _get('jeeberFeedIgnoreAction');
   String get jeeberFeedOfferAction => _get('jeeberFeedOfferAction');
+  String get jeeberFeedMakeOfferAction => _get('jeeberFeedMakeOfferAction');
+
+  /// Feed-card age lines. Six CLDR branches are selected here because this
+  /// class has no ICU engine — the ARB stores one key per branch, per the
+  /// repo's key-suffix convention (qa/t-mob-fix-002/ar_plurals_check.sh).
+  String jeeberFeedMinutesAgo(int count) =>
+      _jeeberFeedAge('jeeberFeedMinutesAgo', count);
+  String jeeberFeedHoursAgo(int count) =>
+      _jeeberFeedAge('jeeberFeedHoursAgo', count);
+  String jeeberFeedDaysAgo(int count) =>
+      _jeeberFeedAge('jeeberFeedDaysAgo', count);
+
+  String _jeeberFeedAge(String base, int count) {
+    if (count == 0) return _get('${base}Zero');
+    if (count == 1) return _get('${base}One');
+    if (count == 2) return _get('${base}Two');
+    final mod = count % 100;
+    final String branch;
+    if (mod >= 3 && mod <= 10) {
+      branch = 'Few';
+    } else if (mod >= 11 && mod <= 99) {
+      branch = 'Many';
+    } else {
+      branch = 'Other';
+    }
+    return _get('$base$branch').replaceFirst('{count}', '$count');
+  }
+
+  /// The same six-branch selector, generalized: every branch substitutes, so a
+  /// set whose Zero/One/Two forms carry `{count}` still renders.
+  String _cldrPlural(String base, int count) {
+    final String branch;
+    if (count == 0) {
+      branch = 'Zero';
+    } else if (count == 1) {
+      branch = 'One';
+    } else if (count == 2) {
+      branch = 'Two';
+    } else {
+      final mod = count % 100;
+      if (mod >= 3 && mod <= 10) {
+        branch = 'Few';
+      } else if (mod >= 11 && mod <= 99) {
+        branch = 'Many';
+      } else {
+        branch = 'Other';
+      }
+    }
+    return _get('$base$branch').replaceFirst('{count}', '$count');
+  }
+
   String get jeeberFeedAnonymousClient => _get('jeeberFeedAnonymousClient');
   String jeeberFeedDistanceAway(String distance) =>
       _get('jeeberFeedDistanceAway').replaceFirst('{distance}', distance);
@@ -969,7 +988,6 @@ class AppLocalizations {
     'jeeberIncomingMatchCountdown',
   ).replaceFirst('{seconds}', '$seconds');
 
-  // Request summary (T-mobile-012)
   String get requestSummaryTitle => _get('requestSummaryTitle');
   String get requestSummarySectionDescription =>
       _get('requestSummarySectionDescription');
@@ -984,7 +1002,7 @@ class AppLocalizations {
   String get requestSummarySectionTranscription =>
       _get('requestSummarySectionTranscription');
   String requestSummaryPhotosAttached(int count) =>
-      _get('requestSummaryPhotosAttached').replaceFirst('{count}', '$count');
+      _cldrPlural('requestSummaryPhotosAttached', count);
   String get requestSummarySubmit => _get('requestSummarySubmit');
   String get requestSummaryRetry => _get('requestSummaryRetry');
   String get requestSummaryErrorNetwork => _get('requestSummaryErrorNetwork');
@@ -1009,7 +1027,6 @@ class AppLocalizations {
   String get requestSummaryProhibitedConfirm =>
       _get('requestSummaryProhibitedConfirm');
 
-  String get requestSummaryFindingTitle => _get('requestSummaryFindingTitle');
   String requestSummaryFindingNotifiedCount(int count) {
     if (count == 0) return _get('requestSummaryFindingNotifiedZero');
     if (count == 1) return _get('requestSummaryFindingNotifiedOne');
@@ -1032,7 +1049,6 @@ class AppLocalizations {
 
   String get requestSummaryFindingHint => _get('requestSummaryFindingHint');
 
-  // No-offer timeout / expired-request banners (T-mobile-035)
   String get requestSummaryNoOffersTitle => _get('requestSummaryNoOffersTitle');
   String get requestSummaryNoOffersBody => _get('requestSummaryNoOffersBody');
   String requestSummaryExpandToTier(String tier) =>
@@ -1040,8 +1056,6 @@ class AppLocalizations {
   String get requestSummaryExpiredTitle => _get('requestSummaryExpiredTitle');
   String get requestSummaryExpiredBody => _get('requestSummaryExpiredBody');
   String get requestSummaryReRequest => _get('requestSummaryReRequest');
-  // Shown when /request-summary is reached without a draft (e.g. a cold
-  // deep-link), replacing a raw scaffold with hardcoded English.
   String get requestSummaryUnavailableTitle =>
       _get('requestSummaryUnavailableTitle');
   String get requestSummaryUnavailableBody =>
@@ -1122,12 +1136,8 @@ class AppLocalizations {
       .replaceFirst('{fee}', fee)
       .replaceFirst('{currency}', currency)
       .replaceFirst('{minutes}', '$minutes');
-  /// JM-029 accept-confirm sheet title. A QUESTION about an action not yet
-  /// taken — never the past-tense chat system message.
   String offerAcceptTitle(String name) =>
       _get('offerAcceptTitle').replaceFirst('{name}', name);
-  // W6/SW-08 offer identity: honest name + rating fallbacks (never a UUID name
-  // or a fabricated "4.5 (0)").
   String get offersCardJeeberFallback => _get('offersCardJeeberFallback');
   String get offersCardNoRatingsYet => _get('offersCardNoRatingsYet');
   String offersCardSemanticLabelUnrated({
@@ -1156,16 +1166,11 @@ class AppLocalizations {
   String get offersLoadErrorGeneric => _get('offersLoadErrorGeneric');
   String get offersAcceptedBannerTitle => _get('offersAcceptedBannerTitle');
   String get offersAcceptedBannerBody => _get('offersAcceptedBannerBody');
-  // JM-028 offer-review additions.
   String offerCardCashOnDelivery(String amount, String currency) => _get(
     'offerCardCashOnDelivery',
   ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
   String get offerReviewCancelCta => _get('offerReviewCancelCta');
-  // JM-030 cancel-request-confirm sheet body (D69). Getter added by JM-028 to
-  // unblock the shared cancel sheet it invokes; the JM-030 engineer owns it.
   String get cancelRequestFreeNote => _get('cancelRequestFreeNote');
-  // cycle-4 typed cancel errors (DELETE /v1/requests/{id}): 409 conflict copy
-  // + the generic 404/403/5xx fallback. Network reuses loginNetworkError.
   String get cancelRequestErrorConflict => _get('cancelRequestErrorConflict');
   String get cancelRequestErrorGeneric => _get('cancelRequestErrorGeneric');
 
@@ -1309,7 +1314,6 @@ class AppLocalizations {
   String get deliveryActionCancellingLabel =>
       _get('deliveryActionCancellingLabel');
 
-  // JEBV4-309 — state-aware customer delivery-details hub.
   String get deliveryActionReceipt => _get('deliveryActionReceipt');
   String get deliveryDetailDeliveredBanner =>
       _get('deliveryDetailDeliveredBanner');
@@ -1336,9 +1340,6 @@ class AppLocalizations {
   String get trackingCancelledBody => _get('trackingCancelledBody');
   String get trackingCancelledHomeCta => _get('trackingCancelledHomeCta');
 
-  // P6/A3 + P6/A1: `expired` and `FailedNeedsEscalation` no longer collapse
-  // into the cancelled body — cancel/expire carry different fee + strike
-  // semantics, and an escalated row is still LIVE (admin can resolve it).
   String get trackingExpiredTitle => _get('trackingExpiredTitle');
   String get trackingExpiredBody => _get('trackingExpiredBody');
   String get trackingUnderReviewTitle => _get('trackingUnderReviewTitle');
@@ -1357,7 +1358,7 @@ class _AppLocalizationsDelegate
   @override
   Future<AppLocalizations> load(Locale locale) async {
     final tag = locale.languageCode;
-    final raw = await rootBundle.loadString('lib/l10n/app_$tag.arb');
+    final raw = await _loadArb(tag);
     final json = jsonDecode(raw) as Map<String, dynamic>;
     final strings = <String, String>{
       for (final entry in json.entries)
@@ -1369,11 +1370,20 @@ class _AppLocalizationsDelegate
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
+
+  /// Reads `app_<tag>.arb` from whichever bundle this code is running in.
+  /// In the app the ARB is a first-party asset, keyed by its bare path. Under
+  static Future<String> _loadArb(String tag) async {
+    try {
+      return await rootBundle.loadString('lib/l10n/app_$tag.arb');
+    } on Object {
+      return rootBundle.loadString(
+        'packages/jeeb_mobile/lib/l10n/app_$tag.arb',
+      );
+    }
+  }
 }
 
-/// Synchronous variant used by tests and bootstrap so we don't need a
-/// rootBundle round-trip when the app boots. Returns the same shape produced
-/// by [_AppLocalizationsDelegate.load].
 @visibleForTesting
 AppLocalizations debugLoadAppLocalizationsSync(Locale locale, String arbJson) {
   final json = jsonDecode(arbJson) as Map<String, dynamic>;
@@ -1385,10 +1395,6 @@ AppLocalizations debugLoadAppLocalizationsSync(Locale locale, String arbJson) {
   return AppLocalizations(locale, strings);
 }
 
-/// Compat extension restoring 156 ARB getters dropped during the wave-2-4
-/// merge. Reuses the same `_get(...)` runtime loader as the main class so
-/// the parity script in `qa/t-mob-fix-002/l10n_parity_check.sh` sees all
-/// getters as single-line literals. JEB-2 LEAD comment 14782 §1+§6.
 extension AppLocalizationsRestored on AppLocalizations {
   String get appBarSignOut => _get('appBarSignOut');
   String availabilityActiveDeliveries(int count) {
@@ -1429,8 +1435,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatAttachmentCamera => _get('chatAttachmentCamera');
   String get chatAttachmentCancel => _get('chatAttachmentCancel');
   String get chatAttachmentGallery => _get('chatAttachmentGallery');
-  /// P5: sheet subtitle — OMDS's static `show()` helper drops it, so the
-  /// composer mounts `OmdsMediaPickerSheet` directly to pass it through.
   String get chatAttachmentSheetSubtitle =>
       _get('chatAttachmentSheetSubtitle');
   String get chatAttachmentSheetTitle => _get('chatAttachmentSheetTitle');
@@ -1455,7 +1459,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('confirmDeliveryActionIllustrationA11y');
   String get chatEmptyThreadSubtitle => _get('chatEmptyThreadSubtitle');
   String get chatEmptyThreadTitle => _get('chatEmptyThreadTitle');
-  /// P4/P5: the in-chat image attachment failed to reach the CDN.
   String get chatErrorAttachmentUploadFailed =>
       _get('chatErrorAttachmentUploadFailed');
   String get chatErrorPermissionDenied => _get('chatErrorPermissionDenied');
@@ -1674,14 +1677,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get voiceRecordingUploadErrorTitle =>
       _get('voiceRecordingUploadErrorTitle');
 
-  // T-MOB-011: Broadcasting sub-line shown post-send (AC3)
   String get voiceRecordingBroadcastingHint =>
       _get('voiceRecordingBroadcastingHint');
 
   String get splashTagline => _get('splashTagline');
   String get splashLogoSemantic => _get('splashLogoSemantic');
 
-  // --- Customer Profile (Figma 56581:1910, screen 18) ---
   String get customerProfileTitle => _get('customerProfileTitle');
   String get customerProfileSectionAccount =>
       _get('customerProfileSectionAccount');
@@ -1700,12 +1701,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get customerProfileVerifiedBadgeLabel =>
       _get('customerProfileVerifiedBadgeLabel');
 
-  // Shown when a profile route is reached without typed view-data (release-safe
-  // fallback in place of the debug-only fixture).
   String get profileUnavailableTitle => _get('profileUnavailableTitle');
   String get profileUnavailableBody => _get('profileUnavailableBody');
 
-  // --- Delivery Man public Profile (Figma 56580:2697, screen 27) ---
   String get deliveryManProfileCloseLabel =>
       _get('deliveryManProfileCloseLabel');
   String get deliveryManProfileVerifiedBadgeLabel =>
@@ -1743,13 +1741,11 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get reviewReplyAction => _get('reviewReplyAction');
   String reviewRelativeDaysAgo(int count) =>
       _get('reviewRelativeDaysAgo').replaceFirst('{count}', '$count');
-  // Screen 19 — Delivery tab upsell for an unregistered jeeber (closes JEEB-66).
   String get jeeberRegisterTitle => _get('jeeberRegisterTitle');
   String get jeeberRegisterSubtitle => _get('jeeberRegisterSubtitle');
   String get jeeberRegisterCta => _get('jeeberRegisterCta');
   String get jeeberRegisterHeroSemantic => _get('jeeberRegisterHeroSemantic');
 
-  // Screens 20-22 — Delivery-man onboarding wizard.
   String get dmOnboardingPhotoStepTitle => _get('dmOnboardingPhotoStepTitle');
   String get dmOnboardingSubmitFailed => _get('dmOnboardingSubmitFailed');
   String get dmOnboardingPhotoPickFailed => _get('dmOnboardingPhotoPickFailed');
@@ -1795,20 +1791,11 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get dmOnboardingServiceAreaMapPlaceholder =>
       _get('dmOnboardingServiceAreaMapPlaceholder');
   String get dmOnboardingContinue => _get('dmOnboardingContinue');
-  String dmOnboardingStepProgressLabel({
-    required int current,
-    required int total,
-  }) => _get(
-    'dmOnboardingStepProgressLabel',
-  ).replaceFirst('{current}', '$current').replaceFirst('{total}', '$total');
-
-  // T-MOB-027: Become a Jeeber card
   String get becomeJeeberCardTitle => _get('becomeJeeberCardTitle');
   String get becomeJeeberCardSubtitle => _get('becomeJeeberCardSubtitle');
   String get becomeJeeberCardCta => _get('becomeJeeberCardCta');
   String get becomeJeeberCardSemantic => _get('becomeJeeberCardSemantic');
 
-  // T-MOB-028: Role toggle setting
   String get roleSettingTitle => _get('roleSettingTitle');
   String get roleSettingClient => _get('roleSettingClient');
   String get roleSettingJeeber => _get('roleSettingJeeber');
@@ -1820,7 +1807,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get roleSettingKycGateCta => _get('roleSettingKycGateCta');
   String get roleSettingKycGateDismiss => _get('roleSettingKycGateDismiss');
 
-  // T-MOB-029: Jeeber feed tier filters + offline banner
   String get jeeberFeedTierAll => _get('jeeberFeedTierAll');
   String get jeeberFeedTierFlash => _get('jeeberFeedTierFlash');
   String get jeeberFeedTierExpress => _get('jeeberFeedTierExpress');
@@ -1838,7 +1824,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       .replaceFirst('{distance}', distance)
       .replaceFirst('{payout}', payout);
 
-  // T-MOB-006/007/008: Home tab isolated tab widgets
   String get pendingTabSearchingLabel => _get('pendingTabSearchingLabel');
   String pendingTabTtlLabel(String minutes, String seconds) => _get(
     'pendingTabTtlLabel',
@@ -1939,7 +1924,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('repliesTabA11yLabel').replaceFirst('{count}', count.toString());
   String get homeErrorRetry => _get('homeErrorRetry');
 
-  // T-MOB-021: Prohibited items acknowledgment dialog
   String get prohibitedItemsDialogTitle => _get('prohibitedItemsDialogTitle');
   String get prohibitedItemsDialogBody => _get('prohibitedItemsDialogBody');
   String get prohibitedItemsDialogAcknowledge =>
@@ -1949,22 +1933,18 @@ extension AppLocalizationsRestored on AppLocalizations {
   String prohibitedItemsSemanticItem(String name) =>
       _get('prohibitedItemsSemanticItem').replaceFirst('{name}', name);
 
-  // T-MOB-017: Live tracking at-door card + in-transit snack
   String get trackingAtDoorHeadline => _get('trackingAtDoorHeadline');
   String get trackingAtDoorBody => _get('trackingAtDoorBody');
   String get trackingAtDoorCta => _get('trackingAtDoorCta');
-  // G4: at-door inline code + pre-at-door compact code row
   String get trackingAtDoorShareCode => _get('trackingAtDoorShareCode');
   String get trackingCodeChipLabel => _get('trackingCodeChipLabel');
   String get trackingCodeChipHint => _get('trackingCodeChipHint');
   String get trackingJeeberOnTheWay => _get('trackingJeeberOnTheWay');
 
-  // T-MOB-018: OTP handover screen (client + Jeeber views)
   String get otpHandoverClientTitle => _get('otpHandoverClientTitle');
   String get otpHandoverJeeberTitle => _get('otpHandoverJeeberTitle');
   String get otpClientShareInstruction => _get('otpClientShareInstruction');
   String get otpClientDoNotShare => _get('otpClientDoNotShare');
-  // G4: honest customer fallback when the app holds no code (SMS trigger)
   String get otpClientSmsSentTitle => _get('otpClientSmsSentTitle');
   String get otpClientSmsSentBody => _get('otpClientSmsSentBody');
   String get otpClientResendSms => _get('otpClientResendSms');
@@ -1985,7 +1965,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get otpErrorServer => _get('otpErrorServer');
   String get otpErrorGeneric => _get('otpErrorGeneric');
 
-  // T-MOB-019: Earnings dashboard — period filter + PDF export
   String get earningsPeriodCustom => _get('earningsPeriodCustom');
   String get earningsGross => _get('earningsGross');
   String get earningsNet => _get('earningsNet');
@@ -2001,13 +1980,9 @@ extension AppLocalizationsRestored on AppLocalizations {
     'earningsDeliveryItemFare',
   ).replaceFirst('{amount}', amount).replaceFirst('{currency}', currency);
 
-  // T-MOB-020: Mutual blind rating
   String get mutualRatingTitle => _get('mutualRatingTitle');
   String get mutualRatingSubtitle => _get('mutualRatingSubtitle');
   String get mutualRatingTagsLabel => _get('mutualRatingTagsLabel');
-  // JEBV4-296/297: localized quick-tag chip labels — one per canonical
-  // gateway rating-tag key (wire values stay the English taxonomy keys,
-  // see `kMutualRatingTags` / `_tagLabel` in mutual_rating_screen.dart).
   String get mutualRatingTagPunctuality => _get('mutualRatingTagPunctuality');
   String get mutualRatingTagCommunication =>
       _get('mutualRatingTagCommunication');
@@ -2027,7 +2002,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get mutualRatingError => _get('mutualRatingError');
   String get mutualRatingDone => _get('mutualRatingDone');
 
-  // T-MOB-022: Escalate/dispute flow
   String get escalateTitle => _get('escalateTitle');
   String get escalateSubtitle => _get('escalateSubtitle');
   String get escalateReasonLabel => _get('escalateReasonLabel');
@@ -2043,6 +2017,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   ).replaceFirst('{remaining}', remaining.toString());
   String escalatePhotoAttached(int count) =>
       _get('escalatePhotoAttached').replaceFirst('{count}', count.toString());
+  String escalatePhotoChipLabel(int index) =>
+      _get('escalatePhotoChipLabel').replaceFirst('{index}', index.toString());
   String get escalateCommentLabel => _get('escalateCommentLabel');
   String get escalateSubmitButton => _get('escalateSubmitButton');
   String get escalateSubmitting => _get('escalateSubmitting');
@@ -2056,11 +2032,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   ).replaceFirst('{caseNumber}', caseNumber);
   String get escalateConfirmationDone => _get('escalateConfirmationDone');
 
-  // Generic action labels
   String get actionDone => _get('actionDone');
   String get actionConfirm => _get('actionConfirm');
 
-  // T-MOB-024: Cancellation flow
   String get cancellationTitle => _get('cancellationTitle');
   String get cancellationReasonPrompt => _get('cancellationReasonPrompt');
   String get cancellationReasonChangedMind =>
@@ -2083,7 +2057,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get cancellationSuccess => _get('cancellationSuccess');
   String get cancellationTooLate => _get('cancellationTooLate');
 
-  // T-MOB-025: Saved locations CRUD
   String get savedLocationsManage => _get('savedLocationsManage');
   String get savedLocationsAddNew => _get('savedLocationsAddNew');
   String get savedLocationsEdit => _get('savedLocationsEdit');
@@ -2098,7 +2071,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get savedLocationsDeleteError => _get('savedLocationsDeleteError');
   String get savedLocationsSaveError => _get('savedLocationsSaveError');
 
-  // T-MOB-030: Offer submission form
   String get offerSubmitTitle => _get('offerSubmitTitle');
   String get offerSubmitPriceLabel => _get('offerSubmitPriceLabel');
   String get offerSubmitEtaLabel => _get('offerSubmitEtaLabel');
@@ -2108,7 +2080,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get offerSubmitWithdrawTooltip => _get('offerSubmitWithdrawTooltip');
   String get offerSubmitRequestGone => _get('offerSubmitRequestGone');
 
-  // T-MOB-031: Active delivery (Jeeber)
   String get activeDeliveryTitle => _get('activeDeliveryTitle');
   String get activeDeliveryProgressTitle => _get('activeDeliveryProgressTitle');
   String get activeDeliveryCancelledTitle =>
@@ -2159,8 +2130,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveryUnavailable => _get('activeDeliveryUnavailable');
   String get activeDeliveryLoadError => _get('activeDeliveryLoadError');
 
-  // P0 (live tracking): the background-location permission banner. Shown while
-  // the GPS uploader is parked, i.e. while the customer's map is empty.
   String get activeDeliveryGpsBannerTitle =>
       _get('activeDeliveryGpsBannerTitle');
   String get activeDeliveryGpsBannerBody => _get('activeDeliveryGpsBannerBody');
@@ -2171,8 +2140,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get activeDeliveryGpsBannerRetry =>
       _get('activeDeliveryGpsBannerRetry');
 
-  // P6/B4: kind-specific transition-failure copy. One message for three
-  // different failures was ranked cause #3 of the 2026-07-25 incident.
   String get activeDeliveryErrorInvalidTransition =>
       _get('activeDeliveryErrorInvalidTransition');
   String get activeDeliveryErrorBadRequest =>
@@ -2188,7 +2155,6 @@ extension AppLocalizationsRestored on AppLocalizations {
     'activeDeliveryStepperCurrentDone',
   ).replaceFirst('{current}', current);
 
-  // T-MOB-032: Settlement statements
   String get settlementTitle => _get('settlementTitle');
   String get settlementEmptyMessage => _get('settlementEmptyMessage');
   String get settlementLoadError => _get('settlementLoadError');
@@ -2204,11 +2170,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String settlementCommissionLabel(String amount) =>
       _get('settlementCommissionLabel').replaceFirst('{amount}', amount);
 
-  // ── WAVE 0 auth funnel (CTO-D1; JM-005/007/008/020/021/022/066) ───────────
-  // Integrator-batched keys (40_GUARDRAILS §9 S4). W0 screen engineers
-  // reference these; never inline-add a string in a widget.
-
-  // JM-007 — Login
   String get loginTitle => _get('loginTitle');
   String get loginEmailLabel => _get('loginEmailLabel');
   String get loginEmailHint => _get('loginEmailHint');
@@ -2222,7 +2183,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get loginInvalidCredentials => _get('loginInvalidCredentials');
   String get loginNetworkError => _get('loginNetworkError');
 
-  // JM-008 — Sign up
   String get signupTitle => _get('signupTitle');
   String get signupNameLabel => _get('signupNameLabel');
   String get signupNameHint => _get('signupNameHint');
@@ -2239,7 +2199,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get signupLoginLink => _get('signupLoginLink');
   String get signupEmailCollision => _get('signupEmailCollision');
 
-  // JM-020 — Recover password
   String get recoverTitle => _get('recoverTitle');
   String get recoverSubtitle => _get('recoverSubtitle');
   String get recoverEmailLabel => _get('recoverEmailLabel');
@@ -2248,14 +2207,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get recoverSignupLink => _get('recoverSignupLink');
   String get recoverBackToSigninLink => _get('recoverBackToSigninLink');
 
-  // JM-021 — Verify recovery code
   String get verifyCodeTitle => _get('verifyCodeTitle');
   String get verifyCodeSubtitle => _get('verifyCodeSubtitle');
   String get verifyCodeSubmitCta => _get('verifyCodeSubmitCta');
   String get verifyCodeResendCta => _get('verifyCodeResendCta');
   String get verifyCodeError => _get('verifyCodeError');
 
-  // JM-022 — Set password
   String get setpwTitle => _get('setpwTitle');
   String get setpwNewLabel => _get('setpwNewLabel');
   String get setpwNewHint => _get('setpwNewHint');
@@ -2264,25 +2221,21 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get setpwSubmitCta => _get('setpwSubmitCta');
   String get setpwValidationError => _get('setpwValidationError');
 
-  // JM-066 — Account status
   String get accountStatusTitle => _get('accountStatusTitle');
   String get accountStatusBody => _get('accountStatusBody');
   String get accountStatusSupportCta => _get('accountStatusSupportCta');
   String get accountStatusSignoutCta => _get('accountStatusSignoutCta');
 
-  // JM-005 — Biometric unlock
   String get biometricUnlockTitle => _get('biometricUnlockTitle');
   String get biometricUnlockAuthenticateCta =>
       _get('biometricUnlockAuthenticateCta');
   String get biometricUnlockUsePasswordLink =>
       _get('biometricUnlockUsePasswordLink');
 
-  // W1-INT (S3) — shell persistent header actions (wallet chip + bell)
   String get shellWalletChipLabel => _get('shellWalletChipLabel');
   String get shellBellLabel => _get('shellBellLabel');
   String get shellComingSoon => _get('shellComingSoon');
 
-  // Sprint-5 Stream C — free-text search (compose + results screens).
   String get shellSearchLabel => _get('shellSearchLabel');
   String get searchTitle => _get('searchTitle');
   String get searchHint => _get('searchHint');
@@ -2297,14 +2250,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get searchLoadError => _get('searchLoadError');
   String get searchRetry => _get('searchRetry');
 
-  // JM-031 — Order summary (CTO-D3 deep-link target)
   String get orderSummaryTitle => _get('orderSummaryTitle');
   String get orderSummaryOpenChat => _get('orderSummaryOpenChat');
   String get orderSummaryTrack => _get('orderSummaryTrack');
   String get orderChatViewSummaryLink => _get('orderChatViewSummaryLink');
   String get orderChatPayCashOnDelivery => _get('orderChatPayCashOnDelivery');
   String get orderChatRequestLabel => _get('orderChatRequestLabel');
-  // b02 chat-header redesign — disclosure control + per-field accessible names
   String get orderChatSummaryExpand => _get('orderChatSummaryExpand');
   String get orderChatSummaryCollapse => _get('orderChatSummaryCollapse');
   String get orderChatRequestExpand => _get('orderChatRequestExpand');
@@ -2314,8 +2265,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get orderChatFieldEta => _get('orderChatFieldEta');
   String get orderChatFieldTier => _get('orderChatFieldTier');
 
-  /// Accessible name for a summary chip: `"<field>: <value>"`. Without the field
-  /// name an unresolved ETA and an unresolved tier both announce as "Pending".
   String orderChatFieldValueA11y(String field, String value) =>
       _get('orderChatFieldValueA11y')
           .replaceFirst('{field}', field)
@@ -2324,25 +2273,21 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatPartyJeeberFallback => _get('chatPartyJeeberFallback');
   String get chatPartyCustomerFallback => _get('chatPartyCustomerFallback');
 
-  // JM-050 — Address detail form
   String get addressFormTitle => _get('addressFormTitle');
   String get addressFormSaveCta => _get('addressFormSaveCta');
 
-  // JM-026 — Waiting / No-Coverage state (D48, D69)
   String get waitingTitle => _get('waitingTitle');
   String waitingCountdownLabel(String time) =>
       _get('waitingCountdownLabel').replaceFirst('{time}', time);
   String get waitingCountdownPending => _get('waitingCountdownPending');
   String get waitingNoCoverageTitle => _get('waitingNoCoverageTitle');
   String get waitingNoCoverageBody => _get('waitingNoCoverageBody');
-  String get waitingReachingOutLabel => _get('waitingReachingOutLabel');
   String get waitingReviewOffersCta => _get('waitingReviewOffersCta');
   String get waitingRetargetCta => _get('waitingRetargetCta');
   String get waitingCancelCta => _get('waitingCancelCta');
   String get waitingErrorBody => _get('waitingErrorBody');
   String get waitingErrorContractBody => _get('waitingErrorContractBody');
 
-  // JM-033 — Confirm Receipt (Customer), delivered-receipt-confirm (D11, D3)
   String get receiptTitle => _get('receiptTitle');
   String get receiptPromptHeading => _get('receiptPromptHeading');
   String receiptCashToJeeber(String amount, String jeeber) => _get(
@@ -2360,14 +2305,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get receiptErrorTransition => _get('receiptErrorTransition');
   String get receiptErrorGeneric => _get('receiptErrorGeneric');
 
-  // JM-053 — Wallet Hub (wallet-hub)
   String get walletHubTitle => _get('walletHubTitle');
   String get walletAvailableBalanceLabel => _get('walletAvailableBalanceLabel');
   String get walletTopUpCta => _get('walletTopUpCta');
   String get walletHubLoadError => _get('walletHubLoadError');
   String get walletHubRetry => _get('walletHubRetry');
 
-  // JM-054 — Wallet Charge Info (wallet-charge-info, static D92/D93)
   String get chargeInfoTitle => _get('chargeInfoTitle');
   String get chargeInfoStoreStep => _get('chargeInfoStoreStep');
   String get chargeInfoIdentityStep => _get('chargeInfoIdentityStep');
@@ -2376,14 +2319,12 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chargeInfoFeeNote => _get('chargeInfoFeeNote');
   String get chargeInfoBackCta => _get('chargeInfoBackCta');
 
-  // JM-041 — Onboarding Funding (onboarding-funding)
   String get fundingTitle => _get('fundingTitle');
   String get fundingStarterCreditBody => _get('fundingStarterCreditBody');
   String get fundingReserveBody => _get('fundingReserveBody');
   String get fundingTopupCta => _get('fundingTopupCta');
   String get fundingContinueCta => _get('fundingContinueCta');
 
-  // JM-044 — Offer KYC Gate (offer-kyc-gate, D38)
   String get offerKycGateTitle => _get('offerKycGateTitle');
   String get offerKycGateHeadline => _get('offerKycGateHeadline');
   String get offerKycGateBody => _get('offerKycGateBody');
@@ -2392,62 +2333,72 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get gateRegisterLink => _get('gateRegisterLink');
   String get gateBackCta => _get('gateBackCta');
 
-  // JM-043 — KYC Rejected (kyc-rejected, D52/D87 appeal-only)
   String get kycRejectedTitle => _get('kycRejectedTitle');
   String get kycRejectedHeadline => _get('kycRejectedHeadline');
   String get kycRejectedBody => _get('kycRejectedBody');
   String get kycRejectedAppealCta => _get('kycRejectedAppealCta');
   String get kycRejectedBackCta => _get('kycRejectedBackCta');
 
-  // JM-047 — Jeeber Pending Offers (jeeber-pending-offers, D15)
   String get pendingOffersTitle => _get('pendingOffersTitle');
   String get pendingOffersEmptyTitle => _get('pendingOffersEmptyTitle');
   String get pendingOffersEmptyBody => _get('pendingOffersEmptyBody');
 
-  // JM-055 — Wallet Activity List (wallet-activity-list, W2m typed ledger)
   String get walletActivityTitle => _get('walletActivityTitle');
   String get walletActivityEmptyTitle => _get('walletActivityEmptyTitle');
   String get walletActivityEmptyBody => _get('walletActivityEmptyBody');
   String get walletActivityBackCta => _get('walletActivityBackCta');
 
-  // JM-056 — Transaction Detail (transaction-detail, per-type W3m)
   String get txnDetailTitle => _get('txnDetailTitle');
   String get txnDetailBody => _get('txnDetailBody');
   String get txnDetailOrderLink => _get('txnDetailOrderLink');
   String get txnDetailDisputeLink => _get('txnDetailDisputeLink');
 
-  // JM-057 — Notifications List (notifications-list, header bell target, D84)
   String get notificationsTitle => _get('notificationsTitle');
   String get notificationsEmptyTitle => _get('notificationsEmptyTitle');
   String get notificationsEmptyBody => _get('notificationsEmptyBody');
 
-  // JM-063 — Support Ticket / Contact Us (support-ticket, D76)
   String get supportTitle => _get('supportTitle');
   String get supportBody => _get('supportBody');
   String get supportSubmitCta => _get('supportSubmitCta');
   String get supportDisputeLink => _get('supportDisputeLink');
 
-  // JM-065 — Dispute Status (dispute-status, D2/D53)
   String get disputeStatusTitle => _get('disputeStatusTitle');
   String get disputeStatusOpenLabel => _get('disputeStatusOpenLabel');
+  String get disputeStatusStepSubmitted => _get('disputeStatusStepSubmitted');
+  String get disputeStatusStepUnderReview =>
+      _get('disputeStatusStepUnderReview');
   String get disputeStatusBody => _get('disputeStatusBody');
   String get disputeStatusSupportCta => _get('disputeStatusSupportCta');
   String get disputeStatusBackCta => _get('disputeStatusBackCta');
 
-  // JM-068 — All Reviews list (reviews-list, D58/D59/D73)
   String get reviewsTitle => _get('reviewsTitle');
   String get reviewsEmptyTitle => _get('reviewsEmptyTitle');
   String get reviewsEmptyBody => _get('reviewsEmptyBody');
 
-  // JM-061 — Password & Security (password-security, D90)
   String get passwordSecurityTitle => _get('passwordSecurityTitle');
   String get passwordSecurityBody => _get('passwordSecurityBody');
   String get passwordSetEntryCta => _get('passwordSetEntryCta');
   String get passwordChangeUnavailable => _get('passwordChangeUnavailable');
 
-  // Goods cost (jeeber goods-cost entry, Sprint 5 RTL/l10n pass)
   String get goodsCostTitle => _get('goodsCostTitle');
   String get goodsCostHeadline => _get('goodsCostHeadline');
+  String get clientUnreachableTitle => _get('clientUnreachableTitle');
+  String get clientUnreachableNoticeTitle =>
+      _get('clientUnreachableNoticeTitle');
+  String get clientUnreachableNoticeBody => _get('clientUnreachableNoticeBody');
+  String get clientUnreachableCallAgainCta =>
+      _get('clientUnreachableCallAgainCta');
+  String get clientUnreachableChatCta => _get('clientUnreachableChatCta');
+  String get clientUnreachableFlagCta => _get('clientUnreachableFlagCta');
+  String get prohibitedItemReportTitle => _get('prohibitedItemReportTitle');
+  String get prohibitedItemReportGuidance =>
+      _get('prohibitedItemReportGuidance');
+  String get prohibitedItemReportDescriptionLabel =>
+      _get('prohibitedItemReportDescriptionLabel');
+  String get prohibitedItemReportAttachPhotoCta =>
+      _get('prohibitedItemReportAttachPhotoCta');
+  String get prohibitedItemReportSubmitCta =>
+      _get('prohibitedItemReportSubmitCta');
   String get goodsCostBody => _get('goodsCostBody');
   String goodsCostFieldLabel(String currency) =>
       _get('goodsCostFieldLabel').replaceFirst('{currency}', currency);
@@ -2458,16 +2409,13 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get goodsCostErrorValidation => _get('goodsCostErrorValidation');
   String get goodsCostErrorGeneric => _get('goodsCostErrorGeneric');
 
-  // Router fallbacks (Sprint 5 RTL/l10n pass)
   String get statementNotFound => _get('statementNotFound');
   String routeNotFound(String uri) =>
       _get('routeNotFound').replaceFirst('{uri}', uri);
 
-  // Saved-location add/edit coordinate fields (Sprint 5 RTL/l10n pass)
   String get savedAddressLatitudeLabel => _get('savedAddressLatitudeLabel');
   String get savedAddressLongitudeLabel => _get('savedAddressLongitudeLabel');
 
-  // Cycle-6 Arabic/RTL error-path + a11y strings (arabic-rtl-audit F1–F6)
   String get chatCreateRequestFailed => _get('chatCreateRequestFailed');
   String get callButtonLabel => _get('callButtonLabel');
   String get callInitiateFailed => _get('callInitiateFailed');
@@ -2476,30 +2424,629 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get handoverCodeA11yLabel => _get('handoverCodeA11yLabel');
   String get cancellationGenericError => _get('cancellationGenericError');
 
-  // JEBV4-13 P1-5: dm-onboarding error surfaces (previously-silent DmOnboardingError)
-  // NOTE: dmOnboardingPhotoPickFailed getter is defined once above (merged from
-  // ui/cycle-6-fixes); the coverage-check surface is the ux-side addition.
   String get dmOnboardingCoverageCheckFailed =>
       _get('dmOnboardingCoverageCheckFailed');
 
-  // JEBV4-13: profile-edit Change-avatar flow (previously a dead onTap)
   String get profilePhotoSheetSubtitle => _get('profilePhotoSheetSubtitle');
   String get profilePhotoPermissionDenied =>
       _get('profilePhotoPermissionDenied');
   String get profilePhotoChangeFailed => _get('profilePhotoChangeFailed');
 
-  // JEBV4-13: offline banner (previously hardcoded EN + dead DISMISS)
   String get offlineBannerMessage => _get('offlineBannerMessage');
 
-  // JEBV4-108: honest 401-at-create handling (session expiry → re-auth)
   String get createSessionExpired => _get('createSessionExpired');
 
-  // F6 / JEBV4-303 customer-wallet stub (role-bleed): the customer-appropriate
-  // wallet surface the top-bar wallet chip routes a client to.
   String get customerWalletStubTitle => _get('customerWalletStubTitle');
   String get customerWalletStubHeadline => _get('customerWalletStubHeadline');
   String get customerWalletStubBody => _get('customerWalletStubBody');
   String get customerWalletStubCodTitle => _get('customerWalletStubCodTitle');
   String get customerWalletStubCodBody => _get('customerWalletStubCodBody');
   String get customerWalletStubDoneCta => _get('customerWalletStubDoneCta');
+
+  // ───────────────────────────────────────────────────────────────────────
+  // redesign-2026-08 wiring batch (screens 01–24). Applied by the wiring
+  // integrator; see docs/redesign-2026-08/04-WIRING-REPORT.md for the
+  // request-by-request record. This class is hand-authored (no gen_l10n step),
+  // so every ARB key added above needs its getter here or the parity gate
+  // (qa/t-mob-fix-002/l10n_parity_check.sh, checks b/c) fails.
+  // ───────────────────────────────────────────────────────────────────────
+
+  // 01 · Onboarding
+  String get onboardingTagline => _get('onboardingTagline');
+  String get onboardingPreviewVoiceDuration =>
+      _get('onboardingPreviewVoiceDuration');
+  String get onboardingPreviewVoiceTranscript =>
+      _get('onboardingPreviewVoiceTranscript');
+  String get onboardingPreviewRequestTitle =>
+      _get('onboardingPreviewRequestTitle');
+  String get onboardingPreviewOfferQuote => _get('onboardingPreviewOfferQuote');
+  String get onboardingPreviewOfferMeta => _get('onboardingPreviewOfferMeta');
+  String get onboardingLanguageEnShort => _get('onboardingLanguageEnShort');
+  String get onboardingLanguageArShort => _get('onboardingLanguageArShort');
+  String onboardingPageIndicator(int current, int total) =>
+      _get('onboardingPageIndicator')
+          .replaceFirst('{current}', '$current')
+          .replaceFirst('{total}', '$total');
+
+  // 02 · Registration
+  String get registrationTagline => _get('registrationTagline');
+  String get registrationPhoneHelper => _get('registrationPhoneHelper');
+  String get registrationPhoneExample => _get('registrationPhoneExample');
+  String get registrationTrustNote => _get('registrationTrustNote');
+
+  // 03 · OTP verify
+  String get registrationOtpHeadline => _get('registrationOtpHeadline');
+  String get registrationOtpSentToLabel => _get('registrationOtpSentToLabel');
+  String get registrationOtpEditPhone => _get('registrationOtpEditPhone');
+  String get registrationOtpAutoVerifyHint =>
+      _get('registrationOtpAutoVerifyHint');
+  String get registrationOtpResendInLabel =>
+      _get('registrationOtpResendInLabel');
+  String get registrationOtpKeypadBackspaceA11y =>
+      _get('registrationOtpKeypadBackspaceA11y');
+
+  // 04 · Client home
+  String get homeGreetingEyebrowMorning => _get('homeGreetingEyebrowMorning');
+  String get homeGreetingEyebrowAfternoon =>
+      _get('homeGreetingEyebrowAfternoon');
+  String get homeGreetingEyebrowEvening => _get('homeGreetingEyebrowEvening');
+  String get homeHeroSubtitle => _get('homeHeroSubtitle');
+  String homeRepliesOffersFloor(String offers, String amount) =>
+      _get('homeRepliesOffersFloor')
+          .replaceFirst('{offers}', offers)
+          .replaceFirst('{amount}', amount);
+
+  // 05 · Voice recording
+  String get voiceRecordingNewRequestTitle =>
+      _get('voiceRecordingNewRequestTitle');
+  String get voiceRecordingStatusRecording =>
+      _get('voiceRecordingStatusRecording');
+  String get voiceRecordingSlideToCancel => _get('voiceRecordingSlideToCancel');
+  String get voiceRecordingTypeInstead => _get('voiceRecordingTypeInstead');
+
+  // 06 · Transcription review
+  String get transcriptionTapHint => _get('transcriptionTapHint');
+  String transcriptionLanguageDetected(String language) =>
+      _get('transcriptionLanguageDetected').replaceFirst('{language}', language);
+  String get transcriptionLanguageArabicLebanese =>
+      _get('transcriptionLanguageArabicLebanese');
+  String get transcriptionLanguageArabic => _get('transcriptionLanguageArabic');
+  String get transcriptionLanguageEnglish =>
+      _get('transcriptionLanguageEnglish');
+  String get transcriptionQuickAddQuantity =>
+      _get('transcriptionQuickAddQuantity');
+  String get transcriptionQuickAddBrand => _get('transcriptionQuickAddBrand');
+  String get transcriptionQuickAddBudget => _get('transcriptionQuickAddBudget');
+  String get transcriptionQuickAddFragmentQuantity =>
+      _get('transcriptionQuickAddFragmentQuantity');
+  String get transcriptionQuickAddFragmentBrand =>
+      _get('transcriptionQuickAddFragmentBrand');
+  String get transcriptionQuickAddFragmentBudget =>
+      _get('transcriptionQuickAddFragmentBudget');
+  String get transcriptionScrubberLabel => _get('transcriptionScrubberLabel');
+
+  // 07 · Request type
+  String get requestTypeMostPickedBadge => _get('requestTypeMostPickedBadge');
+  String get requestTypeChangeCta => _get('requestTypeChangeCta');
+
+  // 08 · Tier catalog (the enhanced picker section of /request-type)
+  String get tierCatalogSlaFlexible => _get('tierCatalogSlaFlexible');
+  String get tierCatalogPriceHighest => _get('tierCatalogPriceHighest');
+  String get tierCatalogPriceHigher => _get('tierCatalogPriceHigher');
+  String get tierCatalogPriceBalanced => _get('tierCatalogPriceBalanced');
+  String get tierCatalogPriceLower => _get('tierCatalogPriceLower');
+  String get tierCatalogPriceLowest => _get('tierCatalogPriceLowest');
+  String get tierCatalogMetaFlash => _get('tierCatalogMetaFlash');
+  String get tierCatalogMetaExpress => _get('tierCatalogMetaExpress');
+  String get tierCatalogMetaStandard => _get('tierCatalogMetaStandard');
+  String get tierCatalogMetaOnTheWay => _get('tierCatalogMetaOnTheWay');
+  String get tierCatalogMetaEco => _get('tierCatalogMetaEco');
+  String get tierCatalogPricingNote => _get('tierCatalogPricingNote');
+  String tierCatalogCardSemanticLabel({
+    required String name,
+    required String sla,
+    required String meta,
+    required String price,
+  }) => _get('tierCatalogCardSemanticLabel')
+      .replaceFirst('{name}', name)
+      .replaceFirst('{sla}', sla)
+      .replaceFirst('{meta}', meta)
+      .replaceFirst('{price}', price);
+
+  // 09 · Location picker
+  String clientLocationGpsAccuracy(int meters) =>
+      _get('clientLocationGpsAccuracy').replaceAll('{meters}', '$meters');
+
+  // 10 · Request summary
+  String get requestSummaryBroadcastCta => _get('requestSummaryBroadcastCta');
+  String get requestSummaryCancelNote => _get('requestSummaryCancelNote');
+  String get requestSummaryBadgeVoice => _get('requestSummaryBadgeVoice');
+  String get requestSummaryBadgeTyped => _get('requestSummaryBadgeTyped');
+  String get requestSummaryEdit => _get('requestSummaryEdit');
+  String get requestSummaryChange => _get('requestSummaryChange');
+
+  // 11 · Offers
+  String get offersTitle => _get('offersTitle');
+  String offersCardEtaIn(int minutes) =>
+      _get('offersCardEtaIn').replaceFirst('{minutes}', '$minutes');
+  String offersCardEtaInHours(int hours) =>
+      _get('offersCardEtaInHours').replaceFirst('{hours}', '$hours');
+  String get offersWaitingTitle => _get('offersWaitingTitle');
+  String offersWaitingTitleCount(int count) =>
+      _get('offersWaitingTitleCount').replaceFirst('{count}', '$count');
+  String get offersWaitingBody => _get('offersWaitingBody');
+  String offersWaitingWindowChip(String time) =>
+      _get('offersWaitingWindowChip').replaceFirst('{time}', time);
+  String get offersWaitingAddDetailsCta => _get('offersWaitingAddDetailsCta');
+  String get offerReviewCancelCtaFree => _get('offerReviewCancelCtaFree');
+  String get offersLoadErrorTitle => _get('offersLoadErrorTitle');
+  String get offersSortByBest => _get('offersSortByBest');
+  String get offersCardBestValueBadge => _get('offersCardBestValueBadge');
+  String get offersCardFastestBadge => _get('offersCardFastestBadge');
+
+  /// Offer-review countdown strip. Six Arabic CLDR branches selected here
+  /// because this class has no ICU engine — the ARB stores one key per branch
+  /// (`offersWindowStrip{Zero,One,Two,Few,Many,Other}`) per the repo's
+  /// key-suffix plural convention (qa/t-mob-fix-002/ar_plurals_check.sh).
+  String offersWindowStrip(int count, String time) {
+    final String branch;
+    if (count == 0) {
+      branch = _get('offersWindowStripZero');
+    } else if (count == 1) {
+      branch = _get('offersWindowStripOne');
+    } else if (count == 2) {
+      branch = _get('offersWindowStripTwo');
+    } else {
+      final mod = count % 100;
+      if (mod >= 3 && mod <= 10) {
+        branch = _get('offersWindowStripFew');
+      } else if (mod >= 11 && mod <= 99) {
+        branch = _get('offersWindowStripMany');
+      } else {
+        branch = _get('offersWindowStripOther');
+      }
+    }
+    return branch
+        .replaceFirst('{count}', '$count')
+        .replaceFirst('{time}', time);
+  }
+
+  // 12 · Live tracking
+  String trackingArrivingIn(int minutes) =>
+      _get('trackingArrivingIn').replaceFirst('{minutes}', '$minutes');
+  String trackingCourierOnTheWay(String name) =>
+      _get('trackingCourierOnTheWay').replaceFirst('{name}', name);
+  String trackingCashOnDelivery(String amount) =>
+      _get('trackingCashOnDelivery').replaceFirst('{amount}', amount);
+  String get trackingDoorCodeNote => _get('trackingDoorCodeNote');
+  String get trackingCashShort => _get('trackingCashShort');
+  String get trackingNoShowCta => _get('trackingNoShowCta');
+  String get trackingDisputeCta => _get('trackingDisputeCta');
+  String get trackingNoShowTitle => _get('trackingNoShowTitle');
+  String get trackingNoShowBody => _get('trackingNoShowBody');
+  String get trackingNoShowReassignCta => _get('trackingNoShowReassignCta');
+  String get trackingNoShowRebroadcastCta =>
+      _get('trackingNoShowRebroadcastCta');
+  String get trackingNoShowKeepCta => _get('trackingNoShowKeepCta');
+  String get trackingEtaPending => _get('trackingEtaPending');
+  String trackingPositionStale(int minutes) =>
+      _get('trackingPositionStale').replaceFirst('{minutes}', '$minutes');
+  String trackingPositionLost(int minutes) =>
+      _get('trackingPositionLost').replaceFirst('{minutes}', '$minutes');
+  String get trackingPositionLostNoAge => _get('trackingPositionLostNoAge');
+  String get orderSummaryPriceLabel => _get('orderSummaryPriceLabel');
+  String get orderSummaryCashLabel => _get('orderSummaryCashLabel');
+
+  // 13 · OTP handover
+  String get otpClientShareSubtitle => _get('otpClientShareSubtitle');
+  String otpClientShareSubtitleNamed(String name) =>
+      _get('otpClientShareSubtitleNamed').replaceFirst('{name}', name);
+  String otpArrivalAtDoor(String name) =>
+      _get('otpArrivalAtDoor').replaceFirst('{name}', name);
+  String otpArrivalOnTheWay(String name) =>
+      _get('otpArrivalOnTheWay').replaceFirst('{name}', name);
+  String otpArrivalSubtitle(String vehicle, String amount) =>
+      _get('otpArrivalSubtitle')
+          .replaceFirst('{vehicle}', vehicle)
+          .replaceFirst('{amount}', amount);
+  String get otpClientResendSmsPrompt => _get('otpClientResendSmsPrompt');
+  String get otpClientResendSmsAction => _get('otpClientResendSmsAction');
+  String get otpDisputeCta => _get('otpDisputeCta');
+  String get otpResendFailed => _get('otpResendFailed');
+  String get otpHandoverLoadingHeadline => _get('otpHandoverLoadingHeadline');
+  String get otpHandoverErrorHeadline => _get('otpHandoverErrorHeadline');
+
+  // 14 · Receipt confirm
+  String get receiptCashNote => _get('receiptCashNote');
+  String get receiptProofBadge => _get('receiptProofBadge');
+  String receiptProofBadgeAt(String time) =>
+      _get('receiptProofBadgeAt').replaceFirst('{time}', time);
+  String get receiptProofZoomCta => _get('receiptProofZoomCta');
+  String get receiptProofViewerCloseLabel =>
+      _get('receiptProofViewerCloseLabel');
+
+  // 15 · Mutual rating
+  String mutualRatingHeadlineNamed(String name) =>
+      _get('mutualRatingHeadlineNamed').replaceFirst('{name}', name);
+  String get mutualRatingHeadlineJeeber => _get('mutualRatingHeadlineJeeber');
+  String get mutualRatingHeadlineClient => _get('mutualRatingHeadlineClient');
+  String get mutualRatingStarLabel1 => _get('mutualRatingStarLabel1');
+  String get mutualRatingStarLabel2 => _get('mutualRatingStarLabel2');
+  String get mutualRatingStarLabel3 => _get('mutualRatingStarLabel3');
+  String get mutualRatingStarLabel4 => _get('mutualRatingStarLabel4');
+  String get mutualRatingStarLabel5 => _get('mutualRatingStarLabel5');
+  String mutualRatingBlindNoteNamed(String name) =>
+      _get('mutualRatingBlindNoteNamed').replaceFirst('{name}', name);
+  String mutualRatingStarsA11yLabel(int stars) =>
+      _get('mutualRatingStarsA11yLabel').replaceFirst('{stars}', '$stars');
+  String get mutualRatingSubmittingHeadline =>
+      _get('mutualRatingSubmittingHeadline');
+
+  // 16 · Jeeber home
+  String jeeberGreetingAhlan(String name) =>
+      _get('jeeberGreetingAhlan').replaceFirst('{name}', name);
+  String get availabilityStatusOnlineShort =>
+      _get('availabilityStatusOnlineShort');
+  String availabilityStatusOnlineUntil(String remaining) =>
+      _get('availabilityStatusOnlineUntil')
+          .replaceFirst('{remaining}', remaining);
+  String availabilityZoneLine(String zone) =>
+      _get('availabilityZoneLine').replaceFirst('{zone}', zone);
+  String get jeeberFeedQuietStreetTitle => _get('jeeberFeedQuietStreetTitle');
+  String get jeeberFeedQuietStreetBody => _get('jeeberFeedQuietStreetBody');
+  String jeeberFeedQuietStreetBodyZoned(String zone) =>
+      _get('jeeberFeedQuietStreetBodyZoned').replaceFirst('{zone}', zone);
+  String get jeeberFeedPullToRefreshAction =>
+      _get('jeeberFeedPullToRefreshAction');
+  String get jeeberFeedWidenZoneAction => _get('jeeberFeedWidenZoneAction');
+  String jeeberFeedBusiestHours(String range) =>
+      _get('jeeberFeedBusiestHours').replaceFirst('{range}', range);
+  String get jeeberDashboardEyebrow => _get('jeeberDashboardEyebrow');
+  String jeeberFeedNearbyCount(int count) =>
+      _get('jeeberFeedNearbyCount').replaceFirst('{count}', '$count');
+  String jeeberFeedPendingCount(int count) =>
+      _get('jeeberFeedPendingCount').replaceFirst('{count}', '$count');
+  String jeeberFeedRepliesCount(int count) =>
+      _get('jeeberFeedRepliesCount').replaceFirst('{count}', '$count');
+  String get jeeberFeedSearchToggleLabel => _get('jeeberFeedSearchToggleLabel');
+  String get availabilityExtendAction => _get('availabilityExtendAction');
+  String get availabilityInactivityInlineWarning =>
+      _get('availabilityInactivityInlineWarning');
+  String get jeeberActiveLabel => _get('jeeberActiveLabel');
+
+  // 17 · Offer composer
+  String get offerComposerTitle => _get('offerComposerTitle');
+  String get offerComposerPriceSectionLabel =>
+      _get('offerComposerPriceSectionLabel');
+  String get offerComposerPricePlaceholder =>
+      _get('offerComposerPricePlaceholder');
+  String get offerComposerEtaSectionLabel =>
+      _get('offerComposerEtaSectionLabel');
+  String offerComposerEtaCeilingHint(String minutes) =>
+      _get('offerComposerEtaCeilingHint').replaceFirst('{minutes}', minutes);
+  String get offerComposerOfferRowLabel => _get('offerComposerOfferRowLabel');
+  String offerComposerFeeRowLabel(int percent) =>
+      _get('offerComposerFeeRowLabel').replaceFirst('{percent}', '$percent');
+  String get offerComposerKeepRowLabel => _get('offerComposerKeepRowLabel');
+  String offerComposerWalletStrip(String amount) =>
+      _get('offerComposerWalletStrip').replaceFirst('{amount}', amount);
+  String offerComposerSendKeep(String amount) =>
+      _get('offerComposerSendKeep').replaceFirst('{amount}', amount);
+  String get offerComposerNoteHint => _get('offerComposerNoteHint');
+  String get offerComposerPriceDecrement => _get('offerComposerPriceDecrement');
+  String get offerComposerPriceIncrement => _get('offerComposerPriceIncrement');
+  String get offerComposerPriceRequired => _get('offerComposerPriceRequired');
+  String get offerComposerEtaRequired => _get('offerComposerEtaRequired');
+
+  // 18 · Active delivery (Jeeber)
+  String get activeDeliveryHandoffTitle => _get('activeDeliveryHandoffTitle');
+  String get activeDeliveryProofPhotoTile =>
+      _get('activeDeliveryProofPhotoTile');
+  String get activeDeliveryDoorCodePrompt =>
+      _get('activeDeliveryDoorCodePrompt');
+  String activeDeliveryCollectCash(String amount) =>
+      _get('activeDeliveryCollectCash').replaceFirst('{amount}', amount);
+  String get activeDeliveryCollectCashNoAmount =>
+      _get('activeDeliveryCollectCashNoAmount');
+  String get activeDeliveryQuickActionMaps =>
+      _get('activeDeliveryQuickActionMaps');
+  String get activeDeliveryQuickActionChat =>
+      _get('activeDeliveryQuickActionChat');
+  String get activeDeliveryQuickActionCosts =>
+      _get('activeDeliveryQuickActionCosts');
+  String get activeDeliveryLoadingHeadline =>
+      _get('activeDeliveryLoadingHeadline');
+  String get activeDeliveryErrorHeadline =>
+      _get('activeDeliveryErrorHeadline');
+
+  // 19 · Earnings
+  String get earningsTotalCashHint => _get('earningsTotalCashHint');
+  String get earningsNetPerOfferLabel => _get('earningsNetPerOfferLabel');
+  String earningsFeesPaidHint(int percent) =>
+      _get('earningsFeesPaidHint').replaceFirst('{percent}', '$percent');
+  String get earningsWalletLink => _get('earningsWalletLink');
+  String get earningsActivityLink => _get('earningsActivityLink');
+  String earningsDeliveryRowTitleDated(String id, String weekday) =>
+      _get('earningsDeliveryRowTitleDated')
+          .replaceFirst('{id}', id)
+          .replaceFirst('{weekday}', weekday);
+  String get earningsLoadingHeadline => _get('earningsLoadingHeadline');
+  String get earningsBreakdownEmptyTitle =>
+      _get('earningsBreakdownEmptyTitle');
+
+  // 20 · Settings
+  String settingsIdentitySubtitle({
+    required String phone,
+    required String action,
+  }) => _get('settingsIdentitySubtitle')
+      .replaceFirst('{phone}', phone)
+      .replaceFirst('{action}', action);
+  String get settingsBecomeJeeberSubtitle =>
+      _get('settingsBecomeJeeberSubtitle');
+  String get settingsBecomeJeeberCta => _get('settingsBecomeJeeberCta');
+  String get settingsAlwaysOnQualifier => _get('settingsAlwaysOnQualifier');
+  String get settingsMoreSection => _get('settingsMoreSection');
+  String settingsVersionFooter(String version) =>
+      _get('settingsVersionFooter').replaceFirst('{version}', version);
+
+  // 21 · Order chat
+  String get chatMessageReadLabel => _get('chatMessageReadLabel');
+  String get chatQuickReplyImHome => _get('chatQuickReplyImHome');
+  String get chatQuickReplyCallAtDoor => _get('chatQuickReplyCallAtDoor');
+  String get chatQuickReplyThanks => _get('chatQuickReplyThanks');
+  String get chatQuickReplyRowA11y => _get('chatQuickReplyRowA11y');
+  String chatSystemChipWithTime(String event, String time) =>
+      _get('chatSystemChipWithTime')
+          .replaceFirst('{event}', event)
+          .replaceFirst('{time}', time);
+  String chatCounterpartRatingA11y(String value) =>
+      _get('chatCounterpartRatingA11y').replaceFirst('{value}', value);
+  String get chatComposerHintMessage => _get('chatComposerHintMessage');
+
+  // 22 · Become a Jeeber (KYC identity step)
+  String kycWizardProgressStepLabel({
+    required int current,
+    required int total,
+    required String stepName,
+  }) => _get('kycWizardProgressStepLabel')
+      .replaceFirst('{current}', '$current')
+      .replaceFirst('{total}', '$total')
+      .replaceFirst('{stepName}', stepName);
+  String kycWizardNextStepHint({required String stepName}) =>
+      _get('kycWizardNextStepHint').replaceFirst('{stepName}', stepName);
+  String get kycWizardStepIdTitle => _get('kycWizardStepIdTitle');
+  String get kycIdCaptureHint => _get('kycIdCaptureHint');
+  String get kycCaptureCaptured => _get('kycCaptureCaptured');
+  String get kycSelfieLockedHint => _get('kycSelfieLockedHint');
+  String get kycReviewTimeTitle => _get('kycReviewTimeTitle');
+  String get kycReviewPrivacyNote => _get('kycReviewPrivacyNote');
+  String kycTosAgreeLine({required int percent}) =>
+      _get('kycTosAgreeLine').replaceFirst('{percent}', '$percent');
+  String get kycTosReadFullCta => _get('kycTosReadFullCta');
+
+  // 23 · Wallet hub
+  String get walletTopUpWalletCta => _get('walletTopUpWalletCta');
+  String get walletBackLabel => _get('walletBackLabel');
+  String walletGiftBadge(String amount) =>
+      _get('walletGiftBadge').replaceFirst('{amount}', amount);
+  String get walletAffordabilityEnoughTitle =>
+      _get('walletAffordabilityEnoughTitle');
+  String walletAffordabilityEnoughBody(int rate) =>
+      _get('walletAffordabilityEnoughBody').replaceFirst('{rate}', '$rate');
+  String get walletReservedRightNowLabel => _get('walletReservedRightNowLabel');
+  String get walletReservedRightNowHint => _get('walletReservedRightNowHint');
+  String walletHowFeesWorkCta(int rate) =>
+      _get('walletHowFeesWorkCta').replaceFirst('{rate}', '$rate');
+  String get walletEarningsRowTitle => _get('walletEarningsRowTitle');
+  String get walletEarningsRowSubtitle => _get('walletEarningsRowSubtitle');
+  String get walletAllActivityTitle => _get('walletAllActivityTitle');
+  String get walletAllActivitySubtitle => _get('walletAllActivitySubtitle');
+  String get walletCashDisclaimer => _get('walletCashDisclaimer');
+  String walletFeesExplainerLine1(int rate) =>
+      _get('walletFeesExplainerLine1').replaceFirst('{rate}', '$rate');
+  String get walletHubReservedNow => _get('walletHubReservedNow');
+  String get walletHubLiveOffers => _get('walletHubLiveOffers');
+  String walletHubGiftBadge(String amount) =>
+      _get('walletHubGiftBadge').replaceFirst('{amount}', amount);
+  String walletHubAffordabilityEnoughBody(int percent) =>
+      _get('walletHubAffordabilityEnoughBody')
+          .replaceFirst('{percent}', '$percent');
+
+  // 24 · Order history
+  String orderHistoryFilterRange(String from, String to) =>
+      _get('orderHistoryFilterRange')
+          .replaceFirst('{from}', from)
+          .replaceFirst('{to}', to);
+  String orderHistoryFilterRangeFrom(String from) =>
+      _get('orderHistoryFilterRangeFrom').replaceFirst('{from}', from);
+  String orderHistoryFilterRangeTo(String to) =>
+      _get('orderHistoryFilterRangeTo').replaceFirst('{to}', to);
+  String get orderHistoryTrackCta => _get('orderHistoryTrackCta');
+  String get orderHistoryReorderCta => _get('orderHistoryReorderCta');
+  String get orderHistoryRebroadcastCta => _get('orderHistoryRebroadcastCta');
+  String get orderHistoryEmptyBody => _get('orderHistoryEmptyBody');
+  String get orderHistoryEmptyCta => _get('orderHistoryEmptyCta');
+  String get orderHistoryLoadingHeadline =>
+      _get('orderHistoryLoadingHeadline');
+
+  // MIDNIGHT R1 + E1 · client home
+  String get homeHeroPromptMorning => _get('homeHeroPromptMorning');
+  String get homeHeroPromptAfternoon => _get('homeHeroPromptAfternoon');
+  String get homeHeroPromptEvening => _get('homeHeroPromptEvening');
+  String get homeCapsuleHoldToTalk => _get('homeCapsuleHoldToTalk');
+  String get homeCapsuleOrTapToType => _get('homeCapsuleOrTapToType');
+  String get homeCapsuleFirstRequestTitle =>
+      _get('homeCapsuleFirstRequestTitle');
+  String get homeCapsuleFirstRequestSubtitle =>
+      _get('homeCapsuleFirstRequestSubtitle');
+  String get homePendingEmptyMidnight => _get('homePendingEmptyMidnight');
+  String get pendingTabBroadcastingLabel => _get('pendingTabBroadcastingLabel');
+  String get homeTabPending => _get('homeTabPending');
+  String get homeRepliesViewOffersCta => _get('homeRepliesViewOffersCta');
+
+  // MIDNIGHT R2 · voice recording
+  String get voiceRecordingLiveTranscriptLabel =>
+      _get('voiceRecordingLiveTranscriptLabel');
+  String get voiceRecordingTranscriptSemantic =>
+      _get('voiceRecordingTranscriptSemantic');
+
+  // MIDNIGHT R9 · request type + tier catalog
+  String get requestTypeTierSummaryFlash => _get('requestTypeTierSummaryFlash');
+  String get requestTypeTierSummaryExpress =>
+      _get('requestTypeTierSummaryExpress');
+  String get requestTypeTierSummaryStandard =>
+      _get('requestTypeTierSummaryStandard');
+  String get requestTypeTierSummaryOnTheWay =>
+      _get('requestTypeTierSummaryOnTheWay');
+  String get requestTypeTierSummaryEco => _get('requestTypeTierSummaryEco');
+  String get requestTypeCurrentLocationQualifier =>
+      _get('requestTypeCurrentLocationQualifier');
+  String get requestTypeTiersEmptyHeadline =>
+      _get('requestTypeTiersEmptyHeadline');
+  String get requestTypeTiersEmptyBody => _get('requestTypeTiersEmptyBody');
+
+  // MIDNIGHT R11 · location picker
+  String get captureLocationDropOffCallout =>
+      _get('captureLocationDropOffCallout');
+  String get captureLocationConfirmDropOffCta =>
+      _get('captureLocationConfirmDropOffCta');
+
+  // MIDNIGHT R22 · settings
+  String get settingsNotificationCategoryOffers =>
+      _get('settingsNotificationCategoryOffers');
+
+  // MIDNIGHT R5 + W1/W2/W3 · onboarding walkthrough
+  String get walkthroughSlide2Tagline => _get('walkthroughSlide2Tagline');
+  String get walkthroughSlide3Tagline => _get('walkthroughSlide3Tagline');
+  String get walkthroughTrustName => _get('walkthroughTrustName');
+  String get walkthroughTrustRoleLine => _get('walkthroughTrustRoleLine');
+  String get walkthroughTrustRatingValue => _get('walkthroughTrustRatingValue');
+  String get walkthroughTrustRatingsLabel =>
+      _get('walkthroughTrustRatingsLabel');
+  String get walkthroughTrustDeliveriesValue =>
+      _get('walkthroughTrustDeliveriesValue');
+  String get walkthroughTrustDeliveriesLabel =>
+      _get('walkthroughTrustDeliveriesLabel');
+  String get walkthroughTrustIdCheckValue =>
+      _get('walkthroughTrustIdCheckValue');
+  String get walkthroughTrustIdChip => _get('walkthroughTrustIdChip');
+  String get walkthroughTrustRatedChip => _get('walkthroughTrustRatedChip');
+  String get walkthroughTrustCodeChip => _get('walkthroughTrustCodeChip');
+  String get walkthroughTrackingCashChip =>
+      _get('walkthroughTrackingCashChip');
+  String get onboardingPreviewOfferQuoteShort =>
+      _get('onboardingPreviewOfferQuoteShort');
+
+  // MIDNIGHT R6 · registration
+  String get registrationSocialGoogleShort =>
+      _get('registrationSocialGoogleShort');
+  String get registrationSocialAppleShort =>
+      _get('registrationSocialAppleShort');
+
+  // MIDNIGHT R8 · transcription review
+  String get transcriptionTapHintLowConfidence =>
+      _get('transcriptionTapHintLowConfidence');
+
+  // MIDNIGHT M3-01 · client order detail
+  String deliveryDetailEtaMinutes(int minutes) =>
+      _get('deliveryDetailEtaMinutes').replaceFirst('{minutes}', '$minutes');
+
+  // MIDNIGHT M3-02 · escalate (dispute open + evidence)
+  String get escalateAutoAttachNote => _get('escalateAutoAttachNote');
+  String get escalateEvidenceLoading => _get('escalateEvidenceLoading');
+  String get escalateEvidenceEmpty => _get('escalateEvidenceEmpty');
+  String get escalateRetryCta => _get('escalateRetryCta');
+  String get escalateVoiceLabel => _get('escalateVoiceLabel');
+
+  // MIDNIGHT M3-03 · waiting / no coverage
+  String get waitingErrorTitle => _get('waitingErrorTitle');
+
+  // MIDNIGHT M3-04 · cancellation
+  String get cancellationTooLateHeadline =>
+      _get('cancellationTooLateHeadline');
+  String get cancellationTooLateBody => _get('cancellationTooLateBody');
+  String get cancellationErrorNote => _get('cancellationErrorNote');
+
+  // MIDNIGHT M3-05 · order summary
+  String get orderSummaryNotFoundTitle => _get('orderSummaryNotFoundTitle');
+  String get orderSummaryNotFoundBody => _get('orderSummaryNotFoundBody');
+  String get orderSummaryErrorTitle => _get('orderSummaryErrorTitle');
+
+  // MIDNIGHT M3-07 · customer profile
+  String get customerProfileLoadingHeadline =>
+      _get('customerProfileLoadingHeadline');
+  String get customerProfileLoadErrorTitle =>
+      _get('customerProfileLoadErrorTitle');
+  String get customerProfileLoadErrorRetry =>
+      _get('customerProfileLoadErrorRetry');
+
+  // MIDNIGHT M3-08 · notifications list
+  String get notificationsLoadingHeadline =>
+      _get('notificationsLoadingHeadline');
+  String get notificationsErrorTitle => _get('notificationsErrorTitle');
+
+  // MIDNIGHT M3-11/12 · wallet activity list + transaction detail
+  String get walletActivityLoadingHeadline =>
+      _get('walletActivityLoadingHeadline');
+  String get walletActivityErrorTitle => _get('walletActivityErrorTitle');
+  String get txnDetailLoadingHeadline => _get('txnDetailLoadingHeadline');
+  String get txnDetailErrorTitle => _get('txnDetailErrorTitle');
+
+  // MIDNIGHT M3-17 · delivery-man onboarding wizard
+  String get dmOnboardingWizardTitle => _get('dmOnboardingWizardTitle');
+  String dmOnboardingStepProgressLabelNamed({
+    required int current,
+    required int total,
+    required String stepName,
+  }) => _get('dmOnboardingStepProgressLabelNamed')
+      .replaceFirst('{current}', '$current')
+      .replaceFirst('{total}', '$total')
+      .replaceFirst('{stepName}', stepName);
+  String dmOnboardingNextStepHint({required String stepName}) =>
+      _get('dmOnboardingNextStepHint').replaceFirst('{stepName}', stepName);
+
+  // MIDNIGHT M3-18 · onboarding funding
+  String get fundingStarterCreditLabel => _get('fundingStarterCreditLabel');
+  String get fundingReservedNowLabel => _get('fundingReservedNowLabel');
+
+  // MIDNIGHT M3-19 · offer-KYC gate
+  String get offerKycGateStatusChecking => _get('offerKycGateStatusChecking');
+  String get offerKycGateStatusUnavailable =>
+      _get('offerKycGateStatusUnavailable');
+
+  // MIDNIGHT M3-21 · kyc rejected (final)
+  String get kycRejectedReasonOtherFinal =>
+      _get('kycRejectedReasonOtherFinal');
+
+  // MIDNIGHT M3-22 · account status
+  String get accountStatusLoadingHeadline =>
+      _get('accountStatusLoadingHeadline');
+
+  // MIDNIGHT M3-23/37 · profile edit + live settings
+  String get profileEditLoadingHeadline => _get('profileEditLoadingHeadline');
+  String get liveSettingsLoadingHeadline =>
+      _get('liveSettingsLoadingHeadline');
+
+  // MIDNIGHT M3-24 · notification preferences
+  String get notificationPrefsLoadingHeadline =>
+      _get('notificationPrefsLoadingHeadline');
+  String get notificationPrefsErrorTitle =>
+      _get('notificationPrefsErrorTitle');
+
+  // MIDNIGHT M3-26 · password security
+  String get passwordStrengthError => _get('passwordStrengthError');
+  String get passwordMismatchError => _get('passwordMismatchError');
+
+  // MIDNIGHT M3-28/29 · saved addresses + address detail form
+  String get savedAddressesLoadingHeadline =>
+      _get('savedAddressesLoadingHeadline');
+  String get savedAddressesErrorHeadline =>
+      _get('savedAddressesErrorHeadline');
+  String get savedAddressesErrorBody => _get('savedAddressesErrorBody');
+  String get addressFormLoadingHeadline => _get('addressFormLoadingHeadline');
+
+  // MIDNIGHT M3-32 · dispute status
+  String get disputeStatusLoading => _get('disputeStatusLoading');
+  String get disputeStatusEvidenceEmpty =>
+      _get('disputeStatusEvidenceEmpty');
 }

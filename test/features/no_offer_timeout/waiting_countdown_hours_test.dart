@@ -1,27 +1,4 @@
 // Regression gate for the `1433:18 left to find a Jeeber` defect seen on real
-// hardware during the live COD run.
-//
-// The waiting screen's private `_format` built its left-hand field from
-// `Duration.inMinutes` — the TOTAL minutes of the duration, not the
-// minutes-within-the-hour — so a window longer than an hour printed a raw
-// minute count where a clock field belongs. The window came from the server's
-// `offerDeadlineInSeconds`, and the gateway falls back to a 24 h
-// `TierExpiryWindowResolver.SafeExpiryWindow` when a request's tier does not
-// resolve, so a >1 h window is reachable in production and the client cannot
-// prevent it.
-//
-// Controls this file runs:
-//   POSITIVE — a 23 h 53 m 18 s window renders `23:53:18 left to find a Jeeber`
-//              through the REAL screen, the REAL ARBs and the REAL localization
-//              delegate (no stubbed l10n, no stubbed widget).
-//   NEGATIVE — the same test asserts the pre-fix rendering `1433:18` is ABSENT.
-//              Reverting `CountdownFormat.format` to `d.inMinutes` turns that
-//              assertion red, and `oldFormula` below reproduces the defect
-//              arithmetic in-test so the negative control is executable rather
-//              than a claim: it is asserted to still produce `1433:18`, which
-//              is what the screen must no longer show.
-//   BOUNDARY — under an hour the format is unchanged (`4:30`), so the fix
-//              cannot have silently changed the common case.
 
 import 'dart:async';
 
@@ -107,9 +84,6 @@ void main() {
     });
 
     // NEGATIVE CONTROL, executable: the pre-fix arithmetic still produces the
-    // defect string. If this ever stops being true the widget assertion below
-    // would be checking for a string nothing could have produced, i.e. it
-    // would have become a test that cannot fail.
     test('the pre-fix arithmetic really did produce 1433:18', () {
       const window = Duration(hours: 23, minutes: 53, seconds: 18);
       expect(oldFormula(window), '1433:18');

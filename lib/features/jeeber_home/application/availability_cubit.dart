@@ -7,14 +7,6 @@ import '../domain/entities/availability_status.dart';
 import '../domain/services/availability_gateway.dart';
 import 'availability_state.dart';
 
-/// Owns the Jeeber-home availability toggle, the active-delivery count,
-/// and the 8-hour idle auto-offline rule.
-///
-/// External collaborators:
-///   - [AvailabilityGateway] — hits PUT /api/availability/toggle.
-///   - [AvailabilityInactivityPolicy] — supplies the 7h30 / 8h thresholds.
-///   - `clock` / `tickerFactory` — injected so tests can drive elapsed
-///     time without real wall-clock waits.
 class AvailabilityCubit extends Cubit<AvailabilityViewState> {
   AvailabilityCubit({
     required AvailabilityGateway gateway,
@@ -40,12 +32,8 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
         (_) => DateTime.now(),
       );
 
-  /// Expose the policy for the screen layer so it can format the warning
-  /// without re-reading the same thresholds from somewhere else.
   AvailabilityInactivityPolicy get policy => _policy;
 
-  /// Cold-start: fetch the current snapshot. If the call fails, surface
-  /// an error phase so the screen can show a retry CTA.
   Future<void> load() async {
     if (state.loadPhase == AvailabilityLoadPhase.loading) return;
     emit(state.copyWith(loadPhase: AvailabilityLoadPhase.loading));
@@ -61,9 +49,6 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
     }
   }
 
-  /// User tapped the big toggle. Flips between online/offline. Reads the
-  /// current state to decide the request payload — never trust a stale
-  /// UI value.
   Future<void> toggle() async {
     if (state.isToggleInFlight) return;
     final goOnline = !state.status.isOnline;
@@ -81,8 +66,6 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
     }
   }
 
-  /// "I'm still here" — used by the warning banner CTA so the Jeeber can
-  /// reset the inactivity timer without flipping offline first.
   void extendActivity() {
     if (!state.status.isOnline) return;
     final now = _clock();

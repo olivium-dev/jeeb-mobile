@@ -23,7 +23,6 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 /// UX LAW (S0-E2E-08): the shell is ADDITIVE, not role-gated. Every user sees
 /// the same five destinations — Requests / Delivery / Dashboard / Earnings /
 /// Profile. A non-jeeber sees the jeeber tabs with EMPTY STATES; a jeeber sees
-/// their live bodies. There is NO role switch and NO disappearing tab set.
 
 class _StubEarningsRepository implements EarningsRepository {
   @override
@@ -81,11 +80,6 @@ Widget _harness({
   List<String>? availableRoles,
 }) {
   // The shell deliberately does NOT provide a global AvailabilityCubit; the
-  // Jeeber dashboard (DashboardTab) self-provides one from DI. This harness
-  // therefore registers the gateway in DI (see setUp). [availableRoles], when
-  // supplied, provides a RoleAvailabilityCubit so the additive jeeber tabs
-  // render their LIVE bodies (when the list contains `jeeber`) vs the empty
-  // state (when it does not / the cubit is absent).
   return MultiBlocProvider(
     providers: [
       BlocProvider(
@@ -114,6 +108,12 @@ Widget _harness({
           GlobalCupertinoLocalizations.delegate,
         ],
         home: const ShellScreen(),
+        // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES
+        // §E1): pumpAndSettle only terminates under reduce motion.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
       ),
     ),
   );
@@ -126,13 +126,10 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     sl.registerFactory<EarningsRepository>(() => _StubEarningsRepository());
     // DashboardTab self-provides AvailabilityCubit from DI, so the gateway it
-    // resolves must be registered — exactly as production does. An in-memory
-    // gateway keeps cold-start offline and deterministic.
     sl.registerLazySingleton<AvailabilityGateway>(
       InMemoryAvailabilityGateway.new,
     );
     // DashboardTab also self-provides a RequestFeedCubit from a DI-registered
-    // RequestFeedRepository; an empty seeded feed keeps the test focused.
     sl.registerLazySingleton<RequestFeedRepository>(
       () => SeededRequestFeedRepository(const []),
     );
@@ -153,7 +150,6 @@ void main() {
     expect(find.text('Delivery'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
     // The ADDITIVE jeeber tabs are present for a regular user too (UX LAW),
-    // never hidden behind a role switch.
     expect(find.text('Dashboard'), findsWidgets);
     expect(find.text('Earnings'), findsWidgets);
   });
@@ -167,8 +163,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Both jeeber tab bodies (Dashboard + Earnings) render the become-a-jeeber
-    // empty state. They are kept offstage by the shell's IndexedStack while
-    // another tab is selected, so include offstage in the match.
     expect(
       find.byType(JeeberTabEmptyState, skipOffstage: false),
       findsNWidgets(2),
@@ -189,8 +183,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // The live jeeber home is rendered (its root key is present in the
-    // additive Dashboard tab, kept offstage while Requests is selected) and
-    // the empty state is gone.
     expect(
       find.byKey(const Key('dashboard-tab-root'), skipOffstage: false),
       findsOneWidget,

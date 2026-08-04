@@ -1,20 +1,5 @@
 /// b02 — a 500 on the chat history read must NOT render as an empty thread.
-///
 /// `ChatCubit.load()` collapsed EVERY history failure into
-/// `messages: const [], phase: ConversationPhase.unknown` behind a bare
-/// `catch (_)`. `ConversationPhase.unknown` is exactly the branch
-/// `_ChatEmptyState` renders as "No conversation yet / This delivery doesn't
-/// have a chat thread. Check back once a Jeeber is assigned." — so a gateway
-/// 500, a transport drop, or a Firestore outage was indistinguishable, on
-/// screen, from a genuinely empty thread. `ChatError` had no
-/// `historyLoadFailed` member: no error state existed to render and there was
-/// no retry affordance anywhere. That is precisely how the Firestore outage
-/// presented to users, with a Jeeber assigned and in transit.
-///
-/// RED before the fix, in this exact shape:
-///   * `ChatError.historyLoadFailed` did not exist (the file did not compile);
-///   * with it stubbed in, the state carried `error: null`, the empty-state key
-///     was mounted and the error key was not.
 library;
 
 import 'dart:async';
@@ -32,8 +17,6 @@ import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-// ---------------------------------------------------------------------------
-// Localization host (sync ARB load), mirroring chat_empty_state_overflow_test.
 // ---------------------------------------------------------------------------
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncLocDelegate(this._arbByTag);
@@ -114,12 +97,13 @@ class _NoopPicker implements PhotoPickerService {
   Future<RawPhoto> pickFromGallery() => throw UnimplementedError();
 }
 
-/// The retry CTA inside the error body. `find.byType` compares runtime types
-/// EXACTLY and `FilledButton.icon` builds a private `_FilledButtonWithIcon`
-/// subclass, so a `byType(FilledButton)` finder silently matches nothing here.
+/// The retry CTA inside the error body. MIDNIGHT: the body is now
+/// [JeebInfoNote.error] + a kit [JeebCtaButton] (no Material `FilledButton` in
+/// the tree at all), so the affordance is addressed by its identifier — the
+/// thing that is actually frozen — rather than by a Material runtime type.
 final Finder _retryButton = find.descendant(
   of: find.byKey(ChatScreen.historyErrorKey),
-  matching: find.byWidgetPredicate((w) => w is FilledButton),
+  matching: find.bySemanticsIdentifier('chat_history_error_retry'),
 );
 
 void main() {
@@ -141,7 +125,6 @@ void main() {
       await cubit.load();
 
       // RED before the fix: `error` was null and nothing distinguished this
-      // from a thread the server legitimately returned zero rows for.
       expect(cubit.state.historyLoadFailed, isTrue);
       expect(cubit.state.error, ChatError.historyLoadFailed);
       expect(cubit.state.isLoadingHistory, isFalse);
@@ -223,12 +206,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       // RED before the fix: the empty state was mounted and there was no error
-      // key to find at all.
       expect(find.byKey(ChatScreen.historyErrorKey), findsOneWidget);
       expect(find.byKey(ChatScreen.emptyStateKey), findsNothing);
       expect(find.text('No conversation yet'), findsNothing);
       // The affordance, not just the copy: an error the user cannot act on is
-      // barely better than the empty state it replaced.
       expect(_retryButton, findsOneWidget);
       expect(find.text("Couldn't load this chat"), findsOneWidget);
       expect(tester.takeException(), isNull);

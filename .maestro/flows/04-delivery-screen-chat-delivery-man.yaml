@@ -29,7 +29,9 @@
 #   chat_dm_fee_banner, chat_detail_date_separator,
 #   chat_detail_message_dev-dm-in-1, chat_detail_message_dev-dm-out-1,
 #   chat_detail_message_read, chat_detail_message_input,
-#   chat_detail_attach_button, chat_detail_voice_button, chat_detail_send_button
+#   chat_detail_attach_button, chat_detail_send_button
+#   (NO chat_detail_voice_button — decision B-04 refused a composer mic, so that
+#   id has never been emitted; the assertion on it below was stale and is gone.)
 
 appId: ${APP_ID}
 ---
@@ -83,13 +85,11 @@ appId: ${APP_ID}
 #   merged leaf here would be a flaky/un-addressable selector. The outgoing
 #   bubble assertion above already proves the outgoing message rendered.
 
-# --- Composer: input + attach + voice affordances ----------------------------
+# --- Composer: input + attach affordances ------------------------------------
 - assertVisible:
     id: "chat_detail_message_input"
 - assertVisible:
     id: "chat_detail_attach_button"
-- assertVisible:
-    id: "chat_detail_voice_button"
 
 # --- Empty-thread capture screenshot -----------------------------------------
 - waitForAnimationToEnd

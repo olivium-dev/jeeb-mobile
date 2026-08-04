@@ -9,10 +9,6 @@ import 'support/sync_app_localizations.dart';
 
 void main() {
   // T-MOB-012: the route injects a live GoogleMap via `mapBuilder`. These
-  // tests pin the injection seam + the fixed-pin overlay + the CTA's
-  // return-on-pin contract WITHOUT mounting a platform-view GoogleMap (which
-  // can't render headless) — the launcher/route widget is verified by the
-  // controller contract test + the analyzer.
   testWidgets('renders the injected map builder instead of the placeholder',
       (tester) async {
     const injected = Key('injected-map-sentinel');
@@ -44,7 +40,7 @@ void main() {
     expect(find.byType(CaptureLocationPin), findsOneWidget);
   });
 
-  testWidgets('Pin Location CTA fires onPinned (the route returns the centre)',
+  testWidgets('Confirm drop-off CTA fires onPinned (the route returns the centre)',
       (tester) async {
     var pinned = 0;
     await tester.pumpWidget(
@@ -57,7 +53,7 @@ void main() {
     );
     await tester.pump();
 
-    final cta = find.text('Pin Location');
+    final cta = find.text('Confirm drop-off');
     await tester.ensureVisible(cta);
     await tester.tap(cta);
     await tester.pump();

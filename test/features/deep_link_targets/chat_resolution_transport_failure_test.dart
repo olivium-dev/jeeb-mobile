@@ -1,34 +1,4 @@
 // A TRANSPORT FAILURE IS NOT A STATEMENT ABOUT THE WORLD.
-//
-// Reproduced live: cold-entering chat on an IN-TRANSIT delivery with an
-// accepted offer rendered
-//
-//     "Waiting for Jeebers… / No offers yet — sit tight."
-//
-// with the Jeeber header gone. On reconnect the SAME route returned 200 and
-// rendered "Your Jeeber / Karim Driver / In transit / $37.00". The offline
-// screen was a false statement about the world.
-//
-// The mechanism, traced in source:
-//   `resolveByCorrelationKey()` and `resolveByMessagesProbe()` in
-//   chat_detail_screen.dart BOTH swallowed `DioException` into
-//   `conversationResolved = false`, so the gateway was handed
-//   `kComposeConversationSentinel`. `DioChatGateway.loadHistory()` then
-//   short-circuited to `const []` with NO HTTP and NO THROW — so
-//   `ChatCubit.load()` SUCCEEDED, `historyLoadFailed` was never set, and the
-//   #186 error body was UNREACHABLE on the path that actually fails. Worse,
-//   `loadPhase()` hard-returned `ConversationPhase.broadcasting` for the
-//   sentinel, laundering a transport failure into a positive assertion.
-//
-// The fix is at the RESOLUTION layer, not the messages read: three states that
-// were collapsed into one are now distinct (`ConversationLookup`) —
-// genuinely-still-broadcasting, conversation-not-yet-created, and
-// we-could-not-find-out.
-//
-// This suite pins BOTH directions:
-//   * DoD          — network down + in-transit delivery → error + retry.
-//   * NEGATIVE     — a genuinely broadcasting request still renders as
-//                    broadcasting, NOT as an error. (Absence is still absence.)
 library;
 
 import 'package:dio/dio.dart';
@@ -44,7 +14,6 @@ import 'package:jeeb_mobile/core/role/user_role.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/deep_link_targets/chat_detail_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -52,7 +21,6 @@ import '../../support/sync_app_localizations.dart';
 /// THE OFFLINE WIRE. Every request fails with NO response at all — Dio's
 /// `connectionError`, which is precisely what an unreachable gateway looks
 /// like. `response == null` is the signature that distinguishes it from a 404,
-/// and the whole fix turns on that distinction.
 class _OfflineDio {
   _OfflineDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -73,7 +41,6 @@ class _OfflineDio {
 
   /// An IN-TRANSIT delivery with an accepted offer — the exact situation the
   /// live report describes. The id is real to the server; only the phone's
-  /// connectivity is broken.
   static const inTransitRequestId = '7c1e0d92-3b4a-4f21-9c33-0a55d0f21b7e';
 
   late final Dio dio;
@@ -83,8 +50,6 @@ class _OfflineDio {
 /// PRE-ACCEPT — the honest 404 wire. No Jeeber has accepted yet, so no
 /// conversation row exists and the chat-service answers BOTH lookups with
 /// `404 "Conversation '…' does not exist."` (physical-run8). This is a real
-/// answer, so the screen must still land in the broadcasting/compose shell —
-/// the negative test that the fix did not turn every empty chat into an error.
 class _PreAcceptDio {
   _PreAcceptDio() {
     dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -240,7 +205,7 @@ void main() {
 
         // 1. The error body is on screen, with a retry.
         expect(
-          find.byType(OmdsErrorStatePage),
+          find.byType(ChatResolutionErrorView),
           findsOneWidget,
           reason: 'a transport failure must surface as an error with retry',
         );
@@ -280,14 +245,14 @@ void main() {
 
         await tester.pumpWidget(_host(role, _HealingDio.requestId));
         await tester.pumpAndSettle();
-        expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+        expect(find.byType(ChatResolutionErrorView), findsOneWidget);
 
         // Connectivity comes back; the user taps retry.
         healing.healed = true;
         await tester.tap(find.text('Try again'));
         await tester.pumpAndSettle();
 
-        expect(find.byType(OmdsErrorStatePage), findsNothing);
+        expect(find.byType(ChatResolutionErrorView), findsNothing);
         final chatScreen = tester.widget<ChatScreen>(find.byType(ChatScreen));
         expect(
           chatScreen.deliveryId,
@@ -302,10 +267,6 @@ void main() {
       '"could not find out" — absence requires BOTH lookups to have ANSWERED',
       (tester) async {
         // The correlationKey lookup answers 404 (a request-id param the
-        // chat-service has no row for) but the messages probe cannot reach the
-        // server. One 404 is not proof of absence here: the 404-ing lookup is
-        // the one guaranteed to 404 for the OTHER role's id shape, so the probe
-        // is the lookup that would have decided — and it never got an answer.
         final dio = Dio(BaseOptions(baseUrl: 'http://test'));
         dio.interceptors.add(
           InterceptorsWrapper(
@@ -339,7 +300,7 @@ void main() {
         await tester.pumpWidget(_host(role, _OfflineDio.inTransitRequestId));
         await tester.pumpAndSettle();
 
-        expect(find.byType(OmdsErrorStatePage), findsOneWidget);
+        expect(find.byType(ChatResolutionErrorView), findsOneWidget);
         expect(find.text('Waiting for Jeebers…'), findsNothing);
       },
     );
@@ -360,7 +321,7 @@ void main() {
 
         // NO error body: the server answered, and its answer was "not yet".
         expect(
-          find.byType(OmdsErrorStatePage),
+          find.byType(ChatResolutionErrorView),
           findsNothing,
           reason:
               'a definitive 404 is an ANSWER — turning it into an error would '

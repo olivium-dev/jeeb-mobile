@@ -1,27 +1,3 @@
-// JEBV4-269: customer live-position overlay.
-//
-// P0 2026-07-31 — the OVERLAY is unchanged; its SOURCE moved back. The SSE
-// variant this file used to exercise (a stream capability interface and its
-// client class, over a `geo` alias route) is DELETED, because jeeb-gateway #333
-// (`b6fe888`, guard `Sse_Alias_Route_Is_Gone`) deleted the route: on the
-// deployed MSI binary a grep of `publish/gateway/JeebGateway.dll` finds
-// `deliveries/{deliveryId}/tracking` and finds the alias zero times.
-// The customer read 404ed on a 30 s re-arm loop for four days while the
-// jeeber's `POST /location/update` was 200-ing — the courier-marker P0.
-//
-// Proves:
-//   * a LivePositionSource repo → the position read on the SAME event as the
-//     status lands on the emitted DeliveryTrackingInfo (the map has data);
-//   * a plain repo (no position capability) degrades silently — no crash, no
-//     position (backwards-compatible with the demo/seam repos);
-//   * a null overlay leaves the marker absent rather than crashing;
-//   * NEGATIVE CONTROL: a STALE snapshot is merged but `markerIsLive` goes
-//     false, so no phantom marker is drawn at a position the courier left;
-//   * DioLiveTrackingRepository.fetchLivePosition parses the frozen
-//     TrackingPolylineDto (including the `stale`/`secondsSinceUpdate` pair that
-//     moved onto it when the stream's `last-seen` event died) and is null on
-//     the legacy mock base.
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -46,7 +22,6 @@ class _PositionRepo implements LiveTrackingRepository, LivePositionSource {
   final double? ageSeconds;
 
   /// How many times the cubit asked for a position. The point of the P0 fix is
-  /// that this tracks EVENTS, not a clock, so the count is asserted directly.
   int reads = 0;
 
   @override
@@ -61,8 +36,6 @@ class _PositionRepo implements LiveTrackingRepository, LivePositionSource {
   }) async {
     reads++;
     final p = _position;
-    // Null models "the gateway had nothing / the read failed" — exactly what
-    // the real Dio implementation returns, which is total by contract.
     if (p == null) return null;
     return DeliveryLivePosition(
       jeeberPosition: p,
@@ -115,10 +88,7 @@ void main() {
 
       expect(cubit.state.trackingInfo?.jeeberPosition, pos);
       expect(cubit.state.trackingInfo?.polyline, isNotEmpty);
-      // The stage from the delivery row is preserved through the merge.
       expect(cubit.state.trackingInfo?.currentStage, TrackingStage.inTransit);
-      // A fresh fix is drawable, and the read happened exactly once — on the
-      // mount event, not on a cadence.
       expect(cubit.state.trackingInfo?.markerIsLive, isTrue);
       expect(trackingMarkers(cubit.state.trackingInfo!), hasLength(1));
       expect(repo.reads, 1);
@@ -127,11 +97,6 @@ void main() {
     });
 
     test('NEGATIVE CONTROL: a stale snapshot draws no marker', () async {
-      // The gateway says it holds a fix but it is older than StaleThreshold.
-      // The overlay must still be MERGED (the screen keeps the age so it can
-      // explain itself) while the map refuses to draw it: a pin where the
-      // courier was ten minutes ago reads as live and sends the customer to
-      // the wrong corner.
       const pos = GpsPoint(lat: 33.9, lng: 35.51);
       final repo = _PositionRepo(pos, stale: true, ageSeconds: 612.0);
       final cubit = LiveTrackingCubit(
@@ -146,9 +111,6 @@ void main() {
       expect(info.positionAgeSeconds, closeTo(612.0, 1e-9));
       expect(info.markerIsLive, isFalse, reason: '…but is not drawable');
       expect(trackingMarkers(info), isEmpty);
-      // POSITIVE CONTROL for this assertion: the same builder, same position,
-      // fresh — must produce a marker. Otherwise `isEmpty` above would pass
-      // even if trackingMarkers were broken outright.
       expect(
         trackingMarkers(info.withLivePosition(jeeberPosition: pos)),
         hasLength(1),
@@ -181,8 +143,6 @@ void main() {
 
       expect(cubit.state.trackingInfo?.jeeberPosition, isNull);
       expect(trackingMarkers(cubit.state.trackingInfo!), isEmpty);
-      // The read was ATTEMPTED (so a missing marker means "no fix", not "never
-      // asked") but is not counted as an arrival.
       expect(repo.reads, 1);
       expect(cubit.debugPositionReadCount, 0);
       await cubit.close();
@@ -202,9 +162,6 @@ void main() {
               [33.9, 35.51],
               [33.8, 35.4],
             ],
-            // Moved onto TrackingPolylineDto by jeeb-gateway #333 when the
-            // stream's `last-seen` EVENT NAME (which used to carry the same
-            // verdict) was deleted with the stream.
             'stale': false,
             'secondsSinceUpdate': 3.5,
           },
@@ -215,8 +172,6 @@ void main() {
 
       final overlay = await repo.fetchLivePosition(deliveryId: _id);
 
-      // THE P0 ASSERTION: the surviving route, not the deleted SSE `geo` alias
-      // that 404s on the live gateway.
       expect(adapter.lastRequest?.path, '/deliveries/$_id/tracking');
       expect(overlay, isNotNull);
       expect(overlay!.jeeberPosition?.lat, closeTo(33.9, 1e-9));
@@ -261,7 +216,6 @@ void main() {
           DioLiveTrackingRepository(_dio(adapter), originGateway: false);
 
       expect(await repo.fetchLivePosition(deliveryId: _id), isNull);
-      // Mock base must not even attempt the origin-only tracking route.
       expect(adapter.lastRequest, isNull);
     });
   });

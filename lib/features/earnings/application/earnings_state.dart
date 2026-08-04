@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../wallet/domain/wallet_repository.dart';
 import '../domain/earnings_repository.dart';
 import '../domain/earnings_summary.dart';
 
@@ -16,6 +17,7 @@ class EarningsState extends Equatable {
     this.exportMode = EarningsExportMode.idle,
     this.exportError,
     this.exportedFilePath,
+    this.walletBalance,
   });
 
   final EarningsViewMode mode;
@@ -25,6 +27,12 @@ class EarningsState extends Equatable {
   final EarningsExportMode exportMode;
   final String? exportError;
   final String? exportedFilePath;
+
+  /// The Jeeber's wallet snapshot (W1m), fetched once per mount so the footer
+  /// pill can show a REAL balance. Stays null when the wallet read is
+  /// unavailable or fails — the pill then renders without the balance suffix
+  /// rather than showing a fabricated `$0.00`.
+  final WalletBalance? walletBalance;
 
   EarningsState copyWith({
     EarningsViewMode? mode,
@@ -36,6 +44,7 @@ class EarningsState extends Equatable {
     String? exportError,
     bool clearExportError = false,
     String? exportedFilePath,
+    WalletBalance? walletBalance,
   }) {
     return EarningsState(
       mode: mode ?? this.mode,
@@ -45,6 +54,7 @@ class EarningsState extends Equatable {
       exportMode: exportMode ?? this.exportMode,
       exportError: clearExportError ? null : (exportError ?? this.exportError),
       exportedFilePath: exportedFilePath ?? this.exportedFilePath,
+      walletBalance: walletBalance ?? this.walletBalance,
     );
   }
 
@@ -57,5 +67,6 @@ class EarningsState extends Equatable {
         exportMode,
         exportError,
         exportedFilePath,
+        walletBalance,
       ];
 }

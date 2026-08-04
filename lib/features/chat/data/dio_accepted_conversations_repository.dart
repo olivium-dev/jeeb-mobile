@@ -2,32 +2,12 @@ import 'package:dio/dio.dart';
 
 import '../domain/accepted_conversation.dart';
 
-/// Dio-backed [AcceptedConversationsRepository] (S007-P1B).
-///
-/// Resolves the caller's ACCEPTED orders from the role-scoped requests list
-/// `GET /requests?role={role}` — the SAME gateway contract the client-home
-/// repository already speaks (the `MockGatewayClient` interceptor rewrites the
-/// prefix, so never hardcode one). Verified against the dev gateway
-/// (`192.168.2.39:10090`): an accepted order is returned on BOTH
-/// `role=client` (the customer's order) and `role=jeeber` (the jeeber's won
-/// order) as a row with `status: "accepted"`, a `conversationId`, a `title`
-/// and a `displayId`.
-///
-/// NOTE: the gateway has NO parameterless `GET /v1/conversations` list — that
-/// route is correlationKey-only (a bare GET returns 400) — so the accepted
-/// signal is read from the requests list instead.
-///
-/// We keep only rows whose `status` is `accepted` (or the in-progress
-/// synonyms). Any transport/parse failure resolves to an empty list so the
-/// host surface degrades to its prior (push-only) behaviour.
 class DioAcceptedConversationsRepository
     implements AcceptedConversationsRepository {
   const DioAcceptedConversationsRepository(this._dio, {this.role = 'client'});
 
   final Dio _dio;
 
-  /// `client` (the customer's accepted orders) or `jeeber` (the jeeber's won
-  /// orders) — drives the `role` query the gateway filters on.
   final String role;
 
   static const _requestsPath = '/requests';
@@ -78,8 +58,6 @@ class DioAcceptedConversationsRepository
     );
   }
 
-  /// True when [status] marks an accepted / in-progress order. Public so the
-  /// client-home partition reuses exactly the same predicate.
   static bool isAcceptedStatus(Object? status) {
     final s = (status is String ? status : '').toLowerCase();
     return s == 'accepted' || s == 'in_progress' || s == 'inprogress';

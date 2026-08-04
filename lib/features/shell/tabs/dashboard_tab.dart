@@ -33,43 +33,13 @@ import '../../jeeber_active_deliveries/domain/active_delivery_summary.dart';
 import '../../jeeber_active_deliveries/presentation/active_deliveries_banner.dart';
 import '../tab_visibility.dart';
 
-/// Selector for the deliveryman feed variant the dev seam should render
-/// (Figma screens 23-26). Debug capture aid only — never reached in release.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../core/previews/jeeb_preview.dart';
+import '../../active_delivery_jeeber/domain/jeeber_delivery_status.dart';
+import '../../customer_profile/domain/customer_profile_view_data.dart';
+
 enum _DevFeedView { empty, requests, pending, replies }
 
-/// Jeeber-side "Home" tab in the role-aware bottom-nav shell. Delegates to
-/// [JeeberHomeScreen] so the availability toggle is the first thing the
-/// Jeeber sees on cold-start.
-///
-/// Wires the feed card → request-detail route (T-mobile-033) so tapping a
-/// candidate from the feed opens the detail screen where the Jeeber can
-/// review the request and, if needed, file a prohibited-item report. The
-/// "Register now" upsell CTA → the delivery-man onboarding wizard
-/// (screen 19 → 20).
-///
-/// In the dev-seam capture path (`jeeb.feed=<view>`), the tab instead renders
-/// a self-contained, seeded feed surface so a single APK captures screens
-/// 23-26 without a rebuild.
-///
-/// W2-INT (JM-036): the DELIVERY-tab body gates on REAL jeeber KYC status via
-/// [JeeberKycStatusGate] (`sl<JeeberKycStatusGate>()`) instead of the old
-/// dev-seam `jeeb.home_tab=unregistered` flag. Reconciled with D38 (KYC gates
-/// OFFERING, not feed-browsing) per the
-/// [JeeberDeliveryTabDestination.forStatus] mapping:
-///   * `none`     → `delivery_register_prompt` (`JeeberHomeScreen(isRegistered:
-///     false)`), whose "Register now" CTA → the onboarding wizard (JM-039).
-///   * `pending`  → the jeeber request feed (`jeeber_feed_root`): a registered
-///     jeeber BROWSES the feed; tapping `feed_make_offer_cta` routes through
-///     `offer_kyc_gate` (JM-044/048) until approval — that is the only gated
-///     action. This is the W2-closer fix: the old `!isApproved` collapse routed
-///     `pending` jeebers to the register prompt, making the offer-KYC gate
-///     unreachable.
-///   * `approved` → the feed (`jeeber_feed_root`); offering allowed.
-///   * `rejected` → redirect to the `kyc-rejected` screen (D52/D87); the tab
-///     body renders the register prompt only for the frame before the redirect.
-/// The gate's debug default reads `jeeb.seam.kyc_status` so a Maestro flow drives
-/// the branch deterministically (65_W2_TEST_PLAN §3.1); release reports
-/// approved until the JM-036 engineer swaps in the real getMe/kyc-backed gate.
 class DashboardTab extends StatelessWidget {
   const DashboardTab({super.key});
 
@@ -77,20 +47,9 @@ class DashboardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final devView = _devSeamView();
     if (devView != null) return _DevFeedScaffold(view: devView);
-    // JM-036 gate (D38-reconciled): resolve the DELIVERY-tab destination from
-    // the gate. Resolve the gate from DI, falling back to the seam-backed
-    // default when DI isn't wired (regression harnesses that mount DashboardTab
-    // without configuring the gate) so the tab never throws a GetIt "not
-    // registered" on entry.
     final gate = sl.isRegistered<JeeberKycStatusGate>()
         ? sl<JeeberKycStatusGate>()
         : const SeamJeeberKycStatusGate();
-    // JEBV4-267: resolve the destination REACTIVELY. The release
-    // LiveJeeberKycStatusGate reports a conservative non-approved status until
-    // its live KYC fetch resolves, then notifies — JeeberKycGateBuilder rebuilds
-    // so an approved/pending jeeber reaches the feed without a re-login. For the
-    // const seam gate / test fakes (not Listenable) this builds exactly once, so
-    // debug + Maestro behaviour is unchanged.
     return JeeberKycGateBuilder(
       gate: gate,
       builder: (context, gate) => _JeeberHomeHost(
@@ -99,9 +58,6 @@ class DashboardTab extends StatelessWidget {
     );
   }
 
-  /// The deliveryman feed variant requested via the dev seam, or `null` when
-  /// the seam isn't driving the dashboard. Debug-only — always `null` in
-  /// release builds.
   _DevFeedView? _devSeamView() {
     if (!kDebugMode) return null;
     return switch (DevSeam.current.feed) {
@@ -114,53 +70,13 @@ class DashboardTab extends StatelessWidget {
   }
 }
 
-/// Hosts the production [JeeberHomeScreen] under a [MultiBlocProvider] that
-/// supplies the two cubits the registered home reads: an [AvailabilityCubit]
-/// (`didChangeDependencies` + `_RegisteredBody`'s `BlocConsumer`) and a
-/// [RequestFeedCubit] (the active-delivery / request feed surface).
-///
-/// Before the availability provider existed, the role-switch into the Jeeber
-/// surface mounted `JeeberHomeScreen(isRegistered: true)` with no
-/// `AvailabilityCubit` ancestor — only the dev-seam feed path provided one — so
-/// the registered screen threw `ProviderNotFound<AvailabilityCubit>` on entry
-/// (E2E "Switch to Jeeber" crash).
-///
-/// JEEBER-LOOP F3: the host also did not pass a `requestFeedCubit`, so
-/// [JeeberHomeScreen] stayed in State 2 (availability toggle only, no feed) —
-/// the Jeeber had no in-app entry to an active delivery and could only reach
-/// one via a deep link. Wiring a DI-backed [RequestFeedCubit] lights up State 3
-/// (the live request / active-delivery feed) so tapping a card reaches the
-/// chat → "Start delivery" → active-delivery → OTP entry chain that closes the
-/// two-party loop. Both cubits are built from DI-registered gateways
-/// (`sl<...>()`), matching how sibling route builders construct their
-/// screen-scoped cubits.
-///
-/// Both providers wrap even the `unregistered` (screen-19) path: the
-/// availability auto-offline ticker is owned by its cubit and the upsell view
-/// simply never reads either cubit, so a single create-site avoids a second
-/// provider tree. `BlocProvider.create` owns the cubit lifecycle (it is closed
-/// on dispose), so we hand the created [RequestFeedCubit] to
-/// [JeeberHomeScreen] — which re-exposes it via `BlocProvider.value` (a
-/// non-owning view) — instead of constructing a second, leaked instance.
 class _JeeberHomeHost extends StatelessWidget {
   const _JeeberHomeHost({required this.destination});
 
   final JeeberDeliveryTabDestination destination;
 
-  /// The DELIVERY-tab body renders the register prompt (State 1) for both the
-  /// `none` (not-onboarded) destination AND the `rejected` destination — the
-  /// latter only for the single frame before [_GateScoped] redirects to the
-  /// `kyc-rejected` screen (so a registered-but-rejected jeeber never sees the
-  /// feed). The feed (State 2/3) renders only for `pending`/`approved`.
   bool get _unregistered => destination != JeeberDeliveryTabDestination.feed;
 
-  /// The live profile source for the greeting. Self-provided off GetIt (no DI
-  /// edit), mirroring how [CustomerProfileScreen] resolves its repo; `null` in
-  /// a bare regression harness (no Dio registered) → the greeting stays generic.
-  /// Resolve the active-deliveries repo from DI, mirroring the sibling repos.
-  /// Falls back to a bare Dio-backed instance when only Dio is registered, and
-  /// (in a bare harness with no Dio) to an empty repo so the banner self-hides
-  /// rather than throwing a GetIt "not registered" on entry.
   ActiveDeliveriesRepository _resolveActiveDeliveriesRepository() {
     if (sl.isRegistered<ActiveDeliveriesRepository>()) {
       return sl<ActiveDeliveriesRepository>();
@@ -181,8 +97,6 @@ class _JeeberHomeHost extends StatelessWidget {
     return null;
   }
 
-  /// Profile-changed broadcast (display-name saves) off GetIt when registered;
-  /// `null` under bare tests so the greeting simply never re-pulls.
   Stream<void>? _profileRefreshStream() {
     if (!sl.isRegistered<ProfileRefreshSignals>()) return null;
     return sl<ProfileRefreshSignals>().stream;
@@ -199,65 +113,27 @@ class _JeeberHomeHost extends StatelessWidget {
           create: (_) => RequestFeedCubit(
             repository: sl<RequestFeedRepository>(),
             repositoryOwnership: RequestFeedRepositoryOwnership.borrowed,
-            // JEBV4-342 (b02): this is THE live jeeber feed cubit — the one
-            // JeeberFeedTabView renders. The gateway's new-request fan-out
-            // already reaches this device; before this wire it drove nothing,
-            // so a fresh auction appeared only on the next poll tick. Same
-            // resolver the active-deliveries card above uses: one bus, one
-            // lookup. Null under a bare harness keeps the poll as sole input.
-            //
-            // b02 wave D — `{feed, offers}`. `new_request` opens an auction
-            // (feed); `offer_accepted` / `offer_lost` / `request_expired`
-            // remove a row from it (offers). A `chat` message and a plain
-            // `delivery` status change cannot alter this snapshot, yet used to
-            // re-pull the whole `GET /v1/requests` list.
             refreshSignals: resolvePushRefreshStream(
               topics: const {RefreshTopic.feed, RefreshTopic.offers},
             ),
           )..start(),
         ),
-        // iter6 real-flow blocker fix: poll the jeeber's ACCEPTED/active
-        // deliveries (`GET /v1/deliveries?role=jeeber`) so a freshly-accepted
-        // offer surfaces a real-UI entry to its chat + delivery without leaving
-        // the dashboard. Self-hides when the jeeber has none.
         BlocProvider<ActiveDeliveriesCubit>(
           create: (_) => ActiveDeliveriesCubit(
             repository: _resolveActiveDeliveriesRepository(),
-            // Re-pull when a reachable `offer_accepted` notification lands —
-            // and, since wave C proved the delivery-status transport live, on
-            // every `type=delivery` transition too.
-            //
-            // b02 wave D — `{order}`. This card paints `GET /v1/deliveries?
-            // role=jeeber`: whether this jeeber OWNS an active delivery and
-            // what state it is in. `offer_accepted` publishes `{order, offers}`
-            // so it still lands. `chat` and `new_request` no longer do — they
-            // cannot add, remove or advance a row here, and this was the
-            // 60s-poll surface a busy conversation would have out-paced.
             refreshSignals: resolvePushRefreshStream(
               topics: const {RefreshTopic.order},
             ),
           )..start(),
         ),
-        // P0-X06: source the jeeber-home greeting (name + avatar) from the live
-        // `GET /users/me` (role-agnostic getMe) so the header shows the real
-        // name + avatar instead of "Welcome back" + "?". Falls back to the
-        // generic greeting when getMe is unreachable / the account is nameless.
         BlocProvider<GreetingProfileCubit>(
           create: (_) => GreetingProfileCubit(
             repository: _resolveGreetingRepository(),
-            // Profile-name lane: re-pull getMe on a display-name save so the
-            // jeeber greeting picks the new name up while the tab stays alive
-            // in the shell's IndexedStack.
             refreshSignals: _profileRefreshStream(),
           )..load(),
         ),
       ],
       child: Builder(
-        // G3: refetch the feed on app resume + Dashboard-tab refocus
-        // (mirrors the customer home's TabVisibility re-pull) so a request
-        // whose push was dismissed is still findable when the jeeber looks.
-        // Only the feed path mounts the refetcher — the register prompt has
-        // no feed to refresh.
         builder: (context) => _MaybeResumeRefetch(
           enabled: !_unregistered,
           child: _GateScoped(
@@ -266,20 +142,8 @@ class _JeeberHomeHost extends StatelessWidget {
               key: const Key('dashboard-tab-root'),
               isRegistered: !_unregistered,
               profileName: _unregistered ? 'Kamal' : null,
-              // JM-036: when the gate renders the register prompt (State 1), the
-              // home screen wraps its "Register now" CTA in an additional
-              // `delivery_register_now_cta` Semantics so the JM-036 flow can tap
-              // it by the coined id (the W0 `jeeber_unregistered_register_button`
-              // id is preserved underneath for the screen-19 flow).
               registerCtaIdentifier: 'delivery_register_now_cta',
               requestFeedCubit: context.read<RequestFeedCubit>(),
-              // iter6 real-flow blocker fix: the accepted/active-deliveries banner
-              // is built HERE (the host owns navigation) and rendered at the top
-              // of the registered jeeber home. Tapping a row opens the order chat
-              // (`/chat/:id`, conversation already exists) — which is role-aware
-              // for a jeeber and exposes Start delivery → `/jeeber/deliveries/:id/
-              // active`. "Manage delivery" opens that active-delivery screen
-              // directly.
               activeDeliveriesBanner: _unregistered
                   ? null
                   : ActiveDeliveriesBanner(
@@ -287,9 +151,6 @@ class _JeeberHomeHost extends StatelessWidget {
                       onManageDelivery: (d) =>
                           context.push('/jeeber/deliveries/${d.id}/active'),
                     ),
-              // JM-036 AC1b / JM-039: the register-prompt CTA chains into the
-              // delivery-man onboarding wizard (photo step). The wizard's own
-              // `dm_onboarding_continue` / `dm_onboarding_back` ids are JM-039's.
               onRegister: () => context.pushNamed('jeeber-onboarding'),
               onOpenFeedRequest: (FeedRequest request) {
                 context.pushNamed(
@@ -306,10 +167,6 @@ class _JeeberHomeHost extends StatelessWidget {
   }
 }
 
-/// Mounts [FeedResumeRefetcher] around the feed-destination body only; the
-/// register-prompt destinations render [child] bare (no feed to refresh).
-/// Kept as a widget (not an inline ternary) so the wrapped/unwrapped branches
-/// share one build site and the tree diff stays minimal on gate flips.
 class _MaybeResumeRefetch extends StatelessWidget {
   const _MaybeResumeRefetch({required this.enabled, required this.child});
 
@@ -318,22 +175,12 @@ class _MaybeResumeRefetch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // b02 READ ECONOMICS: "visible" is tab-selected AND nothing pushed on top of
-    // the shell. Without the route half, the feed and the active-deliveries card
-    // kept polling and kept answering the push bus while the jeeber was on the
-    // request-detail or active-delivery route above them.
     final shellVisible =
         (TabVisibility.maybeOf(context)?.isVisible ?? true) &&
         RouteVisibilityScope.isOnTop(context);
     final activeDeliveriesGate = PollingVisibilityGate(
       target: context.read<ActiveDeliveriesCubit>(),
       isVisible: shellVisible,
-      // N2 (b02): the active-deliveries card's RESUME one-shot. It used to ride
-      // `tickOnResume: true` on the 60 s `LifecyclePoller`; that poller is
-      // deleted, so the backstop the owner's architecture ruling makes
-      // mandatory needs its own wire. `AppResumeSignals` is the app-wide,
-      // genuine-resume, coalesced bus — not a per-cubit lifecycle observer,
-      // which is the shape that produced the measured 60-read storm.
       child: _ActiveDeliveriesResumeRefetch(child: child),
     );
     if (!enabled) return activeDeliveriesGate;
@@ -345,17 +192,6 @@ class _MaybeResumeRefetch extends StatelessWidget {
   }
 }
 
-/// N2's resume one-shot for [ActiveDeliveriesCubit].
-///
-/// Mirrors [FeedResumeRefetcher] exactly — same bus, same mixin, same "one
-/// surface, one subscription" shape — because the alternative (a second
-/// `didChangeAppLifecycleState` override) is the multiplier `AppResumeSignals`
-/// was built to remove.
-///
-/// The refetch goes through [ActiveDeliveriesCubit.refreshOnResume], NOT
-/// `refresh()`, so it lands in the same visibility gate the push bus uses: a
-/// resume while the dashboard sits under `/delivery/:id` is deferred and
-/// coalesced with any pending push debt into ONE read on the way back.
 class _ActiveDeliveriesResumeRefetch extends StatefulWidget {
   const _ActiveDeliveriesResumeRefetch({required this.child});
 
@@ -375,32 +211,6 @@ class _ActiveDeliveriesResumeRefetchState
   Widget build(BuildContext context) => widget.child;
 }
 
-/// Places the JM-036 coined screen-level *root* Semantics id on the DELIVERY-tab
-/// body so the QA flow (`jm-036-delivery-tab-kyc-gate.yaml`) can assert the
-/// gate branch by identifier (65_W2_TEST_PLAN §2 JM-036), without disturbing the
-/// W0-asserted widget ids inside [JeeberUnregisteredView] (`jeeber_unregistered_*`)
-/// or [JeeberFeedTabView] (`jeeber_feed_search_field`):
-///
-///   * [JeeberDeliveryTabDestination.registerPrompt] (`none`) →
-///     `delivery_register_prompt` (root) wraps the register prompt.
-///     `explicitChildNodes` keeps the nested W0 `jeeber_unregistered_*` and the
-///     `delivery_register_now_cta` nodes individually queryable (same CAP-3
-///     boundary pattern as `JeeberUnregisteredView`'s own root), so the existing
-///     screen-19 flow still passes.
-///   * [JeeberDeliveryTabDestination.feed] (`pending`/`approved`) →
-///     `jeeber_feed_root` (root) wraps the feed surface; the flow asserts it is
-///     shown and `delivery_register_prompt` is NOT. A `pending` jeeber browses
-///     this feed and reaches the offer-KYC gate via `feed_make_offer_cta`
-///     (JM-044/048, D38).
-///   * [JeeberDeliveryTabDestination.kycRejected] (`rejected`) → a post-frame
-///     redirect to the `kyc-rejected` screen (D52/D87). The body carries the
-///     `delivery_register_prompt` root for the single frame before the redirect
-///     fires, so a rejected jeeber never lands on the feed.
-///
-/// The root id sits on the gate host (this file, the JM-036 target per
-/// 20_GAP_MAP.md row JM-036) rather than inside the shared home widgets, so the
-/// gate's branches each expose exactly one screen-level root id regardless of
-/// which inner State (1/2/3) [JeeberHomeScreen] renders.
 class _GateScoped extends StatefulWidget {
   const _GateScoped({required this.destination, required this.child});
 
@@ -426,11 +236,6 @@ class _GateScopedState extends State<_GateScoped> {
     }
   }
 
-  /// `rejected` is terminal (D52/D87): the DELIVERY tab must not host the feed
-  /// or the register prompt for a rejected jeeber — it redirects to the
-  /// dedicated `kyc-rejected` screen. Done after the first frame (the tab is
-  /// built inside the shell's IndexedStack) and guarded by `GoRouter.maybeOf`
-  /// so it is a no-op in a router-less widget test.
   void _scheduleRejectedRedirect() {
     if (widget.destination != JeeberDeliveryTabDestination.kycRejected) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -452,8 +257,6 @@ class _GateScopedState extends State<_GateScoped> {
   }
 }
 
-/// Self-contained scaffold for the dev-seam feed capture path. Owns its own
-/// seeded [RequestFeedCubit] so it needs no shell-provided availability cubit.
 class _DevFeedScaffold extends StatelessWidget {
   const _DevFeedScaffold({required this.view});
 
@@ -471,8 +274,6 @@ class _DevFeedScaffold extends StatelessWidget {
   }
 }
 
-/// Body of the dev-seam feed scaffold: an empty view or a seeded feed tab view
-/// for the selected [view].
 class _DevFeedBody extends StatelessWidget {
   const _DevFeedBody({
     required this.view,
@@ -492,8 +293,6 @@ class _DevFeedBody extends StatelessWidget {
         profileAvatarUrl: avatarUrl,
       );
     }
-    // Provide a dev-only availability cubit (always-online) so
-    // JeeberFeedTabView can read it for the offline-banner check.
     return MultiBlocProvider(
       providers: [
         BlocProvider<AvailabilityCubit>(
@@ -508,11 +307,6 @@ class _DevFeedBody extends StatelessWidget {
         BlocProvider<RequestFeedCubit>(
           create: (_) => RequestFeedCubit(
             repository: SeededRequestFeedRepository(_snapshotFor(view)),
-            // JEBV4-342 (b02): wired for parity with the live host so the
-            // dev-seam feed exercises the same code path. The seeded repository
-            // replays a fixture snapshot, so a push here re-pulls the fixture —
-            // harmless, and it keeps the two constructions from diverging.
-            // Same topics as the live host, for the same reason.
             refreshSignals: resolvePushRefreshStream(
               topics: const {RefreshTopic.feed, RefreshTopic.offers},
             ),
@@ -541,9 +335,6 @@ class _DevFeedBody extends StatelessWidget {
   };
 }
 
-/// Inert [ActiveDeliveriesRepository] for the no-DI (bare widget test) path —
-/// reports no active deliveries so the banner self-hides without a network
-/// call. Production always resolves the Dio-backed repo.
 class _EmptyActiveDeliveriesRepository implements ActiveDeliveriesRepository {
   const _EmptyActiveDeliveriesRepository();
 
@@ -551,3 +342,223 @@ class _EmptyActiveDeliveriesRepository implements ActiveDeliveriesRepository {
   Future<List<ActiveDeliverySummary>> listActive() async =>
       const <ActiveDeliverySummary>[];
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// The box the DELIVERY tab actually gets on the device this team tests on: a
+/// Galaxy S22 is 360×780 logical and the shell's bottom nav takes ~80 of it.
+const Size _dashboardTabBody = Size(360, 700);
+
+/// A gate with a canned status and no [Listenable] surface — the shape of the
+/// const seam gate and of every DI fake. [JeeberKycGateBuilder] builds these
+/// exactly once, which is also the debug/Maestro behaviour.
+class _DashboardTabFixedKycGate implements JeeberKycStatusGate {
+  const _DashboardTabFixedKycGate(this.status);
+
+  @override
+  final JeeberKycStatus status;
+
+  @override
+  bool get isApproved => status == JeeberKycStatus.approved;
+}
+
+/// Answers `GET /users/me` with one canned name and no avatar.
+/// The avatar is deliberately absent: [JeeberHomeGreeting] renders a supplied
+/// URL through `CachedNetworkImage`, so any URL here would be a fetch the canvas
+class _DashboardTabCannedProfileRepository
+    implements CustomerProfileRepository {
+  const _DashboardTabCannedProfileRepository(this.name);
+
+  final String name;
+
+  @override
+  Future<CustomerProfileViewData> fetchProfile() async =>
+      CustomerProfileViewData(name: name);
+}
+
+/// Answers `GET /v1/deliveries?role=jeeber` with a canned list.
+class _DashboardTabCannedActiveDeliveriesRepository
+    implements ActiveDeliveriesRepository {
+  const _DashboardTabCannedActiveDeliveriesRepository(this.deliveries);
+
+  final List<ActiveDeliverySummary> deliveries;
+
+  @override
+  Future<List<ActiveDeliverySummary>> listActive() async => deliveries;
+}
+
+/// One won order in the shape the gateway returns it, taken verbatim from the
+/// live envelope pinned in `test/jeeber_active_deliveries_test.dart` so the
+const ActiveDeliverySummary _dashboardTabWonDelivery = ActiveDeliverySummary(
+  id: 'req-1',
+  status: JeeberDeliveryStatus.inTransit,
+  conversationId: 'conv-9',
+  title: 'Flash delivery request',
+  pickupAddress: 'Hamra',
+  dropoffAddress: 'Achrafieh',
+);
+
+/// Registers one complete set of inert fakes into `sl` and builds the real
+/// [DashboardTab] over them.
+/// See the section doc above for why the registration lives in `initState`.
+class _DashboardTabSeeded extends StatefulWidget {
+  const _DashboardTabSeeded({
+    required this.kycStatus,
+    required this.profileName,
+    required this.availabilityFails,
+    required this.feed,
+    required this.activeDeliveries,
+  });
+
+  final JeeberKycStatus kycStatus;
+
+  /// Name the seeded getMe answers with, or `null` to leave the profile
+  /// repository unregistered — then the greeting falls back to whatever the tab
+  final String? profileName;
+
+  /// When true the availability gateway throws, which is the ONLY read whose
+  /// failure replaces the whole tab body (with `_LoadErrorView`).
+  final bool availabilityFails;
+
+  final List<DeliveryRequest> feed;
+  final List<ActiveDeliverySummary> activeDeliveries;
+
+  @override
+  State<_DashboardTabSeeded> createState() => _DashboardTabSeededState();
+}
+
+class _DashboardTabSeededState extends State<_DashboardTabSeeded> {
+  @override
+  void initState() {
+    super.initState();
+    _put<JeeberKycStatusGate>(_DashboardTabFixedKycGate(widget.kycStatus));
+    _put<AvailabilityGateway>(
+      InMemoryAvailabilityGateway(
+        initial: AvailabilityStatus.initial.copyWith(
+          state: AvailabilityState.online,
+        ),
+        respondWithError: widget.availabilityFails,
+      ),
+    );
+    _put<RequestFeedRepository>(SeededRequestFeedRepository(widget.feed));
+    _put<ActiveDeliveriesRepository>(
+      _DashboardTabCannedActiveDeliveriesRepository(widget.activeDeliveries),
+    );
+    final String? name = widget.profileName;
+    if (name == null) {
+      if (sl.isRegistered<CustomerProfileRepository>()) {
+        sl.unregister<CustomerProfileRepository>();
+      }
+    } else {
+      _put<CustomerProfileRepository>(
+        _DashboardTabCannedProfileRepository(name),
+      );
+    }
+  }
+
+  /// Idempotent re-registration. `registerSingleton` throws on a duplicate, and
+  /// the canvas mounts these previews repeatedly, so the previous instance is
+  void _put<T extends Object>(T instance) {
+    if (sl.isRegistered<T>()) sl.unregister<T>();
+    sl.registerSingleton<T>(instance);
+  }
+
+  @override
+  Widget build(BuildContext context) => const DashboardTab();
+}
+
+/// One state of the tab.
+/// Every state below seeds the jeeber ONLINE. Offline is not a DashboardTab
+Widget _dashboardTabHosted({
+  required JeeberKycStatus kycStatus,
+  String? profileName,
+  bool availabilityFails = false,
+  List<DeliveryRequest> feed = const <DeliveryRequest>[],
+  List<ActiveDeliverySummary> activeDeliveries =
+      const <ActiveDeliverySummary>[],
+}) {
+  return _DashboardTabSeeded(
+    kycStatus: kycStatus,
+    profileName: profileName,
+    availabilityFails: availabilityFails,
+    feed: feed,
+    activeDeliveries: activeDeliveries,
+  );
+}
+
+/// `none` — never onboarded. The only status that should ever reach the
+/// register prompt (`delivery_register_prompt`), whose CTA chains into the
+@JeebPreview(
+  group: 'shell',
+  name: 'KYC none · register prompt',
+  size: _dashboardTabBody,
+)
+Widget dashboardTabRegisterPrompt() =>
+    _dashboardTabHosted(kycStatus: JeeberKycStatus.none);
+
+/// The W2-closer regression, at the level where it actually happened.
+/// A registered jeeber whose KYC is still `pending` BROWSES the feed; only
+@JeebPreview(
+  group: 'shell',
+  name: 'KYC pending · feed reachable',
+  size: _dashboardTabBody,
+)
+Widget dashboardTabPendingKycFeed() => _dashboardTabHosted(
+      kycStatus: JeeberKycStatus.pending,
+      profileName: 'Layla',
+      feed: DevJeeberFeedFixtures.incoming(),
+    );
+
+/// Approved and online, but nothing in range — the state a jeeber spends most
+/// of a shift in, and the one that is easiest to mistake for a broken feed.
+@JeebPreview(
+  group: 'shell',
+  name: 'KYC approved · quiet feed',
+  size: _dashboardTabBody,
+)
+Widget dashboardTabApprovedQuietFeed() => _dashboardTabHosted(
+      kycStatus: JeeberKycStatus.approved,
+      profileName: 'Nadia',
+    );
+
+/// A won order, riding above a feed that is still non-empty (PUSH-UI-REACTION).
+/// This is the regression the 2026-07-05 fix landed for: right after the jeeber
+@JeebPreview(
+  group: 'shell',
+  name: 'Won delivery · banner over feed',
+  size: _dashboardTabBody,
+)
+Widget dashboardTabWonDeliveryBanner() => _dashboardTabHosted(
+      kycStatus: JeeberKycStatus.approved,
+      profileName: 'Zeina',
+      feed: DevJeeberFeedFixtures.incoming(),
+      activeDeliveries: const <ActiveDeliverySummary>[
+        _dashboardTabWonDelivery,
+      ],
+    );
+
+/// The one read whose failure replaces the ENTIRE tab: availability.
+/// `GET /v1/availability` throwing takes the body down to an icon, one line and
+@JeebPreview(
+  group: 'shell',
+  name: 'Availability load failed',
+  size: _dashboardTabBody,
+)
+Widget dashboardTabAvailabilityLoadError() => _dashboardTabHosted(
+      kycStatus: JeeberKycStatus.approved,
+      profileName: 'Karim',
+      availabilityFails: true,
+      feed: DevJeeberFeedFixtures.incoming(),
+    );
+
+/// `rejected` (D52/D87) — the frame before the redirect, made permanent.
+/// In the app this destination is a post-frame `goNamed('kyc-rejected')`, and
+@JeebPreview(
+  group: 'shell',
+  name: 'KYC rejected · pre-redirect frame',
+  size: _dashboardTabBody,
+)
+Widget dashboardTabRejectedFrame() => _dashboardTabHosted(
+      kycStatus: JeeberKycStatus.rejected,
+      profileName: 'Nour',
+    );

@@ -1,7 +1,5 @@
-/// Which native SDK produced the ID token. The gateway maps the literal
-/// `provider` string to its JWKS endpoint, so values here MUST match the
-/// gateway's contract (`provider: "google"|"apple"|"facebook"` — see the
-/// verified `POST /v1/auth/social` table, 42_GUARDRAILS_MOCK §"W-1 FLOOR").
+/// Which native SDK initiated the social sign-in. Values here must match the
+/// gateway's social platform contract.
 enum SocialProvider {
   google('google'),
   facebook('facebook'),

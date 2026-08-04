@@ -1,20 +1,4 @@
 // Maps-ON guard — the /orders/:id/tracking route now renders the LIVE
-// GoogleMap. The sprint-009 stop-the-bleed placeholder default is retired:
-// `android/app/src/main/AndroidManifest.xml` wires
-// `com.google.android.geo.API_KEY` from the gitignored
-// `android/local.properties` `${MAPS_API_KEY}`, and Google-Cloud billing is
-// enabled on the `jeeb-5a293` project, so the native Maps SDK serves instead of
-// throwing the keyless-map IllegalStateException → SIGKILL it used to.
-//
-// Three inbound CTAs (home "Track my order", delivery-detail "Live tracking",
-// chat offer-accepted banner) all converge on this one route builder, so
-// asserting it here covers all three.
-//
-// Two pins (the inverse of the old stop-the-bleed pins):
-//   (a) the /orders/:id/tracking builder constructs LiveTrackingScreen with
-//       useLiveMap == true AND a live TrackingGoogleMap mounts on the route.
-//   (b) a safety invariant: a true default is only allowed WITH the geo API key
-//       present in the manifest — a live map must never be keyless again.
 
 import 'dart:io';
 
@@ -95,6 +79,12 @@ Widget _harness(_Built built) {
     ],
     child: MaterialApp.router(
       routerConfig: built.router,
+      // JeebEmptyState's E1 illustration loops ∞ by design (02-STUDY-NOTES
+      // §Motion): pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
         SyncAppLocalizationsDelegate(),
         GlobalMaterialLocalizations.delegate,
@@ -111,7 +101,6 @@ void main() {
 
   setUp(() {
     // The tracking route builds a LiveTrackingCubit over sl<LiveTrackingRepository>.
-    // Register the const demo repo so the route mounts under test.
     if (!sl.isRegistered<LiveTrackingRepository>()) {
       sl.registerLazySingleton<LiveTrackingRepository>(
         () => const DemoLiveTrackingRepository(),
@@ -155,7 +144,6 @@ void main() {
         reason: 'the route now opts into the live map (key provisioned, '
             'billing enabled)');
     // The live map platform view is actually in the tree on the route (the
-    // demo tracking repo supplies a ready snapshot, so the surface goes live).
     expect(find.byType(TrackingGoogleMap), findsOneWidget);
   });
 
@@ -174,8 +162,6 @@ void main() {
     expect(defaultUseLiveMap, isTrue,
         reason: 'Maps is enabled — the tracking surface renders the live map');
     // A true default is only safe WITH the key present (invariant:
-    // NOT(default true AND no key)). This DEMANDS the key stay in the manifest
-    // so a live map is never mounted keyless (native FATAL).
     expect(
       defaultUseLiveMap == false || manifestHasGeoKey,
       isTrue,

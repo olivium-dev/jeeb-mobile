@@ -3,7 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/directional_icons.dart';
+import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/dm_onboarding_cubit.dart';
 import '../../application/dm_onboarding_state.dart';
@@ -57,12 +65,7 @@ class _ServiceAreaContent extends StatelessWidget {
           subtitle: l10n.dmOnboardingServiceAreaSubtitle,
         ),
         const SizedBox(height: Spacing.xLarge),
-        Text(
-          l10n.dmOnboardingServiceAreaPrimaryLocationLabel,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-        ),
+        JeebSectionLabel(l10n.dmOnboardingServiceAreaPrimaryLocationLabel),
         const SizedBox(height: Spacing.small),
         const _HomeBaseMapPin(),
         const SizedBox(height: Spacing.medium),
@@ -77,12 +80,15 @@ class _ServiceAreaContent extends StatelessWidget {
 /// Always visible. Renders a neutral map preview with a centred pin (the Figma
 /// map raster is a mock and is never bundled — UI-GUARDRAILS §0). Once a base
 /// is pinned the chosen-place label is surfaced beneath the pin.
+///
+/// MIDNIGHT: the panel is REST GLASS, not the opaque `surfaceContainerHighest`
+/// slab it used to paint — no tile draws this preview opaque (M1 ruling 4 as
+/// narrowed in wave A: solid only where a tile draws opaque).
 class _HomeBaseMapPin extends StatelessWidget {
   const _HomeBaseMapPin();
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     return BlocBuilder<DmOnboardingCubit, DmOnboardingState>(
       buildWhen: (prev, curr) => prev.homeBase != curr.homeBase,
@@ -92,14 +98,13 @@ class _HomeBaseMapPin extends StatelessWidget {
           identifier: 'service_area_map_pin',
           image: true,
           label: l10n.dmOnboardingServiceAreaPrimaryLocationLabel,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(Sizes.small),
-            child: Container(
+          child: JeebOutlinedCard(
+            radius: JeebRadii.lg,
+            padding: EdgeInsetsDirectional.zero,
+            child: SizedBox(
               height: Sizes.elevenXLarge,
               width: double.infinity,
-              color: scheme.surfaceContainerHighest,
-              alignment: Alignment.center,
-              child: _HomeBaseMapContent(base: base),
+              child: Center(child: _HomeBaseMapContent(base: base)),
             ),
           ),
         );
@@ -119,7 +124,9 @@ class _HomeBaseMapContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     final l10n = AppLocalizations.of(context);
     final label = base?.label.trim() ?? '';
     final pinned = label.isNotEmpty;
@@ -129,12 +136,14 @@ class _HomeBaseMapContent extends StatelessWidget {
         Icon(
           pinned ? Icons.location_on : Icons.map_outlined,
           size: Sizes.threeXLarge,
-          // Accent PAINT (map pin), not a container fill — same #D73B00.
-          color: scheme.tertiary,
+          // The one rationed orange on this step is accent PAINT on the real
+          // PIN; an empty placeholder has nothing live to light (§2.2).
+          color: pinned ? context.jeebRoles.accent : semantic.mutedText,
         ),
         const SizedBox(height: Spacing.xSmall),
         _HomeBaseMapLabel(
           text: pinned ? label : l10n.dmOnboardingServiceAreaMapPlaceholder,
+          pinned: pinned,
         ),
       ],
     );
@@ -142,23 +151,28 @@ class _HomeBaseMapContent extends StatelessWidget {
 }
 
 class _HomeBaseMapLabel extends StatelessWidget {
-  const _HomeBaseMapLabel({required this.text});
+  const _HomeBaseMapLabel({required this.text, required this.pinned});
 
   final String text;
 
+  /// A resolved place name is live content and reads `inkSoft`; the untouched
+  /// prompt is the dimmed rung and stays `mutedText` (R23's ink ladder).
+  final bool pinned;
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     return Padding(
       padding:
           const EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium),
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: Theme.of(context)
-            .textTheme
-            .bodyMedium
-            ?.copyWith(color: scheme.onSurfaceVariant),
+        style: context.jeebText.bodySmall.copyWith(
+          color: pinned ? semantic.inkSoft : semantic.mutedText,
+        ),
       ),
     );
   }
@@ -166,6 +180,10 @@ class _HomeBaseMapLabel extends StatelessWidget {
 
 /// Tappable "Select location" row (`service_area_select_location`, JM-038 AC3)
 /// → opens the shared location-map-pin screen, then records the pinned base.
+///
+/// Shaped as the board shapes every navigation row: a kit [JeebListRow] inside
+/// an outlined card. The card owns no tap and no identifier, so it adds no
+/// semantics node of its own — the frozen wrapper below stays the only one.
 class _SelectLocationRow extends StatelessWidget {
   const _SelectLocationRow();
 
@@ -180,11 +198,13 @@ class _SelectLocationRow extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       label: l10n.dmOnboardingServiceAreaLocationFieldLabel,
-      child: InkWell(
-        onTap: () => _pickHomeBase(context),
-        child: const Padding(
-          padding: EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
-          child: _SelectLocationRowBody(),
+      child: JeebOutlinedCard(
+        padding: EdgeInsetsDirectional.zero,
+        child: JeebListRow(
+          icon: Icons.location_on,
+          title: l10n.dmOnboardingServiceAreaLocationFieldLabel,
+          trailing: const _SelectLocationTrailing(),
+          onTap: () => _pickHomeBase(context),
         ),
       ),
     );
@@ -222,26 +242,31 @@ class _SelectLocationRow extends StatelessWidget {
   }
 }
 
-class _SelectLocationRowBody extends StatelessWidget {
-  const _SelectLocationRowBody();
+/// The row's end slot: the chosen-place value plus the disclosure chevron.
+///
+/// [JeebListRow.trailing] replaces the built-in chevron outright, so the row
+/// re-declares it here at the kit's own size and muted ink.
+class _SelectLocationTrailing extends StatelessWidget {
+  const _SelectLocationTrailing();
+
+  /// The kit's own `JeebListRow.chevronSize` default.
+  static const double _chevronSize = 16;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context);
+    // The surface tone, not a raw extension read: it degrades gracefully when
+    // no Jeeb theme extension is registered and inverts on a navy card.
+    final muted = JeebSurfaceTone.of(context).mutedInk;
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.location_on, color: scheme.tertiary),
-        const SizedBox(width: Spacing.twoXSmall),
-        Text(
-          l10n.dmOnboardingServiceAreaLocationFieldLabel,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: scheme.onSecondaryContainer,
-              ),
-        ),
-        const Spacer(),
         const _SelectLocationValue(),
-        Icon(DirectionalIcons.disclosure(context), color: scheme.primary),
+        const SizedBox(width: Spacing.xSmall),
+        Icon(
+          DirectionalIcons.disclosure(context),
+          size: _chevronSize,
+          color: muted,
+        ),
       ],
     );
   }
@@ -269,15 +294,20 @@ class _LocationValueText extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final semantic =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     final isPlaceholder = chosen.isEmpty;
     return Semantics(
       identifier: 'dm_onboarding_location_value',
       child: Text(
         isPlaceholder ? l10n.dmOnboardingServiceAreaLocationPlaceholder : chosen,
-        style: theme.textTheme.titleSmall?.copyWith(
-          color: isPlaceholder
-              ? theme.colorScheme.outline
-              : theme.colorScheme.onSurface,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        // `outline` is a 14%-white STROKE token; as ink on navy it is ~1.2:1,
+        // i.e. an unreadable placeholder. The muted ink role is §9's AA pair.
+        style: context.jeebText.bodySmall.copyWith(
+          color:
+              isPlaceholder ? semantic.mutedText : theme.colorScheme.onSurface,
         ),
       ),
     );

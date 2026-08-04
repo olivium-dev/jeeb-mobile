@@ -1,26 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_stepper.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/presentation/widgets/delivery_status_stepper.dart';
-import 'package:omds/omds.dart';
 
 import '../../support/sync_app_localizations.dart';
 
 const _labels = <JeeberDeliveryStatus, String>{
   JeeberDeliveryStatus.ordered: 'Ordered',
   JeeberDeliveryStatus.picked: 'Picked',
-  JeeberDeliveryStatus.inTransit: 'In Transit',
-  JeeberDeliveryStatus.atDoor: 'At Door',
+  JeeberDeliveryStatus.inTransit: 'In transit',
+  JeeberDeliveryStatus.atDoor: 'At door',
   JeeberDeliveryStatus.done: 'Done',
-};
-
-const _icons = <JeeberDeliveryStatus, IconData>{
-  JeeberDeliveryStatus.ordered: Icons.receipt_long_outlined,
-  JeeberDeliveryStatus.picked: Icons.inventory_2_outlined,
-  JeeberDeliveryStatus.inTransit: Icons.local_shipping_outlined,
-  JeeberDeliveryStatus.atDoor: Icons.home_outlined,
-  JeeberDeliveryStatus.done: Icons.check_circle_outline,
 };
 
 void main() {
@@ -49,7 +41,7 @@ void main() {
           ),
         );
 
-        expect(find.byType(OmdsStepIndicator), findsOneWidget);
+        expect(find.byType(JeebStepper), findsOneWidget);
         for (final stage in jeeberDeliveryProgressStages) {
           final index = stage.index;
           final state = index < current.index
@@ -66,7 +58,6 @@ void main() {
               'active_delivery_stage_${stage.name.toLowerCase()}';
 
           expect(find.text(_labels[stage]!), findsOneWidget);
-          expect(find.byIcon(_icons[stage]!), findsOneWidget);
           expect(find.bySemanticsIdentifier(identifier), findsOneWidget);
           expect(
             find.bySemanticsLabel('${_labels[stage]}, $stateLabel'),
@@ -97,6 +88,82 @@ void main() {
     );
   }
 
+  group('M2-14 · passed bars carry the washed ink (Q-023)', () {
+    late ThemeData theme;
+
+    Future<void> pumpAt(WidgetTester tester, JeeberDeliveryStatus current) {
+      theme = AppTheme.light();
+      return tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          locale: const Locale('en'),
+          supportedLocales: const [Locale('en'), Locale('ar')],
+          localizationsDelegates: const [SyncAppLocalizationsDelegate()],
+          home: Scaffold(
+            body: SizedBox(
+              width: 390,
+              child: DeliveryStatusStepper(
+                currentStatus: current,
+                isTransitioning: false,
+                onAdvance: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    BoxDecoration segmentAt(WidgetTester tester, String identifier) {
+      final box = tester.widget<DecoratedBox>(
+        find.byKey(ValueKey<String>('active_delivery_stage_$identifier')),
+      );
+      return box.decoration as BoxDecoration;
+    }
+
+    testWidgets('every passed segment is the washed white, not periwinkle', (
+      tester,
+    ) async {
+      await pumpAt(tester, JeeberDeliveryStatus.inTransit);
+
+      for (final passed in <String>['ordered_completed', 'picked_completed']) {
+        final decoration = segmentAt(tester, passed);
+        expect(decoration.color, JeebStepper.washedInk, reason: passed);
+        // The value this replaced. Pinned by identity so a silent revert to
+        // `doneInk: periwinkle` fails here rather than only in the golden.
+        expect(decoration.color, isNot(theme.colorScheme.secondary));
+      }
+    });
+
+    testWidgets('the wash is bars-only: the active segment keeps accent+glow', (
+      tester,
+    ) async {
+      await pumpAt(tester, JeeberDeliveryStatus.inTransit);
+
+      final active = segmentAt(tester, 'intransit_current');
+      expect(active.color, isNot(JeebStepper.washedInk));
+      expect(active.boxShadow, JeebStepper.barGlow);
+      expect(segmentAt(tester, 'ordered_completed').boxShadow, isNull);
+    });
+
+    testWidgets('upcoming segments stay pending glass, never washed', (
+      tester,
+    ) async {
+      await pumpAt(tester, JeeberDeliveryStatus.ordered);
+
+      expect(
+        segmentAt(tester, 'picked_upcoming').color,
+        isNot(JeebStepper.washedInk),
+      );
+      // Nothing is passed at the first stage, so no segment carries the wash.
+      expect(
+        find.byKey(
+          const ValueKey<String>('active_delivery_stage_ordered_completed'),
+        ),
+        findsNothing,
+      );
+    });
+  });
+
   for (final terminal in <JeeberDeliveryStatus>[
     JeeberDeliveryStatus.cancelled,
     JeeberDeliveryStatus.expired,
@@ -120,7 +187,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(OmdsStepIndicator), findsNothing);
+      expect(find.byType(JeebStepper), findsNothing);
       expect(
         find.bySemanticsIdentifier('active_delivery_stage_done'),
         findsNothing,

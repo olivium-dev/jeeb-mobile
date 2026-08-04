@@ -1,22 +1,4 @@
 // Run-22 P1-A regression guard — receipt amount + jeeberName mapping.
-//
-// Wire evidence (docs/sprints/sprint-009/proof-run22/wire/diag-statusbuckets.txt):
-// `GET /v1/deliveries/{id}` returned `"amount":12` while the delivery was
-// `Ordered`, but the `amount` key was ABSENT from the same endpoint once the
-// delivery reached `Done` — exactly when the receipt screen reads it. The old
-// parser defaulted the missing key to `0.0`, which rendered
-// "Pay $0.00 cash to the Jeeber" instead of the real $12.00 fee.
-//
-// Contract now: an absent/zero amount is UNKNOWN (`cashAmount == null` /
-// `hasKnownAmount == false`) — never a fabricated zero — so the receipt screen
-// degrades to amount-less copy instead of rendering "$0.00". The gateway
-// omission itself is flagged to the gateway lane (commit 39db68d was supposed
-// to always include `amount` + `jeeberName`).
-//
-// COD-COMPLETE FIX (fix/cod-complete): the customer no longer records COD at all
-// (that ledger is jeeber/server-owned, amount server-authoritative — BR-16), so
-// the former "confirmReceipt COD payload" assertions were removed. Only the
-// amount/jeeberName READ mapping is exercised here now.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -86,7 +68,6 @@ void main() {
         'RUN-22 P1-A: amount key ABSENT (live Done payload) → amount is '
         'UNKNOWN, never a fabricated 0.0', () async {
       // Exact key set the live gateway returned at 03:11:04 for the Done
-      // delivery (minus nulls irrelevant to the parse).
       adapter.deliveryBody = {
         'id': _deliveryId,
         'clientId': '300c9cd7-4fc3-4ae2-86c4-a6fcb601eec0',

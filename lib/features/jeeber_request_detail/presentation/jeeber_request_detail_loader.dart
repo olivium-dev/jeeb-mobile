@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
 import '../domain/services/prohibited_item_report_service.dart';
@@ -154,9 +156,10 @@ class _JeeberRequestDetailLoaderState extends State<JeeberRequestDetailLoader> {
   }
 }
 
-/// Loading scaffold shown while the push-tap request is fetched by id. Mirrors
-/// the detail screen's app-bar so the transition to the resolved detail (or the
-/// unavailable fallback) does not jump.
+/// Loading scaffold shown while the push-tap request is fetched by id.
+///
+/// Carries the detail screen's own field and header verbatim so the swap to
+/// the resolved detail (or the unavailable fallback) does not jump.
 class JeeberRequestDetailLoadingView extends StatelessWidget {
   const JeeberRequestDetailLoadingView({super.key, required this.requestId});
 
@@ -166,14 +169,38 @@ class JeeberRequestDetailLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: OMDSAppBar(
-        title: l10n.jeeberRequestDetailTitle,
-        showBackButton: true,
-      ),
-      body: SafeArea(
-        child: Semantics(
-          identifier: 'jeeber-request-detail-loading',
-          child: const Center(child: OmdsLoadingState()),
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+        animateDecor: false,
+        child: SafeArea(
+          child: Semantics(
+            identifier: 'jeeber-request-detail-loading',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                JeebTopBar.back(
+                  title: l10n.jeeberRequestDetailTitle,
+                  identifier: 'jeeber_request_detail_back',
+                ),
+                Expanded(
+                  child: Center(
+                    child: JeebEmptyState(
+                      identifier: 'jeeber_request_detail_loading_state',
+                      status: JeebEmptyStateStatus.loading,
+                      // The subject being recovered IS the parcel/order.
+                      variant: JeebEmptyStateVariant.parcel,
+                      // TODO(midnight): l10n-queued —
+                      // `jeeberRequestDetailLoadingHeadline`; the bar title is
+                      // the neutral stand-in (pending-offers precedent).
+                      headline: l10n.jeeberRequestDetailTitle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

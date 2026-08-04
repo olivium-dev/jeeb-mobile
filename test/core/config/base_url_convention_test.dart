@@ -3,16 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/config/app_config.dart';
 
 /// ANTI-DRIFT contract for ARCH-01 / INFRA-01 (the S16 `/v1/v1` doubling NO-GO).
-///
 /// FROZEN convention: `AppConfig.gatewayBaseUrl` is ORIGIN-ONLY (scheme + host +
-/// port, NO `/v1`, no trailing slash) and EVERY request path carries exactly one
-/// `/v1`. Dio merges `baseUrl + path`, so this yields exactly one `/v1` per URL.
-///
-/// Guard proof (per the lessons honesty rule — a test must catch the bug):
-///   * revert the default to `https://api.jeeb.app/v1` → the "does not end in
-///     /v1" assertion FAILS and the resolved URLs gain a second `/v1` → the
-///     "exactly one /v1" assertions FAIL.
-///   * restore origin-only → all PASS.
 int _countV1(String url) => '/v1'.allMatches(url).length;
 
 /// Resolves the full URL Dio would request for [path] under the configured

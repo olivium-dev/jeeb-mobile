@@ -1,13 +1,8 @@
-// P1 (b01-20260725) defence-in-depth: unit coverage for the pure audience
-// matcher. See ../../../lib/core/notifications/domain/push_audience.dart and
-// testcases/P1.md PART B (M-U1..M-U7).
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/notifications/domain/push_audience.dart';
 
 void main() {
-  // M-U1
   test('a jeeber-audience push does not match a client-only session', () {
     expect(
       isPushAudienceMatch(
@@ -18,7 +13,6 @@ void main() {
     );
   });
 
-  // M-U2
   test('a dual-role session (client + jeeber) matches a jeeber-audience push',
       () {
     expect(
@@ -30,7 +24,6 @@ void main() {
     );
   });
 
-  // M-U3
   test('the canonicaliser accepts both the opaque and the contract role form',
       () {
     expect(
@@ -49,7 +42,6 @@ void main() {
     );
   });
 
-  // M-U4
   test('a payload with no audience key at all fails open (chat/offer push)',
       () {
     expect(
@@ -58,7 +50,6 @@ void main() {
     );
   });
 
-  // M-U5
   test('an unknown audience token fails open, never suppresses', () {
     expect(
       isPushAudienceMatch(
@@ -69,7 +60,6 @@ void main() {
     );
   });
 
-  // M-U6
   test('empty local roles (getMe not yet landed) fails open', () {
     expect(
       isPushAudienceMatch(const {'audience_role': 'driver'}, const {}),
@@ -77,7 +67,6 @@ void main() {
     );
   });
 
-  // M-U7
   test('the plural `audience` key (jeebers/clients) is honoured', () {
     expect(
       isPushAudienceMatch(

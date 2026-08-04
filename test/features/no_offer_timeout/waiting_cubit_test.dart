@@ -135,40 +135,43 @@ void main() {
       }
     });
 
-    test('a re-emitted identical snapshot keeps the same anchor pair', () async {
-      final pollTicks = StreamController<void>.broadcast();
-      addTearDown(pollTicks.close);
-      var now = _t0;
-      final repo = _ScriptedWaitingRepository(
-        initial: _request(),
-        polls: [_request()],
-      );
-      final cubit = WaitingCubit(
-        repository: repo,
-        requestId: 'req-1',
-        now: () => now,
-        refreshSignals: pollTicks.stream,
-        clockTicks: const Stream.empty(),
-      );
-      addTearDown(cubit.close);
+    test(
+      'a re-emitted identical snapshot keeps the same anchor pair',
+      () async {
+        final pollTicks = StreamController<void>.broadcast();
+        addTearDown(pollTicks.close);
+        var now = _t0;
+        final repo = _ScriptedWaitingRepository(
+          initial: _request(),
+          polls: [_request()],
+        );
+        final cubit = WaitingCubit(
+          repository: repo,
+          requestId: 'req-1',
+          now: () => now,
+          refreshSignals: pollTicks.stream,
+          clockTicks: const Stream.empty(),
+        );
+        addTearDown(cubit.close);
 
-      await cubit.load();
-      final anchored = cubit.state.request!.deadline;
-      expect(anchored, _t0.add(const Duration(minutes: 5)));
+        await cubit.load();
+        final anchored = cubit.state.request!.deadline;
+        expect(anchored, _t0.add(const Duration(minutes: 5)));
 
-      now = now.add(const Duration(seconds: 30));
-      pollTicks.add(null);
-      await repo.waitForPoll(1);
-      await pumpEventQueue();
+        now = now.add(const Duration(seconds: 30));
+        pollTicks.add(null);
+        await repo.waitForPoll(1);
+        await pumpEventQueue();
 
-      expect(cubit.state.request!.receivedAt, _t0);
-      expect(
-        cubit.state.request!.remainingAtReceipt,
-        const Duration(minutes: 5),
-      );
-      expect(cubit.state.request!.deadline, anchored);
-      expect(cubit.state.remaining, const Duration(minutes: 4, seconds: 30));
-    });
+        expect(cubit.state.request!.receivedAt, _t0);
+        expect(
+          cubit.state.request!.remainingAtReceipt,
+          const Duration(minutes: 5),
+        );
+        expect(cubit.state.request!.deadline, anchored);
+        expect(cubit.state.remaining, const Duration(minutes: 4, seconds: 30));
+      },
+    );
 
     test('a fresh server anchor pair replaces the previous one', () async {
       final pollTicks = StreamController<void>.broadcast();
@@ -296,66 +299,72 @@ void main() {
       'WaitingRequestPhase.broadcasting row (req-1)',
     );
 
-    test('T5.1 — a poll violation fails the screen and stops BOTH streams', () async {
-      final pollTicks = StreamController<void>.broadcast();
-      final clockTicks = StreamController<void>.broadcast();
-      addTearDown(pollTicks.close);
-      addTearDown(clockTicks.close);
-      final repo = _ScriptedWaitingRepository(
-        initial: _request(),
-        polls: const <WaitingRequest>[],
-        pollErrors: const {0: contractBreak},
-      );
-      final cubit = WaitingCubit(
-        repository: repo,
-        requestId: 'req-1',
-        now: () => _t0,
-        refreshSignals: pollTicks.stream,
-        clockTicks: clockTicks.stream,
-      );
-      addTearDown(cubit.close);
+    test(
+      'T5.1 — a poll violation fails the screen and stops BOTH streams',
+      () async {
+        final pollTicks = StreamController<void>.broadcast();
+        final clockTicks = StreamController<void>.broadcast();
+        addTearDown(pollTicks.close);
+        addTearDown(clockTicks.close);
+        final repo = _ScriptedWaitingRepository(
+          initial: _request(),
+          polls: const <WaitingRequest>[],
+          pollErrors: const {0: contractBreak},
+        );
+        final cubit = WaitingCubit(
+          repository: repo,
+          requestId: 'req-1',
+          now: () => _t0,
+          refreshSignals: pollTicks.stream,
+          clockTicks: clockTicks.stream,
+        );
+        addTearDown(cubit.close);
 
-      await cubit.load();
-      expect(pollTicks.hasListener, isTrue);
-      expect(clockTicks.hasListener, isTrue);
+        await cubit.load();
+        expect(pollTicks.hasListener, isTrue);
+        expect(clockTicks.hasListener, isTrue);
 
-      pollTicks.add(null);
-      await repo.waitForPoll(1);
-      await pumpEventQueue();
+        pollTicks.add(null);
+        await repo.waitForPoll(1);
+        await pumpEventQueue();
 
-      expect(cubit.state.status, WaitingScreenStatus.failed);
-      expect(cubit.state.error, WaitingFailure.contractViolation);
-      expect(pollTicks.hasListener, isFalse);
-      expect(clockTicks.hasListener, isFalse);
-    });
+        expect(cubit.state.status, WaitingScreenStatus.failed);
+        expect(cubit.state.error, WaitingFailure.contractViolation);
+        expect(pollTicks.hasListener, isFalse);
+        expect(clockTicks.hasListener, isFalse);
+      },
+    );
 
-    test('T5.2 — a cold-load violation reaches the same terminal state', () async {
-      final pollTicks = StreamController<void>.broadcast();
-      final clockTicks = StreamController<void>.broadcast();
-      addTearDown(pollTicks.close);
-      addTearDown(clockTicks.close);
-      final repo = _ScriptedWaitingRepository(
-        initial: _request(),
-        initialError: contractBreak,
-      );
-      final cubit = WaitingCubit(
-        repository: repo,
-        requestId: 'req-1',
-        now: () => _t0,
-        refreshSignals: pollTicks.stream,
-        clockTicks: clockTicks.stream,
-      );
-      addTearDown(cubit.close);
+    test(
+      'T5.2 — a cold-load violation reaches the same terminal state',
+      () async {
+        final pollTicks = StreamController<void>.broadcast();
+        final clockTicks = StreamController<void>.broadcast();
+        addTearDown(pollTicks.close);
+        addTearDown(clockTicks.close);
+        final repo = _ScriptedWaitingRepository(
+          initial: _request(),
+          initialError: contractBreak,
+        );
+        final cubit = WaitingCubit(
+          repository: repo,
+          requestId: 'req-1',
+          now: () => _t0,
+          refreshSignals: pollTicks.stream,
+          clockTicks: clockTicks.stream,
+        );
+        addTearDown(cubit.close);
 
-      await cubit.load();
+        await cubit.load();
 
-      expect(cubit.state.status, WaitingScreenStatus.failed);
-      expect(cubit.state.error, WaitingFailure.contractViolation);
-      // Streams were never attached on the cold-load path, and _failContract
-      // leaves nothing behind.
-      expect(pollTicks.hasListener, isFalse);
-      expect(clockTicks.hasListener, isFalse);
-    });
+        expect(cubit.state.status, WaitingScreenStatus.failed);
+        expect(cubit.state.error, WaitingFailure.contractViolation);
+        // Streams were never attached on the cold-load path, and _failContract
+        // leaves nothing behind.
+        expect(pollTicks.hasListener, isFalse);
+        expect(clockTicks.hasListener, isFalse);
+      },
+    );
 
     test('T5.3 — a network poll failure leaves the state untouched', () async {
       final pollTicks = StreamController<void>.broadcast();
@@ -392,74 +401,80 @@ void main() {
       expect(clockTicks.hasListener, isTrue);
     });
 
-    test('T5.4 — retry() after a violation recovers to a real countdown', () async {
-      final pollTicks = StreamController<void>.broadcast();
-      final clockTicks = StreamController<void>.broadcast();
-      addTearDown(pollTicks.close);
-      addTearDown(clockTicks.close);
-      final repo = _ScriptedWaitingRepository(
-        initial: _request(),
-        initialError: contractBreak,
-      );
-      final cubit = WaitingCubit(
-        repository: repo,
-        requestId: 'req-1',
-        now: () => _t0,
-        refreshSignals: pollTicks.stream,
-        clockTicks: clockTicks.stream,
-      );
-      addTearDown(cubit.close);
+    test(
+      'T5.4 — retry() after a violation recovers to a real countdown',
+      () async {
+        final pollTicks = StreamController<void>.broadcast();
+        final clockTicks = StreamController<void>.broadcast();
+        addTearDown(pollTicks.close);
+        addTearDown(clockTicks.close);
+        final repo = _ScriptedWaitingRepository(
+          initial: _request(),
+          initialError: contractBreak,
+        );
+        final cubit = WaitingCubit(
+          repository: repo,
+          requestId: 'req-1',
+          now: () => _t0,
+          refreshSignals: pollTicks.stream,
+          clockTicks: clockTicks.stream,
+        );
+        addTearDown(cubit.close);
 
-      await cubit.load();
-      expect(cubit.state.error, WaitingFailure.contractViolation);
+        await cubit.load();
+        expect(cubit.state.error, WaitingFailure.contractViolation);
 
-      // The gateway is fixed: the next read carries the contract.
-      repo.initialError = null;
-      repo.initial = _request(
-        remainingAtReceipt: const Duration(minutes: 30),
-      );
-      await cubit.retry();
+        // The gateway is fixed: the next read carries the contract.
+        repo.initialError = null;
+        repo.initial = _request(
+          remainingAtReceipt: const Duration(minutes: 30),
+        );
+        await cubit.retry();
 
-      expect(cubit.state.status, WaitingScreenStatus.loaded);
-      expect(cubit.state.error, isNull);
-      expect(cubit.state.remaining, const Duration(minutes: 30));
-      expect(pollTicks.hasListener, isTrue);
-      expect(clockTicks.hasListener, isTrue);
-    });
+        expect(cubit.state.status, WaitingScreenStatus.loaded);
+        expect(cubit.state.error, isNull);
+        expect(cubit.state.remaining, const Duration(minutes: 30));
+        expect(pollTicks.hasListener, isTrue);
+        expect(clockTicks.hasListener, isTrue);
+      },
+    );
 
-    test('T5.6 — exactly one waiting_contract_violation diag event per violation', () async {
-      final lines = <String>[];
-      final previousSink = Diag.sink;
-      final previousEnabled = Diag.enabledOverride;
-      Diag.sink = lines.add;
-      Diag.enabledOverride = true;
-      addTearDown(() {
-        Diag.sink = previousSink;
-        Diag.enabledOverride = previousEnabled;
-      });
+    test(
+      'T5.6 — exactly one waiting_contract_violation diag event per violation',
+      () async {
+        final lines = <String>[];
+        final previousSink = Diag.sink;
+        final previousEnabled = Diag.enabledOverride;
+        Diag.sink = lines.add;
+        Diag.enabledOverride = true;
+        addTearDown(() {
+          Diag.sink = previousSink;
+          Diag.enabledOverride = previousEnabled;
+        });
 
-      final repo = _ScriptedWaitingRepository(
-        initial: _request(),
-        initialError: contractBreak,
-      );
-      final cubit = WaitingCubit(
-        repository: repo,
-        requestId: 'req-1',
-        now: () => _t0,
-        refreshSignals: const Stream.empty(),
-        clockTicks: const Stream.empty(),
-      );
-      addTearDown(cubit.close);
+        final repo = _ScriptedWaitingRepository(
+          initial: _request(),
+          initialError: contractBreak,
+        );
+        final cubit = WaitingCubit(
+          repository: repo,
+          requestId: 'req-1',
+          now: () => _t0,
+          refreshSignals: const Stream.empty(),
+          clockTicks: const Stream.empty(),
+        );
+        addTearDown(cubit.close);
 
-      await cubit.load();
+        await cubit.load();
 
-      final events = lines
-          .where((l) => l.contains('waiting_contract_violation'))
-          .toList();
-      expect(events, hasLength(1));
-      expect(events.single, contains('"requestId":"req-1"'));
-      expect(events.single, contains('offerDeadlineInSeconds'));
-    });
+        final events = lines
+            .where((l) => l.contains('waiting_contract_violation'))
+            .toList();
+        expect(events, hasLength(1));
+        expect(events.single, contains('"requestId":"req-1"'));
+        expect(events.single, contains('offerDeadlineInSeconds'));
+      },
+    );
   });
 
   // ── T6 — anchor carry-forward through _enrichWithOffers ───────────────────
@@ -469,42 +484,45 @@ void main() {
   // full. `copyWith` now exposes NO receivedAt / remainingAtReceipt parameter
   // (T6.4 — the API shape IS the guarantee), so the pair can only be carried.
   group('T6 — anchor survives the offers enrich', () {
-    test('T6.1/T6.2/T6.3 — the pair is carried, the countdown does not reset', () async {
-      var now = _t0;
-      final offers = Completer<int>();
-      final repo = _ScriptedWaitingRepository(
-        initial: _request(remainingAtReceipt: const Duration(minutes: 30)),
-        offerCount: (_) => offers.future,
-      );
-      final cubit = WaitingCubit(
-        repository: repo,
-        requestId: 'req-1',
-        now: () => now,
-        refreshSignals: const Stream.empty(),
-        clockTicks: const Stream.empty(),
-      );
-      addTearDown(cubit.close);
+    test(
+      'T6.1/T6.2/T6.3 — the pair is carried, the countdown does not reset',
+      () async {
+        var now = _t0;
+        final offers = Completer<int>();
+        final repo = _ScriptedWaitingRepository(
+          initial: _request(remainingAtReceipt: const Duration(minutes: 30)),
+          offerCount: (_) => offers.future,
+        );
+        final cubit = WaitingCubit(
+          repository: repo,
+          requestId: 'req-1',
+          now: () => now,
+          refreshSignals: const Stream.empty(),
+          clockTicks: const Stream.empty(),
+        );
+        addTearDown(cubit.close);
 
-      await cubit.load();
-      expect(cubit.state.remaining, const Duration(minutes: 30));
+        await cubit.load();
+        expect(cubit.state.remaining, const Duration(minutes: 30));
 
-      // Five minutes pass on the device clock, THEN the offer lands.
-      now = _t0.add(const Duration(minutes: 5));
-      offers.complete(2);
-      await pumpEventQueue();
+        // Five minutes pass on the device clock, THEN the offer lands.
+        now = _t0.add(const Duration(minutes: 5));
+        offers.complete(2);
+        await pumpEventQueue();
 
-      // T6.1 — anchor pair carried forward verbatim.
-      expect(cubit.state.request!.receivedAt, _t0);
-      expect(
-        cubit.state.request!.remainingAtReceipt,
-        const Duration(minutes: 30),
-      );
-      // T6.2 — a 30m here would be the reset-to-full regression.
-      expect(cubit.state.remaining, const Duration(minutes: 25));
-      // T6.3 — the enrich still did its job.
-      expect(cubit.state.request!.phase, WaitingRequestPhase.offersArrived);
-      expect(cubit.state.request!.offerCount, 2);
-      expect(cubit.state.hasOffers, isTrue);
-    });
+        // T6.1 — anchor pair carried forward verbatim.
+        expect(cubit.state.request!.receivedAt, _t0);
+        expect(
+          cubit.state.request!.remainingAtReceipt,
+          const Duration(minutes: 30),
+        );
+        // T6.2 — a 30m here would be the reset-to-full regression.
+        expect(cubit.state.remaining, const Duration(minutes: 25));
+        // T6.3 — the enrich still did its job.
+        expect(cubit.state.request!.phase, WaitingRequestPhase.offersArrived);
+        expect(cubit.state.request!.offerCount, 2);
+        expect(cubit.state.hasOffers, isTrue);
+      },
+    );
   });
 }

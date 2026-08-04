@@ -9,11 +9,6 @@ import '../domain/prohibited_item.dart';
 import 'cubit/prohibited_acknowledgment_cubit.dart';
 import 'cubit/prohibited_acknowledgment_state.dart';
 
-/// Shows the one-time prohibited-items acknowledgment dialog (T-MOB-021).
-///
-/// Returns `true` once the user taps Acknowledge (AC2).
-/// Returns `null` if dismissed without acknowledging (AC3 — dialog will
-/// reappear on next flow entry until acknowledged).
 Future<bool?> showProhibitedAcknowledgmentDialog(
   BuildContext context, {
   required ProhibitedAcknowledgmentRepository repository,
@@ -133,8 +128,6 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
     return _acknowledgeCta(context, l10n, state);
   }
 
-  /// Error-recovery CTA. `container: true` keeps the id on an addressable node
-  /// (the documented merge guard); the OMDS button owns the tap surface.
   Widget _retryCta(BuildContext context, AppLocalizations l10n) {
     return Semantics(
       identifier: 'prohibited_acknowledgment_sheet_retry_cta',
@@ -147,8 +140,6 @@ class _ProhibitedAcknowledgmentDialog extends StatelessWidget {
     );
   }
 
-  /// In-flight variant of the acknowledge CTA — shares the acknowledge id so the
-  /// tap target stays stable across the loaded → acknowledging transition.
   Widget _acknowledgingCta(AppLocalizations l10n) {
     return Semantics(
       identifier: 'prohibited_acknowledgment_sheet_acknowledge_cta',
@@ -248,7 +239,6 @@ class _ItemList extends StatelessWidget {
             Icon(
               isBlock ? Icons.cancel_rounded : Icons.warning_amber_rounded,
               size: Sizes.medium,
-              // block = error, warn = semantic warning (was brand tertiary).
               color: isBlock ? colorScheme.error : roles.warning,
             ),
             const SizedBox(width: Spacing.xSmall),

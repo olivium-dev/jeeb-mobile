@@ -6,7 +6,9 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/offline_cubit.dart';
 
-// ORPHAN (JEBV4-227, verified 2026-07-12): zero refs — see docs/project-understanding/reconciliation/orphans.md
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../core/previews/jeeb_preview.dart';
+
 class OfflineBanner extends StatelessWidget {
   const OfflineBanner({super.key});
 
@@ -14,8 +16,6 @@ class OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<OfflineCubit, OfflineState>(
       builder: (context, state) {
-        // JEBV4-13: honour the per-episode dismissal — DISMISS used to be a
-        // dead `onTap: () {}`; the cubit re-arms on the next offline episode.
         if (state.status == ConnectivityStatus.online ||
             state.bannerDismissed) {
           return const SizedBox.shrink();
@@ -31,8 +31,6 @@ class _OfflineMaterialBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Offline-with-sync-pending is a warning state (recoverable, data safe),
-    // not an error -> semantic warning role.
     final roles = context.jeebRoles;
     final l10n = AppLocalizations.of(context);
     return MaterialBanner(
@@ -61,3 +59,139 @@ class _OfflineMaterialBanner extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+/// A typical phone — the width the banner is reviewed and asserted against.
+const double _offlineBannerPhoneWidth = 390;
+
+/// Phone width, with room for the banner plus the fixture caption beneath it.
+const Size _offlineBannerBannerBox = Size(_offlineBannerPhoneWidth, 200);
+
+/// Same width, short: in the collapsed states there is nothing but the caption
+/// to show, and a tall box would imply the banner left a gap behind.
+const Size _offlineBannerCollapsedBox = Size(_offlineBannerPhoneWidth, 110);
+
+/// Keyed by [caption], which is unique per preview.
+/// Not cosmetic: [BlocProvider]'s `create` runs ONCE per element, so a render
+Widget _offlineBannerHosted({
+  required String caption,
+  required OfflineCubit Function() episode,
+}) {
+  return BlocProvider<OfflineCubit>(
+    key: ValueKey<String>(caption),
+    create: (BuildContext _) => episode(),
+    child: _OfflineBannerStage(caption: caption),
+  );
+}
+
+/// Mounts [OfflineBanner] the way a page does — pinned to phone width, at the
+/// top of the content, with something underneath it.
+/// The caption is preview scaffolding, not part of the widget: it spells out
+class _OfflineBannerStage extends StatelessWidget {
+  const _OfflineBannerStage({required this.caption});
+
+  final String caption;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Align(
+      alignment: AlignmentDirectional.topStart,
+      child: SizedBox(
+        width: _offlineBannerPhoneWidth,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            const OfflineBanner(),
+            ColoredBox(
+              color: colors.surfaceContainerLowest,
+              child: Padding(
+                padding: const EdgeInsets.all(Spacing.medium),
+                child: Text(
+                  caption,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The state the widget exists for: the connection dropped and the user has not
+/// dismissed the notice yet.
+@JeebPreview(
+  group: 'offline_mode',
+  name: 'Offline · banner shown',
+  size: _offlineBannerBannerBox,
+  matrix: true,
+)
+Widget offlineBannerOffline() => _offlineBannerHosted(
+      caption: 'setOffline() · banner armed',
+      episode: () => OfflineCubit()..setOffline(),
+    );
+
+/// Offline with work waiting: three edits made since the connection dropped.
+/// It renders identically to [offlineBannerOffline], and that identity IS the
+@JeebPreview(
+  group: 'offline_mode',
+  name: 'Offline · writes queued',
+  size: _offlineBannerBannerBox,
+)
+Widget offlineBannerPendingSync() => _offlineBannerHosted(
+      caption: 'setOffline() + three queued writes',
+      episode: () => OfflineCubit()
+        ..setOffline()
+        ..enqueuePendingSync()
+        ..enqueuePendingSync()
+        ..enqueuePendingSync(),
+    );
+
+/// JEBV4-13, first half: DISMISS has to actually dismiss.
+/// The action used to be `onTap: () {}` — a dead CTA of the atlas P1 #18 class
+@JeebPreview(
+  group: 'offline_mode',
+  name: 'Dismissed this episode',
+  size: _offlineBannerCollapsedBox,
+)
+Widget offlineBannerDismissed() => _offlineBannerHosted(
+      caption: 'setOffline() + dismissBanner() · hidden for this episode',
+      episode: () => OfflineCubit()
+        ..setOffline()
+        ..dismissBanner(),
+    );
+
+/// JEBV4-13, second half: one dismissal must not silence the NEXT outage.
+/// Seeded through the whole episode the app makes — offline, dismiss, back
+@JeebPreview(
+  group: 'offline_mode',
+  name: 'Re-armed by a new outage',
+  size: _offlineBannerBannerBox,
+)
+Widget offlineBannerReArmed() => _offlineBannerHosted(
+      caption: 'offline → dismiss → online → offline again',
+      episode: () => OfflineCubit()
+        ..setOffline()
+        ..dismissBanner()
+        ..setOnline()
+        ..setOffline(),
+    );
+
+/// The state the widget is in for almost all of its life: connected.
+/// It must be invisible AND cost nothing — `SizedBox.shrink()`, not an empty
+@JeebPreview(
+  group: 'offline_mode',
+  name: 'Online · collapsed',
+  size: _offlineBannerCollapsedBox,
+)
+Widget offlineBannerOnline() => _offlineBannerHosted(
+      caption: 'OfflineCubit() · online, nothing to report',
+      episode: OfflineCubit.new,
+    );

@@ -4,16 +4,7 @@ import '../domain/auth_repository.dart';
 import '../domain/set_password_policy.dart';
 import 'set_password_state.dart';
 
-/// Drives the set-password screen (JM-022). Owns the two visibility toggles,
-/// the mismatch/strength validation gate, and the `POST /v1/auth/set-password`
-/// submit. The success destination (recovery → `/login`; in-app-social →
-/// customer-profile, D90) is the screen's `listener` concern — the cubit just
-/// reaches [SetPasswordStatus.succeeded].
-///
-/// `email` + `resetToken` are handed in at construction (from the verify-code
-/// step's `extra`, JM-021). In recovery mode the mock requires the `resetToken`;
-/// in in-app-social mode it is optional (the user is already authenticated)
-/// (42_GUARDRAILS_MOCK W-1 FLOOR set-password row).
+/// Drives set-password screen: visibility toggles, validation, submit. Success is screen's listener concern.
 class SetPasswordCubit extends Cubit<SetPasswordState> {
   SetPasswordCubit({
     required AuthRepository repository,
@@ -31,17 +22,15 @@ class SetPasswordCubit extends Cubit<SetPasswordState> {
   final String? _resetToken;
   final SetPasswordPolicy _policy;
 
-  /// Flips masking on the new-password field (`setpw_new_visibility_toggle`).
+  /// Flips masking on the new-password field.
   void toggleNewObscured() =>
       emit(state.copyWith(newObscured: !state.newObscured));
 
-  /// Flips masking on the confirm-password field
-  /// (`setpw_confirm_visibility_toggle`).
+  /// Flips masking on the confirm-password field.
   void toggleConfirmObscured() =>
       emit(state.copyWith(confirmObscured: !state.confirmObscured));
 
-  /// Clears a surfaced error once the user edits a field again, so the
-  /// `setpw_validation_error` node does not linger after a correction.
+  /// Clears surfaced error on user edit so validation node doesn't linger.
   void acknowledgeError() {
     if (state.status == SetPasswordStatus.failed) {
       emit(state.copyWith(
@@ -52,11 +41,7 @@ class SetPasswordCubit extends Cubit<SetPasswordState> {
     }
   }
 
-  /// Validates then submits. On a client-side validation miss (mismatch / weak /
-  /// empty) it emits [SetPasswordStatus.failed] with the [validation] reason and
-  /// does NOT call the network (AC3 — form not submitted, screen stays). On a
-  /// 200 it persists tokens (via the repo) and emits
-  /// [SetPasswordStatus.succeeded].
+  /// Validates then submits; client-side failures emit reason without network call.
   Future<void> submit({
     required String newPassword,
     required String confirmPassword,

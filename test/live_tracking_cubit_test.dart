@@ -57,7 +57,6 @@ void main() {
       'S9: a 404 (delivery not found) emits a distinct error state with a '
       'title, never crashes', () async {
     // A genuine 404 — e.g. tracking opened with a request id instead of the
-    // server delivery id, or the accept-minted delivery not yet propagated.
     when(() => repo.fetchDeliveryStatus(deliveryId: any(named: 'deliveryId')))
         .thenThrow(const LiveTrackingException(LiveTrackingErrorKind.notFound));
 
@@ -66,7 +65,6 @@ void main() {
 
     expect(cubit.state.mode, LiveTrackingViewMode.error);
     // Distinct from the generic server/network error: it carries a heading and
-    // a calmer "not found yet" message rather than "Server error".
     expect(cubit.state.errorTitle, 'Delivery not found');
     expect(cubit.state.errorMessage, isNot(contains('Server error')));
     expect(cubit.state.errorMessage, contains("can't find this delivery"));
@@ -129,16 +127,6 @@ void main() {
   });
 
   // JEBV4-218 / Q-061 (pilot fidelity) — INVERTED by b02 wave C / N7.
-  //
-  // This test used to LOCK a 5-second default polling cadence ("a re-fetch fires
-  // at each 5s tick — never sooner"). The owner mandate retires long polling, so
-  // the ratified interval it protected is gone and the guard is inverted: with NO
-  // refresh stream wired at all, the DEFAULT cubit must read exactly ONCE, on
-  // construction, and never again from the passage of time.
-  //
-  // Keeping the old form would have been the most expensive kind of green test —
-  // it would have failed for the right reason and been "fixed" by restoring the
-  // poll.
   test('JEBV4-218 inverted: no default cadence — construction reads once and '
       'time alone never reads again', () {
     fakeAsync((async) {

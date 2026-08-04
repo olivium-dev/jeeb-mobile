@@ -1,10 +1,5 @@
 /// P0 #3 — order-create wiring.
-///
 /// Locks the fix for the dead-end where the order-chat compose→send path
-/// broadcast the literal `new` sentinel and routed to `/v1/requests/new` (404).
-/// The coordinator must CREATE a real request (POST /v1/requests) from the
-/// composed first message, broadcast the SERVER-MINTED id, and NEVER forward
-/// the `new` sentinel.
 library;
 
 import 'package:flutter_test/flutter_test.dart';

@@ -3,6 +3,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
+import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../photo_attachment/data/image_picker_photo_picker_service.dart';
 import '../../../photo_attachment/domain/photo_compressor.dart';
@@ -19,6 +30,19 @@ import '../widgets/profile_avatar.dart';
 /// (T-mobile-002). Talks to the screen-wide [SettingsCubit] so the same
 /// state powers the parent settings list — there is no separate
 /// `ProfileCubit`.
+///
+/// redesign-2026-08: re-skinned onto the Jeeb system to match its parent
+/// (screen 20, `settings_screen.dart`). Bands, top to bottom: in-body
+/// [JeebTopBar] → avatar hero + its two text actions → name field →
+/// `PROFILE` label + the outlined read-only phone row → a real empty band →
+/// the docked [JeebCtaFooter] Save pill. The flow, the copy and every
+/// `Semantics(identifier:)` are unchanged.
+///
+/// MIDNIGHT M3-23 (ORPHAN ruling KEEP+restyle): it now mounts R22's own field —
+/// `content` variant, orange glow top-end, decor still — instead of falling
+/// back to the flat scaffold navy, so pushing here from Settings does not drop
+/// the glow. It also gained the loading frame it never had, which is what
+/// fixes the empty-name-field defect described on [_ProfileEditScreenState].
 // ORPHAN (JEBV4-227, verified 2026-07-12): only reachable via orphaned /settings — see docs/project-understanding/reconciliation/orphans.md
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({
@@ -35,20 +59,33 @@ class ProfileEditScreen extends StatefulWidget {
   final ProfilePhotoStore? photoStore;
   final PhotoCompressor photoCompressor;
 
+  /// Frozen identifier for the cold-read frame.
+  static const String loadingIdentifier = 'profile_edit_loading';
+
   @override
   State<ProfileEditScreen> createState() => _ProfileEditScreenState();
 }
 
+/// The live route builds its `SettingsCubit` with a trailing `..load()`, which
+/// emits `isLoading: true` synchronously and resolves the profile a microtask
+/// later — so [initState] used to seed the name controller from an empty
+/// profile and never re-read it. Real accounts opened Edit profile to a blank
+/// name field; the catalog masked it with `awaitLoad: true`. The screen now
+/// withholds the form until the read lands and seeds the controller then.
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController _nameController;
   String? _validationError;
   bool _isChangingPhoto = false;
+  late bool _nameSeeded;
 
   @override
   void initState() {
     super.initState();
-    final initialName = context.read<SettingsCubit>().state.profile.name ?? '';
-    _nameController = TextEditingController(text: initialName);
+    final state = context.read<SettingsCubit>().state;
+    _nameSeeded = !state.isLoading;
+    _nameController = TextEditingController(
+      text: _nameSeeded ? state.profile.name ?? '' : '',
+    );
   }
 
   @override
@@ -127,8 +164,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return BlocConsumer<SettingsCubit, SettingsState>(
-      listenWhen: (prev, curr) => prev.banner != curr.banner,
+      listenWhen: (prev, curr) =>
+          prev.banner != curr.banner || (prev.isLoading && !curr.isLoading),
       listener: (context, state) {
+        if (!state.isLoading && !_nameSeeded) {
+          _nameSeeded = true;
+          _nameController.text = state.profile.name ?? '';
+        }
         if (state.banner == SettingsBanner.profileSaved) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(l10n.profileSaved)),
@@ -137,48 +179,104 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         }
       },
       builder: (context, state) {
-        return Scaffold(
-          appBar: OMDSAppBar(
-            title: l10n.profileEditTitle,
-            showBackButton: true,
-          ),
-          body: SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.all(Spacing.medium),
-              children: [
-                _ProfileAvatarBlock(
-                  state: state,
-                  isChangingPhoto: _isChangingPhoto,
-                  onChangePhoto: () => _onChangePhoto(l10n),
-                ),
-                const SizedBox(height: Spacing.large),
-                _NameField(
-                  controller: _nameController,
-                  errorText: _validationError,
-                  label: l10n.profileNameLabel,
-                  hint: l10n.profileNameHint,
-                ),
-                const SizedBox(height: Spacing.large),
-                _PhoneRow(phoneE164: state.profile.phoneE164),
-                const SizedBox(height: Spacing.large),
-                Semantics(
-                  identifier: 'profile_edit_save_cta',
-                  button: true,
-                  container: true,
-                  child: OmdsPrimaryButton(
-                    key: const Key('profile-edit-save'),
-                    text: state.isSavingProfile
-                        ? l10n.profileSaving
-                        : l10n.profileSave,
-                    isEnabled: !state.isSavingProfile,
-                    onTap: () => _onSave(l10n),
+        return JeebMidnightField(
+          // R22's field, carried across unchanged: one orange radial top-end
+          // (`88% -6%`), no periwinkle wash, and the tile is board-still.
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          animateDecor: false,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: SafeArea(
+              // The docked footer owns the bottom inset (same split as
+              // settings_screen.dart), so the scroll body must not claim it.
+              bottom: false,
+              child: Column(
+                children: [
+                  // In-body top bar — the parent screen's header, not an
+                  // `AppBar`. Default `onLeadingPressed` is the guarded
+                  // `Navigator.maybePop()` OMDSAppBar used, so back is
+                  // unchanged.
+                  JeebTopBar.back(
+                    title: l10n.profileEditTitle,
+                    identifier: 'profile_edit_back',
                   ),
-                ),
-              ],
+                  if (state.isLoading)
+                    const Expanded(child: Center(child: _ProfileEditLoading()))
+                  else ...[
+                    Expanded(
+                      child: ListView(
+                        // 24px gutters (plan §4.3); the residual space below
+                        // the last band is the board's real empty band — the
+                        // footer is docked, not last.
+                        padding: const EdgeInsetsDirectional.only(
+                          start: Spacing.xLarge,
+                          end: Spacing.xLarge,
+                          top: Spacing.medium,
+                          bottom: Spacing.large,
+                        ),
+                        children: [
+                          _ProfileAvatarBlock(
+                            state: state,
+                            isChangingPhoto: _isChangingPhoto,
+                            onChangePhoto: () => _onChangePhoto(l10n),
+                          ),
+                          const SizedBox(height: Spacing.xLarge),
+                          _NameField(
+                            controller: _nameController,
+                            errorText: _validationError,
+                            label: l10n.profileNameLabel,
+                            hint: l10n.profileNameHint,
+                          ),
+                          const SizedBox(height: Spacing.xLarge),
+                          _PhoneSection(phoneE164: state.profile.phoneE164),
+                        ],
+                      ),
+                    ),
+                    SafeArea(
+                      top: false,
+                      child: JeebCtaFooter.single(
+                        child: Semantics(
+                          identifier: 'profile_edit_save_cta',
+                          button: true,
+                          container: true,
+                          child: JeebCtaButton.primary(
+                            key: const Key('profile-edit-save'),
+                            label: state.isSavingProfile
+                                ? l10n.profileSaving
+                                : l10n.profileSave,
+                            isEnabled: !state.isSavingProfile,
+                            onTap: () => _onSave(l10n),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// The cold profile read. `radar` for the reason M3-22 named on
+/// `account_status`: an account listening for a signal, not a request. Its
+/// three identity discs are dropped — there is no second party on this surface.
+class _ProfileEditLoading extends StatelessWidget {
+  const _ProfileEditLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return JeebEmptyState(
+      variant: JeebEmptyStateVariant.radar,
+      status: JeebEmptyStateStatus.loading,
+      medallions: const <JeebEmptyMedallion>[],
+      identifier: ProfileEditScreen.loadingIdentifier,
+      headline: l10n.profileEditLoadingHeadline,
     );
   }
 }
@@ -199,19 +297,24 @@ class _ProfileAvatarBlock extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Column(
       children: [
+        // Still [ProfileAvatar], NOT JeebAvatar: a just-picked avatar is an
+        // absolute on-device path and JeebAvatar composes OmdsProfileAvatar,
+        // which renders through the network-only OmdsCachedImage. Swapping it
+        // would blank the photo on the very screen that picks it (JEBV4-13).
+        // The kit's hero diameter keeps the disc on the system's scale.
         ProfileAvatar(
           name: state.profile.name,
           photoUrl: state.profile.photoUrl,
+          diameter: JeebAvatar.heroDiameter,
         ),
         const SizedBox(height: Spacing.small),
         Semantics(
           identifier: 'profile_edit_change_avatar_cta',
           button: true,
           container: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.text(
             key: const Key('profile-edit-change-avatar'),
-            text: l10n.profileAvatarChange,
-            variant: OmdsButtonVariant.text,
+            label: l10n.profileAvatarChange,
             isEnabled: !state.isSavingProfile && !isChangingPhoto,
             // JEBV4-13: was `onTap: () {}` — a dead CTA on a primary profile
             // affordance. Now opens the camera/gallery source sheet and saves
@@ -224,12 +327,19 @@ class _ProfileAvatarBlock extends StatelessWidget {
             identifier: 'profile_edit_remove_avatar_cta',
             button: true,
             container: true,
-            child: OmdsPrimaryButton(
+            // Destructive, so it takes R22's docked-footer treatment verbatim
+            // (`settings_footer.dart`): a bare danger-SOFT `onErrorContainer`
+            // label, never full-strength `error` and never a filled pill.
+            child: TextButton(
               key: const Key('profile-edit-remove-avatar'),
-              text: l10n.profileAvatarRemove,
-              variant: OmdsButtonVariant.text,
-              isEnabled: !state.isSavingProfile,
-              onTap: () => context.read<SettingsCubit>().removePhoto(),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                textStyle: context.jeebText.bodySmall,
+              ),
+              onPressed: state.isSavingProfile
+                  ? null
+                  : () => context.read<SettingsCubit>().removePhoto(),
+              child: Text(l10n.profileAvatarRemove),
             ),
           ),
       ],
@@ -256,6 +366,10 @@ class _NameField extends StatelessWidget {
       identifier: 'profile_edit_name_field',
       textField: true,
       container: true,
+      // MIDNIGHT: the pass-1 note here ("OmdsTextField already reads the
+      // theme") is FALSE — omds hard-codes `colorScheme.primary` on the
+      // floating label and focus ring, i.e. orange. 40 call sites; see the row
+      // report, not a per-screen patch.
       child: OmdsTextField(
         key: const Key('profile-edit-name'),
         controller: controller,
@@ -269,23 +383,47 @@ class _NameField extends StatelessWidget {
   }
 }
 
-class _PhoneRow extends StatelessWidget {
-  const _PhoneRow({required this.phoneE164});
+/// The read-only phone band: `PROFILE` section label + a single outlined row.
+///
+/// It states a fact rather than navigating, so there is no chevron and no tap
+/// target — the padlock is the whole affordance story (screen 20's always-on
+/// security-codes row uses the same treatment).
+class _PhoneSection extends StatelessWidget {
+  const _PhoneSection({required this.phoneE164});
+
+  /// Trailing padlock size, matching the board's `tpl 1212` glyph.
+  static const double lockGlyphSize = 17;
 
   final String phoneE164;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return OmdsSettingsSection(
-      title: AppLocalizations.of(context).profileTitle,
+    final l10n = AppLocalizations.of(context);
+    // The row's own muted ink, read the way every kit child reads it: this
+    // survives a bare test theme with no JeebSemanticColors registered, and
+    // re-inks itself if the row ever lands on a navy surface.
+    final muted = JeebSurfaceTone.of(context).mutedInk;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        OmdsSettingsRow(
-          key: const Key('profile-edit-phone-readonly'),
-          title: phoneE164.isEmpty ? '—' : phoneE164,
-          leadingIcon: Icons.phone_outlined,
-          leadingIconColor: colorScheme.onSurfaceVariant,
-          icon: Icons.lock_outline,
+        JeebSectionLabel(l10n.profileTitle),
+        const SizedBox(height: Spacing.xSmall),
+        JeebOutlinedCard.grouped(
+          children: [
+            JeebListRow(
+              key: const Key('profile-edit-phone-readonly'),
+              icon: Icons.phone,
+              title: phoneE164.isEmpty ? '—' : phoneE164,
+              showChevron: false,
+              trailing: Icon(
+                // Deliberately the outline glyph, not R10's filled one: a
+                // shipped test pins `Icons.lock_outline` as the read-only mark.
+                Icons.lock_outline,
+                size: lockGlyphSize,
+                color: muted,
+              ),
+            ),
+          ],
         ),
       ],
     );

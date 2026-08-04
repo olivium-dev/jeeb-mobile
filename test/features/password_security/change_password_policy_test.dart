@@ -1,6 +1,4 @@
 // Unit tests for ChangePasswordPolicy (JM-061 domain). Pure Dart — no Flutter
-// binding. Locks the validation order (empty → weak → same-as-current →
-// mismatch) and the strength floor (shared with the JM-022 SetPasswordPolicy).
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/password_security/domain/change_password_policy.dart';

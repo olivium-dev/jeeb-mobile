@@ -4,25 +4,6 @@ import '../../../core/formatting/server_time.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/wallet_ledger_repository.dart';
 
-/// JM-055 wallet-activity-list localized copy resolver (R-F; the
-/// `wallet_hub_l10n.dart` / `notifications_l10n.dart` precedent,
-/// 40_GUARDRAILS_ARCH §9 l10n protocol).
-///
-/// The shared ARB files + the hand-authored `AppLocalizations` getter layer are
-/// integrator-owned (50_EXECUTION_PLAN §S4). The W3 integrator batched FOUR
-/// wallet-activity keys (title / empty-title / empty-body / back-cta), but the
-/// rest of the ledger copy — the seven typed-row labels (Reserve / Fee-won /
-/// Released / Refund / Penalty / Top up / Gift, D41/D1/D37/D2), the load-error +
-/// retry, the load-more-error retry, and the relative timestamp — is NOT yet
-/// present. Per the JM-053 precedent this resolver reuses the EXISTING getters
-/// where one fits and supplies the genuinely-missing strings from a feature-local
-/// EN/AR map until the integrator lands the dedicated keys (REQUESTED in
-/// `50_ROUTE_REQUESTS.md`, "JM-055").
-///
-/// Maestro asserts on `Semantics(identifier:)` ONLY (41_GUARDRAILS_TESTING §4),
-/// so the visible copy is cosmetic — this swaps to the real getters with no
-/// call-site change. Delete this file (fold the `_pick` strings into
-/// `walletActivity*` ARB getters) once the integrator lands the requested keys.
 class WalletActivityL10n {
   WalletActivityL10n(this._l10n, this._isArabic);
 
@@ -39,27 +20,21 @@ class WalletActivityL10n {
 
   String _pick(String en, String ar) => _isArabic ? ar : en;
 
-  // ── Present keys (integrator-landed). ──────────────────────────────────────
   String get title => _l10n.walletActivityTitle;
   String get emptyTitle => _l10n.walletActivityEmptyTitle;
   String get emptyBody => _l10n.walletActivityEmptyBody;
+  String get loadingHeadline => _l10n.walletActivityLoadingHeadline;
+  String get errorTitle => _l10n.walletActivityErrorTitle;
 
-  // ── Genuinely-missing copy (feature-local until the integrator lands keys). ─
-  String get loadError =>
-      _pick('Could not load your activity.', 'تعذّر تحميل نشاطك.');
   String get networkError => _pick(
         'No connection. Check your network and try again.',
         'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
       );
   String get retry => _pick('Retry', 'إعادة المحاولة');
 
-  /// Footer shown when a next-page (load-more) fetch fails — soft + retryable;
-  /// the already-loaded rows stay visible.
   String get loadMoreError =>
       _pick('Could not load more.', 'تعذّر تحميل المزيد.');
 
-  /// The typed-row label rendered as the row's leading line (Reserve / Fee-won /
-  /// Released / Refund / Penalty / Top up / Gift — the W2m `type` enum, D41).
   String typeLabel(WalletLedgerType type) {
     switch (type) {
       case WalletLedgerType.reserve:
@@ -81,16 +56,10 @@ class WalletActivityL10n {
     }
   }
 
-  /// The row's reference sub-line (the originating offer / dispute / store
-  /// charge id). Cosmetic — flows key on the row id, not this text.
   String refLabel(String ref) => ref.isEmpty
       ? ''
       : _pick('Ref: $ref', 'مرجع: $ref');
 
-  /// A signed, currency-suffixed amount string for the row's trailing value.
-  /// `sign` is the W2m `+1` (credit) / `-1` (debit). The sign is EXPLICIT on
-  /// every row (JM-055 AC: "amount + sign") so a credit reads `+0.90 USD` and a
-  /// debit `-0.90 USD`.
   String signedAmount(double amount, int sign, String? currency) {
     final magnitude = amount.abs().toStringAsFixed(2);
     final prefix = sign < 0 ? '-' : '+';
@@ -98,13 +67,7 @@ class WalletActivityL10n {
     return '$prefix$magnitude$suffix';
   }
 
-  /// Coarse relative time for a parsed [timestamp] (mirrors the JM-057 row).
-  /// Locale-agnostic enough to stay cosmetic; falls back to the raw string when
-  /// the timestamp is unparseable.
   String relativeTime(String timestamp, {DateTime? now}) {
-    // T11 / SW-03 family: normalize the server instant (zone-less → UTC) before
-    // diffing, else a fresh row reads "4h ago" on a device 4h ahead of UTC.
-    // `difference` compares absolute instants, so a local `now` is fine.
     final ts = ServerTime.parse(timestamp);
     if (ts == null) return timestamp;
     final reference = now ?? DateTime.now();

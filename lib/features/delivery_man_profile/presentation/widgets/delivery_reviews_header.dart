@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// "Reviews" heading + (count · View all) row above the review list
-/// (design §2). "View all" uses an [OmdsPrimaryButton] text variant so it is
-/// not a raw Material button while still reading as a text affordance; brand
-/// primary color comes from the theme (design flag §9.3 — not the un-themed
-/// Figma template color).
+/// (design §2).
+///
+/// redesign-2026-08: the heading is the board's navy `h2`, the count the
+/// 12/w600 periwinkle meta line, and "View all" the kit's [JeebCtaButton]
+/// `accentText` link — the same inline orange affordance the board uses for
+/// "Edit" / "Change" / "Top up" / "How fees work". It is the ONE orange
+/// element on this screen, which is exactly how the accent is rationed.
 class DeliveryReviewsHeader extends StatelessWidget {
   const DeliveryReviewsHeader({
     super.key,
@@ -21,14 +27,14 @@ class DeliveryReviewsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
+      // The board's 24px side gutter (§4.3).
       padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.large,
+        horizontal: Spacing.xLarge,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _ReviewsTitle(),
-          const SizedBox(height: Spacing.xSmall),
           _CountAndViewAll(reviewCount: reviewCount, onViewAll: onViewAll),
         ],
       ),
@@ -45,10 +51,9 @@ class _ReviewsTitle extends StatelessWidget {
     final theme = Theme.of(context);
     return Text(
       l10n.deliveryManProfileReviewsTitle,
-      style: theme.textTheme.titleMedium?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
-        fontWeight: FontWeight.w700,
-      ),
+      // NOT `JeebSectionLabel`: that widget uppercases, and both the widget
+      // test and the Maestro flow read the natural-cased "Reviews".
+      style: context.jeebText.h2.copyWith(color: theme.colorScheme.onSurface),
     );
   }
 }
@@ -62,7 +67,8 @@ class _CountAndViewAll extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -70,12 +76,15 @@ class _CountAndViewAll extends StatelessWidget {
         Flexible(
           child: Text(
             l10n.deliveryManProfileReviewsCount(reviewCount),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSecondaryContainer,
+            style: context.jeebText.bodySmall.copyWith(
+              color: semantic.mutedText,
             ),
           ),
         ),
-        _ViewAllButton(label: l10n.deliveryManProfileViewAllReviews, onTap: onViewAll),
+        _ViewAllButton(
+          label: l10n.deliveryManProfileViewAllReviews,
+          onTap: onViewAll,
+        ),
       ],
     );
   }
@@ -89,16 +98,18 @@ class _ViewAllButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Canonical id per JM-067 AC + seam harness W4 (`profile_view_all_reviews`).
-    return Semantics(
+    return JeebCtaButton.accentText(
+      key: const Key('delivery-man-profile-view-all'),
+      label: label,
+      onTap: onTap,
+      // Canonical id per JM-067 AC + seam harness W4
+      // (`profile_view_all_reviews`); the kit applies it via its own explicit
+      // `Semantics` wrapper, so no second wrapper here (two would double the
+      // node and break `findsOneWidget`).
       identifier: 'profile_view_all_reviews',
-      button: true,
-      child: OmdsPrimaryButton(
-        key: const Key('delivery-man-profile-view-all'),
-        text: label,
-        onTap: onTap,
-        variant: OmdsButtonVariant.text,
-      ),
+      // The link sits on the gutter, not inside a pill — drop the pill's
+      // internal inset so it aligns with the count beside it.
+      contentPadding: EdgeInsetsDirectional.zero,
     );
   }
 }

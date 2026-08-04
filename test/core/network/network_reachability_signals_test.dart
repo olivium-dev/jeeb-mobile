@@ -1,26 +1,9 @@
 // The reconnect bus: an EDGE detector, not a state mirror.
-//
-// `NetworkReachabilitySignals` exists because an independent tester falsified
-// the chat screen's "self-heals on reconnect" claim — there was no connectivity
-// subscriber in `lib/` at all, and the heal that was credited to a reconnect
-// was the retry backoff's phase happening to tick.
-//
-// The consumer-side proof lives in
-// `test/features/deep_link_targets/chat_resolution_reconnect_test.dart`. This
-// file pins the bus itself, because every guarantee the consumer relies on is
-// really a guarantee about the filter here: that a reconnect is an EDGE (so a
-// screen cannot be woken by the mere fact of being online), that the first
-// observation is a baseline (so a cold start cannot manufacture a phantom
-// reconnect), and that a flapping transport is throttled.
 library;
 
 import 'dart:async';
 
 // The plugin import here is deliberate and is the ONLY one outside
-// `lib/core/network/connectivity_reachability_source.dart`: verifying the
-// wire-enum mapping is exactly the job that requires naming the enum, and a
-// mapping test that could not name `ConnectivityResult.none` would be testing
-// its own paraphrase of the contract instead of the contract.
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/network/connectivity_reachability_source.dart';
@@ -114,9 +97,6 @@ void main() {
       expect(bus.suppressedCount, 1);
 
       // DROPPED, not deferred: nothing arrives later on its own. This is safe
-      // ONLY because every consumer keeps a bounded backoff as its fallback —
-      // the backoff is this bus's trailing edge, which is why the bus itself
-      // needs no timer.
       now = now.add(const Duration(minutes: 5));
       expect(bus.emitCount, 1);
     });
@@ -157,9 +137,6 @@ void main() {
       expect(bus.emitCount, 0);
 
       // The subscription must survive: `cancelOnError: false`. Otherwise one
-      // transient platform error would permanently disable reconnect healing
-      // for the rest of the process's life, which is the LiveTrackingCubit
-      // dead-stream regression (I-13) in a new place.
       controller.add(false);
       controller.add(true);
       await Future<void>.delayed(Duration.zero);
@@ -171,9 +148,6 @@ void main() {
       final controller = StreamController<bool>();
       addTearDown(controller.close);
       // The app starts while ALREADY offline: the OS may never emit a `false`,
-      // because nothing changed. Without the seed the eventual `true` would be
-      // the first observation and would be swallowed as a baseline — the
-      // screen would stay dark exactly as it did before this bus existed.
       bus.bindSource(controller.stream, seed: Future<bool>.value(false));
       await Future<void>.delayed(Duration.zero);
       expect(bus.debugOnline, isFalse);

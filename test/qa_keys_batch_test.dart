@@ -1,20 +1,4 @@
 // QA-KEYS-BATCH (T-MOB-QAKEYS): addressability locks for codex/Maestro.
-//
-// These three already-functional screens were missing the uiautomator-
-// targetable `Semantics(identifier:)` handles (and matching widget-test
-// `Key`s) that the rest of the app already ships via the proven first-run
-// pattern (e.g. `_super_login_user_id`). This file proves each new identifier
-// surfaces as its OWN queryable `SemanticsNode` via Flutter's built-in
-// `find.bySemanticsIdentifier`.
-//
-// FAIL-WITHOUT: every `bySemanticsIdentifier` assertion below `findsNothing`
-// on the pre-fix source (the identifier did not exist), so the test fails
-// without the screen edits and passes with them. (Verified by stashing the
-// three lib/ files — see QA-KEYS-BATCH.md.)
-//
-// Harness mirrors test/semantics_identifier_surfacing_test.dart: real ARBs via
-// a synchronous LocalizationsDelegate + a tall/wide surface so nothing is
-// culled off-screen.
 
 import 'dart:io';
 
@@ -141,7 +125,6 @@ void main() {
           ),
         );
         // Pump (not pumpAndSettle): the client display never settles cleanly
-        // and the live-region code text renders on the first frame.
         await tester.pump();
 
         expect(

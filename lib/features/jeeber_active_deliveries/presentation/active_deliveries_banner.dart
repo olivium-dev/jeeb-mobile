@@ -2,33 +2,46 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/accessibility/accessibility.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../application/active_deliveries_cubit.dart';
 import '../domain/active_delivery_summary.dart';
 
 /// The jeeber's "active deliveries" banner — the real-UI entry to an ACCEPTED
-/// order (iter6 real-flow blocker fix).
+/// order (iter6 real-flow blocker fix), rebuilt to the redesign board
+/// (`screens/16-jeeber-home.png` tpl 915–922) per wiring W-3.
 ///
-/// Mounted at the top of the jeeber Dashboard (above the pending-feed home). It
-/// renders nothing while the jeeber has no active delivery, so it never
-/// disturbs the empty/feed states; the moment a client accepts the jeeber's
-/// offer (`GET /v1/deliveries?role=jeeber` returns the minted delivery) one
-/// card appears. Tapping a card opens that order's chat (`/chat/:id`,
-/// conversation already exists, keyed by the request id) — and the chat surface
-/// is already role-aware for a jeeber: it exposes "Start delivery" →
-/// `/jeeber/deliveries/:id/active`, which drives Ordered→…→AtDoor→Done→rating.
-/// A secondary "Manage delivery" affordance opens the active-delivery screen
-/// directly for a jeeber already past first contact.
+/// The board pins the just-won delivery directly above the feed as ONE
+/// orange-framed row: a Ø38 accent disc, `Active: {order} → {dropoff}`, the
+/// status underneath, and a single periwinkle `Manage` pill. That replaces two
+/// stacked ~180dp icon buttons under a section heading — the largest visual
+/// delta above the fold on this screen, and the reason a jeeber's own live job
+/// used to bury the requests they are supposed to be bidding on.
+///
+/// Mounted at the top of the jeeber Dashboard. It renders nothing while the
+/// jeeber has no active delivery, so it never disturbs the empty/feed states;
+/// the moment a client accepts the jeeber's offer (`GET /v1/deliveries?role=
+/// jeeber` returns the minted delivery) one card appears.
+///
+/// * **One delivery** → always expanded. The new card is ~64dp, so pinning it
+///   cannot bury the feed, and the designer note pins the just-won job.
+/// * **Two or more** → the disclosure row stays (`View all (n)` /
+///   `Show less`), and every revealed row uses the same compact card.
+///
+/// Tapping a card opens that order's chat (`/chat/:id`, conversation already
+/// exists, keyed by the request id) — the chat surface is role-aware for a
+/// jeeber and exposes "Start delivery". The `Manage` pill opens the
+/// active-delivery screen directly for a jeeber already past first contact.
 ///
 /// [onOpenChat] / [onManageDelivery] are injected by the host (the Dashboard
 /// tab) so this widget owns no navigation — keeping it testable and the route
 /// strings in one place.
-// LIVE (re-verified 2026-07-21): the shell Dashboard renders THIS widget —
-// dashboard_tab.dart builds `ActiveDeliveriesBanner(...)` and injects it via
-// `JeeberHomeScreen(activeDeliveriesBanner:)`. The stale "ORPHAN (JEBV4-227)"
-// note predated that wiring (commit bf99d34); jeeber_home's own
-// JeeberActiveDeliveriesBanner is now only the `??` fallback the shell never hits.
 class ActiveDeliveriesBanner extends StatelessWidget {
   const ActiveDeliveriesBanner({
     super.key,
@@ -57,9 +70,9 @@ class ActiveDeliveriesBanner extends StatelessWidget {
           explicitChildNodes: true,
           child: Padding(
             padding: const EdgeInsetsDirectional.only(
-              start: Spacing.medium,
+              start: Spacing.xLarge,
               top: Spacing.xSmall,
-              end: Spacing.medium,
+              end: Spacing.xLarge,
             ),
             child: _ActiveDeliveriesCardList(
               deliveries: state.deliveries,
@@ -74,9 +87,9 @@ class ActiveDeliveriesBanner extends StatelessWidget {
   }
 }
 
-/// Keeps active work to one summary row at rest so it cannot bury the incoming
-/// request feed. The full cards are built only after the Jeeber explicitly asks
-/// to view them; "show less" returns to the compact dashboard hierarchy.
+/// One pinned card when there is one job; a disclosure row above the cards when
+/// there are several, so a jeeber juggling four deliveries still cannot bury
+/// the incoming-request feed under them.
 class _ActiveDeliveriesCardList extends StatefulWidget {
   const _ActiveDeliveriesCardList({
     required this.deliveries,
@@ -98,20 +111,27 @@ class _ActiveDeliveriesCardList extends StatefulWidget {
 class _ActiveDeliveriesCardListState extends State<_ActiveDeliveriesCardList> {
   bool _expanded = false;
 
+  /// Below this count the list has nothing to disclose — the single card IS
+  /// the summary, and a `View all (1)` row above it is pure ceremony.
+  static const int _disclosureThreshold = 2;
+
   @override
   Widget build(BuildContext context) {
+    final needsDisclosure = widget.deliveries.length >= _disclosureThreshold;
+    final showCards = !needsDisclosure || _expanded;
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ActiveDeliveriesSummaryRow(
-          expanded: _expanded,
-          totalCount: widget.deliveries.length,
-          l10n: widget.l10n,
-          onToggle: () => setState(() => _expanded = !_expanded),
-        ),
-        if (_expanded) ...[
-          const SizedBox(height: Spacing.small),
+        if (needsDisclosure)
+          _ActiveDeliveriesSummaryRow(
+            expanded: _expanded,
+            totalCount: widget.deliveries.length,
+            l10n: widget.l10n,
+            onToggle: () => setState(() => _expanded = !_expanded),
+          ),
+        if (showCards) ...[
+          if (needsDisclosure) const SizedBox(height: Spacing.xSmall),
           for (final delivery in widget.deliveries)
             _ActiveDeliveryCard(
               delivery: delivery,
@@ -129,7 +149,7 @@ class _ActiveDeliveriesCardListState extends State<_ActiveDeliveriesCardList> {
 /// ellipsizes.
 const int _kActiveDeliveriesSummaryTitleMaxLines = 2;
 
-/// One-row disclosure that keeps existing work discoverable without giving it
+/// One-row disclosure that keeps several jobs discoverable without giving them
 /// more initial vertical weight than the incoming-request task.
 class _ActiveDeliveriesSummaryRow extends StatelessWidget {
   const _ActiveDeliveriesSummaryRow({
@@ -146,7 +166,6 @@ class _ActiveDeliveriesSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Row(
       children: [
         Expanded(
@@ -154,18 +173,24 @@ class _ActiveDeliveriesSummaryRow extends StatelessWidget {
             l10n.jeeberActiveDeliveriesTitle,
             maxLines: _kActiveDeliveriesSummaryTitleMaxLines,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleSmall,
+            // `onSurface` is the heading ink app-wide; the card below already
+            // spends this band's orange on its frame and disc.
+            style: context.jeebText.cardTitle.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
         ),
         const SizedBox(width: Spacing.small),
         Semantics(
           identifier: 'jeeber_active_deliveries_view_all',
-          child: OmdsPrimaryButton(
-            variant: OmdsButtonVariant.text,
-            text: expanded
+          // `OmdsPrimaryButton.text` inks label AND icon from
+          // `colorScheme.primary`, which under Midnight IS the orange.
+          child: JeebCtaButton.text(
+            label: expanded
                 ? l10n.jeeberActiveDeliveriesShowLess
                 : l10n.jeeberActiveDeliveriesViewAll(totalCount),
-            icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+            leadingIcon: expanded ? Icons.expand_less : Icons.expand_more,
+            expand: false,
             onTap: onToggle,
           ),
         ),
@@ -174,6 +199,8 @@ class _ActiveDeliveriesSummaryRow extends StatelessWidget {
   }
 }
 
+/// The board's pinned job (tpl 915–922): a 2px accent frame, the Ø38 scooter
+/// disc, one title line, one status line, one periwinkle pill.
 class _ActiveDeliveryCard extends StatelessWidget {
   const _ActiveDeliveryCard({
     required this.delivery,
@@ -189,236 +216,135 @@ class _ActiveDeliveryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final title = delivery.title ?? l10n.jeeberActiveDeliveriesFallbackTitle;
     return Padding(
-      padding: const EdgeInsetsDirectional.only(bottom: Spacing.small),
-      child: Semantics(
+      padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
+      // The frozen row id rides the kit card, which emits it as one
+      // `Semantics(identifier:, button:, container:, explicitChildNodes:)`
+      // node — value-identical to the hand-rolled wrapper it replaces, and the
+      // explicit child nodes are what keep the two action ids queryable.
+      child: JeebAccentFrameCard(
         identifier: 'jeeber_active_delivery_row_${delivery.id}',
-        button: true,
-        child: OMDSGlassCard(
-          backgroundColor: colorScheme.surfaceContainerLow,
-          borderRadius: OMDSBorderRadius.lg,
-          padding: EdgeInsets.zero,
-          border: Border.all(
-            color: colorScheme.outlineVariant,
-            width: UIConstants.dividerWidth,
-          ),
-          child: InkWell(
-            // Tapping the card opens the chat — the primary entry the blocker
-            // stranded the jeeber out of. "Start/Manage delivery" lives in the
-            // chat and on the secondary button.
-            onTap: onOpenChat,
-            borderRadius: OmdsBorderRadius.large,
-            child: Padding(
-              padding: const EdgeInsets.all(Spacing.medium),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+        // Orange 12% inside the frame (wave-C ruling 10); the jeeber_home `??`
+        // fallback carries the same rung and a pair test pins them equal.
+        fill: JeebAccentFrameFill.accentTint,
+        // Tapping the card opens the chat — the primary entry the iter6
+        // blocker stranded the jeeber out of.
+        onTap: onOpenChat,
+        child: Row(
+          children: [
+            const _VehicleDisc(),
+            const SizedBox(width: Spacing.small),
+            Expanded(
+              // The whole title block IS the open-chat affordance; the id sits
+              // on it (not on the card root, which the row id owns) so both
+              // stay independently tappable by Maestro.
+              child: Semantics(
+                identifier: 'jeeber_active_delivery_open_chat_${delivery.id}',
+                button: true,
+                label: l10n.jeeberActiveDeliveriesOpenChat,
+                onTap: onOpenChat,
+                child: ExcludeSemantics(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: theme.textTheme.titleSmall,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      _StatusChip(status: delivery.status, l10n: l10n),
+                      _CardTitle(delivery: delivery, l10n: l10n),
+                      const SizedBox(height: Spacing.twoXSmall),
+                      _StatusLine(status: delivery.status, l10n: l10n),
                     ],
                   ),
-                  if (delivery.dropoffAddress != null) ...[
-                    const SizedBox(height: Spacing.xSmall),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: Sizes.small,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: Spacing.twoXSmall),
-                        Expanded(
-                          child: Text(
-                            delivery.dropoffAddress!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: Spacing.small),
-                  _ActiveDeliveryCardActions(
-                    deliveryId: delivery.id,
-                    l10n: l10n,
-                    onOpenChat: onOpenChat,
-                    onManageDelivery: onManageDelivery,
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The card's two action buttons ("Open chat" + "Manage delivery"), laid out
-/// responsively so the OMDS button labels never right-overflow on a narrow
-/// card.
-///
-/// [OmdsPrimaryButton]'s *default* content renders its icon + label in a
-/// `mainAxisSize.min` Row with a plain (non-ellipsizing) `Text`, so an
-/// `Expanded`/stretched box narrower than that intrinsic width lets the
-/// content paint past its edge — the 39px right-overflow observed on
-/// SM-S921B, and the 27px right-overflow observed on S908B (run-26), which
-/// hit a *different* narrow width (S908B's card sits above the side-by-side
-/// threshold below, so the two-Expanded Row is used, but the per-button slot
-/// is still narrower than "Manage delivery"'s intrinsic icon+label width).
-/// Rather than chase a wider width-based threshold (which just moves the
-/// breakpoint to the next device), both buttons use the `child:` override to
-/// supply their own icon+label Row with the label wrapped in [Flexible] +
-/// `overflow: ellipsis` — so the label truncates instead of overflowing at
-/// ANY slot width, side-by-side or stacked, LTR or RTL. Below the side-by-side
-/// threshold we still stack the two buttons full-width (each then has the
-/// whole card width, so the label rarely needs to truncate at all).
-class _ActiveDeliveryCardActions extends StatelessWidget {
-  const _ActiveDeliveryCardActions({
-    required this.deliveryId,
-    required this.l10n,
-    required this.onOpenChat,
-    required this.onManageDelivery,
-  });
-
-  /// The stable backend id of the delivery this card represents — used to make
-  /// each card's action-button Semantics identifiers unique in the list.
-  final String deliveryId;
-  final AppLocalizations l10n;
-  final VoidCallback onOpenChat;
-  final VoidCallback onManageDelivery;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final labelStyle = theme.textTheme.labelLarge?.copyWith(
-      fontWeight: FontWeight.w600,
-    );
-    final openChat = Semantics(
-      identifier: 'jeeber_active_delivery_open_chat_$deliveryId',
-      container: true,
-      button: true,
-      child: OmdsPrimaryButton(
-        text: l10n.jeeberActiveDeliveriesOpenChat,
-        onTap: onOpenChat,
-        child: _ButtonLabel(
-          icon: Icon(Icons.chat_bubble_outline, color: colorScheme.onPrimary),
-          label: l10n.jeeberActiveDeliveriesOpenChat,
-          style: labelStyle?.copyWith(color: colorScheme.onPrimary),
-        ),
-      ),
-    );
-    final manage = Semantics(
-      identifier: 'jeeber_active_delivery_manage_$deliveryId',
-      container: true,
-      button: true,
-      child: OmdsPrimaryButton(
-        text: l10n.jeeberActiveDeliveriesManage,
-        variant: OmdsButtonVariant.outlined,
-        onTap: onManageDelivery,
-        child: _ButtonLabel(
-          icon: const Icon(Icons.local_shipping_outlined),
-          label: l10n.jeeberActiveDeliveriesManage,
-          style: labelStyle?.copyWith(color: colorScheme.primary),
-        ),
-      ),
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Two icon+label buttons need ~300+ logical px to sit side by side
-        // without their labels shrinking to an ellipsis; below that (every
-        // standard phone card width) stack them full-width instead.
-        final sideBySide = constraints.maxWidth >= Sizes.threeHundredLarge;
-        if (sideBySide) {
-          return Row(
-            children: [
-              Expanded(child: openChat),
-              const SizedBox(width: Spacing.small),
-              Expanded(child: manage),
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            openChat,
-            const SizedBox(height: Spacing.small),
-            manage,
+            const SizedBox(width: Spacing.small),
+            // Flexible, not fixed: "Manage delivery" is a long label in EN and
+            // longer in AR, and on a 360dp handset a rigid pill would push the
+            // row past the card edge. It ellipsizes before the row overflows.
+            Flexible(
+              child: _ManagePill(
+                deliveryId: delivery.id,
+                label: l10n.jeeberActiveDeliveriesManage,
+                onTap: onManageDelivery,
+              ),
+            ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
-/// Icon + label content for an [OmdsPrimaryButton], supplied via its `child:`
-/// override so the label can be [Flexible] instead of the package's default
-/// non-ellipsizing `Text` (see [_ActiveDeliveryCardActions] doc for the
-/// overflow this fixes). Mirrors the icon-leading layout + spacing token the
-/// OMDS default content uses, so the button looks identical when it isn't
-/// squeezed — only truncating the label when the slot is too narrow.
-class _ButtonLabel extends StatelessWidget {
-  const _ButtonLabel({
-    required this.icon,
-    required this.label,
-    required this.style,
-  });
-
-  final Widget icon;
-  final String label;
-  final TextStyle? style;
+/// Ø38 accent disc — the one orange fill this card is allowed (R5).
+class _VehicleDisc extends StatelessWidget {
+  const _VehicleDisc();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        icon,
-        const SizedBox(width: Spacing.xSmall),
-        Flexible(
-          child: Text(
-            label,
-            style: style,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
+    final roles = context.jeebRoles;
+    return Container(
+      width: Sizes.threeXLarge,
+      height: Sizes.threeXLarge,
+      alignment: AlignmentDirectional.center,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: roles.accent),
+      child: Icon(Icons.two_wheeler, size: Sizes.large, color: roles.onAccent),
     );
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status, required this.l10n});
+/// `Active: {order} → {dropoff}` — two spans, never one hardcoded arrow: the
+/// connector is resolved from the ambient direction so it still points at the
+/// destination once the row mirrors in Arabic.
+class _CardTitle extends StatelessWidget {
+  const _CardTitle({required this.delivery, required this.l10n});
+
+  final ActiveDeliverySummary delivery;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final subject = delivery.title ?? l10n.jeeberActiveDeliveriesFallbackTitle;
+    final destination = delivery.dropoffAddress?.trim();
+    final head = '${l10n.jeeberActiveLabel}: $subject';
+    final arrow = Directionality.of(context) == TextDirection.rtl ? '←' : '→';
+    return Text(
+      destination == null || destination.isEmpty
+          ? head
+          : '$head $arrow $destination',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      // R16 draws this title white; the frame and the Ø38 disc are already this
+      // card's whole orange budget. The `??` fallback twin carries the same ink.
+      style: context.jeebText.body.copyWith(
+        fontWeight: FontWeight.w700,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
+  }
+}
+
+/// The status word, folded out of its own chip and into the subtitle.
+///
+// TODO(redesign-24): the board also reads "· $8 cash on arrival" here.
+// `ActiveDeliverySummary` has no amount field and `GET /v1/deliveries?role=
+// jeeber` sends none, so the figure is omitted, not faked.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.status, required this.l10n});
 
   final JeeberDeliveryStatus status;
   final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return OmdsChip(
-      label: _label(l10n, status),
-      isSelected: true,
-      selectedColor: colorScheme.primaryContainer,
-      selectedTextColor: colorScheme.onPrimaryContainer,
+    return Text(
+      _label(l10n, status),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: context.jeebText.bodySmall.copyWith(
+        color:
+            (Theme.of(context).extension<JeebSemanticColors>() ??
+                    JeebSemanticColors.light())
+                .mutedText,
+      ),
     );
   }
 
@@ -441,5 +367,59 @@ class _StatusChip extends StatelessWidget {
       case JeeberDeliveryStatus.disputed:
         return l10n.activeDeliveryDisputedTitle;
     }
+  }
+}
+
+/// The periwinkle pill at the card's end edge (the board's `Manage`). Its frozen
+/// identifier is what the jeeber flows tap, so it stays a distinct node inside
+/// the card.
+///
+/// `JeebCtaButton` rather than the `JeebSelectChip` the sibling pills use: the
+/// kit chip's label is a rigid `Text` in a `mainAxisSize.min` Row, and
+/// "Manage delivery" (longer still in Arabic) then overflows a one-row card on
+/// a 360dp handset — the exact defect `jeeber_dashboard_overflow_test` was
+/// written for. The CTA's label ellipsizes under a bounded width instead.
+class _ManagePill extends StatelessWidget {
+  const _ManagePill({
+    required this.deliveryId,
+    required this.label,
+    required this.onTap,
+  });
+
+  /// Between the board's 33 and the kit's 56: a card-row pill, not a footer
+  /// CTA. `MinTapTarget` still guarantees the 48dp target around it.
+  static const double pillHeight = 40;
+
+  final String deliveryId;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'jeeber_active_delivery_manage_$deliveryId',
+      button: true,
+      container: true,
+      label: label,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: MinTapTarget(
+          onTap: onTap,
+          child: JeebCtaButton.primary(
+            key: Key('jeeber-active-manage-$deliveryId'),
+            label: label,
+            height: pillHeight,
+            expand: false,
+            contentPadding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Spacing.medium,
+            ),
+            labelStyle: context.jeebText.bodySmall.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            onTap: onTap,
+          ),
+        ),
+      ),
+    );
   }
 }

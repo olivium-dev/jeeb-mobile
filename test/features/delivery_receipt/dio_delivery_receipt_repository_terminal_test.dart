@@ -1,16 +1,4 @@
 // S10 Defect B — DioDeliveryReceiptRepository terminal-status guard.
-//
-// After the door-OTP handover drives the delivery to `Done` server-side, the
-// customer's "Yes, I received it" CTA must NOT fire a second status transition —
-// the frozen SM-1 table correctly rejects `Done → Done` with 422. The repository
-// skips the transition PATCH entirely when the loaded receipt is already
-// terminal.
-//
-// COD-COMPLETE FIX (fix/cod-complete): there is NO customer-side COD write any
-// more (the old `POST /v1/payments/cod_jeeb/record` 404'd and blocked rating),
-// and the transition now targets the real, shipped gateway route
-// `PATCH /v1/deliveries/{id}/status` instead of the fictional
-// `POST /v1/delivery/status/transition`.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';

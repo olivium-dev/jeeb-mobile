@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,30 +9,45 @@ import 'package:omds/omds.dart';
 
 import '../../../core/locale/locale_cubit.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_page_dots.dart';
 import '../../../l10n/app_localizations.dart';
+import 'widgets/walkthrough_tracking_art.dart';
+import 'widgets/walkthrough_trust_art.dart';
+import 'widgets/walkthrough_voice_art.dart';
 
-/// Three-page introductory onboarding carousel shown to first-launch users
-/// (JM-010 `walkthrough`).
+/// The three-slide walkthrough (JM-010), rebuilt on the MIDNIGHT board's
+/// R5 + W1–W3 tiles.
 ///
-/// Structure mirrors the Olivium fleet reference walkthroughs (Salehly /
-/// rahmah / creamati / saawt): a full-bleed [PageView] of branded
-/// illustrations behind a bottom gradient scrim, with the animated step copy
-/// ([OmdsWalkthroughSwitcher]), the page dots ([OmdsDotIndicator]), the
-/// primary CTA ([OmdsPrimaryButton]) and the Skip affordance
-/// ([OmdsSkipButton]) anchored along the bottom edge. The illustration is the
-/// swipeable back layer; the text + controls float over the scrim
-/// (`IgnorePointer` on the copy so swipes still reach the carousel).
+/// Structure is a three-band column on the Midnight field: the wordmark +
+/// EN/عربي toggle ([_OnboardingTopBar]), the swipeable [_WalkthroughStage], and
+/// a **frosted navy sheet** ([_OnboardingSheet]) carrying the Arabic eyebrow,
+/// the step copy, the page dots and the `Skip` / `Next →` footer. The stage is
+/// deliberately ~40% empty — that emptiness is the design.
+///
+/// The field changes with the slide, because the tiles do: W1 draws an ORANGE
+/// glow at centre-upper, W2 a PERIWINKLE wash at the same anchor and no orange
+/// at all, and W3 draws no radial whatsoever under its night map.
+///
+/// Motion is the point of this screen — 19 of the board's 76 in-scope animated
+/// elements live on these four tiles. Every period and delay is wired in the
+/// three `widgets/walkthrough_*_art.dart` files, straight from
+/// `docs/redesign-midnight/03-MOTION-NOTES.md`; nothing else on the screen
+/// moves.
 ///
 /// JM-010 destination (DEFECT-3, phone-OTP entry): "Get Started" on the last
 /// slide AND "Skip" from any slide route to the **phone-OTP** flow
 /// (`/register`, `registration_root`), NOT the email-first `/sign-up`. The LIVE
 /// gateway has no `/v1/auth/login` or `/v1/auth/signup` route, so the email
-/// funnel dead-ends (both 401); the phone-OTP flow
-/// (`/v1/auth/otp/request` → `/v1/auth/otp/verify`) is the only auth that
-/// authenticates against it. The email `/login` + `/sign-up` screens are kept
-/// (a later gateway fix may add those routes) and stay reachable FROM
-/// `/register`, but they are no longer the forced entry. (Previously routed to
-/// `/sign-up` under the CTO-D1 email-first funnel.)
+/// funnel dead-ends (both 401).
 ///
 /// Semantics contract (`docs/build-out/60_W0_TEST_PLAN.md` §2.2; coined §4):
 ///   - `walkthrough_slide_1` / `_slide_2` / `_slide_3` — the per-slide root
@@ -39,30 +56,24 @@ import '../../../l10n/app_localizations.dart';
 ///   - `walkthrough_get_started_cta` — the primary CTA on the last slide only.
 ///   - `walkthrough_skip_cta` — the Skip affordance, present from slide 1.
 /// The foundation-era `onboarding_next_button` (primary CTA) and
-/// `onboarding_headline` (animated step copy) identifiers are preserved so the
-/// pre-existing Phase-2 PoC flow keeps asserting on them.
+/// `onboarding_headline` (the step copy) identifiers are preserved.
 ///
-/// Slide artwork (FR-WALKTHROUGH / FR-P1-1; slide 2 completed in FR-D1D2): all
-/// three slides render real exported brand vectors via [SvgPicture.asset] —
-/// `assets/illustrations/onboarding_voice_first.svg` (voice-first),
-/// `onboarding_trusted_jeebers.svg` (trusted Jeebers) and
-/// `onboarding_live_tracking.svg` (live tracking). [_WalkthroughIllustration]
-/// isolates the per-slide treatment: a slide with an `asset` renders the SVG; a
-/// slide without one degrades to the tinted [_OnboardingPage.icon] glyph on the
-/// brand field — preserving the resilient fallback for any future slide.
-///
-/// FR-P1-2: an EN/AR language toggle ([_LanguageToggle], built on
-/// [OmdsFilterChips]) is anchored top-trailing; selecting a locale drives
+/// FR-P1-2: the EN/AR toggle ([OnboardingLanguageToggle]) drives
 /// [LocaleCubit.setLocale], which rebuilds `MaterialApp.locale` and flips the
-/// entire tree to RTL live (no restart).
+/// whole tree to RTL live (no restart).
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key, this.onComplete});
+  const OnboardingScreen({super.key, this.onComplete, this.slideOneVariant});
 
   /// Optional override for navigation. Tests inject this so the screen
   /// does not need a GoRouter in scope. Production leaves it null and
   /// `context.goNamed('register')` (the phone-OTP entry) handles navigation
   /// (DEFECT-3).
   final VoidCallback? onComplete;
+
+  /// Which of the board's two placements of the same slide-1 art to draw.
+  /// The app ships W1 (the walkthrough series W1–W3 is one coherent set); R5 is
+  /// the same composition shifted, and the catalog mounts it for capture.
+  final WalkthroughVoicePlacement? slideOneVariant;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -99,11 +110,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       onComplete();
     } else {
       // DEFECT-3: Get Started + Skip land on the phone-OTP entry (`/register`,
-      // `registration_root`), NOT the email-first `/sign-up`. The LIVE gateway
-      // has no `/v1/auth/login` or `/v1/auth/signup` route, so the email funnel
-      // dead-ends; the phone-OTP flow (`/v1/auth/otp/request` →
-      // `/v1/auth/otp/verify`) is the only auth that works. The email screens
-      // remain reachable from `/register` for a later gateway fix.
+      // `registration_root`), NOT the email-first `/sign-up`.
       // ignore: use_build_context_synchronously
       context.goNamed('register');
     }
@@ -111,122 +118,339 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final pages = _onboardingPages(AppLocalizations.of(context));
-    // The hero illustration band is brand-navy (`secondaryContainer`), so the
-    // status bar must paint LIGHT (white) icons to stay legible — the global
-    // `Brightness.dark` set in `main()` is for the light auth/client screens.
-    // The bottom band is the light `surface` scrim, so the system nav-bar icons
-    // resolve from the active theme brightness (dark icons in light mode).
+    final pages = _onboardingPages(
+      AppLocalizations.of(context),
+      slideOneVariant: widget.slideOneVariant ?? WalkthroughVoicePlacement.w1,
+    );
+    final page = pages[_currentPage.clamp(0, pages.length - 1)];
+    // Every band of this screen is navy, so the status bar must paint LIGHT
+    // icons; the nav bar sits on the frosted sheet, which is navy too.
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: Colors.transparent,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarDividerColor: Colors.transparent,
-        systemNavigationBarIconBrightness:
-            Theme.of(context).brightness == Brightness.dark
-                ? Brightness.light
-                : Brightness.dark,
-      ),
+      value: AppTheme.systemOverlayStyle,
       child: Semantics(
         identifier: 'onboarding_root',
         container: true,
         child: Scaffold(
-        backgroundColor: colorScheme.secondaryContainer,
-        body: Stack(
-          children: [
-            _IllustrationCarousel(
-              controller: _pageController,
-              pages: pages,
-              onPageChanged: (i) => setState(() => _currentPage = i),
+          backgroundColor: Colors.transparent,
+          body: JeebMidnightField(
+            variant: JeebFieldVariant.content,
+            glowPlacement: JeebFieldGlowPlacement.centerUpper,
+            glowColor: _fieldGlow(context, page.field),
+            // The tiles draw their own rings inside the art; the field's own
+            // orbit decor is not on any of these four.
+            showRings: false,
+            showTwinkles: false,
+            child: Column(
+              children: [
+                const _OnboardingTopBar(),
+                Expanded(
+                  child: _WalkthroughStage(
+                    controller: _pageController,
+                    pages: pages,
+                    onPageChanged: (i) => setState(() => _currentPage = i),
+                  ),
+                ),
+                _OnboardingSheet(
+                  pages: pages,
+                  currentPage: _currentPage,
+                  onNext: () => _onNext(pages.length),
+                  onSkip: _completeAndNavigate,
+                  onGetStarted: _completeAndNavigate,
+                ),
+              ],
             ),
-            const _BottomScrim(),
-            _BottomPanel(
-              pages: pages,
-              currentPage: _currentPage,
-              onNext: () => _onNext(pages.length),
-              onSkip: _completeAndNavigate,
-              onGetStarted: _completeAndNavigate,
-            ),
-            const _LanguageToggle(),
-          ],
+          ),
         ),
-      ),
       ),
     );
   }
 }
 
-/// Asset paths for the wired walkthrough slide illustrations (FR-P1-1; the
-/// trusted-Jeebers slide-2 asset landed in FR-D1D2).
-const String _kVoiceFirstAsset = 'assets/illustrations/onboarding_voice_first.svg';
-const String _kTrustedJeebersAsset =
-    'assets/illustrations/onboarding_trusted_jeebers.svg';
-const String _kLiveTrackingAsset =
-    'assets/illustrations/onboarding_live_tracking.svg';
+/// The radial each tile draws over the base wash, resolved to a colour the
+/// field paints at [JeebFieldGlowPlacement.centerUpper].
+///
+/// W2's is a periwinkle WASH, not an orange glow — the distinction the board is
+/// explicit about, and the reason this is not one constant.
+Color _fieldGlow(BuildContext context, _SlideField field) {
+  final ColorScheme scheme = Theme.of(context).colorScheme;
+  return switch (field) {
+    // Board `rgba(215,59,0,.3) … 62%`; §8's hero band is .26–.30.
+    _SlideField.accentGlow => context.jeebRoles.accent.withValues(
+      alpha: _kAccentGlowAlpha,
+    ),
+    // Board `rgba(119,127,192,.28)`; §8 bands the wash at .18–.22 and the
+    // wave-C ruling clamps to the top of it.
+    _SlideField.periwinkleWash => scheme.secondary.withValues(
+      alpha: _kWashAlpha,
+    ),
+    // W3 draws no radial at all under its night map.
+    _SlideField.none => Colors.transparent,
+  };
+}
 
-/// Static slide content. All three slides carry real exported SVGs; the [icon]
-/// remains as a resilient fallback only (rendered if a future slide ever ships
-/// without an `asset` — see [_WalkthroughIllustration]).
-List<_OnboardingPage> _onboardingPages(AppLocalizations l10n) => [
-      _OnboardingPage(
-        icon: Icons.mic_none_rounded,
-        asset: _kVoiceFirstAsset,
-        title: l10n.onboardingSlide1Title,
-        body: l10n.onboardingSlide1Body,
-        semanticsLabel: l10n.onboardingSlide1Semantics,
-      ),
-      _OnboardingPage(
-        // FR-D1D2: the real "Trusted Jeebers" brand vector. The verified-user
-        // glyph is retained only as the resilient decode fallback.
-        icon: Icons.verified_user_outlined,
-        asset: _kTrustedJeebersAsset,
-        title: l10n.onboardingSlide2Title,
-        body: l10n.onboardingSlide2Body,
-        semanticsLabel: l10n.onboardingSlide2Semantics,
-      ),
-      _OnboardingPage(
-        icon: Icons.map_outlined,
-        asset: _kLiveTrackingAsset,
-        title: l10n.onboardingSlide3Title,
-        body: l10n.onboardingSlide3Body,
-        semanticsLabel: l10n.onboardingSlide3Semantics,
-      ),
-    ];
+/// Board top bar: `padding:18px 24px 0`; 18 sits between two spacing rungs.
+const double _kTopBarTopPadding = 18;
+
+/// The Jeeb wordmark on the navy field (white fills + accent strokes).
+const String _kWordmarkAsset = 'assets/brand/jeeb_logo.svg';
+
+/// Minimum height reserved for the animated slide copy, so the docked sheet
+/// does not change height as the pager advances.
+const double _kSlideCopyMinHeight = 120.0;
+
+/// The sheet never grows past this fraction of the viewport — the guard that
+/// keeps a 200% text scale scrolling inside the sheet instead of squeezing the
+/// stage to nothing.
+const double _kSheetMaxHeightFactor = 0.62;
+
+/// R5/W1's `radial-gradient(… rgba(215,59,0,.3) …)`. §8 bands the HERO glow at
+/// .26–.30, so the tile's own figure needs no clamp; .28 is the ratified rung.
+const double _kAccentGlowAlpha = 0.30;
+
+/// W2's `rgba(119,127,192,.28)`, clamped to the ratified .18–.22 wash band.
+const double _kWashAlpha = 0.22;
+
+/// Board sheet: `rgba(13,19,74,.7)` over a `1px rgba(255,255,255,.14)` hairline,
+/// `border-radius:34px 34px 0 0`, `padding:30px 32px 28px`.
+const double _kSheetFillOpacity = 0.7;
+const EdgeInsetsGeometry _kSheetPadding = EdgeInsetsDirectional.fromSTEB(
+  Spacing.twoXLarge,
+  30,
+  Spacing.twoXLarge,
+  28,
+);
+
+/// Which radial the slide's tile draws over the base wash.
+enum _SlideField { accentGlow, periwinkleWash, none }
+
+/// Static slide content. Each slide's art is the tile's own composition; there
+/// is no shared illustration asset left on this screen.
+List<_OnboardingPage> _onboardingPages(
+  AppLocalizations l10n, {
+  required WalkthroughVoicePlacement slideOneVariant,
+}) => [
+  _OnboardingPage(
+    title: l10n.onboardingSlide1Title,
+    body: l10n.onboardingSlide1Body,
+    tagline: l10n.onboardingTagline,
+    semanticsLabel: l10n.onboardingSlide1Semantics,
+    field: _SlideField.accentGlow,
+    art: WalkthroughVoiceArt(placement: slideOneVariant),
+  ),
+  _OnboardingPage(
+    title: l10n.onboardingSlide2Title,
+    body: l10n.onboardingSlide2Body,
+    tagline: l10n.walkthroughSlide2Tagline,
+    semanticsLabel: l10n.onboardingSlide2Semantics,
+    field: _SlideField.periwinkleWash,
+    art: const WalkthroughTrustArt(),
+  ),
+  _OnboardingPage(
+    title: l10n.onboardingSlide3Title,
+    body: l10n.onboardingSlide3Body,
+    tagline: l10n.walkthroughSlide3Tagline,
+    semanticsLabel: l10n.onboardingSlide3Semantics,
+    field: _SlideField.none,
+    art: const WalkthroughTrackingArt(),
+  ),
+];
 
 class _OnboardingPage {
   const _OnboardingPage({
-    required this.icon,
-    required this.asset,
     required this.title,
     required this.body,
+    required this.tagline,
     required this.semanticsLabel,
+    required this.field,
+    required this.art,
   });
-
-  /// Interim glyph, used only when [asset] is null.
-  final IconData icon;
-
-  /// Bundled SVG illustration path, or null to fall back to the [icon] glyph.
-  final String? asset;
 
   final String title;
   final String body;
 
-  /// Localized screen-reader alt text for the illustration.
+  /// The Arabic brand eyebrow above the headline; Arabic in both locales.
+  final String tagline;
+
+  /// Localized screen-reader alt text for the slide art.
   final String semanticsLabel;
+
+  /// Which radial this slide's tile draws.
+  final _SlideField field;
+
+  /// The tile-drawn stage composition.
+  final Widget art;
 }
 
-/// Full-bleed, swipeable illustration carousel — the back layer of the stack.
+/// Band 1: the wordmark and the EN/عربي language toggle on the navy field.
+class _OnboardingTopBar extends StatelessWidget {
+  const _OnboardingTopBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final locale = context.watch<LocaleCubit>().state;
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          _kTopBarTopPadding,
+          Spacing.xLarge,
+          0,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Semantics(
+              identifier: 'onboarding_wordmark',
+              image: true,
+              label: l10n.splashLogoSemantic,
+              child: SvgPicture.asset(
+                _kWordmarkAsset,
+                height: Sizes.large,
+                // A failed/slow decode leaves the navy field, never a broken
+                // glyph.
+                placeholderBuilder: (_) => const SizedBox(height: Sizes.large),
+              ),
+            ),
+            OnboardingLanguageToggle(
+              key: const Key('onboarding.languageToggle'),
+              selectedValue: locale.languageCode,
+              onChanged: (code) =>
+                  context.read<LocaleCubit>().setLocale(Locale(code)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Supported onboarding locale language codes (FR-P1-2).
+const String _kLangEn = 'en';
+const String _kLangAr = 'ar';
+
+/// The EN/عربي pill switch on the walkthrough's navy field (FR-P1-2).
 ///
-/// Each page's artwork is wrapped in the per-slide
-/// `walkthrough_slide_<n>` Semantics container (JM-010 / 60_W0_TEST_PLAN
-/// §2.2). Because a [PageView] keeps only the centered page on-screen and
-/// translates the neighbours out of bounds, exactly one `walkthrough_slide_<n>`
-/// node is reported visible at a time — which is what the Maestro
-/// `extendedWaitUntil { visible: walkthrough_slide_N }` steps assert as the
-/// carousel advances.
-class _IllustrationCarousel extends StatelessWidget {
-  const _IllustrationCarousel({
+/// The screen-local on-navy variant the kit sanctions: [JeebSegmentedToggle] is
+/// the surface switch used elsewhere and must not be widened for a translucent
+/// on-field track. Public because the screen's widget tests type-assert it.
+class OnboardingLanguageToggle extends StatelessWidget {
+  const OnboardingLanguageToggle({
+    super.key,
+    required this.selectedValue,
+    required this.onChanged,
+  });
+
+  /// Board `padding:4` around the segments, `gap:5`.
+  static const double trackPadding = Spacing.twoXSmall;
+  static const double segmentGap = 5;
+
+  /// The active locale's language code (`en` / `ar`).
+  final String selectedValue;
+
+  /// Fires with the tapped segment's language code.
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    return Semantics(
+      identifier: 'onboarding_language_toggle',
+      container: true,
+      explicitChildNodes: true,
+      label: l10n.onboardingChooseLanguage,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: semantics.glassFill,
+          border: Border.all(color: semantics.glassBorderStrong),
+          borderRadius: BorderRadius.circular(JeebRadii.pill),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(trackPadding),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: segmentGap,
+            children: [
+              _LanguageSegment(
+                identifier: 'onboarding_language_en',
+                label: l10n.onboardingLanguageEnShort,
+                isSelected: selectedValue == _kLangEn,
+                onTap: () => onChanged(_kLangEn),
+              ),
+              _LanguageSegment(
+                identifier: 'onboarding_language_ar',
+                label: l10n.onboardingLanguageArShort,
+                isSelected: selectedValue == _kLangAr,
+                onTap: () => onChanged(_kLangAr),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One segment: a WHITE pill with NAVY ink when selected (board `#fff` on
+/// `--jeeb-navy`), bare periwinkle ink when not.
+class _LanguageSegment extends StatelessWidget {
+  const _LanguageSegment({
+    required this.identifier,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  /// Board `padding:5px 13px`.
+  static const EdgeInsetsGeometry padding = EdgeInsetsDirectional.symmetric(
+    horizontal: 13,
+    vertical: 5,
+  );
+
+  final String identifier;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      identifier: identifier,
+      button: true,
+      selected: isSelected,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        // M5: R5/W1 list the `عربي` pill as still — selection swaps, no tween.
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: isSelected ? scheme.onSurface : Colors.transparent,
+            borderRadius: BorderRadius.circular(JeebRadii.pill),
+          ),
+          child: Text(
+            label,
+            style: context.jeebText.bodySmall.copyWith(
+              fontWeight: FontWeight.w700,
+              // Navy knockout on the white pill; periwinkle when idle.
+              color: isSelected ? scheme.surface : scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Band 2: the swipeable stage. Each slide owns its whole composition — the
+/// rings, the mic and the map all belong to a tile, not to the stage.
+class _WalkthroughStage extends StatelessWidget {
+  const _WalkthroughStage({
     required this.controller,
     required this.pages,
     required this.onPageChanged,
@@ -238,103 +462,25 @@ class _IllustrationCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PageView.builder(
-      key: const Key('onboarding.pager'),
-      controller: controller,
-      itemCount: pages.length,
-      onPageChanged: onPageChanged,
-      itemBuilder: (_, i) => Semantics(
-        // walkthrough_slide_1 / _slide_2 / _slide_3 — per-slide root container.
-        identifier: 'walkthrough_slide_${i + 1}',
-        container: true,
-        child: _WalkthroughIllustration(page: pages[i]),
-      ),
-    );
-  }
-}
-
-/// The branded full-bleed slide artwork.
-///
-/// Renders the page's exported SVG ([SvgPicture.asset]) when [_OnboardingPage.asset]
-/// is set; otherwise degrades to a tinted Material glyph on the brand-navy
-/// field. Either way the artwork floats above the bottom copy/control band and
-/// carries a localized semantic label so screen readers announce the slide.
-class _WalkthroughIllustration extends StatelessWidget {
-  const _WalkthroughIllustration({required this.page});
-
-  final _OnboardingPage page;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      child: Align(
-        // Float the artwork above the bottom copy/control band.
-        alignment: const Alignment(0.0, -0.35),
-        child: Semantics(
-          key: const Key('onboarding.illustration'),
-          image: true,
-          label: page.semanticsLabel,
-          child: _IllustrationArtwork(page: page),
-        ),
-      ),
-    );
-  }
-}
-
-/// The artwork itself: the real SVG, or the interim brand glyph when no asset
-/// exists for this slide.
-class _IllustrationArtwork extends StatelessWidget {
-  const _IllustrationArtwork({required this.page});
-
-  final _OnboardingPage page;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final asset = page.asset;
-    if (asset == null) {
-      return Icon(
-        page.icon,
-        size: Sizes.twoHundredLarge,
-        color: colorScheme.onSecondaryContainer,
-      );
-    }
-    return SvgPicture.asset(
-      asset,
-      width: Sizes.twoHundredLarge,
-      height: Sizes.twoHundredLarge,
-      fit: BoxFit.contain,
-      // A failed/slow decode degrades to the brand field, never a broken glyph.
-      placeholderBuilder: (_) => const SizedBox.square(
-        dimension: Sizes.twoHundredLarge,
-      ),
-    );
-  }
-}
-
-/// Bottom gradient that fades the illustration into a readable surface band
-/// for the copy + controls. Ignores pointers so swipes still reach the
-/// carousel behind it.
-class _BottomScrim extends StatelessWidget {
-  const _BottomScrim();
-
-  @override
-  Widget build(BuildContext context) {
-    final surface = Theme.of(context).colorScheme.surface;
-    return IgnorePointer(
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: FractionallySizedBox(
-          heightFactor: 0.55,
-          widthFactor: 1.0,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [surface.withValues(alpha: 0.0), surface, surface],
-                stops: const [0.0, 0.45, 1.0],
+    // MANDATORY: the Ø370 rings are wider than a 360dp device.
+    return ClipRect(
+      child: PageView.builder(
+        key: const Key('onboarding.pager'),
+        controller: controller,
+        itemCount: pages.length,
+        onPageChanged: onPageChanged,
+        itemBuilder: (_, i) => Semantics(
+          // walkthrough_slide_1 / _slide_2 / _slide_3 — per-slide root.
+          identifier: 'walkthrough_slide_${i + 1}',
+          container: true,
+          child: Semantics(
+            key: const Key('onboarding.illustration'),
+            image: true,
+            label: pages[i].semanticsLabel,
+            child: ExcludeSemantics(
+              child: KeyedSubtree(
+                key: i == 0 ? const Key('onboarding.preview') : null,
+                child: pages[i].art,
               ),
             ),
           ),
@@ -344,10 +490,13 @@ class _BottomScrim extends StatelessWidget {
   }
 }
 
-/// Bottom-anchored content: animated step copy, page dots, the primary CTA
-/// (Next on slides 1–2 / Get Started on the last slide), and Skip.
-class _BottomPanel extends StatelessWidget {
-  const _BottomPanel({
+/// Band 3: the frosted navy sheet — Arabic eyebrow, step copy, page dots and
+/// the `Skip` / `Next →` split footer.
+///
+/// This is the ONE surface on the screen that spends a real `BackdropFilter`
+/// (§4 budgets ≤2); the floating art all ships pre-baked translucency.
+class _OnboardingSheet extends StatelessWidget {
+  const _OnboardingSheet({
     required this.pages,
     required this.currentPage,
     required this.onNext,
@@ -364,53 +513,85 @@ class _BottomPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     final isLast = currentPage >= pages.length - 1;
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.xLarge),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IgnorePointer(
-                // PoC Maestro identifier: the animated step copy is the screen's
-                // headline. Exposing a stable `identifier` lets Maestro assert on
-                // the headline by id (i18n-safe), independent of visible text.
-                child: Semantics(
-                  identifier: 'onboarding_headline',
-                  child: OmdsWalkthroughSwitcher(
-                    currentIndex: currentPage,
-                    steps: [
-                      for (final page in pages)
-                        OmdsWalkthroughStepData(
-                          label: page.title,
-                          description: page.body,
+    const BorderRadius radius = BorderRadius.vertical(
+      top: Radius.circular(JeebRadii.hero),
+    );
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(
+          sigmaX: JeebGlassCapsule.heroBlur,
+          sigmaY: JeebGlassCapsule.heroBlur,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: _kSheetFillOpacity),
+            borderRadius: radius,
+            border: BorderDirectional(
+              top: BorderSide(color: scheme.outline),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.sizeOf(context).height * _kSheetMaxHeightFactor,
+              ),
+              child: SingleChildScrollView(
+                // The sheet never scrolls at 1.0x text scale; this only rescues
+                // very large accessibility scales.
+                physics: const ClampingScrollPhysics(),
+                child: Padding(
+                  padding: _kSheetPadding,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Semantics(
+                        // PoC Maestro identifier: the animated step copy is the
+                        // screen's headline, asserted by id (i18n-safe).
+                        identifier: 'onboarding_headline',
+                        child: _SlideCopy(
+                          key: const Key('onboarding.slideCopy'),
+                          pages: pages,
+                          currentPage: currentPage,
                         ),
+                      ),
+                      const SizedBox(height: Spacing.medium),
+                      JeebPageDots(
+                        key: const Key('onboarding.dots'),
+                        count: pages.length,
+                        activeIndex: currentPage,
+                        identifier: 'onboarding_page_dots',
+                        semanticLabel: l10n.onboardingPageIndicator(
+                          currentPage + 1,
+                          pages.length,
+                        ),
+                      ),
+                      const SizedBox(height: Spacing.large),
+                      JeebCtaFooter.split(
+                        // The sheet already owns the 32px gutters.
+                        padding: EdgeInsetsDirectional.zero,
+                        leading: _OnboardingSkipButton(
+                          label: l10n.onboardingSkip,
+                          onTap: onSkip,
+                        ),
+                        trailing: _OnboardingCtaButton(
+                          isLast: isLast,
+                          nextLabel: l10n.onboardingNext,
+                          getStartedLabel: l10n.onboardingGetStarted,
+                          onNext: onNext,
+                          onGetStarted: onGetStarted,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: Spacing.large),
-              OmdsDotIndicator(
-                key: const Key('onboarding.dots'),
-                currentIndex: currentPage,
-                itemCount: pages.length,
-              ),
-              const SizedBox(height: Spacing.xLarge),
-              _OnboardingCtaButton(
-                isLast: isLast,
-                nextLabel: l10n.onboardingNext,
-                getStartedLabel: l10n.onboardingGetStarted,
-                onNext: onNext,
-                onGetStarted: onGetStarted,
-              ),
-              const SizedBox(height: Spacing.medium),
-              _OnboardingSkipButton(
-                label: l10n.onboardingSkip,
-                onTap: onSkip,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -418,17 +599,64 @@ class _BottomPanel extends StatelessWidget {
   }
 }
 
-/// The primary CTA at the foot of the carousel.
+/// The sheet's copy block: Arabic eyebrow over the slide headline + body.
+/// M5: R5/W1–W3 all list the headline as still, so it swaps, never fades.
+class _SlideCopy extends StatelessWidget {
+  const _SlideCopy({
+    super.key,
+    required this.pages,
+    required this.currentPage,
+  });
+
+  final List<_OnboardingPage> pages;
+  final int currentPage;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final index = currentPage.clamp(0, pages.length - 1);
+    final page = pages[index];
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _kSlideCopyMinHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Directionality(
+            // The brand slogan is Arabic in both locales, like the wordmark.
+            textDirection: TextDirection.rtl,
+            child: Text(
+              page.tagline,
+              textAlign: TextAlign.center,
+              style: context.jeebText.titleProminent.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.jeebRoles.accent,
+              ),
+            ),
+          ),
+          const SizedBox(height: Spacing.twoXSmall),
+          OmdsWalkthroughStep(
+            label: page.title,
+            description: page.body,
+            labelStyle: context.jeebText.h1.copyWith(
+              color: scheme.onSurface,
+            ),
+            descriptionStyle: context.jeebText.body.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The primary CTA at the foot of the carousel — ORANGE on this board.
 ///
 /// Carries TWO Semantics contracts at once:
-///   - the foundation-era `onboarding_next_button` (kept so the Phase-2 PoC
-///     flow keeps asserting the primary CTA by id across both labels/locales);
+///   - the foundation-era `onboarding_next_button`;
 ///   - the JM-010 contract id, which switches with the slide:
 ///     `walkthrough_next_cta` on slides 1–2, `walkthrough_get_started_cta` on
-///     the last slide (60_W0_TEST_PLAN §2.2 — "Next … becomes Get Started on
-///     slide 3" / "Get Started … visible on last slide only").
-/// On the last slide the tap routes to the phone-OTP entry (`/register`,
-/// DEFECT-3); on earlier slides it advances the carousel.
+///     the last slide.
 class _OnboardingCtaButton extends StatelessWidget {
   const _OnboardingCtaButton({
     required this.isLast,
@@ -437,6 +665,10 @@ class _OnboardingCtaButton extends StatelessWidget {
     required this.onNext,
     required this.onGetStarted,
   });
+
+  /// Board `gap:9` between the label and the arrow, glyph 18.
+  static const double iconSpacing = 9;
+  static const double iconSize = 18;
 
   final bool isLast;
   final String nextLabel;
@@ -454,11 +686,16 @@ class _OnboardingCtaButton extends StatelessWidget {
         identifier:
             isLast ? 'walkthrough_get_started_cta' : 'walkthrough_next_cta',
         button: true,
-        child: OmdsPrimaryButton(
+        child: JeebCtaButton.accent(
           key: Key(isLast ? 'onboarding.getStarted' : 'onboarding.next'),
-          text: isLast ? getStartedLabel : nextLabel,
+          label: isLast ? getStartedLabel : nextLabel,
           onTap: isLast ? onGetStarted : onNext,
-          width: double.infinity,
+          // The last slide's CTA is a bare label on the tile — the arrow is the
+          // advance affordance only.
+          trailingIcon: isLast ? null : Icons.arrow_forward,
+          mirrorIcons: true,
+          iconSize: iconSize,
+          iconSpacing: iconSpacing,
         ),
       ),
     );
@@ -467,81 +704,38 @@ class _OnboardingCtaButton extends StatelessWidget {
 
 /// The Skip affordance, present from slide 1.
 ///
-/// Carries the JM-010 coined id `walkthrough_skip_cta` (60_W0_TEST_PLAN §2.2/§4)
-/// and routes to the phone-OTP entry (`/register`, DEFECT-3). The legacy
-/// `Key('onboarding.skip')` is kept for the existing widget tests that find it
-/// by key.
+/// Carries the JM-010 coined id `walkthrough_skip_cta` and routes to the
+/// phone-OTP entry (`/register`, DEFECT-3). Stays an [OmdsSkipButton]: the kit's
+/// split footer documents 01 as its one consumer that passes one, and a test
+/// pins the type.
 class _OnboardingSkipButton extends StatelessWidget {
   const _OnboardingSkipButton({required this.label, required this.onTap});
+
+  /// Board `padding:0 22px`, `height:56`, `15.5px / w600 / #8A93D8`.
+  static const EdgeInsetsGeometry padding = EdgeInsetsDirectional.symmetric(
+    horizontal: 22,
+    vertical: Spacing.medium,
+  );
 
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'walkthrough_skip_cta',
       button: true,
       child: OmdsSkipButton(
         key: const Key('onboarding.skip'),
         text: label,
-        padding: const EdgeInsets.all(Spacing.small),
+        padding: padding,
         onTap: onTap,
-      ),
-    );
-  }
-}
-
-/// Supported onboarding locale language codes (FR-P1-2).
-const String _kLangEn = 'en';
-const String _kLangAr = 'ar';
-
-/// Top-trailing EN/AR language toggle (FR-P1-2).
-///
-/// Built on [OmdsFilterChips] (there is no `OmdsButtonGroup` in OMDS — see
-/// design spec §2b). Selecting a chip drives [LocaleCubit.setLocale], which
-/// persists the choice and rebuilds `MaterialApp.locale`, flipping the whole
-/// tree to RTL for Arabic live (no restart). Anchored top-trailing so it
-/// mirrors to top-leading in RTL automatically.
-class _LanguageToggle extends StatelessWidget {
-  const _LanguageToggle();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final locale = context.watch<LocaleCubit>().state;
-    return SafeArea(
-      child: Align(
-        alignment: AlignmentDirectional.topEnd,
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.large),
-          child: Semantics(
-            container: true,
-            label: l10n.onboardingChooseLanguage,
-            child: OmdsFilterChips<String>(
-              key: const Key('onboarding.languageToggle'),
-              showCounts: false,
-              selectedValue: locale.languageCode,
-              onFilterChanged: (code) => _onLanguageSelected(context, code),
-              filters: [
-                OmdsFilterOption<String>(
-                  label: l10n.onboardingLanguageEnglish,
-                  value: _kLangEn,
-                ),
-                OmdsFilterOption<String>(
-                  label: l10n.onboardingLanguageArabic,
-                  value: _kLangAr,
-                ),
-              ],
-            ),
-          ),
+        textStyle: context.jeebText.cardTitle.copyWith(
+          fontWeight: FontWeight.w600,
+          color: scheme.onSurfaceVariant,
         ),
       ),
     );
-  }
-
-  void _onLanguageSelected(BuildContext context, String? code) {
-    if (code == null) return;
-    context.read<LocaleCubit>().setLocale(Locale(code));
   }
 }

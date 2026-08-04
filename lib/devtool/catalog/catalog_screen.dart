@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/jeeb_semantic_colors.dart';
 import 'catalog_network_guard.dart';
 import 'screen_catalog.dart';
 
-/// DT-04 / F2 — Screen Catalog menu. Lists every cataloged screen; tapping one
-/// drills into its mocked UI states, and tapping a state previews the real
-/// screen (locally mocked, no network) so designers can review without
-/// navigating the live app.
 class CatalogMenuScreen extends StatelessWidget {
   const CatalogMenuScreen({super.key});
 
@@ -58,7 +55,6 @@ class CatalogMenuScreen extends StatelessWidget {
   }
 }
 
-/// The list of mocked states for one cataloged screen.
 class CatalogStatesScreen extends StatelessWidget {
   const CatalogStatesScreen({required this.entry, super.key});
 
@@ -92,8 +88,6 @@ class CatalogStatesScreen extends StatelessWidget {
   }
 }
 
-/// Hosts a previewed screen with a thin overlay bar so the reviewer can always
-/// get back (the previewed screen owns its own Scaffold/AppBar).
 class _CatalogPreview extends StatelessWidget {
   const _CatalogPreview({required this.title, required this.childBuilder});
 
@@ -102,17 +96,26 @@ class _CatalogPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
     return Stack(
       children: [
         Positioned.fill(child: CatalogNetworkGuard(builder: childBuilder)),
-        Positioned(
+        PositionedDirectional(
           top: MediaQuery.of(context).padding.top + 4,
-          left: 4,
+          start: 4,
           child: Material(
-            color: Colors.black54,
-            shape: const CircleBorder(),
+            // The escape hatch floats over a captured screen, so it takes the
+            // kit's floating-circle recipe rather than a black scrim.
+            color: semantics.glassFillPressed,
+            shape: CircleBorder(
+              side: BorderSide(color: semantics.glassBorderStrong),
+            ),
             child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
+              icon: const Icon(Icons.close),
+              color: scheme.onSurface,
               tooltip: 'Back to catalog',
               onPressed: () => Navigator.of(context).maybePop(),
             ),

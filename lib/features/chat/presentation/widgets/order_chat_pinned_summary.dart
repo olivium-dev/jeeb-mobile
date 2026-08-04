@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/accessibility/accessibility.dart';
 import '../../../../core/formatting/friendly_reference.dart';
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/order_chat_summary.dart';
 import 'auto_direction_text.dart';
 import 'chat_header_expansion_store.dart';
+
+// Every ink on this navy strip is `onPrimary` (white) and hierarchy is carried
+// by TYPE SIZE and WEIGHT, never by colour or alpha (the strip's alpha guard).
 
 /// P3: collapsed line budget for the initial-requirement row. Two lines keeps
 /// the pinned strip short enough that the message list is never pushed off
@@ -73,6 +83,23 @@ const int _kRequestDescriptionCollapsedLines = 2;
 /// The remaining field ids are disclosed by `order_chat_summary_expand`, so a
 /// driver that asserts them taps the expand control first (see
 /// `.maestro/flows/jm-025-order-chat.yaml` / `jm-031-order-summary-pinned.yaml`).
+///
+/// ## redesign-2026-08 — the navy strip
+///
+/// The tonal-elevation shell above is now the board's INSET NAVY CARD
+/// ([JeebNavySurfaceCard], r12, `stripShadow`): one line reading
+/// `● reference · status · price` with a glass `Track` pill on the end edge.
+/// The M3 argument that produced the previous shell has not been reversed —
+/// it is satisfied differently. There is still exactly ONE accent (the Ø8
+/// orange dot, and it is a dot, never a fill), still no alpha-faded foreground
+/// (`chat_header_contrast_test`'s alpha guard is why every ink here is a solid
+/// role), and the boundary is now the shadow rather than a hairline, because a
+/// navy card on a white thread needs no help being perceived.
+///
+/// The two capsules the collapsed row used to draw are gone: dropping them is
+/// what buys the width that lets `Track` fit on one line. The status id moved
+/// onto the plain status text, whose descendants are still Texts — which is
+/// what `chat_header_status_chip_stale_test` reads.
 class OrderChatPinnedSummary extends StatefulWidget {
   const OrderChatPinnedSummary({
     super.key,
@@ -80,6 +107,7 @@ class OrderChatPinnedSummary extends StatefulWidget {
     required this.counterpartName,
     required this.onViewSummary,
     this.onSummaryAttentionRefresh,
+    this.onTrack,
     this.viewerIsJeeber = false,
   });
 
@@ -107,6 +135,12 @@ class OrderChatPinnedSummary extends StatefulWidget {
   ///
   /// Null (Jeeber leg, bare tests, fixture hosts) → expanding just expands.
   final VoidCallback? onSummaryAttentionRefresh;
+
+  /// Routes to live tracking. Null hides the glass `Track` pill entirely —
+  /// never a dead end, the same G5 rule that gates `offer_accepted_track_cta`.
+  /// The pill is additionally suppressed when the summary carries no delivery
+  /// id, because there would be nothing to track.
+  final VoidCallback? onTrack;
 
   /// Role of the VIEWER (run-22 chat-cluster fix): the party line names the
   /// person on the OTHER side of the conversation. A customer sees the winning
@@ -243,7 +277,6 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).colorScheme;
     final expanded = _expanded;
 
     return Semantics(
@@ -263,26 +296,26 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
         // (false) merges every descendant's label + identifier UP into this one
         // container node, folding those ids away (JM-049 merge class).
         explicitChildNodes: true,
-        child: DecoratedBox(
-          // M3 tonal elevation, NOT a slab of chroma: one step above the
-          // `surface` the message list paints on, closed by an `outline`
-          // hairline so the boundary itself clears 3:1 (the tonal step alone is
-          // ~1.2:1 in light mode and would read as no boundary at all).
-          decoration: BoxDecoration(
-            color: colors.surfaceContainerHigh,
-            border: Border(
-              bottom: BorderSide(
-                color: colors.outline,
-                width: UIConstants.dividerWidth,
-              ),
-            ),
+        // An INSET card, not a full-bleed slab: the 24 gutter is the board's,
+        // and the bottom inset keeps the drop shadow clear of the bounded
+        // header slot's clip edge.
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.small,
+            Spacing.xLarge,
+            Spacing.xSmall,
           ),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              Spacing.medium,
-              Spacing.twoXSmall,
-              Spacing.twoXSmall,
-              Spacing.twoXSmall,
+          child: JeebNavySurfaceCard(
+            // r14 — design-exact, and the value the kit's own radius doc lists
+            // for screen 21. There is no 14 token and rounding to 12 visibly
+            // squares the strip against the 18-radius bubbles below it.
+            radius: 14,
+            // R7: on navy the shadow IS the boundary — no border.
+            shadow: JeebNavySurfaceCard.stripShadow,
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Spacing.medium,
+              vertical: Spacing.small,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,6 +329,9 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
                       : l10n.orderSummaryValuePending,
                   expanded: expanded,
                   onToggle: _toggle,
+                  onTrack: widget.summary.deliveryId.isNotEmpty
+                      ? widget.onTrack
+                      : null,
                 ),
                 if (expanded) ...[
                   const SizedBox(height: Spacing.twoXSmall),
@@ -364,13 +400,12 @@ class _OrderChatPinnedSummaryState extends State<OrderChatPinnedSummary> {
   }
 }
 
-/// The always-visible row: reference · status · amount · expand control.
+/// The always-visible row: `● reference · status · price` + Track + expand.
 ///
-/// This is the whole header when collapsed, and it is deliberately ONE 48 dp
-/// row — the height of its own touch targets, nothing added. The reference is
-/// the flexible element: at large text scales the chips keep their intrinsic
-/// size and the reference ellipsises, so the row can never overflow
-/// horizontally.
+/// This is the whole header when collapsed, and it is deliberately ONE row.
+/// The reference is the flexible element: at large text scales the pill and
+/// toggle keep their intrinsic size and the reference ellipsises, so the row
+/// can never overflow horizontally.
 class _CollapsedRow extends StatelessWidget {
   const _CollapsedRow({
     required this.reference,
@@ -378,6 +413,7 @@ class _CollapsedRow extends StatelessWidget {
     required this.priceLabel,
     required this.expanded,
     required this.onToggle,
+    this.onTrack,
   });
 
   final String reference;
@@ -385,13 +421,33 @@ class _CollapsedRow extends StatelessWidget {
   final String priceLabel;
   final bool expanded;
   final VoidCallback onToggle;
+  final VoidCallback? onTrack;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
+    // The board's 12.5/w700 white; `bodySmall` is 12/w600, inside the
+    // nearest-token band, with the weight lifted explicitly.
+    final TextStyle factStyle = context.jeebText.bodySmall.copyWith(
+      fontWeight: FontWeight.w700,
+      color: colors.onPrimary,
+    );
     return Row(
       children: [
+        // The ONE accent: a Ø8 orange dot. Decorative — the status it hints at
+        // is announced by `order_summary_status` right beside it.
+        ExcludeSemantics(
+          child: Container(
+            width: Spacing.xSmall,
+            height: Spacing.xSmall,
+            decoration: BoxDecoration(
+              color: context.jeebRoles.accent,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        const SizedBox(width: Spacing.xSmall),
         Expanded(
           // A `Wrap`, not a `Row`: at large text scales the three elements stop
           // fitting on one line, and a Row would report a horizontal overflow
@@ -400,7 +456,7 @@ class _CollapsedRow extends StatelessWidget {
           // squeezed, nothing is clipped, and the header simply becomes two
           // rows tall for a user who asked for larger type.
           child: Wrap(
-            spacing: Spacing.xSmall,
+            spacing: Spacing.twoXSmall,
             runSpacing: Spacing.twoXSmall,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
@@ -411,27 +467,31 @@ class _CollapsedRow extends StatelessWidget {
                   reference,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface,
+                  style: factStyle,
+                ),
+              ),
+              _Separator(style: factStyle),
+              // The status capsule is GONE: two bordered capsules in this row
+              // is what pushed `Track` onto a second line. The id stays on an
+              // element whose descendants are the status Texts, which is what
+              // `chat_header_status_chip_stale_test` reads.
+              Semantics(
+                identifier: 'order_summary_status',
+                container: true,
+                label: l10n.orderChatFieldValueA11y(
+                  l10n.orderChatFieldStatus,
+                  statusLabel,
+                ),
+                child: ExcludeSemantics(
+                  child: Text(
+                    statusLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: factStyle,
                   ),
                 ),
               ),
-              // THE single accent on this header (M3: one accent, not two
-              // competing slabs). Fed by the push-driven summary refetch in
-              // `chat_detail_screen` — that consumer is unchanged.
-              _SummaryChip(
-                identifier: 'order_summary_status',
-                icon: Icons.route_outlined,
-                fieldLabel: l10n.orderChatFieldStatus,
-                value: statusLabel,
-                accent: true,
-              ),
-              // The amount is EMPHASIS, not a second accent: a chip here would
-              // put two bordered capsules side by side, and (measured) the two
-              // chips plus the reference are 423 dp of content in a 343 dp row,
-              // which pushes the collapsed header onto a second line. Bold text
-              // in the on-surface role carries it in ~60 dp.
+              _Separator(style: factStyle),
               Semantics(
                 identifier: 'order_summary_price',
                 container: true,
@@ -444,18 +504,77 @@ class _CollapsedRow extends StatelessWidget {
                     priceLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
-                    ),
+                    style: factStyle,
                   ),
                 ),
               ),
             ],
           ),
         ),
+        if (onTrack != null) _TrackPill(onTrack: onTrack!),
         _ExpandToggle(expanded: expanded, onToggle: onToggle),
       ],
+    );
+  }
+}
+
+/// The decorative `·` between two facts on the strip. Never announced — the
+/// facts either side carry their own `"<field>: <value>"` names.
+class _Separator extends StatelessWidget {
+  const _Separator({required this.style});
+
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) =>
+      ExcludeSemantics(child: Text('·', style: style));
+}
+
+/// The glass `Track` pill (screen-local by kit design — the kit has no
+/// on-navy unselected chip, deliberately).
+///
+/// Rendered only when a live-tracking route AND a delivery id both exist, so
+/// it is never a dead end. Copy reuses the existing `orderSummaryTrack` key.
+class _TrackPill extends StatelessWidget {
+  const _TrackPill({required this.onTrack});
+
+  final VoidCallback onTrack;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final glass = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'order_chat_track_cta',
+      button: true,
+      label: l10n.orderSummaryTrack,
+      child: ExcludeSemantics(
+        child: MinTapTarget(
+          onTap: onTrack,
+          child: Container(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Spacing.small,
+              vertical: Spacing.twoXSmall,
+            ),
+            decoration: BoxDecoration(
+              color: glass.glassFillEmphasis,
+              border: Border.all(color: glass.glassBorder),
+              borderRadius: BorderRadius.circular(JeebRadii.pill),
+            ),
+            child: Text(
+              l10n.orderSummaryTrack,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.jeebText.caption.copyWith(
+                fontWeight: FontWeight.w700,
+                color: colors.onPrimary,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -490,7 +609,8 @@ class _ExpandToggle extends StatelessWidget {
           child: Icon(
             expanded ? Icons.expand_less : Icons.expand_more,
             size: Sizes.xLarge,
-            color: colors.onSurfaceVariant,
+            // Every ink on this card is `onPrimary` — see the file-top note.
+            color: colors.onPrimary,
           ),
         ),
       ),
@@ -524,8 +644,9 @@ class _PartyRow extends StatelessWidget {
               partyName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceVariant,
+              // A qualifier: same ink, lighter weight and smaller type.
+              style: context.jeebText.caption.copyWith(
+                color: colors.onPrimary,
               ),
             ),
           ),
@@ -561,11 +682,13 @@ class _PartyRow extends StatelessWidget {
                         l10n.orderChatViewSummaryLink,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w600,
+                        // A FACT on navy: white, solid, still underlined so the
+                        // affordance survives without a colour cue.
+                        style: context.jeebText.bodySmall.copyWith(
+                          color: colors.onPrimary,
+                          fontWeight: FontWeight.w700,
                           decoration: TextDecoration.underline,
-                          decorationColor: colors.primary,
+                          decorationColor: colors.onPrimary,
                         ),
                       ),
                     ),
@@ -615,7 +738,7 @@ class _CashOnDeliveryRow extends StatelessWidget {
             Icon(
               Icons.attach_money,
               size: Sizes.medium,
-              color: colors.onSurfaceVariant,
+              color: colors.onPrimary,
             ),
             const SizedBox(width: Spacing.twoXSmall),
             Flexible(
@@ -624,8 +747,8 @@ class _CashOnDeliveryRow extends StatelessWidget {
               // "$ Track order" chip here).
               child: Text(
                 l10n.orderChatPayCashOnDelivery,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colors.onSurfaceVariant,
+                style: context.jeebText.caption.copyWith(
+                  color: colors.onPrimary,
                 ),
               ),
             ),
@@ -638,12 +761,11 @@ class _CashOnDeliveryRow extends StatelessWidget {
 
 /// A small icon+label chip for one locked summary figure.
 ///
-/// Two variants, and only two, because M3 hierarchy on this header is carried
-/// by ONE accent:
-///   * [accent] — `primaryContainer` / `onPrimaryContainer`. The status chip
-///     only. This is the header's single spot of chroma.
-///   * default  — `surfaceContainerLowest` under an `outline` hairline. Reads
-///     as an inset neutral chip against the `surfaceContainerHigh` header.
+/// One variant now: the strip is navy, so the fill comes from the card's own
+/// published tone (`onPrimary @ .14`) rather than a hand-mixed alpha, and
+/// there is no border — a translucent white capsule on navy is already a
+/// perceivable boundary. The foreground is `onPrimary` (see the ink note at
+/// the top of this file).
 ///
 /// Accessibility: the visible label alone is ambiguous — an unresolved ETA and
 /// an unresolved tier both read "Pending", and a screen-reader user hearing
@@ -668,7 +790,6 @@ class _SummaryChip extends StatelessWidget {
     required this.icon,
     required this.fieldLabel,
     required this.value,
-    this.accent = false,
   });
 
   final String identifier;
@@ -680,14 +801,12 @@ class _SummaryChip extends StatelessWidget {
   /// The rendered value ("In transit", "Pending", …).
   final String value;
 
-  final bool accent;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
-    final foreground = accent ? colors.onPrimaryContainer : colors.onSurface;
+    final foreground = colors.onPrimary;
     return Semantics(
       identifier: identifier,
       container: true,
@@ -704,18 +823,10 @@ class _SummaryChip extends StatelessWidget {
                 vertical: Spacing.twoXSmall,
               ),
               decoration: BoxDecoration(
-                color: accent
-                    ? colors.primaryContainer
-                    : colors.surfaceContainerLowest,
+                // The navy card publishes this (`onPrimary @ .14`) — never a
+                // hand-mixed alpha, and never a light-surface role on navy.
+                color: JeebSurfaceTone.of(context).chipFill,
                 borderRadius: OmdsBorderRadius.pill,
-                // A chip fill one tonal step from its own header is a ~1.1:1
-                // edge in light mode; the border is what makes the component
-                // boundary perceivable, so it is a full-strength role, not a
-                // tint.
-                border: Border.all(
-                  color: accent ? colors.onPrimaryContainer : colors.outline,
-                  width: UIConstants.dividerWidth,
-                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -727,7 +838,7 @@ class _SummaryChip extends StatelessWidget {
                       value,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium?.copyWith(
+                      style: context.jeebText.caption.copyWith(
                         color: foreground,
                         fontWeight: FontWeight.w600,
                       ),
@@ -788,15 +899,15 @@ class _RequestDescriptionState extends State<_RequestDescription> {
               child: Icon(
                 Icons.inventory_2_outlined,
                 size: Sizes.medium,
-                color: colors.onSurfaceVariant,
+                color: colors.onPrimary,
               ),
             ),
             const SizedBox(width: Spacing.twoXSmall),
             Expanded(
               child: AutoDirectionText(
                 widget.text,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colors.onSurface,
+                style: context.jeebText.bodySmall.copyWith(
+                  color: colors.onPrimary,
                 ),
                 maxLines: _expanded ? null : _kRequestDescriptionCollapsedLines,
                 overflow: _expanded ? TextOverflow.clip : TextOverflow.ellipsis,

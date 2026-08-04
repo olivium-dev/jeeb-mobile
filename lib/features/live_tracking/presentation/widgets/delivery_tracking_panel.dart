@@ -2,16 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../mixed_direction/presentation/mixed_direction_text.dart';
 import '../../domain/delivery_tracking_info.dart';
 
-/// Bottom status panel for the order-tracking screen (Figma 56560:1772).
+/// The quiet fact strip beneath the door-code row on the order-tracking screen.
 ///
-/// A centred block (~75% of screen width) carrying the 3-stage progress
-/// stepper (Ordered / Picked / In transit) above the courier distance and
-/// the estimated arrival time. Distance + ETA fall back to placeholders
-/// while no GPS fix has arrived, rather than showing a stale "0 km".
+/// redesign-2026-08 §C task 7: this used to be a 78%-wide block carrying a
+/// SECOND (3-step) stepper above a distance/ETA/deadline stack — a duplicate of
+/// the 4-step `tracking_stepper` at the top of the screen, painted in the banned
+/// `colorScheme.tertiary`. Both steppers are gone from here; the live ETA moved
+/// onto the map pill (`tracking_eta_label`), and what is left is two lines of
+/// fact.
+///
+/// The strip is not on the redesign board at all (D-12-3). It ships anyway
+/// because D18/Q-061 LOCKS the absolute arrival deadline as something the
+/// customer must be able to read — so it renders as the quietest thing on the
+/// screen, below the door code, rather than being deleted.
+///
+/// The `tracking_progress_stepper` node survives with its historical `value`
+/// (the current 3-label stage name) even though no stepper is drawn here any
+/// more: Maestro `16-order-tracking.yaml` reads it, and the node's contract is
+/// the stage name, not the pixels.
 class DeliveryTrackingPanel extends StatelessWidget {
   const DeliveryTrackingPanel({super.key, required this.info});
 
@@ -21,64 +34,37 @@ class DeliveryTrackingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final deadline = info.deadline;
     return Semantics(
       identifier: 'tracking_status_panel',
       container: true,
-      child: FractionallySizedBox(
-        key: rootKey,
-        widthFactor: _panelWidthFactor,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+      // Keeps the stage node and the two fact leaves addressable instead of
+      // folding them into the panel root.
+      explicitChildNodes: true,
+      child: Semantics(
+        identifier: 'tracking_progress_stepper',
+        container: true,
+        explicitChildNodes: true,
+        value: _stepLabels(l10n)[info.trackingStepIndex],
+        child: Wrap(
+          key: rootKey,
+          spacing: Spacing.small,
+          runSpacing: Spacing.twoXSmall,
           children: [
-            _TrackingStepper(stepIndex: info.trackingStepIndex),
-            const SizedBox(height: Spacing.xLarge),
             _TrackingDistanceLine(distanceLabel: info.distanceLabel),
-            const SizedBox(height: Spacing.xSmall),
-            _TrackingEtaLine(etaMinutes: info.etaMinutes),
             // Q-061 / D18: the LOCKED absolute deadline. Only mounts when the
             // delivery row carries one, so pre-fix rows render unchanged.
-            if (info.deadline != null) ...[
-              const SizedBox(height: Spacing.xSmall),
-              _TrackingDeadlineLine(deadline: info.deadline!),
-            ],
+            if (deadline != null) _TrackingDeadlineLine(deadline: deadline),
           ],
         ),
       ),
     );
   }
-}
 
-/// Comp measures the block at ~330/440 of the frame width.
-const double _panelWidthFactor = 0.78;
-
-class _TrackingStepper extends StatelessWidget {
-  const _TrackingStepper({required this.stepIndex});
-
-  final int stepIndex;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'tracking_progress_stepper',
-      // `container: true` makes this a Semantics boundary so the identifier
-      // surfaces as its own queryable node. Without it the multi-child
-      // OMDSLabeledStepperProgress step labels are folded into the ancestor
-      // `tracking_status_panel` node and `tracking_progress_stepper` is
-      // swallowed (matches the sibling panel-root pattern at line 24).
-      container: true,
-      value: _stepLabels(l10n)[stepIndex],
-      child: OMDSLabeledStepperProgress(
-        totalSteps: 3,
-        completedSteps: stepIndex + 1,
-        // Accent PAINT (progress), not a container fill — same #D73B00.
-        progressColor: Theme.of(context).colorScheme.tertiary,
-        stepLabels: _stepLabels(l10n),
-      ),
-    );
-  }
-
+  /// The historical 3-label stage vocabulary the `tracking_progress_stepper`
+  /// node's `value` has always reported. Unchanged on purpose — it is the
+  /// node's contract, and `trackingStepIndex` still collapses onto it.
   List<String> _stepLabels(AppLocalizations l10n) => [
         l10n.trackingStepOrdered,
         l10n.trackingStepPicked,
@@ -105,30 +91,11 @@ class _TrackingDistanceLine extends StatelessWidget {
   }
 }
 
-class _TrackingEtaLine extends StatelessWidget {
-  const _TrackingEtaLine({required this.etaMinutes});
-
-  final int? etaMinutes;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final minutes = etaMinutes;
-    final text = minutes == null
-        ? l10n.trackingEtaUnknown
-        : l10n.trackingEstimatedTime(minutes);
-    return _TrackingPanelText(
-      identifier: 'tracking_eta_label',
-      text: text,
-    );
-  }
-}
-
 /// Q-061 / D18: the LOCKED absolute arrival deadline. Distinct from the live
-/// [_TrackingEtaLine] countdown — this is the fixed wall-clock instant the
-/// order must arrive by, frozen at order creation. The time is formatted
-/// locale-aware (`jm` — e.g. `3:45 PM` / `٣:٤٥ م`) and normalized to the
-/// device wall clock via `toLocal()`.
+/// ETA on the map pill — this is the fixed wall-clock instant the order must
+/// arrive by, frozen at order creation. The time is formatted locale-aware
+/// (`jm` — e.g. `3:45 PM` / `٣:٤٥ م`) and normalized to the device wall clock
+/// via `toLocal()`.
 class _TrackingDeadlineLine extends StatelessWidget {
   const _TrackingDeadlineLine({required this.deadline});
 
@@ -160,10 +127,11 @@ class _TrackingPanelText extends StatelessWidget {
       liveRegion: true,
       child: MixedDirectionText(
         text,
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: theme.colorScheme.onSecondaryContainer,
-          fontWeight: FontWeight.w600,
-        ),
+        // Distance and deadline are FACTS, not qualifiers (R4), and the board's
+        // periwinkle fails AA on white at this size by the repo's own pinned
+        // contrast guard — so this line is `onSurfaceVariant`, not `mutedText`.
+        style: context.jeebText.bodySmall
+            .copyWith(color: theme.colorScheme.onSurfaceVariant),
       ),
     );
   }

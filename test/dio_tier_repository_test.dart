@@ -88,16 +88,6 @@ void main() {
     });
 
     // FIX-TIERS-FIVE — addressability/regression lock for the live mock
-    // contract. On-device only 3 tier cards rendered (Flash/Express/Standard)
-    // because the Mockoon :3055 `GET /tiers` route served only 3 rows from the
-    // s05-order-prohibited-items bucket, even though TierId has 5 values and
-    // the screen/_tierIcon resolver cover all 5. The unit suite stayed green
-    // because every screen test injects FakeTierRepository (5 rows). This test
-    // closes that gap: it feeds DioTierRepository the EXACT payload the mock
-    // now serves (verified `curl localhost:3055/tiers`) — 5 items including the
-    // snake_case `on_the_way` id and a null slaHours on the opportunistic tier
-    // — and asserts all five parse, in Figma display order, with the correct
-    // TierId mapping. It would go red if the mock regresses to the 3-row list.
     test('parses the full 5-tier mock contract (Flash→Express→Standard→'
         'On-the-way→Eco), mapping snake_case on_the_way + null SLA', () async {
       final dio = _dioWith({
@@ -133,16 +123,6 @@ void main() {
     });
 
     // P0 REGRESSION (BUG-tier-parse) — the LIVE jeeb-gateway
-    // (192.168.2.39:10090 GET /tiers) returns 200 with items shaped
-    // {"id":"<uuid>","name":"Flash", ...} — the label is in `name`, the `id`
-    // is a UUID, and `priceHint` is free text ("Within 30 minutes"). The old
-    // `_parseId` switched on the `id` slug only, so every live row fell through
-    // to null → `.whereType<Tier>()` dropped all 3 → empty tier list → ZERO
-    // tier cards on "Choose your request" → Continue disabled → no order could
-    // be created. This test feeds the EXACT live payload and asserts all 3
-    // tiers parse, resolved by `name`, with the gateway UUID preserved on
-    // `serverId` for the create-request RPC. It is RED on the pre-fix code
-    // (returns 0 tiers) and GREEN on the fix.
     test('parses LIVE gateway shape (uuid id + name label + free-text '
         'priceHint), mapping by name and preserving the uuid', () async {
       final dio = _dioWith({

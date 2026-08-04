@@ -9,6 +9,16 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/network/auth_token_store.dart';
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/address_form_cubit.dart';
 import '../../application/address_form_state.dart';
@@ -95,7 +105,7 @@ class AddressDetailFormScreen extends StatelessWidget {
       future: _authTokenStore().userId,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(body: Center(child: OmdsLoadingState()));
+          return const _SessionResolveGate();
         }
         final resolvedId = snapshot.data ?? '';
         return BlocProvider<AddressFormCubit>(
@@ -127,6 +137,33 @@ class AddressDetailFormScreen extends StatelessWidget {
       return DioAddressFormRepository(sl<Dio>());
     }
     return const FakeAddressFormRepository();
+  }
+}
+
+/// The session-resolve gate — §2.7 loading on the form's own field, so there
+/// is no flash when it resolves.
+class _SessionResolveGate extends StatelessWidget {
+  const _SessionResolveGate();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      glowPlacement: JeebFieldGlowPlacement.topEnd,
+      animateDecor: false,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
+          key: const Key('address-form-loading'),
+          child: JeebEmptyState(
+            variant: JeebEmptyStateVariant.radar,
+            status: JeebEmptyStateStatus.loading,
+            headline: l10n.addressFormLoadingHeadline,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -251,27 +288,46 @@ class _AddressFormViewState extends State<_AddressFormView> {
         return Semantics(
           identifier: 'address_detail_form_root',
           container: true,
-          child: Scaffold(
-            appBar: OMDSAppBar(
-              title: l10n.addressFormTitle,
-              showBackButton: true,
-            ),
-            body: SafeArea(
-              child: _FormBody(
-                label: _label,
-                building: _building,
-                floorApt: _floorApt,
-                notes: _notes,
-                codPhone: _codPhone,
-                hasPin: _hasPin,
-                onEditPin: _onEditPin,
-                onChanged: () => setState(() {}),
+          // MIDNIGHT M3-29: R22's field — `content`, orange glow top-end,
+          // board-still. This form is a child of the R22 addresses chain.
+          child: JeebMidnightField(
+            variant: JeebFieldVariant.content,
+            glowPlacement: JeebFieldGlowPlacement.topEnd,
+            animateDecor: false,
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              // Redesign: the header is an in-body row, not a Material app bar
+              // — no elevation, no surface tint, no centred title (kit §5 #1).
+              body: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    JeebTopBar.back(
+                      title: l10n.addressFormTitle,
+                      identifier: 'address_form_back',
+                    ),
+                    Expanded(
+                      child: _FormBody(
+                        label: _label,
+                        building: _building,
+                        floorApt: _floorApt,
+                        notes: _notes,
+                        codPhone: _codPhone,
+                        latitude: _latitude,
+                        longitude: _longitude,
+                        hasPin: _hasPin,
+                        onEditPin: _onEditPin,
+                        onChanged: () => setState(() {}),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            bottomNavigationBar: _SaveBar(
-              isEnabled: _isValid,
-              isSaving: state.isSaving,
-              onSave: _onSave,
+              bottomNavigationBar: _SaveBar(
+                isEnabled: _isValid,
+                isSaving: state.isSaving,
+                onSave: _onSave,
+              ),
             ),
           ),
         );
@@ -298,6 +354,8 @@ class _FormBody extends StatelessWidget {
     required this.floorApt,
     required this.notes,
     required this.codPhone,
+    required this.latitude,
+    required this.longitude,
     required this.hasPin,
     required this.onEditPin,
     required this.onChanged,
@@ -308,6 +366,8 @@ class _FormBody extends StatelessWidget {
   final TextEditingController floorApt;
   final TextEditingController notes;
   final TextEditingController codPhone;
+  final double? latitude;
+  final double? longitude;
   final bool hasPin;
   final VoidCallback onEditPin;
   final VoidCallback onChanged;
@@ -317,68 +377,75 @@ class _FormBody extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final f = AddressFormL10n.of(context);
     return ListView(
+      // The board's 24px side gutter (§4.3 `--screen-gutter`); the bottom inset
+      // lets the last field clear the docked save pill.
       padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
         Spacing.medium,
-        Spacing.medium,
-        Spacing.medium,
+        Spacing.xLarge,
         Spacing.xLarge,
       ),
       children: [
-        _PinPreview(hasPin: hasPin, onEditPin: onEditPin),
+        _PinPreview(
+          hasPin: hasPin,
+          latitude: latitude,
+          longitude: longitude,
+          onEditPin: onEditPin,
+        ),
         const SizedBox(height: Spacing.large),
-        Semantics(
+        _LabelledField(
           identifier: 'address_form_label',
-          textField: true,
+          label: l10n.savedAddressLabelLabel,
           child: OmdsTextField(
             controller: label,
-            labelText: l10n.savedAddressLabelLabel,
             hintText: l10n.savedAddressLabelHint,
+            borderRadius: JeebRadii.lg,
             textInputAction: TextInputAction.next,
             onChanged: (_) => onChanged(),
           ),
         ),
-        const SizedBox(height: Spacing.medium),
-        Semantics(
+        const SizedBox(height: Spacing.large),
+        _LabelledField(
           identifier: 'address_form_building',
-          textField: true,
+          label: f.buildingLabel,
           child: OmdsTextField(
             controller: building,
-            labelText: f.buildingLabel,
             hintText: f.buildingHint,
+            borderRadius: JeebRadii.lg,
             textInputAction: TextInputAction.next,
           ),
         ),
-        const SizedBox(height: Spacing.medium),
-        Semantics(
+        const SizedBox(height: Spacing.large),
+        _LabelledField(
           identifier: 'address_form_floor_apt',
-          textField: true,
+          label: f.floorAptLabel,
           child: OmdsTextField(
             controller: floorApt,
-            labelText: f.floorAptLabel,
             hintText: f.floorAptHint,
+            borderRadius: JeebRadii.lg,
             textInputAction: TextInputAction.next,
           ),
         ),
-        const SizedBox(height: Spacing.medium),
-        Semantics(
+        const SizedBox(height: Spacing.large),
+        _LabelledField(
           identifier: 'address_form_delivery_notes',
-          textField: true,
+          label: f.deliveryNotesLabel,
           child: OmdsTextField(
             controller: notes,
-            labelText: f.deliveryNotesLabel,
             hintText: f.deliveryNotesHint,
+            borderRadius: JeebRadii.lg,
             maxLines: 3,
             textInputAction: TextInputAction.newline,
           ),
         ),
-        const SizedBox(height: Spacing.medium),
-        Semantics(
+        const SizedBox(height: Spacing.large),
+        _LabelledField(
           identifier: 'address_form_cod_phone',
-          textField: true,
+          label: f.codPhoneLabel,
           child: OmdsTextField(
             controller: codPhone,
-            labelText: f.codPhoneLabel,
             hintText: f.codPhoneHint,
+            borderRadius: JeebRadii.lg,
             keyboardType: TextInputType.phone,
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s-]')),
@@ -391,16 +458,65 @@ class _FormBody extends StatelessWidget {
   }
 }
 
+/// R22's band shape. `OmdsTextField` hard-codes `floatingLabelStyle:
+/// colorScheme.primary` — ORANGE under Midnight — so the label moves out here.
+class _LabelledField extends StatelessWidget {
+  const _LabelledField({
+    required this.identifier,
+    required this.label,
+    required this.child,
+  });
+
+  final String identifier;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: identifier,
+      textField: true,
+      label: label,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          JeebSectionLabel(label),
+          const SizedBox(height: Spacing.xSmall),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
 class _PinPreview extends StatelessWidget {
-  const _PinPreview({required this.hasPin, required this.onEditPin});
+  const _PinPreview({
+    required this.hasPin,
+    required this.latitude,
+    required this.longitude,
+    required this.onEditPin,
+  });
+
+  /// Token sheet §4: every glass surface is a 1px hairline. The 1.5px here was
+  /// a pass-1 carry-over described as "warm brown"; `outline` is now white 14%.
+  static const double _outlineWidth = 1;
+
+  /// R11's `_PinnedPointCard` precision and glyph size, carried verbatim.
+  static const int _fractionDigits = 4;
+  static const double _pinGlyphSize = 19;
 
   final bool hasPin;
+  final double? latitude;
+  final double? longitude;
   final VoidCallback onEditPin;
 
   @override
   Widget build(BuildContext context) {
     final f = AddressFormL10n.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final glass = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Semantics(
       identifier: 'address_form_map_pin',
       container: true,
@@ -409,13 +525,10 @@ class _PinPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            f.pinSectionTitle,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: Spacing.small),
+          JeebSectionLabel(f.pinSectionTitle),
+          const SizedBox(height: Spacing.xSmall),
           ClipRRect(
-            borderRadius: OmdsBorderRadius.large,
+            borderRadius: BorderRadius.circular(JeebRadii.lg),
             child: SizedBox(
               // ~160pt preview band (8x token doubled — OMDS has no 160 token).
               height: Sizes.eightXLarge * 2,
@@ -427,8 +540,11 @@ class _PinPreview extends StatelessWidget {
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        borderRadius: OmdsBorderRadius.large,
-                        border: Border.all(color: scheme.outlineVariant),
+                        borderRadius: BorderRadius.circular(JeebRadii.lg),
+                        border: Border.all(
+                          color: glass.glassBorder,
+                          width: _outlineWidth,
+                        ),
                       ),
                     ),
                   ),
@@ -436,19 +552,105 @@ class _PinPreview extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: Spacing.xSmall),
+          _PinnedPointRow(
+            hasPin: hasPin,
+            latitude: latitude,
+            longitude: longitude,
+            fractionDigits: _fractionDigits,
+            glyphSize: _pinGlyphSize,
+            missingLabel: f.pinMissing,
+            missingInk: scheme.onSurfaceVariant,
+            pinnedInk: scheme.error,
+          ),
           const SizedBox(height: Spacing.small),
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: Semantics(
               identifier: 'address_form_edit_pin_cta',
               button: true,
-              child: OMDSOutlinedButton(
-                text: f.editPinCta,
+              child: JeebCtaButton.outline(
+                label: f.editPinCta,
+                // Intrinsic width: this is a secondary action parked at the end
+                // of the band, not a docked full-width pill.
+                expand: false,
                 onTap: onEditPin,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// R11 `_PinnedPointCard` on the form band. With no pin it says so rather than
+/// draw a coordinate — the only reading a Q-021 discarded Confirm gets.
+class _PinnedPointRow extends StatelessWidget {
+  const _PinnedPointRow({
+    required this.hasPin,
+    required this.latitude,
+    required this.longitude,
+    required this.fractionDigits,
+    required this.glyphSize,
+    required this.missingLabel,
+    required this.missingInk,
+    required this.pinnedInk,
+  });
+
+  final bool hasPin;
+  final double? latitude;
+  final double? longitude;
+  final int fractionDigits;
+  final double glyphSize;
+  final String missingLabel;
+  final Color missingInk;
+  final Color pinnedInk;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final lat = latitude;
+    final lng = longitude;
+    final pinned = hasPin && lat != null && lng != null;
+    return Semantics(
+      identifier: 'address_form_pin_coordinate',
+      child: JeebGlassCard(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.small,
+          vertical: Spacing.xSmall,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              pinned ? Icons.location_on : Icons.add_location_alt,
+              size: glyphSize,
+              color: pinned ? pinnedInk : missingInk,
+            ),
+            const SizedBox(width: Spacing.small),
+            Expanded(
+              child: pinned
+                  // A lat/long pair reorders inside an RTL paragraph (the comma
+                  // flips the numbers), so the whole run is pinned to LTR.
+                  ? Directionality(
+                      textDirection: TextDirection.ltr,
+                      child: Text(
+                        '${lat.toStringAsFixed(fractionDigits)}, '
+                        '${lng.toStringAsFixed(fractionDigits)}',
+                        style: context.jeebText.cardTitle
+                            .copyWith(color: scheme.onSurface),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )
+                  : Text(
+                      missingLabel,
+                      style: context.jeebText.bodySmall
+                          .copyWith(color: missingInk),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -469,23 +671,20 @@ class _SaveBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return SafeArea(
-      // SafeArea.minimum is typed EdgeInsets (not Directional); symmetric
-      // horizontal padding is RTL-safe (left == right).
-      minimum: const EdgeInsets.fromLTRB(
-        Spacing.medium,
-        Spacing.small,
-        Spacing.medium,
-        Spacing.medium,
-      ),
-      child: Semantics(
-        identifier: 'address_form_save_cta',
-        button: true,
-        container: true,
-        child: OmdsLoadingButton(
-          text: l10n.addressFormSaveCta,
-          isLoading: isSaving,
-          isEnabled: isEnabled,
-          onTap: onSave,
+      top: false,
+      // JeebCtaFooter applies no SafeArea of its own — the docked pad is
+      // 24/0/24/32, which is the board's own footer inset.
+      child: JeebCtaFooter.single(
+        child: Semantics(
+          identifier: 'address_form_save_cta',
+          button: true,
+          container: true,
+          child: JeebCtaButton.primary(
+            label: l10n.addressFormSaveCta,
+            isLoading: isSaving,
+            isEnabled: isEnabled,
+            onTap: onSave,
+          ),
         ),
       ),
     );

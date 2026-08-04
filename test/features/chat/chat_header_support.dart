@@ -1,9 +1,5 @@
 /// Shared harness for the b02 chat-header redesign tests.
-///
 /// Kept in one place so the contrast test, the overflow/budget test and the
-/// accessibility test all drive the SAME widgets through the SAME real
-/// [AppTheme] — a contrast table computed against a theme the screen does not
-/// actually use would be a table about nothing.
 library;
 
 import 'dart:async';
@@ -18,10 +14,7 @@ import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 /// WCAG 2.2 relative-luminance contrast ratio, in [1, 21].
-///
 /// `Color.computeLuminance()` is Flutter's implementation of the WCAG
-/// relative-luminance formula, so this is the specification ratio and not an
-/// approximation of it.
 double contrastRatio(Color fg, Color bg) {
   final l1 = fg.computeLuminance();
   final l2 = bg.computeLuminance();
@@ -32,7 +25,6 @@ double contrastRatio(Color fg, Color bg) {
 
 /// Composites [fg] at [alpha] over [bg] — what the eye actually receives when a
 /// foreground is faded, and therefore what must be measured. Measuring the
-/// unfaded colour is how a 3.85:1 line gets reported as 4.65:1.
 Color blend(Color fg, Color bg, double alpha) =>
     Color.alphaBlend(fg.withValues(alpha: alpha), bg);
 
@@ -43,8 +35,6 @@ String hex(Color c) =>
 const double kAaBodyText = 4.5;
 const double kAaLargeTextAndNonText = 3.0;
 
-// ---------------------------------------------------------------------------
-// Localization host (sync ARB load), mirroring order_chat_jm025_test.dart.
 // ---------------------------------------------------------------------------
 class _SyncLocDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncLocDelegate(this._arbByTag);
@@ -67,11 +57,7 @@ void loadArb() {
 }
 
 /// Hosts [child] in the REAL app theme.
-///
 /// [keyboardInset] simulates an open soft keyboard the way the platform does —
-/// as a bottom `viewInsets` — so `Scaffold.resizeToAvoidBottomInset` shrinks the
-/// body exactly as it does on device. A test that just uses a short surface is
-/// testing a small phone, not a keyboard.
 Widget themedHost(
   Widget child, {
   Locale locale = const Locale('en'),

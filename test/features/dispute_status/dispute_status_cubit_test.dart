@@ -1,8 +1,4 @@
 // Unit tests for DisputeStatusCubit (JM-065). Proves the 4-state machine:
-//   - load() guards re-entry, emits loading → loaded on success;
-//   - a blank id short-circuits to a not-found failure (no repo call);
-//   - a typed repository failure surfaces as failed + the typed error;
-//   - refresh() re-fetches and recovers from a failed cold load.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/dispute_status/application/dispute_status_cubit.dart';
@@ -34,10 +30,6 @@ void main() {
     final cubit = DisputeStatusCubit(repository: repo, disputeId: 'dsp-1');
 
     // Assert the emission ORDER via the canonical bloc-stream matcher. A bare
-    // `cubit.stream.listen` + post-await `expect` is unreliable here: the repo
-    // resolves on a microtask, so the terminal `loaded` event can still be
-    // queued (and is dropped by `cancel()`) when the assertion runs.
-    // `expectLater(...emitsInOrder)` subscribes and awaits each event.
     final expectation = expectLater(
       cubit.stream.map((s) => s.status),
       emitsInOrder(<DisputeStatusViewStatus>[

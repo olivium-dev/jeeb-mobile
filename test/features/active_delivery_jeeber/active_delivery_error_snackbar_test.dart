@@ -1,9 +1,4 @@
 // P6 (UT-13) — the transition-failure snackbar is LOCALIZED and KIND-SPECIFIC.
-//
-// Ranked cause #3 of the 2026-07-25 incident was "one message for three
-// failures": every transition rejection rendered the same hardcoded English
-// "That transition is not allowed". The screen now resolves
-// `state.transitionErrorKind` to its own ARB string, in the active locale.
 
 import 'dart:typed_data';
 

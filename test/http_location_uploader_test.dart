@@ -81,7 +81,6 @@ void main() {
 
       expect(outcome, LocationUploadOutcome.accepted);
       // Gateway route is the bare `/location/update` (LocationController.Update),
-      // NOT the stale `/api/location/update` the orphan stub used.
       expect(adapter.lastRequest?.path, '/location/update');
       expect(adapter.lastRequest?.method, 'POST');
       final body = adapter.lastRequest?.data as Map<String, dynamic>;
@@ -94,8 +93,6 @@ void main() {
       expect(point['lng'], closeTo(35.5, 1e-9));
       expect(point['accuracy'], 12);
       // The DEVICE fix time is preserved for the gateway's stale-detection —
-      // not re-stamped with the server clock (the batch shape, not the
-      // single-point convenience form).
       expect(point['timestamp'], '2026-05-17T14:23:11.000Z');
     });
 

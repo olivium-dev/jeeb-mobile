@@ -1,46 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// Loud, user-visible notice that the jeeber's live-GPS uploader is PARKED on
-/// a missing background-location grant — so the customer's tracking map is
-/// receiving nothing.
-///
-/// ## Why this exists
-///
-/// The uploader could already park itself
-/// ([BackgroundGpsPhase.permissionDenied]) and did so on **every** delivery,
-/// because `ACCESS_BACKGROUND_LOCATION` was never declared in the manifest and
-/// geolocator therefore could not report `always` on Android 10+. The manifest
-/// line fixes the cause. This banner fixes the far more expensive half: the
-/// park was **silent**. No log, no UI, no difference of any kind between a
-/// jeeber whose position was streaming and one whose position had never left
-/// the phone. The bug survived months of hands-on testing for exactly that
-/// reason.
-///
-/// So this widget is not decoration and must not be made dismissible or
-/// conditional on a "don't show again" flag: while it is on screen, a core
-/// product promise (the customer watching the courier approach) is broken, and
-/// only the jeeber can repair it.
-///
-/// ## CTA choice is load-bearing
-///
-/// Android 11+ does **not** grant "Allow all the time" from an in-app dialog —
-/// the platform routes that upgrade through the app's system settings page, and
-/// a permanent denial cannot be re-prompted at all. So when
-/// [needsSystemSettings] is true the primary CTA opens settings; offering
-/// "Try again" there would fire a request the OS silently drops, which would
-/// re-create the original defect one layer up.
-///
-/// ## OMDS
-///
-/// OMDS exports no flat notice-strip primitive (`OMDSProgressBanner` is a
-/// progress-ring card, not this band), so — exactly as `ChatFeeBanner` does —
-/// the band is composed from OMDS tokens (`Spacing`, `Sizes`,
-/// `OmdsBorderRadius`, the M3 `ColorScheme` roles) with an OMDS button for the
-/// CTA. No raw Material widget that has an OMDS equivalent is used, and the
-/// shared OMDS library is not edited.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+import '../../domain/jeeber_delivery_status.dart';
+import 'delivery_status_stepper.dart';
+
 class GpsPermissionBanner extends StatelessWidget {
   const GpsPermissionBanner({
     super.key,
@@ -49,21 +17,14 @@ class GpsPermissionBanner extends StatelessWidget {
     required this.onRetry,
   });
 
-  /// True when only the OS settings page can help — a permanent denial, or the
-  /// Android 11+ "Allow all the time" upgrade. Selects which CTA is shown.
   final bool needsSystemSettings;
 
-  /// Opens this app's OS settings page.
   final VoidCallback onOpenSettings;
 
-  /// Re-runs the in-app permission escalation.
   final VoidCallback onRetry;
 
-  /// Stable handle for widget tests and Maestro flows.
   static const Key bannerKey = Key('active-delivery-gps-permission-banner');
 
-  /// Semantics identifier — the id a Maestro `tapOn: { id: … }` matches and the
-  /// id the `[jeeb-diag]` gesture recorder reports.
   static const String semanticsId = 'active_delivery_gps_permission_banner';
 
   @override
@@ -72,9 +33,6 @@ class GpsPermissionBanner extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: semanticsId,
-      // NOT a merging container: the CTA below must keep its own independently
-      // addressable button node, or a flow can see the banner and be unable to
-      // act on it (the same selector gap ChatFeeBanner documents).
       explicitChildNodes: true,
       child: Container(
         key: bannerKey,
@@ -82,7 +40,7 @@ class GpsPermissionBanner extends StatelessWidget {
         padding: const EdgeInsetsDirectional.all(Spacing.medium),
         decoration: BoxDecoration(
           color: colorScheme.errorContainer,
-          borderRadius: OmdsBorderRadius.medium,
+          borderRadius: BorderRadius.circular(JeebRadii.lg),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,14 +121,6 @@ class _Cta extends StatelessWidget {
         identifier: 'active_delivery_gps_permission_cta',
         text: label,
         onTap: onTap,
-        // The OMDS default pair is `secondaryContainer`/`onSecondaryContainer`,
-        // which on this `errorContainer` band renders navy-on-red with a
-        // periwinkle label — measured on a real S24 and clearly under the
-        // WCAG 4.5:1 bar. `onErrorContainer`/`errorContainer` is the SAME M3
-        // pair as the band's own text, inverted, so the contrast ratio is
-        // guaranteed by the scheme in both light and dark themes. A banner
-        // whose only recovery affordance is hard to read would re-introduce
-        // the defect it exists to end.
         backgroundColor: colorScheme.onErrorContainer,
         textColor: colorScheme.errorContainer,
         padding: const EdgeInsets.symmetric(
@@ -181,3 +131,98 @@ class _Cta extends StatelessWidget {
     );
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// One boolean + two callbacks. Boolean swaps copy + CTA (retry vs settings open).
+
+/// Phone width (390 dp).
+const double _gpsPermissionBannerPhoneWidth = 390;
+
+/// Small phone width (320 dp).
+const double _gpsPermissionBannerSmallPhoneWidth = 320;
+
+/// Banner host at pinned width (scroll container, unbounded height).
+Widget _gpsPermissionBannerHosted({
+  required bool needsSystemSettings,
+  double width = _gpsPermissionBannerPhoneWidth,
+}) {
+  return Align(
+    alignment: AlignmentDirectional.topStart,
+    child: SizedBox(
+      width: width,
+      child: SingleChildScrollView(
+        child: GpsPermissionBanner(
+          needsSystemSettings: needsSystemSettings,
+          onOpenSettings: () {},
+          onRetry: () {},
+        ),
+      ),
+    ),
+  );
+}
+
+/// Recoverable denial (CTA worth tapping: "Allow location", retry escalation).
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Recoverable denial',
+  size: Size(_gpsPermissionBannerPhoneWidth, 240),
+)
+Widget gpsPermissionBannerRecoverable() =>
+    _gpsPermissionBannerHosted(needsSystemSettings: false);
+
+/// Needs system settings (permanent denial or Android 11+ upgrade).
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Needs system settings',
+  size: Size(_gpsPermissionBannerPhoneWidth, 280),
+)
+Widget gpsPermissionBannerNeedsSystemSettings() =>
+    _gpsPermissionBannerHosted(needsSystemSettings: true);
+
+/// Small phone 320dp (longest copy, worst CTA break: 117 px overflow @ 200%).
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'Small phone 320dp',
+  size: Size(_gpsPermissionBannerSmallPhoneWidth, 340),
+)
+Widget gpsPermissionBannerSmallPhone() => _gpsPermissionBannerHosted(
+      needsSystemSettings: true,
+      width: _gpsPermissionBannerSmallPhoneWidth,
+    );
+
+/// Production: first item in delivery ListView (padded, 358 dp of 390 dp).
+@JeebPreview(
+  group: 'active_delivery_jeeber',
+  name: 'First item in delivery list',
+  size: Size(_gpsPermissionBannerPhoneWidth, 560),
+)
+Widget gpsPermissionBannerInDeliveryList() => Align(
+      alignment: AlignmentDirectional.topStart,
+      child: SizedBox(
+        width: _gpsPermissionBannerPhoneWidth,
+        child: Builder(
+          builder: (BuildContext context) {
+            final AppLocalizations l10n = AppLocalizations.of(context);
+            return ListView(
+              padding: const EdgeInsets.all(Spacing.medium),
+              children: <Widget>[
+                GpsPermissionBanner(
+                  needsSystemSettings: false,
+                  onOpenSettings: () {},
+                  onRetry: () {},
+                ),
+                const SizedBox(height: Spacing.large),
+                OMDSSectionCard(
+                  title: l10n.activeDeliveryProgressTitle,
+                  showDivider: false,
+                  content: DeliveryStatusStepper(
+                    currentStatus: JeeberDeliveryStatus.inTransit,
+                    isTransitioning: false,
+                    onAdvance: () {},
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );

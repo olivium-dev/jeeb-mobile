@@ -4,10 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../diagnostics/diag.dart';
 import 'user_role.dart';
 
-/// Cubit owning the active [UserRole] (client vs jeeber).
-///
-/// Persisted to [SharedPreferences] so the user's last-active surface is
-/// preserved across launches.
 class RoleCubit extends Cubit<UserRole> {
   RoleCubit({required SharedPreferences prefs, UserRole? initialRole})
       : _prefs = prefs,
@@ -15,18 +11,12 @@ class RoleCubit extends Cubit<UserRole> {
           initialRole ?? UserRole.fromStorage(prefs.getString(rolePrefKey)),
         );
 
-  /// SharedPreferences key for the active role. Public so the debug-only
-  /// [SessionSeamBootstrap] seeds the SAME key this cubit reads in its
-  /// constructor (single source of truth — no parallel role store).
   static const String rolePrefKey = 'app.role';
 
   final SharedPreferences _prefs;
 
   Future<void> setRole(UserRole role) async {
     if (role == state) return;
-    // Diagnostic seam (diag-persistence lane): every ACTUAL role change flows
-    // through here (settings toggle, getMe role-sync, dev seam), so this is the
-    // single choke point for the `role_switch` event. No-op in release.
     Diag.event('role_switch', <String, Object?>{
       'from': state.storageKey,
       'to': role.storageKey,

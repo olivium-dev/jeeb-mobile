@@ -1,16 +1,4 @@
 // JM-031 — DioOrderSummaryRepository unit tests.
-//
-// Verifies the repository wires the REAL mock endpoints and parses the exact
-// `order_accepted` journey-seed shapes (jeeb-mock-backend
-// src/fixtures/journey-seed.ts → seedOrderAccepted / seedDeliveryRow):
-//   * GET /v1/delivery/:id   → price (amount.value), tier, jeeberName, title,
-//                              requestId, conversationId fallback
-//   * GET /v1/requests/:id   → conversationId + item/price fallback
-//   * GET /v1/offers?req=    → accepted-offer etaMinutes (delivery row omits it)
-//   * GET /v1/users/:jeeberId → jeeber rating + ratingCount (D6)
-// Plus failure mapping: 404 → notFound, connectionError → network. Secondary
-// (enrichment) fetches NEVER fail the summary — a thrown request/offer/user
-// fetch still yields the core delivery-derived fields.
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -101,7 +89,6 @@ void main() {
     when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer((inv) async {
       final path = inv.positionalArguments.first as String;
       // BUG-8: the delivery read now uses the plural `/v1/deliveries/{id}`
-      // aggregate route on the origin gateway (default originGateway=true).
       if (path == '/v1/deliveries/del-client-001-active') {
         return _ok(_deliveryRow());
       }

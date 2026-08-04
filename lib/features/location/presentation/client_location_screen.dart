@@ -9,7 +9,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_shadows.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/directional_icons.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../registration/domain/lebanon_phone.dart';
 import '../../request_summary/application/compose_request_controller.dart';
@@ -24,10 +32,10 @@ import '../data/location_repository.dart' show LocationPoint;
 import '../data/fake_location_select_repository.dart';
 import '../domain/current_location_resolver.dart';
 import '../domain/location_select_repository.dart';
-import '../domain/saved_location.dart';
 import 'widgets/client_location_add_row.dart';
 import 'widgets/current_location_status_card.dart';
 import 'widgets/delivery_create_layout.dart';
+import 'widgets/saved_address_pill_row.dart';
 
 /// B-02b: the create-success navigation fires only when the footer is BOTH
 /// still [mounted] AND its route is still the current/top route
@@ -199,7 +207,7 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
       future: _userIdFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(body: Center(child: OmdsLoadingState()));
+          return const _SessionResolveLoading();
         }
         // Empty string when the session has no stored id; the `me` route still
         // resolves identity from the bearer token, so the list loads correctly.
@@ -213,6 +221,53 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
           child: scaffold,
         );
       },
+    );
+  }
+}
+
+/// The cold-entry gate: the authenticated id has not resolved, so the create
+/// flow cannot be built yet. It is the SAME wait as [_CreateFlowLoading] one
+/// frame later, so it draws the same state — the only difference is that this
+/// one has to bring its own [JeebMidnightField], because there is no scaffold
+/// behind it yet.
+class _SessionResolveLoading extends StatelessWidget {
+  const _SessionResolveLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: _CreateFlowLoading(
+            identifier: 'client_location_session_loading',
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The create flow's §2.7 wait, on `e1` — "bring me anything" is this screen's
+/// own subject, and its already-migrated sibling `_SavedAddressesError` draws
+/// the same tile, so the cold frame and the failed frame are one family.
+class _CreateFlowLoading extends StatelessWidget {
+  const _CreateFlowLoading({this.identifier = 'client_location_loading'});
+
+  final String identifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          identifier: identifier,
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.savedAddressesLoadingHeadline,
+        ),
+      ),
     );
   }
 }
@@ -275,34 +330,54 @@ class _ScaffoldState extends State<_Scaffold> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: OMDSAppBar(
-        title: l10n.clientLocationTitle,
-        showBackButton: true,
-        onBackPressed: () => Navigator.of(context).maybePop(),
-      ),
+    // MIDNIGHT: the layered field replaces the flat scaffold fill. The glow
+    // stays at the default top-end anchor — a bottom one tinted every
+    // translucent card on the list warm.
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
+      // Redesign: the header is an in-body row, not a Material app bar — no
+      // elevation, no surface tint, no centred title (kit §5 #1).
       body: SafeArea(
-        child: BlocBuilder<LocationSelectCubit, LocationSelectState>(
-          builder: (context, state) => _Body(
-            state: state,
-            descriptionController: _description,
-            submitting: _submitting,
-            onAddLocation: widget.onAddLocation,
-            onOpenSavedAddresses: widget.onOpenSavedAddresses,
-            onDictate: widget.onDictate,
-            legacyCurrentSelected: widget.legacyCurrentSelected,
-            onSelectCurrent: widget.onSelectCurrent,
+        child: Semantics(
+          identifier: 'client_location_root',
+          container: true,
+          explicitChildNodes: true,
+          child: Column(
+            children: [
+              JeebTopBar.back(
+                title: l10n.clientLocationTitle,
+                identifier: 'client_location_back',
+                onLeadingPressed: () => Navigator.of(context).maybePop(),
+              ),
+              Expanded(
+                child: BlocBuilder<LocationSelectCubit, LocationSelectState>(
+                  builder: (context, state) => _Body(
+                    state: state,
+                    descriptionController: _description,
+                    submitting: _submitting,
+                    onAddLocation: widget.onAddLocation,
+                    onOpenSavedAddresses: widget.onOpenSavedAddresses,
+                    onDictate: widget.onDictate,
+                    legacyCurrentSelected: widget.legacyCurrentSelected,
+                    onSelectCurrent: widget.onSelectCurrent,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
-      bottomNavigationBar: BlocBuilder<LocationSelectCubit, LocationSelectState>(
+      bottomNavigationBar:
+          BlocBuilder<LocationSelectCubit, LocationSelectState>(
         builder: (context, state) => _ConfirmFooter(
           state: state,
           description: _description,
           submitting: _submitting,
           onConfirm: widget.onConfirm,
         ),
+      ),
       ),
     );
   }
@@ -341,7 +416,7 @@ class _Body extends StatelessWidget {
     // a new point), so we render the affordances even on failure.
     if (state.status == LocationSelectStatus.initial ||
         state.status == LocationSelectStatus.loading) {
-      return const Center(child: OmdsLoadingState());
+      return const _CreateFlowLoading();
     }
     final currentSelected = legacyCurrentSelected ??
         (state.choiceKind == LocationChoiceKind.current ||
@@ -358,9 +433,11 @@ class _Body extends StatelessWidget {
           controller: descriptionController,
           onDictate: onDictate,
         ),
-        const SizedBox(height: Spacing.xLarge),
+        // R12: sections breathe at 14–20, cards at 9–12. The old 24/20 rhythm
+        // is off this board entirely.
+        const SizedBox(height: Spacing.medium),
         _Heading(text: l10n.clientLocationHeading),
-        const SizedBox(height: Spacing.large),
+        const SizedBox(height: Spacing.small),
         // JEBV4-176 (Q-060): the "Current Location" option now reflects the
         // REAL device-GPS acquisition state and offers honest recovery
         // (permission / services-off / retry) instead of silently pinning the
@@ -369,6 +446,7 @@ class _Body extends StatelessWidget {
         CurrentLocationStatusCard(
           status: state.currentGpsStatus,
           selected: currentSelected,
+          accuracyMeters: state.gpsAccuracyMeters,
           onSelect: () => _onSelectCurrent(context),
           onRetry: () =>
               context.read<LocationSelectCubit>().resolveCurrentGps(),
@@ -377,13 +455,24 @@ class _Body extends StatelessWidget {
           onOpenAppSettings: () =>
               context.read<LocationSelectCubit>().openAppSettings(),
         ),
+        // Board order: the saved places sit directly under the address card as
+        // a pill row (tpl 555-558); the "manage" entry row follows them.
+        if (state.hasSavedAddresses) ...[
+          const SizedBox(height: Spacing.small),
+          SavedAddressPillRow(
+            addresses: state.savedAddresses,
+            isSelected: state.isSavedSelected,
+            onSelect: (id) =>
+                context.read<LocationSelectCubit>().selectSaved(id),
+          ),
+        ],
         // The saved-addresses ENTRY row is an unconditional affordance
         // (63_W1_TEST_PLAN §2.3 — `location_select_saved_addresses_row` →
         // saved-addresses, JM-049). It must NOT be gated on `hasSavedAddresses`:
         // jm-024 taps the row with no `has_saved_addresses` seed, and the
         // manager owns its own empty state. Only the selectable saved-address
-        // CARDS below remain conditional on a non-empty list.
-        const SizedBox(height: Spacing.large),
+        // PILLS above remain conditional on a non-empty list.
+        const SizedBox(height: Spacing.small),
         // B-02b: lock the saved-addresses row while a create is in flight so a
         // mid-POST push cannot leave the (still-mounted) footer to navigate the
         // waiting surface from underneath the newly-pushed route.
@@ -391,19 +480,7 @@ class _Body extends StatelessWidget {
           submitting: submitting,
           child: _SavedAddressesRow(onTap: () => _onOpenSaved(context)),
         ),
-        if (state.hasSavedAddresses) ...[
-          const SizedBox(height: Spacing.medium),
-          for (final address in state.savedAddresses) ...[
-            _SavedAddressCard(
-              address: address,
-              selected: state.isSavedSelected(address.id),
-              onTap: () =>
-                  context.read<LocationSelectCubit>().selectSaved(address.id),
-            ),
-            const SizedBox(height: Spacing.small),
-          ],
-        ],
-        const SizedBox(height: Spacing.large),
+        const SizedBox(height: Spacing.medium),
         if (state.status == LocationSelectStatus.failed)
           _SavedAddressesError(
             onRetry: () => context.read<LocationSelectCubit>().refresh(),
@@ -418,7 +495,7 @@ class _Body extends StatelessWidget {
             onTap: () => _onAdd(context),
           ),
         ),
-        const SizedBox(height: Spacing.xLarge),
+        const SizedBox(height: Spacing.medium),
         // iter6 OTP-phone v2: recipient-phone capture. The gateway needs a
         // non-null `recipientPhone` on the request so the at-door handover OTP
         // (`POST /deliveries/{id}/otp/verify {code:"1234"}`) can be issued/
@@ -532,21 +609,23 @@ class _SavedAddressesRow extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(Icons.bookmark_outline,
-                    size: Sizes.large, color: scheme.primary),
+                // R10: filled glyphs only, and this is a secondary row — muted
+                // ink so it sits below the address card in the ink ranking.
+                Icon(Icons.bookmark,
+                    size: Sizes.medium, color: scheme.onSurfaceVariant),
                 const SizedBox(width: Spacing.small),
                 Expanded(
                   child: Text(
                     l10n.savedAddressesTitle,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: scheme.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    style: context.jeebText.body.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Icon(DirectionalIcons.disclosure(context),
-                    size: Sizes.large, color: scheme.primary),
+                    size: Sizes.medium, color: scheme.onSurfaceVariant),
               ],
             ),
           ),
@@ -556,107 +635,12 @@ class _SavedAddressesRow extends StatelessWidget {
   }
 }
 
-/// A selectable saved-address card. Mirrors [ClientLocationOptionCard] styling
-/// (navy fill when selected) so the saved addresses sit in the same mutually-
-/// exclusive group as "Current Location".
-class _SavedAddressCard extends StatelessWidget {
-  const _SavedAddressCard({
-    required this.address,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final SavedLocation address;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final foreground = selected ? scheme.onPrimary : scheme.primary;
-    final subtitle = address.address;
-    return Semantics(
-      identifier: 'location_select_saved_address_${address.id}',
-      inMutuallyExclusiveGroup: true,
-      checked: selected,
-      button: true,
-      label: subtitle == null ? address.label : '${address.label}, $subtitle',
-      child: ExcludeSemantics(
-        child: Material(
-          color: selected ? scheme.primary : scheme.surface,
-          borderRadius: OmdsBorderRadius.uiLarge,
-          child: InkWell(
-            borderRadius: OmdsBorderRadius.uiLarge,
-            onTap: onTap,
-            child: Container(
-              padding: const EdgeInsetsDirectional.symmetric(
-                horizontal: Spacing.medium,
-                vertical: Spacing.medium,
-              ),
-              decoration: BoxDecoration(
-                borderRadius: OmdsBorderRadius.uiLarge,
-                border: Border.all(
-                  color: selected ? scheme.primary : scheme.outlineVariant,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(_iconFor(address.category),
-                      size: Sizes.large, color: foreground),
-                  const SizedBox(width: Spacing.small),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          address.label,
-                          style:
-                              Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: foreground,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (subtitle != null)
-                          Text(
-                            subtitle,
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      // UX-AUDIT §T3: the unselected row sits on
-                                      // the white `surface`, so the subtitle must
-                                      // use `onSurfaceVariant` (AA 9.35:1), NOT
-                                      // periwinkle `onSecondaryContainer` (the
-                                      // ~2.2:1 light-purple-on-white the owner
-                                      // reported). Selected row is navy, keeps
-                                      // `onPrimary`.
-                                      color: selected
-                                          ? scheme.onPrimary
-                                          : scheme.onSurfaceVariant,
-                                    ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  IconData _iconFor(SavedLocationCategory cat) => switch (cat) {
-        SavedLocationCategory.home => Icons.home_outlined,
-        SavedLocationCategory.work => Icons.work_outline,
-        SavedLocationCategory.other => Icons.place_outlined,
-      };
-}
-
 class _SavedAddressesError extends StatelessWidget {
   const _SavedAddressesError({required this.onRetry});
+
+  /// The block is one band inside a scrolling list, not the whole surface, so
+  /// the E1 illustration is drawn at less than half its 300px board width.
+  static const double _illustrationSize = 140;
 
   final VoidCallback onRetry;
 
@@ -665,12 +649,16 @@ class _SavedAddressesError extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsetsDirectional.only(bottom: Spacing.medium),
-      child: Semantics(
+      child: JeebEmptyState(
         identifier: 'location_select_saved_addresses_error',
-        child: OmdsErrorState(
-          message: l10n.savedLocationsError,
-          onRetry: onRetry,
-          retryLabel: l10n.earningsLoadRetry,
+        status: JeebEmptyStateStatus.error,
+        headline: l10n.savedLocationsError,
+        illustrationSize: _illustrationSize,
+        padding: EdgeInsetsDirectional.zero,
+        action: JeebCtaButton.outline(
+          label: l10n.earningsLoadRetry,
+          expand: false,
+          onTap: onRetry,
         ),
       ),
     );
@@ -721,8 +709,9 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
     final l10n = AppLocalizations.of(context);
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: DeliveryCreateLayout.pagePadding,
+      // JeebCtaFooter applies no SafeArea of its own — the docked pad is
+      // 24/0/24/32, which is the board's own footer inset.
+      child: JeebCtaFooter.single(
         child: Semantics(
           identifier: 'location_select_confirm_cta',
           button: true,
@@ -731,16 +720,27 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
             builder: (context, submitting, _) =>
                 ValueListenableBuilder<TextEditingValue>(
               valueListenable: widget.description,
-              builder: (context, value, _) => OmdsLoadingButton(
-                // l10n: reuses `locationConfirm` ("Confirm location"); a
-                // dedicated `locationSelectConfirmCta` key is requested in
-                // 50_ROUTE_REQUESTS.
-                text: l10n.locationConfirm,
-                isLoading: submitting,
-                isEnabled: state.canConfirm && value.text.trim().isNotEmpty,
-                borderRadius: OmdsBorderRadius.pill,
-                onTap: () => _onConfirm(context),
-              ),
+              builder: (context, value, _) {
+                final enabled =
+                    state.canConfirm && value.text.trim().isNotEmpty;
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: OmdsBorderRadius.pill,
+                    // A disabled CTA drops its lift (kit §1.6).
+                    boxShadow: enabled ? JeebShadows.ctaOrange : null,
+                  ),
+                  child: OmdsLoadingButton(
+                    // l10n: reuses `locationConfirm` ("Confirm location"); a
+                    // dedicated `locationSelectConfirmCta` key is requested in
+                    // 50_ROUTE_REQUESTS.
+                    text: l10n.locationConfirm,
+                    isLoading: submitting,
+                    isEnabled: enabled,
+                    borderRadius: OmdsBorderRadius.pill,
+                    onTap: () => _onConfirm(context),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -968,8 +968,9 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
               label: l10n.composeDescriptionMicSemantic,
               child: IconButton(
                 key: const Key('clientLocation.descriptionMic'),
-                icon: Icon(Icons.mic_none_outlined,
-                    color: theme.colorScheme.primary),
+                // R5 sanctions the mic as one of the board's orange marks —
+                // it is the voice-first affordance, and 4.65:1 on white.
+                icon: Icon(Icons.mic, color: context.jeebRoles.accent),
                 tooltip: l10n.composeDescriptionMicSemantic,
                 onPressed: () => _dictate(context),
               ),
@@ -979,7 +980,7 @@ class _DescriptionSectionState extends State<_DescriptionSection> {
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.composeDescriptionHelper,
-          style: theme.textTheme.bodySmall?.copyWith(
+          style: context.jeebText.bodySmall.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
@@ -1075,9 +1076,8 @@ class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
       children: [
         Text(
           l10n.recipientPhoneLabel,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.w700,
+          style: context.jeebText.cardTitle.copyWith(
+            color: theme.colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: Spacing.small),
@@ -1092,42 +1092,40 @@ class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[\d+\s\-()]')),
             ],
-            style: theme.textTheme.bodyLarge,
+            style: context.jeebText.body.copyWith(
+              color: theme.colorScheme.onSurface,
+            ),
             onChanged: (v) {
               _touched = true;
               _commit(v);
             },
+            // Fill, stroke and radius come from the Midnight
+            // `inputDecorationTheme` — the old opaque navy fill + borderless
+            // pill was a light-theme remnant.
             decoration: InputDecoration(
               hintText: l10n.recipientPhoneHint,
               errorText: _errorText,
-              filled: true,
-              fillColor: theme.colorScheme.surfaceContainerHighest,
               prefixIcon: Padding(
-                padding: const EdgeInsets.symmetric(
+                padding: const EdgeInsetsDirectional.symmetric(
                   horizontal: Spacing.medium,
                   vertical: Spacing.small,
                 ),
                 child: Text(
                   LebanonPhone.dialCode,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
+                  style: context.jeebText.body.copyWith(
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
               ),
               prefixIconConstraints:
                   const BoxConstraints(minWidth: 0, minHeight: 0),
-              border: const OutlineInputBorder(
-                borderRadius: OmdsBorderRadius.medium,
-                borderSide: BorderSide.none,
-              ),
             ),
           ),
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.recipientPhoneHelper,
-          style: theme.textTheme.bodySmall?.copyWith(
+          style: context.jeebText.bodySmall.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
@@ -1143,12 +1141,11 @@ class _Heading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // MIDNIGHT: `primary` is now ORANGE; section headings are white ink.
     return Text(
       text,
-      style: theme.textTheme.headlineSmall?.copyWith(
-        color: theme.colorScheme.primary,
-        fontWeight: FontWeight.w800,
+      style: context.jeebText.h2.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }

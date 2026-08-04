@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// First-strong-character bidi direction detection.
-///
-/// WhatsApp lays a single conversation out so the bubble alignment is
-/// stable (sender right, receiver left) regardless of the user's UI
-/// language, but the **text inside each bubble** reads in its own script's
-/// natural direction. Flutter's [Text] widget inherits direction from
-/// [Directionality.of] — it does not look at the content — so we need this
-/// helper to pick a per-message direction from the first strong-directional
-/// character. Mirrors the Unicode Bidi Algorithm (UAX #9) "first strong"
-/// rule.
+// Preview-only — see the JEEB PREVIEWS section at the end of this file.
+import '../../../../core/previews/jeeb_preview.dart';
+
+/// First-strong-character bidi direction detection (UAX #9).
+/// Text reads in its own script's natural direction, not the UI language.
+/// Flutter [Text] inherits direction from [Directionality.of], so we detect
 class AutoDirectionText extends StatelessWidget {
   const AutoDirectionText(
     this.data, {
@@ -22,11 +18,10 @@ class AutoDirectionText extends StatelessWidget {
   final String data;
   final TextStyle? style;
 
-  /// P3: optional line clamp for the pinned-strip description row. Null (the
-  /// default, and every pre-existing call site) = unclamped, unchanged.
+  /// Optional line clamp; null = unclamped (default for all call sites).
   final int? maxLines;
 
-  /// P3: optional overflow behaviour, paired with [maxLines]. Null = unchanged.
+  /// Optional overflow; paired with [maxLines].
   final TextOverflow? overflow;
 
   @override
@@ -44,10 +39,7 @@ class AutoDirectionText extends StatelessWidget {
     );
   }
 
-  /// Returns the direction of the first strong-directional character in
-  /// [text], or null if the text contains no strong characters (digits,
-  /// punctuation, emoji only). Caller falls back to the ambient direction
-  /// in the null case.
+  /// Direction of first strong char, or null if only neutral (digits, emoji, punctuation).
   static TextDirection? _detectDirection(String text) {
     for (final rune in text.runes) {
       if (_isStrongRtl(rune)) return TextDirection.rtl;
@@ -56,11 +48,8 @@ class AutoDirectionText extends StatelessWidget {
     return null;
   }
 
+  /// Hebrew, Arabic, Syriac, Thaana, NKo, Mandaic, etc (Jeeb primarily uses Arabic).
   static bool _isStrongRtl(int r) {
-    // Hebrew, Arabic, Arabic Supplement, Syriac, Thaana, NKo, Samaritan,
-    // Mandaic, Arabic Extended-A, Hebrew presentation forms, Arabic
-    // presentation forms A and B. Covers all the scripts the Jeeb client
-    // base actually uses (primarily Arabic) plus the major neighbours.
     return (r >= 0x0590 && r <= 0x05FF) ||
         (r >= 0x0600 && r <= 0x06FF) ||
         (r >= 0x0700 && r <= 0x074F) ||
@@ -75,11 +64,9 @@ class AutoDirectionText extends StatelessWidget {
         (r >= 0xFE70 && r <= 0xFEFF);
   }
 
+  /// Basic Latin, Latin-1, Latin Extended, Cyrillic, Greek.
+  /// Anything else not covered here or in _isStrongRtl is neutral.
   static bool _isStrongLtr(int r) {
-    // Basic Latin letters, Latin-1 letters, Latin Extended A/B, plus
-    // common Cyrillic/Greek ranges. We intentionally treat anything not
-    // covered here (or by [_isStrongRtl]) as direction-neutral so digits
-    // and punctuation don't pin the paragraph direction.
     return (r >= 0x0041 && r <= 0x005A) ||
         (r >= 0x0061 && r <= 0x007A) ||
         (r >= 0x00C0 && r <= 0x024F) ||
@@ -87,3 +74,64 @@ class AutoDirectionText extends StatelessWidget {
         (r >= 0x0400 && r <= 0x04FF);
   }
 }
+// ============================== JEEB PREVIEWS ==============================
+// DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
+
+// Widget previews for [AutoDirectionText] — run with
+
+/// The canvas box for one chat message's text: phone width, room for the line
+/// to become three at 200% text.
+const Size _autoDirectionTextMessageBox = Size(390, 140);
+
+/// A short box for content that cannot wrap far — a phone number stays on one
+/// line even at 200%.
+const Size _autoDirectionTextShortBox = Size(390, 100);
+
+/// A taller box for the clamped description: two lines of 200% text plus the
+/// ellipsis row.
+const Size _autoDirectionTextClampedBox = Size(390, 170);
+
+Widget _autoDirectionTextHosted(String data, {int? maxLines, TextOverflow? overflow}) =>
+    AutoDirectionText(data, maxLines: maxLines, overflow: overflow);
+
+/// Pure Latin content — the baseline, and the LTR-in-RTL case.
+/// The EN rendering is unremarkable; the AR RTL dark rendering is the one to
+@JeebPreview(group: 'chat', name: 'English message', size: _autoDirectionTextMessageBox)
+Widget autoDirectionTextEnglish() => _autoDirectionTextHosted('On my way, five minutes out');
+
+/// Pure Arabic content — the majority case for the Jeeb client base, and the
+/// RTL-in-LTR case.
+@JeebPreview(group: 'chat', name: 'Arabic message', size: _autoDirectionTextMessageBox)
+Widget autoDirectionTextArabic() => _autoDirectionTextHosted('انا في الطريق اليك خمس دقائق');
+
+/// The first-strong rule, RTL branch: Arabic opening, Latin brand name inside.
+/// Real chat traffic is bilingual — shop names, street names and order codes
+@JeebPreview(group: 'chat', name: 'Mixed: Arabic first', size: _autoDirectionTextMessageBox)
+Widget autoDirectionTextMixedArabicFirst() =>
+    _autoDirectionTextHosted('مرحبا الطلب جاهز عند Spinneys');
+
+/// The first-strong rule, LTR branch: the same sentence built the other way
+/// round.
+@JeebPreview(group: 'chat', name: 'Mixed: English first', size: _autoDirectionTextMessageBox)
+Widget autoDirectionTextMixedEnglishFirst() =>
+    _autoDirectionTextHosted('Pickup from مخبز الرحمة, Hamra');
+
+/// No strong character at all — the fallback branch, and a real defect.
+/// A message that is only digits and punctuation is ordinary chat traffic here:
+@JeebPreview(group: 'chat', name: 'Digits only, no strong character', size: _autoDirectionTextShortBox)
+Widget autoDirectionTextNeutralOnly() => _autoDirectionTextHosted('+961 3 000 077');
+
+/// A strong-LTR script the detector does not know about.
+/// `_isStrongLtr` covers Latin, Greek and Cyrillic only. Amharic (Ethiopic,
+@JeebPreview(group: 'chat', name: 'Unlisted LTR script (Amharic)', size: _autoDirectionTextMessageBox)
+Widget autoDirectionTextUnlistedScript() => _autoDirectionTextHosted('ሰላም በመንገድ ላይ ነኝ');
+
+/// The longest plausible content, on the one call site that clamps it.
+/// The pinned order-summary strip passes `maxLines: 2` + `TextOverflow.ellipsis`
+@JeebPreview(group: 'chat', name: 'Long Arabic, clamped to 2 lines', size: _autoDirectionTextClampedBox)
+Widget autoDirectionTextClampedLongArabic() => _autoDirectionTextHosted(
+      'ارجو احضار كيسين من الخبز العربي وعلبة لبن كبيرة وزجاجة زيت زيتون من '
+      'دكان ابو خليل في شارع الحمرا والدفع عند الاستلام نقدا',
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );

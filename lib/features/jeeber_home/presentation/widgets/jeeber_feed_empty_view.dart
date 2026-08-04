@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'jeeber_home_greeting.dart';
 
-/// Deliveryman home empty state matching the Figma "Delivery Screen - Empty
-/// State [Delivery Man]" frame (file ZOi3kKtw7sd42ssSVX3Kn4, node 56559:930,
-/// screen 23).
+/// Deliveryman home empty state (Figma "Delivery Screen - Empty State
+/// [Delivery Man]", file ZOi3kKtw7sd42ssSVX3Kn4, node 56559:930, screen 23),
+/// re-skinned onto the redesign-2026-08 language.
 ///
-/// Layout: greeting header (avatar + "Hello, {name}" + tagline) → an inline
-/// "Accept orders" availability switch → a hero illustration → a centered
-/// "No Requests yet" / "All requests will show up here" block. Distinct from
-/// the availability-toggle-heavy [JeeberNoRequestsView]: this is the lean
-/// Figma-parity surface a registered, available Jeeber sees with zero
-/// incoming requests.
+/// Layout: greeting header → the "Accept orders" availability row, now carried
+/// on a `JeebOutlinedCard` at the board's 24px gutter → the same start-aligned
+/// two-line empty block its live siblings use ([JeeberNoRequestsView] and the
+/// feed's own `_EmptyTabState`). Distinct from the availability-toggle-heavy
+/// [JeeberNoRequestsView]: this is the lean surface a registered, available
+/// Jeeber sees with zero incoming requests.
 class JeeberFeedEmptyView extends StatelessWidget {
   const JeeberFeedEmptyView({
     super.key,
@@ -81,11 +84,9 @@ class _EmptyColumn extends StatelessWidget {
           value: acceptOrders,
           onChanged: onAcceptOrdersChanged,
         ),
-        const SizedBox(height: Spacing.large),
-        const _EmptyHero(),
-        const SizedBox(height: Spacing.large),
+        // No extra gap: the empty block owns its own top inset, matching the
+        // band rhythm JeeberNoRequestsView already ships.
         const _EmptyText(),
-        const SizedBox(height: Spacing.large),
       ],
     );
   }
@@ -100,39 +101,33 @@ class _AcceptOrdersRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.small,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        0,
       ),
       child: Semantics(
         identifier: 'jeeber_home_accept_orders_switch',
         toggled: value,
-        child: OmdsSwitchTile(
-          key: const Key('jeeber-home-accept-orders-switch'),
-          title: AppLocalizations.of(context).jeeberFeedAcceptOrdersLabel,
-          value: value,
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyHero extends StatelessWidget {
-  const _EmptyHero();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
-      ),
-      child: ExcludeSemantics(
-        child: AspectRatio(
-          aspectRatio: 1,
-          child: Image.asset(
-            'assets/illustrations/empty_orders.png',
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        // The live dashboard carries availability on a card, not on a bare
+        // tile. This surface cannot use the navy AvailabilityCard (the OMDS
+        // tile paints its own onSurface ink), so it takes the outlined card —
+        // outline over shadow, same 16 radius and 24px gutter.
+        child: JeebOutlinedCard(
+          padding: EdgeInsetsDirectional.zero,
+          child: OmdsSwitchTile(
+            key: const Key('jeeber-home-accept-orders-switch'),
+            title: AppLocalizations.of(context).jeeberFeedAcceptOrdersLabel,
+            value: value,
+            onChanged: onChanged,
+            // The same success ROLE the AvailabilityCard switch uses, so
+            // "online" reads green on both jeeber-home surfaces.
+            activeColor: context.jeebRoles.success,
+            contentPadding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Spacing.medium,
+              vertical: Spacing.small,
+            ),
           ),
         ),
       ),
@@ -140,54 +135,22 @@ class _EmptyHero extends StatelessWidget {
   }
 }
 
+/// "Empty ≠ dead" — E3's night street, the block every no-requests surface on
+/// the jeeber home already draws ([JeeberFeedEmptyBlock], the feed's own
+/// `_EmptyTabState`). One condition, one rendering.
 class _EmptyText extends StatelessWidget {
   const _EmptyText();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Column(
-      children: [
-        _EmptyTitle(text: l10n.jeeberFeedEmptyTitle),
-        const SizedBox(height: Spacing.xSmall),
-        _EmptySubtitle(text: l10n.jeeberFeedEmptySubtitle),
-      ],
-    );
-  }
-}
-
-class _EmptyTitle extends StatelessWidget {
-  const _EmptyTitle({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: theme.textTheme.headlineSmall?.copyWith(
-        color: theme.colorScheme.secondaryContainer,
-        fontWeight: FontWeight.w800,
-      ),
-    );
-  }
-}
-
-class _EmptySubtitle extends StatelessWidget {
-  const _EmptySubtitle({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.xLarge),
+      child: JeebEmptyState(
+        identifier: 'jeeber_feed_empty_view_empty_state',
+        variant: JeebEmptyStateVariant.street,
+        headline: l10n.jeeberFeedEmptyTitle,
+        body: l10n.jeeberFeedEmptySubtitle,
       ),
     );
   }

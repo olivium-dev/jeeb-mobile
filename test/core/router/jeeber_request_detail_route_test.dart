@@ -1,21 +1,4 @@
 // T-MOB-FIX-001 — Jeeber request-detail route GetIt crash.
-//
-// codex dual-leg E2E (qa-evidence/e2e-dual-2/j2-jeeber-feed-entry-crash.png)
-// reproduced — twice — a red-screen crash when a Jeeber taps a feed card:
-//
-//   Bad state: GetIt: Object/factory with type ProhibitedItemReportService
-//   is not registered inside GetIt.
-//
-// The `/jeeber/requests/:id` route builder resolves
-// `sl<ProhibitedItemReportService>()` (app_router.dart) but the service was
-// never registered in `configureDependencies`. This walls off the entire
-// Jeeber leg: active delivery → OTP handover → mutual rating are all reached
-// THROUGH this screen.
-//
-// These tests pin the fix at the route boundary using the REAL container
-// (`configureDependencies`) and the REAL router (`AppRouter.create`) — the
-// faithful reproduction of the crashing path. Before the DI registration was
-// added they throw the GetIt `Bad state`; after, they build clean.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -100,7 +83,6 @@ void main() {
     });
     prefs = await SharedPreferences.getInstance();
     // Real production wiring — the same call bootstrap.dart makes. This is what
-    // registers ProhibitedItemReportService; the route depends on it.
     configureDependencies(
       sharedPreferences: prefs,
       crashReporter: const NoopCrashReporter(),
@@ -140,7 +122,6 @@ void main() {
       await tester.pumpAndSettle();
 
       // The exact crash signal: building the route must not throw the GetIt
-      // "not registered" Bad state.
       expect(
         tester.takeException(),
         isNull,
@@ -161,7 +142,6 @@ void main() {
     'the route builder resolves the exact dependency the screen requires',
     (tester) async {
       // Direct assertion on the dependency the route hands to the screen's
-      // `reportService` constructor argument.
       expect(
         GetIt.I.isRegistered<ProhibitedItemReportService>(),
         isTrue,

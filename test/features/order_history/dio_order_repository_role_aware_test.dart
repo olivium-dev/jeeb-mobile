@@ -1,17 +1,4 @@
 // JEBV4-280 regression locks for the shared "Delivery" tab repository.
-//
-// D1 (role-aware endpoint): a jeeber's Delivery tab must load their ASSIGNED
-//   delivery jobs from `GET /v1/deliveries?role=jeeber` (gateway
-//   `JeebOrdersListController`, scoped to `JeeberId == caller`) — NOT the
-//   caller's own customer request list (`GET /v1/requests`), which is empty for
-//   a jeeber and stranded the tab on "No orders yet". The customer path is
-//   unchanged: `/v1/requests` with the per-tab `status=` filter.
-//
-// D2 (parse guard): a well-formed but EMPTY envelope (`{"items":[]}`) is a
-//   valid empty page, not a parse error. Before the fix the repo threw a
-//   FormatException on it, so a customer/jeeber with zero rows saw "Couldn't
-//   load orders" instead of the empty state. A Map with no `items` list is
-//   still a parse error.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -83,8 +70,6 @@ void main() {
         expect(adapter.lastPath, '/v1/deliveries');
         expect(adapter.lastQuery['role'], 'jeeber');
         // JEBV4-307: the delivery endpoint honours the `status=` bucket token
-        // (gateway MatchesBucket). Absent status = active-only, which stranded
-        // the Completed/Cancelled tabs empty — so the per-tab bucket IS sent.
         expect(adapter.lastQuery['status'], 'active');
         expect(adapter.lastQuery['page'], 1);
         expect(adapter.lastQuery['pageSize'], 20);
@@ -101,7 +86,6 @@ void main() {
           asJeeber: true,
         ).fetchPage(tab: OrderHistoryTab.completed, page: 1, pageSize: 20);
         // JEBV4-307 regression lock: the jeeber Completed tab must ask the
-        // gateway for the terminal-Done bucket, not the active-only default.
         expect(adapter.lastPath, '/v1/deliveries');
         expect(adapter.lastQuery['role'], 'jeeber');
         expect(adapter.lastQuery['status'], 'delivered');
@@ -118,7 +102,6 @@ void main() {
       'jeeber delivery rows map + bucket via the delivery vocabulary',
       () async {
         // The gateway OrderListItem shape (no `amount` for a delivery job → the
-        // card degrades to "—", never a crash / fabricated \$0.00).
         adapter.body = {
           'items': [
             {

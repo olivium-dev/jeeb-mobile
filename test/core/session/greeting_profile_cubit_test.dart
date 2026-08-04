@@ -1,7 +1,4 @@
 // Unit tests for GreetingProfileCubit (P0-X06). Proves the personalized
-// greeting (name + avatar) is sourced from the live `getMe` profile, and that
-// it degrades to the generic (null/empty) greeting on a failed/absent fetch
-// rather than surfacing a broken header.
 
 import 'dart:async';
 
@@ -97,8 +94,6 @@ void main() {
         expect(cubit.state.name, isNull);
 
         // Simulate the display-name save: getMe now carries the real name
-        // (the gateway mirrors PUT /api/User/profile `username` into the
-        // projection) and the save path broadcasts a profile change.
         repo.profile = const CustomerProfileViewData(name: 'Ahmad');
         signals.add(null);
         await Future<void>.delayed(Duration.zero);

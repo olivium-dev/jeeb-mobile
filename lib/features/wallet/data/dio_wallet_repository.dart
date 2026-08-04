@@ -2,19 +2,6 @@ import 'package:dio/dio.dart';
 
 import '../domain/wallet_repository.dart';
 
-/// Dio-backed [WalletRepository] (JM-053) — W1m `GET /v1/jeeb/wallet`.
-///
-/// NOT the DI default yet: the wallet endpoint (W1m) is backend-owned and not
-/// live on `:4010` (CTO-D2), so `injection_container.dart` binds the
-/// [StubWalletRepository] INTEGRATOR-STUB until W1m lands. This impl is the
-/// swap target — the JM-053 engineer (or the integrator at the W1m hand-off)
-/// repoints the DI registration here without touching the screen.
-///
-/// Gateway-contract path: `/v1/jeeb/wallet`. `MockGatewayClient` rewrites the
-/// prefix to `/wallet-service/v1/jeeb/wallet` on `:4010` (a `/v1/jeeb/wallet`
-/// rewrite-map key must be added by the W2.5 mock/foundation hand-off — it is a
-/// sibling of the existing `/v1/jeeb/earnings` key). DO NOT hardcode the
-/// service prefix here (40_GUARDRAILS_ARCH §4 / DO-NOT).
 class DioWalletRepository implements WalletRepository {
   const DioWalletRepository(this._dio);
 
@@ -32,8 +19,6 @@ class DioWalletRepository implements WalletRepository {
     }
   }
 
-  // Defensive parse (40_GUARDRAILS_ARCH §4): null-coalesce every field, accept
-  // snake_case + camelCase, tolerate an unknown affordability string.
   WalletBalance _parse(Map<String, dynamic> json) {
     return WalletBalance(
       availableBalance:
@@ -43,14 +28,6 @@ class DioWalletRepository implements WalletRepository {
       ),
       reservedNow: _num(json['reservedNow'] ?? json['reserved_now']),
       giftCredit: _num(json['giftCredit'] ?? json['gift_credit']),
-      // Currency is gateway-verbatim (40_GUARDRAILS_ARCH §5). The client-side
-      // fallback is `USD` — the settlement currency ($100 goods → $10 fee) and
-      // the same default every other wallet/order/offer data source uses. A
-      // prior `'SAR'` fallback here leaked "SAR" onto the offer composer's
-      // fee/net/reserve lines (it reads `_wallet?.currency`) while the money is
-      // USD (JEBV4 currency-consistency fix). TODO(backender): the wallet
-      // balance response should ALWAYS include an explicit `currency` so the
-      // client never has to default at all.
       currency: _str(json['currency']) ?? 'USD',
     );
   }

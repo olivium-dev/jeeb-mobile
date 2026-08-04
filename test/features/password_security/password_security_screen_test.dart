@@ -1,10 +1,4 @@
 // Widget tests for PasswordSecurityScreen (JM-061).
-//
-// Asserts the exact Semantics(identifier:) contract from 30_BACKLOG JM-061 +
-// 67_W34_TEST_PLAN §JM-061 is present, the mismatch/strength validation stays on
-// screen, the social-only entry routes to set-password (?mode=in-app-social,
-// D90), and `password_back` → customer-profile. Maestro keys on identifiers
-// (CTO brief §6.6), so these assert on `find.bySemanticsIdentifier`.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -28,7 +22,6 @@ Widget _host({bool hasPassword = true}) {
         builder: (_, _) => PasswordSecurityScreen(hasPassword: hasPassword),
       ),
       // The set-password target (JM-022). Renders setpw_new_field so the
-      // password_set_entry → setpw_new_field nav assertion holds.
       GoRoute(
         path: '/set-password',
         name: 'set-password',
@@ -137,7 +130,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // NO false success: the screen must NOT navigate back to the profile as if
-    // the password had changed (the pre-B-33 defect).
     expect(find.text('customer-profile-host'), findsNothing);
     expect(find.bySemanticsIdentifier('password_security_root'), findsOneWidget);
     // The honest notice is surfaced.

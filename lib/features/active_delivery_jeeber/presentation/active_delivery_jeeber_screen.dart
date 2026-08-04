@@ -4,6 +4,14 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../background_gps/application/background_gps_cubit.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
@@ -11,13 +19,28 @@ import '../application/active_delivery_cubit.dart';
 import '../domain/active_delivery_repository.dart';
 import '../domain/jeeber_delivery.dart';
 import '../domain/jeeber_delivery_status.dart';
+import 'active_delivery_jeeber_l10n.dart';
+import 'active_delivery_muted_ink.dart';
 import 'widgets/delivery_status_stepper.dart';
 import 'widgets/gps_permission_banner.dart';
 import 'widgets/mark_delivered_panel.dart';
 
-/// Minimum width needed to keep the two quick actions on one row without
-/// truncating their localized labels at the default text scale.
-const double _kInlineQuickActionsMinWidth = 448;
+/// Minimum width needed to keep the quick-action pills on one row.
+///
+/// Was 448 — which no phone in portrait ever reaches inside 24pt gutters, so
+/// the "inline" row was unreachable and every device got the stacked column.
+/// The board's row is the default; 320 is the width below which three pills
+/// genuinely cannot hold their labels.
+const double _kInlineQuickActionsMinWidth = 320;
+
+/// Drop-off card padding — the board's `padding: 14px 16px` (`tpl 1057`).
+/// `Spacing` has no 14 rung, and the card's own default is 13 vertical.
+const EdgeInsetsGeometry _kDropOffCardPadding =
+    EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium, vertical: 14);
+
+/// R18's own bottom glow, re-read in the M6 census: `rgba(215,59,0,.26)` under
+/// the pill row — one notch above the ratified single glow alpha .24.
+const double _kFieldGlowAlpha = 0.26;
 
 /// Jeeber active-delivery / mark-delivered screen (T-MOB-031, JM-051).
 ///
@@ -135,19 +158,57 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
   }
 }
 
+/// The Midnight page: transparent scaffold over the `content` field, its one
+/// quiet glow anchored bottom-centre exactly where the board draws it.
+class _Field extends StatelessWidget {
+  const _Field({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.bottom,
+        glowColor: context.jeebRoles.accent.withValues(alpha: _kFieldGlowAlpha),
+        child: SafeArea(child: child),
+      ),
+    );
+  }
+}
+
 class _Unavailable extends StatelessWidget {
   const _Unavailable();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(title: l10n.activeDeliveryTitle),
-      // mark_delivered_root is exposed even on the unavailable shell so a cold
-      // deep-link / seam pin can still assert the screen rendered.
-      body: Semantics(
-        identifier: 'mark_delivered_root',
-        child: Center(child: Text(l10n.activeDeliveryUnavailable)),
+    return _Field(
+      child: Column(
+        children: [
+          JeebTopBar.back(
+            title: l10n.activeDeliveryTitle,
+            identifier: 'mark_delivered_back',
+          ),
+          // mark_delivered_root is exposed even on the unavailable shell so a
+          // cold deep-link / seam pin can still assert the screen rendered.
+          Expanded(
+            child: Semantics(
+              identifier: 'mark_delivered_root',
+              child: Center(
+                child: SingleChildScrollView(
+                  child: JeebEmptyState(
+                    status: JeebEmptyStateStatus.error,
+                    headline: l10n.activeDeliveryTitle,
+                    body: l10n.activeDeliveryUnavailable,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -222,14 +283,25 @@ class _Body extends StatelessWidget {
 
   Widget _buildScaffold(BuildContext context, ActiveDeliveryState state) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: OMDSAppBar(title: l10n.activeDeliveryTitle, showBackButton: true),
+    return _Field(
       // mark_delivered_root (JM-051) — root of the active-delivery /
       // mark-delivered screen, asserted on first frame by the seam route pin.
-      body: Semantics(
+      child: Semantics(
         identifier: 'mark_delivered_root',
         explicitChildNodes: true,
-        child: _buildBody(context, state, l10n),
+        // The bar is hoisted ABOVE the mode switch on purpose: loading, error
+        // and terminal all used to inherit it from `appBar:`, and an in-body
+        // bar built inside the ready branch would leave those three modes with
+        // no title and no way back.
+        child: Column(
+          children: [
+            JeebTopBar.back(
+              title: l10n.activeDeliveryTitle,
+              identifier: 'mark_delivered_back',
+            ),
+            Expanded(child: _buildBody(context, state, l10n)),
+          ],
+        ),
       ),
     );
   }
@@ -241,11 +313,30 @@ class _Body extends StatelessWidget {
   ) {
     switch (state.mode) {
       case ActiveDeliveryMode.loading:
-        return const Center(child: OmdsLoadingState());
+        return Center(
+          child: SingleChildScrollView(
+            child: JeebEmptyState(
+              status: JeebEmptyStateStatus.loading,
+              headline: l10n.activeDeliveryLoadingHeadline,
+              identifier: 'active_delivery_loading',
+            ),
+          ),
+        );
       case ActiveDeliveryMode.error:
-        return OmdsErrorState(
-          message: state.errorMessage ?? l10n.activeDeliveryLoadError,
-          onRetry: () => context.read<ActiveDeliveryCubit>().loadDelivery(),
+        return Center(
+          child: SingleChildScrollView(
+            child: JeebEmptyState(
+              status: JeebEmptyStateStatus.error,
+              headline: l10n.activeDeliveryErrorHeadline,
+              body: state.errorMessage ?? l10n.activeDeliveryLoadError,
+              identifier: 'active_delivery_error',
+              action: JeebCtaButton.primary(
+                label: l10n.deliveryStatusRetry,
+                onTap: () =>
+                    context.read<ActiveDeliveryCubit>().loadDelivery(),
+              ),
+            ),
+          ),
         );
       case ActiveDeliveryMode.ready:
       case ActiveDeliveryMode.transitioning:
@@ -349,64 +440,84 @@ class _ReadyContent extends StatelessWidget {
     // AtDoor and surfaces the OTP entry instead.
     final isCompleted =
         delivery.status == JeeberDeliveryStatus.done && !state.isTransitioning;
-    return ListView(
-      padding: const EdgeInsets.all(Spacing.medium),
+    final copy = ActiveDeliveryJeeberL10n.of(context);
+    // R1: the stepper is pinned under the bar, the cards scroll between it and
+    // the docked footer, and the bottom ~40% of the board stays white. Never a
+    // Spacer between the cards and never a centred column — the content is
+    // top-aligned and the emptiness underneath is the design.
+    return Column(
       children: [
-        // P0 (live tracking): FIRST item, above everything, whenever the GPS
-        // uploader is parked on a missing background-location grant. While this
-        // is visible the customer's tracking map is empty and only the jeeber
-        // can fix it — the previous behaviour was to show nothing at all and
-        // let the delivery run blind. Not dismissible, by design.
-        if (state.isGpsBlocked) ...[
-          GpsPermissionBanner(
-            needsSystemSettings: state.gpsNeedsSystemSettings,
-            onOpenSettings: onOpenGpsSettings,
-            onRetry: onRetryGpsPermission,
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.medium,
+            Spacing.xLarge,
+            0,
           ),
-          const SizedBox(height: Spacing.large),
-        ],
-        if (isCompleted) ...[
-          _CompletedPanel(l10n: l10n),
-          const SizedBox(height: Spacing.large),
-        ],
-        _AddressCard(delivery: delivery, l10n: l10n),
-        const SizedBox(height: Spacing.large),
-        OMDSSectionCard(
-          title: l10n.activeDeliveryProgressTitle,
-          showDivider: false,
-          content: DeliveryStatusStepper(
+          child: DeliveryStatusStepper(
             currentStatus: delivery.status,
             isTransitioning: state.isTransitioning,
             onAdvance: onAdvance,
           ),
         ),
-        const SizedBox(height: Spacing.large),
-        // JM-051 AC1/AC2: surface the mark-delivered panel — proof photo (D3)
-        // + optional note + cash-receipt copy (D11) + the CTA.
-        if (showMarkDelivered) ...[
-          MarkDeliveredPanel(
-            delivery: delivery,
-            proofPhotoStatus: state.proofPhotoStatus,
-            proofPhotoBytes: state.proofPhotoBytes,
-            isMarking: state.isTransitioning,
-            onCaptureProof: onCaptureProof,
-            onNoteChanged: onNoteChanged,
-            onMarkDelivered: onMarkDelivered,
-            // iter6 close-tail: surface the door-OTP entry when the gateway
-            // demands the recipient code to complete `AtDoor → Done`.
-            otpRequired: state.otpRequired,
-            isVerifyingOtp: state.isVerifyingOtp,
-            otpError: state.otpError,
-            onSubmitOtp: onSubmitOtp,
-            l10n: l10n,
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.medium,
+              Spacing.xLarge,
+              Spacing.medium,
+            ),
+            children: [
+              // P0 (live tracking): FIRST item, above everything, whenever the
+              // GPS uploader is parked on a missing background-location grant.
+              // While this is visible the customer's tracking map is empty and
+              // only the jeeber can fix it — the previous behaviour was to show
+              // nothing at all and let the delivery run blind. Not dismissible,
+              // by design.
+              if (state.isGpsBlocked) ...[
+                GpsPermissionBanner(
+                  needsSystemSettings: state.gpsNeedsSystemSettings,
+                  onOpenSettings: onOpenGpsSettings,
+                  onRetry: onRetryGpsPermission,
+                ),
+                const SizedBox(height: Spacing.small),
+              ],
+              if (isCompleted) ...[
+                _CompletedPanel(l10n: l10n),
+                const SizedBox(height: Spacing.small),
+              ],
+              _AddressCard(delivery: delivery, l10n: l10n, copy: copy),
+              // JM-051 AC1/AC2: the handoff card — proof photo (D3), optional
+              // note, and either the CTA or the door-code block.
+              if (showMarkDelivered) ...[
+                const SizedBox(height: Spacing.small),
+                MarkDeliveredPanel(
+                  delivery: delivery,
+                  proofPhotoStatus: state.proofPhotoStatus,
+                  proofPhotoBytes: state.proofPhotoBytes,
+                  isMarking: state.isTransitioning,
+                  onCaptureProof: onCaptureProof,
+                  onNoteChanged: onNoteChanged,
+                  onMarkDelivered: onMarkDelivered,
+                  // iter6 close-tail: surface the door-OTP entry when the
+                  // gateway demands the recipient code for `AtDoor → Done`.
+                  otpRequired: state.otpRequired,
+                  isVerifyingOtp: state.isVerifyingOtp,
+                  otpError: state.otpError,
+                  onSubmitOtp: onSubmitOtp,
+                  l10n: l10n,
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: Spacing.large),
-        ],
-        _ActionButtons(
+        ),
+        _QuickActionFooter(
           onOpenMaps: onOpenMaps,
           onOpenChat: onOpenChat,
           onEnterGoodsCost: onEnterGoodsCost,
           l10n: l10n,
+          copy: copy,
         ),
       ],
     );
@@ -435,11 +546,11 @@ class _UnsuccessfulTerminalContent extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(Spacing.large),
         children: [
-          OmdsEmptyState(
+          JeebEmptyState(
             key: ValueKey<String>(_identifier),
-            icon: _icon,
-            title: _title,
-            subtitle: _body,
+            variant: JeebEmptyStateVariant.street,
+            headline: _title,
+            body: _body,
           ),
         ],
       ),
@@ -450,13 +561,6 @@ class _UnsuccessfulTerminalContent extends StatelessWidget {
     JeeberDeliveryStatus.cancelled => 'delivery_cancelled_state',
     JeeberDeliveryStatus.expired => 'delivery_expired_state',
     JeeberDeliveryStatus.disputed => 'delivery_disputed_state',
-    _ => throw StateError('Expected an unsuccessful terminal status'),
-  };
-
-  IconData get _icon => switch (status) {
-    JeeberDeliveryStatus.cancelled => Icons.cancel_outlined,
-    JeeberDeliveryStatus.expired => Icons.timer_off_outlined,
-    JeeberDeliveryStatus.disputed => Icons.report_problem_outlined,
     _ => throw StateError('Expected an unsuccessful terminal status'),
   };
 
@@ -485,60 +589,59 @@ class _CompletedPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Semantics(
       identifier: 'delivery_completed_state',
       container: true,
       label: l10n.deliveryCompletedBanner,
-      child: Container(
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer,
-          borderRadius: OmdsBorderRadius.medium,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.check_circle,
-              color: theme.colorScheme.onPrimaryContainer,
-              size: Sizes.large,
-            ),
-            const SizedBox(width: Spacing.small),
-            Expanded(
-              child: Text(
-                l10n.deliveryCompletedBanner,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ),
-          ],
-        ),
+      // Success, not "primary": a completed delivery is a green outcome, and
+      // primaryContainer here rendered the same navy as an active affordance.
+      child: JeebInfoNote.success(
+        icon: Icons.check_circle,
+        text: l10n.deliveryCompletedBanner,
       ),
     );
   }
 }
 
+/// The drop-off card (`tpl 1057-1062`). MIDNIGHT draws pin + address + collect
+/// line and NO trailing circle — the docked `Maps` pill owns that action.
 class _AddressCard extends StatelessWidget {
-  const _AddressCard({required this.delivery, required this.l10n});
+  const _AddressCard({
+    required this.delivery,
+    required this.l10n,
+    required this.copy,
+  });
 
   final JeeberDelivery delivery;
   final AppLocalizations l10n;
+  final ActiveDeliveryJeeberL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    return OMDSSectionCard(
-      title: l10n.activeDeliveryDropOffLabel,
-      showDivider: false,
-      content: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final mutedText = jeebMutedInk(context);
+    // Run-22 P1-A: never fabricate an amount. `?? \'\'` used to render
+    // "Pay  cash to ..." on a snapshot with no amount, and the old party
+    // fallback addressed the *address* as the payer.
+    final amount = delivery.amountText;
+    final cash = amount == null || amount.isEmpty
+        ? copy.collectCashNoAmount
+        : copy.collectCash(amount);
+    final detail = delivery.dropOff.detail;
+    final line = detail == null ? cash : '$detail \u00b7 $cash';
+    // TODO(redesign-24): the board's collect line splits fee and goods cost
+    // ("$8 + $6.50 goods"). `JeeberDelivery` carries `amountText` only and no
+    // gateway field exposes the goods cost here — omitted, not faked.
+    return JeebOutlinedCard(
+      padding: _kDropOffCardPadding,
+      semanticLabel: l10n.activeDeliveryDropOffLabel,
+      child: Row(
         children: [
+          // MIDNIGHT measures the pin at `#FF5252` — the board's danger red,
+          // which IS a token. Pass-1's orange stand-in also spent the budget.
           Icon(
-            Icons.location_on_outlined,
-            color: colorScheme.primary,
-            size: Sizes.xLarge,
+            Icons.location_on,
+            color: Theme.of(context).colorScheme.error,
+            size: Sizes.large,
           ),
           const SizedBox(width: Spacing.small),
           Expanded(
@@ -547,17 +650,24 @@ class _AddressCard extends StatelessWidget {
               children: [
                 Text(
                   delivery.dropOff.label,
-                  style: theme.textTheme.titleMedium,
+                  style: context.jeebText.cardTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                if (delivery.dropOff.detail != null) ...[
-                  const SizedBox(height: Spacing.xSmall),
-                  Text(
-                    delivery.dropOff.detail!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                // `mark_delivered_cash_note` re-homes here from the deleted
+                // slab: the cash instruction belongs next to the address it
+                // qualifies. Still emitted at InTransit (Maestro jm-051).
+                Semantics(
+                  identifier: 'mark_delivered_cash_note',
+                  child: Text(
+                    line,
+                    style: context.jeebText.bodySmall.copyWith(
+                      color: mutedText,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -567,111 +677,51 @@ class _AddressCard extends StatelessWidget {
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
+/// One footer pill. The `Semantics(identifier:, container:, button:)` wrapper is
+/// the shipped idiom and stays; the long localized sentence moves onto the
+/// button's own node so the board's one-word label never reaches TalkBack bare.
+///
+/// MIDNIGHT draws these as **label-only** glass pills — the pass-1 glyphs are
+/// gone, which also retires the queued `Icons.map` → `Icons.directions` swap.
+class _QuickActionPill extends StatelessWidget {
+  const _QuickActionPill({
     required this.identifier,
     required this.label,
-    required this.icon,
+    required this.semanticLabel,
     required this.onTap,
   });
 
   final String identifier;
   final String label;
-  final IconData icon;
+  final String semanticLabel;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: identifier,
       container: true,
       button: true,
-      child: OmdsPrimaryButton(
-        text: label,
-        variant: OmdsButtonVariant.outlined,
-        icon: Icon(icon, color: colorScheme.primary),
+      child: JeebCtaButton.outline(
+        label: label,
+        semanticLabel: semanticLabel,
+        height: JeebCtaButton.outlineHeight,
         onTap: onTap,
       ),
     );
   }
 }
 
-class _QuickActions extends StatelessWidget {
-  const _QuickActions({
+/// The docked 3-pill footer (`tpl 1085-1092`).
+///
+/// Screen-local on purpose: this row shape exists on 18 only, so a kit footer
+/// variant would have exactly one consumer.
+class _QuickActionFooter extends StatelessWidget {
+  const _QuickActionFooter({
     required this.onOpenMaps,
     required this.onOpenChat,
     required this.l10n,
-  });
-
-  final VoidCallback onOpenMaps;
-  final VoidCallback onOpenChat;
-  final AppLocalizations l10n;
-
-  @override
-  Widget build(BuildContext context) {
-    final maps = _QuickAction(
-      identifier: 'mark_delivered_open_maps_cta',
-      label: l10n.activeDeliveryOpenMapsButton,
-      icon: Icons.map_outlined,
-      onTap: onOpenMaps,
-    );
-    final chat = _QuickAction(
-      identifier: 'mark_delivered_open_chat_cta',
-      label: l10n.activeDeliveryOpenChatButton,
-      icon: Icons.chat_bubble_outline,
-      onTap: onOpenChat,
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stackActions =
-            constraints.maxWidth < _kInlineQuickActionsMinWidth ||
-            MediaQuery.textScalerOf(context).scale(Spacing.medium) >
-                Spacing.large;
-        if (stackActions) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              maps,
-              const SizedBox(height: Spacing.small),
-              chat,
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: maps),
-            const SizedBox(width: Spacing.small),
-            Expanded(child: chat),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _GoodsCostAction extends StatelessWidget {
-  const _GoodsCostAction({required this.onTap, required this.l10n});
-
-  final VoidCallback onTap;
-  final AppLocalizations l10n;
-
-  @override
-  Widget build(BuildContext context) {
-    return _QuickAction(
-      identifier: 'mark_delivered_goods_cost_cta',
-      label: l10n.activeDeliveryEnterGoodsCostButton,
-      icon: Icons.receipt_long_outlined,
-      onTap: onTap,
-    );
-  }
-}
-
-class _ActionButtons extends StatelessWidget {
-  const _ActionButtons({
-    required this.onOpenMaps,
-    required this.onOpenChat,
-    required this.l10n,
+    required this.copy,
     this.onEnterGoodsCost,
   });
 
@@ -679,26 +729,70 @@ class _ActionButtons extends StatelessWidget {
   final VoidCallback onOpenChat;
   final VoidCallback? onEnterGoodsCost;
   final AppLocalizations l10n;
+  final ActiveDeliveryJeeberL10n copy;
 
   @override
   Widget build(BuildContext context) {
     final enterGoodsCost = onEnterGoodsCost;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _QuickActions(
-          onOpenMaps: onOpenMaps,
-          onOpenChat: onOpenChat,
-          l10n: l10n,
+    final pills = <Widget>[
+      _QuickActionPill(
+        identifier: 'mark_delivered_open_maps_cta',
+        label: copy.quickActionMaps,
+        semanticLabel: l10n.activeDeliveryOpenMapsButton,
+        onTap: onOpenMaps,
+      ),
+      _QuickActionPill(
+        identifier: 'mark_delivered_open_chat_cta',
+        label: copy.quickActionChat,
+        semanticLabel: l10n.activeDeliveryOpenChatButton,
+        onTap: onOpenChat,
+      ),
+      // TODO(midnight): the tile draws this third pill, but `GoodsCostScreen`
+      // has no route, so production still renders two — owner Q7 pending.
+      if (enterGoodsCost != null)
+        _QuickActionPill(
+          identifier: 'mark_delivered_goods_cost_cta',
+          label: copy.quickActionCosts,
+          semanticLabel: l10n.activeDeliveryEnterGoodsCostButton,
+          onTap: enterGoodsCost,
         ),
-        // Sprint 2 Stream G: goods-cost entry point (D11). Only shown when the
-        // caller wired the navigation closure — keeps existing tests/callers
-        // (which omit it) rendering exactly the prior two buttons.
-        if (enterGoodsCost != null) ...[
-          const SizedBox(height: Spacing.small),
-          _GoodsCostAction(onTap: enterGoodsCost, l10n: l10n),
-        ],
-      ],
+    ];
+    return Padding(
+      // The board draws 30 at the bottom; 32 is the rung and the
+      // 02-PLAN-ENHANCED §3.2 resolution. Noted divergence.
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        0,
+        Spacing.xLarge,
+        Spacing.twoXLarge,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackActions =
+              constraints.maxWidth < _kInlineQuickActionsMinWidth ||
+              MediaQuery.textScalerOf(context).scale(Spacing.medium) >
+                  Spacing.large;
+          if (stackActions) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                for (var index = 0; index < pills.length; index++) ...[
+                  if (index > 0) const SizedBox(height: Spacing.small),
+                  pills[index],
+                ],
+              ],
+            );
+          }
+          return Row(
+            children: <Widget>[
+              for (var index = 0; index < pills.length; index++) ...[
+                if (index > 0) const SizedBox(width: Spacing.small),
+                Expanded(child: pills[index]),
+              ],
+            ],
+          );
+        },
+      ),
     );
   }
 }

@@ -7,6 +7,10 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
 import '../../../core/notifications/application/offer_lifecycle_signals.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_state.dart';
@@ -29,10 +33,24 @@ import '../../jeeber_request_feed/presentation/pending_offer_row.dart';
 /// list is reachable both ways and the ids stay identical.
 ///
 /// This screen owns only the standalone CHROME: the `jeeber_pending_offers_root`
-/// container, the app bar, and the `pending_offers_back` edge → delivery-requests
+/// container, the header, and the `pending_offers_back` edge → delivery-requests
 /// (21_NAV_PLAN §C JM-047). The rows + their Semantics ids
 /// (`pending_offer_<i>` / `_price` / `_eta` / `pending_offer_awaiting_label` /
 /// `_withdraw_cta`, 65_W2_TEST_PLAN §2) come from [PendingOfferRow].
+///
+/// redesign-2026-08 (w4/w5): the Material app bar became the in-body
+/// [JeebTopBar] and [PendingOfferRow] took over the board's 24px gutter — one
+/// gutter for all three of its host surfaces — so the list's horizontal padding
+/// stays 0 here deliberately: adding one would indent the cards to 48px.
+///
+/// MIDNIGHT M3-36 (ORPHAN ruling KEEP+restyle). No tile: the framing is derived
+/// from R10 (`client_offers_screen.dart` — field + in-body back bar + top-
+/// aligned card list + centred state block) and the state family from the
+/// already-shipped twin of this exact list, the R16 feed's Pending-Response
+/// sub-tab (`jeeber_feed_tab_view.dart`), which is why the empty block is the
+/// same `pocket` [JeebEmptyState] under the same identifier. The three OMDS
+/// state widgets are gone; the field is `content` with the ratified `topEnd`
+/// glow and no periwinkle wash (none is measured for this surface).
 ///
 /// Self-provides the cubit over `sl<Dio>()` because the route builder constructs
 /// `const JeeberPendingOffersScreen()` with no DI param (mirrors
@@ -109,67 +127,142 @@ class _PendingOffersView extends StatelessWidget {
     return Semantics(
       identifier: 'jeeber_pending_offers_root',
       container: true,
-      child: Scaffold(
-        appBar: OMDSAppBar(
-          title: l10n.pendingOffersTitle,
-          showBackButton: true,
-          leading: Semantics(
-            identifier: 'pending_offers_back',
-            button: true,
-            container: true,
-            child: BackButton(
-              // EDGE → delivery-requests (DELIVERY/Dashboard tab; tabs are not
-              // routes — pop back to the shell-hosted feed, else go to root).
-              onPressed: () =>
-                  context.canPop() ? context.pop() : context.go('/'),
+      // Token sheet §8: a screen mounts the field, it does not inherit the flat
+      // scaffold navy. `animateDecor: false` — the M3 no-motion default.
+      child: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        animateDecor: false,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          // No `Scaffold.appBar`: the board's header is a body row (§5 #1), so
+          // the bar scrolls with the same 24px gutter as everything under it.
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                JeebTopBar.back(
+                  title: l10n.pendingOffersTitle,
+                  // FROZEN id — the kit lands it on the leading circle with the
+                  // same `button: true, container: true` node the hand-rolled
+                  // BackButton wrapper carried.
+                  identifier: 'pending_offers_back',
+                  // EDGE → delivery-requests (DELIVERY/Dashboard tab; tabs are
+                  // not routes — pop back to the shell-hosted feed, else go to
+                  // root). The kit never imports go_router, so the fallback
+                  // stays here.
+                  onLeadingPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/'),
+                ),
+                Expanded(
+                  child:
+                      BlocBuilder<SubmittedOffersCubit, SubmittedOffersState>(
+                        builder: _buildBody,
+                      ),
+                ),
+              ],
             ),
           ),
         ),
-        body: BlocBuilder<SubmittedOffersCubit, SubmittedOffersState>(
-          builder: (context, state) {
-            final cubit = context.read<SubmittedOffersCubit>();
-            // Spinner only on the first cold load.
-            if (state.status == SubmittedOffersStatus.loading &&
-                state.offers.isEmpty) {
-              return const OmdsLoadingState();
-            }
-            // Cold-load failure with nothing to show → error-state + retry.
-            if (state.status == SubmittedOffersStatus.error &&
-                state.offers.isEmpty) {
-              return OmdsErrorState(
-                message: l10n.offerSubmissionErrorGeneric,
-                retryLabel: l10n.offerSubmissionRetryButton,
-                onRetry: () => cubit.load(),
-              );
-            }
-            if (state.offers.isEmpty) {
-              return OmdsEmptyState(
-                icon: Icons.hourglass_empty_rounded,
-                title: l10n.pendingOffersEmptyTitle,
-                subtitle: l10n.pendingOffersEmptyBody,
-              );
-            }
-            return OmdsPullToRefresh(
-              onRefresh: cubit.load,
-              child: ListView.builder(
-                padding: const EdgeInsetsDirectional.symmetric(
-                  vertical: Spacing.small,
-                ),
-                itemCount: state.offers.length,
-                itemBuilder: (_, index) {
-                  final offer = state.offers[index];
-                  return PendingOfferRow(
-                    index: index,
-                    offer: offer,
-                    isWithdrawing: state.isWithdrawing(offer.id),
-                    onWithdraw: () => cubit.withdraw(offer.id),
-                  );
-                },
-              ),
-            );
-          },
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, SubmittedOffersState state) {
+    final l10n = AppLocalizations.of(context);
+    final cubit = context.read<SubmittedOffersCubit>();
+    // Illustration skeleton only on the first cold load (kit ruling 1).
+    if (state.status == SubmittedOffersStatus.loading && state.offers.isEmpty) {
+      return _CenteredBlock(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          variant: JeebEmptyStateVariant.pocket,
+          // TODO(midnight): l10n-queued — `pendingOffersLoadingHeadline`
+          // ("Loading your offers"); the bar title is the neutral stand-in.
+          headline: l10n.pendingOffersTitle,
+        ),
+      );
+    }
+    // Cold-load failure with nothing to show → danger-tinted block + retry.
+    if (state.status == SubmittedOffersStatus.error && state.offers.isEmpty) {
+      return _CenteredBlock(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.error,
+          variant: JeebEmptyStateVariant.pocket,
+          headline: l10n.offersLoadErrorTitle,
+          action: JeebCtaButton.primary(
+            label: l10n.offerSubmissionRetryButton,
+            identifier: 'pending_offers_retry_cta',
+            onTap: () => cubit.load(),
+          ),
+        ),
+      );
+    }
+    if (state.offers.isEmpty) {
+      return const _CenteredBlock(child: _PendingOffersEmptyState());
+    }
+    return OmdsPullToRefresh(
+      onRefresh: cubit.load,
+      child: ListView.builder(
+        // Horizontal gutter stays 0: [PendingOfferRow] owns the board's 24px
+        // page margin itself (see the class docs) so all three of its host
+        // surfaces line up — the vertical rhythm is this lane's.
+        padding: const EdgeInsetsDirectional.only(
+          top: Spacing.medium,
+          bottom: Spacing.xLarge,
+        ),
+        itemCount: state.offers.length,
+        itemBuilder: (_, index) {
+          final offer = state.offers[index];
+          return PendingOfferRow(
+            index: index,
+            offer: offer,
+            isWithdrawing: state.isWithdrawing(offer.id),
+            onWithdraw: () => cubit.withdraw(offer.id),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Vertically centres a state block and keeps it scrollable, so it survives a
+/// large text scale on a short viewport (R10 `_CenteredBlock`, R16's own twin).
+class _CenteredBlock extends StatelessWidget {
+  const _CenteredBlock({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(child: child),
         ),
       ),
+    );
+  }
+}
+
+/// The "nothing awaiting a decision" block. Copy is unchanged (D15) — a jeeber
+/// sends ONE offer per request, so this stays about requests with no answer
+/// yet, never "your offers on this request".
+///
+/// Byte-identical to the R16 feed sub-tab's block (variant, identifier and both
+/// strings): one list, one empty rendering, whichever surface reaches it.
+class _PendingOffersEmptyState extends StatelessWidget {
+  const _PendingOffersEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return JeebEmptyState(
+      identifier: 'jeeber_pending_offers_empty_state',
+      variant: JeebEmptyStateVariant.pocket,
+      headline: l10n.pendingOffersEmptyTitle,
+      body: l10n.pendingOffersEmptyBody,
     );
   }
 }

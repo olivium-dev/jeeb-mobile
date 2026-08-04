@@ -1,18 +1,4 @@
 // b02 polling→push: a chat PUSH must drive the OPEN chat thread.
-//
-// WHAT WAS BROKEN. `ChatCubit` took no push/refresh input of any kind.
-// `PushRefreshSignals` was wired into `home_tab`, `client_home_cubit` and
-// `request_feed_cubit` — never into chat. On the deployed build a chat push
-// landed at 18:44:29Z and triggered NO fetch, while
-// `GET /v1/conversations/{id}/messages` kept ticking at exactly 60.0s on a
-// fixed phase (18:45:02.512, 18:46:02.514, 18:47:02.512). The 60s safety-net
-// poll was the ONLY inbound HTTP path, and it is deleted in the follow-up
-// commit — which is only safe if these tests hold.
-//
-// Every gateway here has `supportsPolling == false`, so NO timer exists in any
-// of these tests. That is deliberate: it makes the push the only thing that
-// could possibly produce a fetch, so a passing assertion cannot be a poll tick
-// wearing a push's clothes.
 
 import 'dart:async';
 
@@ -112,7 +98,6 @@ void main() {
       expect(cubit.debugPushRefreshWired, isTrue);
 
       // The counterpart's new line lands on the server. Nothing on the device
-      // knows yet: there is no poll and the WS stream never emits.
       gateway.history = <DeliveryChatMessage>[
         _them('m1', 'first'),
         _them('m2', 'nonce-7f3a'),
@@ -181,9 +166,6 @@ void main() {
     test('the push-driven refetch RECONCILES — read receipts keep advancing',
         () async {
       // The receipt path folds the server echo into the optimistic bubble (the
-      // double-tick). A push-driven refetch that replaced the list instead
-      // would strand own bubbles at `sending` forever and drop any the server
-      // has not echoed yet.
       final gateway = _CountingGateway(<DeliveryChatMessage>[
         _them('m1', 'hi'),
       ]);
@@ -197,7 +179,6 @@ void main() {
       expect(own.author, ChatAuthor.me);
 
       // Server echo of that own message, now READ by the counterpart, plus a
-      // fresh inbound line.
       gateway.history = <DeliveryChatMessage>[
         _them('m1', 'hi'),
         _me('srv-1', 'my line', status: MessageStatus.read),

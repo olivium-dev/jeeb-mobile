@@ -1,20 +1,3 @@
-// BUG-3 (customer offer discovery): the LIVE `GET /requests?role=client`
-// payload carries NO offer indicator (offersCount/jeeberId null even when a
-// jeeber has offered — confirmed by a read-only probe against :10090). So the
-// client must make offer discovery DETERMINISTIC by fetching the live offers
-// for each non-accepted request via `GET /v1/offers?requestId` and bucketing on
-// that count — otherwise the Replies tab reads "No replies yet" and the offer
-// is never reachable/acceptable.
-//
-// These tests pin:
-//  - the exact offers-read route + query param the repo issues per request,
-//  - an offer-bearing request surfacing in Replies even when the payload has
-//    NO offer indicator,
-//  - a no-offer request staying in Pending,
-//  - withdrawn offers NOT counting,
-//  - a degraded/erroring offers endpoint (the live 500) failing soft — the
-//    home load still resolves and never throws.
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/home_client/data/dio_client_home_repository.dart';
@@ -38,8 +21,6 @@ void main() {
   });
 
   /// Wires the three home GETs. `offersByRequestId` maps a requestId to the
-  /// offer rows the offer-service returns for it; a `null` entry makes the
-  /// offers read THROW (simulating the live 500) so we can assert soft-fail.
   void stub({
     required List<dynamic> requests,
     required Map<String, List<Map<String, dynamic>>?> offersByRequestId,
@@ -57,7 +38,6 @@ void main() {
         offerRequestIds.add(rid);
         final rows = offersByRequestId[rid];
         if (rows == null) {
-          // Simulate the live offers-read 500 → repo must degrade, not throw.
           throw DioException(
             requestOptions: RequestOptions(path: path),
             response: Response<dynamic>(
@@ -75,7 +55,6 @@ void main() {
   test(
       'offer-bearing request surfaces in Replies via GET /v1/offers?requestId '
       'EVEN WHEN the role=client payload has NO offer indicator', () async {
-    // Mirrors the live shape: no offersCount/jeeberId on the request row.
     stub(
       requests: [
         {'id': 'req-A', 'status': 'pending', 'title': 'Pharmacy run'},
@@ -89,9 +68,7 @@ void main() {
 
     final snapshot = await repo.loadSnapshot();
 
-    // The deterministic probe hit the customer offers route with the request id.
     expect(offerRequestIds, contains('req-A'));
-    // The request is now an actionable reply, not a stuck pending row.
     final reply = snapshot.replies.where((r) => r.id == 'req-A');
     expect(reply, hasLength(1));
     expect(reply.single.status, ClientRequestStatus.offersReceived);
@@ -134,8 +111,6 @@ void main() {
 
   test('a 500 from the offers-read degrades to the payload count (no throw)',
       () async {
-    // `null` rows → the stub throws a 500 DioException for this request, exactly
-    // like the live binary. The home load must still resolve.
     stub(
       requests: [
         {'id': 'req-D', 'status': 'pending', 'title': 'Resilience'},
@@ -145,10 +120,100 @@ void main() {
 
     final snapshot = await repo.loadSnapshot();
 
-    // No live count available → falls back to the (absent) payload count → 0 →
-    // stays pending. Crucially: it did not throw.
     expect(snapshot.pending.map((r) => r.id), contains('req-D'));
     expect(snapshot.replies, isEmpty);
+  });
+
+  // The Replies card's "N offers · from $X" floor. It is computed over the
+  // SAME probe payload the count comes from — zero extra network — and it is
+  // absent by construction wherever the probe is skipped.
+  group('offer floor (redesign-2026-08 screen 04)', () {
+    test('probed row carries the lowest fee and its currency', () async {
+      stub(
+        requests: [
+          {'id': 'req-F', 'status': 'pending', 'title': 'Groceries'},
+        ],
+        offersByRequestId: {
+          'req-F': [
+            {'id': 'o1', 'status': 'pending', 'fee': 12, 'currency': 'USD'},
+            {'id': 'o2', 'status': 'pending', 'fee': 8.5, 'currency': 'USD'},
+            {'id': 'o3', 'status': 'pending', 'fee': 20, 'currency': 'USD'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-F');
+      expect(reply.offerCount, 3);
+      expect(reply.lowestOfferFee, 8.5);
+      expect(reply.offerCurrency, 'USD');
+    });
+
+    test('fee-less offers are ignored by the floor, not counted as zero',
+        () async {
+      stub(
+        requests: [
+          {'id': 'req-G', 'status': 'pending', 'title': 'Pharmacy'},
+        ],
+        offersByRequestId: {
+          'req-G': [
+            {'id': 'o1', 'status': 'pending'},
+            {'id': 'o2', 'status': 'pending', 'fee': 9, 'currency': 'LBP'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-G');
+      expect(reply.offerCount, 2, reason: 'both offers are live');
+      expect(reply.lowestOfferFee, 9, reason: 'the fee-less offer contributes nothing');
+      expect(reply.offerCurrency, 'LBP');
+    });
+
+    test('a row bucketed by its payload count gets NO floor (never probed)',
+        () async {
+      stub(
+        requests: [
+          {
+            'id': 'req-H',
+            'status': 'pending',
+            'title': 'Declared reply',
+            'offersCount': 4,
+          },
+        ],
+        offersByRequestId: const {},
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      expect(offerRequestIds, isEmpty,
+          reason: 'the probe-skip must survive — a declared reply is not probed');
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-H');
+      expect(reply.offerCount, 4);
+      expect(reply.lowestOfferFee, isNull);
+      expect(reply.offerCurrency, isNull);
+    });
+
+    test('offers with no fee at all leave the floor null', () async {
+      stub(
+        requests: [
+          {'id': 'req-I', 'status': 'pending', 'title': 'No quotes'},
+        ],
+        offersByRequestId: {
+          'req-I': [
+            {'id': 'o1', 'status': 'pending'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-I');
+      expect(reply.offerCount, 1);
+      expect(reply.lowestOfferFee, isNull);
+    });
   });
 
   test('accepted requests are NOT probed for offers (stay In Progress)',

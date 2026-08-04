@@ -1,20 +1,12 @@
 import '../domain/order_summary.dart';
 import '../domain/order_summary_repository.dart';
 
-/// In-memory [OrderSummaryRepository] test seam (JM-031).
-///
-/// NEVER registered in DI (guardrail §6.4) — it is a constructor override the
-/// `OrderSummaryScreen` / `OrderSummaryPinned` host passes in widget tests, and
-/// the safe default the standalone screen falls back to when GetIt has no
-/// `OrderSummaryRepository` bound (so a cold dev-seam capture still renders a
-/// representative summary instead of an error state).
 class FakeOrderSummaryRepository implements OrderSummaryRepository {
   FakeOrderSummaryRepository({OrderSummary? summary, this.failure})
       : _summary = summary;
 
   final OrderSummary? _summary;
 
-  /// When set, [fetchSummary] throws this failure instead of returning data.
   final OrderSummaryFailure? failure;
 
   @override

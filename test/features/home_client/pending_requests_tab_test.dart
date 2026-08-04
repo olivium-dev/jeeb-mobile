@@ -1,22 +1,18 @@
-// Tests for the server-truth PendingRequestsTab status contract.
-//
-// The gateway list does not include an expiry instant. A request returned in
-// the pending bucket must remain "Searching" until a refreshed server snapshot
-// moves or removes it; no local duration may manufacture an "Expired" label.
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:omds/omds.dart';
+import 'package:lottie/lottie.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_system_chip.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/tabs/pending_requests_tab.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -37,6 +33,13 @@ Widget _harness({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4), so `pumpAndSettle`
+    // only terminates under reduce motion — the sanctioned way to settle a
+    // tree that mounts them.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(
       body: BlocProvider(
         create: (_) => ClientHomeCubit(
@@ -111,7 +114,7 @@ void main() {
         await tester.pumpWidget(_harness(repo: repo));
         await tester.pumpAndSettle();
 
-        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        expect(find.text('Broadcasting'), findsOneWidget);
         expect(find.text('Expired'), findsNothing);
         expect(find.byKey(const Key('pending-server-status')), findsOneWidget);
       },
@@ -127,7 +130,7 @@ void main() {
         await tester.pumpWidget(_harness(repo: repo));
         await tester.pumpAndSettle();
 
-        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        expect(find.text('Broadcasting'), findsOneWidget);
         expect(find.text('Expired'), findsNothing);
       },
     );
@@ -158,7 +161,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Expired'), findsNothing);
-        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        expect(find.text('Broadcasting'), findsOneWidget);
         await tester.tap(find.byKey(const Key('pending-countdown-card-pen-1')));
         expect(tapped, 1);
       },
@@ -171,31 +174,21 @@ void main() {
 
       expect(find.byKey(const Key('pending-empty')), findsOneWidget);
       expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
+      // E1 draws the headline INSIDE the empty block (the screen drops its own
+      // prompt in this composition, so it is still printed exactly once).
       expect(find.text('What do you need?'), findsOneWidget);
-      expect(find.text('Create your first request'), findsOneWidget);
-      expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
-      final image = tester.widget<Image>(find.byType(Image));
-      expect(image.image, isA<AssetImage>());
       expect(
-        (image.image as AssetImage).assetName,
-        'assets/illustrations/empty_orders.png',
+        find.text(
+          'No pending requests — say it, and offers from nearby Jeebers '
+          'arrive in minutes.',
+        ),
+        findsOneWidget,
       );
-    });
-
-    testWidgets('empty CTA prefers the injected create-request callback', (
-      tester,
-    ) async {
-      var taps = 0;
-      final repo = InMemoryClientHomeRepository(latency: Duration.zero);
-      await tester.pumpWidget(
-        _harness(repo: repo, onCreateRequest: () => taps++),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Create your first request'));
-      await tester.pump();
-
-      expect(taps, 1);
+      // The board draws no CTA button here — the voice capsule the SCREEN
+      // mounts below is the create affordance (doc-13 Pattern D).
+      expect(find.text('Create your first request'), findsNothing);
+      expect(find.byType(JeebEmptyState), findsOneWidget);
+      expect(find.byType(LottieBuilder), findsNothing);
     });
 
     testWidgets('each pending row renders its own server-derived status', (
@@ -214,7 +207,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(PendingCountdownCard), findsNWidgets(2));
-      expect(find.text('Searching for Jeebers…'), findsNWidgets(2));
+      expect(find.text('Broadcasting'), findsNWidgets(2));
       expect(find.text('Expired'), findsNothing);
     });
 
@@ -282,9 +275,6 @@ void main() {
     });
   });
 
-  // M2 behaviour 1: an offer-bearing pending row surfaces the offers count
-  // prominently instead of the flat "Searching…" line, emphasised when the
-  // offers are new/unseen.
   group('PendingRequestsTab — M2 offers badge', () {
     testWidgets(
       'offers badge replaces the searching line when offerCount > 0',
@@ -298,7 +288,7 @@ void main() {
 
         expect(find.byKey(const Key('pending-offers-badge')), findsOneWidget);
         expect(find.text('3 offers'), findsOneWidget);
-        expect(find.text('Searching for Jeebers…'), findsNothing);
+        expect(find.text('Broadcasting'), findsNothing);
         expect(find.byKey(const Key('pending-server-status')), findsNothing);
       },
     );
@@ -326,10 +316,10 @@ void main() {
       );
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
-      final chip = tester.widget<OmdsChip>(
+      final chip = tester.widget<JeebSystemChip>(
         find.byKey(const Key('pending-offers-badge')),
       );
-      expect(chip.isSelected, isTrue);
+      expect(chip.tone, JeebSystemChipTone.accent);
     });
 
     testWidgets('badge is tonal (not filled) when the offers are not new', (
@@ -343,10 +333,10 @@ void main() {
       );
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
-      final chip = tester.widget<OmdsChip>(
+      final chip = tester.widget<JeebSystemChip>(
         find.byKey(const Key('pending-offers-badge')),
       );
-      expect(chip.isSelected, isFalse);
+      expect(chip.tone, JeebSystemChipTone.filled);
     });
 
     testWidgets('offers badge renders localized Arabic text', (tester) async {
@@ -360,8 +350,6 @@ void main() {
     });
   });
 
-  // M2 behaviour 2: a truthful "created N ago" line from the real server
-  // timestamp — shown only when present, never fabricated.
   group('PendingRequestsTab — M2 age line', () {
     testWidgets('shows "created N ago" derived from a real createdAt', (
       tester,
@@ -391,7 +379,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('pending-created-age')), findsNothing);
-      // The honest server-owned searching state still renders.
       expect(find.byKey(const Key('pending-server-status')), findsOneWidget);
     });
 
@@ -424,8 +411,6 @@ void main() {
     });
   });
 
-  // M2 behaviour 3: the age is a PAST "ago" fact, never a countdown/expiry.
-  // Exhaustive, deterministic coverage of the pure label function.
   group('pendingCreatedAgeLabel — honest "ago", never a countdown', () {
     late AppLocalizations en;
     setUpAll(() {

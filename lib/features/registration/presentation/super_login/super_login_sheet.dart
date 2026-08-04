@@ -6,34 +6,12 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/session/session_cubit.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/super_login_service.dart';
 import 'super_login_cubit.dart';
 import 'super_login_state.dart';
 
-/// Opens the FR-P0-4 super-login credential sheet (Rahma-shaped, OMDS-built).
-///
-/// Hosts a [SuperLoginCubit] scoped to the sheet. On a successful, server-
-/// validated sign-in the sheet pops with `true`; the caller then navigates
-/// home. Pass a custom [cubit] from tests; production builds one from DI.
-///
-/// [session] is the app's owned [SessionCubit] (captured from the *caller's*
-/// context — a modal sheet does not inherit providers above the navigator). On
-/// a successful sign-in the sheet calls [SessionCubit.refresh] BEFORE it pops,
-/// so the owned session-gate stream emits `authenticated` as an INTRINSIC
-/// consequence of super-login success — the exact same establishment a real
-/// (OTP/email) login triggers via `LoginScreen._navigateAfterLogin`. That
-/// emission is what drives role-sync and `DeviceTokenRegistrar.notifyLogin()`
-/// (`PUT /api/PushNotification/register`), so FCM registration falls out of the
-/// shared path rather than a bespoke super-login branch. Null (default / test
-/// hosts that don't need it) makes the refresh a no-op — the host callback then
-/// remains the sole establishment, exactly as before.
-///
-/// [initialUserId] / [initialPasscode] pre-fill the two credential fields —
-/// used by the "Super user login plus" picker, which hands a chosen demo
-/// user's credentials in so the form opens submit-ready. Both default to null
-/// (empty fields), so every existing `showSuperLoginSheet(context)` call site
-/// is unaffected.
 Future<bool?> showSuperLoginSheet(
   BuildContext context, {
   SuperLoginCubit? cubit,
@@ -41,13 +19,11 @@ Future<bool?> showSuperLoginSheet(
   String? initialUserId,
   String? initialPasscode,
 }) {
+  // No backgroundColor/shape override: `bottomSheetTheme` already carries the
+  // navy surface and the ratified sheet rung (26), which `topLarge` (20) is not.
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: OmdsBorderRadius.topLarge,
-    ),
     builder: (sheetContext) => _SuperLoginScope(
       cubit: cubit,
       session: session,
@@ -57,7 +33,6 @@ Future<bool?> showSuperLoginSheet(
   );
 }
 
-/// Builds (or adopts) the [SuperLoginCubit] for the sheet body.
 class _SuperLoginScope extends StatelessWidget {
   const _SuperLoginScope({
     this.cubit,
@@ -95,8 +70,6 @@ class _SuperLoginScope extends StatelessWidget {
   }
 }
 
-/// The credential form. Owns the two controllers + the submit-enabled flag,
-/// and reacts to cubit success (pop) / error (snackbar).
 class _SuperLoginSheetBody extends StatefulWidget {
   const _SuperLoginSheetBody({
     this.session,
@@ -104,12 +77,8 @@ class _SuperLoginSheetBody extends StatefulWidget {
     this.initialPasscode,
   });
 
-  /// The app's owned [SessionCubit]. Refreshed on success so the session-gate
-  /// stream emits `authenticated` — the shared real-login establishment path.
   final SessionCubit? session;
 
-  /// Pre-fill values supplied by the "Super user login plus" picker. Null when
-  /// the sheet is opened directly (the original empty-field behaviour).
   final String? initialUserId;
   final String? initialPasscode;
 
@@ -129,11 +98,6 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
         TextEditingController(text: widget.initialUserId ?? '');
     _passcodeController =
         TextEditingController(text: widget.initialPasscode ?? '');
-    // When both fields arrive pre-filled (picker path) the "Sign in" button
-    // must be enabled immediately — otherwise the user stares at a disabled
-    // CTA. Set the flag DIRECTLY here (not via `_recomputeCanSubmit`, which
-    // calls `setState` — illegal during initState). A no-op-to-false when both
-    // are empty (the direct-open path).
     _canSubmit = _computeCanSubmit();
   }
 
@@ -163,9 +127,6 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
 
   void _onFieldChanged() {
     _recomputeCanSubmit();
-    // DEF-2: clear any surfaced credential error the moment the user edits a
-    // field, so a stale "invalid credentials" message doesn't linger while
-    // they type a correction. `submit` re-evaluates from a clean slate.
     final cubit = context.read<SuperLoginCubit>();
     if (cubit.state.status == SuperLoginStatus.error) cubit.clearError();
   }
@@ -174,19 +135,7 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
     BuildContext context,
     SuperLoginState state,
   ) async {
-    // Success is the only transition that establishes the session + pops the
-    // sheet. Errors are surfaced INLINE under the passcode field (DEF-2) by
-    // [_SuperLoginFields] reading the cubit state directly — no snackbar.
     if (!state.isSuccess) return;
-    // Real-login parity: the cubit has already persisted the REAL gateway
-    // tokens; now drive the SAME establishment a normal login uses — refresh
-    // the owned SessionCubit so its gate re-reads the keystore and the session
-    // stream emits `authenticated`. That single emission is what JeebApp's
-    // owned-stream listener turns into role-sync + notifyLogin() (FCM
-    // register), so super-login's post-auth effects fall out of the shared
-    // path, not a bespoke branch. Idempotent with the host's own post-pop
-    // refresh (`SessionState` de-dups an already-authenticated re-emit), so a
-    // double refresh is harmless.
     await widget.session?.refresh();
     if (!context.mounted) return;
     Navigator.of(context).pop(true);
@@ -208,7 +157,6 @@ class _SuperLoginSheetBodyState extends State<_SuperLoginSheetBody> {
   }
 }
 
-/// Pure layout: keyboard-safe padding + the credential fields + submit CTA.
 class _SuperLoginForm extends StatelessWidget {
   const _SuperLoginForm({
     required this.userIdController,
@@ -226,9 +174,6 @@ class _SuperLoginForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Keyboard inset + system nav-bar inset: keeps the submit CTA clear of both
-    // the keyboard AND the soft-button nav bar under edge-to-edge. Using only
-    // `viewInsets.bottom` (keyboard) left the button behind the nav bar.
     final bottomInset = context.sheetBottomInset;
     return Semantics(
       identifier: '_super_login_sheet',
@@ -301,7 +246,7 @@ class _SheetDragHandle extends StatelessWidget {
         width: Sizes.fourXLarge,
         height: Spacing.xSmall,
         decoration: BoxDecoration(
-          color: colorScheme.onSurface.withValues(alpha: UIConstants.opacityLow),
+          color: colorScheme.onSurfaceVariant,
           borderRadius: OmdsBorderRadius.small,
         ),
       ),
@@ -322,14 +267,16 @@ class _SuperLoginHeader extends StatelessWidget {
         Text(
           l10n.superLoginTitle,
           key: const Key('superLogin.title'),
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: context.jeebText.h2.copyWith(
+            color: theme.colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.superLoginSubtitle,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: context.jeebText.body.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -355,16 +302,7 @@ class _SuperLoginFields extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _UserIdField(controller: userIdController, onChanged: onChanged),
-        // DEF-1: a full-`Spacing.large` gap (was `medium`) so the second
-        // field's above-label can never crowd the field above it — the
-        // pre-filled (collapsed-from-frame-1) state used to leave the labels
-        // jammed against the neighbouring field box.
         const SizedBox(height: Spacing.large),
-        // DEF-2: the passcode field renders the server-side rejection (401
-        // ProblemDetails) INLINE via its OMDS `errorText` slot — below the
-        // field, in `colorScheme.error`. The message comes from the cubit
-        // state, so a wrong passcode is now visible to the user instead of
-        // failing silently.
         BlocBuilder<SuperLoginCubit, SuperLoginState>(
           buildWhen: (prev, curr) =>
               prev.status != curr.status || prev.error != curr.error,
@@ -385,17 +323,6 @@ class _SuperLoginFields extends StatelessWidget {
   }
 }
 
-/// A persistent label rendered ABOVE its field, matching the OMDS
-/// `OmdsValidatedTextField` convention (`labelLarge` / `onSurface`, then a
-/// `Spacing.xSmall` gap). DEF-1: the credential fields previously passed the
-/// label into the field's `InputDecoration` as a *floating* label. On the
-/// borderless, filled OMDS field that floated label sits at the very top edge
-/// of the fill with only ~6 logical px of headroom, so in the pre-filled
-/// "Super user login plus" path — where the field opens already populated and
-/// the label is collapsed from the first frame, with no focus animation easing
-/// it into a gap — the label visually crowded the pre-filled value and the
-/// neighbouring field. Lifting the label out of the decoration removes the
-/// collision entirely and is stable across text scales.
 class _FieldLabel extends StatelessWidget {
   const _FieldLabel(this.text);
 
@@ -408,8 +335,9 @@ class _FieldLabel extends StatelessWidget {
       padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
       child: Text(
         text,
-        style: theme.textTheme.labelLarge
-            ?.copyWith(color: theme.colorScheme.onSurface),
+        style: context.jeebText.bodySmall.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
       ),
     );
   }
@@ -457,8 +385,6 @@ class _PasscodeField extends StatelessWidget {
   final VoidCallback onChanged;
   final VoidCallback onSubmit;
 
-  /// Inline credential error shown below the field (DEF-2). Null when there is
-  /// no error to surface.
   final String? errorText;
 
   @override

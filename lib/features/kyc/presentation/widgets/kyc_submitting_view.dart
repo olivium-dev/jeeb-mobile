@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/kyc_wizard_cubit.dart';
 import '../../application/kyc_wizard_state.dart';
+import 'kyc_state_art.dart';
 
 enum _ProbeSource { scheduled, resume }
 
@@ -30,12 +32,22 @@ enum _ProbeSource { scheduled, resume }
 /// probes bound the mounted view to eight automatic requests. After both
 /// budgets, recovery remains with the submit future, the CDN-upload timeout,
 /// and [KycWizardCubit.onJeeberRoleGranted], not additional polling.
+///
+/// MIDNIGHT M4 — the hand-built mark + `h1` + body + spinner stack is now one
+/// [JeebEmptyState] on [kycStateVariant] at [JeebEmptyStateStatus.loading]: the
+/// breathing skeleton IS the wait indicator, so the separate spinner row and
+/// the `cloud_upload_outlined` disc are gone. Copy, order, gutter, live region
+/// and the whole polling safety net are untouched. The disc's glyph and the
+/// headline were both inked `colorScheme.primary` — orange under Midnight, not
+/// the navy the pass-1 comment claimed — and that is what the swap removes.
 class KycSubmittingView extends StatefulWidget {
   const KycSubmittingView({super.key});
 
   static const Key rootKey = Key('kyc-submitting-root');
-  static const Key titleKey = Key('kyc-submitting-title');
-  static const Key spinnerKey = Key('kyc-submitting-spinner');
+
+  /// Re-homed onto the kit's `headlineIdentifier` slot; was a `Key` on the
+  /// hand-built `Text` this row deleted.
+  static const String titleIdentifier = 'kyc_submitting_title';
 
   @override
   State<KycSubmittingView> createState() => _KycSubmittingViewState();
@@ -185,10 +197,7 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
       liveRegion: true,
       label: l10n.kycSubmittingTitle,
       hint: l10n.kycSubmittingBody,
-      child: const Padding(
-        padding: EdgeInsets.all(Spacing.large),
-        child: _SubmittingBody(),
-      ),
+      child: const _SubmittingBody(),
     );
   }
 }
@@ -196,103 +205,36 @@ class _KycSubmittingViewState extends State<KycSubmittingView>
 class _SubmittingBody extends StatelessWidget {
   const _SubmittingBody();
 
+  /// The board's 24px side gutters — byte-for-byte `_kStatusBodyPadding` from
+  /// `kyc_status_view.dart`, because the two steps sit back-to-back and a
+  /// different gutter would read as a jump. Directional, so Arabic mirrors it.
+  static const EdgeInsetsGeometry _padding = EdgeInsetsDirectional.fromSTEB(
+    Spacing.xLarge,
+    Spacing.xLarge,
+    Spacing.xLarge,
+    Spacing.large,
+  );
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    // R1 — the block sits at the TOP and whatever is left over stays plain
+    // white; it is never centred in the viewport. The list also lets the long
+    // Arabic body scroll instead of overflowing at a large text scale, which
+    // the old fixed `Column` could not do.
+    return ListView(
+      padding: _padding,
       children: [
-        _SubmittingIcon(scheme: theme.colorScheme),
-        const SizedBox(height: Spacing.large),
-        _SubmittingTitle(text: l10n.kycSubmittingTitle, theme: theme),
-        const SizedBox(height: Spacing.small),
-        _SubmittingBodyText(text: l10n.kycSubmittingBody, theme: theme),
-        const SizedBox(height: Spacing.xLarge),
-        const _SubmittingSpinner(),
+        JeebEmptyState(
+          variant: kycStateVariant,
+          medallions: kycStateMedallions,
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.kycSubmittingTitle,
+          headlineIdentifier: KycSubmittingView.titleIdentifier,
+          body: l10n.kycSubmittingBody,
+          padding: EdgeInsetsDirectional.zero,
+        ),
       ],
-    );
-  }
-}
-
-class _SubmittingIcon extends StatelessWidget {
-  const _SubmittingIcon({required this.scheme});
-
-  final ColorScheme scheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: Sizes.nineXLarge,
-        height: Sizes.nineXLarge,
-        decoration: BoxDecoration(
-          color: scheme.primaryContainer,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          Icons.cloud_upload_outlined,
-          size: Sizes.fourXLarge,
-          color: scheme.onPrimaryContainer,
-        ),
-      ),
-    );
-  }
-}
-
-class _SubmittingTitle extends StatelessWidget {
-  const _SubmittingTitle({required this.text, required this.theme});
-
-  final String text;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      key: KycSubmittingView.titleKey,
-      textAlign: TextAlign.center,
-      style: theme.textTheme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _SubmittingBodyText extends StatelessWidget {
-  const _SubmittingBodyText({required this.text, required this.theme});
-
-  final String text;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
-      ),
-    );
-  }
-}
-
-class _SubmittingSpinner extends StatelessWidget {
-  const _SubmittingSpinner();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox(
-        key: KycSubmittingView.spinnerKey,
-        width: Sizes.xLarge,
-        height: Sizes.xLarge,
-        child: OmdsLoadingState(
-          size: Sizes.xLarge,
-          padding: EdgeInsets.zero,
-        ),
-      ),
     );
   }
 }

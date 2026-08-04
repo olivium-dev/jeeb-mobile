@@ -1,21 +1,4 @@
 // THE WIRE, not just the mechanism.
-//
-// `DeferredRefreshGate` is asserted directly, and `ClientHomeCubit` is asserted
-// against a real repository — but between them sits a wire nobody had tested:
-//
-//     ShellScreen → RouteVisibilityScope → HomeTab → PollingVisibilityGate
-//                 → ClientHomeCubit.setPollingVisible
-//
-// An untested wire is exactly how "one call site silently keeps the old
-// behaviour" happens (the failure `resolvePushRefreshStream` was written to
-// prevent). Two levels are pinned here:
-//
-//   1. `RouteVisibilityScope` itself — a descendant sees `isOnTop` flip when a
-//      route is pushed above and flip back when it pops, over the PRODUCTION
-//      `appRouteObserver`.
-//   2. the whole wire end to end — with a route pushed on top of the shell, a
-//      real `order` push on the real `PushRefreshSignals` singleton produces ZERO
-//      repository reads from the Requests tab, and exactly ONE when it pops.
 library;
 
 import 'package:flutter/material.dart';
@@ -61,6 +44,12 @@ Widget _app({required Widget home}) => MaterialApp(
   // The PRODUCTION observer, the one `AppRouter` installs.
   navigatorObservers: <NavigatorObserver>[appRouteObserver],
   home: home,
+  // JeebEmptyState's E1 illustration loops ∞ by design (03-MOTION-NOTES §E1):
+  // pumpAndSettle only terminates under reduce motion.
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: true),
+    child: child!,
+  ),
 );
 
 Future<void> _pushOnTop(WidgetTester tester) async {
@@ -122,7 +111,6 @@ void main() {
         sl.unregister<PushRefreshSignals>();
       }
       // The SAME singleton `home_tab.dart` resolves through
-      // `resolvePushRefreshStream`.
       sl.registerSingleton<PushRefreshSignals>(bus);
     });
 

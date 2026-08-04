@@ -9,7 +9,6 @@ import 'package:jeeb_mobile/features/chat/domain/chat_gateway.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dart';
-import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer_icon_button.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -99,7 +98,6 @@ void main() {
 
     await tester.enterText(find.byKey(ChatComposer.textFieldKey), 'Hi');
     // The send button rebuilds on canSendText flipping — pump a frame so the
-    // BlocBuilder sees the new state before we tap.
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(ChatComposer.sendButtonKey));
     await tester.pumpAndSettle();
@@ -116,17 +114,24 @@ void main() {
     await tester.pumpWidget(_host(cubit));
     await tester.pumpAndSettle();
 
-    final sendButton = tester.widget<ChatComposerIconButton>(
-      find.byKey(ChatComposer.sendButtonKey),
+    // The send affordance is the kit composer's Ø38 circle, which reports its
+    // enabled state on its own Semantics node (there is no widget type left to
+    // read an `onPressed` off). Same contract, read where a screen reader and
+    // Maestro read it.
+    final handle = tester.ensureSemantics();
+    final send = find.byKey(ChatComposer.sendButtonKey);
+    expect(
+      tester.getSemantics(send),
+      containsSemantics(isButton: true, isEnabled: false),
     );
-    expect(sendButton.onPressed, isNull);
 
     await tester.enterText(find.byKey(ChatComposer.textFieldKey), 'x');
     await tester.pump();
-    final enabled = tester.widget<ChatComposerIconButton>(
-      find.byKey(ChatComposer.sendButtonKey),
+    expect(
+      tester.getSemantics(send),
+      containsSemantics(isButton: true, isEnabled: true),
     );
-    expect(enabled.onPressed, isNotNull);
+    handle.dispose();
   });
 
   testWidgets('renders mixed RTL/LTR messages without reordering them', (
@@ -138,7 +143,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // Send Arabic, then English, then mixed — exactly mirrors a real
-    // WhatsApp-style mixed conversation.
     for (final text in const ['مرحباً', 'On my way', 'OK شكراً']) {
       await tester.enterText(find.byKey(ChatComposer.textFieldKey), text);
       await tester.pumpAndSettle();
@@ -147,7 +151,6 @@ void main() {
     }
 
     // Walk the rendered Text widgets and verify the conversation order is
-    // intact — the screen does not normalise direction across messages.
     expect(find.text('مرحباً'), findsOneWidget);
     expect(find.text('On my way'), findsOneWidget);
     expect(find.text('OK شكراً'), findsOneWidget);

@@ -1,12 +1,3 @@
-// S0-REQ-03 — stop dropping the map-pinned coordinate.
-//
-// The compose flow previously discarded the lat/lng the customer pinned on the
-// map: `markPinned()` recorded only the choice KIND, never the point, so
-// `_buildDraft` had nothing to read and fell back to the Beirut constant. These
-// tests lock the carried-not-defaulted contract: a pinned coordinate flows into
-// the create draft verbatim; the Beirut fallback is used ONLY when no real
-// coordinate was captured.
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/location/application/location_select_state.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
@@ -15,8 +6,6 @@ import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
 import '../../support/fake_request_submission_service.dart';
 
-// serverId is surfaced via the Tier.wireId getter — the value the create RPC
-// echoes as tierId.
 Tier _flash() => const Tier(
       id: TierId.flash,
       serverId: 'uuid',
@@ -53,11 +42,8 @@ void main() {
       expect(draft.pickupLat, 33.9012,
           reason: 'the map-pinned coordinate must NOT be replaced by Beirut');
       expect(draft.pickupLng, 35.6033);
-      // The single confirmed point seeds both ends in this leg.
       expect(draft.dropoffLat, 33.9012);
       expect(draft.dropoffLng, 35.6033);
-      // The address label embeds the REAL pinned coordinate (not Beirut), so
-      // the jeeber feed parser keeps the row AND the label points at the pin.
       expect(draft.pickupAddress, contains('33.9012'));
       expect(draft.pickupAddress, contains('35.6033'));
       expect(draft.pickupAddress, isNot(contains('33.8886')));
