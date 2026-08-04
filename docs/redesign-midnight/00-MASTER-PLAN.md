@@ -287,7 +287,19 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
   deprecations on `integration/redesign-ui`, none ours). Bar stays: 0 errors, no new warnings.
 - [x] **G-M0** foundation gate @2026-08-04 — analyze 0 err/31 infos; token tests green (165 theme + 27 field + 54 motion); full suite minus captures 6234 pass / 61 skip / 48 fail, ALL classified: 18 kit (M1 handoff), ~26 feature/preview assertion+golden churn (their M2 rows), **3 REAL overflow regressions from the bigger ramp** (earnings AR body → M2-15, chat header 320×480@2.0 → M2-16, offer composer 200% → M2-13 — live defects, do not lose), 1 baseline (gesture_log; the other 3 baseline reds now PASS post-re-cut). Captures excluded (light-theme goldens stale by design; re-baselined per-screen in M2). Boot-on-navy evidenced via harness full-app mounts; device boot at M7.
 - [x] **G-M1** kit gate @2026-08-04 — 570/570 kit tests green (was 552/18 red pre-wave); analyze kit+theme 0 issues; greps: 0 raw hex outside palette, 0 `Colors.*` beyond 3 sanctioned field canvas paints + transparent, 0 orange-budget leaks. Workflow: 11 agents / 0 errors / ~21 min.
-- [ ] **G-M2** mapped-surfaces gate ·
+- [x] **G-M2** mapped-surfaces gate @2026-08-04 — **24/24 rows done.** analyze **0 err / 30 infos**
+  (= baseline). Full suite **6815 pass / 61 skip / 25 fail**; captures **305/307**. Attribution was
+  MEASURED, not argued: the identical suite was run in a worktree at the handoff commit `fc93ace9`
+  (**6287 / 344 fail**) and the failure sets diffed. Result: **319 pre-existing failures fixed, and
+  ZERO new failures remain** — every one of the 25 predates this session. The 8 that the diff
+  proved new during the wave were all closed before this gate (2 stale `At Door` label pins after
+  the DS sentence-case landing, 4 golden drifts cured by the re-baseline, INV-5's `homeTabPending`
+  name collision, and the OTP preview's disguised padding pin). Remaining 25, none Midnight
+  regressions: **14 `test/previews/*`** pass-1 preview goldens/structure pinned to light-theme
+  values (→ M3/M4/M6) · **5** `chat_header_contrast` (Q-022 → M6) · **2** catalog captures (the
+  known pair: customer-profile network avatar, rating-prompt compact overflow → its M3 row) ·
+  **2** `language_settings` stale pre-Midnight segment-ink pins (→ M3-27) · **2**
+  `dio_tier_repository` gateway-contract · **1** `gesture_log` named baseline red. ·
   [ ] **G-M3** remainder gate · [ ] **G-M4** states gate · [ ] **G-M5** motion gate ·
   [ ] **G-M6** audit gate · [ ] **G-M7** S22 sign-off
 
@@ -617,6 +629,16 @@ Seeded from doc-13 §4 — these survive into Midnight:
   screen from its tile** — the follow-on wave adds `JeebFieldGlowPlacement.topStart` and fixes all
   three. Also found: **the golden gate is blind to token changes** (Q-027) — a 0.097% ink swap
   passed three goldens unchanged.
+- 2026-08-04 · **M2 COMPLETE (24/24) + G-M2 CLOSED.** Wave D landed the last 6 rows (R22, R23,
+  R5+W1-3 — the motion row carrying 19 of the board's 76 animated elements — R6+R7 sharing a
+  directory, R8) plus the wave-C l10n merge and the `endMid` anchor that fixed R4's 335px-low wash.
+  Gate numbers above. The headline is the attribution: **344 → 25 failures, 319 fixed, 0 new.**
+  Three lessons worth carrying into M3: (1) a diff against a known commit beats any argument about
+  what is "pre-existing" — it caught a subagent's own mis-attribution of the OTP preview, on top of
+  my two earlier ones; (2) `--reporter failures` is not a valid flutter option and piping a full run
+  through `tail` silently truncates the evidence — capture whole logs to a file and split on `\r`;
+  (3) tests that assert a derived number (`320 - 24 * 2`) become pins on things they do not name,
+  and go red for the wrong reason — assert the claim in the test's own title.
 
 ---
 
