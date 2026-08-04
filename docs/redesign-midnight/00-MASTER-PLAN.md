@@ -300,7 +300,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
   known pair: customer-profile network avatar, rating-prompt compact overflow → its M3 row) ·
   **2** `language_settings` stale pre-Midnight segment-ink pins (→ M3-27) · **2**
   `dio_tier_repository` gateway-contract · **1** `gesture_log` named baseline red. ·
-  [ ] **G-M3** remainder gate · [ ] **G-M4** states gate · [ ] **G-M5** motion gate ·
+  [x] **G-M3** remainder gate @2026-08-04 — **46/46 M3 rows done** (44 restyled, 2 ratified
+  deletions). analyze **0 err / 30 infos**; full suite **7187 pass / 61 skip / 38 fail**; router
+  **131/131**; captures **329/330**. Attribution vs the verified G-M2 failure set: **every new
+  failure was catalog-golden drift** from the 46 screens + new catalog states — re-baselined away.
+  Net known-red **25 → 20** (language_settings ×2, customer-profile and rating-prompt all closed).
+  Found and fixed en route, none of it styling: **9 latent theme-extension crashes** (a bang on a
+  nullable lookup — mine, shipped in Tier 1 and caught two tiers late by a lane attributing OUT of
+  its own scope), a **blank-name bug on Edit Profile that the catalog was masking**, a Retry that
+  threw on every debug tap, and **8+ screens leaking orange** because pass-1 code assumed
+  `colorScheme.primary` was navy. · [ ] **G-M4** states gate · [ ] **G-M5** motion gate ·
   [ ] **G-M6** audit gate · [ ] **G-M7** S22 sign-off
 
 ### M0 Foundation
@@ -632,6 +641,17 @@ Seeded from doc-13 §4 — these survive into Midnight:
   screen from its tile** — the follow-on wave adds `JeebFieldGlowPlacement.topStart` and fixes all
   three. Also found: **the golden gate is blind to token changes** (Q-027) — a 0.097% ink swap
   passed three goldens unchanged.
+- 2026-08-04 · **M3 COMPLETE (46/46) + G-M3 CLOSED**, run as five tier waves (11+9+6+11 lanes).
+  Numbers in the G-M3 row. The tile-less method held: every lane named a nearest tile, justified it,
+  and traced each decision to a token value or a standing ruling; lanes that could not trace one
+  returned the question instead of inventing. Both ratified deletions re-verified their evidence
+  BEFORE deleting — the settlement lane disproved a documented `// FROZEN identifier` comment that
+  was provably false, and caught that deleting a test would have silently dropped the D41/D44
+  'Platform fee' product lock, re-homing it instead. Two lanes correctly shipped ZERO product diff
+  for pass-through wrappers, with delegation-contract guards as their evidence.
+  **My process failure this milestone:** I ran targeted suites per wave but not `test/core/router/`,
+  which mounts everything — so a null-check crash I introduced in Tier 1 sat red until Tier 5. The
+  router suite now runs at every wave close, not only at gates.
 - 2026-08-04 · **M2 COMPLETE (24/24) + G-M2 CLOSED.** Wave D landed the last 6 rows (R22, R23,
   R5+W1-3 — the motion row carrying 19 of the board's 76 animated elements — R6+R7 sharing a
   directory, R8) plus the wave-C l10n merge and the `endMid` anchor that fixed R4's 335px-low wash.
