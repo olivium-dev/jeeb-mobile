@@ -521,6 +521,9 @@ Seeded from doc-13 §4 — these survive into Midnight:
 25. [Q-025] (M2-17) E4 needs its own `JeebEmptyStateVariant.parcel` (open glass parcel box, mic glowing inside). Sanctioned; confirm the subject.
 26. [Q-026] (M2-17) R21's in-motion row measures an orange 10–12% fill inside the accent frame; the kit's frame form is white-7% glass. Sanctioned as a frame-fill rung — **R16/R18/R20 are the other frame consumers and need re-measuring with it.**
 
+27. [Q-027] (wave-C fixup) **Our golden gate does not gate.** `_TolerantGoldenComparator` accepts 5% pixel diff; R18's stepper-ink swap moved 0.097%, so three goldens stayed green while carrying the wrong ink. Any token re-point on a small element is invisible. Standing rule adopted: goldens are evidence, per-element assertions are the gate. Owner/QA: do you want the 5% tolerance tightened at M6, or is a per-element assertion requirement enough?
+28. [Q-028] (M2-14) R18 renders **5** stepper segments where the board draws **4**, because `active_delivery_stage_done` is a frozen identifier. Adjacent to Q7. Re-home the id and drop to 4, or ratify 5?
+
 *(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
 
 ---
@@ -585,6 +588,22 @@ Seeded from doc-13 §4 — these survive into Midnight:
   assuming. **Second correction to my own work this session:** wave-B ruling 6 (`topStart`) was
   recorded but never transcribed into a lane prompt, so it never shipped; R14 and R17 both hit it.
   New sanctions Q-022..Q-026 and a wave-C fixup wave to close them.
+- 2026-08-04 · **Wave-C FIXUP complete** (7 agents / 0 errors / ~33 min) + a follow-on glow-anchor
+  wave launched. Landed: 4 kit additions (`topStart` wash, `JeebStepperDoneInk.washed`, `parcel`
+  variant, accent-tint frame) each **mutation-proved**; the frameless-latency default killed at
+  source with a mutation-verified guard test; R14 field anchor, R18 bars, R21 parcel + tint +
+  the light-theme date-filter sheet finally restyled + Completed/Cancelled catalog states, which
+  let the one-off capture harness be deleted. Verified: analyze **0/30**, **1363/1363** green.
+  **Three of my rulings were corrected by lanes measuring the board**: `topStart` fy had the wrong
+  SIGN (+0.03 vs the measured −0.06 — nothing blooms inside the canvas); `washed` was ruled from a
+  screenshot pixel (`#626794`) that appears nowhere in the HTML, where the CSS declares `.35`; and
+  worst, **I conflated the periwinkle *wash* with the orange *glow*** — R7/R14/R21/E4 draw a wash
+  top-start, R4/R9/R17 draw a glow there and declare zero periwinkle, so the wash anchor was
+  unusable for them. Least-squares hue fits settled it (R14 periwinkle rms 0.36 vs orange 15.80;
+  R17 orange rms 0.31 vs periwinkle 17.10). **R9 is drawing its glow at the opposite end of the
+  screen from its tile** — the follow-on wave adds `JeebFieldGlowPlacement.topStart` and fixes all
+  three. Also found: **the golden gate is blind to token changes** (Q-027) — a 0.097% ink swap
+  passed three goldens unchanged.
 
 ---
 

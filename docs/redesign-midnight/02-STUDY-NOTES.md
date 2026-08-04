@@ -263,6 +263,49 @@ the anchor for a whole class. Landing in the wave-C fixup, with R14/R17 adopting
   a token fix. Routed to **M6**, which owns the AA re-test; filed as Q-022 so it is not mistaken
   for new breakage at the G-M2 gate.
 
+## Wave-C FIXUP outcomes + round-4 rulings (2026-08-04) — BINDING
+
+**THE GOLDEN GATE IS BLIND TO TOKEN CHANGES — standing finding, act on it.**
+`test/flutter_test_config.dart`'s `_TolerantGoldenComparator` accepts up to **5%** pixel diff.
+R18's stepper-ink swap moved **0.097%** of the frame (320px of 329,160), so all three R18 goldens
+**passed unchanged while carrying the wrong ink** — caught only by diffing bytes. Consequence:
+**any token re-point on a small element is invisible to goldens.** Ruling: goldens are *evidence*,
+not gates. Every adoption must land a per-element assertion (colour/geometry read off the widget),
+and lanes may not cite a green golden as proof that an adoption took. This is already how the good
+lanes worked; it is now the rule. Revisit the 5% tolerance itself at M6.
+
+**Two of my own ruled figures were wrong; the board corrected both.**
+- `topStart` fy: I wrote (0.10, **+0.03**). Measured is (0.12, **−0.06**) — the *sign* was wrong.
+  **No top-start bloom anywhere on the board sits inside the canvas** (periwinkle four at −6%,
+  orange three at −8%). 0.12 is also the exact start-side mirror of the ratified `topEnd` 0.88.
+- `washed` ink: I ruled ~33% from `#626794`, which appears **nowhere in the board HTML** — it was a
+  screenshot pixel. The CSS declares `rgba(255,255,255,.35)` on all three R18 passed segments.
+  **A declaration beats a sampled pixel.** Shipped .35.
+
+**MY ERROR #3 — I conflated the wash and the glow.** The "top-start class" ruling assumed one
+layer. Three lanes independently established there are two: **R7/R14/R21/E4 draw a periwinkle
+*wash* top-start; R4/R9/R17 draw an orange *glow* top-start and declare zero periwinkle.**
+`JeebFieldWashPlacement` paints `periwinkleWash` unconditionally, so adopting it on R4/R9/R17 would
+paint periwinkle on tiles that have none. Evidence: least-squares hue fit per tile — R14 periwinkle
+α .167 / rms **0.36** vs orange rms 15.80; R17 orange α .145 / rms **0.31** vs periwinkle rms 17.10.
+**Sanctioned: `JeebFieldGlowPlacement.topStart` at (0.12, −0.08)**, then R4/R9/R17 adopt.
+**R9 is the worst live case — it currently draws `glowPlacement: bottom` (0.50, 0.94), i.e. the
+opposite end of the screen from where its tile draws the only radial it has.**
+
+**Also sanctioned:** R16's accent banner takes `fill: JeebAccentFrameFill.accentTint` at **both**
+call sites — `jeeber_active_deliveries/.../active_deliveries_banner.dart:221` (the one a registered
+jeeber actually sees, injected by `shell/tabs/dashboard_tab.dart:147`) and the `jeeber_home` `??`
+fallback. Tinting only one splits a pair whose own doc says they must stay identical. That identity
+is currently guarded by **a source comment and nothing else** — add a test.
+
+**Accepted:** `topStart` wash alpha clamps to **.22** (§8's ratified band is .18–.22; R14/R7 declare
+.24, R21/E4 declare .22 — a 2pp divergence, recorded not chased). `JeebStepper.washedInk` stays
+public, matching `barGlow`/`barHeight`. R20's pinned strip stays glass — the board draws white-9%
+glass there, so "no change, measured" was the correct outcome, not a miss.
+
+**Still open, not ours to close:** R18 renders **5** stepper segments where the board draws **4**,
+because `active_delivery_stage_done` is a frozen identifier (owner Q7 territory).
+
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
 | Screen | Ruling | Key evidence |
