@@ -171,7 +171,7 @@ class _DeliveryReceiptViewState extends State<_DeliveryReceiptView> {
       backgroundColor: Colors.transparent,
       body: JeebMidnightField(
         variant: JeebFieldVariant.content,
-        washPlacement: JeebFieldWashPlacement.startMid,
+        washPlacement: JeebFieldWashPlacement.topStart,
         // The tile measures ZERO orange in the field: the caption's ruling is
         // that the confirm pill is the page's single orange light.
         glowColor: Colors.transparent,

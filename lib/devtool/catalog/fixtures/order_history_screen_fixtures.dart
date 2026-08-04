@@ -100,6 +100,57 @@ class OrderHistoryScreenOrders {
     ),
   ];
 
+  /// R21's completed rows: the green check, the muted meta run and the glass
+  /// `Jeeb it again` pill. Two, because one row cannot show the list rhythm.
+  static final List<OrderSummary> completedPopulated = <OrderSummary>[
+    OrderSummary(
+      id: 'REQ-1039',
+      createdAt: DateTime.utc(2026, 6, 26, 10, 20),
+      pickupAddress: 'Spinneys Achrafieh',
+      dropoffAddress: 'Achrafieh, Beirut',
+      status: OrderRequestStatus.delivered,
+      tier: OrderTier.express,
+      amountMinor: 600,
+      currency: 'USD',
+    ),
+    OrderSummary(
+      id: 'REQ-1035',
+      createdAt: DateTime.utc(2026, 6, 24, 10, 5),
+      pickupAddress: 'Hamra notary',
+      dropoffAddress: 'Verdun, Beirut',
+      status: OrderRequestStatus.delivered,
+      tier: OrderTier.standard,
+      amountMinor: 1000,
+      currency: 'USD',
+    ),
+  ];
+
+  /// R21's expired rows — the faded treatment that keeps its orange
+  /// `Re-broadcast` spark. Both terminal statuses, since they render alike.
+  static final List<OrderSummary> cancelledPopulated = <OrderSummary>[
+    OrderSummary(
+      id: 'REQ-1030',
+      createdAt: DateTime.utc(2026, 6, 20, 10, 45),
+      pickupAddress: 'Ashrafieh florist',
+      dropoffAddress: 'Mar Mikhael, Beirut',
+      status: OrderRequestStatus.cancelled,
+      // "no offers" — the row never priced, so it draws the em-dash.
+      amountMinor: null,
+      tier: OrderTier.flash,
+      currency: 'USD',
+    ),
+    OrderSummary(
+      id: 'REQ-1024',
+      createdAt: DateTime.utc(2026, 6, 17, 16, 30),
+      pickupAddress: 'Bourj Hammoud hardware',
+      dropoffAddress: 'Dekwaneh, Beirut',
+      status: OrderRequestStatus.disputed,
+      tier: OrderTier.eco,
+      amountMinor: 450,
+      currency: 'USD',
+    ),
+  ];
+
   /// A read that SUCCEEDED and came back with zero rows.
   /// Worth its own name: "No orders yet" is also the exact surface a
   static const List<OrderSummary> none = <OrderSummary>[];

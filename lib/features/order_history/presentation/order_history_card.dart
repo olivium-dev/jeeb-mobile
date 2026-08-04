@@ -137,6 +137,9 @@ class OrderHistoryCard extends StatelessWidget {
         onTap: onTap,
         radius: _cardRadius,
         padding: cardPadding,
+        // Tile-measured orange 10–12% INSIDE the frame; the kit's rest glass
+        // (white 7%) left the live row reading the same as its neighbours.
+        fill: JeebAccentFrameFill.accentTint,
         child: body,
       );
     }

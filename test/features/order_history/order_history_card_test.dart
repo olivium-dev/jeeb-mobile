@@ -13,9 +13,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_accent_frame_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_select_chip.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_tier_chip.dart';
 import 'package:jeeb_mobile/features/order_history/domain/order_summary.dart';
 import 'package:jeeb_mobile/features/order_history/presentation/order_history_card.dart';
 
@@ -252,4 +254,72 @@ void main() {
       handle.dispose();
     });
   });
+
+  // Wave-C ruling 10: R21's in-motion row measures orange 10-12% INSIDE the
+  // frame. Shipped white-7% glass made it read like its neighbours.
+  group('the in-motion row is accent-tinted inside its frame', () {
+    testWidgets('the live row declares the accentTint rung', (tester) async {
+      await _pump(
+        tester,
+        _order(amountMinor: 500, status: OrderRequestStatus.enRoute),
+      );
+
+      expect(
+        tester.widget<JeebAccentFrameCard>(find.byType(JeebAccentFrameCard)).fill,
+        JeebAccentFrameFill.accentTint,
+      );
+    });
+
+    testWidgets('the frame PAINTS the tint, not the kit rest glass',
+        (tester) async {
+      await _pump(
+        tester,
+        _order(amountMinor: 500, status: OrderRequestStatus.enRoute),
+      );
+
+      final midnight = JeebSemanticColors.midnight();
+      expect(_cardSurface(tester).color, midnight.accentTint);
+      expect(_cardSurface(tester).color, isNot(midnight.glassFill));
+    });
+
+    testWidgets('a terminal row keeps the rest glass', (tester) async {
+      await _pump(
+        tester,
+        _order(amountMinor: 500, status: OrderRequestStatus.delivered),
+      );
+
+      expect(_cardSurface(tester).color, JeebSemanticColors.midnight().glassFill);
+    });
+
+    testWidgets('the tint stops at the frame — content reads true glass',
+        (tester) async {
+      await _pumpWithCtas(
+        tester,
+        _order(amountMinor: 500, status: OrderRequestStatus.enRoute),
+        onTrack: () {},
+      );
+
+      // The kit scopes the rung swap to the card's own decoration; a dropped
+      // restore would hand every glass child the orange fill.
+      final inner = tester.element(find.byType(JeebTierChip));
+      final semantics = Theme.of(inner).extension<JeebSemanticColors>() ??
+          JeebSemanticColors.midnight();
+      expect(
+        semantics.glassFill,
+        isNot(JeebSemanticColors.midnight().accentTint),
+      );
+    });
+  });
+}
+
+/// The kit card's own painted surface — the outermost [DecoratedBox] the
+/// [JeebOutlinedCard] builds, before any content.
+BoxDecoration _cardSurface(WidgetTester tester) {
+  final box = find
+      .descendant(
+        of: find.byType(JeebOutlinedCard),
+        matching: find.byType(DecoratedBox),
+      )
+      .first;
+  return tester.widget<DecoratedBox>(box).decoration as BoxDecoration;
 }

@@ -5,6 +5,7 @@ import '../../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../../features/order_history/application/order_history_cubit.dart';
 import '../../../features/order_history/domain/order_repository.dart';
+import '../../../features/order_history/domain/order_summary.dart';
 import '../../../features/order_history/presentation/order_history_screen.dart';
 import '../../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../../features/otp_handover/application/otp_handover_cubit.dart';
@@ -25,10 +26,13 @@ Widget _onboardingPreview(OnboardingScreenCubitFactory create) =>
       child: OnboardingScreen(onComplete: () {}),
     );
 
-Widget _orderHistoryScreen(OrderRepository repository) {
+Widget _orderHistoryScreen(
+  OrderRepository repository, {
+  OrderHistoryTab initialTab = OrderHistoryTab.active,
+}) {
   return BlocProvider<OrderHistoryCubit>(
     create: (_) => OrderHistoryCubit(repository: repository),
-    child: const OrderHistoryScreen(),
+    child: OrderHistoryScreen(initialTab: initialTab),
   );
 }
 
@@ -86,6 +90,24 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
               OrderHistoryScreenStaticOrders(
                 OrderHistoryScreenOrders.activePopulated,
               ),
+            ),
+          ),
+          CatalogState(
+            'Completed — Populated',
+            (_) => _orderHistoryScreen(
+              OrderHistoryScreenStaticOrders(
+                OrderHistoryScreenOrders.completedPopulated,
+              ),
+              initialTab: OrderHistoryTab.completed,
+            ),
+          ),
+          CatalogState(
+            'Cancelled — Expired',
+            (_) => _orderHistoryScreen(
+              OrderHistoryScreenStaticOrders(
+                OrderHistoryScreenOrders.cancelledPopulated,
+              ),
+              initialTab: OrderHistoryTab.cancelled,
             ),
           ),
           CatalogState(

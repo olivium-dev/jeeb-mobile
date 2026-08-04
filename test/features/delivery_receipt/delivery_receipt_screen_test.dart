@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/devtool/catalog/fixtures/delivery_receipt_screen_fixtures.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/data/fake_delivery_receipt_repository.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt.dart';
@@ -102,6 +103,41 @@ Future<void> _pumpLoaded(WidgetTester tester, Widget harness) async {
 }
 
 void main() {
+  group('DeliveryReceiptScreen — R14 field', () {
+    testWidgets('mounts the measured top-start periwinkle bloom, no orange', (
+      tester,
+    ) async {
+      await _pumpLoaded(tester, _harness(_receipt()));
+
+      final JeebMidnightField field = tester.widget<JeebMidnightField>(
+        find.byType(JeebMidnightField),
+      );
+      // Board tpl 845: `480px 400px at 15% -6% rgba(119,127,192,.24)` and NO
+      // orange radial — the bloom sits above the top edge, not at mid-height.
+      expect(field.washPlacement, JeebFieldWashPlacement.topStart);
+      expect(field.washPlacement!.fy, lessThan(0));
+      expect(field.glowColor, Colors.transparent);
+      expect(field.variant, JeebFieldVariant.content);
+      expect(field.animateDecor, isFalse);
+    });
+
+    testWidgets('the bloom stays on the start edge under RTL', (tester) async {
+      await _pumpLoaded(
+        tester,
+        _harness(_receipt(), locale: const Locale('ar')),
+      );
+
+      final JeebMidnightField field = tester.widget<JeebMidnightField>(
+        find.byType(JeebMidnightField),
+      );
+      expect(field.washPlacement, JeebFieldWashPlacement.topStart);
+      expect(
+        field.washPlacement!.alignment.resolve(TextDirection.rtl).x,
+        greaterThan(0),
+      );
+    });
+  });
+
   group('DeliveryReceiptScreen — identifiers', () {
     testWidgets('the loaded body emits every JM-033 identifier', (
       tester,

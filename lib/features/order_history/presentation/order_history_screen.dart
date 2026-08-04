@@ -39,7 +39,14 @@ const EdgeInsetsGeometry _kBandPadding = EdgeInsetsDirectional.fromSTEB(
 /// Navigation off this screen is via go_router — `/orders/:id` already
 /// exists and renders [DeliveryDetailScreen].
 class OrderHistoryScreen extends StatefulWidget {
-  const OrderHistoryScreen({super.key});
+  const OrderHistoryScreen({
+    super.key,
+    this.initialTab = OrderHistoryTab.active,
+  });
+
+  /// Which filter pill is selected on first render. Catalog/test seam only —
+  /// the shell always lands on Active, and no route reads this.
+  final OrderHistoryTab initialTab;
 
   @override
   State<OrderHistoryScreen> createState() => _OrderHistoryScreenState();
@@ -54,6 +61,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
     super.initState();
     _tabController = TabController(
       length: OrderHistoryTab.values.length,
+      initialIndex: widget.initialTab.index,
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
@@ -61,7 +69,14 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen>
     // mounted by [BlocProvider] downstream see the initial state.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<OrderHistoryCubit>().initialLoad();
+      final cubit = context.read<OrderHistoryCubit>();
+      // `selectTab` no-ops on the cubit's own default, and loads whatever tab
+      // it does move to — so `initialLoad` covers exactly the default.
+      if (widget.initialTab == cubit.state.activeTab) {
+        cubit.initialLoad();
+      } else {
+        cubit.selectTab(widget.initialTab);
+      }
     });
   }
 
@@ -442,11 +457,8 @@ class _OrderTabViewState extends State<_OrderTabView>
   }
 }
 
-/// E4 — "Empty ≠ dead". The tile's four animated elements (centre glow
-/// `jBreathe` 3.2s + the 2.4/2.8/3.0s sparkle ladder) are exactly what the kit
-/// illustration runs; the orbit ring stays still.
-///
-/// No ring medallions: E4 draws a bare ring around its parcel, unlike E1.
+/// E4 — "Empty ≠ dead". The kit's `parcel` variant IS this tile: the open glass
+/// box, the mic glowing inside, a still bare orbit ring, the 3-sparkle ladder.
 class _OrdersEmptyView extends StatelessWidget {
   const _OrdersEmptyView({required this.tab});
 
@@ -470,7 +482,7 @@ class _OrdersEmptyView extends StatelessWidget {
         JeebEmptyState(
           key: Key('order-history-empty-${tab.name}'),
           identifier: 'order_history_empty_${tab.name}',
-          medallions: const <JeebEmptyMedallion>[],
+          variant: JeebEmptyStateVariant.parcel,
           headline: l10n.orderHistoryEmptyTitle,
           // TODO(midnight): l10n-queued `orderHistoryEmptyBody` — the tile's
           // "one voice note away" line; nearest existing key meanwhile.
@@ -528,9 +540,9 @@ class _StateBlock extends StatelessWidget {
         ),
         child: JeebEmptyState(
           status: status,
+          variant: JeebEmptyStateVariant.parcel,
           headline: headline,
           body: body,
-          medallions: const <JeebEmptyMedallion>[],
           identifier: identifier,
           action: action,
         ),

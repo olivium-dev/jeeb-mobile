@@ -80,8 +80,9 @@ class _DeliveryProgress extends StatelessWidget {
         JeebStepper.bars(
           stepCount: jeeberDeliveryProgressStages.length,
           currentIndex: currentIndex,
-          // MIDNIGHT R18 fills its passed run periwinkle (R3 runs it orange).
-          doneInk: JeebStepperDoneInk.periwinkle,
+          // Board `tpl 1085-1087` washes R18's passed run white (R3 runs it
+          // orange); the labels beneath stay periwinkle.
+          doneInk: JeebStepperDoneInk.washed,
           // The frozen per-stage ValueKeys are re-homed from the deleted stage
           // icons onto the bar segments, so `find.byKey` keeps resolving.
           segmentKeys: <Key>[
@@ -174,10 +175,8 @@ class _StageLabel extends StatelessWidget {
         fontWeight: FontWeight.w800,
         color: context.jeebRoles.accent,
       ),
-      _DeliveryStageState.completed ||
-      _DeliveryStageState.upcoming => context.jeebText.label.copyWith(
-        color: mutedText,
-      ),
+      _DeliveryStageState.completed || _DeliveryStageState.upcoming =>
+        context.jeebText.label.copyWith(color: mutedText),
     };
   }
 }
