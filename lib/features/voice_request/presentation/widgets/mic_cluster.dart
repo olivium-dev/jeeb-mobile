@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/motion/jeeb_motion.dart';
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/directional_icons.dart';
+import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_mic_hero.dart';
 import '../../../../l10n/app_localizations.dart';
 
@@ -131,7 +133,7 @@ class MicCluster extends StatelessWidget {
         ),
       ],
     );
-    // The Stack is unconditional and the pulse owns its own on/off. Swapping
+    // The Stack is unconditional and the halo owns its own on/off. Swapping
     // the cluster in and out of a wrapper on `isRecording` would re-parent
     // JeebMicHero mid-press, disposing the State that is tracking the live
     // pointer — release-to-stop and slide-to-cancel both die with it.
@@ -140,35 +142,26 @@ class MicCluster extends StatelessWidget {
       // a plain centre alignment is directional-safe.
       alignment: Alignment.center,
       children: <Widget>[
-        _MicListeningPulse(isRecording: isRecording),
+        _MicHaloRing(isRecording: isRecording),
         cluster,
       ],
     );
   }
 }
 
-/// The listening breath that plays while the mic is held (motion spec §2.1).
+/// The `jHalo` pulse ring — `03-MOTION-NOTES` §R2's fourth animated element.
 ///
-/// `mic-listening.json` carries its own static orange disc + white glyph at the
-/// canvas centre. At [extent] that disc lands at Ø105.6 — entirely behind the
-/// Ø128 [JeebMicHero] — so only the two expanding rings ever read, which is
-/// exactly the division of labour the spec asks for: Dart owns the press state,
-/// the glow and the data-driven max-duration arc; the film owns the pulse.
-///
-/// Nothing here duplicates kit motion: [JeebMicHero]'s glow and halo are static
-/// gradients, and its arc is bound to real elapsed time.
-///
-/// Radially symmetric (09-MOTION-VALIDATION §8 `RTL: none`) — no mirror.
-class _MicListeningPulse extends StatelessWidget {
-  const _MicListeningPulse({required this.isRecording});
+/// A SIBLING of the disc, never the disc itself (cheat-sheet rule 2), painted
+/// over [MicCluster.micExtent] so the primitive's rest scale (.75) lands the
+/// ring exactly on the board's Ø138 hairline around the Ø128 disc.
+class _MicHaloRing extends StatelessWidget {
+  const _MicHaloRing({required this.isRecording});
 
-  /// 240×240 canvas, 120f, seamless loop, reads on white and on navy.
-  static const String asset = 'assets/animations/mic-listening.json';
+  /// Board period for R2's ring; the module default is 2.6s.
+  static const Duration duration = Duration(milliseconds: 2400);
 
-  /// 1.2× the canvas. The rings run Ø115→Ø240 at this scale, so a ring emerges
-  /// from the Ø128 disc's edge at ~49% opacity and has dissolved well before
-  /// the box edge; 288 also stays inside the 24px gutters on a 360dp screen.
-  static const double extent = 288;
+  /// Measured `2px solid #FFB27A` — `JeebSemanticColors.orangeSoft`.
+  static const double strokeWidth = 2;
 
   /// Only a held mic breathes — an idle composer that pulsed would claim to be
   /// listening when nothing is being captured.
@@ -179,32 +172,23 @@ class _MicListeningPulse extends StatelessWidget {
     if (!isRecording) return const SizedBox.shrink();
     return ExcludeSemantics(
       child: IgnorePointer(
-        // Laid out at the cluster's own mic square so the rings can overflow
-        // the disc without widening the Row or moving the satellites.
-        child: SizedBox.square(
-          dimension: MicCluster.micExtent,
-          child: OverflowBox(
-            maxWidth: extent,
-            maxHeight: extent,
-            child: Lottie.asset(
-              asset,
-              width: extent,
-              height: extent,
-              // Reduce-motion holds frame 0: one still ring around the disc.
-              animate: !MediaQuery.disableAnimationsOf(context),
-              addRepaintBoundary: true,
-            ),
-          ),
+        child: JHalo(
+          color: _semantics(context).orangeSoft,
+          strokeWidth: strokeWidth,
+          duration: duration,
+          child: SizedBox.square(dimension: MicCluster.micExtent),
         ),
       ),
     );
   }
 }
 
-/// One Ø48 tonal circle plus its caption.
+/// One Ø48 GLASS circle plus its caption.
 ///
 /// Ø48 rather than the board's Ø46: `Sizes` has no 46, literal-number sizes
-/// are banned in `lib/features`, and 48 is the minimum tap target anyway.
+/// are banned in `lib/features`, and 48 is the minimum tap target anyway. The
+/// tile inks the glyph WHITE — the satellites are not part of the orange
+/// budget, only the mic is.
 class _CircleSatellite extends StatelessWidget {
   const _CircleSatellite({
     required this.icon,
@@ -228,22 +212,17 @@ class _CircleSatellite extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Semantics(
-          identifier: identifier,
-          label: semanticLabel,
-          button: true,
-          container: true,
-          child: SizedBox.square(
-            key: circleKey,
-            dimension: Sizes.fourXLarge,
-            child: Material(
-              color: scheme.surfaceContainerHigh,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onTap,
-                child: Icon(icon, size: Sizes.large, color: scheme.primary),
-              ),
+        SizedBox.square(
+          key: circleKey,
+          dimension: Sizes.fourXLarge,
+          child: JeebGlassCard(
+            radius: JeebRadii.pill,
+            padding: EdgeInsets.zero,
+            onTap: onTap,
+            identifier: identifier,
+            semanticLabel: semanticLabel,
+            child: Center(
+              child: Icon(icon, size: Sizes.large, color: scheme.onSurface),
             ),
           ),
         ),
@@ -323,7 +302,8 @@ class _CaptionBox extends StatelessWidget {
   }
 }
 
-Color _captionInk(BuildContext context) =>
-    (Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.light())
-        .mutedText;
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
+
+Color _captionInk(BuildContext context) => _semantics(context).mutedText;

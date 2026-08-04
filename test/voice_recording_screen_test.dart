@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_cubit.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_state.dart';
 import 'package:jeeb_mobile/features/voice_request/data/voice_recording_repository.dart';
@@ -178,7 +179,13 @@ void main() {
 
         expect(cubit.state.error, VoiceRecordingError.uploadServer);
         expect(find.byKey(VoiceRecordingKeys.uploadErrorState), findsOneWidget);
-        expect(find.byType(OmdsErrorState), findsOneWidget);
+        // MIDNIGHT M2-03: the OMDS error state is retired for the §2.7
+        // empty-state family in its danger-tinted `error` status.
+        expect(find.byType(JeebEmptyState), findsOneWidget);
+        expect(
+          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+          JeebEmptyStateStatus.error,
+        );
         expect(find.text("Couldn't submit your recording"), findsOneWidget);
         expect(find.text('Record again'), findsOneWidget);
         expect(find.text('Retry upload & submit'), findsOneWidget);

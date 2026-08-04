@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_cubit.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_state.dart';
 import 'package:jeeb_mobile/features/voice_request/data/voice_recording_repository.dart';
 import 'package:jeeb_mobile/features/voice_request/domain/voice_player.dart';
 import 'package:jeeb_mobile/features/voice_request/domain/voice_recorder.dart';
 import 'package:jeeb_mobile/features/voice_request/presentation/voice_recording_screen.dart';
-import 'package:omds/omds.dart';
 
 import 'support/sync_app_localizations.dart';
 
@@ -23,7 +23,7 @@ VoiceRecordingCubit _buildCubit({VoiceRecorder? recorder}) {
 void main() {
   group('VoiceRecordingScreen — blocking-state polish (Sprint 6)', () {
     testWidgets(
-        'permission denied renders a recoverable OmdsErrorState (not the mic)',
+        'permission denied renders a recoverable error state (not the mic)',
         (tester) async {
       final cubit = _buildCubit();
       addTearDown(cubit.close);
@@ -37,7 +37,12 @@ void main() {
 
       // Recoverable blocking surface is shown, keyed for QA targeting.
       expect(find.byKey(VoiceRecordingKeys.blockedState), findsOneWidget);
-      expect(find.byType(OmdsErrorState), findsOneWidget);
+      // MIDNIGHT M2-03: the §2.7 empty-state family in its `error` status
+      // replaces OmdsErrorState here.
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+        JeebEmptyStateStatus.error,
+      );
       // The idle mic + hold-to-record hint are replaced while blocked.
       expect(find.byKey(VoiceRecordingKeys.micButton), findsNothing);
       // Localized permission guidance + retry are present (EN).

@@ -21,12 +21,13 @@ class VoiceRecordingCubit extends Cubit<VoiceRecordingState> {
     required VoiceRecordingRepository repository,
     VoiceRecordingTickerFactory tickerFactory = _defaultTickerFactory,
     Duration tickInterval = const Duration(milliseconds: 100),
+    VoiceRecordingState initialState = const VoiceRecordingState(),
   }) : _recorder = recorder,
        _player = player,
        _repository = repository,
        _tickerFactory = tickerFactory,
        _tickInterval = tickInterval,
-       super(const VoiceRecordingState());
+       super(initialState);
 
   final VoiceRecorder _recorder;
   final VoicePlayer _player;

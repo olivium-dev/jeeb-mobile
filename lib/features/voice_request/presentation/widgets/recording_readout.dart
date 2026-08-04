@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/motion/jeeb_motion.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
@@ -14,6 +15,11 @@ import 'recording_waveform.dart';
 /// Idle renders the readout alone at rest (`00:00 / 1:00` in muted ink, no
 /// waveform, no status line) — the board only draws the recording state, and
 /// the timer is what tells an idle user the cap exists.
+///
+/// MIDNIGHT: the elapsed numeral is WHITE while recording (measured `#FFFFFF`
+/// on the tile, not the accent it used to take); the cap stays periwinkle and
+/// the status caption is the tile's one orange text run, breathing per
+/// `03-MOTION-NOTES` §R2.
 class RecordingReadout extends StatelessWidget {
   const RecordingReadout({
     super.key,
@@ -27,13 +33,17 @@ class RecordingReadout extends StatelessWidget {
   /// (`VoiceRecordingKeys.recordingWaveform`).
   final Key waveformKey;
 
+  /// `jBreathe` on the status caption — 1.8s, the board's own period for this
+  /// element (the module default is 2.6s).
+  static const Duration statusBreatheDuration = Duration(milliseconds: 1800);
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final text = context.jeebText;
     final semantic =
         Theme.of(context).extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
+        JeebSemanticColors.midnight();
     final recording = state.isRecording;
     final elapsed = recording ? state.elapsed : Duration.zero;
     final formatted = formatClock(elapsed);
@@ -72,7 +82,7 @@ class RecordingReadout extends StatelessWidget {
                         style: text.statHero.copyWith(
                           fontFeatures: const [FontFeature.tabularFigures()],
                           color: recording
-                              ? Theme.of(context).colorScheme.primary
+                              ? Theme.of(context).colorScheme.onSurface
                               : semantic.mutedText,
                         ),
                       ),
@@ -95,12 +105,17 @@ class RecordingReadout extends StatelessWidget {
         ),
         if (recording) ...<Widget>[
           const SizedBox(height: Spacing.twoXSmall),
-          Text(
-            l10n.voiceRecordingStatusRecording,
-            textAlign: TextAlign.center,
-            style: text.body.copyWith(
-              fontWeight: FontWeight.w600,
-              color: context.jeebRoles.accent,
+          JBreathe(
+            duration: statusBreatheDuration,
+            // TODO(midnight): l10n-queued — the tile reads
+            // "Recording — release to send", the ARB still says "to stop".
+            child: Text(
+              l10n.voiceRecordingStatusRecording,
+              textAlign: TextAlign.center,
+              style: text.body.copyWith(
+                fontWeight: FontWeight.w600,
+                color: context.jeebRoles.accent,
+              ),
             ),
           ),
         ],

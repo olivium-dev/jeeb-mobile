@@ -1,81 +1,38 @@
-// redesign-24 · screen 05 (voice recording).
+// MIDNIGHT · M2-03 · R2 (voice recording), re-cut from the redesign-24 lock.
 //
-// Locks the four behaviours the rebuilt composer introduced: the max-duration
-// arc reads straight off `elapsed`, slide-to-cancel reaches
-// `VoiceRecordingCubit.cancelRecording()` in BOTH directions, the Type
-// satellite is opt-in and inert mid-recording, and the docked cluster survives
-// Arabic at 200% text scale.
+// Locks the composer behaviours (max-duration arc off `elapsed`,
+// slide-to-cancel in BOTH directions, opt-in Type satellite inert mid-record,
+// Arabic at 200% text scale) PLUS what M2-03 added: the LIVE TRANSCRIPT band
+// with its `jBlink` caret, the four `03-MOTION-NOTES` §R2 animated elements,
+// and the Midnight field. The 05 l10n strings now ship in the ARB, so the
+// pending-copy delegate this file used to carry is gone.
 
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/motion/jeeb_motion.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_mic_hero.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_waveform.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_cubit.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_state.dart';
 import 'package:jeeb_mobile/features/voice_request/data/voice_recording_repository.dart';
 import 'package:jeeb_mobile/features/voice_request/domain/voice_player.dart';
 import 'package:jeeb_mobile/features/voice_request/domain/voice_recorder.dart';
 import 'package:jeeb_mobile/features/voice_request/presentation/voice_recording_screen.dart';
+import 'package:jeeb_mobile/features/voice_request/presentation/widgets/live_transcript_band.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-/// The four strings screen 05 introduces live in
-/// `docs/redesign-2026-08/wiring/05-voice-recording.md` and are applied to the
-/// ARB by the serialized integrator, not by this lane. Until then this
-/// delegate layers them over the real ARB so the screen is testable; once the
-/// wiring lands the overlay is a no-op and this class can be deleted in favour
-/// of the shared `wrapForTest`.
-// TODO(redesign-24): delete once the 05 l10n wiring request is applied.
-class _PendingCopyDelegate extends LocalizationsDelegate<AppLocalizations> {
-  const _PendingCopyDelegate();
-
-  static const Map<String, Map<String, String>> _pending =
-      <String, Map<String, String>>{
-        'en': <String, String>{
-          'voiceRecordingNewRequestTitle': 'New request',
-          'voiceRecordingStatusRecording': 'Recording — release to stop',
-          'voiceRecordingSlideToCancel': 'Slide',
-          'voiceRecordingTypeInstead': 'Type',
-        },
-        'ar': <String, String>{
-          'voiceRecordingNewRequestTitle': 'طلب جديد',
-          'voiceRecordingStatusRecording': 'جارٍ التسجيل — أفلت للإيقاف',
-          'voiceRecordingSlideToCancel': 'اسحب',
-          'voiceRecordingTypeInstead': 'اكتب',
-        },
-      };
-
-  @override
-  bool isSupported(Locale locale) => AppLocalizations.supportedLocales.any(
-    (l) => l.languageCode == locale.languageCode,
-  );
-
-  @override
-  Future<AppLocalizations> load(Locale locale) {
-    final tag = locale.languageCode;
-    final arb = File('lib/l10n/app_$tag.arb').readAsStringSync();
-    final base = debugLoadAppLocalizationsSync(locale, arb);
-    return SynchronousFuture<AppLocalizations>(
-      AppLocalizations(locale, <String, String>{
-        ...base.allStrings,
-        ...?_pending[tag],
-      }),
-    );
-  }
-
-  @override
-  bool shouldReload(_PendingCopyDelegate old) => false;
-}
+import 'support/sync_app_localizations.dart';
 
 Widget _wrap(Widget child, {Locale locale = const Locale('en')}) {
   return MaterialApp(
-    theme: ThemeData.light(),
+    theme: AppTheme.midnight(),
     locale: locale,
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const [
-      _PendingCopyDelegate(),
+      SyncAppLocalizationsDelegate(),
       GlobalMaterialLocalizations.delegate,
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
@@ -126,10 +83,10 @@ Future<void> _pressAndSlide(WidgetTester tester, double dx) async {
   final gesture = await tester.startGesture(
     tester.getCenter(find.byKey(VoiceRecordingKeys.micButton)),
   );
-  // NOT pumpAndSettle: the recording phase now carries two looping Lottie
-  // films (the mic sonar + the live waveform, motion spec §2.1/§2.2), so the
-  // tree never settles while the mic is held. Two frames are enough — one to
-  // flush `startRecording`'s microtasks, one to rebuild into `recording`.
+  // NOT pumpAndSettle: the recording phase runs four infinite Midnight
+  // primitives (§R2 caret/wave/caption/halo), so the tree never settles while
+  // the mic is held. Two frames are enough — one to flush `startRecording`'s
+  // microtasks, one to rebuild into `recording`.
   await tester.pump();
   await tester.pump();
   await gesture.moveBy(Offset(dx, 0));
@@ -304,6 +261,132 @@ void main() {
       await tester.pump();
 
       expect(taps, 0);
+    });
+  });
+
+  group('05 · LIVE TRANSCRIPT band (doc-13 P0-5)', () {
+    testWidgets('idle draws the band with no caret', (tester) async {
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_wrap(VoiceRecordingScreen(cubit: cubit)));
+      await tester.pump();
+
+      expect(find.byType(LiveTranscriptBand), findsOneWidget);
+      expect(find.byType(JBlink), findsNothing);
+    });
+
+    testWidgets('recording blinks a 2x20 accent caret', (tester) async {
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_wrap(VoiceRecordingScreen(cubit: cubit)));
+      await cubit.startRecording();
+      await tester.pump();
+
+      expect(find.byType(LiveTranscriptBand), findsOneWidget);
+      final caret = find.descendant(
+        of: find.byType(JBlink),
+        matching: find.byType(ColoredBox),
+      );
+      expect(caret, findsOneWidget);
+      expect(
+        tester.widget<ColoredBox>(caret).color,
+        Theme.of(tester.element(caret)).colorScheme.primary,
+        reason: 'the tile draws the caret in #D73B00 — orange is sanctioned '
+            'here, against the app-wide periwinkle cursor ruling',
+      );
+      expect(
+        tester.getSize(caret),
+        const Size(
+          LiveTranscriptBand.caretWidth,
+          LiveTranscriptBand.caretHeight,
+        ),
+      );
+      expect(tester.widget<JBlink>(find.byType(JBlink)).duration,
+          JeebMotion.blinkDuration);
+    });
+
+    testWidgets('the band is not drawn once the clip exists', (tester) async {
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_wrap(VoiceRecordingScreen(cubit: cubit)));
+      cubit.emit(cubit.state.copyWith(phase: VoiceRecordingPhase.recorded));
+      await tester.pump();
+
+      expect(find.byType(LiveTranscriptBand), findsNothing);
+    });
+  });
+
+  group('05 · motion (03-MOTION-NOTES §R2 — exactly four elements)', () {
+    testWidgets('recording mounts caret, wave, caption breath and halo', (
+      tester,
+    ) async {
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_wrap(VoiceRecordingScreen(cubit: cubit)));
+      await cubit.startRecording();
+      await tester.pump();
+
+      expect(find.byType(JBlink), findsOneWidget);
+      expect(find.byType(JBreathe), findsOneWidget);
+      expect(find.byType(JHalo), findsOneWidget);
+      // Container-level jWave: ONE scaling row over the kit's static bars.
+      expect(find.byType(JWaveBar), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(JWaveBar),
+          matching: find.byType(JeebWaveform),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<JWaveBar>(find.byType(JWaveBar)).alignment,
+        Alignment.bottomCenter,
+        reason: 'board transform-origin: center bottom',
+      );
+    });
+
+    testWidgets('idle mounts none of them', (tester) async {
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_wrap(VoiceRecordingScreen(cubit: cubit)));
+      await tester.pump();
+
+      expect(find.byType(JWaveBar), findsNothing);
+      expect(find.byType(JHalo), findsNothing);
+      expect(find.byType(JBreathe), findsNothing);
+    });
+
+    testWidgets('reduce motion settles on the rest frame', (tester) async {
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(
+        _wrap(
+          MediaQuery(
+            data: const MediaQueryData(disableAnimations: true),
+            child: VoiceRecordingScreen(cubit: cubit),
+          ),
+        ),
+      );
+      await cubit.startRecording();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(JHalo), findsOneWidget);
+    });
+  });
+
+  group('05 · Midnight field', () {
+    testWidgets('mounts the content field with the floor glow', (tester) async {
+      final cubit = _buildCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_wrap(VoiceRecordingScreen(cubit: cubit)));
+      await tester.pump();
+
+      final field = tester.widget<JeebMidnightField>(
+        find.byType(JeebMidnightField),
+      );
+      expect(field.variant, JeebFieldVariant.content);
+      expect(field.glowPlacement, JeebFieldGlowPlacement.bottom);
     });
   });
 

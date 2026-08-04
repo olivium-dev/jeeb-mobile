@@ -2,6 +2,8 @@
 
 import 'dart:async';
 
+import 'dart:typed_data';
+
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_cubit.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_state.dart';
 import 'package:jeeb_mobile/features/voice_request/data/voice_recording_repository.dart';
@@ -47,6 +49,28 @@ VoiceRecordingCubit voiceRecordingScreenCubit({
     tickerFactory: tickerFactory,
   );
 }
+
+/// A cubit that STARTS in [state] — the seeds below drive the real cubit and
+/// stall inside `flutter test`'s fake-async on `StreamSubscription.cancel()`,
+/// which left the `recorded` and `sent` captures rendering the `recording`
+/// surface instead. Live surfaces still use the async seeds.
+VoiceRecordingCubit voiceRecordingScreenSeededCubit(VoiceRecordingState state) =>
+    VoiceRecordingCubit(
+      recorder: FakeVoiceRecorder(),
+      player: FakeVoicePlayer(),
+      repository: FakeVoiceRecordingRepository(),
+      tickerFactory: (_) => const Stream<Duration>.empty(),
+      initialState: state,
+    );
+
+/// A 3-second clip with real bytes, for the seeded states above.
+VoiceClip voiceRecordingScreenClip({
+  Duration duration = const Duration(seconds: 3),
+}) => VoiceClip(
+  bytes: Uint8List.fromList(List<int>.filled(2048, 0x55)),
+  duration: duration,
+  sourcePath: '/tmp/voice-catalog-clip.m4a',
+);
 
 /// The same cubit with its recording clock replaced by a controller the caller
 /// drives, so elapsed time is chosen rather than measured.
