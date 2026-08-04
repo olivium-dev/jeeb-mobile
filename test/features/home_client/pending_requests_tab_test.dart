@@ -5,15 +5,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
-import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_system_chip.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/tabs/pending_requests_tab.dart';
-import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_motion.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -33,6 +33,13 @@ Widget _harness({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4), so `pumpAndSettle`
+    // only terminates under reduce motion — the sanctioned way to settle a
+    // tree that mounts them.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(
       body: BlocProvider(
         create: (_) => ClientHomeCubit(
@@ -167,40 +174,18 @@ void main() {
 
       expect(find.byKey(const Key('pending-empty')), findsOneWidget);
       expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
-      // "What do you need?" belongs to the mic hero on the full screen, not to
-      // the empty view — in this tab-only harness it must not appear at all.
-      expect(find.text('What do you need?'), findsNothing);
+      // E1 draws the headline INSIDE the empty block (the screen drops its own
+      // prompt in this composition, so it is still printed exactly once).
+      expect(find.text('What do you need?'), findsOneWidget);
       expect(
         find.text('No pending requests — broadcast a new one to get offers.'),
         findsOneWidget,
       );
-      expect(find.text('Create your first request'), findsOneWidget);
-      expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
-      // redesign-2026-08 motion spec §2.6: the empty mark is the mic
-      // (`empty-say-it.json`), not the retired `empty_orders.png`.
-      expect(find.byType(ClientHomeEmptyMark), findsOneWidget);
-      final lottie = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
-      expect(lottie.lottie, isA<AssetLottie>());
-      expect(
-        (lottie.lottie as AssetLottie).assetName,
-        'assets/animations/empty-say-it.json',
-      );
-    });
-
-    testWidgets('empty CTA prefers the injected create-request callback', (
-      tester,
-    ) async {
-      var taps = 0;
-      final repo = InMemoryClientHomeRepository(latency: Duration.zero);
-      await tester.pumpWidget(
-        _harness(repo: repo, onCreateRequest: () => taps++),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Create your first request'));
-      await tester.pump();
-
-      expect(taps, 1);
+      // The board draws no CTA button here — the voice capsule the SCREEN
+      // mounts below is the create affordance (doc-13 Pattern D).
+      expect(find.text('Create your first request'), findsNothing);
+      expect(find.byType(JeebEmptyState), findsOneWidget);
+      expect(find.byType(LottieBuilder), findsNothing);
     });
 
     testWidgets('each pending row renders its own server-derived status', (
@@ -328,10 +313,10 @@ void main() {
       );
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
-      final chip = tester.widget<OmdsChip>(
+      final chip = tester.widget<JeebSystemChip>(
         find.byKey(const Key('pending-offers-badge')),
       );
-      expect(chip.isSelected, isTrue);
+      expect(chip.tone, JeebSystemChipTone.accent);
     });
 
     testWidgets('badge is tonal (not filled) when the offers are not new', (
@@ -345,10 +330,10 @@ void main() {
       );
       await tester.pumpWidget(_harness(repo: repo));
       await tester.pumpAndSettle();
-      final chip = tester.widget<OmdsChip>(
+      final chip = tester.widget<JeebSystemChip>(
         find.byKey(const Key('pending-offers-badge')),
       );
-      expect(chip.isSelected, isFalse);
+      expect(chip.tone, JeebSystemChipTone.filled);
     });
 
     testWidgets('offers badge renders localized Arabic text', (tester) async {

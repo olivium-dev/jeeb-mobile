@@ -3,11 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lottie/lottie.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_empty_view.dart';
-import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_motion.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 /// Synchronous ARB-backed localizations delegate so widget tests render the
@@ -49,6 +48,12 @@ Widget _harness({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // E1's illustration loops ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion, which is also the capture rest frame.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(body: ClientHomeEmptyView(onNewOrder: onNewOrder)),
   );
 }
@@ -72,66 +77,47 @@ void main() {
   });
 
   group('ClientHomeEmptyView', () {
-    testWidgets('renders localized pending copy and first-request CTA (EN)', (
-      tester,
-    ) async {
+    testWidgets('renders the E1 headline and body (EN)', (tester) async {
       await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
 
-      // The title moved to the mic hero above this view (redesign-2026-08
-      // screen 04) — printing "What do you need?" twice on one screen was the
-      // duplication the redesign removes, so its absence is the assertion.
-      expect(find.text('What do you need?'), findsNothing);
+      // MIDNIGHT E1 draws the headline INSIDE the empty block; the screen drops
+      // its own prompt in this composition, so it is still printed once.
+      expect(find.text('What do you need?'), findsOneWidget);
       expect(
         find.text('No pending requests — broadcast a new one to get offers.'),
         findsOneWidget,
       );
-      expect(find.text('Create your first request'), findsOneWidget);
       expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
     });
 
-    testWidgets('renders the empty-say-it motion mark', (tester) async {
+    testWidgets('draws the composed kit illustration, not a Lottie or PNG', (
+      tester,
+    ) async {
       await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
 
-      // redesign-2026-08 motion spec §2.6: the client empty state's mark is the
-      // mic (`empty-say-it.json`), not the pre-redesign `empty_orders.png` shop
-      // illustration — the empty state and the hero above it now say one thing.
-      expect(find.byType(ClientHomeEmptyMark), findsOneWidget);
+      expect(find.byType(JeebEmptyState), findsOneWidget);
       expect(find.byType(Image), findsNothing);
-
-      final lottie = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
-      expect(lottie.lottie, isA<AssetLottie>());
-      expect(
-        (lottie.lottie as AssetLottie).assetName,
-        'assets/animations/empty-say-it.json',
-      );
-      // One-shot by contract: an empty list is a still state.
-      expect(lottie.repeat, isFalse);
+      final state = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      expect(state.variant, JeebEmptyStateVariant.e1);
+      expect(state.status, JeebEmptyStateStatus.empty);
     });
 
-    testWidgets('reduce motion parks the mark on its settled final frame', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MediaQuery(
-          data: const MediaQueryData(disableAnimations: true),
-          child: _harness(onNewOrder: () {}),
-        ),
-      );
+    testWidgets('the board draws no CTA button in this block', (tester) async {
+      // doc-13 Pattern D: `_request_empty_state_new_order_button` moved onto
+      // the screen's voice capsule, which is E1's own create affordance.
+      await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
 
-      final lottie = tester.widget<LottieBuilder>(find.byType(LottieBuilder));
-      // `empty-say-it` frame 0 is BLANK (pre-entrance), so parking at 0 would
-      // leave an empty box; progress 1.0 is the settled navy mic.
-      expect(lottie.animate, isFalse);
-      expect(lottie.controller, same(kAlwaysCompleteAnimation));
-      expect(lottie.controller!.value, 1.0);
+      expect(find.text('Create your first request'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
+        findsNothing,
+      );
     });
 
-    testWidgets('exposes Semantics identifiers on root and CTA', (
-      tester,
-    ) async {
+    testWidgets('exposes the frozen root Semantics identifier', (tester) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness(onNewOrder: () {}));
       await tester.pumpAndSettle();
@@ -140,22 +126,7 @@ void main() {
         find.bySemanticsIdentifier('_request_empty_state_root'),
         findsOneWidget,
       );
-      expect(
-        find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
-        findsOneWidget,
-      );
       handle.dispose();
-    });
-
-    testWidgets('tapping the CTA invokes onNewOrder', (tester) async {
-      var taps = 0;
-      await tester.pumpWidget(_harness(onNewOrder: () => taps++));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Create your first request'));
-      await tester.pumpAndSettle();
-
-      expect(taps, 1);
     });
 
     testWidgets('renders mirrored Arabic strings under ar locale', (
@@ -166,12 +137,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('ماذا تحتاج؟'), findsNothing);
+      expect(find.text('ماذا تحتاج؟'), findsOneWidget);
       expect(
         find.text('لا توجد طلبات معلّقة — أنشئ طلبًا جديدًا لتلقّي العروض.'),
         findsOneWidget,
       );
-      expect(find.text('أنشئ أول طلب لك'), findsOneWidget);
       expect(
         Directionality.of(tester.element(find.byType(ClientHomeEmptyView))),
         TextDirection.rtl,

@@ -4,14 +4,17 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
-import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
 import '../widgets/client_home_empty_view.dart';
-import '../widgets/client_home_motion.dart';
 import '../widgets/client_home_tier_chip.dart';
 
 /// T-MOB-007: Isolated Pending Requests tab widget.
@@ -86,14 +89,11 @@ class _PendingLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Motion spec §2.9: screen 04 waits in the brand's own voice, so all four
-    // of its loading surfaces share one mark.
-    return const Center(
-      key: Key('pending-loading'),
-      child: Padding(
-        padding: EdgeInsets.all(Spacing.large),
-        child: ClientHomeLoadingDots(),
-      ),
+    // §2.7: the wait is the empty illustration's own breathing skeleton.
+    return JeebEmptyState(
+      key: const Key('pending-loading'),
+      status: JeebEmptyStateStatus.loading,
+      headline: AppLocalizations.of(context).homeEmptyTitle,
     );
   }
 }
@@ -106,13 +106,19 @@ class _PendingError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsErrorState(
+    return JeebEmptyState(
       key: const Key('pending-error'),
-      icon: Icons.cloud_off_outlined,
-      title: l10n.homeLoadFailedTitle,
-      message: l10n.homeErrorRetry,
-      retryLabel: l10n.homeLoadFailedRetry,
-      onRetry: onRetry,
+      status: JeebEmptyStateStatus.error,
+      headline: l10n.homeLoadFailedTitle,
+      body: l10n.homeErrorRetry,
+      action: IntrinsicWidth(
+        child: JeebCtaButton.primary(
+          label: l10n.homeLoadFailedRetry,
+          identifier: 'pending_retry_cta',
+          expand: false,
+          onTap: onRetry,
+        ),
+      ),
     );
   }
 }
@@ -126,8 +132,7 @@ class _PendingList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      // Board gutter 24 (`tpl 186`); cards are separated by a 12 gap instead of
-      // the old divider (02-PLAN R12 — outline over rule).
+      // Board gutter 24; glass cards are separated by a 12 gap.
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.xLarge,
       ),
@@ -200,10 +205,8 @@ class _PendingCardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Board `tpl 187`: r16, 1.5px brown outline, pad 16, NO shadow. Every one
-    // of those numbers lives in the kit; the divider the card used to end with
-    // is gone — the outline is what separates rows now.
-    return JeebOutlinedCard(
+    // R1's active-request card: rest glass, `lg` radius, pad 16, no lift.
+    return JeebGlassCard(
       padding: const EdgeInsetsDirectional.all(Spacing.medium),
       child: _PendingCardRow(request: request),
     );
@@ -218,8 +221,8 @@ class _PendingCardRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final createdAt = request.createdAt;
-    // TODO(redesign-24): board shows broadcast reach + voice waveform/duration;
-    // no gateway field — omitted, not faked.
+    // TODO(midnight): the tile draws a voice waveform mark and a "12 Jeebers
+    // reached" count; neither field is on the wire — omitted, not faked.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -227,10 +230,12 @@ class _PendingCardRow extends StatelessWidget {
         const SizedBox(height: Spacing.twoXSmall),
         _PendingCardSummary(text: request.summaryLine),
         const SizedBox(height: Spacing.small),
-        // Meta row (board `tpl 196`): live status on the start edge, the age on
-        // the end edge where the board draws its reach count.
+        // Meta row: tier chip, live status, then the age on the end edge where
+        // the tile draws its reach count.
         Row(
           children: [
+            ClientHomeTierChip(tier: request.tier),
+            const SizedBox(width: Spacing.xSmall),
             Expanded(
               // Once offers have arrived, surface them prominently instead of
               // the flat "Searching…" line. NB: on the live client-home path an
@@ -268,25 +273,13 @@ class _PendingCardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Text(
-            request.displayId ?? request.title,
-            // Role fix: `secondaryContainer` is a CONTAINER (fill) role, not
-            // an ink role — as text it went illegible on dark surfaces. Titles
-            // on surface read in `onSurface`.
-            style: context.jeebText.cardTitle.copyWith(
-              color: theme.colorScheme.onSurface,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: Spacing.xSmall),
-        ClientHomeTierChip(tier: request.tier),
-      ],
+    return Text(
+      request.displayId ?? request.title,
+      style: context.jeebText.cardTitle.copyWith(
+        color: theme.colorScheme.onSurface,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -318,23 +311,28 @@ class _PendingServerStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // Orange is correct here and nowhere else on this card: a broadcasting
-    // request is R5's "happening now". `jeebRoles.accent` is the only legal
-    // orange in this file (`no_raw_semantic_colors_test.dart` gates it).
+    // request is the tile's "happening now" accent (budget §2.2). STATIC —
+    // 03-MOTION-NOTES §R1 measures zero animation on this dot.
     final accent = context.jeebRoles.accent;
     return Row(
       key: const Key('pending-server-status'),
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Board `tpl 199` draws Ø7; Sizes.xSmall (8) is the nearest token and
-        // the 1px is imperceptible at this scale.
+        // The tile draws Ø7; Sizes.xSmall (8) is the nearest token.
         Container(
           width: Sizes.xSmall,
           height: Sizes.xSmall,
-          decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: accent,
+            shape: BoxShape.circle,
+            boxShadow: JeebShadows.glowDot,
+          ),
         ),
         const SizedBox(width: Spacing.twoXSmall),
         Flexible(
           child: Text(
+            // TODO(midnight): l10n-queued pendingTabBroadcastingLabel — the
+            // tile reads "Broadcasting".
             l10n.pendingTabSearchingLabel,
             style: context.jeebText.bodySmall.copyWith(
               fontWeight: FontWeight.w700,
@@ -362,16 +360,16 @@ class _PendingOffersBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     return Align(
       alignment: AlignmentDirectional.centerStart,
-      child: OmdsChip(
+      child: JeebSystemChip(
         key: const Key('pending-offers-badge'),
         label: l10n.pendingCardOffersBadge(count),
-        icon: const Icon(Icons.local_offer_outlined),
-        isSelected: emphasize,
-        unselectedColor: colorScheme.primaryContainer,
-        unselectedTextColor: colorScheme.onPrimaryContainer,
+        // Unseen offers are the live event; a seen count is a settled fact.
+        tone: emphasize
+            ? JeebSystemChipTone.accent
+            : JeebSystemChipTone.filled,
+        center: false,
       ),
     );
   }
@@ -393,8 +391,6 @@ class _PendingCreatedAge extends StatelessWidget {
     return Text(
       pendingCreatedAgeLabel(l10n, createdAt, DateTime.now()),
       key: const Key('pending-created-age'),
-      // UX-AUDIT §T3: meta text on the white card reads in `onSurfaceVariant`
-      // (9.35:1). Periwinkle is legal only on the navy hero.
       style: context.jeebText.caption.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
       ),

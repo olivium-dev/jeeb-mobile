@@ -4,13 +4,14 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../client_offers/domain/offers_repository.dart';
 import '../../../client_offers/presentation/widgets/offer_accept_sheet.dart';
 import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
-import '../widgets/client_home_motion.dart';
 import '../widgets/replies_card.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -129,12 +130,10 @@ class _RepliesLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      key: Key('replies-loading'),
-      child: Padding(
-        padding: EdgeInsets.all(Spacing.large),
-        child: ClientHomeLoadingDots(),
-      ),
+    return JeebEmptyState(
+      key: const Key('replies-loading'),
+      status: JeebEmptyStateStatus.loading,
+      headline: AppLocalizations.of(context).homeEmptyTitle,
     );
   }
 }
@@ -147,13 +146,19 @@ class _RepliesError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsErrorState(
+    return JeebEmptyState(
       key: const Key('replies-error'),
-      icon: Icons.cloud_off_outlined,
-      title: l10n.homeLoadFailedTitle,
-      message: l10n.homeErrorRetry,
-      retryLabel: l10n.homeLoadFailedRetry,
-      onRetry: onRetry,
+      status: JeebEmptyStateStatus.error,
+      headline: l10n.homeLoadFailedTitle,
+      body: l10n.homeErrorRetry,
+      action: IntrinsicWidth(
+        child: JeebCtaButton.primary(
+          label: l10n.homeLoadFailedRetry,
+          identifier: 'replies_retry_cta',
+          expand: false,
+          onTap: onRetry,
+        ),
+      ),
     );
   }
 }
@@ -164,11 +169,10 @@ class _RepliesEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsEmptyState(
+    return JeebEmptyState(
       key: const Key('replies-empty'),
-      icon: Icons.mark_chat_unread_outlined,
-      title: l10n.homeEmptyTitle,
-      subtitle: l10n.homeRepliesEmpty,
+      headline: l10n.homeEmptyTitle,
+      body: l10n.homeRepliesEmpty,
     );
   }
 }

@@ -9,6 +9,9 @@ import 'package:lottie/lottie.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_glass_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_mic_hero.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_state.dart';
@@ -65,6 +68,12 @@ Widget _harness({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(
       body: BlocProvider(
         create: (_) => ClientHomeCubit(
@@ -224,19 +233,11 @@ void main() {
         find.text('No pending requests — broadcast a new one to get offers.'),
         findsOneWidget,
       );
-      expect(find.text('Create your first request'), findsOneWidget);
-      // redesign-2026-08 motion spec §2.6: the empty mark is the mic
-      // (`empty-say-it.json`), replacing the retired `empty_orders.png`.
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is LottieBuilder &&
-              widget.lottie is AssetLottie &&
-              (widget.lottie as AssetLottie).assetName ==
-                  'assets/animations/empty-say-it.json',
-        ),
-        findsOneWidget,
-      );
+      // MIDNIGHT E1: the CTA is the voice capsule, which now carries the empty
+      // state's frozen identifier and its label. No button, no Lottie.
+      expect(find.text('Create your first request'), findsNothing);
+      expect(find.byType(JeebEmptyState), findsOneWidget);
+      expect(find.byType(LottieBuilder), findsNothing);
 
       expect(find.text('No orders yet'), findsNothing);
       expect(find.text('New Order'), findsNothing);
@@ -271,8 +272,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Create your first request'));
-      await tester.tap(find.text('Create your first request'));
+      final cta = find.bySemanticsIdentifier(
+        '_request_empty_state_new_order_button',
+      );
+      await tester.ensureVisible(cta);
+      await tester.tap(cta);
       await tester.pumpAndSettle();
 
       expect(taps, 1);
@@ -377,7 +381,13 @@ void main() {
         find.text('لا توجد طلبات معلّقة — أنشئ طلبًا جديدًا لتلقّي العروض.'),
         findsOneWidget,
       );
-      expect(find.text('أنشئ أول طلب لك'), findsOneWidget);
+      // The empty CTA is the capsule now; its Arabic label rides the frozen
+      // Semantics node rather than a drawn button.
+      expect(find.text('أنشئ أول طلب لك'), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
+        findsOneWidget,
+      );
     });
   });
 
@@ -432,8 +442,8 @@ void main() {
     );
 
     testWidgets(
-      'Replies (screen 14 / JM-027) shows the order id, +N overflow, and '
-      'BOTH CTAs (Check Offers + Accept) with contract identifiers',
+      'Replies (screen 14 / JM-027) shows the order id, +N overflow, and the '
+      'SINGLE View-offers pill with both contract identifiers',
       (tester) async {
         await tester.pumpWidget(
           _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.replies),
@@ -443,8 +453,10 @@ void main() {
         expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
         expect(find.text('+6'), findsOneWidget);
         expect(find.text('Check Offers'), findsOneWidget);
-        // JM-027 added the per-card Accept CTA (→ offer-accept-confirm, JM-029).
-        expect(find.byKey(const Key('replies-accept-rep-1')), findsOneWidget);
+        // doc-13 P0-7: the second inline Accept button is gone; the board draws
+        // one pill. `replies_accept_cta` is re-homed onto the card surface.
+        expect(find.byKey(const Key('replies-accept-rep-1')), findsNothing);
+        expect(find.text('Accept'), findsNothing);
 
         // JM-027 AC1/AC2: both CTAs carry the contract Semantics identifiers.
         // (No tap here — the Replies tab now navigates via GoRouter internally,
@@ -488,6 +500,12 @@ void main() {
         );
         expect(
           find.bySemanticsIdentifier('orders_filter_replies'),
+          findsOneWidget,
+        );
+        // JM-027's coined alias, re-homed off the kit segment (which carries
+        // one identifier) onto its own node.
+        expect(
+          find.bySemanticsIdentifier('orders_home_replies_tab'),
           findsOneWidget,
         );
         handle.dispose();
@@ -706,13 +724,11 @@ void main() {
       );
     });
 
-    // DEFECT 1 (carried onto the redesign's mic hero) — the create surface must
-    // be the filled-navy card with the ORANGE mic, never a low-emphasis gray
-    // slab. The "+" IconButton is gone; the roles it guarded are not. The card
-    // derives its fill from colorScheme.primary (navy #0B1351) and the mic disc
-    // from jeebRoles.accent (#D73B00), so an edit to secondaryContainer /
-    // a disabled-gray regression is still caught.
-    testWidgets('create-request hero uses primary card fill + accent mic', (
+    // DEFECT 1 (carried onto MIDNIGHT's voice capsule) — the create surface must
+    // be the frosted-glass capsule with the ORANGE mic, never a low-emphasis
+    // slab. The capsule fill is `glassFillEmphasis` and the mic disc is
+    // `jeebRoles.accent`, so a disabled-gray regression is still caught.
+    testWidgets('create-request capsule uses hero glass + accent mic', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -723,12 +739,18 @@ void main() {
       final heroFinder = find.byType(ClientHomeRequestHero);
       expect(heroFinder, findsOneWidget);
       final context = tester.element(heroFinder);
-      final scheme = Theme.of(context).colorScheme;
       final accent = context.jeebRoles.accent;
+      final glass =
+          Theme.of(context).extension<JeebSemanticColors>()!;
 
-      // The navy surface: the hero's own JeebNavySurfaceCard paints
-      // colorScheme.primary. Assert on a DecoratedBox carrying exactly that.
-      final navyFills = tester
+      expect(
+        find.descendant(
+          of: heroFinder,
+          matching: find.byType(JeebGlassCapsule),
+        ),
+        findsOneWidget,
+      );
+      final fills = tester
           .widgetList<DecoratedBox>(
             find.descendant(
               of: heroFinder,
@@ -740,12 +762,10 @@ void main() {
           .map((decoration) => decoration.color)
           .toList();
       expect(
-        navyFills,
-        contains(scheme.primary),
-        reason: 'the create hero must render on the navy primary surface',
+        fills,
+        contains(glass.glassFillEmphasis),
+        reason: 'the create capsule must render on the hero glass fill',
       );
-      // And NOT the muted-purple container role the reviewer once proposed.
-      expect(navyFills, isNot(contains(scheme.onSecondaryContainer)));
 
       // The mic disc is the one rationed orange on this screen.
       // `DecoratedBox`, not `Container`: the kit's JeebMicHero paints the disc

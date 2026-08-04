@@ -311,7 +311,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 
 ### M2 Mapped surfaces (order = exposure)
 - [x] M2-01 Shell / floating nav — JeebPillNav wired, frozen ids re-homed, badge overlay, VIS-P1-2 inset preserved @2026-08-04
-- [ ] M2-02 R1+E1 Client home + empty
+- [x] M2-02 R1+E1 Client home + empty — hero field static (animateDecor knob), capsule promise P0-6, single View-offers P0-7, E1 kit empty @2026-08-04
 - [ ] M2-03 R2 Voice recording (transcript band + halo + wave)
 - [ ] M2-04 R9 Request type + tier section (P0-3/4)
 - [ ] M2-05 R11 Location picker (map wiring + legacy `/location` DELETION)

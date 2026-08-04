@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/layout/bottom_inset.dart';
-import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_segmented_toggle.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../shell/tab_visibility.dart';
 import '../application/client_home_cubit.dart';
@@ -14,21 +17,20 @@ import 'tabs/in_progress_tab.dart';
 import 'tabs/pending_requests_tab.dart';
 import 'tabs/replies_tab.dart';
 import 'widgets/client_home_greeting.dart';
-import 'widgets/client_home_motion.dart';
 import 'widgets/client_home_request_hero.dart';
 
-/// Client home screen — redesign-2026-08 screen 04 (`04-client-home.html`).
+/// Client home screen — MIDNIGHT R1 (`01-r1-client-home.png`) and its E1 empty
+/// (`27-e1-empty-no-requests.png`), on the hero `JeebMidnightField`.
 ///
-/// Layout top-to-bottom:
-/// 1. Profile header: Ø46 avatar, time-of-day eyebrow, "Hello, {name}"
-/// 2. The navy mic hero — the single create surface (`ClientHomeRequestHero`)
-/// 3. Counted filter pills: Pending Requests | Replies (`JeebSelectChip`)
-/// 4. Outlined request cards or the application-illustration empty state.
+/// R1 top-to-bottom: profile header · white prompt + orange Arabic tagline ·
+/// frosted voice capsule · Pending/Replies segmented toggle · glass cards.
+/// E1 is the board's OTHER composition of the same parts: header · toggle ·
+/// the composed empty illustration · the capsule beneath it. Which one renders
+/// is decided by [_ReadyLayout] from the selected tab's emptiness, so the
+/// prompt is never printed twice on one screen.
 ///
-/// The debug-only In Progress surface still renders its order cards
-/// (`ActiveOrderCard`) with avatar, name + tier badge,
-///    destination, progress bar (Ordered → Picked → In Transit), and an
-///    `OmdsPrimaryButton` "Track my order" CTA when actionable.
+/// The field's decor is drawn but NOT animated (`03-MOTION-NOTES` §R1: zero
+/// animated elements, including the broadcast dot and the orbit rings).
 class ClientHomeScreen extends StatefulWidget {
   const ClientHomeScreen({
     super.key,
@@ -201,19 +203,23 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
           identifier: 'client_home_root',
           container: true,
           explicitChildNodes: true,
-          child: OmdsPullToRefresh(
-            onRefresh: () => context.read<ClientHomeCubit>().refresh(),
-            child: _ClientHomeBody(
-              state: state,
-              selectedTab: _selectedTab,
-              onTabSelected: (tab) {
-                setState(() {
-                  _tabResolved = true;
-                  _selectedTab = tab;
-                });
-              },
-              onCreateRequest: widget.onCreateRequest,
-              onTrack: widget.onTrack,
+          child: JeebMidnightField(
+            variant: JeebFieldVariant.hero,
+            animateDecor: false,
+            child: OmdsPullToRefresh(
+              onRefresh: () => context.read<ClientHomeCubit>().refresh(),
+              child: _ClientHomeBody(
+                state: state,
+                selectedTab: _selectedTab,
+                onTabSelected: (tab) {
+                  setState(() {
+                    _tabResolved = true;
+                    _selectedTab = tab;
+                  });
+                },
+                onCreateRequest: widget.onCreateRequest,
+                onTrack: widget.onTrack,
+              ),
             ),
           ),
         );
@@ -260,6 +266,11 @@ class _ClientHomeBody extends StatelessWidget {
   }
 }
 
+/// Screen gutter (token sheet §5) for every block this screen stacks.
+const EdgeInsetsGeometry _kGutter = EdgeInsetsDirectional.symmetric(
+  horizontal: Spacing.xLarge,
+);
+
 class _LoadingLayout extends StatelessWidget {
   const _LoadingLayout({required this.onCreateRequest});
 
@@ -267,6 +278,7 @@ class _LoadingLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       // Reserve the system nav-bar inset so the last item clears the soft
@@ -279,22 +291,16 @@ class _LoadingLayout extends StatelessWidget {
         // way to start a request is the defect this mirrors on all three
         // layouts (client_home_429_tolerant_test.dart:196).
         Padding(
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Spacing.xLarge,
+          padding: _kGutter,
+          child: ClientHomeRequestHero(
+            onCreateRequest: onCreateRequest,
+            showPrompt: false,
           ),
-          child: ClientHomeRequestHero(onCreateRequest: onCreateRequest),
         ),
         const SizedBox(height: Spacing.large),
-        // The brand's own inline wait (motion spec §2.9) replaces the Material
-        // spinner. Same indeterminate promise, same infinite ticker cost — a
-        // `CircularProgressIndicator` is one too — but in the Jeeb voice.
-        const Center(
-          child: Padding(
-            // Keeps the breathing room `OmdsLoadingState` used to supply from
-            // its own default padding.
-            padding: EdgeInsets.all(Spacing.large),
-            child: ClientHomeLoadingDots(),
-          ),
+        JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.homeEmptyTitle,
         ),
       ],
     );
@@ -319,18 +325,25 @@ class _FailedLayout extends StatelessWidget {
         ClientHomeGreeting(name: name),
         const SizedBox(height: Spacing.medium),
         Padding(
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Spacing.xLarge,
+          padding: _kGutter,
+          child: ClientHomeRequestHero(
+            onCreateRequest: onCreateRequest,
+            showPrompt: false,
           ),
-          child: ClientHomeRequestHero(onCreateRequest: onCreateRequest),
         ),
-        const SizedBox(height: Spacing.xLarge),
-        OmdsErrorState(
-          icon: Icons.cloud_off_outlined,
-          title: l10n.homeLoadFailedTitle,
-          message: l10n.homeLoadFailedBody,
-          retryLabel: l10n.homeLoadFailedRetry,
-          onRetry: () => context.read<ClientHomeCubit>().load(),
+        const SizedBox(height: Spacing.large),
+        JeebEmptyState(
+          status: JeebEmptyStateStatus.error,
+          headline: l10n.homeLoadFailedTitle,
+          body: l10n.homeLoadFailedBody,
+          action: IntrinsicWidth(
+            child: JeebCtaButton.primary(
+              label: l10n.homeLoadFailedRetry,
+              identifier: 'client_home_retry_cta',
+              expand: false,
+              onTap: () => context.read<ClientHomeCubit>().load(),
+            ),
+          ),
         ),
       ],
     );
@@ -366,36 +379,44 @@ class _ReadyLayout extends StatelessWidget {
     );
   }
 
+  /// True on the pending tab with nothing pending — E1's own composition, and
+  /// the only state that re-homes the empty CTA identifier.
+  bool get _pendingEmpty =>
+      selectedTab == ClientHomeTab.pendingRequests && state.pending.isEmpty;
+
+  /// Either tab showing its empty block: the prompt moves into that block, so
+  /// the capsule follows it to the bottom the way the E1 tile draws.
+  bool get _emptyComposition =>
+      _pendingEmpty ||
+      (selectedTab == ClientHomeTab.replies && state.replies.isEmpty);
+
   List<Widget> _scrollChildren() {
+    final bool empty = _emptyComposition;
+    final Widget capsule = Padding(
+      padding: _kGutter,
+      child: ClientHomeRequestHero(
+        onCreateRequest: onCreateRequest,
+        showPrompt: !empty,
+        firstRequest: _pendingEmpty,
+      ),
+    );
     return <Widget>[
       ClientHomeGreeting(
         name: state.greetingName,
-        avatarSemanticsIdentifier:
-            selectedTab == ClientHomeTab.pendingRequests &&
-                state.pending.isEmpty
+        avatarSemanticsIdentifier: _pendingEmpty
             ? '_request_empty_state_avatar'
             : null,
       ),
       const SizedBox(height: Spacing.medium),
-      Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.xLarge,
-        ),
-        child: ClientHomeRequestHero(onCreateRequest: onCreateRequest),
-      ),
-      const SizedBox(height: Spacing.large),
-      _ClientHomeTabBar(
-        selectedTab: selectedTab,
-        onSelected: onTabSelected,
-        pendingCount: state.pending.length,
-        repliesCount: state.replies.length,
-      ),
+      if (!empty) ...<Widget>[capsule, const SizedBox(height: Spacing.large)],
+      _ClientHomeTabBar(selectedTab: selectedTab, onSelected: onTabSelected),
       const SizedBox(height: Spacing.medium),
       _ReadyContent(
         selectedTab: selectedTab,
         onCreateRequest: onCreateRequest,
         onTrack: onTrack,
       ),
+      if (empty) ...<Widget>[const SizedBox(height: Spacing.large), capsule],
     ];
   }
 }
@@ -447,128 +468,80 @@ class _ReadyContent extends StatelessWidget {
   }
 }
 
+/// E1's segmented Pending/Replies control (study-notes ruling 3): the active
+/// segment is a WHITE fill with navy ink, the other stays glass. The board
+/// draws no count badge on either, so none is rendered.
 class _ClientHomeTabBar extends StatelessWidget {
-  const _ClientHomeTabBar({
-    required this.selectedTab,
-    required this.onSelected,
-    required this.pendingCount,
-    required this.repliesCount,
-  });
+  const _ClientHomeTabBar({required this.selectedTab, required this.onSelected});
+
+  /// JEBV4-298 (E24/Q-086): the Requests tab is the ON-HOLD surface only. The
+  /// accepted-onward In-Progress surface lives on the Delivery tab.
+  static const List<ClientHomeTab> _tabs = <ClientHomeTab>[
+    ClientHomeTab.pendingRequests,
+    ClientHomeTab.replies,
+  ];
 
   final ClientHomeTab selectedTab;
   final ValueChanged<ClientHomeTab> onSelected;
 
-  /// Rendered on the chip as the board's `Pending 1` / `Replies 3` count. Read
-  /// straight off the already-loaded lists — no cubit change, no extra read.
-  final int pendingCount;
-  final int repliesCount;
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // JEBV4-298 (E24/Q-086): the Requests tab is the ON-HOLD surface only —
-    // Pending Requests + Replies. The accepted-onward In-Progress live-tracking
-    // chip was relocated to the Delivery tab (its Active order detail exposes
-    // the map/ETA/Track surface via `/orders/:id/tracking`), so it is
-    // intentionally NOT listed here.
-    final tabs = <_TabSpec>[
-      _TabSpec(
-        ClientHomeTab.pendingRequests,
-        l10n.homeTabPendingRequests,
-        pendingCount,
-      ),
-      _TabSpec(ClientHomeTab.replies, l10n.homeTabReplies, repliesCount),
-    ];
-    // `.scrollable`, not the fixed row: with the count badges the two labels
-    // exceed a 390pt gutter-to-gutter line in EN, and more so under AR or a
-    // raised text scale. The kit's scrollable form is a NON-lazy `Row`, so both
-    // chips stay resolvable by `find.bySemanticsIdentifier` even off-screen —
-    // the `orders_filter_*` / `orders_home_replies_tab` contracts are intact.
-    return JeebChipRow.scrollable(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.xLarge,
-      ),
-      spacing: Spacing.xSmall,
-      children: [
-        for (final tab in tabs)
-          _ClientHomeTabChip(
-            label: tab.label,
-            isSelected: tab.tab == selectedTab,
-            onTap: () => onSelected(tab.tab),
-            keySuffix: tab.tab.name,
-            // A zero count is not drawn: the board only ever shows a populated
-            // one, and "Replies 0" next to an empty list is noise.
-            count: tab.count > 0 ? tab.count : null,
-            // JM-023 / JM-027: the Replies sub-tab carries the coined
-            // `orders_home_replies_tab` identifier so QA can target it from
-            // the Requests home as the tap target onto the Replies surface.
-            extraIdentifier: tab.tab == ClientHomeTab.replies
-                ? 'orders_home_replies_tab'
-                : null,
-          ),
-      ],
-    );
-  }
-}
-
-class _TabSpec {
-  const _TabSpec(this.tab, this.label, this.count);
-
-  final ClientHomeTab tab;
-  final String label;
-  final int count;
-}
-
-class _ClientHomeTabChip extends StatelessWidget {
-  const _ClientHomeTabChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    required this.keySuffix,
-    this.count,
-    this.extraIdentifier,
-  });
-
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final String keySuffix;
-
-  /// Board count badge. Selected chips render it inline in the label's ink;
-  /// unselected ones get the Ø18 orange badge. Kit-owned either way — and a
-  /// separate `Text` in both, so `find.text('Replies')` still resolves.
-  final int? count;
-
-  /// An additional QA identifier wrapped around the chip (e.g. the coined
-  /// `orders_home_replies_tab`). Kept distinct from the existing
-  /// `orders_filter_<tab>` id so both id contracts stay targetable.
-  final String? extraIdentifier;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget chip = Semantics(
-      identifier: 'orders_filter_$keySuffix',
-      button: true,
-      selected: isSelected,
-      label: label,
-      child: JeebSelectChip(
-        key: Key('client-home-tab-$keySuffix'),
-        role: JeebChipRole.filter,
-        label: label,
-        selected: isSelected,
-        onTap: onTap,
-        count: count,
+    // TODO(midnight): l10n-queued homeTabPending — the tile's segment reads
+    // "Pending", which is also what keeps the control at the drawn width.
+    final labels = <String>[l10n.homeTabPendingRequests, l10n.homeTabReplies];
+    return Padding(
+      padding: _kGutter,
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Stack(
+          children: <Widget>[
+            // The board's two segments hug their labels at the start edge; the
+            // kit track is flex-filling, so it is sized to its content here.
+            IntrinsicWidth(
+              child: JeebSegmentedToggle(
+                segments: <JeebSegment>[
+                  for (var i = 0; i < _tabs.length; i++)
+                    JeebSegment(
+                      label: labels[i],
+                      key: Key('client-home-tab-${_tabs[i].name}'),
+                      identifier: 'orders_filter_${_tabs[i].name}',
+                    ),
+                ],
+                // Sized to content, so the labels need the horizontal padding
+                // the flex-filling default deliberately omits.
+                segmentPadding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: 14,
+                  vertical: 9,
+                ),
+                selectedIndex: _tabs.indexOf(selectedTab),
+                onChanged: (index) => onSelected(_tabs[index]),
+              ),
+            ),
+            // JM-023 / JM-027's coined `orders_home_replies_tab`: a second id
+            // for the same target, laid over the Replies half so QA still taps
+            // real bounds (the kit segment carries only one identifier).
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: FractionallySizedBox(
+                    widthFactor: 0.5,
+                    heightFactor: 1,
+                    child: Semantics(
+                      identifier: 'orders_home_replies_tab',
+                      button: true,
+                      label: l10n.homeTabReplies,
+                      onTap: () => onSelected(ClientHomeTab.replies),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
-    final extraId = extraIdentifier;
-    if (extraId != null) {
-      chip = Semantics(
-        identifier: extraId,
-        container: true,
-        explicitChildNodes: true,
-        child: chip,
-      );
-    }
-    return chip;
   }
 }

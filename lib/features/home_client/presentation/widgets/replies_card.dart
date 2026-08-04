@@ -4,28 +4,23 @@ import 'package:omds/omds.dart';
 import '../../../../core/formatting/money_format.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar_stack.dart';
-import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/client_home_request.dart';
 import 'client_home_tier_chip.dart';
 
-/// Replies-tab row (JM-027 `my-orders` Replies sub-tab), rebuilt to the
-/// redesign board's second card (`04-client-home.html` tpl 202-213).
+/// Replies-tab row (JM-027 `my-orders` Replies sub-tab) on MIDNIGHT glass.
 ///
-/// Layout: title + tier chip, the request summary, the offerer avatar stack
-/// beside the "N offers · from $X" floor, then the CTA row carrying two
-/// actions per JM-027:
-///   * `replies_check_offers_cta` → routes to the `offer-review` list
-///     (`/requests/:id/offers`, JM-028), NOT `/chat/:id` (the old divergent
-///     behavior the gap map flagged for `my-orders`).
-///   * `replies_accept_cta` → opens the `offer-accept-confirm` sheet
+/// doc-13 P0-7: the board draws ONE `View offers` pill, so the second inline
+/// `Accept` button is gone. Its frozen identifier is re-homed onto the card
+/// surface (Pattern D) — the whole card is the accept target, which keeps
+/// jm-027 AC2 and the double-accept guard working without drawing chrome the
+/// board never had.
+///   * `replies_check_offers_cta` (the pill) → the `offer-review` list
+///     (`/requests/:id/offers`, JM-028), NOT `/chat/:id`.
+///   * `replies_accept_cta` (the card) → the `offer-accept-confirm` sheet
 ///     (`offer_accept_sheet`, JM-029) [D11/D71].
-/// Both are dumb callbacks (`onCheckOffers`/`onAccept`); the tab supplies the
-/// navigation so the widget stays golden-testable.
-///
-/// The board draws ONE `View offers` pill; we keep BOTH buttons and their
-/// copy — `replies_accept_cta` is load-bearing for jm-027 and the double-accept
-/// regression suite. The card is one row taller than the board as a result.
 class RepliesCard extends StatelessWidget {
   const RepliesCard({
     super.key,
@@ -49,39 +44,34 @@ class RepliesCard extends StatelessWidget {
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.xLarge,
       ),
-      // `explicitChildNodes` makes the card a Semantics *boundary*: without it
-      // the column auto-merges the avatar-stack node
-      // (`orders_replies_avatar_stack_<id>`) and the CTA button nodes
-      // (`replies_check_offers_cta` / `replies_accept_cta`) into one, so only
-      // the avatar-stack id survives. The boundary keeps every id as its own
-      // queryable node for Maestro and screen readers.
-      child: Semantics(
-        explicitChildNodes: true,
-        child: JeebOutlinedCard(
-          padding: const EdgeInsetsDirectional.all(Spacing.medium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _RepliesHeader(request: request),
-              const SizedBox(height: Spacing.twoXSmall),
-              _RepliesSummary(text: request.summaryLine),
-              const SizedBox(height: Spacing.small),
-              _RepliesOffersLine(request: request),
-              const SizedBox(height: Spacing.small),
-              _RepliesActions(
-                request: request,
-                onCheckOffers: onCheckOffers,
-                onAccept: onAccept,
-              ),
-            ],
-          ),
+      // The card's own Semantics is a boundary (`explicitChildNodes`), so the
+      // avatar-stack and pill ids inside it stay separately queryable.
+      child: JeebGlassCard(
+        identifier: 'replies_accept_cta',
+        semanticLabel: AppLocalizations.of(context).offersCardAccept,
+        onTap: onAccept,
+        padding: const EdgeInsetsDirectional.all(Spacing.medium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _RepliesHeader(request: request),
+            const SizedBox(height: Spacing.twoXSmall),
+            _RepliesSummary(text: request.summaryLine),
+            const SizedBox(height: Spacing.small),
+            _RepliesOffersLine(request: request),
+            const SizedBox(height: Spacing.small),
+            _RepliesActions(
+              request: request,
+              onCheckOffers: onCheckOffers,
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Order id on the start, the tier chip on the end (board `tpl 203-205`).
+/// Order id on the start, the tier chip on the end.
 class _RepliesHeader extends StatelessWidget {
   const _RepliesHeader({required this.request});
 
@@ -152,8 +142,6 @@ class _RepliesOffersLine extends StatelessWidget {
         Expanded(
           child: Text(
             _offersLabel(AppLocalizations.of(context)),
-            // UX-AUDIT §T3: on the white card this reads `onSurfaceVariant`,
-            // NOT the board's periwinkle (which fails contrast off navy).
             style: context.jeebText.bodySmall.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -181,25 +169,16 @@ class _RepliesOffersLine extends StatelessWidget {
   }
 }
 
-/// The two JM-027 reply-card CTAs, pinned to the END of the row (Figma
-/// 56535:2251): an outlined secondary "Accept" (`replies_accept_cta` →
-/// offer-accept-confirm sheet, JM-029) and the primary "Check Offers"
-/// (`replies_check_offers_cta` → offer-review-list, JM-028).
+/// The single board-drawn action, pinned to the END of the row:
+/// `replies_check_offers_cta` → offer-review-list (JM-028), NOT chat.
 ///
-/// `OmdsPrimaryButton` / `OmdsOutlinedButton` are width-filling containers, so
-/// each is wrapped in `IntrinsicWidth` to hug its label, and the `Row` is
-/// end-aligned (`MainAxisAlignment.end`). Stays 100% OMDS (no raw Material
-/// button); a hardcoded `width:` would violate the design-tokens rule.
+/// [JeebCtaButton] is width-filling by default, so `expand: false` plus
+/// `IntrinsicWidth` hugs the label at the trailing gutter.
 class _RepliesActions extends StatelessWidget {
-  const _RepliesActions({
-    required this.request,
-    required this.onCheckOffers,
-    required this.onAccept,
-  });
+  const _RepliesActions({required this.request, required this.onCheckOffers});
 
   final ClientHomeRequest request;
   final VoidCallback onCheckOffers;
-  final VoidCallback onAccept;
 
   @override
   Widget build(BuildContext context) {
@@ -209,28 +188,16 @@ class _RepliesActions extends StatelessWidget {
       children: [
         IntrinsicWidth(
           child: Semantics(
-            // JM-027 AC: Accept → offer-accept-confirm sheet (JM-029).
-            identifier: 'replies_accept_cta',
-            button: true,
-            child: OMDSOutlinedButton(
-              key: Key('replies-accept-${request.id}'),
-              text: l10n.offersCardAccept,
-              onTap: onAccept,
-              borderRadius: OMDSBorderRadius.pill,
-            ),
-          ),
-        ),
-        const SizedBox(width: Spacing.small),
-        IntrinsicWidth(
-          child: Semantics(
-            // JM-027 AC: Check Offers → offer-review-list (JM-028), NOT chat.
             identifier: 'replies_check_offers_cta',
             button: true,
-            child: OmdsPrimaryButton(
+            child: JeebCtaButton.primary(
               key: Key('replies-check-offers-${request.id}'),
-              text: l10n.homeRepliesCheckOffersCta,
+              // TODO(midnight): l10n-queued homeRepliesViewOffersCta — the
+              // board pill reads "View offers" (the ar value already does).
+              label: l10n.homeRepliesCheckOffersCta,
+              height: JeebCtaButton.outlineHeight,
+              expand: false,
               onTap: onCheckOffers,
-              borderRadius: OmdsBorderRadius.pill,
             ),
           ),
         ),

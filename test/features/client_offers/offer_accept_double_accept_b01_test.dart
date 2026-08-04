@@ -118,6 +118,12 @@ Widget _app(Widget home) => MaterialApp(
     GlobalWidgetsLocalizations.delegate,
     GlobalCupertinoLocalizations.delegate,
   ],
+  // The Replies tab's empty state mounts Midnight primitives, which loop ∞
+  // (02-STUDY-NOTES M0-4): `pumpAndSettle` settles only under reduce motion.
+  builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: true),
+    child: child!,
+  ),
   home: home,
 );
 
@@ -409,6 +415,9 @@ void main() {
       // Seeded home data may render 0..n reply rows; only assert the guard when
       if (acceptCta.evaluate().isEmpty) {
         gated.fetchGate!.complete();
+        // The Midnight empty state settles instantly under reduce motion, so
+        // the home repository's own load timer must be flushed explicitly.
+        await tester.pump(const Duration(seconds: 2));
         return;
       }
 

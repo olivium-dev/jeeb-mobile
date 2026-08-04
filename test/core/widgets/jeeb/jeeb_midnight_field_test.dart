@@ -30,6 +30,7 @@ void main() {
     JeebFieldWashPlacement? washPlacement,
     bool? showRings,
     bool? showTwinkles,
+    bool animateDecor = true,
   }) async {
     await tester.pumpWidget(
       MediaQuery(
@@ -48,6 +49,7 @@ void main() {
                   washPlacement: washPlacement,
                   showRings: showRings,
                   showTwinkles: showTwinkles,
+                  animateDecor: animateDecor,
                   child: child,
                 ),
               ),
@@ -478,6 +480,35 @@ void main() {
 
       await tester.pumpAndSettle();
       expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('animateDecor:false keeps the decor at its rest frame', (
+      WidgetTester tester,
+    ) async {
+      // R1 is board-still: the arcs and twinkles must still PAINT, but with no
+      // ticker and no drift over time.
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        animateDecor: false,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse);
+
+      final Color Function(double, double) rest = await sampler(tester);
+      await tester.pump(JeebMotion.arcPulseDuration ~/ 3);
+      final Color Function(double, double) later = await sampler(tester);
+      expect(later(0.62, 0.21), rest(0.62, 0.21));
+
+      // …and the decor layer is still there, unlike `showTwinkles: false`.
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.hero,
+        animateDecor: false,
+        showTwinkles: false,
+      );
+      final Color Function(double, double) bare = await sampler(tester);
+      expect(later(0.62, 0.21), isNot(bare(0.62, 0.21)));
     });
   });
 

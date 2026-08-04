@@ -78,6 +78,7 @@ class JeebMidnightField extends StatelessWidget {
     this.washPlacement,
     this.showRings,
     this.showTwinkles,
+    this.animateDecor = true,
   });
 
   /// §8's money-screen wash. Pass as [glowColor] on earnings/wallet screens.
@@ -99,6 +100,10 @@ class JeebMidnightField extends StatelessWidget {
   final bool? showRings;
 
   final bool? showTwinkles;
+
+  /// False draws the arcs and twinkles at their rest frame with no ticker —
+  /// what a board-still tile (R1) needs while keeping every static layer.
+  final bool animateDecor;
 
   @override
   Widget build(BuildContext context) {
@@ -128,21 +133,33 @@ class JeebMidnightField extends StatelessWidget {
           // Its own boundary: without it every pulse re-records the screen.
           Positioned.fill(
             child: RepaintBoundary(
-              child: JMotionLoop(
-                duration: JeebMotion.arcPulseDuration,
-                builder:
-                    (BuildContext context, Animation<double> phase, Widget? _) =>
-                        CustomPaint(
-                          painter: _FieldDecorPainter(
-                            phase: phase,
-                            spec: spec,
-                            direction: direction,
-                            // A stagger is a phase offset once the loop runs;
-                            // at rest it would park elements off keyframe one.
-                            stagger: !MediaQuery.disableAnimationsOf(context),
+              child: animateDecor
+                  ? JMotionLoop(
+                      duration: JeebMotion.arcPulseDuration,
+                      builder:
+                          (
+                            BuildContext context,
+                            Animation<double> phase,
+                            Widget? _,
+                          ) => CustomPaint(
+                            painter: _FieldDecorPainter(
+                              phase: phase,
+                              spec: spec,
+                              direction: direction,
+                              // A stagger is a phase offset once the loop runs;
+                              // at rest it would park elements off keyframe one.
+                              stagger: !MediaQuery.disableAnimationsOf(context),
+                            ),
                           ),
-                        ),
-              ),
+                    )
+                  : CustomPaint(
+                      painter: _FieldDecorPainter(
+                        phase: const AlwaysStoppedAnimation<double>(0),
+                        spec: spec,
+                        direction: direction,
+                        stagger: false,
+                      ),
+                    ),
             ),
           ),
         ?child,
