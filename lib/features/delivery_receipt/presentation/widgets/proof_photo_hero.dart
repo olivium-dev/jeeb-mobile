@@ -1,13 +1,21 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 
-/// The proof-of-delivery hero on `delivered-receipt-confirm` (JM-033, dc-tpl
-/// 834–837): an r20 neutral frame holding the photo the Jeeber uploaded (D3),
-/// a navy "Proof of delivery" badge pinned to the leading top corner and a
-/// white "Tap to zoom" pill pinned to the trailing bottom corner.
+/// The proof-of-delivery hero on `delivered-receipt-confirm` (JM-033, R14
+/// `tpl 834–837`): the photo the Jeeber uploaded (D3) framed in glass, with a
+/// blurred dark timestamp tag at the leading top corner and a glass
+/// "Tap to zoom" pill at the trailing bottom corner.
+///
+/// The tag is this screen's ONE real `BackdropFilter` (token sheet §4 budget:
+/// ≤2); every other translucent surface here is pre-baked.
 ///
 /// Presentation-only — every string and the zoom callback arrive by
 /// constructor. The frame keeps its geometry in both states so the layout does
@@ -26,6 +34,7 @@ class ProofPhotoHero extends StatelessWidget {
     required this.photoSemanticLabel,
     required this.badgeText,
     required this.zoomCtaText,
+    this.capturedAtLabel,
     this.onZoom,
   });
 
@@ -41,95 +50,127 @@ class ProofPhotoHero extends StatelessWidget {
   /// Zoom pill copy — "Tap to zoom".
   final String zoomCtaText;
 
+  /// The tile's `· 9:38` run. Null renders the label alone.
+  final String? capturedAtLabel;
+
   /// Opens the full-screen viewer. Null when there is no photo, which also
   /// makes the whole-hero gesture inert.
   final VoidCallback? onZoom;
 
-  /// Board height of the hero frame (dc-tpl 834). A one-screen dimension, so
-  /// it is named here rather than promoted to a shared spacing token.
+  /// Board height of the hero frame (`tpl 834`). A one-screen dimension, so it
+  /// is named here rather than promoted to a shared spacing token.
   static const double _kProofHeroHeight = 230;
+
+  /// Board `·` between the badge label and its capture time.
+  static const String _kBadgeSeparator = ' · ';
+
+  /// The tag darkens the photo under it so the time reads on any exposure.
+  /// Measured black @ 45% over the frame.
+  static const double _kTagScrimAlpha = 0.45;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final url = proofPhotoUrl;
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    final JeebSemanticColors glass =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
+    final String? url = proofPhotoUrl;
+    // TODO(midnight): l10n-queued `receiptProofBadgeAt` — the tile reads
+    // "Proof of delivery · 9:38" and the gateway carries no capture time yet.
+    final String badge = capturedAtLabel == null
+        ? badgeText
+        : '$badgeText$_kBadgeSeparator$capturedAtLabel';
 
     return Semantics(
       container: true,
       explicitChildNodes: true,
       child: GestureDetector(
         onTap: onZoom,
-        child: ClipRRect(
-          // dc-tpl 834: 20px frame radius.
-          borderRadius: OmdsBorderRadius.large,
-          child: SizedBox(
-            height: _kProofHeroHeight,
-            width: double.infinity,
-            child: Stack(
-              children: [
-                // The board's neutral ground behind the photo (#EAE7EB).
-                Positioned.fill(
-                  child: ColoredBox(color: colorScheme.surfaceContainerHigh),
-                ),
-                Positioned.fill(
-                  child: Semantics(
-                    identifier: 'receipt_proof_photo',
-                    image: true,
-                    label: photoSemanticLabel,
-                    child: url == null
-                        ? Center(
-                            child: Icon(
-                              Icons.image_not_supported_outlined,
-                              size: Sizes.twoXLarge,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          )
-                        : OmdsCachedImage(url: url, fit: BoxFit.cover),
+        child: SizedBox(
+          height: _kProofHeroHeight,
+          width: double.infinity,
+          child: Stack(
+            children: <Widget>[
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(JeebRadii.xl),
+                  child: Stack(
+                    children: <Widget>[
+                      // The glass ground: what a portrait photo letterboxes
+                      // against, and the placeholder's own surface.
+                      Positioned.fill(child: ColoredBox(color: glass.glassFill)),
+                      Positioned.fill(
+                        child: Semantics(
+                          identifier: 'receipt_proof_photo',
+                          image: true,
+                          label: photoSemanticLabel,
+                          child: url == null
+                              ? Center(
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    size: Sizes.twoXLarge,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                )
+                              : OmdsCachedImage(url: url, fit: BoxFit.cover),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                // dc-tpl 836. TODO(redesign-24): the board reads
-                // "Proof of delivery · 9:38" — the gateway carries no
-                // proof-capture time, so the timestamp is omitted, not faked.
-                PositionedDirectional(
-                  start: Spacing.small,
-                  top: Spacing.small,
-                  child: _Pill(
-                    color: colorScheme.primary.withValues(alpha: 0.85),
-                    child: Text(
-                      badgeText,
-                      style: context.jeebText.label
-                          .copyWith(color: colorScheme.onPrimary),
+              ),
+              // Drawn OVER the photo: a frame behind a full-bleed image is no
+              // frame at all.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(JeebRadii.xl),
+                      border: Border.all(color: glass.glassBorder),
                     ),
                   ),
                 ),
-                if (url != null)
-                  PositionedDirectional(
-                    end: Spacing.small,
-                    bottom: Spacing.small,
-                    child: Semantics(
-                      identifier: 'receipt_proof_zoom_cta',
-                      button: true,
-                      label: zoomCtaText,
-                      onTap: onZoom,
-                      // Same idiom as the two CTAs: the identifier lives on one
-                      // explicit node and the inked pill contributes none.
-                      child: ExcludeSemantics(
-                        child: _Pill(
-                          color: colorScheme.surface,
-                          shadow: JeebShadows.floatPill,
-                          onTap: onZoom,
-                          child: Text(
-                            zoomCtaText,
-                            style: context.jeebText.label
-                                .copyWith(color: colorScheme.primary),
-                          ),
+              ),
+              PositionedDirectional(
+                start: Spacing.small,
+                top: Spacing.small,
+                child: _Pill(
+                  fill: colorScheme.scrim.withValues(alpha: _kTagScrimAlpha),
+                  blurSigma: JeebGlassCapsule.softBlur,
+                  child: Text(
+                    badge,
+                    style: context.jeebText.caption
+                        .copyWith(color: colorScheme.onSurface),
+                  ),
+                ),
+              ),
+              if (url != null)
+                PositionedDirectional(
+                  end: Spacing.small,
+                  bottom: Spacing.small,
+                  child: Semantics(
+                    identifier: 'receipt_proof_zoom_cta',
+                    button: true,
+                    label: zoomCtaText,
+                    onTap: onZoom,
+                    // Same idiom as the two CTAs: the identifier lives on one
+                    // explicit node and the inked pill contributes none.
+                    child: ExcludeSemantics(
+                      child: _Pill(
+                        fill: glass.glassFillPressed,
+                        borderColor: glass.glassBorderVivid,
+                        shadow: JeebShadows.overlay,
+                        onTap: onZoom,
+                        child: Text(
+                          zoomCtaText,
+                          style: context.jeebText.caption
+                              .copyWith(color: colorScheme.onSurface),
                         ),
                       ),
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -137,43 +178,54 @@ class ProofPhotoHero extends StatelessWidget {
   }
 }
 
-/// The two overlay chips share one geometry (dc-tpl 836/837: r999, 5/11 pad)
-/// and differ only in fill, ink and whether they float.
+/// The two overlay chips share one geometry (`tpl 836/837`: pill, 12/4 pad) and
+/// differ only in fill, border, blur and whether they float.
 class _Pill extends StatelessWidget {
   const _Pill({
-    required this.color,
+    required this.fill,
     required this.child,
+    this.borderColor,
     this.shadow,
+    this.blurSigma = 0,
     this.onTap,
   });
 
-  final Color color;
+  final Color fill;
   final Widget child;
+  final Color? borderColor;
   final List<BoxShadow>? shadow;
+  final double blurSigma;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final pill = Container(
+    final BorderRadius radius = BorderRadius.circular(JeebRadii.pill);
+    Widget pill = Container(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.small,
         vertical: Spacing.twoXSmall,
       ),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: OmdsBorderRadius.pill,
+        color: fill,
+        borderRadius: radius,
+        border: borderColor == null ? null : Border.all(color: borderColor!),
         boxShadow: shadow,
       ),
       child: child,
     );
+    if (blurSigma > 0) {
+      pill = ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+          child: pill,
+        ),
+      );
+    }
     if (onTap == null) return pill;
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: OmdsBorderRadius.pill,
-        child: pill,
-      ),
+      child: InkWell(onTap: onTap, borderRadius: radius, child: pill),
     );
   }
 }

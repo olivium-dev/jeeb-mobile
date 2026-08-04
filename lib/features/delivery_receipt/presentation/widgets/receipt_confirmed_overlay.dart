@@ -57,10 +57,10 @@ class _ReceiptConfirmedOverlayState extends State<ReceiptConfirmedOverlay>
 
   @override
   Widget build(BuildContext context) {
-    // Opaque surface, not a scrim: this is the screen's own terminal state, and
-    // the mark is authored for a white ground (09-MOTION-VALIDATION §7).
+    // Opaque, not a scrim: this is the screen's own terminal state. Midnight
+    // re-grounds it on the page navy so the beat does not flash a lighter slab.
     return ColoredBox(
-      color: Theme.of(context).colorScheme.surface,
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
       child: Center(
         child: ExcludeSemantics(
           child: SizedBox(

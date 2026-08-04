@@ -8,10 +8,15 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/money_format.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/delivery_receipt_cubit.dart';
 import '../application/delivery_receipt_state.dart';
@@ -40,12 +45,9 @@ import 'widgets/receipt_confirmed_overlay.dart';
 ///   - **NO commission / platform-fee line** is shown (JM-033 AC4, D11) — the
 ///     10% economics live on the jeeber/wallet surfaces, never the customer's.
 ///
-/// redesign-2026-08 (screen 14): no app bar at all — the question IS the
-/// heading (dc-tpl 832-833); an r20 proof hero with a badge and a zoom pill
-/// replaces the flat 200px image; the cash statement moved from the peach
-/// `primaryContainer` slab to the board's navy card with an emphasized amount;
-/// and the two CTAs are the Wave-1 pills, pushed down by real empty space
-/// (dc-tpl 845) rather than by a fixed gap.
+/// MIDNIGHT (R14 `tpl 845-881`): the confirm pill is the page's SINGLE orange
+/// light — the field spends none — and R14 is board-still (03-MOTION-NOTES: 0
+/// animated elements), so the field decor renders at its rest frame.
 ///
 /// Owns the [DeliveryReceiptCubit] lifecycle (load + confirm). [repository] is
 /// optional — production resolves [DeliveryReceiptRepository] from GetIt when
@@ -162,57 +164,78 @@ class _DeliveryReceiptViewState extends State<_DeliveryReceiptView> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // No app bar (dc-tpl 827-833): the prompt heading carries the screen, and
+    // No app bar (`tpl 845-847`): the prompt heading carries the screen, and
     // this is still a mandatory confirm/dispute terminal — there was never a
     // back affordance to lose.
     return Scaffold(
-      body: SafeArea(
-        child: Semantics(
-          identifier: 'receipt_prompt',
-          explicitChildNodes: true,
-          child: Stack(
-            // `expand` keeps the body's constraints exactly as they were before
-            // the Stack existed (tight, full-bleed) — the overlay is additive.
-            fit: StackFit.expand,
-            children: [
-              BlocConsumer<DeliveryReceiptCubit, DeliveryReceiptState>(
-                listenWhen: (prev, next) =>
-                    prev.confirmStatus != next.confirmStatus &&
-                    next.confirmStatus == ReceiptConfirmStatus.succeeded,
-                // Side effect ONLY in the listener (40_GUARDRAILS_ARCH §3).
-                listener: (context, state) => _onConfirmSucceeded(state),
-                builder: (context, state) {
-                  switch (state.status) {
-                    case DeliveryReceiptStatus.initial:
-                    case DeliveryReceiptStatus.loading:
-                      return const OmdsLoadingState();
-                    case DeliveryReceiptStatus.failed:
-                      return OmdsErrorState(
-                        key: const Key('receipt-load-error'),
-                        message: _errorCopy(l10n, state.error),
-                        retryLabel: l10n.receiptRetryAction,
-                        onRetry: () =>
-                            context.read<DeliveryReceiptCubit>().refresh(),
-                      );
-                    case DeliveryReceiptStatus.loaded:
-                      final receipt = state.receipt;
-                      if (receipt == null) {
-                        return OmdsErrorState(
-                          message:
-                              _errorCopy(l10n, DeliveryReceiptFailure.unknown),
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        washPlacement: JeebFieldWashPlacement.startMid,
+        // The tile measures ZERO orange in the field: the caption's ruling is
+        // that the confirm pill is the page's single orange light.
+        glowColor: Colors.transparent,
+        animateDecor: false,
+        child: SafeArea(
+          child: Semantics(
+            identifier: 'receipt_prompt',
+            explicitChildNodes: true,
+            child: Stack(
+              // `expand` keeps the body's constraints exactly as they were
+              // before the Stack existed (tight, full-bleed) — additive only.
+              fit: StackFit.expand,
+              children: [
+                BlocConsumer<DeliveryReceiptCubit, DeliveryReceiptState>(
+                  listenWhen: (prev, next) =>
+                      prev.confirmStatus != next.confirmStatus &&
+                      next.confirmStatus == ReceiptConfirmStatus.succeeded,
+                  // Side effect ONLY in the listener (40_GUARDRAILS_ARCH §3).
+                  listener: (context, state) => _onConfirmSucceeded(state),
+                  builder: (context, state) {
+                    switch (state.status) {
+                      case DeliveryReceiptStatus.initial:
+                      case DeliveryReceiptStatus.loading:
+                        return _ReceiptStateBlock(
+                          status: JeebEmptyStateStatus.loading,
+                          headline: l10n.receiptTitle,
+                          identifier: 'receipt_loading',
+                        );
+                      case DeliveryReceiptStatus.failed:
+                        return _ReceiptStateBlock(
+                          key: const Key('receipt-load-error'),
+                          status: JeebEmptyStateStatus.error,
+                          headline: l10n.receiptTitle,
+                          body: _errorCopy(l10n, state.error),
+                          identifier: 'receipt_load_error',
                           retryLabel: l10n.receiptRetryAction,
                           onRetry: () =>
                               context.read<DeliveryReceiptCubit>().refresh(),
                         );
-                      }
-                      return _LoadedBody(receipt: receipt, state: state);
-                  }
-                },
-              ),
-              // The terminal mark, over the prompt it just answered.
-              if (_confirmed)
-                const Positioned.fill(child: ReceiptConfirmedOverlay()),
-            ],
+                      case DeliveryReceiptStatus.loaded:
+                        final receipt = state.receipt;
+                        if (receipt == null) {
+                          return _ReceiptStateBlock(
+                            status: JeebEmptyStateStatus.error,
+                            headline: l10n.receiptTitle,
+                            body: _errorCopy(
+                              l10n,
+                              DeliveryReceiptFailure.unknown,
+                            ),
+                            identifier: 'receipt_load_error',
+                            retryLabel: l10n.receiptRetryAction,
+                            onRetry: () =>
+                                context.read<DeliveryReceiptCubit>().refresh(),
+                          );
+                        }
+                        return _LoadedBody(receipt: receipt, state: state);
+                    }
+                  },
+                ),
+                // The terminal mark, over the prompt it just answered.
+                if (_confirmed)
+                  const Positioned.fill(child: ReceiptConfirmedOverlay()),
+              ],
+            ),
           ),
         ),
       ),
@@ -234,6 +257,49 @@ class _DeliveryReceiptViewState extends State<_DeliveryReceiptView> {
       case null:
         return l10n.receiptErrorGeneric;
     }
+  }
+}
+
+/// The non-loaded states, on the one Midnight pattern family (study-notes
+/// ruling 1). Scrolls so the block survives 200% text scale on a short phone.
+class _ReceiptStateBlock extends StatelessWidget {
+  const _ReceiptStateBlock({
+    super.key,
+    required this.status,
+    required this.headline,
+    required this.identifier,
+    this.body,
+    this.retryLabel,
+    this.onRetry,
+  });
+
+  final JeebEmptyStateStatus status;
+  final String headline;
+  final String identifier;
+  final String? body;
+  final String? retryLabel;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? label = retryLabel;
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: status,
+          headline: headline,
+          body: body,
+          identifier: identifier,
+          action: label == null
+              ? null
+              : JeebCtaButton.primary(
+                  label: label,
+                  expand: false,
+                  onTap: onRetry,
+                ),
+        ),
+      ),
+    );
   }
 }
 
@@ -261,21 +327,21 @@ class _LoadedBody extends StatelessWidget {
               Spacing.xLarge,
               0,
               Spacing.xLarge,
-              Spacing.twoXLarge,
+              Spacing.xLarge,
             ),
             child: Column(
               children: [
                 const SizedBox(height: Spacing.large),
                 // "Did you receive your order?" — the prompt heading, and the
-                // only title this screen has (dc-tpl 833).
+                // only title this screen has (`tpl 847`).
                 Text(
                   l10n.receiptPromptHeading,
                   textAlign: TextAlign.center,
                   style: context.jeebText.h1.copyWith(
-                    color: theme.colorScheme.primary,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: Spacing.large),
+                const SizedBox(height: Spacing.xLarge),
                 // receipt_proof_photo (+ receipt_proof_zoom_cta) — the
                 // proof-of-delivery photo the Jeeber uploaded (D3). Degrades
                 // to a neutral placeholder, without a zoom pill, when absent.
@@ -284,6 +350,9 @@ class _LoadedBody extends StatelessWidget {
                   photoSemanticLabel: l10n.receiptProofPhotoLabel,
                   badgeText: l10n.receiptProofBadge,
                   zoomCtaText: l10n.receiptProofZoomCta,
+                  // TODO(midnight): omitted, not faked — the tile reads
+                  // "· 9:38"; no gateway field carries the capture time.
+                  capturedAtLabel: null,
                   onZoom: receipt.hasProofPhoto
                       ? () => showProofPhotoViewer(
                             context,
@@ -327,12 +396,13 @@ class _LoadedBody extends StatelessWidget {
                       : () =>
                           context.read<DeliveryReceiptCubit>().confirmReceipt(),
                   child: ExcludeSemantics(
-                    child: JeebCtaButton.primary(
+                    // The tile draws this act orange (`tpl 847`) — the one
+                    // sanctioned accent CTA on the screen.
+                    child: JeebCtaButton.accent(
                       key: const Key('receipt-confirm-cta'),
                       label: l10n.receiptConfirmCta,
                       height: JeebCtaButton.primaryHeightTall,
                       leadingIcon: Icons.check,
-                      iconSize: Sizes.large,
                       isLoading: confirming,
                       isEnabled: !confirming,
                       onTap: () =>
@@ -356,7 +426,7 @@ class _LoadedBody extends StatelessWidget {
                       key: const Key('receipt-not-yet-cta'),
                       label: l10n.receiptNotYetCta,
                       height: JeebCtaButton.outlineHeightTall,
-                      // dc-tpl 850 realizes this label at 15.5/w600; the kit's
+                      // `tpl 850` realizes this label at 15.5/w600; the kit's
                       // h50 default is 13.5. Token-derived, no raw fontSize.
                       labelStyle: context.jeebText.cardTitle.copyWith(
                         fontWeight: FontWeight.w600,
@@ -405,22 +475,25 @@ class _LoadedBody extends StatelessWidget {
 }
 
 /// `receipt_cash_to_jeeber_label` — "Pay **$N** cash to `<Jeeber>`" (D11) over
-/// the cash-only reassurance line (dc-tpl 838-844).
+/// the cash-only reassurance line (`tpl 848-849`).
 ///
-/// The board paints this navy, not peach: it is the single most important fact
-/// on the screen (what the customer owes, to whom, in cash), so it carries the
-/// same ink and the same `ctaNavy` shadow as the confirm pill.
+/// Measured one step above the proof frame (emphasis glass), because it is the
+/// single most important fact on the screen. "The cash line glows warm" is the
+/// disc's `glowRest` halo plus the amount ink — no orange fill, no shadow.
 class _CashStatement extends StatelessWidget {
   const _CashStatement({required this.receipt});
+
+  /// `tpl 848`: the leading cash disc, measured 44 across.
+  static const double _kDiscSize = 44;
 
   final DeliveryReceipt receipt;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     final mutedText =
         Theme.of(context).extension<JeebSemanticColors>()!.mutedText;
+    final roles = context.jeebRoles;
 
     // Cash is the gross order amount paid in person; the Jeeber name degrades
     // to a generic noun when absent. The copy is a localized template with
@@ -442,22 +515,33 @@ class _CashStatement extends StatelessWidget {
 
     return Semantics(
       identifier: 'receipt_cash_to_jeeber_label',
-      child: Container(
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: colorScheme.primary,
-          borderRadius: OmdsBorderRadius.medium,
-          boxShadow: JeebShadows.ctaNavy,
+      child: JeebGlassCapsule(
+        radius: JeebRadii.lg,
+        // Pre-baked translucency: the screen's one real blur is the proof tag.
+        blurSigma: 0,
+        shadow: JeebGlassCapsule.noShadow,
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.large,
+          vertical: Spacing.medium,
         ),
         child: Row(
           children: [
-            Icon(
+            Container(
+              width: _kDiscSize,
+              height: _kDiscSize,
+              decoration: BoxDecoration(
+                color: roles.accent,
+                shape: BoxShape.circle,
+                boxShadow: JeebShadows.glowRest,
+              ),
               // Filled, not `_outlined` (R10: glyphs on navy are solid).
-              Icons.payments,
-              size: Sizes.xLarge,
-              color: colorScheme.onPrimary,
+              child: Icon(
+                Icons.payments,
+                size: Sizes.large,
+                color: roles.onAccent,
+              ),
             ),
-            const SizedBox(width: Spacing.small),
+            const SizedBox(width: Spacing.medium),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,19 +562,20 @@ class _CashStatement extends StatelessWidget {
     );
   }
 
-  /// Renders the statement with the money token one weight heavier (dc-tpl
-  /// 842-843). `MoneyFormat.format` wraps its result in U+2066…U+2069, so the
-  /// isolate travels inside the emphasized span and the split stays RTL-safe;
-  /// when the template did not actually contain the token (a locale could
-  /// reorder or transform it) we fall back to the plain string rather than
-  /// guessing at offsets.
+  /// Money emphasis (doc-13 Pattern C, `tpl 848`): the amount steps up to
+  /// `price` (22/w800) in warm `onAccentContainer`, the sentence stays white.
+  ///
+  /// `MoneyFormat.format` wraps its result in U+2066…U+2069, so the isolate
+  /// travels inside the emphasized span and the split stays RTL-safe; a locale
+  /// that reordered the token falls back to the plain string, never to offsets.
   Widget _amountLine(
     BuildContext context,
     String cashText,
     String? amountText,
   ) {
-    final style = context.jeebText.titleProminent.copyWith(
-      color: Theme.of(context).colorScheme.onPrimary,
+    final text = context.jeebText;
+    final style = text.titleProminent.copyWith(
+      color: Theme.of(context).colorScheme.onSurface,
     );
     final start = amountText == null ? -1 : cashText.indexOf(amountText);
     if (amountText == null || start < 0) {
@@ -503,8 +588,9 @@ class _CashStatement extends StatelessWidget {
           TextSpan(text: cashText.substring(0, start)),
           TextSpan(
             text: amountText,
-            // w800 degrades to the bundled w700 until Inter-ExtraBold ships.
-            style: const TextStyle(fontWeight: FontWeight.w800),
+            style: text.price.copyWith(
+              color: context.jeebRoles.onAccentContainer,
+            ),
           ),
           TextSpan(text: cashText.substring(start + amountText.length)),
         ],

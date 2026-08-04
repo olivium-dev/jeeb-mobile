@@ -71,7 +71,7 @@ class _ProofPhotoViewer extends StatelessWidget {
                       child: Icon(
                         Icons.close,
                         size: Sizes.xLarge,
-                        color: colorScheme.onPrimary,
+                        color: colorScheme.onSurface,
                       ),
                     ),
                   ),

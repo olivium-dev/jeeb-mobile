@@ -214,6 +214,13 @@ final List<CatalogEntry> _deliveryReceiptEntries = <CatalogEntry>[
         ),
       ),
       CatalogState(
+        'Loading — read in flight',
+        (context) => DeliveryReceiptScreen(
+          deliveryId: DeliveryReceiptScreenFixtures.deliveryId,
+          repository: DeliveryReceiptScreenFixtures.pending(),
+        ),
+      ),
+      CatalogState(
         'Error — receipt not found',
         (context) => DeliveryReceiptScreen(
           deliveryId: DeliveryReceiptScreenFixtures.deliveryId,

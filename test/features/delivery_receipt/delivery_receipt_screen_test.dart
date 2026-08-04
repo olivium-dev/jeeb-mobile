@@ -4,8 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/devtool/catalog/fixtures/delivery_receipt_screen_fixtures.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/data/fake_delivery_receipt_repository.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt.dart';
+import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt_repository.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -37,10 +40,15 @@ DeliveryReceipt _receipt({
 
 /// Mounts the screen on a router that owns the two destinations it navigates
 /// to (`mutual-rating` after a confirm, `escalate` behind "Not yet").
+/// A read that never lands — the loading state of every receipt.
+DeliveryReceiptRepository _pending() =>
+    const DeliveryReceiptScreenPendingRepository();
+
 Widget _harness(
   DeliveryReceipt receipt, {
   Locale locale = const Locale('en'),
   double textScale = 1.0,
+  DeliveryReceiptRepository? repository,
 }) {
   final GoRouter router = GoRouter(
     initialLocation: '/orders/d-1/receipt',
@@ -50,7 +58,8 @@ Widget _harness(
         builder: (BuildContext context, GoRouterState state) =>
             DeliveryReceiptScreen(
               deliveryId: state.pathParameters['id']!,
-              repository: FakeDeliveryReceiptRepository(receipt: receipt),
+              repository:
+                  repository ?? FakeDeliveryReceiptRepository(receipt: receipt),
             ),
       ),
       GoRoute(
@@ -234,6 +243,47 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull);
       expect(find.bySemanticsIdentifier('receipt_not_yet_cta'), findsOneWidget);
+    });
+  });
+
+  // MIDNIGHT: loading and error left OmdsLoadingState/OmdsErrorState for the
+  // one JeebEmptyState pattern family (study-notes ruling 1).
+  group('DeliveryReceiptScreen — non-loaded states', () {
+    testWidgets('the read in flight renders the loading block', (tester) async {
+      await tester.pumpWidget(_harness(_receipt(), repository: _pending()));
+      await tester.pump();
+
+      expect(find.bySemanticsIdentifier('receipt_loading'), findsOneWidget);
+      expect(find.byType(JeebEmptyState), findsOneWidget);
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+        JeebEmptyStateStatus.loading,
+      );
+      // The prompt root survives, so a deep link never lands on a bare screen.
+      expect(find.bySemanticsIdentifier('receipt_prompt'), findsOneWidget);
+    });
+
+    testWidgets('a failed read renders the error block with Retry', (
+      tester,
+    ) async {
+      await _pumpLoaded(
+        tester,
+        _harness(
+          _receipt(),
+          repository: FakeDeliveryReceiptRepository(
+            fetchFailure: DeliveryReceiptFailure.notFound,
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('receipt-load-error')), findsOneWidget);
+      expect(find.bySemanticsIdentifier('receipt_load_error'), findsOneWidget);
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+        JeebEmptyStateStatus.error,
+      );
+      expect(find.text("We couldn't find this delivery."), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
     });
   });
 }
