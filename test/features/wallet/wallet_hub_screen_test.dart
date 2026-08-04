@@ -1,10 +1,13 @@
 // Widget tests for WalletHubScreen (JM-053). Proves the screen renders the
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/jeeb_commission.dart';
 import 'package:jeeb_mobile/core/session/jeeber_kyc_status_gate.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/wallet/domain/wallet_repository.dart';
 import 'package:jeeb_mobile/features/wallet/presentation/wallet_hub_screen.dart';
 
@@ -23,6 +26,14 @@ class _ScriptedWalletRepository implements WalletRepository {
     }
     return _balance;
   }
+}
+
+/// A read that never lands — holds the screen on `loading`.
+class _NeverWalletRepository implements WalletRepository {
+  const _NeverWalletRepository();
+
+  @override
+  Future<WalletBalance> fetchBalance() => Completer<WalletBalance>().future;
 }
 
 class _FakeKycGate implements JeeberKycStatusGate {
@@ -51,6 +62,9 @@ WalletBalance _balance({
     );
 
 void main() {
+  // The loading/error states mount `JeebEmptyState`, whose illustration loops
+  // ∞ by design (02-STUDY-NOTES M0-4) — `pumpAndSettle` settles only under
+  // reduce motion, which is also the deterministic rest frame the board draws.
   Future<void> pump(
     WidgetTester tester, {
     required WalletRepository repo,
@@ -59,9 +73,14 @@ void main() {
   }) async {
     await tester.pumpWidget(
       wrapForTest(
-        WalletHubScreen(
-          repository: repo,
-          kycStatusGate: _FakeKycGate(kyc),
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: WalletHubScreen(
+              repository: repo,
+              kycStatusGate: _FakeKycGate(kyc),
+            ),
+          ),
         ),
         locale: locale,
       ),
@@ -223,5 +242,64 @@ void main() {
     // MoneyFormat wraps every amount in a Unicode LTR isolate (U+2066) so the
     // symbol does not migrate to the wrong side of the digits under RTL.
     expect(find.textContaining('\u2066'), findsWidgets);
+  });
+
+  // \u2500\u2500 MIDNIGHT R4 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+  testWidgets('R4: reserved-now is re-homed inside the balance card',
+      (tester) async {
+    tester.view.physicalSize = const Size(440, 956);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pump(tester, repo: _ScriptedWalletRepository(_balance()));
+
+    expect(
+      find.descendant(
+        of: find.bySemanticsIdentifier('wallet_available_balance'),
+        matching: find.bySemanticsIdentifier('wallet_reserved_now'),
+      ),
+      findsOneWidget,
+      reason: 'the board folds the reserve stat into the bank-card footer',
+    );
+    expect(find.text('Reserved now'), findsOneWidget);
+  });
+
+  testWidgets('R4: the gift pill carries the board\'s "included" clause',
+      (tester) async {
+    await pump(tester, repo: _ScriptedWalletRepository(_balance(gift: 5)));
+    expect(find.textContaining('starter credit included'), findsOneWidget);
+  });
+
+  testWidgets('R4: Top up is the accent CTA and the fee link is not',
+      (tester) async {
+    await pump(tester, repo: _ScriptedWalletRepository(_balance()));
+
+    JeebCtaButton cta(String id) => tester
+        .widgetList<JeebCtaButton>(find.byType(JeebCtaButton))
+        .firstWhere((b) => b.identifier == id);
+
+    expect(cta('wallet_topup_cta').variant, JeebCtaVariant.accent);
+    expect(
+      cta('wallet_how_fees_work').variant,
+      JeebCtaVariant.text,
+      reason: 'R4 draws the fee link periwinkle \u2014 Top up is the only orange',
+    );
+  });
+
+  testWidgets('R4: the loading state is the JeebEmptyState family',
+      (tester) async {
+    await pump(tester, repo: const _NeverWalletRepository());
+    expect(find.bySemanticsIdentifier('wallet_loading'), findsOneWidget);
+  });
+
+  testWidgets('R4: the error state is the JeebEmptyState family with a retry',
+      (tester) async {
+    await pump(
+      tester,
+      repo: _ScriptedWalletRepository(_balance(), throws: true),
+    );
+    expect(find.bySemanticsIdentifier('wallet_load_error'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
   });
 }

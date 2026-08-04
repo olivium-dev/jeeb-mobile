@@ -72,21 +72,24 @@ class WalletHubL10n {
 
   // ── Gift / starter-credit badge (D42). ────────────────────────────────────
   //
-  // [amount] arrives pre-formatted by `MoneyFormat`, which carries its own
-  // currency symbol — hence no currency parameter. Deliberately NOT the board's
-  // "included": the wire contract does not define whether `giftCredit` composes
-  // `availableBalance`, and the pill must not assert what nobody has decided.
+  // [amount] arrives pre-formatted by `MoneyFormat` (no currency parameter).
+  // "included" restored per doc-13 P1; the wire still does not state whether
+  // `giftCredit` composes `availableBalance` — raised as an owner question.
   String giftBadge(String amount) => _pick(
-        '$amount starter credit',
-        'رصيد بداية $amount',
+        '$amount starter credit included',
+        'رصيد بداية $amount مُضمَّن',
       );
 
   // ── Reserved-now (sum of live 10% reserves, D1). ──────────────────────────
-  String get reservedNowLabel => _pick('Reserved right now', 'محجوز الآن');
+  String get reservedNowLabel => _pick('Reserved now', 'محجوز الآن');
   String get reservedNowHint => _pick(
         "Released if you're not picked.",
         'يُعاد إليك إذا لم يقع الاختيار عليك.',
       );
+
+  /// The card's second stat column (R4). No wire count exists yet, so the
+  /// label ships with the slot rather than with a fabricated number.
+  String get liveOffersLabel => _pick('Live offers', 'عروض نشطة');
 
   // ── How fees work explainer (fee-only economics, D41/D44). ────────────────
   //
@@ -161,9 +164,8 @@ class WalletHubL10n {
     switch (a) {
       case WalletAffordability.enough:
         return _pick(
-          'Enough balance for the $kJeebCommissionPercent% reserve on typical '
-              'offers.',
-          'رصيدك يكفي لحجز الـ$kJeebCommissionPercent٪ على العروض المعتادة.',
+          'Enough for the $kJeebCommissionPercent% reserve on typical offers.',
+          'يكفي لحجز الـ$kJeebCommissionPercent٪ على العروض المعتادة.',
         );
       case WalletAffordability.low:
         return _pick(
