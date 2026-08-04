@@ -4,11 +4,12 @@ import 'package:omds/omds.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 
-/// The "Deliver to" card on the Request type screen (redesign-2026-08 · 07,
-/// HTML `tpl 392-398`): a filled `surfaceContainerHigh` card holding a pin
-/// glyph, the destination line (plus an optional qualifier under it) and a bare
-/// orange "Change" word at the end. Only the word is the tap target.
+/// The "Deliver to" card on the Request type screen (MIDNIGHT · R9): a rest
+/// glass card holding a pin glyph, the destination line (plus an optional
+/// qualifier under it) and a bare orange "Change" word at the end. Only the
+/// word is the tap target.
 ///
 /// The constructor stays source-compatible with the pre-redesign row —
 /// `semantics_identifier_surfacing_test.dart` constructs it directly with the
@@ -48,7 +49,6 @@ class RequestLocationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     // `explicitChildNodes` makes this card a Semantics *boundary*: without it
     // the ambient merge folds the label's `request_type_current_location_label`
     // and the action's `request_type_change_location_button` into one node and
@@ -56,21 +56,20 @@ class RequestLocationRow extends StatelessWidget {
     // it). The boundary keeps both inner identifiers as their own nodes.
     return Semantics(
       explicitChildNodes: true,
-      child: Container(
+      child: JeebGlassCard(
         padding: const EdgeInsetsDirectional.symmetric(
           horizontal: Spacing.medium,
           vertical: Spacing.medium,
         ),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
-          borderRadius: OmdsBorderRadius.medium,
-        ),
         child: Row(
           children: [
-            // The board paints this pin #E02020; raw hex is banned in
-            // lib/features (tool/check_design_tokens.sh) and R10 says icons are
-            // navy or periwinkle — the divergence is flagged in the wiring file.
-            Icon(Icons.location_on, size: Sizes.large, color: scheme.primary),
+            // Tile-drawn orange: R9 paints the pin warm against the glass, the
+            // one glyph on the screen that is not white or periwinkle.
+            Icon(
+              Icons.location_on,
+              size: Sizes.large,
+              color: context.jeebRoles.accent,
+            ),
             const SizedBox(width: Spacing.small),
             Expanded(child: _AddressBlock(row: this)),
             _ChangeAction(
@@ -94,7 +93,7 @@ class _AddressBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
+        JeebSemanticColors.midnight();
     final qualifier = row.qualifierLabel;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -104,7 +103,7 @@ class _AddressBlock extends StatelessWidget {
           identifier: 'request_type_current_location_label',
           child: Text(
             row.addressLabel ?? row.currentLabel,
-            style: context.jeebText.cardTitle.copyWith(color: scheme.primary),
+            style: context.jeebText.cardTitle.copyWith(color: scheme.onSurface),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

@@ -104,7 +104,7 @@ void main() {
       expect(confirmed?.id, TierId.express);
     });
 
-    testWidgets('does not pre-select the recommended tier on first load', (
+    testWidgets('pre-selects the recommended tier on first load', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -115,11 +115,11 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // A recommendation is display metadata, not a customer choice.
+      // MIDNIGHT R9 / doc-13 P0-4: the board loads with a row already lit.
       final btn = tester.widget<OmdsPrimaryButton>(
         find.byKey(TierSelectionScreen.confirmButtonKey),
       );
-      expect(btn.isEnabled, isFalse);
+      expect(btn.isEnabled, isTrue);
     });
 
     testWidgets('retry button re-fetches and recovers to loaded (JEBV4-300)', (

@@ -71,8 +71,15 @@ class TierSelectionCubit extends Cubit<TierSelectionState> {
     emit(state.copyWith(confirmedTierId: id));
   }
 
-  TierId? _retainedSelection(List<Tier> tiers) =>
-      tiers.any((tier) => tier.id == state.selectedTierId)
-      ? state.selectedTierId
-      : null;
+  /// R9 loads with a row already lit (doc-13 P0-4): an existing choice wins,
+  /// otherwise the catalog's recommended tier seeds the selection.
+  TierId? _retainedSelection(List<Tier> tiers) {
+    if (tiers.any((tier) => tier.id == state.selectedTierId)) {
+      return state.selectedTierId;
+    }
+    for (final tier in tiers) {
+      if (tier.recommended) return tier.id;
+    }
+    return null;
+  }
 }

@@ -61,7 +61,8 @@ class DioTierRepository implements TierRepository {
       currency: 'USD',
       vehicleClass: _vehicleForTier(id),
       slaMinutes: slaMinutes,
-      recommended: id == TierId.flash,
+      // R9 badges Standard, not the most expensive tier (doc-13 P0-4).
+      recommended: id == TierId.standard,
     );
   }
 
@@ -131,7 +132,6 @@ class FakeTierRepository implements TierRepository {
       currency: 'LBP',
       vehicleClass: TierVehicleClass.scooterOrCar,
       slaMinutes: 60,
-      recommended: true,
     ),
     Tier(
       id: TierId.express,
@@ -148,6 +148,8 @@ class FakeTierRepository implements TierRepository {
       currency: 'LBP',
       vehicleClass: TierVehicleClass.bikeOrScooter,
       slaMinutes: 240,
+      // R9 badges Standard, not the most expensive tier (doc-13 P0-4).
+      recommended: true,
     ),
     Tier(
       id: TierId.onTheWay,

@@ -4,8 +4,16 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
+import '../../../core/widgets/jeeb/jeeb_tier_row.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../tier_selection/cubit/tier_selection_cubit.dart';
@@ -32,11 +40,9 @@ import 'widgets/tier_catalog_section.dart';
 /// Reuses the existing [TierSelectionCubit] + [TierRepository] (the tier-catalog
 /// source of truth, fed by `GET /v1/tiers` → T1's 5-tier mock catalog).
 ///
-/// redesign-2026-08 · screen 08 ("Tier catalog") lands here too: the board
-/// draws it standalone, but `/tier-selection` was deliberately deleted and the
-/// create flow standardized on `/request-type`, so the enhanced catalog is a
-/// SECTION of this screen ([TierCatalogSection]) rather than a resurrected
-/// route.
+/// MIDNIGHT · R9 folds the "Tier catalog" board into this screen: the picker is
+/// [TierCatalogSection]'s five compact radio rows rather than a resurrected
+/// `/tier-selection` route.
 class RequestTypeScreen extends StatelessWidget {
   const RequestTypeScreen({
     super.key,
@@ -94,8 +100,6 @@ class RequestTypeScreen extends StatelessWidget {
 
 // Design gutter is 24 (HTML `padding … 24px`); DeliveryCreateLayout.pagePadding
 // (20/16/20/32) is owned by location/ and shared with the 09 lane — not edited.
-// Top inset is the board's 14 between the top bar and the catalog subtitle
-// (08 `tpl 417`), rounded to the 12 token.
 //
 // The bottom inset is NOT on the board (which draws a 956dp viewport where the
 // content never reaches the footer): on a 360x780 phone the catalog scrolls,
@@ -123,31 +127,38 @@ class _Scaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      // The redesign header is an in-body row, not a Material app bar — no
-      // elevation, no surface tint, title start-aligned next to a Ø40 circle.
-      body: SafeArea(
-        child: Column(
-          children: [
-            JeebTopBar.back(
-              title: l10n.requestTypeChooseHeading,
-              identifier: 'request_type_back',
-              onLeadingPressed: () => Navigator.of(context).maybePop(),
-            ),
-            Expanded(
-              child: BlocBuilder<TierSelectionCubit, TierSelectionState>(
-                builder: (context, state) => _Body(
-                  state: state,
-                  onChangeLocation: onChangeLocation,
+    // R9's field: the base wash with the single quiet glow low behind the CTA.
+    // No orbit rings, no twinkles — content variant, and the tile is STATIC.
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      glowPlacement: JeebFieldGlowPlacement.bottom,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        // The redesign header is an in-body row, not a Material app bar — no
+        // elevation, no surface tint, title start-aligned next to a Ø40 circle.
+        body: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar.back(
+                title: l10n.requestTypeChooseHeading,
+                identifier: 'request_type_back',
+                onLeadingPressed: () => Navigator.of(context).maybePop(),
+              ),
+              Expanded(
+                child: BlocBuilder<TierSelectionCubit, TierSelectionState>(
+                  builder: (context, state) => _Body(
+                    state: state,
+                    onChangeLocation: onChangeLocation,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: BlocBuilder<TierSelectionCubit, TierSelectionState>(
-        builder: (context, state) => _ContinueFooter(state: state),
+        bottomNavigationBar:
+            BlocBuilder<TierSelectionCubit, TierSelectionState>(
+              builder: (context, state) => _ContinueFooter(state: state),
+            ),
       ),
     );
   }
@@ -163,13 +174,15 @@ class _ContinueFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Only meaningful once tiers have loaded; hidden during load/error so it
-    // does not float over the spinner / error state.
-    if (state.status != TierSelectionStatus.loaded) {
+    // Only meaningful once there are tiers to pick; hidden over the loading,
+    // empty and error bodies so it never docks under an unusable screen.
+    if (state.status != TierSelectionStatus.loaded || state.tiers.isEmpty) {
       return const SizedBox.shrink();
     }
     final l10n = AppLocalizations.of(context);
     final hasSelection = state.selectedTierId != null;
+    final ThemeData theme = Theme.of(context);
+    final JeebRoles roles = context.jeebRoles;
     return SafeArea(
       top: false,
       child: Padding(
@@ -177,11 +190,27 @@ class _ContinueFooter extends StatelessWidget {
         child: Semantics(
           identifier: 'request_type_continue_cta',
           button: true,
-          child: JeebCtaButton.primary(
-            key: const Key('request-type-continue'),
-            label: l10n.requestTypeContinue,
-            isEnabled: hasSelection,
-            onTap: () => _onContinue(context, hasSelection),
+          child: DecoratedBox(
+            // R9 draws the CTA orange with an outer glow — a tile-drawn CTA,
+            // inside the budget. TODO(midnight): kit has no accent pill yet.
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(JeebCtaButton.pillRadius),
+              boxShadow: hasSelection ? JeebShadows.ctaOrange : null,
+            ),
+            child: Theme(
+              data: theme.copyWith(
+                colorScheme: theme.colorScheme.copyWith(
+                  secondary: roles.accent,
+                  onSecondary: roles.onAccent,
+                ),
+              ),
+              child: JeebCtaButton.primary(
+                key: const Key('request-type-continue'),
+                label: l10n.requestTypeContinue,
+                isEnabled: hasSelection,
+                onTap: () => _onContinue(context, hasSelection),
+              ),
+            ),
           ),
         ),
       ),
@@ -219,25 +248,136 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     switch (state.status) {
       case TierSelectionStatus.initial:
       case TierSelectionStatus.loading:
-        return const Center(child: OmdsLoadingState());
+        return const _LoadingView();
       case TierSelectionStatus.error:
-        return Center(
-          child: OmdsErrorState(
-            message: l10n.requestSummaryErrorNetwork,
-            onRetry: () => context.read<TierSelectionCubit>().load(),
-            retryLabel: l10n.requestSummaryRetry,
-          ),
-        );
+        return const _UnavailableView(status: JeebEmptyStateStatus.error);
       case TierSelectionStatus.loaded:
+        if (state.tiers.isEmpty) {
+          // A 200 with no tier configured for this city: nothing to pick, and
+          // the same recovery as the error path.
+          return const _UnavailableView(status: JeebEmptyStateStatus.empty);
+        }
         return _LoadedView(
           state: state,
           onChangeLocation: onChangeLocation,
         );
     }
+  }
+}
+
+/// The catalog read, held. Five glass row placeholders at the compact row's own
+/// geometry rather than a spinner, so the page does not collapse then reflow.
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    return Padding(
+      padding: _bodyPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (int i = 0; i < 5; i++) ...<Widget>[
+            _SkeletonRow(fill: semantics.glassFillEmphasis),
+            if (i < 4) const SizedBox(height: Spacing.xSmall),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow({required this.fill});
+
+  final Color fill;
+
+  @override
+  Widget build(BuildContext context) {
+    return JeebOutlinedCard(
+      padding: JeebTierRow.compactPadding,
+      child: Row(
+        children: <Widget>[
+          _Bar(fill: fill, width: JeebTierRow.compactMarkSize, height: 20),
+          const SizedBox(width: JeebTierRow.compactSpacing),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                _Bar(fill: fill, width: 96, height: 12),
+                const SizedBox(height: Spacing.xSmall),
+                _Bar(fill: fill, width: 168, height: 10),
+              ],
+            ),
+          ),
+          const SizedBox(width: JeebTierRow.compactSpacing),
+          _Bar(
+            fill: fill,
+            width: JeebTierRow.indicatorSize,
+            height: JeebTierRow.indicatorSize,
+            radius: JeebRadii.pill,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  const _Bar({
+    required this.fill,
+    required this.width,
+    required this.height,
+    this.radius = JeebRadii.sm,
+  });
+
+  final Color fill;
+  final double width;
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+/// Error and empty share one body: in both the customer cannot pick a speed and
+/// the only move is to retry.
+class _UnavailableView extends StatelessWidget {
+  const _UnavailableView({required this.status});
+
+  final JeebEmptyStateStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      // TODO(midnight): l10n-queued — `requestTypeTiersEmptyHeadline`/`Body`
+      // give the empty read its own copy; queue file l10n-queue/M2-04-r9.md.
+      child: JeebEmptyState(
+        status: status,
+        headline: l10n.requestSummaryErrorNetwork,
+        action: JeebCtaButton.outline(
+          label: l10n.requestSummaryRetry,
+          identifier: 'request_type_tiers_retry',
+          onTap: () => context.read<TierSelectionCubit>().load(),
+        ),
+      ),
+    );
   }
 }
 
@@ -273,13 +413,9 @@ class _LoadedView extends StatelessWidget {
                       context.read<TierSelectionCubit>().selectTier(id),
                 ),
                 const SizedBox(height: Spacing.large),
-                // NOT `JeebSectionLabel`: the board draws this 14/w700 navy
-                // (HTML tpl-391), not the uppercase periwinkle eyebrow.
-                Text(
-                  l10n.requestTypeLocationHeading,
-                  style: context.jeebText.cardTitle
-                      .copyWith(color: Theme.of(context).colorScheme.primary),
-                ),
+                // R9 draws the uppercase periwinkle eyebrow here (11px), not
+                // the pass-1 14/w700 navy heading.
+                JeebSectionLabel(l10n.requestTypeLocationHeading, small: true),
                 const SizedBox(height: Spacing.small),
                 _LocationSection(onChangeLocation: onChangeLocation),
                 const Spacer(),
@@ -300,9 +436,8 @@ class _LocationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // TODO(redesign-24): needs a resolved destination label at this step; the
-    // flow picks the destination on the NEXT screen. Omitted, not faked
-    // (JEBV4-176).
+    // TODO(midnight): the tile's "Home — Achrafieh, Beirut" + "Current
+    // location" pair needs a resolved destination. Omitted, not faked.
     return RequestLocationRow(
       currentLabel: l10n.requestTypeCurrentLocation,
       changeLabel: l10n.requestTypeChangeLocation,
@@ -336,7 +471,5 @@ class _LocationSection extends StatelessWidget {
   }
 }
 
-// The tier rows themselves live in `widgets/tier_catalog_section.dart`
-// (redesign-2026-08 · 08): the picker is now the enhanced catalog — SLA chip,
-// vehicle line and relative price meter per tier — so its copy resolution and
-// its display lexicon sit with the section, not in this shell.
+// The tier rows themselves live in `widgets/tier_catalog_section.dart`: copy
+// resolution and the display lexicon sit with the section, not in this shell.

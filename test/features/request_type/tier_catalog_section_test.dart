@@ -1,4 +1,4 @@
-import 'dart:ui' show Tristate;
+import 'dart:ui' show CheckedState;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,16 +9,16 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_price_meter.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_tier_row.dart';
 import 'package:jeeb_mobile/features/request_type/presentation/request_type_screen.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
+import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/sync_app_localizations.dart';
 
 /// The redesigned rows read `jeebText` / `jeebRoles` / `JeebSemanticColors`
-/// off the theme, so the harness installs the real [AppTheme] rather than
-/// `wrapForTest`'s bare `ThemeData.light()`.
+/// off the theme, so the harness installs the real [AppTheme].
 Widget _harness(Widget child, {Locale locale = const Locale('en')}) =>
     MaterialApp(
-      theme: AppTheme.light(),
+      theme: AppTheme.midnight(),
       locale: locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
@@ -30,12 +30,11 @@ Widget _harness(Widget child, {Locale locale = const Locale('en')}) =>
       home: child,
     );
 
-/// redesign-2026-08 · screen 08 — the tier catalog rendered as the picker
-/// section of `/request-type`. The frozen `request_type_<tier>_radio`
-/// identifiers and the "nothing is pre-selected" rule are covered by
-/// `request_type_deliberate_selection_test.dart`; this file pins what 08 adds:
-/// the catalog row variant, the relative price meter, the SLA / vehicle lines
-/// and the pricing note.
+/// MIDNIGHT · R9 — the tier picker section of `/request-type`.
+///
+/// doc-13 P0-3/P0-4 rule the section back to a compact radio list: no subtitle
+/// band, no pricing note, no comparison-table anatomy, `Most picked` on
+/// Standard and that tier lit on first paint.
 void main() {
   setUp(() {
     final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -59,81 +58,75 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('renders five catalog rows with the board price levels', (
-    tester,
-  ) async {
+  testWidgets('renders five compact radio rows, one per tier', (tester) async {
     await pumpScreen(tester);
 
     final rows = tester.widgetList<JeebTierRow>(find.byType(JeebTierRow));
     expect(rows.length, 5);
     for (final row in rows) {
-      expect(row.variant, JeebTierRowVariant.catalog);
-    }
-    // Flash 4 · Express 3 · Standard 2 · On-the-Way 2 · Eco 1 (08 tpl 426-495).
-    expect(rows.map((r) => r.priceLevel).toList(), <int>[4, 3, 2, 2, 1]);
-    expect(find.byType(JeebPriceMeter), findsNWidgets(5));
-    // The vehicle glyph ships on all five rows (C7), not on Flash alone.
-    expect(rows.every((r) => r.metaIcon != null), isTrue);
-  });
-
-  testWidgets('SLA chips render from the catalog data, not board literals', (
-    tester,
-  ) async {
-    await pumpScreen(tester);
-
-    final rows = tester.widgetList<JeebTierRow>(find.byType(JeebTierRow));
-    // FakeTierRepository: flash 60min, express 180, standard 240, onTheWay
-    // null, eco 1440. A null SLA is the opportunistic tier — "Flexible".
-    expect(rows.first.slaLabel, '≤ 1 hr');
-    expect(rows.elementAt(3).slaLabel, 'Flexible');
-    // Only the numeric chips are LTR-isolated; the prose one follows the
-    // ambient direction.
-    expect(rows.first.slaForceLtr, isTrue);
-    expect(rows.elementAt(3).slaForceLtr, isFalse);
-    for (final row in rows) {
-      expect(row.metaLabel, isNotEmpty);
+      expect(row.variant, JeebTierRowVariant.compact);
+      // The one-line summary is the compact row's whole body.
+      expect(row.summaryText, isNotEmpty);
     }
   });
 
-  testWidgets('exactly one row carries the recommended badge', (tester) async {
+  testWidgets('the comparison-table anatomy is gone', (tester) async {
     await pumpScreen(tester);
 
-    final rows = tester.widgetList<JeebTierRow>(find.byType(JeebTierRow));
-    // Which tier it is follows the catalog flag, not a hardcoded index.
-    expect(rows.where((r) => r.badge != null).length, 1);
-  });
-
-  testWidgets('the pricing note closes the catalog', (tester) async {
-    await pumpScreen(tester);
-
-    expect(find.byType(JeebInfoNote), findsOneWidget);
+    // P0-3: 08's price meter, its subtitle band and its pricing note all
+    // belong to a screen the app does not draw.
+    expect(find.byType(JeebPriceMeter), findsNothing);
+    expect(find.byType(JeebInfoNote), findsNothing);
+    expect(
+      find.text("Same errand, five speeds — pick what it's worth."),
+      findsNothing,
+    );
     expect(
       find.text(
         'Jeebers set the price — you compare real offers and pick one. '
         'No fixed prices.',
       ),
-      findsOneWidget,
-    );
-    expect(
-      find.text("Same errand, five speeds — pick what it's worth."),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
-  testWidgets('selection is a fill swap reported as selected', (tester) async {
+  testWidgets('Most picked badges Standard alone', (tester) async {
+    await pumpScreen(tester);
+
+    final rows = tester.widgetList<JeebTierRow>(find.byType(JeebTierRow));
+    final badged = rows.where((r) => r.badge != null);
+    expect(badged.length, 1);
+    expect(badged.single.badge, 'Most picked');
+    // Which tier it is follows the catalog flag, not a hardcoded index.
+    final standard = FakeTierRepository.defaultCatalog
+        .where((Tier t) => t.recommended)
+        .single;
+    expect(standard.id, TierId.standard);
+    expect(badged.single.title, 'Standard');
+  });
+
+  testWidgets('Standard is lit on first paint', (tester) async {
+    await pumpScreen(tester);
+
+    final rows = tester.widgetList<JeebTierRow>(find.byType(JeebTierRow));
+    expect(rows.where((r) => r.selected).single.title, 'Standard');
+    expect(
+      tester
+          .getSemantics(find.bySemanticsIdentifier('request_type_standard_radio'))
+          .flagsCollection
+          .isChecked,
+      CheckedState.isTrue,
+    );
+  });
+
+  testWidgets('selection is a radio move reported as checked', (tester) async {
     await pumpScreen(tester);
 
     final eco = find.bySemanticsIdentifier('request_type_eco_radio');
-    expect(
-      tester.getSemantics(eco).flagsCollection.isSelected,
-      Tristate.isFalse,
-    );
+    expect(tester.getSemantics(eco).flagsCollection.isChecked, CheckedState.isFalse);
     await tester.tap(eco);
     await tester.pumpAndSettle();
-    expect(
-      tester.getSemantics(eco).flagsCollection.isSelected,
-      Tristate.isTrue,
-    );
+    expect(tester.getSemantics(eco).flagsCollection.isChecked, CheckedState.isTrue);
     expect(
       tester
           .widgetList<JeebTierRow>(find.byType(JeebTierRow))
@@ -143,17 +136,11 @@ void main() {
     );
   });
 
-  testWidgets('renders in Arabic RTL without losing the SLA chips', (
-    tester,
-  ) async {
+  testWidgets('renders in Arabic RTL without losing a row', (tester) async {
     await pumpScreen(tester, locale: const Locale('ar'));
 
     expect(tester.takeException(), isNull);
-    final rows = tester.widgetList<JeebTierRow>(find.byType(JeebTierRow));
-    expect(rows.length, 5);
-    // The band is localized but the latin numeral stays LTR-isolated inside
-    // the chip (the kit wraps it; here we only pin that the copy survives).
-    expect(rows.first.slaLabel, '≤ 1 ساعة');
-    expect(find.text('≤ 1 ساعة'), findsOneWidget);
+    expect(find.byType(JeebTierRow), findsNWidgets(5));
+    expect(find.text('فوري'), findsOneWidget);
   });
 }

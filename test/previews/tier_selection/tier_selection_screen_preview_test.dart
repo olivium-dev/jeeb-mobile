@@ -1,5 +1,3 @@
-import 'dart:ui' show Tristate;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -204,20 +202,22 @@ void main() {
       expect(find.text(_slaFlash), findsOneWidget);
     });
 
-    testWidgets('the recommended tier is BADGED, not pre-selected', (
+    // MIDNIGHT R9 / doc-13 P0-4: the cubit now seeds the recommended tier, so
+    // "badged but never selected" is retired for every consumer of the cubit.
+    testWidgets('the recommended tier is BADGED and pre-selected', (
       WidgetTester tester,
     ) async {
       await _pumpAtDevice(tester, tierSelectionScreenServedCatalogue);
 
       expect(find.text(_recommended), findsOneWidget);
-      expect(_ctaEnabled(tester), isFalse);
-      for (final TierCard card
-          in tester.widgetList<TierCard>(find.byType(TierCard))) {
-        expect(card.selected, isFalse);
-      }
+      expect(_ctaEnabled(tester), isTrue);
+      final Iterable<TierCard> selected = tester
+          .widgetList<TierCard>(find.byType(TierCard))
+          .where((TierCard card) => card.selected);
+      expect(selected.length, 1);
     });
 
-    testWidgets('pressing the disabled CTA hands nothing back', (
+    testWidgets('pressing the live CTA hands back the seeded tier', (
       WidgetTester tester,
     ) async {
       await _pumpAtDevice(tester, tierSelectionScreenServedCatalogue);
@@ -225,19 +225,19 @@ void main() {
       await tester.tap(_confirmCta, warnIfMissed: false);
       await tester.pump();
 
-      expect(tierSelectionScreenConfirmations, isEmpty);
+      expect(tierSelectionScreenConfirmations, <String>['standard']);
     });
 
-    testWidgets('the CTA never announces an enabled/disabled state to a '
-        'screen reader', (WidgetTester tester) async {
+    testWidgets('the CTA announces itself as an enabled button', (
+      WidgetTester tester,
+    ) async {
       await _pumpAtDevice(tester, tierSelectionScreenServedCatalogue);
 
       final flags = tester
           .getSemantics(find.bySemanticsIdentifier('tier_selection_confirm_cta'))
           .flagsCollection;
-      expect(_ctaEnabled(tester), isFalse);
+      expect(_ctaEnabled(tester), isTrue);
       expect(flags.isButton, isTrue);
-      expect(flags.isEnabled, Tristate.none);
     });
   });
 
@@ -399,7 +399,7 @@ void main() {
       );
 
       expect(tester.getTopLeft(_confirmCta).dy, before);
-      expect(_ctaEnabled(tester), isFalse);
+      expect(_ctaEnabled(tester), isTrue);
     });
   });
 }

@@ -44,6 +44,26 @@ String tierCatalogName(AppLocalizations l10n, TierId id) => switch (id) {
   TierId.eco => l10n.tierEcoTitle,
 };
 
+/// TODO(midnight): l10n-queued — R9 draws `Under 1 hour · Highest price ·
+/// Priority pickup`; `requestTypeTierSummary*` in l10n-queue/M2-04-r9.md.
+String tierCatalogSummary(AppLocalizations l10n, TierId id) => switch (id) {
+  TierId.flash => l10n.tierFlashValue,
+  TierId.express => l10n.tierExpressValue,
+  TierId.standard => l10n.tierStandardValue,
+  TierId.onTheWay => l10n.tierOnTheWayValue,
+  TierId.eco => l10n.tierEcoValue,
+};
+
+/// The `{speed}` run of the row's spoken label — richer than the ellipsized
+/// visible line, and not drawn by R9.
+String tierCatalogSpeed(AppLocalizations l10n, TierId id) => switch (id) {
+  TierId.flash => l10n.tierFlashSpeed,
+  TierId.express => l10n.tierExpressSpeed,
+  TierId.standard => l10n.tierStandardSpeed,
+  TierId.onTheWay => l10n.tierOnTheWaySpeed,
+  TierId.eco => l10n.tierEcoSpeed,
+};
+
 /// The relative-price caption under the meter (`Highest price` … `Lowest
 /// price`). Ordered by [TierCatalogMark.priceLevel]; Standard and On-the-Way
 /// share a level but not a wording, so this stays its own switch.

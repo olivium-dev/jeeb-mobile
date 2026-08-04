@@ -9,7 +9,9 @@ import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 void main() {
   group('TierSelectionCubit — load', () {
     blocTest<TierSelectionCubit, TierSelectionState>(
-      'hydrates the catalog without preselecting the recommended tier',
+      // MIDNIGHT R9 / doc-13 P0-4 reverses the old "nothing is pre-selected"
+      // rule: the board loads with the recommended tier already lit.
+      'preselects the recommended tier on load',
       build: () => TierSelectionCubit(repository: const FakeTierRepository()),
       act: (cubit) => cubit.load(),
       expect: () => [
@@ -24,13 +26,23 @@ void main() {
           (s) =>
               s.status == TierSelectionStatus.loaded &&
               s.tiers.length == FakeTierRepository.defaultCatalog.length &&
-              s.selectedTierId == null &&
-              s.canConfirm == false &&
+              s.selectedTierId == TierId.standard &&
+              s.canConfirm == true &&
               s.failure == null,
-          'lands on loaded with no customer selection',
+          'lands on loaded with the recommended tier selected',
         ),
       ],
     );
+
+    test('leaves the selection null when no tier is flagged recommended', () async {
+      final cubit = TierSelectionCubit(
+        repository: const _SingleTierRepository(TierId.standard),
+      );
+      addTearDown(cubit.close);
+      await cubit.load();
+      expect(cubit.state.selectedTierId, isNull);
+      expect(cubit.state.canConfirm, isFalse);
+    });
 
     blocTest<TierSelectionCubit, TierSelectionState>(
       'surfaces the failure instead of serving the fallback catalog (JEBV4-300)',
@@ -128,7 +140,11 @@ void main() {
     });
 
     test('confirm is a no-op when nothing is selected', () async {
-      final cubit = TierSelectionCubit(repository: const FakeTierRepository());
+      // A catalog with no recommended tier is now the only way to reach the
+      // "nothing selected" state after a successful load.
+      final cubit = TierSelectionCubit(
+        repository: const _SingleTierRepository(TierId.standard),
+      );
       addTearDown(cubit.close);
       await cubit.load();
       expect(cubit.state.selectedTierId, isNull);
