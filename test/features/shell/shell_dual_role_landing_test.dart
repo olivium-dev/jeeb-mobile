@@ -141,10 +141,6 @@ void main() {
       _harness(prefs: prefs, availableRoles: const ['client', 'jeeber']),
     );
     await tester.pumpAndSettle();
-    // Home's in-memory repo resolves behind a 150ms fake-latency timer that
-    // schedules no frame; advance past it so none is left pending.
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.pumpAndSettle();
 
     // The LIVE jeeber dashboard body is the on-screen (onstage) tab — i.e. the
     expect(
@@ -172,8 +168,6 @@ void main() {
     await tester.pumpWidget(
       _harness(prefs: prefs, availableRoles: const ['client']),
     );
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     // The client Requests home is the on-screen tab.
@@ -236,8 +230,6 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
 
     final handle = tester.ensureSemantics();

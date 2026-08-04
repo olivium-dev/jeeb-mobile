@@ -32,6 +32,8 @@ void main() {
     expect(find.byType(ShellScreen), findsOneWidget);
     expect(find.byType(Scaffold), findsWidgets);
 
+    // Delivery tab's DioOrderRepository.fetchPage leaves a pending Dio timer;
+    // drain it. NOT the home repo, which no longer delays at all.
     await tester.pump(const Duration(milliseconds: 200));
   });
 }

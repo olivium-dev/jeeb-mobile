@@ -2,11 +2,13 @@ import '../domain/client_home_repository.dart';
 import '../domain/client_home_request.dart';
 import '../domain/recent_delivery_summary.dart';
 
+/// `latency` defaults to zero: a non-zero delay here is a FRAMELESS timer that
+/// `pumpAndSettle` never advances to, so callers that want it must opt in.
 class InMemoryClientHomeRepository implements ClientHomeRepository {
   InMemoryClientHomeRepository({
     List<ClientHomeRequest>? seedActive,
     List<RecentDeliverySummary>? seedRecent,
-    Duration latency = const Duration(milliseconds: 150),
+    Duration latency = Duration.zero,
   }) : _snapshot = ClientHomeSnapshot(
          inProgress: seedActive ?? const [],
          recentDeliveries: seedRecent ?? const [],
@@ -15,7 +17,7 @@ class InMemoryClientHomeRepository implements ClientHomeRepository {
 
   InMemoryClientHomeRepository.fromSnapshot(
     ClientHomeSnapshot snapshot, {
-    Duration latency = const Duration(milliseconds: 150),
+    Duration latency = Duration.zero,
   }) : _snapshot = snapshot,
        _latency = latency;
 
@@ -24,7 +26,7 @@ class InMemoryClientHomeRepository implements ClientHomeRepository {
 
   @override
   Future<ClientHomeSnapshot> loadSnapshot() async {
-    await Future<void>.delayed(_latency);
+    if (_latency > Duration.zero) await Future<void>.delayed(_latency);
     return _snapshot;
   }
 }

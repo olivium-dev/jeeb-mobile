@@ -199,10 +199,6 @@ void main() {
         _addCleanup(built);
         await tester.pumpWidget(_harness(built));
         await tester.pumpAndSettle();
-        // Home's in-memory repo resolves behind a 150ms fake-latency timer that
-        // schedules no frame; advance past it so none is left pending.
-        await tester.pump(const Duration(milliseconds: 200));
-        await tester.pumpAndSettle();
 
         expect(
           find.byType(ShellScreen),
@@ -283,10 +279,6 @@ void main() {
         _addCleanup(built);
         await tester.pumpWidget(_harness(built));
         await tester.pumpAndSettle();
-        // Home's in-memory repo resolves behind a 150ms fake-latency timer that
-        // schedules no frame; advance past it so none is left pending.
-        await tester.pump(const Duration(milliseconds: 200));
-        await tester.pumpAndSettle();
 
         expect(find.byType(ShellScreen), findsOneWidget);
         expect(_location(built), '/');
@@ -301,10 +293,6 @@ void main() {
         final built = await _buildRouter(onboardingCompleted: true);
         _addCleanup(built);
         await tester.pumpWidget(_harness(built));
-        await tester.pumpAndSettle();
-        // Home's in-memory repo resolves behind a 150ms fake-latency timer that
-        // schedules no frame; advance past it so none is left pending.
-        await tester.pump(const Duration(milliseconds: 200));
         await tester.pumpAndSettle();
 
         expect(find.byType(ShellScreen), findsOneWidget);
