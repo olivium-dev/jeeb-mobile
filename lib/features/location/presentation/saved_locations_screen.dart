@@ -51,13 +51,24 @@ String _defaultBadgeLabel(Locale locale) =>
     locale.languageCode == 'ar' ? 'الافتراضي' : 'Default';
 
 class SavedLocationsScreen extends StatelessWidget {
-  const SavedLocationsScreen({super.key, this.repository});
+  const SavedLocationsScreen({super.key, this.repository, this.cubit});
 
   /// Injectable for widget tests; production resolves via DI.
   final SavedLocationRepository? repository;
 
+  /// Seam for a pre-seeded cubit, the same one [KycWizardScreen] exposes. The
+  /// mutation overlay is otherwise unreachable from a still catalog frame.
+  final SavedLocationsCubit? cubit;
+
   @override
   Widget build(BuildContext context) {
+    final SavedLocationsCubit? provided = cubit;
+    if (provided != null) {
+      return BlocProvider<SavedLocationsCubit>.value(
+        value: provided,
+        child: const _SavedLocationsView(),
+      );
+    }
     return BlocProvider(
       create: (_) => SavedLocationsCubit(repository ?? _resolveRepository())
         ..load(),
@@ -266,8 +277,28 @@ class _LocationList extends StatelessWidget {
             ),
           ],
         ),
-        if (isMutating) const Center(child: CircularProgressIndicator()),
+        if (isMutating) const Center(child: _MutationMark()),
       ],
+    );
+  }
+}
+
+/// The delete / set-default overlay. Not a [JeebEmptyState]: the list stays on
+/// screen underneath, and the smallest §2.7 form is 150px of illustration.
+class _MutationMark extends StatelessWidget {
+  const _MutationMark();
+
+  @override
+  Widget build(BuildContext context) {
+    // Was UNTINTED, so the ring inked `colorScheme.primary` — #D73B00 under
+    // Midnight, the brightest thing on a screen that is only waiting.
+    return SizedBox(
+      width: Sizes.xLarge,
+      height: Sizes.xLarge,
+      child: CircularProgressIndicator(
+        strokeWidth: UIConstants.strokeWidthNormal,
+        color: JeebSurfaceTone.of(context).mutedInk,
+      ),
     );
   }
 }

@@ -14,6 +14,7 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
@@ -24,6 +25,7 @@ import '../application/kyc_status_poll_controller.dart';
 import '../application/kyc_wizard_cubit.dart';
 import '../application/kyc_wizard_state.dart';
 import '../domain/kyc_submission.dart';
+import 'widgets/kyc_state_art.dart';
 import 'widgets/kyc_status_marks.dart';
 
 /// Terminal-state view for the wizard: pending, approved, or rejected (JM-042).
@@ -181,7 +183,19 @@ class _KycStatusViewState extends State<KycStatusView>
       builder: (context, state) {
         final Widget body;
         if (state.isLoadingStatus) {
-          body = const Center(child: OmdsLoadingState());
+          body = Center(
+            child: SingleChildScrollView(
+              child: JeebEmptyState(
+                identifier: 'kyc_status_loading',
+                variant: kycStateVariant,
+                medallions: kycStateMedallions,
+                status: JeebEmptyStateStatus.loading,
+                // TODO(midnight): l10n-queued `kycStatusLoadingHeadline`; the
+                // gate's key is the only shipped string for this exact read.
+                headline: l10n.offerKycGateStatusChecking,
+              ),
+            ),
+          );
         } else {
           body = _bodyFor(context, state, l10n);
         }

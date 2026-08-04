@@ -1070,6 +1070,481 @@ void main() {
     });
   });
 
+  group('JeebEmptyState · the skeleton follows ITS OWN variant', () {
+    /// The loading tree draws exactly one vector: the skeleton.
+    RenderObject skeleton(WidgetTester tester) =>
+        tester.renderObject(inState(CustomPaint));
+
+    Future<void> pumpLoading(
+      WidgetTester tester,
+      JeebEmptyStateVariant variant, {
+      List<JeebEmptyMedallion>? medallions,
+    }) async {
+      await tester.pumpWidget(
+        wrap(
+          JeebEmptyState(
+            headline: 'Loading',
+            variant: variant,
+            status: JeebEmptyStateStatus.loading,
+            medallions: medallions,
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Color ink(double alpha) => JeebMidnight.ink.withValues(alpha: alpha);
+
+    const Map<JeebEmptyStateVariant, Size> boards =
+        <JeebEmptyStateVariant, Size>{
+          JeebEmptyStateVariant.e1: Size(300, 280),
+          JeebEmptyStateVariant.radar: Size(300, 300),
+          JeebEmptyStateVariant.street: Size(300, 260),
+          JeebEmptyStateVariant.parcel: Size(270, 250),
+          JeebEmptyStateVariant.pocket: Size(300, 270),
+          JeebEmptyStateVariant.balcony: Size(300, 270),
+          JeebEmptyStateVariant.beacon: Size(300, 270),
+        };
+
+    for (final MapEntry<JeebEmptyStateVariant, Size> board in boards.entries) {
+      testWidgets(
+          '${board.key} LOADS its own ${board.value.width.toInt()}x'
+          '${board.value.height.toInt()} board, never a borrowed one',
+          (tester) async {
+        await pumpLoading(tester, board.key);
+        final Size loading = tester.getSize(inState(FittedBox).first);
+
+        await tester.pumpWidget(
+          wrap(
+            JeebEmptyState(headline: 'Empty', variant: board.key),
+            disableAnimations: true,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // A skeleton on the wrong board morphs into a different shape the
+        // moment the data lands.
+        expect(loading.width, 288);
+        expect(
+          loading.height,
+          closeTo(288 * board.value.height / board.value.width, 0.01),
+        );
+        expect(loading, tester.getSize(inState(FittedBox).first));
+      });
+    }
+
+    testWidgets('E1 keeps the halo, the dot ring, its Ø94 centre and 4 discs',
+        (tester) async {
+      await pumpLoading(tester, JeebEmptyStateVariant.e1);
+
+      expect(
+        skeleton(tester),
+        paints
+          ..circle(
+            x: 150,
+            y: 140,
+            radius: 132,
+            color: ink(0.07),
+            strokeWidth: 1.5,
+            style: PaintingStyle.stroke,
+          )
+          ..path(color: ink(0.16), strokeWidth: 1.5)
+          ..circle(
+            x: 150,
+            y: 140,
+            radius: 47,
+            color: JeebMidnight.glassFillEmphasis,
+            style: PaintingStyle.fill,
+          )
+          ..circle(
+            x: 150,
+            y: 140,
+            radius: 47,
+            color: JeebMidnight.glassBorderStrong,
+            strokeWidth: 1,
+          )
+          ..circle(x: 64, y: 76, radius: 27, color: JeebMidnight.glassFill)
+          ..circle(x: 64, y: 76, radius: 27, color: JeebMidnight.glassBorder)
+          ..circle(x: 236, y: 82, radius: 27, color: JeebMidnight.glassFill)
+          ..circle(x: 236, y: 82, radius: 27, color: JeebMidnight.glassBorder)
+          ..circle(x: 60, y: 204, radius: 27, color: JeebMidnight.glassFill)
+          ..circle(x: 60, y: 204, radius: 27, color: JeebMidnight.glassBorder)
+          ..circle(x: 238, y: 198, radius: 27, color: JeebMidnight.glassFill)
+          ..circle(x: 238, y: 198, radius: 27, color: JeebMidnight.glassBorder),
+      );
+      // 1 halo + 2 centre + 2×4 discs; the dot ring is a path.
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 11));
+    });
+
+    testWidgets('the radar loads a RADAR: 3 rings, a Ø58 core, THREE discs',
+        (tester) async {
+      await pumpLoading(tester, JeebEmptyStateVariant.radar);
+
+      expect(
+        skeleton(tester),
+        paints
+          ..circle(
+            x: 150,
+            y: 150,
+            radius: 149.5,
+            color: ink(0.12),
+            strokeWidth: 1,
+          )
+          ..circle(x: 150, y: 150, radius: 107.5, color: ink(0.20))
+          ..circle(x: 150, y: 150, radius: 65.5, color: ink(0.32))
+          ..circle(
+            x: 150,
+            y: 150,
+            radius: 29,
+            color: JeebMidnight.glassFillEmphasis,
+          )
+          ..circle(
+            x: 150,
+            y: 150,
+            radius: 29,
+            color: JeebMidnight.glassBorderStrong,
+          )
+          ..circle(x: 56, y: 92, radius: 18, color: JeebMidnight.glassFill)
+          ..circle(x: 56, y: 92, radius: 18, color: JeebMidnight.glassBorder)
+          ..circle(x: 238, y: 138, radius: 18, color: JeebMidnight.glassFill)
+          ..circle(x: 238, y: 138, radius: 18, color: JeebMidnight.glassBorder)
+          ..circle(x: 92, y: 230, radius: 18, color: JeebMidnight.glassFill)
+          ..circle(x: 92, y: 230, radius: 18, color: JeebMidnight.glassBorder),
+      );
+      // 3 rings + 2 core + 2×3 discs, and NOT a fourth medallion.
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 11));
+      // E1's halo, its Ø94 centre and its dotted ring belong to E1 alone.
+      expect(skeleton(tester), isNot(paints..circle(radius: 132)));
+      expect(skeleton(tester), isNot(paints..circle(radius: 47)));
+      expect(skeleton(tester), isNot(paints..circle(radius: 27)));
+      expect(skeleton(tester), isNot(paints..path()));
+    });
+
+    testWidgets('street and parcel invent NO discs', (tester) async {
+      await pumpLoading(tester, JeebEmptyStateVariant.street);
+      expect(
+        skeleton(tester),
+        paints
+          ..circle(
+            x: 150,
+            y: 128,
+            radius: 122,
+            color: ink(0.07),
+            strokeWidth: 1.5,
+          )
+          ..circle(
+            x: 149,
+            y: 150,
+            radius: 47,
+            color: JeebMidnight.glassFillEmphasis,
+          )
+          ..circle(
+            x: 149,
+            y: 150,
+            radius: 47,
+            color: JeebMidnight.glassBorderStrong,
+          ),
+      );
+      // One ring + the centre pair. Four medallions would be eight more.
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 3));
+      expect(skeleton(tester), isNot(paints..circle(color: JeebMidnight.glassFill)));
+
+      await pumpLoading(tester, JeebEmptyStateVariant.parcel);
+      expect(
+        skeleton(tester),
+        paints
+          ..circle(
+            x: 135,
+            y: 125,
+            radius: 125,
+            color: ink(0.07),
+            strokeWidth: 1,
+          )
+          ..circle(
+            x: 135,
+            y: 130,
+            radius: 17,
+            color: JeebMidnight.glassFillEmphasis,
+          )
+          ..circle(
+            x: 135,
+            y: 130,
+            radius: 17,
+            color: JeebMidnight.glassBorderStrong,
+          ),
+      );
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 3));
+      expect(skeleton(tester), isNot(paints..circle(color: JeebMidnight.glassFill)));
+    });
+
+    testWidgets('pocket, balcony and beacon each load their own centre size',
+        (tester) async {
+      await pumpLoading(tester, JeebEmptyStateVariant.pocket);
+      expect(
+        skeleton(tester),
+        paints
+          ..circle(x: 150, y: 135, radius: 120, color: ink(0.07))
+          ..path(color: ink(0.13), strokeWidth: 1.5)
+          ..circle(
+            x: 150,
+            y: 86,
+            radius: 24,
+            color: JeebMidnight.glassFillEmphasis,
+          ),
+      );
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 3));
+
+      await pumpLoading(tester, JeebEmptyStateVariant.balcony);
+      expect(
+        skeleton(tester),
+        paints
+          ..circle(
+            x: 173,
+            y: 117,
+            radius: 25,
+            color: JeebMidnight.glassFillEmphasis,
+          )
+          ..circle(
+            x: 173,
+            y: 117,
+            radius: 25,
+            color: JeebMidnight.glassBorderStrong,
+          ),
+      );
+      // Sample B draws no still ring, so its skeleton must not borrow one.
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 2));
+
+      await pumpLoading(tester, JeebEmptyStateVariant.beacon);
+      expect(
+        skeleton(tester),
+        paints
+          ..circle(
+            x: 150,
+            y: 112,
+            radius: 36,
+            color: JeebMidnight.glassFillEmphasis,
+          )
+          ..circle(
+            x: 150,
+            y: 112,
+            radius: 36,
+            color: JeebMidnight.glassBorderStrong,
+          ),
+      );
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 2));
+    });
+
+    testWidgets('a skeleton carries no colour identity beyond the glass rungs',
+        (tester) async {
+      for (final JeebEmptyStateVariant variant
+          in JeebEmptyStateVariant.values) {
+        await pumpLoading(tester, variant);
+        // Every stroke and fill is ink or white at some alpha — an accent at
+        // ANY alpha (E2's rings, E4's mic, the amber lamp) is identity.
+        expect(
+          skeleton(tester),
+          paints
+            ..everything((Symbol method, List<dynamic> arguments) {
+              for (final Object? argument in arguments) {
+                if (argument is! Paint) {
+                  continue;
+                }
+                final int opaque =
+                    argument.color.withValues(alpha: 1).toARGB32();
+                if (opaque != JeebMidnight.ink.toARGB32() &&
+                    opaque != 0xFFFFFFFF) {
+                  return false;
+                }
+              }
+              return true;
+            }),
+          reason: '$variant',
+        );
+        for (final Color hue in const <Color>[
+          JeebMidnight.orange,
+          JeebMidnight.orangeBright,
+          JeebMidnight.orangeSoft,
+          JeebMidnight.amber,
+          JeebMidnight.danger,
+          JeebMidnight.inkMuted,
+        ]) {
+          expect(
+            skeleton(tester),
+            isNot(paints..circle(color: hue)),
+            reason: '$variant · $hue',
+          );
+        }
+        // Still one breathing layer, and none of the lit tile's motion.
+        expect(inState(JBreathe), findsOneWidget);
+        expect(inState(JTwinkle), findsNothing);
+        expect(inState(JArcPulse), findsNothing);
+        expect(inState(JFloat), findsNothing);
+        expect(inState(JHalo), findsNothing);
+        expect(inState(JDashedPath), findsNothing);
+        expect(inState(JWaveBar), findsNothing);
+      }
+    });
+
+    testWidgets('the disc count follows the CALLER, capped at the anchors',
+        (tester) async {
+      // The wallet composes E1 with no medallions at all: loading four discs
+      // it never draws is the shape-change lanes reported.
+      await pumpLoading(
+        tester,
+        JeebEmptyStateVariant.e1,
+        medallions: const <JeebEmptyMedallion>[],
+      );
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 3));
+      expect(skeleton(tester), isNot(paints..circle(color: JeebMidnight.glassFill)));
+
+      await pumpLoading(
+        tester,
+        JeebEmptyStateVariant.e1,
+        medallions: const <JeebEmptyMedallion>[
+          JeebEmptyMedallion.art(JeebEmptyMedallionArt.gift),
+          JeebEmptyMedallion.art(JeebEmptyMedallionArt.medicine),
+        ],
+      );
+      // 1 halo + 2 centre + 2×2 discs, and the anchors keep their order.
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 7));
+      expect(
+        skeleton(tester),
+        paints
+          ..circle(radius: 132)
+          ..circle(radius: 47)
+          ..circle(radius: 47)
+          ..circle(x: 64, y: 76, radius: 27)
+          ..circle(x: 64, y: 76, radius: 27)
+          ..circle(x: 236, y: 82, radius: 27),
+      );
+
+      // Five letters on a three-anchor radar still load three.
+      await pumpLoading(
+        tester,
+        JeebEmptyStateVariant.radar,
+        medallions: const <JeebEmptyMedallion>[
+          JeebEmptyMedallion.letter('K'),
+          JeebEmptyMedallion.letter('N'),
+          JeebEmptyMedallion.letter('R'),
+          JeebEmptyMedallion.letter('Z'),
+          JeebEmptyMedallion.letter('A'),
+        ],
+      );
+      expect(skeleton(tester), paintsExactlyCountTimes(#drawCircle, 11));
+    });
+  });
+
+  group('JeebEmptyState · the centre slot', () {
+    testWidgets('pocket honours a custom centre at Ø48, and it still floats',
+        (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState(
+            headline: 'Nothing here',
+            variant: JeebEmptyStateVariant.pocket,
+            center: Placeholder(key: ValueKey<String>('pocket-centre')),
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey<String>('pocket-centre')), findsOneWidget);
+      expect(tester.getSize(find.byType(Placeholder)).width, closeTo(48, 0.01));
+      expect(
+        find.descendant(
+          of: inState(JFloat),
+          matching: find.byType(Placeholder),
+        ),
+        findsOneWidget,
+      );
+      // The drawn orange mic is GONE — a read-only surface must not sprout one.
+      for (final RenderObject layer
+          in tester.renderObjectList(inState(CustomPaint))) {
+        expect(
+          layer,
+          isNot(
+            paints..circle(x: 150, y: 86, radius: 24, color: JeebMidnight.orange),
+          ),
+        );
+      }
+    });
+
+    testWidgets('beacon honours a custom centre at Ø72; halo and arcs stay',
+        (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState(
+            headline: 'Say it — they come',
+            variant: JeebEmptyStateVariant.beacon,
+            center: Placeholder(key: ValueKey<String>('beacon-centre')),
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey<String>('beacon-centre')), findsOneWidget);
+      expect(tester.getSize(find.byType(Placeholder)).width, closeTo(72, 0.01));
+      expect(inState(JHalo), findsOneWidget);
+      expect(inState(JArcPulse), findsNWidgets(6));
+      for (final RenderObject layer
+          in tester.renderObjectList(inState(CustomPaint))) {
+        expect(
+          layer,
+          isNot(paints..circle(x: 150, y: 112, radius: 36)),
+        );
+      }
+    });
+
+    testWidgets('the drawn mic survives when no centre is passed',
+        (tester) async {
+      for (final (JeebEmptyStateVariant variant, double x, double y, double r)
+          in const <(JeebEmptyStateVariant, double, double, double)>[
+        (JeebEmptyStateVariant.pocket, 150, 86, 24),
+        (JeebEmptyStateVariant.beacon, 150, 112, 36),
+      ]) {
+        await tester.pumpWidget(
+          wrap(
+            JeebEmptyState(headline: 'Empty', variant: variant),
+            disableAnimations: true,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.renderObjectList(inState(CustomPaint)),
+          anyElement(paints..circle(x: x, y: y, radius: r)),
+          reason: '$variant',
+        );
+      }
+    });
+
+    testWidgets('street and balcony have no centre subject to replace',
+        (tester) async {
+      for (final JeebEmptyStateVariant variant in <JeebEmptyStateVariant>[
+        JeebEmptyStateVariant.street,
+        JeebEmptyStateVariant.balcony,
+      ]) {
+        await tester.pumpWidget(
+          wrap(
+            JeebEmptyState(
+              headline: 'Empty',
+              variant: variant,
+              center: const Placeholder(),
+            ),
+            disableAnimations: true,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(Placeholder), findsNothing, reason: '$variant');
+      }
+    });
+  });
+
   group('JeebEmptyState · reduce motion', () {
     for (final JeebEmptyStateVariant variant in JeebEmptyStateVariant.values) {
       testWidgets('$variant settles under reduce motion', (tester) async {

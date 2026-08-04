@@ -273,10 +273,8 @@ Set<Marker> trackingDestinationMarkers(
 /// straight screen segments between the pickup and drop-off points the gateway
 /// supplies (road-network routing is deferred post-pilot).
 ///
-/// redesign-2026-08: dotted, round-capped navy (`tpl 757`). [routeColor] is an
-/// optional named parameter so the existing pure-function tests compile
-/// unchanged; the widget passes `colorScheme.primary`, which is why this file
-/// holds no colour literal.
+/// redesign-2026-08: dotted, round-capped (`tpl 757`), inked by the caller's
+/// `colorScheme.primary` — under Midnight that is ORANGE, never the board navy.
 Set<Polyline> trackingPolylines(
   DeliveryTrackingInfo info, {
   Color? routeColor,

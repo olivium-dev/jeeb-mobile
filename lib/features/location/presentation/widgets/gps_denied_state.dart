@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
+/// The capture-location recovery surface when the OS refuses the GPS fix.
+///
+/// MIDNIGHT M4: was a hand-built `Icon` + `textTheme.titleMedium` /
+/// `bodyMedium` column — the last live light-theme type in this feature. It is
+/// now §2.7's error form on `radar`: the sweep looking for a signal it cannot
+/// get is literally this state, it is the location subtree's variant
+/// (`saved_locations`, `address_detail_form`), and under
+/// [JeebEmptyStateStatus.error] the tile's own rings and core take the danger
+/// tint that the retired `colorScheme.error` glyph used to carry alone.
 class GpsDeniedState extends StatelessWidget {
   const GpsDeniedState({super.key, this.onOpenSettings});
 
@@ -14,63 +25,31 @@ class GpsDeniedState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     return Center(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.xLarge,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildIcon(colorScheme),
-            const SizedBox(height: Spacing.medium),
-            _buildTitle(context, l10n),
-            const SizedBox(height: Spacing.xSmall),
-            _buildBody(context, l10n, colorScheme),
-            const SizedBox(height: Spacing.large),
-            _buildCta(l10n),
-          ],
+      // The widget is handed short slots (a 200pt map card, landscape) that a
+      // 300px board cannot fit; scrolling is what keeps it from overflowing.
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          identifier: 'capture_location_gps_denied',
+          variant: JeebEmptyStateVariant.radar,
+          // No discs: radar's default K/N/R jeeber initials mean nothing here,
+          // and an EMPTY ring is exactly the state — nothing is in range.
+          medallions: const <JeebEmptyMedallion>[],
+          status: JeebEmptyStateStatus.error,
+          headline: l10n.captureLocationGpsDeniedTitle,
+          body: l10n.captureLocationGpsDeniedBody,
+          action: Semantics(
+            identifier: 'capture_location_gps_denied_cta',
+            container: true,
+            button: true,
+            child: JeebCtaButton.primary(
+              label: l10n.captureLocationGpsDeniedOpenSettings,
+              expand: false,
+              onTap: onOpenSettings,
+            ),
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildIcon(ColorScheme colorScheme) {
-    return Icon(
-      Icons.location_off_rounded,
-      size: Sizes.fiveXLarge,
-      color: colorScheme.error,
-    );
-  }
-
-  Widget _buildTitle(BuildContext context, AppLocalizations l10n) {
-    return Text(
-      l10n.captureLocationGpsDeniedTitle,
-      style: Theme.of(context).textTheme.titleMedium,
-      textAlign: TextAlign.center,
-    );
-  }
-
-  Widget _buildBody(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme colorScheme,
-  ) {
-    return Text(
-      l10n.captureLocationGpsDeniedBody,
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-      textAlign: TextAlign.center,
-    );
-  }
-
-  Widget _buildCta(AppLocalizations l10n) {
-    return OmdsPrimaryButton(
-      text: l10n.captureLocationGpsDeniedOpenSettings,
-      isEnabled: onOpenSettings != null,
-      onTap: () => onOpenSettings?.call(),
     );
   }
 }

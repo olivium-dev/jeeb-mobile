@@ -8,6 +8,7 @@ import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_meter.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -19,6 +20,7 @@ import '../application/kyc_wizard_state.dart';
 import '../domain/kyc_gateway.dart';
 import 'kyc_status_view.dart';
 import 'widgets/kyc_identity_step.dart';
+import 'widgets/kyc_state_art.dart';
 import 'widgets/kyc_submitting_view.dart';
 
 /// Hosts the KYC identity wizard at `/profile/kyc` (route name `kyc-status`).
@@ -268,11 +270,17 @@ class _SchemaLoadingView extends StatelessWidget {
     if (hasError) {
       return _SchemaErrorView(l10n: l10n);
     }
-    // OmdsLoadingState defaults its spinner to `colorScheme.primary`, which is
-    // the brand orange under Midnight; a cold-start spinner is not live.
     return Center(
-      child: OmdsLoadingState(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          identifier: 'kyc_wizard_schema_loading',
+          variant: kycStateVariant,
+          medallions: kycStateMedallions,
+          status: JeebEmptyStateStatus.loading,
+          // TODO(midnight): l10n-queued `kycSchemaLoadingHeadline`. The top bar
+          // already says "Become a Jeeber", so the title cannot be repeated.
+          headline: l10n.accountStatusLoadingHeadline,
+        ),
       ),
     );
   }
@@ -285,34 +293,26 @@ class _SchemaErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Center(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.xLarge,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n.kycErrorSchemaLoadFailed,
-              textAlign: TextAlign.center,
-              style: context.jeebText.body.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          identifier: 'kyc_wizard_schema_error',
+          variant: kycStateVariant,
+          medallions: kycStateMedallions,
+          status: JeebEmptyStateStatus.error,
+          // TODO(midnight): l10n-queued — this one key carries both sentences,
+          // so it stands as the headline verbatim rather than being split here.
+          headline: l10n.kycErrorSchemaLoadFailed,
+          action: Semantics(
+            identifier: 'kyc_wizard_retry_cta',
+            container: true,
+            button: true,
+            child: JeebCtaButton.outline(
+              label: l10n.kycRetry,
+              expand: false,
+              onTap: () => context.read<KycWizardCubit>().loadSchema(),
             ),
-            const SizedBox(height: Spacing.medium),
-            Semantics(
-              identifier: 'kyc_wizard_retry_cta',
-              container: true,
-              button: true,
-              child: JeebCtaButton.outline(
-                label: l10n.kycRetry,
-                expand: false,
-                onTap: () => context.read<KycWizardCubit>().loadSchema(),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

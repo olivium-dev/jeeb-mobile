@@ -448,14 +448,16 @@ class PendingReconnectBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // OMDS: OmdsLoadingState replaces CircularProgressIndicator (OMDS-only policy).
+          // M4/Q2: §2.7 has no sub-compact form and the kit is frozen, so the
+          // one-line banner keeps a role-tinted mark. Ruling pending.
           OmdsLoadingState(size: Sizes.medium, color: roles.onWarningContainer),
           const SizedBox(width: Spacing.xSmall),
           Text(
             l10n.pendingTabReconnecting,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: roles.onWarningContainer),
+            key: const Key('pending-reconnect-label'),
+            style: context.jeebText.caption.copyWith(
+              color: roles.onWarningContainer,
+            ),
           ),
         ],
       ),

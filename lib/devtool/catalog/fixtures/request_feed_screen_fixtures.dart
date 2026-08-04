@@ -1,5 +1,7 @@
 // Designed states for the Jeeber request feed (`RequestFeedScreen`) — ONE
 
+import 'dart:async';
+
 import '../../../features/jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../../features/jeeber_request_feed/cubit/request_feed_state.dart';
 import '../../../features/jeeber_request_feed/data/dev_jeeber_feed_fixtures.dart';
@@ -60,6 +62,35 @@ class ErrorRequestFeedRepository implements RequestFeedRepository {
   @override
   Future<RequestActionOutcome> decline(String id) async =>
       RequestActionOutcome.networkError;
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// The cold read that never comes back, so the screen holds its `loading`
+/// branch — the M4 skeleton state, which had no catalog entry before.
+class StalledRequestFeedRepository implements RequestFeedRepository {
+  const StalledRequestFeedRepository();
+
+  @override
+  Stream<DeliveryRequest> get requests => const Stream<DeliveryRequest>.empty();
+
+  @override
+  Stream<FeedTransportUpdate> get transport async* {
+    yield const FeedTransportUpdate(FeedTransport.webSocket);
+  }
+
+  @override
+  Future<List<DeliveryRequest>> refresh() =>
+      Completer<List<DeliveryRequest>>().future;
+
+  @override
+  Future<RequestActionOutcome> accept(String id) async =>
+      RequestActionOutcome.accepted;
+
+  @override
+  Future<RequestActionOutcome> decline(String id) async =>
+      RequestActionOutcome.declined;
 
   @override
   Future<void> dispose() async {}

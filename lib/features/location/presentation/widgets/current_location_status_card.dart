@@ -147,6 +147,7 @@ class _Resolving extends StatelessWidget {
   Widget build(BuildContext context) {
     // The host card publishes its own meta ink, so rest glass and the selected
     // emphasis fill each get the right muted step with nothing to remember.
+    // M4: this row IS the sanctioned inline wait — muted ink, never `primary`.
     final ink = JeebSurfaceTone.of(context).mutedInk;
     return Semantics(
       identifier: 'current_location_gps_resolving',

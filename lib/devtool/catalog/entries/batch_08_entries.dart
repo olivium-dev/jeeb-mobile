@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -38,9 +40,14 @@ Widget _onboardingPreview(
 Widget _orderHistoryScreen(
   OrderRepository repository, {
   OrderHistoryTab initialTab = OrderHistoryTab.active,
+  Future<void> Function(OrderHistoryCubit cubit)? drive,
 }) {
   return BlocProvider<OrderHistoryCubit>(
-    create: (_) => OrderHistoryCubit(repository: repository),
+    create: (_) {
+      final OrderHistoryCubit cubit = OrderHistoryCubit(repository: repository);
+      if (drive != null) unawaited(drive(cubit));
+      return cubit;
+    },
     child: OrderHistoryScreen(initialTab: initialTab),
   );
 }
@@ -174,6 +181,15 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
           CatalogState(
             'Active — Loading',
             (_) => _orderHistoryScreen(const OrderHistoryScreenStalledOrders()),
+          ),
+          CatalogState(
+            'Active — Loading next page',
+            (_) => _orderHistoryScreen(
+              OrderHistoryScreenPaginatingOrders(
+                OrderHistoryScreenOrders.activePopulated,
+              ),
+              drive: driveOrderHistoryToNextPage,
+            ),
           ),
         ],
       ),

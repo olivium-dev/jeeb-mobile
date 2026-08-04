@@ -151,6 +151,21 @@ class KycWizardScreenPreviewFixtures {
     error: KycWizardError.schemaLoadFailed,
   );
 
+  /// M4: the status view's own `isLoadingStatus` branch, which no other state
+  /// reaches — `statusCubit` resolves its read before the first frame.
+  static const KycWizardState statusLoadingState = KycWizardState(
+    step: KycWizardStep.status,
+    isLoadingStatus: true,
+  );
+
+  /// M4: one capture tile mid-compress, the only route to its trailing
+  /// in-line wait mark.
+  static KycWizardState captureProcessingState({
+    KycCaptureSlot slot = KycCaptureSlot.idBack,
+  }) =>
+      identityState(idFrontCaptured: true, tosAccepted: true)
+          .copyWith(capturing: slot);
+
   /// A real [KycWizardCubit] parked on [seed], with every production transition
   /// still live.
   static KycWizardCubit seededCubit(

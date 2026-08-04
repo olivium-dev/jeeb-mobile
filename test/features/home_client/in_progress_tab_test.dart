@@ -41,6 +41,12 @@ Widget _harness({
     localizationsDelegates: const [
       SyncAppLocalizationsDelegate(),
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(
       body: BlocProvider(
         create: (_) => ClientHomeCubit(
@@ -470,6 +476,10 @@ void main() {
           locale: const Locale('en'),
           supportedLocales: const [Locale('en'), Locale('ar')],
           localizationsDelegates: const [SyncAppLocalizationsDelegate()],
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: child!,
+          ),
           routerConfig: router,
         ),
       );

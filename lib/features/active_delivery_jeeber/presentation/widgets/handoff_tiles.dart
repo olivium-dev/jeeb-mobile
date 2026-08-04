@@ -25,6 +25,14 @@ const double _kTileGlyphSize = 22;
 /// Evidence-tile corner radius — MIDNIGHT measures ~15, which snaps to `md`.
 const double _kTileRadius = JeebRadii.md;
 
+/// Ring stroke of an inline wait mark — the frozen kit's own in-button value
+/// (`jeeb_cta_button`, `jeeb_chat_composer`).
+const double _kMarkStroke = 2;
+
+/// Test handle for the proof-photo upload mark: the tile's `Semantics` sits
+/// above an `ExcludeSemantics`, so an `identifier:` here would be dropped.
+const Key kProofPhotoUploadingKey = Key('mark_delivered_proof_photo.uploading');
+
 /// Dash length / gap of the note tile's 1.5px dashed frame (`tpl 1073`).
 const double _kDashLength = 5;
 const double _kDashGap = 4;
@@ -179,14 +187,8 @@ class _ProofPhotoTile extends StatelessWidget {
                 children: [
                   if (captured) _thumbnail(),
                   Center(
-                    // Sized down explicitly: the default is a Ø48 spinner
-                    // inside 20pt padding, which is 88 tall and overflows an
-                    // h86 tile.
                     child: uploading
-                        ? const OmdsLoadingState(
-                            size: Sizes.xLarge,
-                            padding: EdgeInsets.zero,
-                          )
+                        ? _uploadingMark(context)
                         : _label(context, captured: captured),
                   ),
                 ],
@@ -204,6 +206,19 @@ class _ProofPhotoTile extends StatelessWidget {
       return Image.memory(data, fit: BoxFit.cover);
     }
     return OmdsCachedImage(url: delivery.proofPhotoUrl!, fit: BoxFit.cover);
+  }
+
+  /// The wait mark takes the camera glyph's own slot — same Ø22, same muted
+  /// ink. `OmdsLoadingState` left the ring untinted, i.e. `primary` = orange.
+  Widget _uploadingMark(BuildContext context) {
+    return SizedBox.square(
+      key: kProofPhotoUploadingKey,
+      dimension: _kTileGlyphSize,
+      child: CircularProgressIndicator(
+        strokeWidth: _kMarkStroke,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    );
   }
 
   Widget _label(BuildContext context, {required bool captured}) {

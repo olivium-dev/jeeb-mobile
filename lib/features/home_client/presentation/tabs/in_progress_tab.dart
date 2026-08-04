@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
@@ -119,6 +121,8 @@ class _InProgressLoading extends StatelessWidget {
   }
 }
 
+/// Same `parcel` subject as the empty arm, danger-tinted — the failure is of
+/// the parcel list, so the tile must not change identity between states.
 class _InProgressError extends StatelessWidget {
   const _InProgressError({required this.onRetry});
 
@@ -127,17 +131,27 @@ class _InProgressError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsErrorState(
+    return JeebEmptyState(
       key: const Key('in-progress-error'),
-      icon: Icons.cloud_off_outlined,
-      title: l10n.homeLoadFailedTitle,
-      message: l10n.homeErrorRetry,
-      retryLabel: l10n.homeLoadFailedRetry,
-      onRetry: onRetry,
+      variant: JeebEmptyStateVariant.parcel,
+      status: JeebEmptyStateStatus.error,
+      identifier: 'in_progress_error_state',
+      headline: l10n.homeLoadFailedTitle,
+      body: l10n.homeErrorRetry,
+      action: IntrinsicWidth(
+        child: JeebCtaButton.primary(
+          label: l10n.homeLoadFailedRetry,
+          identifier: 'in_progress_retry_cta',
+          expand: false,
+          onTap: onRetry,
+        ),
+      ),
     );
   }
 }
 
+/// E4 `parcel` — an in-progress row IS a parcel in flight, so its absence is
+/// the empty box, not E1's "bring me anything" (that is the Pending tab's).
 class _InProgressEmpty extends StatelessWidget {
   const _InProgressEmpty({required this.onCreateRequest});
 
@@ -146,13 +160,22 @@ class _InProgressEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsEmptyState(
+    return JeebEmptyState(
       key: const Key('in-progress-empty'),
-      icon: Icons.local_shipping_outlined,
-      title: l10n.homeEmptyTitle,
-      subtitle: l10n.homeInProgressEmpty,
-      buttonText: l10n.homeEmptyCta,
-      onButtonTap: onCreateRequest,
+      variant: JeebEmptyStateVariant.parcel,
+      identifier: 'in_progress_empty_state',
+      headline: l10n.homeEmptyTitle,
+      body: l10n.homeInProgressEmpty,
+      headlineIdentifier: 'in_progress_empty_title',
+      bodyIdentifier: 'in_progress_empty_body',
+      action: IntrinsicWidth(
+        child: JeebCtaButton.primary(
+          label: l10n.homeEmptyCta,
+          identifier: 'in_progress_create_cta',
+          expand: false,
+          onTap: onCreateRequest,
+        ),
+      ),
     );
   }
 }
@@ -325,7 +348,7 @@ Widget inProgressTabTwoRows() => _inProgressTabHosted(
     );
 
 /// AC2: nothing in flight.
-/// The `OmdsEmptyState` here is the tab's *whole* surface — icon, title,
+/// The `JeebEmptyState` here is the tab's *whole* surface — E4 parcel, headline,
 @JeebPreview(
   group: 'home_client',
   name: 'Empty · no active deliveries',

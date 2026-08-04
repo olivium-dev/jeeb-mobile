@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../data/location_repository.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -32,7 +35,8 @@ class LocationSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final hasQuery = query.trim().isNotEmpty;
     final showResults = hasQuery && (results.isNotEmpty || !isSearching);
 
@@ -48,20 +52,20 @@ class LocationSearchBar extends StatelessWidget {
         ),
         if (isSearching)
           Padding(
-            padding: const EdgeInsets.only(top: Spacing.small),
+            padding: const EdgeInsetsDirectional.only(top: Spacing.small),
             child: LinearProgressIndicator(
               minHeight: 2,
-              color: colorScheme.primary,
-              backgroundColor: colorScheme.surfaceContainerHighest,
+              // Was `colorScheme.primary` — #D73B00 under Midnight, i.e. a
+              // 2px orange bar for a query nobody has answered yet.
+              color: semantic.mutedText,
+              backgroundColor: semantic.glassFillPressed,
             ),
           ),
         if (showResults)
           Padding(
-            padding: const EdgeInsets.only(top: Spacing.small),
-            child: Material(
-              color: colorScheme.surfaceContainerLowest,
-              elevation: 1,
-              borderRadius: OmdsBorderRadius.uiMedium,
+            padding: const EdgeInsetsDirectional.only(top: Spacing.small),
+            child: JeebOutlinedCard(
+              padding: EdgeInsetsDirectional.zero,
               child: _ResultsList(
                 results: results,
                 emptyLabel: emptyResultsLabel,
@@ -87,28 +91,28 @@ class _ResultsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     if (results.isEmpty) {
+      // One row inside a dropdown, so no §2.7 block fits; the Material type
+      // scale is what the M4 sweep replaces here.
       return Padding(
-        padding: const EdgeInsets.all(Spacing.medium),
+        padding: const EdgeInsetsDirectional.all(Spacing.medium),
         child: Text(
-          emptyLabel ?? 'No matches',
-          style: textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
+          emptyLabel ?? AppLocalizations.of(context).locationSearchEmpty,
+          style: context.jeebText.body.copyWith(color: semantic.mutedText),
         ),
       );
     }
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
+      padding: EdgeInsetsDirectional.zero,
       itemCount: results.length,
       separatorBuilder: (_, _) => Divider(
         height: 1,
         thickness: 0.5,
-        color: colorScheme.outlineVariant,
+        color: semantic.glassBorder,
       ),
       itemBuilder: (context, index) {
         final point = results[index];
@@ -130,26 +134,24 @@ class _ResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
+        padding: const EdgeInsetsDirectional.symmetric(
           horizontal: Spacing.medium,
           vertical: Spacing.small,
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.place_outlined,
-              color: colorScheme.primary,
-              size: 20,
-            ),
+            // Was `colorScheme.primary`: an orange pin on every result row.
+            Icon(Icons.place_outlined, color: semantic.mutedText, size: 20),
             const SizedBox(width: Spacing.small),
             Expanded(
               child: Text(
                 point.address ?? '${point.latitude}, ${point.longitude}',
-                style: textTheme.bodyMedium?.copyWith(
+                style: context.jeebText.body.copyWith(
                   color: colorScheme.onSurface,
                 ),
                 maxLines: 1,

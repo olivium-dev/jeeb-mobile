@@ -21,6 +21,7 @@ import '../../../features/jeeber_active_deliveries/domain/active_delivery_summar
 import '../../../features/jeeber_active_deliveries/presentation/active_deliveries_banner.dart';
 import '../../../features/jeeber_home/application/availability_cubit.dart';
 import '../../../features/jeeber_home/presentation/jeeber_home_screen.dart';
+import '../../../features/jeeber_home/presentation/widgets/jeeber_feed_empty_view.dart';
 import '../../../features/jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../fixtures/jeeber_home_screen_fixtures.dart';
 import '../../../features/jeeber_onboarding/presentation/dm_onboarding_screen.dart';
@@ -167,6 +168,15 @@ final CatalogEntry _clientHomeEntry = CatalogEntry(
         initialTab: ClientHomeTab.inProgress,
       ),
     ),
+    // M4: "Empty (no requests)" pins the Pending tab, so the In Progress empty
+    // arm had no capture until this entry. Appended so no index shifts.
+    CatalogState(
+      'Empty (no active deliveries)',
+      (_) => _clientHome(
+        repository: ClientHomeScreenPreviewFixtures.empty(),
+        initialTab: ClientHomeTab.inProgress,
+      ),
+    ),
   ],
 );
 
@@ -294,6 +304,18 @@ final CatalogEntry _jeeberHomeEntry = CatalogEntry(
       'Load error (retry)',
       (_) => _jeeberHomeRegistered(
         availability: JeeberHomeScreenPreviewFixtures.failingAvailability(),
+      ),
+    ),
+    // M4: appended, not inserted — the capture filenames are index-keyed. This
+    // is the ONLY mount of `JeeberFeedEmptyView` and it had no capture.
+    CatalogState(
+      'Dev feed — empty view (JeeberFeedEmptyView)',
+      (_) => const Scaffold(
+        // Its `OmdsSwitchTile` needs a Material ancestor; the capture harness
+        // mounts a builder directly, not inside a screen.
+        body: JeeberFeedEmptyView(
+          profileName: JeeberHomeScreenPreviewFixtures.profileName,
+        ),
       ),
     ),
   ],

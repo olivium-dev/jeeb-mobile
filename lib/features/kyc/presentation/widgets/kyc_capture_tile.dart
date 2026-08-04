@@ -279,12 +279,17 @@ class KycCaptureTile extends StatelessWidget {
     bool isActiveState,
   ) {
     if (isProcessing) {
+      // Row-trailing wait: §2.7 has no sub-compact form and the kit is frozen,
+      // so this is the sanctioned inline mark — muted ink, never `primary`.
       return Padding(
         padding: const EdgeInsetsDirectional.only(start: Spacing.small),
-        child: OmdsLoadingState(
-          size: Sizes.large,
-          padding: EdgeInsets.zero,
-          color: semantic.mutedText,
+        child: SizedBox(
+          width: Sizes.large,
+          height: Sizes.large,
+          child: CircularProgressIndicator(
+            strokeWidth: UIConstants.strokeWidthNormal,
+            color: semantic.mutedText,
+          ),
         ),
       );
     }

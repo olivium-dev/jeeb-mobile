@@ -124,7 +124,7 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
         proofPhotoUrl: proofPhotoUrl,
       );
 
-  // ── The four states the Screen Catalog names ──────────────────────────────
+  // ── The five states the Screen Catalog names ──────────────────────────────
 
   /// En route with the parcel: the stepper drops its inline advance button and
   /// the mark-delivered panel takes over the journey to Done (JM-051).
@@ -155,6 +155,14 @@ abstract final class ActiveDeliveryJeeberScreenFixtures {
   static const ActiveDeliveryState loadFailed = ActiveDeliveryState(
     mode: ActiveDeliveryMode.error,
     errorMessage: loadErrorMessage,
+  );
+
+  /// M4: proof photo mid-upload. The only frame that draws the evidence tile's
+  /// inline wait mark — no other catalog state reaches it.
+  static final ActiveDeliveryState proofPhotoUploading = ActiveDeliveryState(
+    mode: ActiveDeliveryMode.ready,
+    delivery: delivery(status: JeeberDeliveryStatus.inTransit),
+    proofPhotoStatus: ProofPhotoStatus.uploading,
   );
 
   // ── Preview-only states (the catalog never covered these) ─────────────────

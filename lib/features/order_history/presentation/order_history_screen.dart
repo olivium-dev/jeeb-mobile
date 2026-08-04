@@ -419,15 +419,9 @@ class _OrderTabViewState extends State<_OrderTabView>
             separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
             itemBuilder: (context, index) {
               if (index >= tabState.orders.length) {
-                return Padding(
-                  key: const Key('order-history-loading-more'),
-                  padding: const EdgeInsets.symmetric(vertical: Spacing.medium),
-                  child: Center(
-                    child: tabState.status == OrderTabStatus.loadingNextPage
-                        ? const OmdsLoadingState()
-                        : const SizedBox.shrink(),
-                  ),
-                );
+                return tabState.status == OrderTabStatus.loadingNextPage
+                    ? const _NextPageWait()
+                    : const SizedBox.shrink();
               }
               final order = tabState.orders[index];
               void openDetail() => context.push(
@@ -451,6 +445,35 @@ class _OrderTabViewState extends State<_OrderTabView>
           ),
         );
       },
+    );
+  }
+}
+
+/// The next-page wait, in the SAME `parcel` subject and the same breathing
+/// skeleton as this screen's three page states — a footer is a smaller wait,
+/// not a second loading idiom.
+class _NextPageWait extends StatelessWidget {
+  const _NextPageWait();
+
+  /// The parcel orbit — 1px of white at 7% — is subpixel at every inline size,
+  /// so the kit's 150 buys 60px of footer over this and no more art.
+  static const double _illustrationSize = Sizes.tenXLarge;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      key: const Key('order-history-loading-more'),
+      padding: const EdgeInsets.symmetric(vertical: Spacing.medium),
+      child: JeebEmptyState.compact(
+        status: JeebEmptyStateStatus.loading,
+        variant: JeebEmptyStateVariant.parcel,
+        // TODO(midnight): l10n-queued `orderHistoryLoadingMore` — this is the
+        // COLD-load line; the footer wants "Loading more orders".
+        headline: l10n.orderHistoryLoadingHeadline,
+        identifier: 'order_history_loading_more',
+        illustrationSize: _illustrationSize,
+      ),
     );
   }
 }

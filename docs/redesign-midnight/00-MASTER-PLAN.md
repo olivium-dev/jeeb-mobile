@@ -395,8 +395,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M3-44 `dev_chat_preview_screen.dart` (148, debug-gated — style if kept) — dev chat preview (debug-gated) @2026-08-04 · [x] M3-45 `voice_request_screen.dart` (28, shim — verify delegate covers it) — voice request shim — verified pass-through, ZERO product diff by design + a delegation-contract guard @2026-08-04
 
 ### M4/M5 sweeps
-- [ ] M4-1 State inventory built (grep methodology §4) → appended here as sub-items
-- [ ] M4-2 All states restyled; zero light-theme states
+- [x] M4-1 State inventory built — 5 independent search angles (widget-name, branch, light-theme-residue, kit, coverage) over all of lib/; **37+ non-conforming state surfaces**, each with file:line, kind, what it renders today, whether a catalog state reaches it, and a verdict. The coverage angle is what earned its keep: a large share were marked *no catalog entry*, i.e. invisible to every capture — exactly the class §4 said gets missed @2026-08-04
+- [x] M4-2 All reachable states restyled onto the §2.7 family; **captures 343/343 — the harness is fully green for the first time.** Kit `_skeleton()` now follows its variant's own geometry (was painting E1's 4-disc board for all seven) and disc count follows the caller; last capture red closed via `sqflite_common_ffi`. 7 inventory items were NOT restyled because their files are production-dead — see §8 Q-043 @2026-08-04
 - [ ] M5-1 Motion wiring per §2.6 · [ ] M5-2 Lottie audit on navy · [ ] M5-3 Reduced-motion pass
 
 ---
@@ -560,6 +560,8 @@ Seeded from doc-13 §4 — these survive into Midnight:
 
 41. [Q-041] (M3-04, kit — **safety-shaped, not cosmetic**) **The destructive CTA has no destructive ink.** `JeebCtaButton._ink` hard-overwrites any `labelStyle` colour and the kit has no glass-pill + `onErrorContainer` rung, so a cancellation screen's terminal destructive act renders in plain `onSurface` — quieter than every affirmative CTA in the app. The lane refused both workarounds on principle: re-implementing `accentSelected` locally in a different hue is the Theme-swap class wave-A deleted, and a danger `selectedShadow` contradicts the wave-A "glow only where a tile draws it" ruling. **Recommend sanctioning a `JeebCtaButton.danger` rung** in the next kit lane. Until then a destructive action reads like a neutral one.
 42. [Q-042] (M3-01) Terminal order buckets render no identity band, so a delivered order's courier name and amount are on the fixture but not on screen. Extending the band there forces a product call — either duplicate the state ("Delivered" banner + "Delivered" band) or delete the banner body copy the frozen ids carry. Restructuring, not styling; not done.
+
+43. [Q-043] (M4) **THREE new ORPHAN candidates, evidence-complete, awaiting your ratification.** All three are production-dead at the presentation layer, proven by an import graph over lib/ + test/ (relative and package: imports both resolved): `delivery_status/presentation/**` (self-tagged in code; live twin is `live_tracking/`), `tier_selection/presentation/**` (an in-code note at `app_router.dart:1136-1140` records the route was removed as "a dead duplicate of /request-type"), and the `prohibited_acknowledgment` dialog (zero production callers; its repository is a registered-but-never-resolved DI singleton). Ruled: **not restyled** (dead code) and **not deleted yet** — deleting three features with a 10-catalog-state / 20+-test blast radius immediately before device validation is churn for no user-visible gain. On a delete ruling, KEEP `delivery_status/domain/jeeber_summary.dart` and `tier_selection/{cubit,data,domain}` — those are live.
 
 *(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
 

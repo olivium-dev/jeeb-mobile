@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
-import '../../../../core/theme/jeeb_color_roles.dart';
-import '../../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'jeeber_home_greeting.dart';
 
@@ -84,81 +81,32 @@ class JeeberUnregisteredView extends StatelessWidget {
   }
 }
 
+/// The upsell hero is the same "Empty ≠ dead" block the rest of the jeeber home
+/// draws: E3's night street — the parked scooter waiting to be ridden is
+/// literally what this screen is asking the user to become. The CTA stays in
+/// the docked footer (its two frozen ids live there), so the block passes none.
 class _UnregisteredHero extends StatelessWidget {
   const _UnregisteredHero();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.xLarge,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const _UnregisteredIllustration(),
-          const SizedBox(height: Spacing.twoXLarge),
-          Text(
-            l10n.jeeberRegisterTitle,
-            textAlign: TextAlign.center,
-            style: context.jeebText.h1.copyWith(color: colorScheme.primary),
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: JeebEmptyState(
+              identifier: 'jeeber_unregistered_empty_state',
+              variant: JeebEmptyStateVariant.street,
+              headline: l10n.jeeberRegisterTitle,
+              body: l10n.jeeberRegisterSubtitle,
+              // TODO(midnight): l10n-queued — `jeeberRegisterStreetSemantic`;
+              // this key still describes the retired scooter-from-phone glyph.
+              semanticLabel: l10n.jeeberRegisterHeroSemantic,
+            ),
           ),
-          const SizedBox(height: Spacing.xSmall),
-          Text(
-            l10n.jeeberRegisterSubtitle,
-            textAlign: TextAlign.center,
-            style: context.jeebText.body.copyWith(color: mutedInk),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UnregisteredIllustration extends StatelessWidget {
-  const _UnregisteredIllustration();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Semantics(
-      label: l10n.jeeberRegisterHeroSemantic,
-      image: true,
-      child: const _UnregisteredIllustrationArt(),
-    );
-  }
-}
-
-class _UnregisteredIllustrationArt extends StatelessWidget {
-  const _UnregisteredIllustrationArt();
-
-  @override
-  Widget build(BuildContext context) {
-    final semantics =
-        Theme.of(context).extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
-    return Container(
-      width: Sizes.twoHundredLarge,
-      height: Sizes.twoHundredLarge,
-      decoration: BoxDecoration(
-        // Sanctioned tokens: orange @12% tint + @30% ring. Same #D73B00 family
-        // as before, but the accent now reads as a halo around the glyph
-        // rather than an ad-hoc alpha fill (§4.1 — orange is rationed).
-        color: semantics.accentTint,
-        border: Border.all(color: semantics.accentRing),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.delivery_dining,
-        size: Sizes.elevenXLarge,
-        color: context.jeebRoles.accent,
+        ),
       ),
     );
   }

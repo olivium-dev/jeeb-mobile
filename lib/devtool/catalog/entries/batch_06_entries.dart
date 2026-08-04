@@ -181,6 +181,12 @@ final CatalogEntry _savedLocationsEntry = CatalogEntry(
         repository: SavedLocationsScreenFakeRepository([], failFetch: true),
       ),
     ),
+    // M4 — the mutation overlay was catalog-invisible: it needs a tap plus a
+    // write that never lands, so no still frame ever reached it.
+    CatalogState(
+      'Mutating — delete in flight (M4 inline wait)',
+      (_) => SavedLocationsScreen(cubit: SavedLocationsScreenMutatingCubit()),
+    ),
   ],
 );
 
@@ -239,6 +245,17 @@ final CatalogEntry _clientLocationEntry = CatalogEntry(
       (_) => const ClientLocationScreen(
         userId: ClientLocationScreenFixtures.userId,
         repository: ClientLocationScreenFixtures.savedAddressesUnavailable,
+        currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
+      ),
+    ),
+    // M4 — the cold read was catalog-invisible. `userId` is injected here, so
+    // the session-resolve gate one frame earlier stays out of reach; it renders
+    // the SAME block, so this capture covers both.
+    CatalogState(
+      'Cold load — saved addresses in flight (M4 loading)',
+      (_) => const ClientLocationScreen(
+        userId: ClientLocationScreenFixtures.userId,
+        repository: ClientLocationScreenFixtures.savedAddressesPending,
         currentLocationResolver: ClientLocationScreenFixtures.gpsResolved,
       ),
     ),

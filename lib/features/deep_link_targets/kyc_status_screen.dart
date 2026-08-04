@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../devtool/catalog/fixtures/kyc_status_screen_fixtures.dart';
 import '../../core/previews/jeeb_preview.dart';
+import '../../l10n/app_localizations.dart';
+import '../kyc/presentation/widgets/kyc_state_art.dart';
 
 class KycStatusScreen extends StatefulWidget {
   const KycStatusScreen({super.key});
@@ -22,14 +25,31 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: 'KYC Status coming soon. This screen is not yet available.',
-      child: const OmdsEmptyStatePage(
-        appBar: null,
-        icon: Icons.construction_outlined,
-        title: 'KYC Status coming soon',
-        subtitle: 'This screen is not yet available.',
+    final l10n = AppLocalizations.of(context);
+    // Deliberately still a STUB: `kycStatusPlaceholder` says the status will
+    // appear here, which is the honest reading of an unbuilt deep-link target.
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              child: JeebEmptyState(
+                // The same art the real KYC funnel draws, so the deep-link
+                // target and its destination read as one thing.
+                variant: kycStateVariant,
+                medallions: kycStateMedallions,
+                center: const KycStateMark(),
+                identifier: 'deep_link_kyc_status_root',
+                semanticLabel:
+                    '${l10n.kycStatusTitle}. ${l10n.kycStatusPlaceholder}',
+                headline: l10n.kycStatusTitle,
+                body: l10n.kycStatusPlaceholder,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

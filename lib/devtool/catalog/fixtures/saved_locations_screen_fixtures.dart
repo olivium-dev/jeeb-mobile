@@ -4,6 +4,8 @@ import 'dart:async';
 
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location_repository.dart';
+import 'package:jeeb_mobile/features/location/presentation/cubit/saved_locations_cubit.dart';
+import 'package:jeeb_mobile/features/location/presentation/cubit/saved_locations_state.dart';
 
 /// Canned [SavedLocationRepository] — reads return [locations], writes
 /// synthesize a row. No Dio, no GetIt, no network.
@@ -77,6 +79,20 @@ class SavedLocationsScreenPendingRepository
   @override
   Future<List<SavedLocation>> fetchSavedLocations() =>
       Completer<List<SavedLocation>>().future;
+}
+
+/// M4: the delete / set-default overlay, which no still frame reached before —
+/// it needed a tap plus a write that never lands. The real cubit over the
+/// canned repository, parked on `SavedLocationsMutating`.
+class SavedLocationsScreenMutatingCubit extends SavedLocationsCubit {
+  SavedLocationsScreenMutatingCubit()
+      : super(
+          const SavedLocationsScreenFakeRepository(
+            savedLocationsScreenHomeAndOffice,
+          ),
+        ) {
+    emit(const SavedLocationsMutating(savedLocationsScreenHomeAndOffice));
+  }
 }
 
 /// The `has_saved_addresses` seam seed (63_W1_TEST_PLAN §4.1): `Home` is the

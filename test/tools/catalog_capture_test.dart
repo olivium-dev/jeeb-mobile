@@ -16,10 +16,7 @@
 @Tags(<String>['capture'])
 library;
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -30,6 +27,7 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:omds/omds.dart';
 
 import '../support/load_test_fonts.dart';
+import '../support/midnight_test_harness.dart';
 import '../support/sync_app_localizations.dart';
 
 /// The design board's canvas. Matching it means a capture and a frame line up
@@ -39,8 +37,6 @@ const Size _kCanvas = Size(440, 956);
 /// Mounted as a child route so `context.canPop()` is TRUE, the way every
 /// catalog screen is really reached — pushed on top of something.
 const String _kCapturePath = '/capture';
-
-
 
 String _slug(String s) => s
     .toLowerCase()
@@ -70,20 +66,9 @@ void main() {
   // NAMES Inter but the faces are never loaded, so copy cannot be compared.
   setUpAll(loadCatalogCaptureFonts);
 
-  // A state seeding a network image reaches flutter_cache_manager, which asks
-  // path_provider for a cache dir and throws MissingPluginException. Stubbing
-  // it fixes the avatar states; one receipt state then hits sqflite's factory
-  // check, which no channel mock can satisfy — see 02-STUDY-NOTES, owned by M4.
-  setUpAll(() {
-    TestWidgetsFlutterBinding.ensureInitialized();
-    final Directory dir = Directory.systemTemp.createTempSync('jeeb_capture');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      (MethodCall call) async => dir.path,
-    );
-  });
+  // States seeding a network image (avatars, the receipt proof photo) reach
+  // flutter_cache_manager, which wants path_provider AND a sqflite factory.
+  setUpAll(stubNetworkImageCacheIo);
 
   for (final CatalogEntry entry in kScreenCatalog) {
     for (int i = 0; i < entry.states.length; i++) {
@@ -96,13 +81,9 @@ void main() {
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.reset);
 
-        // M0-4 ruling: Midnight motion primitives loop forever, so every
-        // capture is taken at the deterministic reduce-motion rest frame.
-        tester.platformDispatcher.accessibilityFeaturesTestValue =
-            const FakeAccessibilityFeatures(disableAnimations: true);
-        addTearDown(
-          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
-        );
+        // M0-4 ruling: every capture is taken at the deterministic
+        // reduce-motion rest frame.
+        useReduceMotion(tester);
 
         final GoRouter router = _captureRouter(state.builder);
         addTearDown(router.dispose);
@@ -116,28 +97,18 @@ void main() {
               debugShowCheckedModeBanner: false,
               theme: withCaptureTestFonts(AppTheme.midnight()),
               supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates:
-                  const <LocalizationsDelegate<Object?>>[
-                    SyncAppLocalizationsDelegate(),
-                    GlobalMaterialLocalizations.delegate,
-                    GlobalWidgetsLocalizations.delegate,
-                    GlobalCupertinoLocalizations.delegate,
-                  ],
+              localizationsDelegates: const <LocalizationsDelegate<Object?>>[
+                SyncAppLocalizationsDelegate(),
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
               routerConfig: router,
             ),
           ),
         );
 
-        // Reduce motion settles the tree on the first frame, so the clock has
-        // to be advanced before a fixture that loads behind a delay is drawn.
-        await tester.pump(const Duration(milliseconds: 400));
-        try {
-          await tester.pumpAndSettle(const Duration(milliseconds: 120));
-        } on Object {
-          for (int f = 0; f < 4; f++) {
-            await tester.pump(const Duration(milliseconds: 120));
-          }
-        }
+        await pumpPastFakeLatency(tester);
 
         await expectLater(
           find.byType(MaterialApp),

@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
-import '../../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'jeeber_home_greeting.dart';
@@ -136,45 +135,22 @@ class _AcceptOrdersRow extends StatelessWidget {
   }
 }
 
-/// An empty feed is not an error, so it gets no centred illustration slab:
-/// two start-aligned lines at the top of the white body, exactly where the
-/// first request card would appear. Byte-for-byte the treatment
-/// [JeeberNoRequestsView]'s `_NoRequestsEmpty` and the feed's `_EmptyTabState`
-/// already ship — one language per screen.
+/// "Empty ≠ dead" — E3's night street, the block every no-requests surface on
+/// the jeeber home already draws ([JeeberFeedEmptyBlock], the feed's own
+/// `_EmptyTabState`). One condition, one rendering.
 class _EmptyText extends StatelessWidget {
   const _EmptyText();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Spacing.xLarge,
-        Spacing.xLarge,
-        0,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            l10n.jeeberFeedEmptyTitle,
-            style: context.jeebText.titleProminent.copyWith(
-              color: colorScheme.primary,
-            ),
-          ),
-          const SizedBox(height: Spacing.xSmall),
-          Text(
-            l10n.jeeberFeedEmptySubtitle,
-            style: context.jeebText.bodySmall.copyWith(color: mutedInk),
-          ),
-        ],
+      padding: const EdgeInsetsDirectional.only(top: Spacing.xLarge),
+      child: JeebEmptyState(
+        identifier: 'jeeber_feed_empty_view_empty_state',
+        variant: JeebEmptyStateVariant.street,
+        headline: l10n.jeeberFeedEmptyTitle,
+        body: l10n.jeeberFeedEmptySubtitle,
       ),
     );
   }

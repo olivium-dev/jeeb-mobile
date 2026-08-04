@@ -3,6 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/features/shell/widgets/jeeber_tab_empty_state.dart';
 
 import '../preview_test_harness.dart';
@@ -38,8 +41,10 @@ void main() {
   );
 
   group('JeeberTabEmptyState preview specifics', () {
-    // The two production states are pixel-identical apart from the icon, so
-    testWidgets('each tab preview carries its own screen id and icon', (
+    // The two production states are pixel-identical, so only the frozen id
+    // separates them. M4 deleted the per-tab Material glyph: the invitation is
+    // ONE illustration, and a stock icon is not part of the §2.7 family.
+    testWidgets('each tab preview carries its own screen id', (
       WidgetTester tester,
     ) async {
       final SemanticsHandle handle = tester.ensureSemantics();
@@ -53,7 +58,7 @@ void main() {
         find.bySemanticsIdentifier(JeeberTabEmptyState.earningsIdentifier),
         findsNothing,
       );
-      expect(find.byIcon(Icons.two_wheeler_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.two_wheeler_outlined), findsNothing);
 
       await pumpPreview(tester, jeeberTabEmptyStateEarnings);
       expect(
@@ -64,9 +69,71 @@ void main() {
         find.bySemanticsIdentifier(JeeberTabEmptyState.dashboardIdentifier),
         findsNothing,
       );
-      expect(find.byIcon(Icons.payments_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.payments_outlined), findsNothing);
 
       handle.dispose();
+    });
+
+    // §2.7: the invitation is the LIT street tile — E3's parked scooter is the
+    // subject "you have not ridden yet", not a waiting radar or a parcel.
+    testWidgets('both production tabs draw the LIT street illustration', (
+      WidgetTester tester,
+    ) async {
+      for (final Widget Function() preview in <Widget Function()>[
+        jeeberTabEmptyStateDashboard,
+        jeeberTabEmptyStateEarnings,
+        jeeberTabEmptyStateCompactPhone,
+      ]) {
+        await pumpPreview(tester, preview);
+        final JeebEmptyState block =
+            tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+        expect(block.variant, JeebEmptyStateVariant.street);
+        expect(block.status, JeebEmptyStateStatus.empty);
+        expect(block.compact, isFalse);
+      }
+    });
+
+    // The override slot is a VARIANT now, so a caller can put the right subject
+    // on the block instead of swapping a glyph over the same drawing.
+    testWidgets('the override states pick their own subject', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberTabEmptyStateKycResubmit);
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).variant,
+        JeebEmptyStateVariant.parcel,
+      );
+
+      await pumpPreview(tester, jeeberTabEmptyStateKycPendingShortBody);
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).variant,
+        JeebEmptyStateVariant.radar,
+      );
+    });
+
+    // The shell paints no field of its own, so the tab body has to.
+    testWidgets('the tab body owns a still Midnight content field', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberTabEmptyStateDashboard);
+
+      final JeebMidnightField field =
+          tester.widget<JeebMidnightField>(find.byType(JeebMidnightField));
+      expect(field.variant, JeebFieldVariant.content);
+      expect(field.animateDecor, isFalse);
+    });
+
+    // The one act on the screen is the one orange thing on it.
+    testWidgets('the CTA is the kit accent pill, not a Material button', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, jeeberTabEmptyStateDashboard);
+
+      final JeebCtaButton cta =
+          tester.widget<JeebCtaButton>(find.byType(JeebCtaButton));
+      expect(cta.variant, JeebCtaVariant.accent);
+      expect(cta.identifier, JeeberTabEmptyState.ctaIdentifier);
+      expect(find.byType(JeebCtaButton), findsOneWidget);
     });
 
     // The compact state is the only one that is genuinely narrow: the width is
@@ -145,7 +212,7 @@ void main() {
         jeeberTabEmptyStateKycPendingShortBody,
       ]) {
         await pumpPreview(tester, preview);
-        await tester.tap(find.byType(FilledButton));
+        await tester.tap(find.byType(JeebCtaButton));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       }

@@ -1,29 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
 
 import '../../../core/previews/jeeb_preview.dart';
 
+/// M4 §2.7 `empty` on the LIT street tile: E3's parked scooter under a
+/// streetlamp is the invitation. The old `IconData` slot is gone with OMDS.
 class JeeberTabEmptyState extends StatelessWidget {
   const JeeberTabEmptyState({
     super.key,
     required this.identifier,
-    required this.icon,
+    this.variant = JeebEmptyStateVariant.street,
     this.title,
     this.subtitle,
   });
 
   const JeeberTabEmptyState.dashboard({super.key})
       : identifier = dashboardIdentifier,
-        icon = Icons.two_wheeler_outlined,
+        variant = JeebEmptyStateVariant.street,
         title = null,
         subtitle = null;
 
   const JeeberTabEmptyState.earnings({super.key})
       : identifier = earningsIdentifier,
-        icon = Icons.payments_outlined,
+        variant = JeebEmptyStateVariant.street,
         title = null,
         subtitle = null;
 
@@ -31,9 +35,13 @@ class JeeberTabEmptyState extends StatelessWidget {
 
   static const String earningsIdentifier = 'jeeber_earnings_empty_state';
 
+  /// Identifier on the CTA pill — the invitation's one act.
+  static const String ctaIdentifier = 'jeeber_tab_empty_state_cta';
+
   final String identifier;
 
-  final IconData icon;
+  /// Which §2.7 illustration composes the block. Defaults to the street.
+  final JeebEmptyStateVariant variant;
 
   final String? title;
 
@@ -42,17 +50,27 @@ class JeeberTabEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      container: true,
-      explicitChildNodes: true,
-      identifier: identifier,
-      child: Center(
-        child: OmdsEmptyState(
-          icon: icon,
-          title: title ?? l10n.becomeJeeberCardTitle,
-          subtitle: subtitle ?? l10n.becomeJeeberCardSubtitle,
-          buttonText: l10n.becomeJeeberCardCta,
-          onButtonTap: () => _openBecomeJeeber(context),
+    // The shell paints no field of its own (`shell_screen.dart`), so the tab
+    // body owns one — matching the live Dashboard/Earnings surfaces it replaces.
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      animateDecor: false,
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            child: JeebEmptyState(
+              variant: variant,
+              headline: title ?? l10n.becomeJeeberCardTitle,
+              body: subtitle ?? l10n.becomeJeeberCardSubtitle,
+              medallions: const <JeebEmptyMedallion>[],
+              identifier: identifier,
+              action: JeebCtaButton.accent(
+                label: l10n.becomeJeeberCardCta,
+                identifier: ctaIdentifier,
+                onTap: () => _openBecomeJeeber(context),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -82,7 +100,7 @@ Widget _jeeberTabEmptyStateHosted(Widget state, {double? width}) {
 /// The `title` / `subtitle` overrides take raw [String]s, not A
 Widget _jeeberTabEmptyStateWithCopy({
   required String identifier,
-  required IconData icon,
+  required JeebEmptyStateVariant variant,
   required String Function(AppLocalizations) title,
   required String Function(AppLocalizations) subtitle,
 }) {
@@ -91,7 +109,7 @@ Widget _jeeberTabEmptyStateWithCopy({
       final AppLocalizations l10n = AppLocalizations.of(context);
       return JeeberTabEmptyState(
         identifier: identifier,
-        icon: icon,
+        variant: variant,
         title: title(l10n),
         subtitle: subtitle(l10n),
       );
@@ -136,7 +154,8 @@ Widget jeeberTabEmptyStateCompactPhone() => _jeeberTabEmptyStateHosted(
 )
 Widget jeeberTabEmptyStateKycResubmit() => _jeeberTabEmptyStateWithCopy(
       identifier: JeeberTabEmptyState.earningsIdentifier,
-      icon: Icons.upload_file_outlined,
+      // Documents to send back — E4's open glass parcel box, not the street.
+      variant: JeebEmptyStateVariant.parcel,
       title: (AppLocalizations l10n) => l10n.kycStatusResubmitTitle,
       subtitle: (AppLocalizations l10n) => l10n.kycStatusResubmitBody,
     );
@@ -150,7 +169,8 @@ Widget jeeberTabEmptyStateKycResubmit() => _jeeberTabEmptyStateWithCopy(
 Widget jeeberTabEmptyStateKycPendingShortBody() =>
     _jeeberTabEmptyStateWithCopy(
       identifier: JeeberTabEmptyState.dashboardIdentifier,
-      icon: Icons.hourglass_top_outlined,
+      // Waiting on a reviewer to answer — E2's radar, per §2.7.
+      variant: JeebEmptyStateVariant.radar,
       title: (AppLocalizations l10n) => l10n.kycStatusPendingTitle,
       subtitle: (AppLocalizations l10n) => l10n.kycStatusPendingBody,
     );

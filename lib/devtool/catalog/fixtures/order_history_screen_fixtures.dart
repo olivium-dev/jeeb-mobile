@@ -2,6 +2,8 @@
 
 import 'dart:async';
 
+import '../../../features/order_history/application/order_history_cubit.dart';
+import '../../../features/order_history/application/order_history_state.dart';
 import '../../../features/order_history/domain/order_repository.dart';
 import '../../../features/order_history/domain/order_summary.dart';
 
@@ -64,6 +66,41 @@ class OrderHistoryScreenStalledOrders implements OrderRepository {
     OrderDateRange range = const OrderDateRange(),
   }) =>
       Completer<OrderPage>().future;
+}
+
+/// Page 1 lands, page 2 never does — the NEXT-page wait, which the cold-load
+/// fixtures cannot reach because they answer every page identically.
+class OrderHistoryScreenPaginatingOrders implements OrderRepository {
+  const OrderHistoryScreenPaginatingOrders(this.orders);
+
+  final List<OrderSummary> orders;
+
+  @override
+  Future<OrderPage> fetchPage({
+    required OrderHistoryTab tab,
+    required int page,
+    required int pageSize,
+    OrderDateRange range = const OrderDateRange(),
+  }) async {
+    if (page > 1) return Completer<OrderPage>().future;
+    return OrderPage(
+      items: orders
+          .where((OrderSummary order) => order.status.tab == tab)
+          .toList(growable: false),
+      page: page,
+      hasMore: true,
+    );
+  }
+}
+
+/// Drives [OrderHistoryCubit] to `loadingNextPage` the moment the first page
+/// settles: the catalog never scrolls, so the screen's own trigger never fires.
+Future<void> driveOrderHistoryToNextPage(OrderHistoryCubit cubit) async {
+  await cubit.stream.firstWhere(
+    (OrderHistoryState state) =>
+        state.currentTab.status == OrderTabStatus.ready,
+  );
+  await cubit.loadMore();
 }
 
 // ─────────────────────────────────────────────────────────────────────────

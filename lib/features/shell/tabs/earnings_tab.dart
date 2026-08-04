@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../earnings/application/earnings_cubit.dart';
 import '../../earnings/domain/earnings_repository.dart';
@@ -15,12 +16,22 @@ import '../../../core/previews/jeeb_preview.dart';
 import '../../earnings/domain/earnings_summary.dart';
 
 class EarningsTab extends StatelessWidget {
-  const EarningsTab({super.key});
+  const EarningsTab({super.key, this.sessionUserId});
+
+  /// Catalog / preview seam for the session read. `null` (every production call
+  /// site) resolves the real [AuthTokenStore]; a pending future pins the gate.
+  final Future<String?>? sessionUserId;
+
+  /// `find.bySemanticsIdentifier` handle on the session-read state.
+  static const String loadingIdentifier = 'earnings_tab_session_loading';
+
+  /// …and on the S0-OAD-03 fail-closed state.
+  static const String unavailableIdentifier = 'earnings_tab_unavailable';
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
-      future: _sessionUserId(),
+      future: sessionUserId ?? _sessionUserId(),
       builder: (context, snapshot) {
         final userId = snapshot.data;
         if (userId != null && userId.isNotEmpty) {
@@ -32,11 +43,26 @@ class EarningsTab extends StatelessWidget {
             child: const EarningsDashboardScreen(),
           );
         }
+        final l10n = AppLocalizations.of(context);
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: OmdsLoadingState());
+          return _EarningsGate(
+            child: JeebEmptyState(
+              variant: JeebEmptyStateVariant.radar,
+              status: JeebEmptyStateStatus.loading,
+              medallions: const <JeebEmptyMedallion>[],
+              identifier: loadingIdentifier,
+              headline: l10n.earningsLoadingHeadline,
+            ),
+          );
         }
-        return Center(
-          child: Text(AppLocalizations.of(context).earningsAccountUnavailable),
+        return _EarningsGate(
+          child: JeebEmptyState(
+            variant: JeebEmptyStateVariant.radar,
+            status: JeebEmptyStateStatus.error,
+            medallions: const <JeebEmptyMedallion>[],
+            identifier: unavailableIdentifier,
+            headline: l10n.earningsAccountUnavailable,
+          ),
         );
       },
     );
@@ -48,6 +74,27 @@ class EarningsTab extends StatelessWidget {
       if (id != null && id.isNotEmpty) return id;
     }
     return null;
+  }
+}
+
+/// The frame both gate arms share — the same field [EarningsDashboardScreen]
+/// paints, so resolving the session flashes no new background.
+class _EarningsGate extends StatelessWidget {
+  const _EarningsGate({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // `Center` is what fills the tab: without it the field's Stack shrink-wraps
+    // a short state and leaves the rest of the page unpainted.
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      animateDecor: false,
+      child: SafeArea(
+        child: Center(child: SingleChildScrollView(child: child)),
+      ),
+    );
   }
 }
 

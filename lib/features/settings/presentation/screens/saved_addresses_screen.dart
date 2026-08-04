@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
+
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 import '../../../../devtool/catalog/fixtures/saved_addresses_screen_fixtures.dart';
 
+/// M4 §2.7 `empty` on the balcony tile — the one tile that draws a home. Copy
+/// stays "coming soon": this screen is UNBUILT, not built-and-empty (Q7).
 class SavedAddressesScreen extends StatefulWidget {
   const SavedAddressesScreen({super.key});
+
+  /// `find.bySemanticsIdentifier` handle on the placeholder block.
+  static const String placeholderIdentifier = 'saved_addresses_placeholder';
 
   @override
   State<SavedAddressesScreen> createState() => _SavedAddressesScreenState();
@@ -14,6 +21,11 @@ class SavedAddressesScreen extends StatefulWidget {
 
 class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
   static const _featureId = 'saved-addresses';
+
+  // TODO(midnight): l10n-queued — `savedAddressesComingSoonTitle` /
+  // `savedAddressesComingSoonBody`. Copy kept verbatim so it stays reviewable.
+  static const _title = 'Saved Addresses coming soon';
+  static const _subtitle = 'This screen is not yet available.';
 
   @override
   void initState() {
@@ -23,14 +35,25 @@ class _SavedAddressesScreenState extends State<SavedAddressesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: 'Saved Addresses coming soon. This screen is not yet available.',
-      child: const OmdsEmptyStatePage(
-        appBar: null,
-        icon: Icons.construction_outlined,
-        title: 'Saved Addresses coming soon',
-        subtitle: 'This screen is not yet available.',
+    return const Scaffold(
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        animateDecor: false,
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              child: JeebEmptyState(
+                variant: JeebEmptyStateVariant.balcony,
+                headline: _title,
+                body: _subtitle,
+                medallions: <JeebEmptyMedallion>[],
+                identifier: SavedAddressesScreen.placeholderIdentifier,
+                semanticLabel: '$_title. $_subtitle',
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

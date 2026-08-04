@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/application/active_delivery_cubit.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
@@ -110,7 +111,7 @@ void main() {
         onCapture: () => captures += 1,
       );
 
-      expect(find.byType(OmdsLoadingState), findsOneWidget);
+      expect(find.byKey(kProofPhotoUploadingKey), findsOneWidget);
       expect(find.byIcon(Icons.photo_camera), findsNothing);
 
       await tester.tap(
@@ -118,6 +119,47 @@ void main() {
         warnIfMissed: false,
       );
       expect(captures, isZero, reason: 'an upload in flight is not re-tappable');
+    });
+
+    testWidgets('uploading: the wait mark is muted ink, never orange', (
+      tester,
+    ) async {
+      await _pump(tester, status: ProofPhotoStatus.uploading);
+
+      final ring = tester.widget<CircularProgressIndicator>(
+        find.descendant(
+          of: find.byKey(kProofPhotoUploadingKey),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+      );
+      expect(
+        ring.color?.toARGB32(),
+        AppTheme.midnightScheme.onSurfaceVariant.toARGB32(),
+        reason: 'the mark inherits the camera glyph it replaces',
+      );
+      expect(
+        AppTheme.midnightScheme.primary.toARGB32(),
+        JeebMidnight.orange.toARGB32(),
+        reason: 'under Midnight `primary` IS #D73B00 — the trap this guards',
+      );
+      expect(
+        ring.color?.toARGB32(),
+        isNot(AppTheme.midnightScheme.primary.toARGB32()),
+        reason: 'an untinted ring inks colorScheme.primary = #D73B00 orange',
+      );
+      expect(ring.strokeWidth, 2, reason: "the frozen kit's in-button stroke");
+    });
+
+    testWidgets('uploading: the mark sits on the glyph rung, not the h86 tile', (
+      tester,
+    ) async {
+      await _pump(tester, status: ProofPhotoStatus.uploading);
+
+      expect(
+        tester.getSize(find.byKey(kProofPhotoUploadingKey)),
+        const Size(22, 22),
+      );
+      expect(tester.takeException(), isNull, reason: 'no overflow in an h86');
     });
 
     testWidgets('captured: the thumbnail survives (JEBV4-200) with a check', (

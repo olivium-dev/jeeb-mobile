@@ -265,6 +265,14 @@ final CatalogEntry _requestFeedEntry = CatalogEntry(
         ),
       ),
     ),
+    // M4: appended, not inserted — the capture filenames are index-keyed. The
+    // cold-read skeleton had no entry, so no capture had ever shown it.
+    CatalogState(
+      'Loading — cold read in flight',
+      (_) => _RequestFeedPreview(
+        repositoryBuilder: () => const StalledRequestFeedRepository(),
+      ),
+    ),
   ],
 );
 
@@ -325,6 +333,46 @@ final CatalogEntry _kycWizardEntry = CatalogEntry(
             selfieCaptured: true,
             tosAccepted: true,
           ),
+        ),
+      ),
+    ),
+    // M4 — the four §2.7 states the six pass-1 fixtures never reached. Every
+    // KYC wait was catalog-invisible before this block.
+    CatalogState(
+      'Schema — cold form load in flight (M4 loading)',
+      (_) => KycWizardScreen(
+        cubit: KycWizardScreenPreviewFixtures.schemaLoadingCubit(),
+      ),
+    ),
+    CatalogState(
+      'Schema — form load failed, retry (M4 error)',
+      (_) => KycWizardScreen(
+        cubit: KycWizardScreenPreviewFixtures.seededCubit(
+          KycWizardScreenPreviewFixtures.schemaLoadFailedState,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Submitting — POST /v1/kyc/submit in flight (M4 loading)',
+      (_) => KycWizardScreen(
+        cubit: KycWizardScreenPreviewFixtures.seededCubit(
+          KycWizardScreenPreviewFixtures.submittingState,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Status — first read in flight (M4 loading)',
+      (_) => KycWizardScreen(
+        cubit: KycWizardScreenPreviewFixtures.seededCubit(
+          KycWizardScreenPreviewFixtures.statusLoadingState,
+        ),
+      ),
+    ),
+    CatalogState(
+      'Identity — ID back compressing (M4 inline wait)',
+      (_) => KycWizardScreen(
+        cubit: KycWizardScreenPreviewFixtures.seededCubit(
+          KycWizardScreenPreviewFixtures.captureProcessingState(),
         ),
       ),
     ),

@@ -207,7 +207,7 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
       future: _userIdFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(body: Center(child: OmdsLoadingState()));
+          return const _SessionResolveLoading();
         }
         // Empty string when the session has no stored id; the `me` route still
         // resolves identity from the bearer token, so the list loads correctly.
@@ -221,6 +221,53 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
           child: scaffold,
         );
       },
+    );
+  }
+}
+
+/// The cold-entry gate: the authenticated id has not resolved, so the create
+/// flow cannot be built yet. It is the SAME wait as [_CreateFlowLoading] one
+/// frame later, so it draws the same state — the only difference is that this
+/// one has to bring its own [JeebMidnightField], because there is no scaffold
+/// behind it yet.
+class _SessionResolveLoading extends StatelessWidget {
+  const _SessionResolveLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: _CreateFlowLoading(
+            identifier: 'client_location_session_loading',
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The create flow's §2.7 wait, on `e1` — "bring me anything" is this screen's
+/// own subject, and its already-migrated sibling `_SavedAddressesError` draws
+/// the same tile, so the cold frame and the failed frame are one family.
+class _CreateFlowLoading extends StatelessWidget {
+  const _CreateFlowLoading({this.identifier = 'client_location_loading'});
+
+  final String identifier;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          identifier: identifier,
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.savedAddressesLoadingHeadline,
+        ),
+      ),
     );
   }
 }
@@ -369,7 +416,7 @@ class _Body extends StatelessWidget {
     // a new point), so we render the affordances even on failure.
     if (state.status == LocationSelectStatus.initial ||
         state.status == LocationSelectStatus.loading) {
-      return const Center(child: OmdsLoadingState());
+      return const _CreateFlowLoading();
     }
     final currentSelected = legacyCurrentSelected ??
         (state.choiceKind == LocationChoiceKind.current ||

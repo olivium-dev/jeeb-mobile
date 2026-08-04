@@ -406,6 +406,49 @@ row does not ignite (no danger `accentSelected` rung exists — Q-041); glow alp
 derived screens (wave-D ruling: **do not patch per screen**, M6 surveys all 30 tiles); a screen with
 one content group leaves the lower half empty because no wire data exists for a second band.
 
+## M4 rulings (2026-08-04) — states sweep
+
+**The loading skeleton now follows its variant.** `_Illustration.build` had hard-coded
+`skeleton ? _e1ViewBox : …`, so every variant loaded E1's 300×280 four-disc board and then morphed
+into its real shape. Three lanes reported it independently across M2–M3 before it was closed. Two
+things fell out of the fix worth keeping: **disc count must follow the CALLER** (capped at the
+variant's anchors) — that was the wallet's four-disc bug, since it composes e1 with no medallions —
+and the skeleton painter needed a **per-variant id**, because with one shared id `shouldRepaint`
+kept a stale skeleton when the variant changed.
+
+**Last capture red closed; captures are 343/343.** `sqflite_common_ffi` as a dev-dependency +
+`databaseFactory = databaseFactoryFfi`. Three dead ends are recorded so nobody retries them:
+a MethodChannel mock cannot work (`sqflite_common` throws in the `databaseFactory` *getter*, before
+any channel call); `OmdsCachedImage` exposes no `cacheManager` seam and `flutter_cache_manager` has
+no global one; a hand-rolled `DatabaseFactory` fake is larger than the dependency and reaches into
+`src/`. **Also learned: this red was macOS-host-only** — `flutter_cache_manager` only uses sqflite on
+Android/iOS/macOS and CI is ubuntu, so CI never saw it. Worth remembering before chasing a local red.
+
+**MY ORCHESTRATION ERROR:** I built M4 inventory-first so the inventory would drive the fan-out, then
+fanned out over a **hardcoded directory list written before reading it**. Three dirs with 7 items got
+no lane. Rule going forward: **derive the fan-out grouping from the inventory's own output.**
+
+**THREE NEW ORPHAN CANDIDATES — ruled: do NOT restyle, do NOT delete yet (§8 Q-043).**
+The gap lane halted instead of restyling and proved all three production-dead with an import graph
+resolving relative *and* `package:` imports (a plain grep gives false negatives here):
+- `delivery_status/presentation/**` — self-tagged ORPHAN in code, prior audit, and the live twin
+  (`live_tracking/`) already ships the feature. `domain/jeeber_summary.dart` is LIVE — keep it.
+- `tier_selection/presentation/**` — corroborated by an in-code note at `app_router.dart:1136-1140`
+  recording that the legacy route was removed as "a dead duplicate of /request-type". Its
+  cubit/data/domain are LIVE via `request_type` — keep those.
+- `prohibited_acknowledgment` dialog — zero production callers; its repository is a
+  **registered-but-never-resolved** DI singleton.
+**Why not delete now:** deleting three features late, with a blast radius of 10 catalog states and
+20+ tests, adds churn immediately before M5/M6/M7 for zero user-visible gain. They are unreachable,
+so they cannot be a light-theme state a user sees. Queued for owner ratification.
+**M6 must not chase them:** their 7 items and 7 `colorScheme.primary` leaks are inside dead code and
+should be annotated, not fixed.
+**Also explained:** 2 of our 20 known-red tests are `tier_card_preview` failures confined to this
+dead file — one hard-pins light-theme literals, the other asserts `tertiaryContainer !=
+primaryContainer`, which is **false by design** under Midnight (both map to `orangeContainer`). The
+lane checked whether that was a live defect and it is not: the shipped `JeebTierRow` draws the badge
+as a solid accent pill, so the M1 kit already avoids the collision.
+
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
 | Screen | Ruling | Key evidence |

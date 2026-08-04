@@ -42,6 +42,12 @@ Widget _host(VoidCallback onRegister, {Locale locale = const Locale('en')}) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // MIDNIGHT M4: the upsell hero is now a `JeebEmptyState`, whose E3
+    // illustration loops ∞ — `pumpAndSettle` settles only under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(
       body: JeeberUnregisteredView(onRegister: onRegister, profileName: 'Kamal'),
     ),

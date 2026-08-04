@@ -108,6 +108,12 @@ class _DashboardFixture {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // MIDNIGHT M4: the unregistered gate this fixture pins now draws a
+    // `JeebEmptyState`, which loops ∞ — `pumpAndSettle` needs reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     routerConfig: router,
   );
 

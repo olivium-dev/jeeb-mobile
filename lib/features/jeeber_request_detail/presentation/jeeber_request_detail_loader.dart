@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
@@ -184,7 +184,20 @@ class JeeberRequestDetailLoadingView extends StatelessWidget {
                   title: l10n.jeeberRequestDetailTitle,
                   identifier: 'jeeber_request_detail_back',
                 ),
-                const Expanded(child: Center(child: OmdsLoadingState())),
+                Expanded(
+                  child: Center(
+                    child: JeebEmptyState(
+                      identifier: 'jeeber_request_detail_loading_state',
+                      status: JeebEmptyStateStatus.loading,
+                      // The subject being recovered IS the parcel/order.
+                      variant: JeebEmptyStateVariant.parcel,
+                      // TODO(midnight): l10n-queued —
+                      // `jeeberRequestDetailLoadingHeadline`; the bar title is
+                      // the neutral stand-in (pending-offers precedent).
+                      headline: l10n.jeeberRequestDetailTitle,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

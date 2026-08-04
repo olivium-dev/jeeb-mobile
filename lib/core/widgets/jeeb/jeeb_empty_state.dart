@@ -241,10 +241,16 @@ class JeebEmptyState extends StatelessWidget {
   /// Empty, loading or error.
   final JeebEmptyStateStatus status;
 
-  /// Replaces the centre disc of [JeebEmptyStateVariant.e1] (the mic),
-  /// [JeebEmptyStateVariant.radar] (the broadcast core) or
-  /// [JeebEmptyStateVariant.parcel] (the Ø34 mic inside the box). Everything
-  /// around it — halo, rings, arcs, waveform, box — stays.
+  /// Replaces the centre disc of [JeebEmptyStateVariant.e1] (the Ø94 mic),
+  /// [JeebEmptyStateVariant.radar] (the Ø58 broadcast core),
+  /// [JeebEmptyStateVariant.parcel] (the Ø34 mic in the box),
+  /// [JeebEmptyStateVariant.pocket] (the Ø48 floating mic, which keeps its
+  /// float) or [JeebEmptyStateVariant.beacon] (the Ø72 lighthouse mic).
+  /// Everything around it — halo, rings, arcs, waveform, box — stays.
+  ///
+  /// Ignored by [JeebEmptyStateVariant.street] and
+  /// [JeebEmptyStateVariant.balcony]: neither tile has a centre subject, and
+  /// while [status] is loading the skeleton is painted over the whole frame.
   final Widget? center;
 
   /// The ring medallions. Null uses [medallionsFor]; extra entries past the
@@ -442,6 +448,15 @@ const List<Offset> _medallionAnchors = <Offset>[
 const double _medallionRadius = 27;
 const double _medallionGlyph = 26;
 
+// ── E1 · lines 1637–1745 ──
+
+const Offset _e1Centre = Offset(150, 140);
+const double _e1HaloRadius = 132;
+const double _e1DotRingRadius = 97;
+
+/// The Ø94 mic disc — also E1's centre slot.
+const double _e1MicRadius = 47;
+
 // ── E2 · radar (board lines 1759–1774) ──
 
 const Offset _radarCentre = Offset(150, 150);
@@ -486,6 +501,14 @@ const List<Duration> _radarDiscDelays = <Duration>[
 ];
 
 // ── E3 · street (board lines 1817–1888) ──
+
+const Offset _streetHaloCentre = Offset(150, 128);
+const double _streetHaloRadius = 122;
+
+/// E3 draws no centre disc: the skeleton stands in for the parked scooter —
+/// wheelbase centre (x 102 → 196), half the wheelbase across.
+const Offset _streetSubjectCentre = Offset(149, 150);
+const double _streetSubjectRadius = 47;
 
 const Duration _streetLampPeriod = Duration(milliseconds: 3600);
 const Duration _streetArcPeriod = Duration(milliseconds: 2200);
@@ -539,6 +562,130 @@ const List<Duration> _sparkleLadderDelays = <Duration>[
 /// Inner-to-outer radius of the board's 4-point sparkle (3 / 11 diagonal).
 const double _starInnerRatio = 0.386;
 
+// ── Sample A · pocket (board lines 1933–1971) ──
+
+const Offset _pocketRingCentre = Offset(150, 135);
+const double _pocketHaloRadius = 120;
+const double _pocketDotRingRadius = 88;
+
+/// The Ø48 floating mic — Sample A's centre slot.
+const Offset _pocketMicCentre = Offset(150, 86);
+const double _pocketMicRadius = 24;
+
+// ── Sample B · balcony (board lines 1972–2025) ──
+
+/// Sample B has no centre disc either: the skeleton takes the request bubble's
+/// own 94×50 slot, inscribed.
+const Offset _balconyBubbleCentre = Offset(173, 117);
+const double _balconyBubbleRadius = 25;
+
+// ── Sample C · beacon (board lines 2026–2079) ──
+
+/// The Ø72 lighthouse mic — Sample C's centre slot.
+const Offset _beaconMicCentre = Offset(150, 112);
+const double _beaconMicRadius = 36;
+
+/// One still hairline of a skeleton, in its variant's own board units.
+@immutable
+class _SkeletonRing {
+  const _SkeletonRing(
+    this.centre,
+    this.radius,
+    this.alpha, {
+    this.width = 1.5,
+    this.dotted = false,
+  });
+
+  final Offset centre;
+  final double radius;
+
+  /// White alpha: a skeleton keeps the geometry and drops the colour identity.
+  final double alpha;
+  final double width;
+  final bool dotted;
+}
+
+/// What a variant's loading skeleton traces: the still rings THAT variant
+/// draws, the footprint of its centre subject, and its own disc anchors.
+@immutable
+class _Skeleton {
+  const _Skeleton({
+    required this.rings,
+    required this.centre,
+    required this.centreRadius,
+    this.discs = const <Offset>[],
+    this.discRadius = 0,
+  });
+
+  final List<_SkeletonRing> rings;
+  final Offset centre;
+  final double centreRadius;
+
+  /// Empty where the variant draws no medallions — E1's four are E1's alone.
+  final List<Offset> discs;
+  final double discRadius;
+}
+
+_Skeleton _skeletonFor(JeebEmptyStateVariant variant) => switch (variant) {
+  JeebEmptyStateVariant.e1 => const _Skeleton(
+    rings: <_SkeletonRing>[
+      _SkeletonRing(_e1Centre, _e1HaloRadius, 0.07),
+      _SkeletonRing(_e1Centre, _e1DotRingRadius, 0.16, dotted: true),
+    ],
+    centre: _e1Centre,
+    centreRadius: _e1MicRadius,
+    discs: _medallionAnchors,
+    discRadius: _medallionRadius,
+  ),
+  JeebEmptyStateVariant.radar => _Skeleton(
+    rings: <_SkeletonRing>[
+      for (int i = 0; i < _radarRingRadii.length; i++)
+        _SkeletonRing(
+          _radarCentre,
+          _radarRingRadii[i],
+          _radarRingAlphas[i],
+          width: 1,
+        ),
+    ],
+    centre: _radarCentre,
+    centreRadius: _radarCoreRadius,
+    discs: _radarAnchors,
+    discRadius: _radarDiscDiameter / 2,
+  ),
+  JeebEmptyStateVariant.street => const _Skeleton(
+    rings: <_SkeletonRing>[
+      _SkeletonRing(_streetHaloCentre, _streetHaloRadius, 0.07),
+    ],
+    centre: _streetSubjectCentre,
+    centreRadius: _streetSubjectRadius,
+  ),
+  JeebEmptyStateVariant.parcel => const _Skeleton(
+    rings: <_SkeletonRing>[
+      _SkeletonRing(_parcelCentre, _parcelRingRadius, 0.07, width: 1),
+    ],
+    centre: _parcelMicCentre,
+    centreRadius: _parcelMicRadius,
+  ),
+  JeebEmptyStateVariant.pocket => const _Skeleton(
+    rings: <_SkeletonRing>[
+      _SkeletonRing(_pocketRingCentre, _pocketHaloRadius, 0.07),
+      _SkeletonRing(_pocketRingCentre, _pocketDotRingRadius, 0.13, dotted: true),
+    ],
+    centre: _pocketMicCentre,
+    centreRadius: _pocketMicRadius,
+  ),
+  JeebEmptyStateVariant.balcony => const _Skeleton(
+    rings: <_SkeletonRing>[],
+    centre: _balconyBubbleCentre,
+    centreRadius: _balconyBubbleRadius,
+  ),
+  JeebEmptyStateVariant.beacon => const _Skeleton(
+    rings: <_SkeletonRing>[],
+    centre: _beaconMicCentre,
+    centreRadius: _beaconMicRadius,
+  ),
+};
+
 Paint _strokePaint(Color color, double width, [StrokeCap cap = StrokeCap.round]) =>
     Paint()
       ..style = PaintingStyle.stroke
@@ -573,7 +720,7 @@ class _Illustration extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool skeleton = status == JeebEmptyStateStatus.loading;
-    final Size viewBox = skeleton ? _e1ViewBox : _viewBoxFor(variant);
+    final Size viewBox = _viewBoxFor(variant);
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -598,13 +745,15 @@ class _Illustration extends StatelessWidget {
     );
   }
 
+  /// The skeleton is the VARIANT's own geometry, breathing — never E1's.
   List<Widget> _skeleton() => <Widget>[
     Positioned.fill(
       child: JBreathe(
         child: _vector(
-          'skeleton',
+          'skeleton-${variant.name}-${medallions.length}',
           ink,
-          (Canvas canvas) => _paintSkeleton(canvas, ink),
+          (Canvas canvas) =>
+              _paintSkeleton(canvas, ink, variant, medallions.length),
         ),
       ),
     ),
@@ -667,7 +816,13 @@ class _Illustration extends StatelessWidget {
     if (center == null)
       Positioned.fill(child: _vector('e1-mic', ink, (Canvas canvas) => _paintE1Mic(canvas, ink)))
     else
-      Positioned(left: 103, top: 93, width: 94, height: 94, child: center!),
+      Positioned(
+        left: _e1Centre.dx - _e1MicRadius,
+        top: _e1Centre.dy - _e1MicRadius,
+        width: _e1MicRadius * 2,
+        height: _e1MicRadius * 2,
+        child: center!,
+      ),
     Positioned.fill(
       child: JWaveBar(
         duration: const Duration(milliseconds: 1400),
@@ -947,18 +1102,24 @@ class _Illustration extends StatelessWidget {
     ),
     Positioned.fill(child: _vector('pocket-band', ink, (Canvas canvas) => _paintPocketBand(canvas, ink))),
     Positioned(
-      left: 126,
-      top: 62,
-      width: 48,
-      height: 48,
+      left: _pocketMicCentre.dx - _pocketMicRadius,
+      top: _pocketMicCentre.dy - _pocketMicRadius,
+      width: _pocketMicRadius * 2,
+      height: _pocketMicRadius * 2,
       child: JFloat(
         duration: const Duration(milliseconds: 3400),
-        child: _vector(
-          'pocket-mic',
-          ink,
-          (Canvas canvas) => _paintPocketMic(canvas, ink),
-          origin: const Offset(126, 62),
-        ),
+        // A replaced centre still floats: the mic leaving the pocket IS the
+        // tile's story, and a pasted-still mark reads as broken.
+        child: center ??
+            _vector(
+              'pocket-mic',
+              ink,
+              (Canvas canvas) => _paintPocketMic(canvas, ink),
+              origin: Offset(
+                _pocketMicCentre.dx - _pocketMicRadius,
+                _pocketMicCentre.dy - _pocketMicRadius,
+              ),
+            ),
       ),
     ),
     _Twinkle(
@@ -1074,7 +1235,16 @@ class _Illustration extends StatelessWidget {
         child: const SizedBox.shrink(),
       ),
     ),
-    Positioned.fill(child: _vector('beacon-mic', ink, (Canvas canvas) => _paintBeaconMic(canvas, ink))),
+    if (center == null)
+      Positioned.fill(child: _vector('beacon-mic', ink, (Canvas canvas) => _paintBeaconMic(canvas, ink)))
+    else
+      Positioned(
+        left: _beaconMicCentre.dx - _beaconMicRadius,
+        top: _beaconMicCentre.dy - _beaconMicRadius,
+        width: _beaconMicRadius * 2,
+        height: _beaconMicRadius * 2,
+        child: center!,
+      ),
     for (int i = 0; i < 6; i++)
       Positioned.fill(
         child: JArcPulse(
@@ -1442,12 +1612,12 @@ class _Vector extends CustomPainter {
 
 void _paintE1Rings(Canvas canvas, _Ink ink) {
   canvas.drawCircle(
-    const Offset(150, 140),
-    132,
+    _e1Centre,
+    _e1HaloRadius,
     _strokePaint(ink.white(0.07), 1.5),
   );
   final Path ring = Path()
-    ..addOval(Rect.fromCircle(center: const Offset(150, 140), radius: 97));
+    ..addOval(Rect.fromCircle(center: _e1Centre, radius: _e1DotRingRadius));
   canvas.drawPath(_dotted(ring), _strokePaint(ink.white(0.16), 1.5));
 }
 
@@ -1473,7 +1643,7 @@ void _paintE1Arcs(Canvas canvas, _Ink ink) {
 
 void _paintE1Mic(Canvas canvas, _Ink ink) {
   canvas
-    ..drawCircle(const Offset(150, 140), 47, _fillPaint(ink.accentDeep))
+    ..drawCircle(_e1Centre, _e1MicRadius, _fillPaint(ink.accentDeep))
     ..drawCircle(
       const Offset(150, 138),
       45,
@@ -1538,36 +1708,52 @@ void _paintE1Waveform(Canvas canvas, _Ink ink) {
   }
 }
 
-void _paintSkeleton(Canvas canvas, _Ink ink) {
+/// [discs] is what the CALLER composed, capped at the variant's own anchors: a
+/// tile that draws no medallions must not load four.
+void _paintSkeleton(
+  Canvas canvas,
+  _Ink ink,
+  JeebEmptyStateVariant variant,
+  int discs,
+) {
+  final _Skeleton spec = _skeletonFor(variant);
+  for (final _SkeletonRing ring in spec.rings) {
+    final Paint paint = _strokePaint(ink.white(ring.alpha), ring.width);
+    if (ring.dotted) {
+      canvas.drawPath(
+        _dotted(
+          Path()
+            ..addOval(
+              Rect.fromCircle(center: ring.centre, radius: ring.radius),
+            ),
+        ),
+        paint,
+      );
+    } else {
+      canvas.drawCircle(ring.centre, ring.radius, paint);
+    }
+  }
   canvas
-    ..drawCircle(const Offset(150, 140), 132, _strokePaint(ink.white(0.07), 1.5))
-    ..drawPath(
-      _dotted(
-        Path()
-          ..addOval(Rect.fromCircle(center: const Offset(150, 140), radius: 97)),
-      ),
-      _strokePaint(ink.white(0.16), 1.5),
-    )
     ..drawCircle(
-      const Offset(150, 140),
-      47,
+      spec.centre,
+      spec.centreRadius,
       _fillPaint(ink.semantic.glassFillEmphasis),
     )
     ..drawCircle(
-      const Offset(150, 140),
-      47,
+      spec.centre,
+      spec.centreRadius,
       _strokePaint(ink.semantic.glassBorderStrong, 1),
     );
-  for (final Offset anchor in _medallionAnchors) {
+  for (int i = 0; i < math.min(discs, spec.discs.length); i++) {
     canvas
       ..drawCircle(
-        anchor,
-        _medallionRadius,
+        spec.discs[i],
+        spec.discRadius,
         _fillPaint(ink.semantic.glassFill),
       )
       ..drawCircle(
-        anchor,
-        _medallionRadius,
+        spec.discs[i],
+        spec.discRadius,
         _strokePaint(ink.semantic.glassBorder, 1),
       );
   }
@@ -1624,7 +1810,11 @@ void _paintRadarSatellite(Canvas canvas, _Ink ink) {
 void _paintStreetBack(Canvas canvas, _Ink ink) {
   const Rect glow = Rect.fromLTWH(54, 44, 192, 172);
   canvas
-    ..drawCircle(const Offset(150, 128), 122, _strokePaint(ink.white(0.07), 1.5))
+    ..drawCircle(
+      _streetHaloCentre,
+      _streetHaloRadius,
+      _strokePaint(ink.white(0.07), 1.5),
+    )
     ..drawOval(
       glow,
       Paint()
@@ -1857,11 +2047,20 @@ Path _pocketBodyPath() => Path()
 
 void _paintPocketBack(Canvas canvas, _Ink ink) {
   canvas
-    ..drawCircle(const Offset(150, 135), 120, _strokePaint(ink.white(0.07), 1.5))
+    ..drawCircle(
+      _pocketRingCentre,
+      _pocketHaloRadius,
+      _strokePaint(ink.white(0.07), 1.5),
+    )
     ..drawPath(
       _dotted(
         Path()
-          ..addOval(Rect.fromCircle(center: const Offset(150, 135), radius: 88)),
+          ..addOval(
+            Rect.fromCircle(
+              center: _pocketRingCentre,
+              radius: _pocketDotRingRadius,
+            ),
+          ),
       ),
       _strokePaint(ink.white(0.13), 1.5),
     )
@@ -1903,7 +2102,7 @@ void _paintPocketBand(Canvas canvas, _Ink ink) {
 
 void _paintPocketMic(Canvas canvas, _Ink ink) {
   canvas
-    ..drawCircle(const Offset(150, 86), 24, _fillPaint(ink.accent))
+    ..drawCircle(_pocketMicCentre, _pocketMicRadius, _fillPaint(ink.accent))
     ..drawRRect(
       RRect.fromRectAndRadius(
         const Rect.fromLTWH(144.5, 72, 11, 19),
@@ -2127,7 +2326,7 @@ void _paintBeaconBack(Canvas canvas, _Ink ink) {
 
 void _paintBeaconMic(Canvas canvas, _Ink ink) {
   canvas
-    ..drawCircle(const Offset(150, 112), 36, _fillPaint(ink.accentDeep))
+    ..drawCircle(_beaconMicCentre, _beaconMicRadius, _fillPaint(ink.accentDeep))
     ..drawCircle(
       const Offset(150, 110),
       34,

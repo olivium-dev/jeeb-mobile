@@ -5,8 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
-import '../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
@@ -168,18 +168,62 @@ class _FeedBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Illustration skeleton only on the first cold read; a refresh over rows
+    // keeps the board and reports through the snackbar instead.
     if (state.status == RequestFeedStatus.loading && state.requests.isEmpty) {
-      return const Center(child: OmdsLoadingState());
+      return _CenteredBlock(
+        child: JeebEmptyState(
+          identifier: 'request_feed_loading_state',
+          status: JeebEmptyStateStatus.loading,
+          variant: JeebEmptyStateVariant.street,
+          // Byte-identical to the LIVE twin of this feed
+          // (`jeeber_home_screen.dart::_FeedLoadingView`) — one cold-read
+          // rendering whichever host reaches it.
+          headline: l10n.requestFeedEmptyTitle,
+        ),
+      );
     }
     if (state.status == RequestFeedStatus.error && state.requests.isEmpty) {
-      return OmdsErrorState(
-        title: l10n.requestFeedErrorTitle,
-        message: l10n.requestFeedErrorLoad,
-        retryLabel: l10n.requestFeedErrorRetry,
-        onRetry: () => context.read<RequestFeedCubit>().refresh(),
+      return _CenteredBlock(
+        child: JeebEmptyState(
+          identifier: 'request_feed_error_state',
+          status: JeebEmptyStateStatus.error,
+          variant: JeebEmptyStateVariant.street,
+          headline: l10n.requestFeedErrorTitle,
+          body: l10n.requestFeedErrorLoad,
+          action: IntrinsicWidth(
+            child: JeebCtaButton.primary(
+              label: l10n.requestFeedErrorRetry,
+              identifier: 'request_feed_retry_cta',
+              expand: false,
+              onTap: () => context.read<RequestFeedCubit>().refresh(),
+            ),
+          ),
+        ),
       );
     }
     return _FeedListOrEmpty(state: state, now: now, l10n: l10n);
+  }
+}
+
+/// Vertically centres a state block and keeps it scrollable, so it survives a
+/// large text scale AND satisfies `OmdsPullToRefresh`'s scrollable-child rule.
+class _CenteredBlock extends StatelessWidget {
+  const _CenteredBlock({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(child: child),
+        ),
+      ),
+    );
   }
 }
 
@@ -290,9 +334,8 @@ class _ReconnectingBanner extends StatelessWidget {
   }
 }
 
-/// An empty feed is not an error: two start-aligned lines where the first card
-/// would be, on the same white body — the treatment the redesigned dashboard
-/// feed already uses for this exact state.
+/// An empty feed is not an error — "Empty ≠ dead": E3's night street, the same
+/// block the live dashboard feed already draws for this exact condition.
 class _EmptyFeed extends StatelessWidget {
   const _EmptyFeed({required this.l10n});
 
@@ -300,46 +343,15 @@ class _EmptyFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    final Color mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
-    // OmdsPullToRefresh's child must be scrollable for the gesture to fire,
-    // so the empty state is wrapped in a single-child scroll view sized to
-    // the viewport.
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            key: const Key('requestFeed.empty'),
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              Spacing.xLarge,
-              Spacing.xLarge,
-              Spacing.xLarge,
-              0,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  l10n.requestFeedEmptyTitle,
-                  style: context.jeebText.titleProminent.copyWith(
-                    color: scheme.primary,
-                  ),
-                ),
-                const SizedBox(height: Spacing.xSmall),
-                Text(
-                  l10n.requestFeedEmptySubtitle,
-                  style: context.jeebText.bodySmall.copyWith(color: mutedInk),
-                ),
-              ],
-            ),
-          ),
-        ),
+    // FROZEN key re-homed onto the kit block; the Padding/Column that hosted it
+    // existed only to carry the two hand-styled lines.
+    return _CenteredBlock(
+      key: const Key('requestFeed.empty'),
+      child: JeebEmptyState(
+        identifier: 'request_feed_empty_state',
+        variant: JeebEmptyStateVariant.street,
+        headline: l10n.requestFeedEmptyTitle,
+        body: l10n.requestFeedEmptySubtitle,
       ),
     );
   }

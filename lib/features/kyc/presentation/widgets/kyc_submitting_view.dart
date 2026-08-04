@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
-import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/kyc_wizard_cubit.dart';
 import '../../application/kyc_wizard_state.dart';
+import 'kyc_state_art.dart';
 
 enum _ProbeSource { scheduled, resume }
 
@@ -32,25 +33,21 @@ enum _ProbeSource { scheduled, resume }
 /// budgets, recovery remains with the submit future, the CDN-upload timeout,
 /// and [KycWizardCubit.onJeeberRoleGranted], not additional polling.
 ///
-/// redesign-2026-08 (no render exists for this step — it applies the language of
-/// its neighbour `22-become-a-jeeber` and, above all, of its own already-migrated
-/// sibling `kyc_status_view.dart`): a RE-SKIN only. Same copy, same three
-/// elements, same order, same keys, same live region, same polling. What
-/// changed is that the head disc no longer paints itself with the brand's
-/// peach `primaryContainer` (§4 rations orange; R5 lets it mark only what is
-/// live or decaying — an upload progress disc is neither), the type comes from
-/// the ramp instead of two ad-hoc `copyWith`s, the gutter is the board's
-/// directional 24, and the block is TOP-aligned over real emptiness instead of
-/// vertically centred (R1). Geometry is deliberately copied from
-/// `_StatusScaffold` / `_GlyphMark` in `kyc_status_view.dart` — this view and
-/// the status view are consecutive frames of one wizard, so they must not
-/// disagree by a pixel.
+/// MIDNIGHT M4 — the hand-built mark + `h1` + body + spinner stack is now one
+/// [JeebEmptyState] on [kycStateVariant] at [JeebEmptyStateStatus.loading]: the
+/// breathing skeleton IS the wait indicator, so the separate spinner row and
+/// the `cloud_upload_outlined` disc are gone. Copy, order, gutter, live region
+/// and the whole polling safety net are untouched. The disc's glyph and the
+/// headline were both inked `colorScheme.primary` — orange under Midnight, not
+/// the navy the pass-1 comment claimed — and that is what the swap removes.
 class KycSubmittingView extends StatefulWidget {
   const KycSubmittingView({super.key});
 
   static const Key rootKey = Key('kyc-submitting-root');
-  static const Key titleKey = Key('kyc-submitting-title');
-  static const Key spinnerKey = Key('kyc-submitting-spinner');
+
+  /// Re-homed onto the kit's `headlineIdentifier` slot; was a `Key` on the
+  /// hand-built `Text` this row deleted.
+  static const String titleIdentifier = 'kyc_submitting_title';
 
   @override
   State<KycSubmittingView> createState() => _KycSubmittingViewState();
@@ -221,8 +218,6 @@ class _SubmittingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final jeebText = context.jeebText;
     // R1 — the block sits at the TOP and whatever is left over stays plain
     // white; it is never centred in the viewport. The list also lets the long
     // Arabic body scroll instead of overflowing at a large text scale, which
@@ -230,87 +225,16 @@ class _SubmittingBody extends StatelessWidget {
     return ListView(
       padding: _padding,
       children: [
-        const _SubmittingMark(),
-        const SizedBox(height: Spacing.large),
-        Text(
-          l10n.kycSubmittingTitle,
-          key: KycSubmittingView.titleKey,
-          textAlign: TextAlign.center,
-          style: jeebText.h1.copyWith(color: theme.colorScheme.primary),
+        JeebEmptyState(
+          variant: kycStateVariant,
+          medallions: kycStateMedallions,
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.kycSubmittingTitle,
+          headlineIdentifier: KycSubmittingView.titleIdentifier,
+          body: l10n.kycSubmittingBody,
+          padding: EdgeInsetsDirectional.zero,
         ),
-        const SizedBox(height: Spacing.small),
-        Text(
-          l10n.kycSubmittingBody,
-          textAlign: TextAlign.center,
-          style: jeebText.body.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: Spacing.xLarge),
-        const _SubmittingSpinner(),
       ],
-    );
-  }
-}
-
-/// The head mark: the same soft tinted disc `_GlyphMark` draws on the status
-/// step (Ø88 `surfaceContainerHigh`, 40px navy glyph), so the wizard's last two
-/// frames share one head band.
-///
-/// It keeps `cloud_upload_outlined` rather than adopting `KycReviewMark`: the
-/// scan-line loop means "a reviewer is reading your document", which is the
-/// PENDING state one frame later — this frame is the upload itself, and two
-/// consecutive screens wearing the same mark would erase the difference.
-class _SubmittingMark extends StatelessWidget {
-  const _SubmittingMark();
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Container(
-        width: Sizes.nineXLarge,
-        height: Sizes.nineXLarge,
-        decoration: BoxDecoration(
-          // NOT `primaryContainer`: that role is the brand's peach #FFDBD1, so
-          // the old disc was the largest orange fill on any KYC screen.
-          color: scheme.surfaceContainerHigh,
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          Icons.cloud_upload_outlined,
-          size: Sizes.threeXLarge,
-          color: scheme.primary,
-        ),
-      ),
-    );
-  }
-}
-
-/// The single in-line wait indicator.
-///
-/// Deliberately still [OmdsLoadingState] and not the `loading-dots` Lottie:
-/// every other wait in this feature — the status view's `isLoadingStatus`
-/// branch and the wizard's schema step — is an [OmdsLoadingState], and one
-/// screen inventing a second wait idiom is exactly the inconsistency this wave
-/// exists to remove. Adopting the dots is a feature-wide move, not a one-file
-/// one.
-class _SubmittingSpinner extends StatelessWidget {
-  const _SubmittingSpinner();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: SizedBox(
-        key: KycSubmittingView.spinnerKey,
-        width: Sizes.xLarge,
-        height: Sizes.xLarge,
-        child: OmdsLoadingState(
-          size: Sizes.xLarge,
-          padding: EdgeInsets.zero,
-        ),
-      ),
     );
   }
 }

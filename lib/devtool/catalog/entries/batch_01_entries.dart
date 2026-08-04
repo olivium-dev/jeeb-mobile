@@ -111,6 +111,16 @@ final CatalogEntry _activeDeliveryJeeberEntry = CatalogEntry(
         ),
       ),
     ),
+    CatalogState(
+      'Proof photo — uploading',
+      (context) => ActiveDeliveryJeeberScreen(
+        deliveryId: ActiveDeliveryJeeberScreenFixtures.deliveryId,
+        onOpenChat: () {},
+        cubit: ActiveDeliveryJeeberScreenSeededCubit(
+          ActiveDeliveryJeeberScreenFixtures.proofPhotoUploading,
+        ),
+      ),
+    ),
   ],
 );
 

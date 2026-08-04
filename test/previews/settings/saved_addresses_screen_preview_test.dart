@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/devtool/catalog/fixtures/saved_addresses_screen_fixtures.dart';
 import 'package:jeeb_mobile/features/settings/presentation/screens/saved_addresses_screen.dart';
 
@@ -62,12 +64,55 @@ void main() {
 
       expect(find.text(SavedAddressesScreenFixtures.title), findsOneWidget);
       expect(find.text(SavedAddressesScreenFixtures.subtitle), findsOneWidget);
-      expect(find.byIcon(Icons.construction_outlined), findsOneWidget);
+      // M4: the §2.7 family drew this, NOT a stock Material glyph.
+      final JeebEmptyState block =
+          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      expect(block.variant, JeebEmptyStateVariant.balcony);
+      expect(block.status, JeebEmptyStateStatus.empty);
+      expect(find.byIcon(Icons.construction_outlined), findsNothing);
       // No app bar, so no back affordance of any kind.
       expect(find.byType(AppBar), findsNothing);
       expect(find.byType(BackButton), findsNothing);
       // No action out of the dead end either.
       expect(find.byType(ButtonStyleButton), findsNothing);
+      expect(block.action, isNull);
+    });
+
+    // The screen owns its own Midnight field — the settings route pushes it
+    // onto a shell that paints none.
+    testWidgets('the placeholder is framed by a Midnight content field', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, savedAddressesScreenPlaceholder);
+
+      final JeebMidnightField field =
+          tester.widget<JeebMidnightField>(find.byType(JeebMidnightField));
+      expect(field.variant, JeebFieldVariant.content);
+      expect(field.animateDecor, isFalse);
+    });
+
+    // The frozen id moved onto the kit's own slot when the hand-built
+    // Semantics wrapper was deleted.
+    testWidgets('the block carries the placeholder identifier and label', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pumpPreview(tester, savedAddressesScreenPlaceholder);
+
+      expect(
+        find.bySemanticsIdentifier(
+          SavedAddressesScreen.placeholderIdentifier,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<JeebEmptyState>(find.byType(JeebEmptyState))
+            .semanticLabel,
+        SavedAddressesScreenFixtures.semanticsLabel,
+      );
+
+      handle.dispose();
     });
 
     // The copy is three string literals (`title`, `subtitle`, and the
@@ -139,8 +184,9 @@ void main() {
       expect(find.text(SavedAddressesScreenFixtures.title), findsOneWidget);
     });
 
-    // The height ceiling, and the reason the landscape card carries a matrix.
-    testWidgets('the short viewport clips its content at 200% text', (
+    // Was "the short viewport CLIPS its content at 200% text" — M4 fixed that:
+    // the block scrolls, so the copy is reachable instead of unreachable.
+    testWidgets('the short viewport scrolls its content at 200% text', (
       WidgetTester tester,
     ) async {
       _useBox(tester, SavedAddressesScreenFixtures.landscapeBox);
@@ -151,22 +197,22 @@ void main() {
       // Two frames: `Scaffold` measures its body through `_BodyBuilder`, so the
       await tester.pump();
 
-      final Object? overflow = tester.takeException();
       expect(
-        overflow,
-        isA<FlutterError>().having(
-          (FlutterError e) => e.toString(),
-          'message',
-          contains('overflowed by'),
-        ),
-        reason: 'the empty-state Column has no room on a 390pt-tall viewport '
-            'once the text is doubled',
+        tester.takeException(),
+        isNull,
+        reason: 'no RenderFlex overflow: the block is inside a scroll view',
       );
+      final Finder scroller = find.byType(SingleChildScrollView);
+      expect(scroller, findsOneWidget);
+      final ScrollPosition position =
+          tester.widget<Scrollable>(
+            find.descendant(of: scroller, matching: find.byType(Scrollable)),
+          ).controller!.position;
       expect(
-        find.byType(Scrollable),
-        findsNothing,
-        reason: 'and nothing in this screen scrolls, so the clipped content is '
-            'unreachable rather than merely below the fold',
+        position.maxScrollExtent,
+        greaterThan(0),
+        reason: 'the doubled copy really does exceed a 390pt-tall viewport, so '
+            'the scroll view is load-bearing rather than decorative',
       );
     });
 

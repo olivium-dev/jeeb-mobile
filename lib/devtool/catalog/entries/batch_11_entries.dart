@@ -153,6 +153,12 @@ final CatalogEntry _earningsTabEntry = CatalogEntry(
       'Unavailable — no active session',
       (_) => _tabPreview(const EarningsTab()),
     ),
+    CatalogState(
+      // The real gate resolves in one frame and never settles into a capture;
+      // the seam holds it so M4's loading arm is visible at all.
+      'Loading — resolving the session',
+      (_) => _tabPreview(EarningsTab(sessionUserId: Completer<String?>().future)),
+    ),
   ],
 );
 
