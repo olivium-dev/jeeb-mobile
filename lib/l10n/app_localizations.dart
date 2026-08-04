@@ -1791,13 +1791,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get dmOnboardingServiceAreaMapPlaceholder =>
       _get('dmOnboardingServiceAreaMapPlaceholder');
   String get dmOnboardingContinue => _get('dmOnboardingContinue');
-  String dmOnboardingStepProgressLabel({
-    required int current,
-    required int total,
-  }) => _get(
-    'dmOnboardingStepProgressLabel',
-  ).replaceFirst('{current}', '$current').replaceFirst('{total}', '$total');
-
   String get becomeJeeberCardTitle => _get('becomeJeeberCardTitle');
   String get becomeJeeberCardSubtitle => _get('becomeJeeberCardSubtitle');
   String get becomeJeeberCardCta => _get('becomeJeeberCardCta');
@@ -2991,4 +2984,41 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get notificationsLoadingHeadline =>
       _get('notificationsLoadingHeadline');
   String get notificationsErrorTitle => _get('notificationsErrorTitle');
+
+  // MIDNIGHT M3-11/12 · wallet activity list + transaction detail
+  String get walletActivityLoadingHeadline =>
+      _get('walletActivityLoadingHeadline');
+  String get walletActivityErrorTitle => _get('walletActivityErrorTitle');
+  String get txnDetailLoadingHeadline => _get('txnDetailLoadingHeadline');
+  String get txnDetailErrorTitle => _get('txnDetailErrorTitle');
+
+  // MIDNIGHT M3-17 · delivery-man onboarding wizard
+  String get dmOnboardingWizardTitle => _get('dmOnboardingWizardTitle');
+  String dmOnboardingStepProgressLabelNamed({
+    required int current,
+    required int total,
+    required String stepName,
+  }) => _get('dmOnboardingStepProgressLabelNamed')
+      .replaceFirst('{current}', '$current')
+      .replaceFirst('{total}', '$total')
+      .replaceFirst('{stepName}', stepName);
+  String dmOnboardingNextStepHint({required String stepName}) =>
+      _get('dmOnboardingNextStepHint').replaceFirst('{stepName}', stepName);
+
+  // MIDNIGHT M3-18 · onboarding funding
+  String get fundingStarterCreditLabel => _get('fundingStarterCreditLabel');
+  String get fundingReservedNowLabel => _get('fundingReservedNowLabel');
+
+  // MIDNIGHT M3-19 · offer-KYC gate
+  String get offerKycGateStatusChecking => _get('offerKycGateStatusChecking');
+  String get offerKycGateStatusUnavailable =>
+      _get('offerKycGateStatusUnavailable');
+
+  // MIDNIGHT M3-21 · kyc rejected (final)
+  String get kycRejectedReasonOtherFinal =>
+      _get('kycRejectedReasonOtherFinal');
+
+  // MIDNIGHT M3-22 · account status
+  String get accountStatusLoadingHeadline =>
+      _get('accountStatusLoadingHeadline');
 }

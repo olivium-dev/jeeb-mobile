@@ -296,16 +296,14 @@ class _GateStatusLine extends StatelessWidget {
           return _GateStatusStrip(
             key: const Key('gate-status-loading'),
             icon: Icons.hourglass_empty,
-            // TODO(midnight): l10n-queued — offerKycGateStatusChecking.
-            text: l10n.kycStatusPlaceholder,
+            text: l10n.offerKycGateStatusChecking,
           );
         }
         if (state.phase == OfferKycGatePhase.error) {
           return _GateStatusStrip(
             key: const Key('gate-status-unavailable'),
             icon: Icons.cloud_off_outlined,
-            // TODO(midnight): l10n-queued — offerKycGateStatusUnavailable.
-            text: l10n.requestSummaryErrorGeneric,
+            text: l10n.offerKycGateStatusUnavailable,
           );
         }
         final (title, body, tone, icon) = switch (state.status) {

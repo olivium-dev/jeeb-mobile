@@ -152,9 +152,7 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
                           delegate: SliverChildListDelegate([
                             // ── Starter credit (D42) ──────────────────────
                             _StarterCreditHero(
-                              // TODO(midnight): l10n-queued —
-                              // `fundingStarterCreditLabel`.
-                              label: l10n.fundingTitle,
+                              label: l10n.fundingStarterCreditLabel,
                               body: l10n.fundingStarterCreditBody,
                               amount: money.starterCredit,
                             ),
@@ -167,9 +165,7 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
                               trailing: money.reservedNow == null
                                   ? null
                                   : _ReservedNowStat(
-                                      // TODO(midnight): l10n-queued —
-                                      // `fundingReservedNowLabel`.
-                                      label: l10n.walletHubReservedNow,
+                                      label: l10n.fundingReservedNowLabel,
                                       value: money.reservedNow!,
                                     ),
                             ),

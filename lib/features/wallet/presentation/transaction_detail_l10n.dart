@@ -22,6 +22,8 @@ class TransactionDetailL10n {
   String get title => _l10n.txnDetailTitle;
   String get orderLink => _l10n.txnDetailOrderLink;
   String get disputeLink => _l10n.txnDetailDisputeLink;
+  String get loadingHeadline => _l10n.txnDetailLoadingHeadline;
+  String get errorTitle => _l10n.txnDetailErrorTitle;
 
   String typeHeading(WalletLedgerType type) {
     switch (type) {

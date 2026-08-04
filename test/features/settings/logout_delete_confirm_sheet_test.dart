@@ -5,8 +5,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'package:jeeb_mobile/features/settings/domain/account_deletion_policy.dart';
@@ -76,6 +78,38 @@ void main() {
     view.devicePixelRatio = 1.0;
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
+  });
+
+  // MIDNIGHT M3-23/37 lane: `primary` IS #D73B00, so the grabber was drawing a
+  // bright orange bar over a sign-out sheet. Inert chrome takes the .22 rung.
+  testWidgets('the drag handle spends no orange budget', (tester) async {
+    await tester.pumpWidget(
+      _harness(
+        LogoutDeleteConfirmSheet(
+          mode: LogoutDeleteMode.logout,
+          terminator: _FakeTerminator(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final BuildContext context =
+        tester.element(find.byType(LogoutDeleteConfirmSheet));
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics =
+        Theme.of(context).extension<JeebSemanticColors>()!;
+
+    final Finder handle = find.byWidgetPredicate((Widget w) {
+      if (w is! Container) return false;
+      final Decoration? d = w.decoration;
+      return d is BoxDecoration && d.borderRadius == OmdsBorderRadius.pill;
+    });
+    expect(handle, findsOneWidget);
+    final BoxDecoration decoration =
+        tester.widget<Container>(handle).decoration! as BoxDecoration;
+
+    expect(decoration.color, semantics.glassBorderVivid);
+    expect(decoration.color, isNot(scheme.primary));
   });
 
   group('JM-062 LogoutDeleteConfirmSheet', () {

@@ -14,6 +14,7 @@ import '../../../features/reviews/presentation/reviews_list_screen.dart';
 import '../../../features/settings/application/settings_cubit.dart';
 import '../../../features/settings/domain/account_session_terminator.dart';
 import '../../../features/settings/domain/user_profile.dart';
+import '../../../features/settings/presentation/screens/live_settings_screen.dart';
 import '../../../features/settings/presentation/screens/notification_preferences_screen.dart';
 import '../../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../../features/settings/presentation/screens/settings_screen.dart';
@@ -233,6 +234,44 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
       CatalogState(
         'Empty — No Name Yet',
         (_) => _profileEditPreview(profileEditScreenNoNameProfile),
+      ),
+      // M3-23: the cold read the screen never used to draw. `awaitLoad: false`
+      // is what puts it on the pre-load frame instead of skipping past it.
+      CatalogState(
+        'Loading',
+        (_) => const ProfileEditScreenPreviewHost(
+          repository: ProfileEditScreenPendingLoadRepository(),
+          awaitLoad: false,
+          child: ProfileEditScreen(),
+        ),
+      ),
+      // The only state that renders `profile_edit_remove_avatar_cta`, i.e. the
+      // one place the destructive ink is visible.
+      CatalogState(
+        'Loaded — With Photo',
+        (_) => _profileEditPreview(profileEditScreenPhotoProfile),
+      ),
+    ],
+  ),
+  CatalogEntry(
+    feature: 'settings',
+    screen: 'LiveSettingsScreen',
+    states: [
+      // M3-37 owns only the two frames before `SettingsScreen` takes over, so
+      // only those two are catalogued — the loaded body is R22's capture.
+      CatalogState(
+        'Loading',
+        (_) => LiveSettingsScreen(
+          snapshotLoader: () => Completer<Map<String, dynamic>>().future,
+        ),
+      ),
+      CatalogState(
+        'Error — Read Failed',
+        (_) => LiveSettingsScreen(
+          snapshotLoader: () => Future<Map<String, dynamic>>.error(
+            StateError('capture: /v1/users/me unavailable'),
+          ),
+        ),
       ),
     ],
   ),

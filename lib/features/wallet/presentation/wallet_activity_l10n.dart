@@ -23,9 +23,9 @@ class WalletActivityL10n {
   String get title => _l10n.walletActivityTitle;
   String get emptyTitle => _l10n.walletActivityEmptyTitle;
   String get emptyBody => _l10n.walletActivityEmptyBody;
+  String get loadingHeadline => _l10n.walletActivityLoadingHeadline;
+  String get errorTitle => _l10n.walletActivityErrorTitle;
 
-  String get loadError =>
-      _pick('Could not load your activity.', 'تعذّر تحميل نشاطك.');
   String get networkError => _pick(
         'No connection. Check your network and try again.',
         'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',

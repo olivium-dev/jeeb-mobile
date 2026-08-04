@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
-import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
@@ -11,6 +10,7 @@ import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
+import 'notification_toggle_track.dart';
 
 /// NOTIFICATIONS label + the grouped toggle card (MIDNIGHT R22 `tpl 1377`).
 ///
@@ -83,7 +83,8 @@ class SettingsNotificationsCard extends StatelessWidget {
 }
 
 /// One switch row: a [JeebListRow] whose trailing slot is the board's own
-/// track, so the row padding, ink and tap target come from the kit.
+/// track ([NotificationToggleTrack]), so the row padding, ink and tap target
+/// come from the kit.
 class _ToggleRow extends StatelessWidget {
   const _ToggleRow({
     required this.rowKey,
@@ -112,73 +113,8 @@ class _ToggleRow extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
         padding: JeebOutlinedCard.defaultPadding,
-        trailing: _ToggleTrack(value: value),
+        trailing: NotificationToggleTrack(value: value),
         onTap: () => onChanged(!value),
-      ),
-    );
-  }
-}
-
-/// The board's toggle (`tpl 1382`/`tpl 1392`). Material's `Switch` draws a
-/// 52×32 track with no way to reach the lit state's bloom, so the shape is
-/// painted here instead of fought with.
-class _ToggleTrack extends StatelessWidget {
-  const _ToggleTrack({required this.value});
-
-  /// 46×26 track, Ø20 knob inset 3 on every side.
-  static const double trackWidth = 46;
-  static const double trackHeight = 26;
-  static const double knobDiameter = 20;
-  static const double knobInset = 3;
-
-  /// `0 0 12px rgba(215,59,0,.5)` — the ON bloom.
-  static const double glowBlur = 12;
-  static const double glowAlpha = 0.5;
-
-  final bool value;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final roles = context.jeebRoles;
-    final semantics = Theme.of(context).extension<JeebSemanticColors>()!;
-
-    return SizedBox(
-      width: trackWidth,
-      height: trackHeight,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: value ? roles.accent : semantics.glassFillPressed,
-          borderRadius: OmdsBorderRadius.pill,
-          boxShadow: value
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: roles.accent.withValues(alpha: glowAlpha),
-                    blurRadius: glowBlur,
-                  ),
-                ]
-              : const <BoxShadow>[],
-        ),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.all(knobInset),
-          child: Align(
-            // Directional so the knob travels to the reading-end when on, and
-            // mirrors with the layout instead of pinning itself to the right.
-            alignment: value
-                ? AlignmentDirectional.centerEnd
-                : AlignmentDirectional.centerStart,
-            child: SizedBox(
-              width: knobDiameter,
-              height: knobDiameter,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: cs.onPrimary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

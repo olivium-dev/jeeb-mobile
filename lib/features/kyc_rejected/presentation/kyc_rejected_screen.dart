@@ -234,9 +234,9 @@ class _RejectionReasonNotice extends StatelessWidget {
       case KycRejectionReason.expired:
         return l10n.kycRejectionReasonExpired;
       case KycRejectionReason.other:
-        // TODO(midnight): l10n-queued `kycRejectedReasonOtherFinal` — the shared
-        // string ends "and resubmit", which D52 forbids on this FINAL screen.
-        return l10n.kycRejectionReasonOther;
+        // D52: this screen is FINAL, so it must not say "resubmit" the way the
+        // shared kycRejectionReasonOther does for KycStatusView.
+        return l10n.kycRejectedReasonOtherFinal;
     }
   }
 

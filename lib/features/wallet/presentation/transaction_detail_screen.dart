@@ -163,23 +163,21 @@ class _TransactionDetailView extends StatelessWidget {
                               case TransactionDetailStatus.loading:
                                 return _StateBlock(
                                   status: JeebEmptyStateStatus.loading,
-                                  // TODO(midnight): l10n-queued —
-                                  // txnDetailLoadingHeadline.
-                                  headline: copy.title,
+                                  headline: copy.loadingHeadline,
                                 );
                               case TransactionDetailStatus.failed:
                                 return _errorBlock(
                                   context,
+                                  copy,
                                   _errorCopy(copy, state.error),
-                                  copy.retry,
                                 );
                               case TransactionDetailStatus.loaded:
                                 final txn = state.transaction;
                                 if (txn == null) {
                                   return _errorBlock(
                                     context,
+                                    copy,
                                     copy.loadErrorGeneric,
-                                    copy.retry,
                                   );
                                 }
                                 return _LoadedBody(txn: txn, copy: copy);
@@ -197,15 +195,19 @@ class _TransactionDetailView extends StatelessWidget {
   }
 
   /// The failure twin of the loading block, with the retry as its CTA.
-  Widget _errorBlock(BuildContext context, String message, String retryLabel) {
+  /// The mapped failure sentence is the body under the short `h1` title.
+  Widget _errorBlock(
+    BuildContext context,
+    TransactionDetailL10n copy,
+    String body,
+  ) {
     return _StateBlock(
       status: JeebEmptyStateStatus.error,
       glyph: Icons.cloud_off,
-      // TODO(midnight): l10n-queued — txnDetailErrorTitle. The existing strings
-      // are full sentences, which read as body copy in the `h1` headline slot.
-      headline: message,
+      headline: copy.errorTitle,
+      body: body,
       action: JeebCtaButton.primary(
-        label: retryLabel,
+        label: copy.retry,
         expand: false,
         onTap: () => context.read<TransactionDetailCubit>().retry(),
       ),
@@ -236,6 +238,7 @@ class _StateBlock extends StatelessWidget {
     required this.status,
     required this.headline,
     this.glyph,
+    this.body,
     this.action,
   });
 
@@ -245,6 +248,7 @@ class _StateBlock extends StatelessWidget {
   /// Null on loading: the kit paints its skeleton over the whole frame and
   /// never reaches the `center` slot.
   final IconData? glyph;
+  final String? body;
   final Widget? action;
 
   @override
@@ -258,6 +262,7 @@ class _StateBlock extends StatelessWidget {
           center: mark == null ? null : WalletStateMark(glyph: mark),
           medallions: _kNoMedallions,
           headline: headline,
+          body: body,
           action: action,
         ),
       ),

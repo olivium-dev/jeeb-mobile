@@ -7,7 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
+import 'package:jeeb_mobile/devtool/catalog/fixtures/kyc_rejected_screen_fixtures.dart';
 import 'package:jeeb_mobile/features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import 'package:jeeb_mobile/features/rating/application/mutual_rating_cubit.dart';
 import 'package:jeeb_mobile/features/rating/domain/entities/rating_status.dart';
@@ -111,12 +111,28 @@ void main() {
   group('D52 — final KYC rejection has no resubmit CTA', () {
     testWidgets('KycRejectedScreen shows appeal + back, never a resubmit CTA',
         (tester) async {
+      // The body is a lazy ListView: on the default 800x600 viewport the reason
+      // note is never built, so the resubmit assertions below cannot see it.
+      final view = tester.view;
+      view.physicalSize = const Size(440, 956);
+      view.devicePixelRatio = 1.0;
+      addTearDown(view.resetPhysicalSize);
+      addTearDown(view.resetDevicePixelRatio);
+
+      // KycRejectionReason.other is the branch that renders the shared
+      // "…and resubmit" string. FakeKycGateway() returns a NON-rejected
+      // submission, so the note never mounted and this gate passed vacuously.
       await tester.pumpWidget(
-        _routerHarness(KycRejectedScreen(gateway: FakeKycGateway())),
+        _routerHarness(
+          KycRejectedScreen(gateway: KycRejectedScreenFixtures.other()),
+        ),
       );
+      // Twice: the second settles the async status read that mounts the note.
+      await tester.pump();
       await tester.pump();
 
       expect(find.bySemanticsIdentifier('kyc_rejected_root'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('kyc_rejected_reason'), findsOneWidget);
 
       // The only forward paths are appeal-via-support and back-to-profile.
       expect(

@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/session/session_cubit.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/dio_account_session_terminator.dart';
 import '../../domain/account_deletion_policy.dart';
@@ -245,13 +246,16 @@ class _SheetDragHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    // MIDNIGHT: `primary` IS #D73B00, so this grabber was painting a bright
+    // orange bar over the sign-out sheet. Inert chrome takes the .22 rung.
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Center(
       child: Container(
         width: Spacing.twoXLarge,
         height: Spacing.twoXSmall,
         decoration: BoxDecoration(
-          color: colorScheme.primary,
+          color: semantics.glassBorderVivid,
           borderRadius: OmdsBorderRadius.pill,
         ),
       ),

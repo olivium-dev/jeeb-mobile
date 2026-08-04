@@ -1,5 +1,16 @@
 # l10n queue — M3-19/20 · Offer-KYC gate + delivery-register prompt
 
+> **STATUS 2026-08-04 (l10n lane, M3 Tier 4).** The two REQUIRED keys are
+> **DONE** — `offerKycGateStatusChecking` / `offerKycGateStatusUnavailable` are
+> in both ARBs, both getters exist, both call sites in `offer_kyc_gate_screen.dart`
+> are swapped and their TODOs dropped. Do not re-apply them.
+> **This file is kept open ONLY for the §3–5 OWNER CALL trio**
+> (`deliveryRegisterPromptHeadline` / `Body` / `Cta`), which is a product-copy
+> decision, not a restyle one. Those three keys were deliberately NOT added to
+> the ARB — adding keys nothing references would orphan them — and the three
+> `TODO(midnight): l10n-queued` tags in `delivery_register_prompt_screen.dart`
+> stand until the owner rules. Delete this file once they do.
+
 Two keys are **required** by this row (M3-19 gives the status slot a loading and
 a failed-read form it never had). Three more are **reported, not required**
 (M3-20 renders the gate's strings verbatim on a screen that does something

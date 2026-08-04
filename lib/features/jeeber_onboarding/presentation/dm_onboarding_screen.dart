@@ -183,26 +183,13 @@ class _OnboardingTopBar extends StatelessWidget {
         // JM-039: canonical wizard back id (one id across every step; only one
         // step is mounted at a time, so QA can assert/tap it unambiguously).
         identifier: 'dm_onboarding_back',
-        title: _titleFor(l10n, state.step),
+        title: l10n.dmOnboardingWizardTitle,
         onLeadingPressed: () => _onBack(
           context,
           canGoBack: state.step.index > 0,
         ),
       ),
     );
-  }
-
-  // TODO(midnight): l10n-queued — R23 holds the constant flow name here and
-  // moves the step name into the caption; `dmOnboardingWizardTitle` is missing.
-  String _titleFor(AppLocalizations l10n, DmOnboardingStep step) {
-    switch (step) {
-      case DmOnboardingStep.photo:
-        return l10n.dmOnboardingPhotoStepTitle;
-      case DmOnboardingStep.address:
-        return l10n.dmOnboardingPersonalDetailsTitle;
-      case DmOnboardingStep.serviceArea:
-        return l10n.dmOnboardingServiceAreaTitle;
-    }
   }
 
   /// JM-039 AC1: from the first (photo) step, Back returns to the

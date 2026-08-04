@@ -80,8 +80,12 @@ void main() {
         ],
       );
 
-  Widget collapseNullChild(BuildContext context, Widget? child) =>
-      child ?? const SizedBox.shrink();
+  // `JeebEmptyState`'s illustrations loop ∞ by design (02-STUDY-NOTES §Motion),
+  // so pumpAndSettle only terminates under reduce motion.
+  Widget collapseNullChild(BuildContext context, Widget? child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child ?? const SizedBox.shrink(),
+      );
 
   Future<GoRouter> pump(WidgetTester tester) async {
     final router = buildRouter();

@@ -94,6 +94,17 @@ List<CatalogEntry> get batch07Entries => <CatalogEntry>[
               ),
             ),
           ),
+          // No collection lives on this screen, so it has no structural empty;
+          // every category off is the nearest reading and the one that proves
+          // the OFF track (M3-24).
+          CatalogState(
+            'All Off',
+            (_) => _notifPrefsScreen(
+              const NotificationPreferencesScreenFakeRepository(
+                prefs: notificationPreferencesScreenAllOffPrefs,
+              ),
+            ),
+          ),
           CatalogState(
             'Load Error',
             (_) => _notifPrefsScreen(

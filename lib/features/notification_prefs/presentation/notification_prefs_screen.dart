@@ -7,17 +7,21 @@ import '../../../core/layout/bottom_inset.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../settings/presentation/widgets/notification_toggle_track.dart';
 import '../application/notification_prefs_cubit.dart';
 import '../application/notification_prefs_state.dart';
 import '../domain/notification_prefs_model.dart';
 
-/// Trailing padlock on the locked transactional row — the neighbour screen 20
-/// draws the same glyph at 17px on its always-on line (`tpl 1212`).
+/// Trailing padlock on the locked transactional row — R22 draws the same glyph
+/// at 17px on its always-on line (board `tpl 1397`).
 const double _kLockGlyphSize = 17;
 
 /// Notification Preferences (JM-058, blueprint `notification-prefs`).
@@ -27,10 +31,16 @@ const double _kLockGlyphSize = 17;
 /// a non-interactive padlock row). A push-only note (R2) clarifies these are
 /// push-channel preferences. Back → `customer-profile`.
 ///
-/// redesign-2026-08: re-skinned onto the Jeeb design system against its
-/// neighbour, screen 20 (Settings). Structure is unchanged — in-body
-/// [JeebTopBar] instead of a Material app bar, [JeebInfoNote] for the note,
-/// [JeebSectionLabel] + [JeebOutlinedCard.grouped] for each band, 24px gutters.
+/// MIDNIGHT M3-24: derived from R22 Settings (M2-19), which is this screen's
+/// parent band — `/settings` → MORE → Notifications lands here, and R22 draws
+/// the same NOTIFICATIONS card in miniature. Carried across verbatim: the
+/// `content` field with its single orange glow at `topEnd` (R22 declares no
+/// periwinkle), the grouped glass card, the 11/14→13/16 row rungs, and the
+/// board's own [NotificationToggleTrack] — 46×26 orange track, Ø20 white knob,
+/// `0 0 12px` bloom. That track is painted rather than themed for the reason
+/// R22 found: `OmdsSettingsSwitchRow` forwards only `activeColor` (the *thumb*),
+/// so the ON track resolved off `SwitchThemeData.trackColor` and rendered
+/// PERIWINKLE here too, exactly as it did on R22 before M2-19.
 ///
 /// Exposed Semantics identifiers (JM-058 AC):
 ///   notif_prefs_root            — screen host (nav-honesty re-assert)
@@ -41,15 +51,13 @@ const double _kLockGlyphSize = 17;
 ///   notif_prefs_transactional_lock_icon — the locked always-on row indicator
 ///   notif_prefs_push_only_note  — the push-only channel note (R2)
 ///   notif_prefs_back            — app-bar back control → customer-profile
-///
-/// l10n NOTE (CTO-D R-F, requested in 50_ROUTE_REQUESTS.md JM-058): dedicated
-/// copy for the wallet/marketing categories, the transactional-locked row, and
-/// the push-only note does not exist in the ARB yet (ARB is integrator-owned).
-/// This screen ships reusing the closest EXISTING locale-safe getters; Maestro
-/// asserts on the identifiers above (never visible text), so this is copy-polish
-/// only and the AC stays green.
+///   notif_prefs_retry_cta       — retry on the failed cold read
 class NotificationPrefsScreen extends StatefulWidget {
   const NotificationPrefsScreen({super.key});
+
+  /// Cold-read and failed-read illustration hosts.
+  static const String loadingIdentifier = 'notif_prefs_loading';
+  static const String loadErrorIdentifier = 'notif_prefs_load_error';
 
   @override
   State<NotificationPrefsScreen> createState() =>
@@ -77,35 +85,41 @@ class _NotificationPrefsScreenState extends State<NotificationPrefsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'notif_prefs_root',
-      container: true,
-      explicitChildNodes: true,
-      child: Scaffold(
-        // The redesign's header is a body row, not a Material app bar (§5 #1):
-        // no elevation, no surface tint, Ø40 back circle + 20/w700 title.
-        body: SafeArea(
-          // The list reserves the nav-bar inset itself so the last row scrolls
-          // clear of the soft buttons in edge-to-edge mode.
-          bottom: false,
-          child: Column(
-            children: [
-              JeebTopBar.back(
-                title: l10n.notificationPreferencesTitle,
-                // FROZEN: the leading circle carries `notif_prefs_back`.
-                identifier: 'notif_prefs_back',
-                leadingTooltip: l10n.kycWizardBack,
-                onLeadingPressed: _onBack,
-              ),
-              Expanded(
-                child:
-                    BlocConsumer<NotificationPrefsCubit, NotificationPrefsState>(
-                  listenWhen: _shouldListen,
-                  listener: _onSaveError,
-                  builder: _buildBody,
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      glowPlacement: JeebFieldGlowPlacement.topEnd,
+      animateDecor: false,
+      child: Semantics(
+        identifier: 'notif_prefs_root',
+        container: true,
+        explicitChildNodes: true,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          // The redesign's header is a body row, not a Material app bar (§5 #1):
+          // no elevation, no surface tint, Ø40 back circle + 20/w700 title.
+          body: SafeArea(
+            // The list reserves the nav-bar inset itself so the last row scrolls
+            // clear of the soft buttons in edge-to-edge mode.
+            bottom: false,
+            child: Column(
+              children: [
+                JeebTopBar.back(
+                  title: l10n.notificationPreferencesTitle,
+                  // FROZEN: the leading circle carries `notif_prefs_back`.
+                  identifier: 'notif_prefs_back',
+                  leadingTooltip: l10n.kycWizardBack,
+                  onLeadingPressed: _onBack,
                 ),
-              ),
-            ],
+                Expanded(
+                  child: BlocConsumer<NotificationPrefsCubit,
+                      NotificationPrefsState>(
+                    listenWhen: _shouldListen,
+                    listener: _onSaveError,
+                    builder: _buildBody,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -130,7 +144,7 @@ class _NotificationPrefsScreenState extends State<NotificationPrefsScreen> {
   Widget _buildBody(BuildContext context, NotificationPrefsState state) {
     switch (state) {
       case NotificationPrefsLoading():
-        return const Center(child: OmdsLoadingState());
+        return const _LoadingView();
       case NotificationPrefsError():
         return _ErrorView(onRetry: context.read<NotificationPrefsCubit>().load);
       case NotificationPrefsLoaded(:final prefs):
@@ -139,6 +153,31 @@ class _NotificationPrefsScreenState extends State<NotificationPrefsScreen> {
   }
 }
 
+/// The cold read. `radar` for the reason M3-07 and `account_status` picked it:
+/// its subject is a channel listening for a signal, which is what a push
+/// preference is. The identity discs are dropped — there is no second party
+/// here to name.
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: JeebEmptyState(
+        variant: JeebEmptyStateVariant.radar,
+        status: JeebEmptyStateStatus.loading,
+        medallions: const <JeebEmptyMedallion>[],
+        identifier: NotificationPrefsScreen.loadingIdentifier,
+        // TODO(midnight): l10n-queued — notificationPrefsLoadingHeadline.
+        headline: l10n.notificationsLoadingHeadline,
+      ),
+    );
+  }
+}
+
+/// The failed cold read: same illustration, danger-tinted centre (kit ruling 1),
+/// and the retry stays the glass pill — never an orange act R22 does not draw.
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.onRetry});
 
@@ -147,34 +186,20 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     return Center(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.xLarge,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n.notificationPrefsLoadError,
-              textAlign: TextAlign.center,
-              style: context.jeebText.body.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: Spacing.medium),
-            Semantics(
-              identifier: 'notif_prefs_retry_cta',
-              button: true,
-              container: true,
-              child: JeebCtaButton.outline(
-                label: l10n.notificationPrefsRetry,
-                onTap: onRetry,
-                expand: false,
-              ),
-            ),
-          ],
+      child: JeebEmptyState(
+        variant: JeebEmptyStateVariant.radar,
+        status: JeebEmptyStateStatus.error,
+        medallions: const <JeebEmptyMedallion>[],
+        identifier: NotificationPrefsScreen.loadErrorIdentifier,
+        // TODO(midnight): l10n-queued — notificationPrefsErrorTitle.
+        headline: l10n.notificationsErrorTitle,
+        body: l10n.notificationPrefsLoadError,
+        action: JeebCtaButton.outline(
+          label: l10n.notificationPrefsRetry,
+          onTap: onRetry,
+          expand: false,
+          identifier: 'notif_prefs_retry_cta',
         ),
       ),
     );
@@ -200,10 +225,11 @@ class _PrefsBody extends StatelessWidget {
       ),
       children: [
         const _PushOnlyNote(),
-        const SizedBox(height: Spacing.medium),
+        // R22 opens each labelled band with 20 (`tpl 1370`/`1377`).
+        const SizedBox(height: Spacing.large),
         _CategoriesSection(prefs: prefs, cubit: cubit),
         if (prefs.transactionalLocked) ...[
-          const SizedBox(height: Spacing.medium),
+          const SizedBox(height: Spacing.large),
           const _TransactionalLockedSection(),
         ],
       ],
@@ -311,58 +337,32 @@ class _TransactionalLockedSection extends StatelessWidget {
 }
 
 /// The always-on transactional line. It is a *fact*, not a control, so — like
-/// its neighbour on screen 20 — it renders as a plain row with a trailing
-/// padlock rather than a switch nobody can move. Non-interactive by
-/// construction: there is no `onTap` and no toggle to actuate.
+/// R22's security-codes row — it renders as a plain row with a trailing padlock
+/// rather than a switch nobody can move. Non-interactive by construction: no
+/// `onTap`, no toggle to actuate.
 class _TransactionalLockedRow extends StatelessWidget {
   const _TransactionalLockedRow();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final muted = theme.extension<JeebSemanticColors>()!.mutedText;
+    final muted = Theme.of(context).extension<JeebSemanticColors>()!.mutedText;
 
     return Semantics(
       // JM-058 AC2: the locked-transactional indicator. The flow asserts
       // `notif_prefs_transactional_lock_icon` (67_W34_TEST_PLAN coined id).
       identifier: 'notif_prefs_transactional_lock_icon',
       container: true,
-      child: Padding(
-        padding: JeebOutlinedCard.defaultPadding,
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // l10n reuse (CTO-D R-F): the OTP/security-codes row copy
-                  // stands in for the transactional-locked label until the
-                  // dedicated key lands.
-                  Text(
-                    l10n.notificationCategoryOtp,
-                    style: context.jeebText.body.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: Spacing.twoXSmall),
-                  Text(
-                    l10n.notificationCategoryOtpAlwaysOn,
-                    style: context.jeebText.bodySmall.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: Spacing.small),
-            // Periwinkle is decorative here (a glyph, not body ink) — the same
-            // treatment screen 20 gives its always-on padlock.
-            Icon(Icons.lock, size: _kLockGlyphSize, color: muted),
-          ],
+      child: JeebListRow(
+        // l10n reuse (CTO-D R-F): the OTP/security-codes row copy stands in for
+        // the transactional-locked label until the dedicated key lands.
+        title: l10n.notificationCategoryOtp,
+        subtitle: l10n.notificationCategoryOtpAlwaysOn,
+        titleStyle: context.jeebText.body.copyWith(
+          fontWeight: FontWeight.w600,
         ),
+        padding: JeebOutlinedCard.defaultPadding,
+        trailing: Icon(Icons.lock, size: _kLockGlyphSize, color: muted),
       ),
     );
   }
@@ -385,36 +385,19 @@ class _CategoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: identifier,
       toggled: value,
       container: true,
-      // `SwitchListTile` paints its ink on the nearest Material ancestor and
-      // asserts when a coloured box sits between the two — which the card's
-      // fill does. A transparent Material inside the card is the documented fix.
-      child: Material(
-        type: MaterialType.transparency,
-        child: OmdsSettingsSwitchRow(
-          title: title,
-          subtitle: subtitle,
-          value: value,
-          // OMDS defaults the knob to `colorScheme.primary` — i.e. a navy thumb
-          // on a navy track. The board's knob is white (20 `tpl 1197`).
-          activeColor: colorScheme.onPrimary,
-          titleStyle: context.jeebText.body.copyWith(
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onSurface,
-          ),
-          subtitleStyle: context.jeebText.bodySmall.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-          // OMDS takes a non-directional inset; symmetric, so it mirrors as a
-          // no-op under RTL. The grouped card draws the dividers.
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: Spacing.medium),
-          onChanged: onChanged,
+      child: JeebListRow(
+        title: title,
+        subtitle: subtitle,
+        titleStyle: context.jeebText.body.copyWith(
+          fontWeight: FontWeight.w600,
         ),
+        padding: JeebOutlinedCard.defaultPadding,
+        trailing: NotificationToggleTrack(value: value),
+        onTap: () => onChanged(!value),
       ),
     );
   }

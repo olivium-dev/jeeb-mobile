@@ -45,6 +45,10 @@ class ProfileAvatar extends StatelessWidget {
         child: Image.file(
           File(photo),
           fit: BoxFit.cover,
+          // Without a frameBuilder the decode window paints an empty hole where
+          // the hero disc belongs — the initial holds the shape until it lands.
+          frameBuilder: (_, child, frame, _) =>
+              frame == null ? placeholder : child,
           errorBuilder: (_, _, _) => placeholder,
         ),
       ),

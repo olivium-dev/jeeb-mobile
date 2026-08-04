@@ -370,16 +370,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M3-21 `kyc_rejected_screen.dart` (222) — KYC rejected — danger ink on onErrorContainer per the R22 ruling, JeebEmptyState error status @2026-08-04 · [x] M3-22 `account_status_screen.dart` (205) — account status — suspended/locked states on the R22 status-row rung @2026-08-04
 
 ### M3 — Tier 4 (settings subtree)
-- [ ] M3-23 `profile_edit_screen.dart` (293) **ORPHAN — ruling** · [ ] M3-24 `notification_prefs_screen.dart` (324)
-- [ ] M3-25 `notification_preferences_screen.dart` (31) · [ ] M3-26 `password_security_screen.dart` (317)
-- [ ] M3-27 `language_settings_screen.dart` (130) · [ ] M3-28 `saved_locations_screen.dart` (593) **+ triage its crash with exception visible (doc-13 P0-9)**
-- [ ] M3-29 `address_detail_form_screen.dart` (493)
+- [x] M3-23 `profile_edit_screen.dart` (293) **ORPHAN — ruling** — profile edit — field mounted (it had none), loading frame added, and a LIVE DEFECT fixed: every real account opened Edit profile to a BLANK name because the cubit emits isLoading synchronously and initState seeded from the empty profile. The catalog masked it with awaitLoad:true @2026-08-04 · [x] M3-24 `notification_prefs_screen.dart` (324) — notification prefs — R22's toggle geometry carried across @2026-08-04
+- [x] M3-25 `notification_preferences_screen.dart` (31) — verified it merely DELEGATES — zero product diff by design; row evidence is a delegation-contract guard that fails if any chrome appears between wrapper and delegate @2026-08-04 · [x] M3-26 `password_security_screen.dart` (317) — password security @2026-08-04
+- [x] M3-27 `language_settings_screen.dart` (130) — language settings — the 2 known-red tests CLOSED: they pinned a pre-Midnight purple segment ink and receive white, which is the ratified Midnight active treatment. Test was stale, code was right @2026-08-04 · [x] M3-28 `saved_locations_screen.dart` (593) **+ triage its crash with exception visible (doc-13 P0-9)** — saved locations — crash triaged with the exception visible (doc-13 P0-9) @2026-08-04
+- [x] M3-29 `address_detail_form_screen.dart` (493) — address detail form; Q-021 pin-discard left for the product ruling, not papered over @2026-08-04
 
 ### M3 — Tier 5 (edge/support)
 - [ ] M3-30 `support_ticket_screen.dart` (616) · [ ] M3-31 `reviews_list_screen.dart` (563) **ORPHAN — ruling**
 - [ ] M3-32 `dispute_status_screen.dart` (423) · [ ] M3-33 `display_name_setup_screen.dart` (276)
 - [ ] M3-34 `set_password_screen.dart` (244) · [ ] M3-35 `biometric_lock_screen.dart` (141)
-- [ ] M3-36 `jeeber_pending_offers_screen.dart` (175) **ORPHAN — ruling** · [ ] M3-37 `live_settings_screen.dart` (228) **ORPHAN — ruling**
+- [ ] M3-36 `jeeber_pending_offers_screen.dart` (175) **ORPHAN — ruling** · [x] M3-37 `live_settings_screen.dart` (228) **ORPHAN — ruling** — live settings — loading/error chrome ONLY so R22 is not restyled twice; LIVE DEFECT fixed: Retry called setState with a callback returning a Future, throwing a FlutterError on every tap in debug @2026-08-04
 - [ ] M3-38 `diagnostics_screen.dart` (353) **ORPHAN — ruling** · [ ] M3-39 `jeeber_request_unavailable_screen.dart` (62)
 - [ ] M3-40 `request_summary_unavailable_screen.dart` (29) · [ ] M3-41 `profile_unavailable_screen.dart` (30)
 - [ ] M3-42 `rating_prompt_screen.dart` (46) **ORPHAN — ruling** · [ ] M3-43 `location_picker_screen.dart` placeholder (36) **ORPHAN — deleted with M2-05**

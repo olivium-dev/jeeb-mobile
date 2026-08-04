@@ -3,44 +3,42 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/layout/bottom_inset.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/password_security_cubit.dart';
 import '../application/password_security_state.dart';
 
-/// password-security (JM-061). Change-password surface reached from the profile
-/// `customer_profile_password_row` (JM-035): current / new / confirm fields with
-/// validation (the strength + mismatch guards surface through dedicated error
-/// nodes). Social-only accounts (no password set) instead use
-/// `password_set_entry` → `/set-password?mode=in-app-social` (D90, the existing
-/// JM-022 screen owns that `POST /v1/auth/set-password`). `password_back` →
-/// customer-profile.
+/// password-security (JM-061, MIDNIGHT M3-26). Reached from the customer
+/// profile's `customer_profile_password_row`
+/// (`customer_profile_screen.dart:154` → `pushNamed('password-security')`).
 ///
-/// Mock: — (JM-061 AC). The change form is LOCAL VALIDATION only (the mock has
-/// no current-password verify nor a change-by-bearer endpoint,
-/// 42_GUARDRAILS_MOCK); the only server write here is delegated to the
-/// set-password screen via the social-only entry.
+/// WHAT THIS SCREEN ACTUALLY MANAGES — it is two halves, and only one works:
+///  * The change-password form is LOCAL VALIDATION ONLY. [PasswordSecurityCubit]
+///    holds no repository; a valid submit emits `unavailable` and shows the
+///    honest "not available yet" notice (B-33). There is no change-password
+///    endpoint anywhere in the app.
+///  * `password_set_entry` → `/set-password?mode=in-app-social` IS live and
+///    writes: JM-022 owns `POST /v1/auth/set-password` via
+///    `DioAuthRepository.setPassword`. The router kept `/set-password` through
+///    JEBV4-199 precisely for this authenticated path.
 ///
-/// redesign-2026-08: re-skinned onto the Jeeb system to match its settings-family
-/// neighbours (screen 20 `settings_screen.dart`, `profile_edit_screen.dart`).
-/// Bands, top to bottom: in-body [JeebTopBar] → lead-in sentence → the three
-/// password fields → the error note → the Save pill → the social-only entry.
-/// The flow, the copy, the field order and every `Semantics(identifier:)` are
-/// unchanged — this is a re-skin, not a product change.
+/// So post-JEBV4-199 (phone-OTP + social sign-in only) the screen's real job is
+/// ADDING a password to an OTP/social account, not changing an existing one.
+/// See [hasPassword] for why the dead half still renders by default.
 ///
-/// ACCOUNT-TYPE GATING ([hasPassword]): the JM-061 AC4 / 67_W34_TEST_PLAN drive
-/// the social-only variant with `jeeb.seam.account_type=social_only`. That seam
-/// is flagged "NEW W4 (Backend + seam)" but has NOT landed yet (the final-wave
-/// SEAM agent added only the four `jeeb.seam.journey` values; no `account_type`
-/// field exists on `DevSeamConfig`). Until it lands, this screen defaults to a
-/// password account ([hasPassword] = true) and renders BOTH the change form and
-/// the social-only entry, so every asserted id is reachable in one render and
-/// the `password_set_entry → setpw_new_field` nav assertion holds. The
-/// constructor flag is the seam-ready gate the integrator flips once the
-/// `account_type` field exists (see 50_ROUTE_REQUESTS.md JM-061).
+/// MIDNIGHT: nearest tile is R22 settings (already shipped at M2-19) — same
+/// settings family, same in-body top bar, reached from the same profile chain.
+/// Carried over: `content` field with the orange glow at `topEnd` and NO
+/// periwinkle wash (R22 declares none), transparent scaffold, the 24px gutter,
+/// `scrollBodyBottomInset`, and R22's band rhythm — `JeebSectionLabel` + 8 over
+/// each control group, 20 between bands. R22 is board-still, so nothing here
+/// animates.
 ///
 /// Ids exposed (30_BACKLOG JM-061 + 67_W34_TEST_PLAN §JM-061):
 ///   `password_security_root`            — screen host container
@@ -62,12 +60,15 @@ class PasswordSecurityScreen extends StatelessWidget {
   });
 
   /// Whether the account already has a password set. `true` → render the
-  /// change-password form; `false` (social-only, D90) → the form is suppressed
-  /// and only `password_set_entry` shows. Defaults `true` until the
-  /// `account_type` seam lands (see class doc). The change form and the
-  /// social-only entry are both rendered when `true` so a social user who DID
-  /// set a password can still re-link via the entry — the AC requires the entry
-  /// to be reachable for the social variant, not hidden for the password one.
+  /// change-password form; `false` (social-only, D90) → only
+  /// `password_set_entry` shows.
+  ///
+  /// STILL DEFAULTS TRUE, and that is now questionable: the `account_type` seam
+  /// this was meant to read never landed, and JEBV4-199 removed the only funnel
+  /// that could set a password, so nearly every live account is in fact
+  /// `false`. Flipping the default is a product call (it would also unmount
+  /// five frozen ids from the default render), so M3-26 restyled both halves
+  /// and raised it instead. See 50_ROUTE_REQUESTS.md JM-061.
   final bool hasPassword;
 
   /// Test seam: overrides the cubit construction (40_GUARDRAILS_ARCH §5.4).
@@ -113,8 +114,7 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
   }
 
   /// B-33: the form validated but there is no change-password endpoint to call,
-  /// so we surface an honest "not available yet" notice and STAY on screen — we
-  /// never fake success by popping back to the profile.
+  /// so we surface an honest "not available yet" notice and STAY on screen.
   void _onUnavailable(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     showOmdsSnackbar(context, message: l10n.passwordChangeUnavailable);
@@ -123,219 +123,231 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'password_security_root',
       container: true,
       explicitChildNodes: true,
       child: Scaffold(
-        // The header is an in-body [JeebTopBar] row, not a Material app bar
-        // (§5 #1) — the same swap screen 20 and profile-edit made.
-        body: BlocConsumer<PasswordSecurityCubit, PasswordSecurityState>(
-          listenWhen: (p, n) =>
-              p.status != n.status &&
-              n.status == PasswordSecurityStatus.unavailable,
-          listener: (context, state) => _onUnavailable(context),
-          builder: (context, state) {
-            final cubit = context.read<PasswordSecurityCubit>();
-            final submitting =
-                state.status == PasswordSecurityStatus.submitting;
-            return SafeArea(
-              child: Column(
-                children: [
-                  JeebTopBar.back(
-                    title: l10n.passwordSecurityTitle,
-                    // FROZEN id — it now rides the Ø40 leading circle, which is
-                    // where the kit's `<screen>_back` contract puts it.
-                    identifier: 'password_back',
-                    // EDGE: password_back → customer-profile (JM-061 AC).
-                    onLeadingPressed: () => context.canPop()
-                        ? context.pop()
-                        : context.goNamed('customer-profile'),
+        backgroundColor: Colors.transparent,
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          // R22's only radial, and it declares no periwinkle wash.
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          animateDecor: false,
+          child: SafeArea(
+            // The list reserves the nav-bar inset itself (R22).
+            bottom: false,
+            child: Column(
+              children: [
+                // In-body top bar, kept OUTSIDE the consumer so the header
+                // renders identically in every phase (R22 / escalate shape).
+                JeebTopBar.back(
+                  title: l10n.passwordSecurityTitle,
+                  identifier: 'password_back',
+                  // EDGE: password_back → customer-profile (JM-061 AC).
+                  onLeadingPressed: () => context.canPop()
+                      ? context.pop()
+                      : context.goNamed('customer-profile'),
+                ),
+                Expanded(
+                  child:
+                      BlocConsumer<PasswordSecurityCubit, PasswordSecurityState>(
+                    listenWhen: (p, n) =>
+                        p.status != n.status &&
+                        n.status == PasswordSecurityStatus.unavailable,
+                    listener: (context, state) => _onUnavailable(context),
+                    builder: (context, state) => _body(context, l10n, state),
                   ),
-                  Expanded(
-                    child: ListView(
-                      // 24px side gutters (§4.3) — the board's screen gutter,
-                      // shared with every redesigned settings-family screen.
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        Spacing.xLarge,
-                        Spacing.medium,
-                        Spacing.xLarge,
-                        Spacing.xLarge,
-                      ),
-                      children: [
-                        Text(
-                          l10n.passwordSecurityBody,
-                          // Periwinkle is banned as body ink on white, so the
-                          // lead-in takes the brown subtitle role instead.
-                          style: context.jeebText.body.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: Spacing.xLarge),
-
-                        // ---- Change-password form (password accounts) ----
-                        if (widget.hasPassword) ...[
-                          // Current password.
-                          Semantics(
-                            identifier: 'password_current_field',
-                            textField: true,
-                            child: OmdsTextField(
-                              controller: _currentController,
-                              // Reuses the login password label/hint (closest
-                              // existing copy; dedicated `passwordCurrent*` keys
-                              // requested in 50_ROUTE_REQUESTS.md — ARB is
-                              // integrator-owned).
-                              labelText: l10n.loginPasswordLabel,
-                              hintText: l10n.loginPasswordHint,
-                              obscureText: state.currentObscured,
-                              autoValidate: false,
-                              enabled: !submitting,
-                              textInputAction: TextInputAction.next,
-                              onChanged: (_) => cubit.acknowledgeError(),
-                            ),
-                          ),
-                          const SizedBox(height: Spacing.medium),
-                          // New password + eye toggle.
-                          Semantics(
-                            identifier: 'password_new_field',
-                            textField: true,
-                            child: OmdsTextField(
-                              controller: _newController,
-                              labelText: l10n.setpwNewLabel,
-                              hintText: l10n.setpwNewHint,
-                              obscureText: state.newObscured,
-                              autoValidate: false,
-                              enabled: !submitting,
-                              textInputAction: TextInputAction.next,
-                              onChanged: (_) => cubit.acknowledgeError(),
-                              suffixIcon: Semantics(
-                                identifier: 'password_new_visibility_toggle',
-                                button: true,
-                                child: IconButton(
-                                  icon: Icon(
-                                    state.newObscured
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
-                                  ),
-                                  onPressed: cubit.toggleNewObscured,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: Spacing.medium),
-                          // Confirm password + eye toggle.
-                          Semantics(
-                            identifier: 'password_confirm_field',
-                            textField: true,
-                            child: OmdsTextField(
-                              controller: _confirmController,
-                              labelText: l10n.setpwConfirmLabel,
-                              hintText: l10n.setpwConfirmHint,
-                              obscureText: state.confirmObscured,
-                              autoValidate: false,
-                              enabled: !submitting,
-                              textInputAction: TextInputAction.done,
-                              onChanged: (_) => cubit.acknowledgeError(),
-                              onSubmitted: (_) => _onSubmit(),
-                              suffixIcon: Semantics(
-                                identifier:
-                                    'password_confirm_visibility_toggle',
-                                button: true,
-                                child: IconButton(
-                                  icon: Icon(
-                                    state.confirmObscured
-                                        ? Icons.visibility
-                                        : Icons.visibility_off,
-                                  ),
-                                  onPressed: cubit.toggleConfirmObscured,
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Strength / empty / same-as-current guard node.
-                          // The two guards are mutually exclusive (the policy
-                          // returns one verdict), so at most one note renders.
-                          if (state.hasStrengthError) ...[
-                            const SizedBox(height: Spacing.small),
-                            Semantics(
-                              identifier: 'password_strength_error',
-                              liveRegion: true,
-                              child: JeebInfoNote.error(
-                                icon: Icons.error,
-                                // Reuses the set-password validation copy
-                                // (dedicated `passwordStrengthError` requested
-                                // in 50_ROUTE_REQUESTS.md).
-                                text: l10n.setpwValidationError,
-                              ),
-                            ),
-                          ],
-                          // Mismatch guard node.
-                          if (state.hasMismatchError) ...[
-                            const SizedBox(height: Spacing.small),
-                            Semantics(
-                              identifier: 'password_mismatch_error',
-                              liveRegion: true,
-                              child: JeebInfoNote.error(
-                                icon: Icons.error,
-                                // Reuses the set-password validation copy
-                                // (dedicated `passwordMismatchError` requested
-                                // in 50_ROUTE_REQUESTS.md).
-                                text: l10n.setpwValidationError,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: Spacing.xLarge),
-                          // Submit the change.
-                          Semantics(
-                            identifier: 'password_submit_cta',
-                            button: true,
-                            child: JeebCtaButton.primary(
-                              // Reuses the set-password CTA copy
-                              // ("Save password").
-                              label: l10n.setpwSubmitCta,
-                              isEnabled: !submitting,
-                              onTap: _onSubmit,
-                            ),
-                          ),
-                          const SizedBox(height: Spacing.small),
-                        ],
-
-                        // ---- Social-only "Set a password" entry (D90) ----
-                        // Always reachable (see class doc): a social user
-                        // without a password sees ONLY this when `hasPassword`
-                        // is false; a password user sees it below the form as a
-                        // re-link affordance.
-                        Semantics(
-                          identifier: 'password_set_entry',
-                          button: true,
-                          container: true,
-                          child: JeebCtaButton(
-                            label: l10n.passwordSetEntryCta,
-                            variant: widget.hasPassword
-                                ? JeebCtaVariant.outline
-                                : JeebCtaVariant.primary,
-                            // EDGE: password_set_entry → auth-set-password
-                            // (?mode=in-app-social, D90). Pushed (forward nav,
-                            // keeps a back stack to here); the JM-022 screen
-                            // owns the POST + the D90 in-app-social exit
-                            // (goNamed customer-profile).
-                            onTap: () => context.pushNamed(
-                              'set-password',
-                              queryParameters: const <String, String>{
-                                'mode': 'in-app-social',
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+                ),
+              ],
+            ),
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _body(
+    BuildContext context,
+    AppLocalizations l10n,
+    PasswordSecurityState state,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final submitting = state.status == PasswordSecurityStatus.submitting;
+    return ListView(
+      padding: EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.medium,
+        Spacing.xLarge,
+        Spacing.xLarge + context.scrollBodyBottomInset,
+      ),
+      children: [
+        Text(
+          l10n.passwordSecurityBody,
+          // `onSurfaceVariant` IS the Midnight muted-ink role (#8A93D8).
+          style: context.jeebText.body.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+
+        // ---- Change-password form (password accounts) ----
+        if (widget.hasPassword) ...[
+          const SizedBox(height: Spacing.large),
+          JeebSectionLabel(l10n.settingsSecuritySection),
+          const SizedBox(height: Spacing.xSmall),
+          Semantics(
+            identifier: 'password_current_field',
+            textField: true,
+            child: OmdsTextField(
+              controller: _currentController,
+              // Reuses the login password label/hint; dedicated
+              // `passwordCurrent*` keys requested in 50_ROUTE_REQUESTS.md.
+              labelText: l10n.loginPasswordLabel,
+              hintText: l10n.loginPasswordHint,
+              obscureText: state.currentObscured,
+              autoValidate: false,
+              enabled: !submitting,
+              textInputAction: TextInputAction.next,
+              onChanged: (_) =>
+                  context.read<PasswordSecurityCubit>().acknowledgeError(),
+            ),
+          ),
+          const SizedBox(height: Spacing.medium),
+          Semantics(
+            identifier: 'password_new_field',
+            textField: true,
+            child: OmdsTextField(
+              controller: _newController,
+              labelText: l10n.setpwNewLabel,
+              hintText: l10n.setpwNewHint,
+              obscureText: state.newObscured,
+              autoValidate: false,
+              enabled: !submitting,
+              textInputAction: TextInputAction.next,
+              onChanged: (_) =>
+                  context.read<PasswordSecurityCubit>().acknowledgeError(),
+              suffixIcon: _RevealToggle(
+                identifier: 'password_new_visibility_toggle',
+                obscured: state.newObscured,
+                onPressed:
+                    context.read<PasswordSecurityCubit>().toggleNewObscured,
+              ),
+            ),
+          ),
+          const SizedBox(height: Spacing.medium),
+          Semantics(
+            identifier: 'password_confirm_field',
+            textField: true,
+            child: OmdsTextField(
+              controller: _confirmController,
+              labelText: l10n.setpwConfirmLabel,
+              hintText: l10n.setpwConfirmHint,
+              obscureText: state.confirmObscured,
+              autoValidate: false,
+              enabled: !submitting,
+              textInputAction: TextInputAction.done,
+              onChanged: (_) =>
+                  context.read<PasswordSecurityCubit>().acknowledgeError(),
+              onSubmitted: (_) => _onSubmit(),
+              suffixIcon: _RevealToggle(
+                identifier: 'password_confirm_visibility_toggle',
+                obscured: state.confirmObscured,
+                onPressed:
+                    context.read<PasswordSecurityCubit>().toggleConfirmObscured,
+              ),
+            ),
+          ),
+          // The two guards are mutually exclusive (the policy returns one
+          // verdict), so at most one note renders.
+          if (state.hasStrengthError) ...[
+            const SizedBox(height: Spacing.small),
+            Semantics(
+              identifier: 'password_strength_error',
+              liveRegion: true,
+              child: JeebInfoNote.error(
+                icon: Icons.error_outline,
+                text: l10n.setpwValidationError,
+              ),
+            ),
+          ],
+          if (state.hasMismatchError) ...[
+            const SizedBox(height: Spacing.small),
+            Semantics(
+              identifier: 'password_mismatch_error',
+              liveRegion: true,
+              child: JeebInfoNote.error(
+                icon: Icons.error_outline,
+                text: l10n.setpwValidationError,
+              ),
+            ),
+          ],
+          const SizedBox(height: Spacing.large),
+          Semantics(
+            identifier: 'password_submit_cta',
+            button: true,
+            child: JeebCtaButton.primary(
+              label: l10n.setpwSubmitCta,
+              isEnabled: !submitting,
+              isLoading: submitting,
+              onTap: _onSubmit,
+            ),
+          ),
+        ],
+
+        // ---- Social "Set a password" entry (D90) ----
+        // The live half. Banded under its own label so it reads as a separate
+        // act, not a second button belonging to the form above.
+        const SizedBox(height: Spacing.large),
+        JeebSectionLabel(l10n.settingsAccountSection),
+        const SizedBox(height: Spacing.xSmall),
+        Semantics(
+          identifier: 'password_set_entry',
+          button: true,
+          container: true,
+          child: JeebCtaButton(
+            label: l10n.passwordSetEntryCta,
+            // Glass when it is the secondary act, periwinkle when it is the
+            // only one. Never accent: R22 spends its orange on one lit frame.
+            variant: widget.hasPassword
+                ? JeebCtaVariant.outline
+                : JeebCtaVariant.primary,
+            // EDGE: password_set_entry → auth-set-password
+            // (?mode=in-app-social, D90). Pushed, so back returns here.
+            onTap: () => context.pushNamed(
+              'set-password',
+              queryParameters: const <String, String>{'mode': 'in-app-social'},
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The obscure/reveal eye on a password field.
+///
+/// Inked `onSurfaceVariant` on purpose: it is a field affordance, not an act,
+/// so it takes the muted role rather than heading ink.
+class _RevealToggle extends StatelessWidget {
+  const _RevealToggle({
+    required this.identifier,
+    required this.obscured,
+    required this.onPressed,
+  });
+
+  final String identifier;
+  final bool obscured;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: identifier,
+      button: true,
+      child: IconButton(
+        icon: Icon(obscured ? Icons.visibility : Icons.visibility_off),
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        onPressed: onPressed,
       ),
     );
   }

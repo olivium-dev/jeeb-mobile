@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/features/language/presentation/screens/language_settings_screen.dart';
 
 import '../fixtures/language_settings_screen_fixtures.dart';
@@ -15,11 +16,14 @@ import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_sc
 
 import '../fixtures/live_tracking_screen_fixtures.dart';
 
+import 'package:jeeb_mobile/features/location/data/fake_address_form_repository.dart';
 import 'package:jeeb_mobile/features/location/data/location_repository.dart'
     show LocationPoint;
+import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 import 'package:jeeb_mobile/features/location/presentation/capture_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/saved_locations_screen.dart';
+import 'package:jeeb_mobile/features/location/presentation/screens/address_detail_form_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/widgets/map_capture_controller.dart';
 
 import '../fixtures/capture_location_screen_fixtures.dart';
@@ -42,6 +46,7 @@ List<CatalogEntry> get batch06Entries => <CatalogEntry>[
       _languageEntry,
       _liveTrackingEntry,
       _savedLocationsEntry,
+      _addressDetailFormEntry,
       _clientLocationEntry,
       _captureLocationEntry,
       _maskedCallEntry,
@@ -50,10 +55,31 @@ List<CatalogEntry> get batch06Entries => <CatalogEntry>[
     ];
 
 /// Uses IN-MEMORY prefs (not persisted device storage) to render designed states.
+///
+/// The app's root `MaterialApp` re-localizes when [LocaleCubit] emits; a catalog
+/// host does not, so the Arabic state rendered LTR English chrome around a lit
+/// Arabic pill. Re-localizing here restores the RTL half of the screen — which
+/// is the whole point of this surface — to the captures.
 Widget _languageSettingsPreview(LanguageSettingsScreenCubitFactory create) =>
     LanguageSettingsScreenPreviewHost(
       create: create,
-      child: const LanguageSettingsScreen(),
+      child: BlocBuilder<LocaleCubit, Locale>(
+        builder: (context, locale) => Localizations.override(
+          context: context,
+          locale: locale,
+          child: Builder(
+            // Read back the direction the way `WidgetsApp` does, instead of
+            // re-deriving locale → RTL a second time.
+            builder: (context) => Directionality(
+              textDirection: Localizations.of<WidgetsLocalizations>(
+                context,
+                WidgetsLocalizations,
+              )!.textDirection,
+              child: const LanguageSettingsScreen(),
+            ),
+          ),
+        ),
+      ),
     );
 
 final CatalogEntry _languageEntry = CatalogEntry(
@@ -153,6 +179,43 @@ final CatalogEntry _savedLocationsEntry = CatalogEntry(
       'Error',
       (_) => const SavedLocationsScreen(
         repository: SavedLocationsScreenFakeRepository([], failFetch: true),
+      ),
+    ),
+  ],
+);
+
+/// `userId` is injected so the screen skips its session-resolve gate; the
+/// loading state is unreachable from a catalog builder for that reason.
+final CatalogEntry _addressDetailFormEntry = CatalogEntry(
+  feature: 'location',
+  screen: 'Address Detail Form',
+  states: [
+    CatalogState(
+      'Add (no pin dropped)',
+      (_) => const AddressDetailFormScreen(
+        userId: 'catalog-user',
+        repository: FakeAddressFormRepository(),
+      ),
+    ),
+    CatalogState(
+      'Edit (pinned)',
+      (_) => const AddressDetailFormScreen(
+        userId: 'catalog-user',
+        repository: FakeAddressFormRepository(),
+        addressId: 'addr-home',
+        existing: SavedLocation(
+          id: 'addr-home',
+          label: 'Home',
+          latitude: 33.8886,
+          longitude: 35.4955,
+          category: SavedLocationCategory.home,
+          address: 'Sassine Square, Ashrafieh',
+          isDefault: true,
+          building: 'Bloc B',
+          floorApt: '4th floor, Apt 12',
+          deliveryNotes: 'Ring twice; blue door.',
+          codPhone: '+961 3 123 456',
+        ),
       ),
     ),
   ],

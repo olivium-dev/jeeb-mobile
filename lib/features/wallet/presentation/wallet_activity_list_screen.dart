@@ -159,17 +159,13 @@ class _WalletActivityView extends StatelessWidget {
                         case WalletLedgerStatus.loading:
                           return _StateBlock(
                             status: JeebEmptyStateStatus.loading,
-                            // TODO(midnight): l10n-queued —
-                            // walletActivityLoadingHeadline.
-                            headline: copy.title,
+                            headline: copy.loadingHeadline,
                             identifier: 'wallet_activity_loading',
                           );
                         case WalletLedgerStatus.failed:
                           return _StateBlock(
                             status: JeebEmptyStateStatus.error,
-                            // TODO(midnight): l10n-queued —
-                            // walletActivityErrorTitle.
-                            headline: copy.loadError,
+                            headline: copy.errorTitle,
                             body: state.error == WalletLedgerFailure.network
                                 ? copy.networkError
                                 : null,

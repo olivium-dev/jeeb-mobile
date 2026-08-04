@@ -43,12 +43,12 @@ class _ProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // TODO(midnight): l10n-queued — R23's caption carries the step name and a
-    // "then <next>" hint; neither placeholder exists on this key yet.
-    final label = l10n.dmOnboardingStepProgressLabel(
+    final label = l10n.dmOnboardingStepProgressLabelNamed(
       current: state.currentStepNumber,
       total: DmOnboardingState.totalSteps,
+      stepName: stepName(l10n, state.step),
     );
+    final DmOnboardingStep? next = nextStep(state.step);
     return Semantics(
       identifier: 'dm_onboarding_progress',
       value: label,
@@ -56,18 +56,42 @@ class _ProgressBar extends StatelessWidget {
       // `completedSteps` drew "Step 3 of 3" over a 2/3 bar.
       child: _ProgressBarTrack(
         label: label,
+        nextHint: next == null
+            ? null
+            : l10n.dmOnboardingNextStepHint(stepName: stepName(l10n, next)),
         filledSteps: state.isSubmitted
             ? DmOnboardingState.totalSteps
             : state.currentStepNumber,
       ),
     );
   }
+
+  static String stepName(AppLocalizations l10n, DmOnboardingStep step) {
+    switch (step) {
+      case DmOnboardingStep.photo:
+        return l10n.dmOnboardingPhotoStepTitle;
+      case DmOnboardingStep.address:
+        return l10n.dmOnboardingPersonalDetailsTitle;
+      case DmOnboardingStep.serviceArea:
+        return l10n.dmOnboardingServiceAreaTitle;
+    }
+  }
+
+  static DmOnboardingStep? nextStep(DmOnboardingStep step) =>
+      step.index + 1 < DmOnboardingStep.values.length
+          ? DmOnboardingStep.values[step.index + 1]
+          : null;
 }
 
 class _ProgressBarTrack extends StatelessWidget {
-  const _ProgressBarTrack({required this.label, required this.filledSteps});
+  const _ProgressBarTrack({
+    required this.label,
+    required this.nextHint,
+    required this.filledSteps,
+  });
 
   final String label;
+  final String? nextHint;
   final int filledSteps;
 
   @override
@@ -87,12 +111,29 @@ class _ProgressBarTrack extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ExcludeSemantics(
-            child: Text(
-              label,
-              style: context.jeebText.bodySmall.copyWith(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Row(
+              children: [
+                // Expanded (not Spacer) so the label wraps before it collides
+                // with the hint under 200% text or a long Arabic step name.
+                Expanded(
+                  child: Text(
+                    label,
+                    style: context.jeebText.bodySmall.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (nextHint != null) const SizedBox(width: Spacing.small),
+                if (nextHint != null)
+                  Text(
+                    nextHint!,
+                    style: context.jeebText.bodySmall.copyWith(
+                      color: semantic.mutedText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: Spacing.xSmall),

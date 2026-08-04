@@ -1116,7 +1116,6 @@
   "dmOnboardingServiceAreaLocationPlaceholder": "اختر",
   "dmOnboardingServiceAreaMapPlaceholder": "اضغط على الموقع لتحديد قاعدتك الرئيسية",
   "dmOnboardingContinue": "متابعة",
-  "dmOnboardingStepProgressLabel": "الخطوة {current} من {total}",
   "pendingTabSearchingLabel": "البحث عن جِيبرين…",
   "pendingTabTtlLabel": "~{minutes}:{seconds} متبقي",
   "pendingTabExpiredLabel": "منتهي",
@@ -1998,5 +1997,24 @@
   "customerProfileLoadErrorRetry": "إعادة المحاولة",
 
   "notificationsLoadingHeadline": "جارٍ تحميل الإشعارات",
-  "notificationsErrorTitle": "تعذّر تحميل الإشعارات"
+  "notificationsErrorTitle": "تعذّر تحميل الإشعارات",
+
+  "walletActivityLoadingHeadline": "جارٍ تحميل نشاطك",
+  "walletActivityErrorTitle": "تعذّر تحميل نشاطك",
+  "txnDetailLoadingHeadline": "جارٍ تحميل المعاملة",
+  "txnDetailErrorTitle": "تعذّر تحميل هذه المعاملة",
+
+  "dmOnboardingWizardTitle": "كن جيبر",
+  "dmOnboardingStepProgressLabelNamed": "الخطوة {current} من {total} — {stepName}",
+  "dmOnboardingNextStepHint": "ثم {stepName}",
+
+  "fundingStarterCreditLabel": "الرصيد الابتدائي",
+  "fundingReservedNowLabel": "محجوز حالياً",
+
+  "offerKycGateStatusChecking": "جارٍ التحقق من حالة التوثيق…",
+  "offerKycGateStatusUnavailable": "تعذّر التحقق من حالة التوثيق الآن.",
+
+  "kycRejectedReasonOtherFinal": "البيانات المُرسلة لم تستوفِ متطلبات التوثيق لدينا.",
+
+  "accountStatusLoadingHeadline": "جارٍ التحقق من حسابك"
 }

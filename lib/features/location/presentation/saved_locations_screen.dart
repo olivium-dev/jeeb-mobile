@@ -6,11 +6,15 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/router/root_aware_back_scope.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
@@ -45,6 +49,30 @@ import 'cubit/saved_locations_state.dart';
 /// back to English for any non-Arabic locale.
 String _defaultBadgeLabel(Locale locale) =>
     locale.languageCode == 'ar' ? 'الافتراضي' : 'Default';
+
+/// State-family copy the ARB does not carry yet.
+/// TODO(midnight): l10n-queued — `docs/redesign-midnight/l10n-queue/M3-28-29.md`.
+class _SavedAddressesMidnightL10n {
+  const _SavedAddressesMidnightL10n._(this._ar);
+
+  factory _SavedAddressesMidnightL10n.of(BuildContext context) =>
+      _SavedAddressesMidnightL10n._(
+        Localizations.localeOf(context).languageCode == 'ar',
+      );
+
+  final bool _ar;
+
+  String get loadingHeadline =>
+      _ar ? 'جارٍ تحميل عناوينك' : 'Loading your addresses';
+
+  /// The shipped `savedLocationsError` sentence split at its own full stop, so
+  /// the error block gets a headline and a body without inventing copy.
+  String get errorHeadline => _ar
+      ? 'تعذّر تحميل المواقع المحفوظة'
+      : 'Could not load saved locations';
+
+  String get errorBody => _ar ? 'حاول مرة أخرى.' : 'Please try again.';
+}
 
 class SavedLocationsScreen extends StatelessWidget {
   const SavedLocationsScreen({super.key, this.repository});
@@ -98,35 +126,42 @@ class _SavedLocationsView extends StatelessWidget {
         // normally when it was `push`ed (settings / location-select entries).
         return RootAwareBackScope(
           fallbackLocation: '/settings',
-          child: Scaffold(
-            // Redesign: the header is an in-body row, not a Material app bar —
-            // no elevation, no surface tint, no centred title (kit §5 #1), and
-            // the Add CTA moves off a floating action button onto the board's
-            // docked pill footer (R1: column → content → flex:1 → footer).
-            body: SafeArea(
-              bottom: false,
-              child: Column(
-                children: [
-                  JeebTopBar.back(
-                    title: l10n.savedAddressesTitle,
-                    identifier: 'saved_addresses_back',
-                  ),
-                  Expanded(child: _buildBody(context, state)),
-                ],
+          // MIDNIGHT M3-28: R22's own field — `content` variant, orange glow
+          // top-end, board-still. This manager is R22's MORE-band child.
+          child: JeebMidnightField(
+            variant: JeebFieldVariant.content,
+            glowPlacement: JeebFieldGlowPlacement.topEnd,
+            animateDecor: false,
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              // Redesign: the header is an in-body row, not a Material app bar
+              // — no elevation, no surface tint, no centred title (kit §5 #1),
+              // and the Add CTA sits on the board's docked pill footer.
+              body: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    JeebTopBar.back(
+                      title: l10n.savedAddressesTitle,
+                      identifier: 'saved_addresses_back',
+                    ),
+                    Expanded(child: _buildBody(context, state)),
+                  ],
+                ),
               ),
-            ),
-            bottomNavigationBar: SafeArea(
-              top: false,
-              // JeebCtaFooter applies no SafeArea of its own — the docked pad
-              // is 24/0/24/32, the board's own footer inset.
-              child: JeebCtaFooter.single(
-                child: _AddAddressCta(
-                  // The Add CTA is the screen's signature id — present in EVERY
-                  // non-fatal state (incl. empty), per the jm-049 flow (AC2/AC5
-                  // assert it directly after opening the manager).
-                  enabled:
-                      !_isMutating(state) && state is! SavedLocationsLoading,
-                  onPressed: () => _onAdd(context),
+              bottomNavigationBar: SafeArea(
+                top: false,
+                // JeebCtaFooter applies no SafeArea of its own — the docked pad
+                // is 24/0/24/32, the board's own footer inset.
+                child: JeebCtaFooter.single(
+                  child: _AddAddressCta(
+                    // The Add CTA is the screen's signature id — present in
+                    // EVERY non-fatal state (incl. empty), per the jm-049 flow
+                    // (AC2/AC5 assert it right after opening the manager).
+                    enabled:
+                        !_isMutating(state) && state is! SavedLocationsLoading,
+                    onPressed: () => _onAdd(context),
+                  ),
                 ),
               ),
             ),
@@ -156,7 +191,7 @@ class _SavedLocationsView extends StatelessWidget {
   Widget _buildBody(BuildContext context, SavedLocationsState state) {
     final locations = _locationsFrom(state);
     if (state is SavedLocationsLoading) {
-      return const Center(child: OmdsLoadingState());
+      return const _LoadingView();
     }
     if (state is SavedLocationsError) {
       return _ErrorView(
@@ -232,7 +267,7 @@ class _LocationList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        ListView.separated(
+        ListView(
           // The board's 24px side gutter (§4.3 `--screen-gutter`).
           padding: const EdgeInsetsDirectional.fromSTEB(
             Spacing.xLarge,
@@ -240,18 +275,22 @@ class _LocationList extends StatelessWidget {
             Spacing.xLarge,
             Spacing.medium,
           ),
-          itemCount: locations.length,
-          // R7/R12: the 1.5px outlines ARE the separation — a divider between
-          // two outlined cards draws a third line nobody asked for.
-          separatorBuilder: (context, index) =>
-              const SizedBox(height: Spacing.small),
-          itemBuilder: (ctx, i) => _LocationTile(
-            index: i,
-            location: locations[i],
-            isMutating: isMutating,
-          ),
+          children: [
+            // R22 carry-in: one glass band with 1px inset dividers, exactly the
+            // MORE card that links here — not a stack of one-row cards.
+            JeebOutlinedCard.grouped(
+              children: [
+                for (var i = 0; i < locations.length; i++)
+                  _LocationTile(
+                    index: i,
+                    location: locations[i],
+                    isMutating: isMutating,
+                  ),
+              ],
+            ),
+          ],
         ),
-        if (isMutating) const Center(child: OmdsLoadingState()),
+        if (isMutating) const Center(child: CircularProgressIndicator()),
       ],
     );
   }
@@ -264,6 +303,11 @@ class _LocationTile extends StatelessWidget {
     required this.isMutating,
   });
 
+  /// R22's navigation-row rung: `JeebListRow`'s 19px glyph and 12px gap, the
+  /// metrics this hand-built row has to match because it cannot use the kit row.
+  static const double _glyphSize = 19;
+  static const double _gap = 12;
+
   /// List position; drives the `saved_address_<index>_edit` id (63 §2.16
   /// coins index-0 for the seeded fixture; pattern `saved_address_<n>_edit`).
   final int index;
@@ -273,79 +317,81 @@ class _LocationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
-    // Card-per-address, matching the neighbouring location picker's option
-    // cards (screen 09): white fill, 1.5px brown outline, no shadow.
-    //
+    final tone = JeebSurfaceTone.of(context);
     // Deliberately NOT `JeebListRow`: its title is a plain `String`, and this
     // row has to carry the default badge INLINE with the label while keeping
     // the edit/overflow controls fixed-width — the original no-overflow
     // constraint. Folding badge + two affordances into the kit row's single
-    // `trailing` slot is exactly the crowding that constraint forbids.
-    return JeebOutlinedCard(
+    // `trailing` slot is exactly the crowding that constraint forbids. Every
+    // metric and ink below is the kit row's, so the two cannot drift.
+    return InkWell(
       onTap: isMutating ? null : () => _onEdit(context),
-      // The trailing icon buttons already carry their own 48dp box, so the
-      // card's 13px vertical inset would push the row past 70px — trim it back
-      // (the same correction `ClientLocationAddRow` makes).
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.medium,
-        Spacing.twoXSmall,
-        Spacing.xSmall,
-        Spacing.twoXSmall,
-      ),
-      child: Row(
-        children: [
-          // R10: filled glyphs only — the outline variants are off the board.
-          Icon(
-            _iconFor(location.category),
-            size: Sizes.large,
-            color: scheme.primary,
-          ),
-          const SizedBox(width: Spacing.small),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        location.label,
-                        style: context.jeebText.cardTitle
-                            .copyWith(color: scheme.primary),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (location.isDefault) ...[
-                      const SizedBox(width: Spacing.xSmall),
-                      _DefaultBadge(locale: l10n.locale),
-                    ],
-                  ],
-                ),
-                if (location.address != null) ...[
-                  const SizedBox(height: Spacing.twoXSmall),
-                  Text(
-                    location.address!,
-                    style: context.jeebText.bodySmall
-                        .copyWith(color: scheme.onSurfaceVariant),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
+      child: Padding(
+        // The trailing icon buttons carry their own 48dp box, so the row keeps
+        // JeebListRow's 14 horizontal inset with the vertical one trimmed.
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          14,
+          Spacing.twoXSmall,
+          Spacing.xSmall,
+          Spacing.twoXSmall,
+        ),
+        child: Row(
+          children: [
+            // R10: filled glyphs only — the outline variants are off the board.
+            // MIDNIGHT: title ink, NOT `colorScheme.primary` (now #D73B00).
+            Icon(
+              _iconFor(location.category),
+              size: _glyphSize,
+              color: tone.titleInk,
             ),
-          ),
-          _EditButton(
-            index: index,
-            label: l10n.savedLocationsEdit,
-            onTap: isMutating ? null : () => _onEdit(context),
-          ),
-          _MoreButton(
-            index: index,
-            label: location.label,
-            onTap: isMutating ? null : () => _onMore(context),
-          ),
-        ],
+            const SizedBox(width: _gap),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          location.label,
+                          style: context.jeebText.body.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: tone.titleInk,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (location.isDefault) ...[
+                        const SizedBox(width: Spacing.xSmall),
+                        _DefaultBadge(locale: l10n.locale),
+                      ],
+                    ],
+                  ),
+                  if (location.address != null) ...[
+                    const SizedBox(height: Sizes.threeXSmall),
+                    Text(
+                      location.address!,
+                      style: context.jeebText.caption
+                          .copyWith(color: tone.mutedInk),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            _EditButton(
+              index: index,
+              label: l10n.savedLocationsEdit,
+              onTap: isMutating ? null : () => _onEdit(context),
+            ),
+            _MoreButton(
+              index: index,
+              label: location.label,
+              onTap: isMutating ? null : () => _onMore(context),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -380,11 +426,10 @@ class _LocationTile extends StatelessWidget {
   ) {
     return showModalBottomSheet<_Action>(
       context: context,
-      // EXEMPT: OmdsBottomSheet lacks a typed-return action-list variant.
-      // §4.4: sheets are radius 24 (`OmdsBorderRadius.topXLarge`), not 20.
-      shape: const RoundedRectangleBorder(
-        borderRadius: OmdsBorderRadius.topXLarge,
-      ),
+      // EXEMPT: OmdsBottomSheet lacks a typed-return action-list variant. No
+      // `shape:` override — the Midnight `bottomSheetTheme` owns the rung.
+      isScrollControlled: true,
+      showDragHandle: true,
       builder: (_) => _ActionSheet(
         locationLabel: location.label,
         editLabel: l10n.savedLocationsEdit,
@@ -397,16 +442,28 @@ class _LocationTile extends StatelessWidget {
     BuildContext context,
     AppLocalizations l10n,
   ) async {
-    final confirmed = await OmdsConfirmationDialog.show(
-      context: context,
-      title: l10n.savedLocationsDeleteConfirmTitle,
-      content: l10n.savedLocationsDeleteConfirmBody(location.label),
-      confirmText: l10n.savedLocationsDelete,
-      cancelText: l10n.actionCancel,
-      isDestructive: true,
-    );
+    // Was `OmdsConfirmationDialog`: a solid `error` slab with WHITE `onPrimary`
+    // ink, 3.1:1 on #FF5252 — the pair §1 refuses. Q-041's danger CTA replaces it.
+    final confirmed = await _showDeleteConfirmSheet(context, l10n) ?? false;
     if (!confirmed || !context.mounted) return;
     await context.read<SavedLocationsCubit>().delete(location.id);
+  }
+
+  Future<bool?> _showDeleteConfirmSheet(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _DeleteConfirmSheet(
+        title: l10n.savedLocationsDeleteConfirmTitle,
+        body: l10n.savedLocationsDeleteConfirmBody(location.label),
+        confirmLabel: l10n.savedLocationsDelete,
+        cancelLabel: l10n.actionCancel,
+      ),
+    );
   }
 
   /// R10 — filled, single-colour glyphs, byte-matching the category glyphs the
@@ -484,13 +541,14 @@ class _EditButton extends StatelessWidget {
       onTap: onTap,
       child: ExcludeSemantics(
         child: IconButton(
-          // R10 filled glyph; brown `onSurfaceVariant` is the board's ink for a
-          // secondary interactive control, so the navy label keeps the lead.
+          // R22's chevron ink and size class: `onSurfaceVariant` periwinkle at
+          // the row's trailing rung, so the white label keeps the lead.
           icon: Icon(
             Icons.edit,
-            size: Sizes.large,
+            size: _rowAffordanceGlyphSize,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
+          visualDensity: VisualDensity.compact,
           tooltip: label,
           onPressed: onTap,
         ),
@@ -498,6 +556,10 @@ class _EditButton extends StatelessWidget {
     );
   }
 }
+
+/// R22 draws a 16px chevron in this slot; an interactive glyph takes the row's
+/// own 19 rung so the two affordances read as one trailing cluster.
+const double _rowAffordanceGlyphSize = 19;
 
 class _MoreButton extends StatelessWidget {
   const _MoreButton({
@@ -529,9 +591,10 @@ class _MoreButton extends StatelessWidget {
         child: IconButton(
           icon: Icon(
             Icons.more_vert,
-            size: Sizes.large,
+            size: _rowAffordanceGlyphSize,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
+          visualDensity: VisualDensity.compact,
           tooltip: label,
           onPressed: onTap,
         ),
@@ -541,6 +604,46 @@ class _MoreButton extends StatelessWidget {
 }
 
 enum _Action { edit, delete }
+
+/// `radar` is the settings-subtree convention (profile_edit, live_settings,
+/// notification_prefs) — the one variant that draws no microphone.
+const JeebEmptyStateVariant _kStateArt = JeebEmptyStateVariant.radar;
+
+/// The three real [SavedLocationCategory] values, so the ring is about PLACES
+/// rather than radar's default jeeber initials.
+const List<JeebEmptyMedallion> _kStateMedallions = <JeebEmptyMedallion>[
+  JeebEmptyMedallion(icon: Icons.home),
+  JeebEmptyMedallion(icon: Icons.work),
+  JeebEmptyMedallion(icon: Icons.place),
+];
+
+/// Replaces radar's solid-orange BROADCAST core: nothing broadcasts here, and
+/// that disc is unbudgeted orange. `WalletStateMark`'s glass-disc treatment.
+class _SavedAddressStateMark extends StatelessWidget {
+  const _SavedAddressStateMark();
+
+  static const double _glyphSize = 28;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: semantic.glassFillEmphasis,
+        border: Border.fromBorderSide(
+          BorderSide(color: semantic.glassBorderStrong),
+        ),
+      ),
+      child: Icon(
+        Icons.bookmark,
+        size: _glyphSize,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
+  }
+}
 
 class _ActionSheet extends StatelessWidget {
   const _ActionSheet({
@@ -556,63 +659,167 @@ class _ActionSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return SafeArea(
-      child: Padding(
-        // The board's 24px gutter, top and bottom at the sheet's own rhythm.
-        padding: const EdgeInsetsDirectional.fromSTEB(
-          Spacing.xLarge,
-          Spacing.medium,
-          Spacing.xLarge,
-          Spacing.medium,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsetsDirectional.only(bottom: Spacing.small),
-              child: Text(
-                locationLabel,
-                style: context.jeebText.titleProminent
-                    .copyWith(color: scheme.primary),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            // A grouped outlined card owns the inset 1px divider, so the
-            // free-standing `Divider()` above the rows goes away (R7).
-            JeebOutlinedCard.grouped(
-              children: [
-                Semantics(
-                  identifier: 'saved_address_sheet_edit_cta',
-                  container: true,
-                  button: true,
-                  child: JeebListRow(
-                    title: editLabel,
-                    icon: Icons.edit,
-                    // These rows act in place (they close the sheet and return
-                    // a choice), so no disclosure chevron — kit ask K2.
-                    showChevron: false,
-                    onTap: () => Navigator.of(context).pop(_Action.edit),
-                  ),
+    return JeebMidnightField(
+      variant: JeebFieldVariant.sheet,
+      animateDecor: false,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          // The board's 24px gutter, top and bottom at the sheet's own rhythm.
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.xSmall,
+            Spacing.xLarge,
+            Spacing.medium,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsetsDirectional.only(bottom: Spacing.small),
+                child: Text(
+                  locationLabel,
+                  // MIDNIGHT: sheet heading ink, NOT `primary` (now #D73B00).
+                  style: context.jeebText.h2.copyWith(color: scheme.onSurface),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                Semantics(
-                  identifier: 'saved_address_sheet_delete_cta',
-                  container: true,
-                  button: true,
-                  child: JeebListRow(
-                    title: deleteLabel,
-                    icon: Icons.delete,
-                    iconColor: scheme.error,
-                    // Merged over the kit default — keeps weight/size, swaps
-                    // only the destructive ink.
-                    titleStyle: TextStyle(color: scheme.error),
-                    showChevron: false,
-                    onTap: () => Navigator.of(context).pop(_Action.delete),
+              ),
+              // A grouped outlined card owns the inset 1px divider, so the
+              // free-standing `Divider()` above the rows goes away (R7).
+              JeebOutlinedCard.grouped(
+                children: [
+                  Semantics(
+                    identifier: 'saved_address_sheet_edit_cta',
+                    container: true,
+                    button: true,
+                    child: JeebListRow(
+                      title: editLabel,
+                      icon: Icons.edit,
+                      // These rows act in place (they close the sheet and
+                      // return a choice), so no chevron — kit ask K2.
+                      showChevron: false,
+                      onTap: () => Navigator.of(context).pop(_Action.edit),
+                    ),
+                  ),
+                  Semantics(
+                    identifier: 'saved_address_sheet_delete_cta',
+                    container: true,
+                    button: true,
+                    child: JeebListRow(
+                      title: deleteLabel,
+                      icon: Icons.delete,
+                      // R22 ruling: destructive ink is danger-SOFT
+                      // `onErrorContainer` (#FF7B7B), never `error` (#FF5252).
+                      iconColor: scheme.onErrorContainer,
+                      titleStyle: TextStyle(color: scheme.onErrorContainer),
+                      showChevron: false,
+                      onTap: () => Navigator.of(context).pop(_Action.delete),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The terminal destructive act, on Q-041's `JeebCtaVariant.danger` pill.
+class _DeleteConfirmSheet extends StatelessWidget {
+  const _DeleteConfirmSheet({
+    required this.title,
+    required this.body,
+    required this.confirmLabel,
+    required this.cancelLabel,
+  });
+
+  final String title;
+  final String body;
+  final String confirmLabel;
+  final String cancelLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return JeebMidnightField(
+      variant: JeebFieldVariant.sheet,
+      animateDecor: false,
+      child: Semantics(
+        identifier: 'saved_address_delete_confirm_sheet',
+        container: true,
+        explicitChildNodes: true,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.xSmall,
+              Spacing.xLarge,
+              Spacing.large,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  title,
+                  style: context.jeebText.h2.copyWith(color: scheme.onSurface),
+                ),
+                const SizedBox(height: Spacing.xSmall),
+                Text(
+                  body,
+                  style: context.jeebText.body
+                      .copyWith(color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: Spacing.large),
+                JeebCtaFooter.split(
+                  padding: EdgeInsets.zero,
+                  expandLeading: true,
+                  leading: Semantics(
+                    identifier: 'saved_address_delete_cancel_cta',
+                    button: true,
+                    child: JeebCtaButton.text(
+                      label: cancelLabel,
+                      onTap: () => Navigator.of(context).pop(false),
+                    ),
+                  ),
+                  trailing: Semantics(
+                    identifier: 'saved_address_delete_confirm_cta',
+                    button: true,
+                    child: JeebCtaButton.danger(
+                      label: confirmLabel,
+                      onTap: () => Navigator.of(context).pop(true),
+                    ),
                   ),
                 ),
               ],
             ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = _SavedAddressesMidnightL10n.of(context);
+    return Center(
+      key: const Key('saved-locations-loading'),
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          variant: _kStateArt,
+          medallions: _kStateMedallions,
+          center: const _SavedAddressStateMark(),
+          status: JeebEmptyStateStatus.loading,
+          headline: copy.loadingHeadline,
         ),
       ),
     );
@@ -625,15 +832,18 @@ class _EmptyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // OMDS-consistent zero-state (was a hand-rolled Icon+Text column). The Add
-    // CTA stays on the screen FAB, so this surface is guidance-only — honest:
-    // there is genuinely nothing saved yet.
+    // §2.7 zero-state (was `OmdsEmptyState`). The Add CTA stays docked in the
+    // footer, so this surface is guidance-only — nothing is saved yet.
     return Center(
       key: const Key('saved-locations-empty'),
-      child: OmdsEmptyState(
-        icon: Icons.place_outlined,
-        title: l10n.savedAddressesEmptyTitle,
-        subtitle: l10n.savedAddressesEmptyBody,
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          variant: _kStateArt,
+          medallions: _kStateMedallions,
+          center: const _SavedAddressStateMark(),
+          headline: l10n.savedAddressesEmptyTitle,
+          body: l10n.savedAddressesEmptyBody,
+        ),
       ),
     );
   }
@@ -647,16 +857,29 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // OMDS-consistent error state with retry (was a hand-rolled column reusing
-    // the unrelated `earningsLoadRetry` label). [onRetry] re-runs the real
+    final copy = _SavedAddressesMidnightL10n.of(context);
+    // §2.7 error state (was `OmdsErrorState`). [onRetry] re-runs the real
     // saved-locations load — no fabricated data.
     return Center(
       key: const Key('saved-locations-error'),
-      child: OmdsErrorState(
-        icon: Icons.cloud_off_outlined,
-        message: l10n.savedLocationsError,
-        retryLabel: l10n.savedLocationsRetry,
-        onRetry: onRetry,
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          variant: _kStateArt,
+          medallions: _kStateMedallions,
+          center: const _SavedAddressStateMark(),
+          status: JeebEmptyStateStatus.error,
+          headline: copy.errorHeadline,
+          body: copy.errorBody,
+          action: Semantics(
+            identifier: 'saved_address_error_retry_cta',
+            button: true,
+            child: JeebCtaButton.outline(
+              label: l10n.savedLocationsRetry,
+              expand: false,
+              onTap: onRetry,
+            ),
+          ),
+        ),
       ),
     );
   }

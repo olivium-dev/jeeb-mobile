@@ -3190,7 +3190,7 @@
   },
   "dmOnboardingPhotoStepTitle": "Image",
   "@dmOnboardingPhotoStepTitle": {
-    "description": "Navbar title of the photo-upload step of delivery-man onboarding (Figma 56591:5560)."
+    "description": "Step name of the photo-upload step of delivery-man onboarding, rendered in the progress caption and the 'then …' hint (Figma 56591:5560). M3-17 moved it off the navbar, which now holds the constant dmOnboardingWizardTitle."
   },
   "dmOnboardingSubmitFailed": "We couldn't confirm your service area. Check your connection and try again.",
   "@dmOnboardingSubmitFailed": {
@@ -3216,9 +3216,9 @@
   "@dmOnboardingPhotoUploadGalleryLabel": {
     "description": "Label for the gallery option in the photo-source picker sheet of delivery-man onboarding (design-spec.md §6 56591:5334 'Gallery option (sheet)')."
   },
-  "dmOnboardingPersonalDetailsTitle": "Personal Details",
+  "dmOnboardingPersonalDetailsTitle": "Personal details",
   "@dmOnboardingPersonalDetailsTitle": {
-    "description": "Navbar title of the address/vehicle step of delivery-man onboarding (Figma 56591:4263)."
+    "description": "Step name of the address step of delivery-man onboarding, rendered in the progress caption and the 'then …' hint (Figma 56591:4263). Sentence case per the DS rule; M3-17 moved it off the navbar, which now holds the constant dmOnboardingWizardTitle."
   },
   "dmOnboardingAddressStateLabel": "State",
   "@dmOnboardingAddressStateLabel": {
@@ -3252,9 +3252,9 @@
   "@dmOnboardingAddressAddressHint": {
     "description": "Placeholder for the full-address input on the DM onboarding address step (Figma 56591:4147)."
   },
-  "dmOnboardingServiceAreaTitle": "Service Area",
+  "dmOnboardingServiceAreaTitle": "Service area",
   "@dmOnboardingServiceAreaTitle": {
-    "description": "Navbar title of the service-area step of delivery-man onboarding (Figma 56591:5337)."
+    "description": "Step name of the service-area step of delivery-man onboarding, rendered in the progress caption (Figma 56591:5337). Sentence case per the DS rule; M3-17 moved it off the navbar, which now holds the constant dmOnboardingWizardTitle. Last step — never appears in a 'then …' hint."
   },
   "dmOnboardingServiceAreaHeading": "Select the working area",
   "@dmOnboardingServiceAreaHeading": {
@@ -3283,14 +3283,6 @@
   "dmOnboardingContinue": "Continue",
   "@dmOnboardingContinue": {
     "description": "Primary CTA on every delivery-man onboarding wizard step (Figma 56611:19420 / 56611:19416)."
-  },
-  "dmOnboardingStepProgressLabel": "Step {current} of {total}",
-  "@dmOnboardingStepProgressLabel": {
-    "description": "Screen-reader value for the delivery-man onboarding wizard progress bar.",
-    "placeholders": {
-      "current": { "type": "int", "example": "1" },
-      "total": { "type": "int", "example": "3" }
-    }
   },
   "pendingTabSearchingLabel": "Searching for Jeebers…",
   "@pendingTabSearchingLabel": {
@@ -5325,5 +5317,49 @@
   "notificationsLoadingHeadline": "Loading notifications",
   "@notificationsLoadingHeadline": {"description": "M3-08 loading headline on the notifications list. Not notificationsTitle — that duplicates the top bar."},
   "notificationsErrorTitle": "Couldn't load notifications",
-  "@notificationsErrorTitle": {"description": "M3-08 error headline on the notifications list. Lifts NotificationsL10n.loadError into the ARB and drops its full stop, which made it read as a body line in h1."}
+  "@notificationsErrorTitle": {"description": "M3-08 error headline on the notifications list. Lifts NotificationsL10n.loadError into the ARB and drops its full stop, which made it read as a body line in h1."},
+
+  "walletActivityLoadingHeadline": "Loading your activity",
+  "@walletActivityLoadingHeadline": {"description": "M3-11 loading headline on the wallet activity list. Not WalletActivityL10n.title (\"Activity\") — that duplicates the top bar verbatim one rung above."},
+  "walletActivityErrorTitle": "Couldn't load your activity",
+  "@walletActivityErrorTitle": {"description": "M3-11 error headline on the wallet activity list. Lifts WalletActivityL10n.loadError into the ARB without its full stop, which made it read as body copy in the h1 slot; networkError stays the body under it."},
+  "txnDetailLoadingHeadline": "Loading transaction",
+  "@txnDetailLoadingHeadline": {"description": "M3-12 loading headline on the transaction detail screen. Not TransactionDetailL10n.title (\"Transaction\") — that duplicates the top bar."},
+  "txnDetailErrorTitle": "Couldn't load this transaction",
+  "@txnDetailErrorTitle": {"description": "M3-12 error headline on the transaction detail screen. Singular on purpose — walletActivityErrorTitle is the plural list-screen twin. The existing loadErrorGeneric / loadErrorNotFound sentences become the body under it."},
+
+  "dmOnboardingWizardTitle": "Become a Jeeber",
+  "@dmOnboardingWizardTitle": {"description": "M3-17 constant top-bar title on every step of the delivery-man onboarding wizard. R23's split: the bar holds the flow name, the progress caption holds the step identity. Do NOT swap this per step — that is the defect this key closes."},
+  "dmOnboardingStepProgressLabelNamed": "Step {current} of {total} — {stepName}",
+  "@dmOnboardingStepProgressLabelNamed": {
+    "description": "M3-17 delivery-man onboarding progress caption and its screen-reader value. Replaces dmOnboardingStepProgressLabel, which had no stepName slot. Twin of kycWizardProgressStepLabel in the same funnel.",
+    "placeholders": {
+      "current": { "type": "int", "example": "1" },
+      "total": { "type": "int", "example": "3" },
+      "stepName": { "type": "String", "example": "Personal details" }
+    }
+  },
+  "dmOnboardingNextStepHint": "then {stepName}",
+  "@dmOnboardingNextStepHint": {
+    "description": "M3-17 delivery-man onboarding progress caption, end-aligned trailing slot — what comes after the current step. Hidden on the last step. Twin of kycWizardNextStepHint, which is scoped to the KYC step names.",
+    "placeholders": {
+      "stepName": { "type": "String", "example": "Service area" }
+    }
+  },
+
+  "fundingStarterCreditLabel": "Starter credit",
+  "@fundingStarterCreditLabel": {"description": "M3-18 eyebrow above the starter-credit figure on onboarding-funding (JeebSectionLabel uppercases it). Do NOT reuse fundingTitle: that is the top-bar title on the same screen and repeating it reads as a duplicate heading."},
+  "fundingReservedNowLabel": "Reserved now",
+  "@fundingReservedNowLabel": {"description": "M3-18 label above the live reserve figure in the reserve-rule row on onboarding-funding (D1). Same string as walletHubReservedNow by design; scoped so a wallet-side rewording cannot silently move KYC-funnel copy."},
+
+  "offerKycGateStatusChecking": "Checking your verification status…",
+  "@offerKycGateStatusChecking": {"description": "M3-19 offer-KYC gate status strip while GET /v1/kyc/status is in flight (gate-status-loading). Until MIDNIGHT this phase drew SizedBox.shrink(), so Loading was pixel-identical to Not Submitted."},
+  "offerKycGateStatusUnavailable": "We couldn't check your verification status right now.",
+  "@offerKycGateStatusUnavailable": {"description": "M3-19 offer-KYC gate status strip when the status read fails (gate-status-unavailable). Deliberately offers no retry: the gate draws none, because re-entering it re-reads the status and its three exits were never blocked on it (R-F)."},
+
+  "kycRejectedReasonOtherFinal": "The details submitted didn't meet our verification requirements.",
+  "@kycRejectedReasonOtherFinal": {"description": "JM-043 kyc-rejected, KycRejectionReason.other. MUST NOT mention resubmitting: D52/D87 make this screen FINAL and kyc_rejected_resubmit_cta is asserted absent. kycRejectionReasonOther says 'and resubmit' because KycStatusView, which shares it, DOES offer resubmit."},
+
+  "accountStatusLoadingHeadline": "Checking your account",
+  "@accountStatusLoadingHeadline": {"description": "M3-22 loading headline on the blocked-account screen. \"Checking\" not \"Loading\": the read resolves which blocked state the account is in, it does not fetch a list. Must not repeat the header band's own accountStatusTitle."}
 }

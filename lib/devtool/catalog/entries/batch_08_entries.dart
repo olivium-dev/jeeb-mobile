@@ -295,6 +295,13 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
               cubitFactory: passwordSecurityScreenMismatchCubit,
             ),
           ),
+          // The loading state had no capture before M3-26.
+          CatalogState(
+            'Submitting',
+            (_) => const PasswordSecurityScreen(
+              cubitFactory: passwordSecurityScreenSubmittingCubit,
+            ),
+          ),
         ],
       ),
     ];
