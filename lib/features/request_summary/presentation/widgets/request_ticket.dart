@@ -8,7 +8,9 @@ import 'package:intl/intl.dart' show Bidi;
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_tier_chip.dart';
@@ -19,8 +21,12 @@ import '../../../transcription/domain/audioplayers_transcript_audio_player.dart'
 import '../../../transcription/domain/transcript_audio_player.dart';
 import '../../domain/request_draft.dart';
 
-/// Corner radius of the ticket outline (board `dc-tpl 575`: 20px).
-const double _ticketRadius = 20;
+/// The glass slab's corner (board `border-radius:22px` — [JeebRadii.xl]).
+const double _ticketRadius = JeebRadii.xl;
+
+/// The replay band's own top corner, inset one step inside the slab
+/// (board `border-radius:20px 20px 0 0`).
+const double _headBandRadius = 20;
 
 /// Ø42 play disc — the board's `dc-tpl 578`. No Sizes token lands on 42.
 const double _discDiameter = 42;
@@ -52,13 +58,12 @@ const double _photoGlyphSize = 18;
 /// How far the mode badge overhangs the ticket's top edge (`dc-tpl 577`).
 const double _badgeOverhang = -9;
 
-/// The single outlined "ticket" that carries the whole request review.
+/// The single glass "ticket" that carries the whole request review.
 ///
-/// Replaces the previous six-card `ListView`: one card, one outline, dividers
-/// between the rows that actually have data. Every row below the transcript
-/// block is conditional — on the live voice path (transcription → summary) the
-/// draft carries only a description and an audio id, so the ticket is short by
-/// design.
+/// MIDNIGHT: one glass slab (`glassFill` + 1px `glassBorder`, radius `xl`) with
+/// the orange play disc as its only light. Every row below the transcript block
+/// is conditional — on the live voice path (transcription → summary) the draft
+/// carries only a description and an audio id, so the ticket is short by design.
 class RequestTicket extends StatelessWidget {
   const RequestTicket({required this.draft, super.key, this.audioPlayer});
 
@@ -92,13 +97,16 @@ class RequestTicket extends StatelessWidget {
 
     // Every editor sits on the route we came from on both live producers, so
     // the links pop rather than push a second, divergent create flow.
-    final bool canEdit = context.canPop();
+    final bool canEdit = _canPop(context);
 
     return Stack(
       clipBehavior: Clip.none,
       children: <Widget>[
         JeebOutlinedCard.grouped(
           radius: _ticketRadius,
+          // The slab's stroke is the board's `rgba(255,255,255,.15)`, which
+          // snaps to the §4 strong rung rather than rest glass's 12%.
+          borderColor: _semanticsOf(context).glassBorderStrong,
           children: <Widget>[
             _HeadBlock(
               localAudioPath: localPath,
@@ -137,14 +145,20 @@ class RequestTicket extends StatelessWidget {
     );
   }
 
+  /// doc-13 P0-8(b): `context.canPop()` asserts at BUILD time without a router
+  /// ancestor, which turned all three catalog captures into a RenderErrorBox.
+  static bool _canPop(BuildContext context) =>
+      GoRouter.maybeOf(context)?.canPop() ?? false;
+
   static void _popToEditor(BuildContext context) {
-    if (context.canPop()) {
+    if (_canPop(context)) {
       context.pop();
     }
   }
 }
 
-/// The navy pill that straddles the ticket's top edge.
+/// The orange pill that straddles the ticket's top edge — budget-sanctioned:
+/// the tile draws it (`dc-tpl 577`).
 class _ModeBadge extends StatelessWidget {
   const _ModeBadge({required this.label});
 
@@ -152,22 +166,22 @@ class _ModeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebRoles roles = context.jeebRoles;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.primary,
-        borderRadius: OmdsBorderRadius.pill,
+        color: roles.accent,
+        borderRadius: BorderRadius.circular(JeebRadii.pill),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.xSmall,
-          vertical: Spacing.twoXSmall,
+          vertical: 3,
         ),
         child: Text(
           // Uppercasing is EN-effective only; Arabic has no case and passes
           // through unchanged.
           label.toUpperCase(),
-          style: context.jeebText.badge.copyWith(color: scheme.onPrimary),
+          style: context.jeebText.badge.copyWith(color: roles.onAccent),
         ),
       ),
     );
@@ -211,7 +225,8 @@ class _HeadBlock extends StatelessWidget {
   }
 }
 
-/// Grey top band: play disc, waveform mark, duration read-out.
+/// The lifted glass band at the top of the slab: play disc, waveform mark,
+/// duration read-out.
 class _VoiceReplayBand extends StatefulWidget {
   const _VoiceReplayBand({
     required this.audioPath,
@@ -264,18 +279,17 @@ class _VoiceReplayBandState extends State<_VoiceReplayBand> {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebRoles roles = context.jeebRoles;
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final Color mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
+    final JeebSemanticColors semantics = _semanticsOf(context);
     final int? durationMs = widget.durationMs;
 
     return ClipRRect(
-      borderRadius: BorderRadius.vertical(top: OmdsBorderRadius.large.topLeft),
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(_headBandRadius),
+      ),
       child: ColoredBox(
-        color: scheme.surfaceContainerHigh,
+        color: semantics.glassFill,
         child: Padding(
           padding: const EdgeInsets.all(Spacing.medium),
           child: Row(
@@ -287,20 +301,28 @@ class _VoiceReplayBandState extends State<_VoiceReplayBand> {
                 label: _isPlaying
                     ? l10n.transcriptionPauseAudio
                     : l10n.transcriptionPlayAudio,
-                child: SizedBox.square(
-                  dimension: _discDiameter,
-                  child: Material(
-                    color: _fileExists
-                        ? scheme.primary
-                        : scheme.primary.withValues(alpha: 0.45),
-                    shape: const CircleBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: _fileExists ? _toggle : null,
-                      child: Icon(
-                        _isPlaying ? Icons.pause : Icons.play_arrow,
-                        size: _discGlyphSize,
-                        color: scheme.onPrimary,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: _fileExists
+                        ? JeebShadows.ctaOrangeSmall
+                        : const <BoxShadow>[],
+                  ),
+                  child: SizedBox.square(
+                    dimension: _discDiameter,
+                    child: Material(
+                      color: _fileExists
+                          ? roles.accent
+                          : roles.accent.withValues(alpha: 0.45),
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: _fileExists ? _toggle : null,
+                        child: Icon(
+                          _isPlaying ? Icons.pause : Icons.play_arrow,
+                          size: _discGlyphSize,
+                          color: roles.onAccent,
+                        ),
                       ),
                     ),
                   ),
@@ -317,7 +339,7 @@ class _VoiceReplayBandState extends State<_VoiceReplayBand> {
                     _formatClipLength(durationMs),
                     style: context.jeebText.bodySmall.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: mutedInk,
+                      color: semantics.mutedText,
                     ),
                   ),
                 ),
@@ -329,6 +351,11 @@ class _VoiceReplayBandState extends State<_VoiceReplayBand> {
     );
   }
 }
+
+/// Defensive read: a harness that themes without the extension must not crash.
+JeebSemanticColors _semanticsOf(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
 
 String _formatClipLength(int durationMs) {
   final int totalSeconds = (durationMs / 1000).round();
@@ -353,10 +380,7 @@ class _TranscriptBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final Color mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
+    final Color mutedInk = _semanticsOf(context).mutedText;
     final String? subLine = sub;
     final bool hasMetaRow = subLine != null || onEdit != null;
 
@@ -377,6 +401,8 @@ class _TranscriptBlock extends StatelessWidget {
               textAlign: TextAlign.start,
               style: context.jeebText.titleProminent.copyWith(
                 color: scheme.onSurface,
+                // Board `line-height:1.5` — the Arabic run is set to breathe.
+                height: 1.5,
               ),
             ),
           ),
@@ -427,10 +453,7 @@ class _TierRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final Color mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
+    final Color mutedInk = _semanticsOf(context).mutedText;
 
     // The draft carries a raw gateway slug; rendering it verbatim was a live
     // i18n leak. Resolve to the catalog copy when we recognise it and fall back
@@ -603,6 +626,7 @@ class _RouteRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics = _semanticsOf(context);
     return Padding(
       // The ring's optical centre sits on the "Pickup" label, not above it.
       padding: const EdgeInsetsDirectional.only(top: Spacing.twoXSmall),
@@ -614,8 +638,9 @@ class _RouteRail extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
+                  // The tile draws this ring WHITE, not orange (orange budget).
                   border: Border.all(
-                    color: scheme.primary,
+                    color: scheme.onSurface,
                     width: _railRingStroke,
                   ),
                 ),
@@ -628,7 +653,7 @@ class _RouteRail extends StatelessWidget {
                   vertical: Spacing.twoXSmall,
                 ),
                 child: ColoredBox(
-                  color: scheme.surfaceContainerHighest,
+                  color: semantics.glassBorderStrong,
                   child: const SizedBox(
                     width: _railConnectorWidth,
                     height: double.infinity,
@@ -653,10 +678,7 @@ class _RouteStop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    final Color mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
+    final Color mutedInk = _semanticsOf(context).mutedText;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,7 +691,12 @@ class _RouteStop extends StatelessWidget {
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: context.jeebText.cardTitle.copyWith(color: scheme.onSurface),
+          // Board 14/w700: `body` (14.5) is the nearest rung, `cardTitle` (15.5)
+          // overshot it.
+          style: context.jeebText.body.copyWith(
+            fontWeight: FontWeight.w700,
+            color: scheme.onSurface,
+          ),
         ),
       ],
     );
@@ -686,10 +713,7 @@ class _PhotosRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final Color mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
+    final Color mutedInk = _semanticsOf(context).mutedText;
     final TextStyle overflowStyle = context.jeebText.bodySmall.copyWith(
       fontWeight: FontWeight.w700,
       color: mutedInk,
@@ -747,8 +771,8 @@ class _PhotoTile extends StatelessWidget {
       dimension: Sizes.threeXLarge,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHigh,
-          borderRadius: OmdsBorderRadius.small,
+          color: _semanticsOf(context).glassFillEmphasis,
+          borderRadius: BorderRadius.circular(JeebRadii.sm),
         ),
         child: Center(child: child),
       ),
@@ -775,7 +799,7 @@ class _TicketLink extends StatelessWidget {
       button: true,
       child: InkWell(
         onTap: onTap,
-        borderRadius: OmdsBorderRadius.xSmall,
+        borderRadius: BorderRadius.circular(JeebRadii.sm),
         // Vertical-only: the label's end edge must stay flush with the row's
         // 16px inset, so the tap area grows in height, never in width.
         child: Padding(

@@ -49,6 +49,9 @@ final class RequestSummaryScreenDrafts {
   static const RequestDraft full = RequestDraft(
     description: 'Pick up my prescription from Pharmacie Beshara.',
     transcription: 'Please pick up my prescription and bring it home.',
+    // The board's R12 is a VOICE ticket; without this the capture badge read
+    // TYPED. The replay band still needs a local clip, which no fixture has.
+    audioUrl: 'https://cdn.jeeb.app/requests/9f3c/clip.m4a',
     photoUrls: <String>['https://example.com/photo1.jpg'],
     tierId: 'express',
     tierName: 'Express',

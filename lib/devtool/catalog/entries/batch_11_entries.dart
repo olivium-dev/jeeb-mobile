@@ -15,6 +15,8 @@ import '../../../features/tier_selection/data/tier_repository.dart';
 import '../../../features/tier_selection/presentation/tier_selection_screen.dart';
 import '../../../features/transcription/domain/transcript_audio_player.dart';
 import '../../../features/transcription/presentation/transcription_screen.dart';
+import '../../../features/voice_request/cubit/voice_recording_state.dart';
+import '../../../features/voice_request/data/voice_recording_repository.dart';
 import '../../../features/voice_request/domain/voice_recorder.dart';
 import '../../../features/voice_request/presentation/voice_recording_screen.dart';
 import '../../../features/wallet/data/empty_wallet_ledger_repository.dart';
@@ -284,16 +286,43 @@ final CatalogEntry _voiceRecordingEntry = CatalogEntry(
       unawaited(voiceRecordingScreenSeedRecording(cubit, ticker));
       return VoiceRecordingScreen(cubit: cubit);
     }),
-    CatalogState('Recorded — playback preview, ready to send', (_) {
-      final (:cubit, :ticker) = voiceRecordingScreenCubitWithTicker();
-      unawaited(voiceRecordingScreenSeedRecorded(cubit, ticker));
-      return VoiceRecordingScreen(cubit: cubit);
-    }),
-    CatalogState('Sent — broadcasting confirmation', (_) {
-      final (:cubit, :ticker) = voiceRecordingScreenCubitWithTicker();
-      unawaited(voiceRecordingScreenSeedSent(cubit, ticker));
-      return VoiceRecordingScreen(cubit: cubit);
-    }),
+    // Seeded, not driven: the async seeds stall on `StreamSubscription.cancel`
+    // under fake-async, so both states used to capture the recording surface.
+    CatalogState(
+      'Recorded — playback preview, ready to send',
+      (_) => VoiceRecordingScreen(
+        cubit: voiceRecordingScreenSeededCubit(
+          VoiceRecordingState(
+            phase: VoiceRecordingPhase.recorded,
+            clip: voiceRecordingScreenClip(),
+            elapsed: const Duration(seconds: 3),
+          ),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Sent — broadcasting confirmation',
+      (_) => VoiceRecordingScreen(
+        cubit: voiceRecordingScreenSeededCubit(
+          const VoiceRecordingState(
+            phase: VoiceRecordingPhase.sent,
+            result: TranscriptionResult(id: 'catalog-voice-001'),
+          ),
+        ),
+      ),
+    ),
+    CatalogState(
+      'Upload failed — retry or record again',
+      (_) => VoiceRecordingScreen(
+        cubit: voiceRecordingScreenSeededCubit(
+          VoiceRecordingState(
+            phase: VoiceRecordingPhase.recorded,
+            clip: voiceRecordingScreenClip(),
+            error: VoiceRecordingError.uploadServer,
+          ),
+        ),
+      ),
+    ),
     CatalogState('Blocked — microphone permission denied', (_) {
       final cubit = voiceRecordingScreenCubit(
         startFailure: VoiceRecorderFailure.permissionDenied,

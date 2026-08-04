@@ -1855,9 +1855,14 @@
   "@requestSummarySectionTranscription": {
     "description": "Card title for the voice-note transcription section on the summary screen"
   },
-  "requestSummaryPhotosAttached": "{count} photo(s) attached",
-  "@requestSummaryPhotosAttached": {
-    "description": "Body showing how many photos were attached on the summary screen",
+  "requestSummaryPhotosAttachedZero": "No photos attached",
+  "requestSummaryPhotosAttachedOne": "1 photo attached",
+  "requestSummaryPhotosAttachedTwo": "2 photos attached",
+  "requestSummaryPhotosAttachedFew": "{count} photos attached",
+  "requestSummaryPhotosAttachedMany": "{count} photos attached",
+  "requestSummaryPhotosAttachedOther": "{count} photos attached",
+  "@requestSummaryPhotosAttachedOther": {
+    "description": "Photo counter on the request-summary ticket. Replaces the un-pluralized '{count} photo(s) attached' (doc-13 P0-8c). All six Arabic CLDR plural forms provided; English reuses one/other.",
     "placeholders": {
       "count": { "type": "int" }
     }

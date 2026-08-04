@@ -43,6 +43,11 @@ const _arabicCases = <_PluralCase>[
     'requestSummaryFindingNotified',
     _finding,
   ),
+  _PluralCase(
+    'requestSummaryPhotosAttached',
+    'requestSummaryPhotosAttached',
+    _photos,
+  ),
 ];
 
 String _availability(AppLocalizations l, int n) =>
@@ -53,6 +58,7 @@ String _nearby(AppLocalizations l, int n) => l.dashboardNearbyRequestsCount(n);
 String _today(AppLocalizations l, int n) => l.dashboardTodayEarningsCompleted(n);
 String _finding(AppLocalizations l, int n) =>
     l.requestSummaryFindingNotifiedCount(n);
+String _photos(AppLocalizations l, int n) => l.requestSummaryPhotosAttached(n);
 
 String _expectedForm(int n) {
   if (n == 0) return 'Zero';

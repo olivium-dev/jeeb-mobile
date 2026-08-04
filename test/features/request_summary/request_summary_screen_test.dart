@@ -7,6 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/features/request_summary/application/request_summary_cubit.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
 import 'package:jeeb_mobile/features/request_summary/presentation/request_summary_screen.dart';
@@ -47,7 +50,7 @@ Widget _harness(
 
   return MaterialApp.router(
     routerConfig: router,
-    theme: AppTheme.light(),
+    theme: AppTheme.midnight(),
     locale: locale,
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
@@ -58,6 +61,27 @@ Widget _harness(
     ],
   );
 }
+
+/// No router at all — the shape that used to make `RequestTicket` throw at
+/// build time (doc-13 P0-8b).
+Widget _routerlessHarness(RequestDraft? draft) => MaterialApp(
+  theme: AppTheme.midnight(),
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+    SyncAppLocalizationsDelegate(),
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  home: BlocProvider<RequestSummaryCubit>(
+    create: (_) {
+      final cubit = RequestSummaryCubit(FakeRequestSubmissionService());
+      if (draft != null) cubit.setDraft(draft);
+      return cubit;
+    },
+    child: const RequestSummaryScreen(),
+  ),
+);
 
 void main() {
   group('RequestSummaryScreen — ticket', () {
@@ -173,7 +197,8 @@ void main() {
       expect(find.text('Drop-off'), findsOneWidget);
       expect(find.text('Rue Monot 42'), findsOneWidget);
       expect(find.text('+1'), findsOneWidget);
-      expect(find.text('2 photo(s) attached'), findsOneWidget);
+      // doc-13 P0-8(c): the counter is a real CLDR plural now.
+      expect(find.text('2 photos attached'), findsOneWidget);
     });
 
     testWidgets('an unrecognised tier label is still shown verbatim', (
@@ -394,6 +419,79 @@ void main() {
       expect(
         find.bySemanticsIdentifier('request_summary_root'),
         findsOneWidget,
+      );
+    });
+  });
+
+  group('RequestSummaryScreen — Midnight', () {
+    testWidgets('renders the content field, never a bare scaffold colour', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(const RequestDraft(description: 'Panadol Extra, one box')),
+      );
+      await tester.pumpAndSettle();
+
+      final JeebMidnightField field = tester.widget<JeebMidnightField>(
+        find.byType(JeebMidnightField),
+      );
+      expect(field.variant, JeebFieldVariant.content);
+      expect(
+        tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,
+        Colors.transparent,
+      );
+    });
+
+    testWidgets('the broadcast CTA is the screen\'s lone solid orange', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(const RequestDraft(description: 'Panadol Extra, one box')),
+      );
+      await tester.pumpAndSettle();
+
+      final BuildContext ctaContext = tester.element(
+        find.byKey(const Key('request_summary.submit')),
+      );
+      expect(Theme.of(ctaContext).colorScheme.secondary, JeebMidnight.orange);
+    });
+
+    testWidgets('P0-8b: the ticket builds with no GoRouter ancestor', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _routerlessHarness(
+          const RequestDraft(
+            description: 'Panadol Extra, one box',
+            tierName: 'flash',
+            pickupAddress: 'Pharmacie du Musee',
+            dropoffAddress: 'Rue Monot 42',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Panadol Extra, one box'), findsOneWidget);
+      // canPop is false without a router, so the inline editors withdraw
+      // instead of offering a pop that cannot happen.
+      expect(find.text('Edit'), findsNothing);
+      expect(find.text('Change'), findsNothing);
+    });
+
+    testWidgets('a draftless cubit renders the loading empty-state family', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_routerlessHarness(null));
+      await tester.pump();
+
+      final JeebEmptyState empty = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
+      expect(empty.status, JeebEmptyStateStatus.loading);
+      expect(
+        find.bySemanticsIdentifier('request_summary_submit'),
+        findsNothing,
       );
     });
   });

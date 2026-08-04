@@ -187,7 +187,10 @@ void main() {
         // mount so the shell at `/` never renders.
         built.router.go('/request-summary');
         await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
-        await tester.pumpAndSettle();
+        // MIDNIGHT (M0-4): the fallback's JeebEmptyState art loops forever, so
+        // pumpAndSettle would time out — advance a fixed frame budget instead.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
 
         expect(
           tester.takeException(),
@@ -223,7 +226,9 @@ void main() {
         // before mount so the shell at `/` never renders.
         built.router.go('/request-summary', extra: 'not-a-request-draft');
         await tester.pumpWidget(_harness(built.router, built.role, built.roleEligibility, built.locale));
-        await tester.pumpAndSettle();
+        // See Test 2: the empty-state illustration never settles.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
 
         expect(
           tester.takeException(),

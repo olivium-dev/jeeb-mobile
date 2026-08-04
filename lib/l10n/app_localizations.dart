@@ -947,6 +947,29 @@ class AppLocalizations {
     return _get('$base$branch').replaceFirst('{count}', '$count');
   }
 
+  /// The same six-branch selector, generalized: every branch substitutes, so a
+  /// set whose Zero/One/Two forms carry `{count}` still renders.
+  String _cldrPlural(String base, int count) {
+    final String branch;
+    if (count == 0) {
+      branch = 'Zero';
+    } else if (count == 1) {
+      branch = 'One';
+    } else if (count == 2) {
+      branch = 'Two';
+    } else {
+      final mod = count % 100;
+      if (mod >= 3 && mod <= 10) {
+        branch = 'Few';
+      } else if (mod >= 11 && mod <= 99) {
+        branch = 'Many';
+      } else {
+        branch = 'Other';
+      }
+    }
+    return _get('$base$branch').replaceFirst('{count}', '$count');
+  }
+
   String get jeeberFeedAnonymousClient => _get('jeeberFeedAnonymousClient');
   String jeeberFeedDistanceAway(String distance) =>
       _get('jeeberFeedDistanceAway').replaceFirst('{distance}', distance);
@@ -981,7 +1004,7 @@ class AppLocalizations {
   String get requestSummarySectionTranscription =>
       _get('requestSummarySectionTranscription');
   String requestSummaryPhotosAttached(int count) =>
-      _get('requestSummaryPhotosAttached').replaceFirst('{count}', '$count');
+      _cldrPlural('requestSummaryPhotosAttached', count);
   String get requestSummarySubmit => _get('requestSummarySubmit');
   String get requestSummaryRetry => _get('requestSummaryRetry');
   String get requestSummaryErrorNetwork => _get('requestSummaryErrorNetwork');

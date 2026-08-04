@@ -21,6 +21,8 @@ import '../../../features/settings/presentation/widgets/logout_delete_confirm_sh
 import '../../../features/settlement/domain/settlement_repository.dart';
 import '../../../features/settlement/presentation/settlement_detail_screen.dart';
 import '../../../features/settlement/presentation/settlement_screen.dart';
+import '../../../features/tier_selection/data/tier_repository.dart';
+import '../../../features/tier_selection/domain/tier.dart';
 import '../catalog_models.dart';
 import '../fixtures/notification_preferences_screen_fixtures.dart';
 import '../fixtures/profile_edit_screen_fixtures.dart';
@@ -127,16 +129,39 @@ List<CatalogEntry> get batch10Entries => <CatalogEntry>[
         ),
       ),
       CatalogState(
-        'Loaded — no selection',
+        // R9 loads with the recommended tier lit (doc-13 P0-4).
+        'Loaded — served catalogue',
         (_) => RequestTypeScreen(
           repository: RequestTypeScreenPreviewFixtures.servedCatalogue(),
         ),
       ),
       CatalogState(
-        'Selected — Standard',
+        // The five rows the board draws.
+        'Loaded — full catalogue',
+        (_) => RequestTypeScreen(
+          repository: RequestTypeScreenPreviewFixtures.fullCatalogue(),
+        ),
+      ),
+      CatalogState(
+        // The customer moving the choice off the seeded recommendation.
+        'Selected — Flash',
         (_) => RequestTypeScreen(
           cubit: RequestTypeScreenPreviewFixtures.selectedTierCubit(
-            RequestTypeScreenPreviewFixtures.selectedTier,
+            TierId.flash,
+          ),
+        ),
+      ),
+      CatalogState(
+        'Empty — no tiers',
+        (_) => RequestTypeScreen(
+          repository: RequestTypeScreenPreviewFixtures.emptyCatalogue(),
+        ),
+      ),
+      CatalogState(
+        'Error — Network',
+        (_) => RequestTypeScreen(
+          repository: RequestTypeScreenPreviewFixtures.failing(
+            TierLoadFailure.network,
           ),
         ),
       ),
