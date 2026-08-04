@@ -36,6 +36,9 @@ class FeedbackAvatar extends StatelessWidget {
           initial: name,
           imageUrl: avatarUrl,
           badge: JeebAvatarBadge.completed,
+          // R15's Ø74 disc is a light glass puck with a WHITE initial; the
+          // opaque navy rungs vanish into the field (wave-B ruling 3).
+          fill: JeebAvatarFill.glass,
         ),
       ),
     );

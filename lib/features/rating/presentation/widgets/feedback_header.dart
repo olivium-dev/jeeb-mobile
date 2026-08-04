@@ -39,9 +39,14 @@ class _FeedbackTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // `h2` carries no ink, so the ambient onSurface navy applies — the old
-    // `secondaryContainer` foreground was a fill role used as text.
-    return Text(text, style: context.jeebText.h2);
+    // `onSurface` is the heading ink app-wide (wave-B standing ruling); stated
+    // explicitly so it does not inherit a stray ambient ink on the field.
+    return Text(
+      text,
+      style: context.jeebText.h2.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
   }
 }
 
@@ -53,9 +58,8 @@ class _FeedbackSubtitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // `onSurfaceVariant`, NOT the periwinkle `onSecondaryContainer` this used
-    // to carry: `color_role_contrast_test` pins periwinkle-on-white as below
-    // AA, and this is a two-sentence paragraph, not a metadata line.
+    // `onSurfaceVariant` is Midnight's muted ink role (§1, `#8A93D8`) — the
+    // subtitle run R15 draws under its headline.
     return Text(
       text,
       style: context.jeebText.body.copyWith(
