@@ -90,6 +90,32 @@ STANDING RULINGS: value changes are in scope (change the value, keep the key id)
 VERIFY: flutter analyze --no-pub lib/l10n lib/features/client_offers lib/features/live_tracking lib/features/otp_handover lib/features/delivery_receipt lib/features/rating lib/features/jeeber_home lib/features/jeeber_request_feed → 0 errors · the targeted suites for those dirs → green.
 RETURN: keys applied per file · keys deleted (with grep evidence) · call sites swapped · test finders updated · AR strings flagged for review · test results · questions.`
 
+const SHELL_HARNESS = `You are the shell test-harness lane for MIDNIGHT wave C in ${REPO}, branch feat/redesign-midnight (NEVER run git commit/checkout/stash/branch). GOLDEN RULE: comments max 2 lines, only when super necessary.
+YOU OWN EXACTLY these 6 test files and NOTHING else — no lib/, no other test file:
+  test/shell_role_tabs_test.dart (5 failing)
+  test/shell_role_toggle_mounted_test.dart (4)
+  test/features/shell/shell_dual_role_landing_test.dart (3)
+  test/app_shell_test.dart (3)
+  test/features/shell/route_visibility_wire_test.dart (2)
+  test/core/deep_link/deep_link_resolution_router_test.dart (1)
+
+PROBLEM (already diagnosed AND already fixed once — copy the landed fix, do not re-derive): 18 tests across these files fail with \`pumpAndSettle timed out\`. Cause: the tree mounts ShellScreen (home tab → JeebEmptyState, whose E1 illustration loops ∞ BY DESIGN per 03-MOTION-NOTES §E1) or the real AppRouter landing on it. pumpAndSettle cannot settle against an infinite animation. This is NOT a product bug.
+
+THE FIX IS ALREADY IN THE REPO — read commit 73ed7471 (\`git show 73ed7471\`) and copy its pattern exactly. It is TWO paired edits, and applying only the first will leave you with a different, confusing failure:
+  EDIT A — reduce-motion wrapper on the harness's MaterialApp:
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
+    Use \`MediaQuery.of(context).copyWith(...)\`, NOT a bare \`MediaQueryData()\` — a bare one zeroes the view metrics and breaks layout. Note 5 of your files use \`MaterialApp(home: ShellScreen())\` rather than \`MaterialApp.router\`; the same \`builder:\` works unchanged there because MaterialApp.builder sits above the Navigator either way.
+  EDIT B — once pumpAndSettle stops hanging it stops MASKING a pending timer: \`InMemoryClientHomeRepository.loadSnapshot\` resolves behind a 150ms fake latency that schedules NO frame, so pumpAndSettle never advances to it and the test dies on "A Timer is still pending even after the widget tree was disposed." Drain it explicitly before the settle, only in tests that actually mount Home:
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+
+PRESERVE EVERY ASSERTION. Do not delete, skip, or weaken a test to make the suite green. If a test cannot be fixed this way, leave it failing and report exactly why.
+VERIFY: run each of the 6 files and report exact pass/fail BEFORE and AFTER. Then re-run once for stability. flutter analyze --no-pub on your 6 files → 0 errors.
+RETURN: per-file before/after counts · which files needed Edit B and which did not · anything left failing · questions.`
+
 phase('Screens')
 const results = await parallel([
   ...SCREENS.map((s) => () => agent(
@@ -97,6 +123,11 @@ const results = await parallel([
     { label: s.label, phase: 'Screens', model: 'opus' },
   )),
   () => agent(L10N, { label: 'l10n-merge', phase: 'Screens', model: 'opus' }),
+  () => agent(SHELL_HARNESS, { label: 'fix:shell-harness', phase: 'Screens', model: 'opus' }),
 ])
 
-return Object.fromEntries([...SCREENS.map((s, i) => [s.item, results[i]]), ['l10n-merge', results[6]]])
+return Object.fromEntries([
+  ...SCREENS.map((s, i) => [s.item, results[i]]),
+  ['l10n-merge', results[6]],
+  ['shell-harness', results[7]],
+])
