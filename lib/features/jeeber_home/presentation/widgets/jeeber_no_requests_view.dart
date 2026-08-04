@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/layout/bottom_inset.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_state.dart';
 import 'availability_card.dart';
 import 'jeeber_home_greeting.dart';
 
 /// State 2 of the Jeeber home: registered, availability strip visible, no
-/// active requests on the feed yet.
+/// requests on the feed yet — MIDNIGHT **E3** (`29-e3-empty-no-requests
+/// -nearby.png`).
 ///
-/// Composes the profile header, the state-aware `AvailabilityCard` (which now
-/// hosts the inactivity warning inline) and an optional compact active-work
-/// disclosure, with a quiet start-aligned empty block underneath so the Jeeber
-/// always knows the feed is live but empty rather than broken.
+/// E3 is R16 with the feed replaced by the "Empty ≠ dead" block: the same
+/// profile header and availability strip, then the drawn night-street scene,
+/// the white headline, the muted body and a glass CTA. The field belongs to the
+/// screen, so this view paints none.
 class JeeberNoRequestsView extends StatelessWidget {
   const JeeberNoRequestsView({
     super.key,
@@ -23,6 +25,7 @@ class JeeberNoRequestsView extends StatelessWidget {
     required this.onExtendActivity,
     this.profileName,
     this.activeDeliveriesBanner,
+    this.onRefresh,
   });
 
   static const Key rootKey = Key('jeeber-no-requests-view-root');
@@ -42,100 +45,117 @@ class JeeberNoRequestsView extends StatelessWidget {
   /// Compact disclosure for accepted/active work. It self-hides when empty.
   final Widget? activeDeliveriesBanner;
 
+  /// Refetches the feed from E3's `Pull to refresh` pill. Null where the host
+  /// has no feed contract to refresh (offline / no cubit) — the pill is then
+  /// omitted rather than shipped inert.
+  final VoidCallback? onRefresh;
+
   @override
   Widget build(BuildContext context) {
+    // ONE scroll surface for the whole page: the host wraps this view in
+    // `OmdsPullToRefresh`, and a second scrollable over the empty block would
+    // swallow the pull (JEBV4-13 P2-6).
     return SafeArea(
       key: rootKey,
-      child: SingleChildScrollView(
+      child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: Spacing.large),
-        child: _NoRequestsColumn(
-          view: view,
-          profileName: profileName,
-          activeDeliveriesBanner: activeDeliveriesBanner,
-          onToggle: onToggle,
-          onExtendActivity: onExtendActivity,
+        slivers: [
+          SliverToBoxAdapter(child: JeeberHomeGreeting(name: profileName)),
+          SliverToBoxAdapter(
+            child: AvailabilityCard(
+              view: view,
+              onToggle: onToggle,
+              onExtendActivity: onExtendActivity,
+            ),
+          ),
+          if (activeDeliveriesBanner != null)
+            SliverToBoxAdapter(child: activeDeliveriesBanner!),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(
+                top: Spacing.twoXLarge,
+                bottom: Spacing.large + context.scrollBodyBottomInset,
+              ),
+              child: JeeberFeedEmptyBlock(onRefresh: onRefresh),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// E3's empty block, centred in the space it is given and scrollable when that
+/// space is shorter than the drawn scene — for hosts that mount it as the
+/// remaining sliver of their own scroll view.
+class JeeberFeedEmptyPanel extends StatelessWidget {
+  const JeeberFeedEmptyPanel({super.key, this.onRefresh});
+
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
+            child: Center(child: JeeberFeedEmptyBlock(onRefresh: onRefresh)),
+          ),
         ),
       ),
     );
   }
 }
 
-class _NoRequestsColumn extends StatelessWidget {
-  const _NoRequestsColumn({
-    required this.view,
-    required this.profileName,
-    required this.onToggle,
-    required this.onExtendActivity,
-    required this.activeDeliveriesBanner,
-  });
-
-  final AvailabilityViewState view;
-  final String? profileName;
-  final Widget? activeDeliveriesBanner;
-  final VoidCallback onToggle;
-  final VoidCallback onExtendActivity;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        JeeberHomeGreeting(name: profileName),
-        AvailabilityCard(
-          view: view,
-          onToggle: onToggle,
-          onExtendActivity: onExtendActivity,
-        ),
-        ?activeDeliveriesBanner,
-        // No extra gap: the empty block owns its own top inset, so the band
-        // rhythm below the strip stays the board's 16/24 — not 44.
-        const _NoRequestsEmpty(),
-      ],
-    );
-  }
-}
-
-/// The empty feed is not an error, so it gets no centred icon slab: two
-/// start-aligned lines at the top of the white body, exactly where the first
-/// request card would appear (R1 — the page stays white below the strip).
-class _NoRequestsEmpty extends StatelessWidget {
-  const _NoRequestsEmpty();
+/// E3's "Empty ≠ dead" block, shared by every no-requests surface on this
+/// screen so the jeeber never meets two different empties for one condition.
+///
+/// The drawn scene is the kit's nearest composed illustration; E3's own
+/// night-street art (scooter under a streetlamp, listening delivery box) is not
+/// a `JeebEmptyStateVariant` and adding one is a kit API change (see §open).
+class JeeberFeedEmptyBlock extends StatelessWidget {
+  const JeeberFeedEmptyBlock({super.key, this.onRefresh});
 
   static const Key rootKey = Key('jeeber-no-requests-empty-state');
+
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
-    return Padding(
+    return JeebEmptyState(
       key: rootKey,
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Spacing.xLarge,
-        Spacing.xLarge,
-        0,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            l10n.requestFeedEmptyTitle,
-            style: context.jeebText.titleProminent.copyWith(
-              color: colorScheme.primary,
-            ),
-          ),
-          const SizedBox(height: Spacing.xSmall),
-          Text(
-            l10n.requestFeedEmptySubtitle,
-            style: context.jeebText.bodySmall.copyWith(color: mutedInk),
-          ),
-        ],
+      identifier: 'jeeber_feed_empty_state',
+      variant: JeebEmptyStateVariant.balcony,
+      // TODO(midnight): l10n-queued jeeberFeedQuietStreetTitle / ...Body — the
+      // tile reads "Quiet street right now" / "No requests nearby — …".
+      headline: l10n.requestFeedEmptyTitle,
+      body: l10n.requestFeedEmptySubtitle,
+      // TODO(midnight): omitted — E3's second pill "Widen my zone": the app has
+      // no service-zone surface and the gateway parses no zone back.
+      action: onRefresh == null ? null : _RefreshPill(onRefresh: onRefresh!),
+    );
+  }
+}
+
+class _RefreshPill extends StatelessWidget {
+  const _RefreshPill({required this.onRefresh});
+
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicWidth(
+      child: JeebCtaButton.outline(
+        // TODO(midnight): l10n-queued jeeberFeedPullToRefreshAction — the tile
+        // reads "Pull to refresh".
+        label: AppLocalizations.of(context).availabilityLoadRetry,
+        identifier: 'jeeber_feed_empty_refresh_cta',
+        expand: false,
+        onTap: onRefresh,
       ),
     );
   }

@@ -60,11 +60,9 @@ class JeeberHomeGreeting extends StatelessWidget {
           imageUrl: resolvedAvatar,
         ),
         avatarIdentifier: 'jeeber_home_avatar',
-        // TODO(redesign-24): rating pill blocked on shell header overlay +
-        // GreetingProfileState.rating — both are out of this lane.
-        // The shell overlays `delivery_tab_wallet_chip` + `delivery_tab_bell`
-        // on this exact top-end corner (`shell_screen.dart` `_HeaderedTab`),
-        // so the name line reserves their width instead of running under them.
+        // TODO(midnight): omitted — R16's ★ pill needs `JeebProfileHeader
+        // .ratingLabel` + a rating on GreetingProfileState, and the shell
+        // overlays ShellHeaderActions on this exact corner (see §open).
         trailingReserve: Spacing.fourXLarge * 2,
       ),
     );

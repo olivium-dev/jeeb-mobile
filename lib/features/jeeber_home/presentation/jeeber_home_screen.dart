@@ -11,8 +11,10 @@ import '../../../core/notifications/application/offer_lifecycle_signals.dart';
 import '../../../core/role/jeeber_role_activator.dart';
 import '../../../core/role/role_availability_cubit.dart';
 import '../../../core/role/role_cubit.dart';
-import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
@@ -119,16 +121,44 @@ class _JeeberHomeScreenState extends State<JeeberHomeScreen> {
       container: true,
       child: Scaffold(
         key: JeeberHomeScreen.scaffoldKey,
-        body: _RootBody(
-          isRegistered: widget.isRegistered,
-          profileName: widget.profileName,
-          onRegister: widget.onRegister,
-          onOpenFeedRequest: widget.onOpenFeedRequest,
-          requestFeedCubit: widget.requestFeedCubit,
-          registerCtaIdentifier: widget.registerCtaIdentifier,
-          submittedOffersCubit: _resolveSubmittedOffersCubit(),
-          activeDeliveriesBanner: widget.activeDeliveriesBanner,
+        body: _JeeberHomeField(
+          child: _RootBody(
+            isRegistered: widget.isRegistered,
+            profileName: widget.profileName,
+            onRegister: widget.onRegister,
+            onOpenFeedRequest: widget.onOpenFeedRequest,
+            requestFeedCubit: widget.requestFeedCubit,
+            registerCtaIdentifier: widget.registerCtaIdentifier,
+            submittedOffersCubit: _resolveSubmittedOffersCubit(),
+            activeDeliveriesBanner: widget.activeDeliveriesBanner,
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// R16/E3's background: the base wash with ONE quiet glow, and that glow is
+/// GREEN — both tiles measure success at ≈16% at the `topEnd` anchor (token
+/// sheet §8's success wash), not the client side's orange. `content`, not
+/// `hero`: neither tile draws orbit rings, a periwinkle wash or twinkles.
+class _JeeberHomeField extends StatelessWidget {
+  const _JeeberHomeField({required this.child});
+
+  /// Measured on both tiles at the top-end corner.
+  static const double glowAlpha = 0.16;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // `expand`: Scaffold lays its body out LOOSE, and the field's Stack would
+    // otherwise shrink-wrap a short state and leave the page bottom unpainted.
+    return SizedBox.expand(
+      child: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowColor: context.jeebRoles.success.withValues(alpha: glowAlpha),
+        child: child,
       ),
     );
   }
@@ -295,6 +325,9 @@ class _RegisteredViewSwitch extends StatelessWidget {
         onRetry: () => context.read<AvailabilityCubit>().load(),
       );
     }
+    if (view.loadPhase != AvailabilityLoadPhase.ready) {
+      return const _LoadingView();
+    }
     return _AvailableBody(
       view: view,
       profileName: profileName,
@@ -366,6 +399,7 @@ class _NoRequestsScope extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cubit = context.read<AvailabilityCubit>();
+    final feed = context.read<RequestFeedCubit?>();
     return JeeberNoRequestsView(
       view: view,
       profileName: profileName,
@@ -373,6 +407,9 @@ class _NoRequestsScope extends StatelessWidget {
           activeDeliveriesBanner ?? const JeeberActiveDeliveriesBanner(),
       onToggle: cubit.toggle,
       onExtendActivity: cubit.extendActivity,
+      // Null with no feed cubit above (the unregistered / bare-test path):
+      // E3's refresh pill is omitted rather than shipped inert.
+      onRefresh: feed?.refresh,
     );
   }
 }
@@ -410,6 +447,25 @@ class _FeedTabBody extends StatelessWidget {
   }
 }
 
+/// The cold read, on the same empty family as E3 — the illustration skeleton
+/// breathes and the CTA is withheld (`JeebEmptyState` loading).
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: JeebEmptyState(
+        status: JeebEmptyStateStatus.loading,
+        variant: JeebEmptyStateVariant.balcony,
+        headline: AppLocalizations.of(context).requestFeedEmptyTitle,
+      ),
+    );
+  }
+}
+
+/// The availability read failed — E3's block, danger-tinted, with the frozen
+/// retry CTA re-homed onto its action slot.
 class _LoadErrorView extends StatelessWidget {
   const _LoadErrorView({required this.onRetry});
 
@@ -419,65 +475,24 @@ class _LoadErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Center(
-      child: Padding(
-        // The board's 24px side gutter, same as every other band on this screen.
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.xLarge,
-        ),
-        child: _LoadErrorContent(
-          title: l10n.availabilityLoadError,
-          retryLabel: l10n.availabilityLoadRetry,
-          onRetry: onRetry,
-        ),
-      ),
-    );
-  }
-}
-
-class _LoadErrorContent extends StatelessWidget {
-  const _LoadErrorContent({
-    required this.title,
-    required this.retryLabel,
-    required this.onRetry,
-  });
-
-  final String title;
-  final String retryLabel;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.signal_wifi_off,
-          size: Sizes.threeXLarge,
-          color: colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(height: Spacing.medium),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          // Navy headline on white — the ramp every other band on this screen
-          // reads from, instead of the stock M3 titleMedium.
-          style: context.jeebText.titleProminent.copyWith(
-            color: colorScheme.primary,
-          ),
-        ),
-        const SizedBox(height: Spacing.xLarge),
-        Semantics(
+      child: JeebEmptyState(
+        status: JeebEmptyStateStatus.error,
+        variant: JeebEmptyStateVariant.balcony,
+        headline: l10n.availabilityLoadError,
+        action: Semantics(
           identifier: 'jeeber_home_load_error_retry_cta',
           container: true,
           button: true,
-          child: JeebCtaButton.primary(
-            key: JeeberHomeScreen.loadErrorRetryKey,
-            label: retryLabel,
-            onTap: onRetry,
+          child: IntrinsicWidth(
+            child: JeebCtaButton.primary(
+              key: JeeberHomeScreen.loadErrorRetryKey,
+              label: l10n.availabilityLoadRetry,
+              expand: false,
+              onTap: onRetry,
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

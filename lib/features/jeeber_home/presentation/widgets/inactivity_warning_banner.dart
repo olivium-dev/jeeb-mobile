@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -27,10 +28,10 @@ class InactivityWarningBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    final roles = context.jeebRoles;
     final mutedInk =
         (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
+                JeebSemanticColors.midnight())
             .mutedText;
     return Row(
       key: rootKey,
@@ -58,9 +59,10 @@ class InactivityWarningBanner extends StatelessWidget {
                 padding: const EdgeInsets.all(Spacing.twoXSmall),
                 child: Text(
                   l10n.availabilityExtendAction,
+                  // R16 draws `Extend` in the strip's own success ink.
                   style: context.jeebText.bodySmall.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: colorScheme.onPrimary,
+                    color: roles.success,
                   ),
                 ),
               ),

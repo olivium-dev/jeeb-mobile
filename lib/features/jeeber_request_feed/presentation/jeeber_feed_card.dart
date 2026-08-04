@@ -5,13 +5,10 @@ import 'package:intl/intl.dart' show NumberFormat;
 import 'package:omds/omds.dart';
 
 import '../../../core/accessibility/accessibility.dart';
-import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
-import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_tier_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_waveform.dart';
 import '../../../l10n/app_localizations.dart';
@@ -59,10 +56,11 @@ class JeeberFeedCard extends StatelessWidget {
     this.isVoice = false,
   });
 
-  /// Row gutter — the board's 24px page margin (tpl 930).
+  /// Row gutter — the board's 24px page margin (tpl 930). The 8 vertical is
+  /// half of R16's measured ~16 gap between two stacked cards.
   static const EdgeInsetsGeometry rowPadding = EdgeInsetsDirectional.symmetric(
     horizontal: Spacing.xLarge,
-    vertical: Spacing.twoXSmall,
+    vertical: Spacing.xSmall,
   );
 
   final DeliveryRequest request;
@@ -232,8 +230,10 @@ class _Headline extends StatelessWidget {
           // the only other thing the gateway reliably sends.
           : _clientDisplayName(context, request),
       key: const Key('jeeber-feed-card-summary'),
+      // `onSurface`: on Midnight `primary` is the brand orange, and R16 draws
+      // the headline white — the orange is rationed to the freshest CTA.
       style: context.jeebText.cardTitle.copyWith(
-        color: Theme.of(context).colorScheme.primary,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -509,13 +509,16 @@ class _IncomingActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Both flexible so a narrow card ellipsizes the words instead of
-        // painting a black-and-yellow overflow stripe over the CTA.
+        // 1:2 — doc-13 P1: an even split starved the pill into "Make of…".
+        // The CTA is the row's reason to exist, so the secondary word yields
+        // first; both stay flexible so a narrow card ellipsizes, never
+        // overflows.
         Flexible(
           child: _IgnoreButton(requestId: requestId, onTap: onIgnore),
         ),
         const SizedBox(width: Spacing.twoXSmall),
         Flexible(
+          flex: 2,
           child: _OfferPill(
             requestId: requestId,
             onTap: onOffer,
@@ -597,8 +600,11 @@ class _OfferPill extends StatelessWidget {
     void handleTap() => (onTap ?? () {})();
     final label = AppLocalizations.of(context).jeeberFeedMakeOfferAction;
 
-    Widget pill = isFreshest
-        ? JeebCtaButton.primary(
+    // Wave-A: `JeebCtaButton.accent` carries the accent fill, the `onAccent`
+    // ink, the `ctaOrange` lift and `orangePressed` — the Theme-swap +
+    // hand-rolled glow this replaced were a pre-kit workaround.
+    final Widget pill = isFreshest
+        ? JeebCtaButton.accent(
             key: Key('jeeber-feed-offer-$requestId'),
             label: label,
             height: pillHeight,
@@ -616,29 +622,6 @@ class _OfferPill extends StatelessWidget {
             labelStyle: pillLabelStyle(context),
             onTap: handleTap,
           );
-
-    if (isFreshest) {
-      final roles = context.jeebRoles;
-      // The kit's `primary` pill paints from `colorScheme.primary`/`onPrimary`.
-      // Re-pointing those two roles for this one subtree is how the board's
-      // orange fill is reached WITHOUT forking a frozen kit widget or
-      // hand-rolling a lookalike pill; the glow is the accent shadow token.
-      pill = Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: roles.accent,
-            onPrimary: roles.onAccent,
-          ),
-        ),
-        child: DecoratedBox(
-          decoration: const BoxDecoration(
-            borderRadius: jeebPillRadius,
-            boxShadow: JeebShadows.accentBanner,
-          ),
-          child: pill,
-        ),
-      );
-    }
 
     final button = Semantics(
       identifier: 'jeeber_feed_request_offer_$requestId',

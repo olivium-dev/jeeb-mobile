@@ -59,6 +59,12 @@ Widget _host(Widget child, {Locale locale = const Locale('en')}) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // E3's illustration loops ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion, which is also the capture rest frame.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(body: child),
   );
 }
@@ -100,7 +106,9 @@ Widget _contractHost({TextScaler textScaler = TextScaler.noScaling}) {
       GlobalCupertinoLocalizations.delegate,
     ],
     builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: textScaler, disableAnimations: true),
       child: child!,
     ),
     home: Scaffold(
@@ -113,6 +121,20 @@ Widget _contractHost({TextScaler textScaler = TextScaler.noScaling}) {
 }
 
 void _noop() {}
+
+/// The fill the online strip paints (the lit skin is a `DecoratedBox`, not the
+/// navy kit card).
+Color? _stripFill(WidgetTester tester) {
+  final box = tester.widget<DecoratedBox>(
+    find
+        .descendant(
+          of: find.byKey(AvailabilityCard.rootKey),
+          matching: find.byType(DecoratedBox),
+        )
+        .first,
+  );
+  return (box.decoration as BoxDecoration).color;
+}
 
 void _expectOnlineCopyWithinTwoLineBudget(WidgetTester tester) {
   final textFinder = find.text(_expandedOnlineCopy);
@@ -192,11 +214,10 @@ void main() {
       expect(find.text("You're online — receiving requests"), findsOneWidget);
       expect(find.text('2 active deliveries'), findsNothing);
       expect(find.text('Auto-offline after 8 h idle'), findsNothing);
-      expect(
-        find.byType(JeebNavySurfaceCard),
-        findsOneWidget,
-        reason: 'One navy strip carries every availability state.',
-      );
+      // MIDNIGHT R16: "the availability card glows green when online" — the
+      // geometry is the offline strip's, the SKIN is success-tinted glass.
+      expect(find.byType(JeebNavySurfaceCard), findsNothing);
+      expect(_stripFill(tester), roles.success.withValues(alpha: 0.14));
       expect(
         tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,
         lessThanOrEqualTo(Sizes.sevenXLarge),
@@ -219,7 +240,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('أنت متصل — تستقبل الطلبات'), findsOneWidget);
-      expect(find.byType(JeebNavySurfaceCard), findsOneWidget);
+      expect(find.byType(JeebNavySurfaceCard), findsNothing);
       expect(
         tester.getSize(find.byKey(AvailabilityCard.rootKey)).height,
         lessThanOrEqualTo(Sizes.sevenXLarge),

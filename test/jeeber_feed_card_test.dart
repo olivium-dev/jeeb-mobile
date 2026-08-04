@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_tier_chip.dart';
@@ -188,7 +187,9 @@ void main() {
       find.byKey(const Key('jeeber-feed-card-summary')),
     );
     final theme = Theme.of(context);
-    expect(summary.style?.color, theme.colorScheme.primary);
+    // MIDNIGHT: `primary` IS the brand orange, so the headline reads
+    // `onSurface` — the orange is rationed to the freshest row's CTA.
+    expect(summary.style?.color, theme.colorScheme.onSurface);
   });
 
   // R5: orange is rationed to the ONE action worth taking right now. The feed
@@ -207,14 +208,8 @@ void main() {
       final pill = tester.widget<JeebCtaButton>(
         find.byKey(const Key('jeeber-feed-offer-req-1')),
       );
-      expect(pill.variant, JeebCtaVariant.primary);
-
-      // The fill is the accent role, not the navy a selected chip normally
-      // paints — proof the accent re-pointing actually reached the pill.
-      final context = tester.element(
-        find.byKey(const Key('jeeber-feed-offer-req-1')),
-      );
-      expect(Theme.of(context).colorScheme.primary, context.jeebRoles.accent);
+      // Wave-A: the kit's own accent variant, not a Theme-swapped `primary`.
+      expect(pill.variant, JeebCtaVariant.accent);
     });
 
     testWidgets('every older row keeps the same pill, outlined', (
@@ -229,6 +224,39 @@ void main() {
         find.byKey(const Key('jeeber-feed-offer-req-1')),
       );
       expect(pill.variant, JeebCtaVariant.outline);
+    });
+
+    // doc-13 P1: an EVEN flex split between `Ignore` and the pill starved the
+    // CTA into "Make of…". The action area now splits 1:2, so the secondary
+    // word yields first. Asserting the SHARE, not a pixel width: the stand-in
+    // test font is ~1.8x Inter, so an absolute label width would only prove
+    // something about the harness. Fails-without-fix: at 1:1 the two are equal.
+    testWidgets('the offer pill outweighs Ignore in the action row', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(480, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        _host(
+          JeeberFeedCard(request: _request(), onIgnore: () {}, onOffer: () {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final offer = tester.getSize(
+        find.byKey(const Key('jeeber-feed-offer-req-1')),
+      );
+      final ignore = tester.getSize(
+        find.byKey(const Key('jeeber-feed-ignore-req-1')),
+      );
+      expect(
+        offer.width,
+        greaterThan(ignore.width * 1.5),
+        reason: 'the CTA must take the larger share of the action row',
+      );
     });
   });
 

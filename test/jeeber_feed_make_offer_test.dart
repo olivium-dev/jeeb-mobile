@@ -71,6 +71,12 @@ void main() {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // E3's illustration loops ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+      // terminates under reduce motion, which is also the capture rest frame.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       home: Scaffold(
         body: MultiBlocProvider(
           providers: [

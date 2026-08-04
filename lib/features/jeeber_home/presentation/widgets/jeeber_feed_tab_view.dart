@@ -5,9 +5,9 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/accessibility/accessibility.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/session/jeeber_kyc_status_gate.dart';
-import '../../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -23,6 +23,7 @@ import '../../../jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import '../../../jeeber_request_feed/presentation/pending_offer_row.dart';
 import 'availability_card.dart';
 import 'jeeber_home_greeting.dart';
+import 'jeeber_no_requests_view.dart';
 
 /// Tab the Jeeber feed view is currently filtered to, matching the three
 /// filter chips in the Figma `deliveryman-requests` flow:
@@ -291,7 +292,7 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   List<Widget> _feedSlivers(bool isOffline) {
     if (isOffline) {
       return const [
-        SliverFillRemaining(hasScrollBody: false, child: _OfflineEmptyBody()),
+        SliverFillRemaining(hasScrollBody: true, child: _OfflineEmptyBody()),
       ];
     }
     // JM-048 AC3: the Pending-Response sub-tab is backed by the jeeber's
@@ -384,16 +385,35 @@ class _OfflineBanner extends StatelessWidget {
 }
 
 /// Empty body shown while the Jeeber is offline (feed cleared per AC3).
+///
+/// The board draws no offline frame, so it reads as E3's quiet-street block
+/// with the offline copy — one empty family for the whole screen.
 class _OfflineEmptyBody extends StatelessWidget {
   const _OfflineEmptyBody();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsEmptyState(
-      icon: Icons.wifi_off,
-      title: l10n.jeeberFeedOfflineBannerTitle,
-      subtitle: l10n.jeeberFeedOfflineBannerSubtitle,
+    // Scrollable, not a bare `Center`: the drawn illustration is taller than a
+    // short viewport, and `SliverFillRemaining` would ask it for intrinsics.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: context.scrollBodyBottomInset),
+            child: Center(
+              child: JeebEmptyState(
+                identifier: 'jeeber_feed_offline_empty_state',
+                variant: JeebEmptyStateVariant.balcony,
+                headline: l10n.jeeberFeedOfflineBannerTitle,
+                body: l10n.jeeberFeedOfflineBannerSubtitle,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -661,10 +681,12 @@ class _SearchToggle extends StatelessWidget {
               color: colorScheme.surfaceContainerHigh,
               shape: BoxShape.circle,
             ),
+            // `onSurface`, never `primary`: on Midnight `primary` IS the orange
+            // and this glyph is not one of R16's drawn orange moments.
             child: Icon(
               expanded ? Icons.close : Icons.search,
               size: Sizes.medium,
-              color: colorScheme.primary,
+              color: colorScheme.onSurface,
             ),
           ),
         ),
@@ -728,15 +750,14 @@ class _FeedRequestSliverBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final visible = _visibleRequests(state.requests);
+    final cubit = context.read<RequestFeedCubit>();
     if (visible.isEmpty) {
       return SliverFillRemaining(
         hasScrollBody: true,
-        child: _EmptyTabState(l10n: l10n),
+        child: _EmptyTabState(onRefresh: cubit.refresh),
       );
     }
-    final cubit = context.read<RequestFeedCubit>();
     // JM-048: the FIRST incoming row exposes the screen-level
     // `feed_make_offer_cta` so the QA flow taps an unambiguous make-offer CTA
     // — never an expired card, whose offer affordance is inert.
@@ -830,55 +851,17 @@ class _FeedRequestSliverBody extends StatelessWidget {
   }
 }
 
-/// An empty tab is not an error: two start-aligned lines where the first card
-/// would be, on the same white body. The LayoutBuilder + always-scrollable
-/// shell stays — pull-to-refresh over an empty feed depends on it.
+/// An empty tab is E3 — the same "Empty ≠ dead" panel the no-requests screen
+/// draws. Always-scrollable: pull-to-refresh over an empty feed depends on it.
 class _EmptyTabState extends StatelessWidget {
-  const _EmptyTabState({required this.l10n});
+  const _EmptyTabState({required this.onRefresh});
 
-  final AppLocalizations l10n;
+  final VoidCallback onRefresh;
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final mutedInk =
-        (Theme.of(context).extension<JeebSemanticColors>() ??
-                JeebSemanticColors.light())
-            .mutedText;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              Spacing.xLarge,
-              Spacing.xLarge,
-              Spacing.xLarge,
-              0,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  l10n.jeeberFeedEmptyTitle,
-                  style: context.jeebText.titleProminent.copyWith(
-                    color: colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: Spacing.xSmall),
-                Text(
-                  l10n.jeeberFeedEmptySubtitle,
-                  style: context.jeebText.bodySmall.copyWith(color: mutedInk),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => JeeberFeedEmptyPanel(
+    onRefresh: onRefresh,
+  );
 }
 
 /// JM-048 AC3 + JM-047: the Pending-Response sub-tab body, backed by the
@@ -917,11 +900,17 @@ class _PendingOffersList extends StatelessWidget {
   }
 
   Widget _pendingBody(BuildContext context, SubmittedOffersState state) {
+    final l10n = AppLocalizations.of(context);
     if (state.status == SubmittedOffersStatus.loading && state.offers.isEmpty) {
-      return const Center(child: OmdsLoadingState());
+      return Center(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.pendingOffersEmptyTitle,
+        ),
+      );
     }
     if (state.offers.isEmpty) {
-      return _PendingEmptyState(l10n: AppLocalizations.of(context));
+      return _PendingEmptyState(l10n: l10n);
     }
     return ListView.builder(
       key: JeeberFeedTabView.pendingListKey,
@@ -978,10 +967,13 @@ class _PendingEmptyState extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: OmdsEmptyState(
-            icon: Icons.hourglass_empty_rounded,
-            title: l10n.pendingOffersEmptyTitle,
-            subtitle: l10n.pendingOffersEmptyBody,
+          child: Center(
+            child: JeebEmptyState(
+              identifier: 'jeeber_pending_offers_empty_state',
+              variant: JeebEmptyStateVariant.pocket,
+              headline: l10n.pendingOffersEmptyTitle,
+              body: l10n.pendingOffersEmptyBody,
+            ),
           ),
         ),
       ),
