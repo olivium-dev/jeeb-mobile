@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/active_delivery_cubit.dart';
@@ -19,6 +21,9 @@ const double _kTileHeight = 86;
 /// Glyph size inside a tile — the board's `22` (`tpl 1070/1074`). `Sizes` has
 /// no 22 rung (20 / 24 bracket it).
 const double _kTileGlyphSize = 22;
+
+/// Evidence-tile corner radius — MIDNIGHT measures ~15, which snaps to `md`.
+const double _kTileRadius = JeebRadii.md;
 
 /// Dash length / gap of the note tile's 1.5px dashed frame (`tpl 1073`).
 const double _kDashLength = 5;
@@ -150,7 +155,7 @@ class _ProofPhotoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final glass = jeebGlass(context);
     final uploading = status == ProofPhotoStatus.uploading;
     final captured =
         status == ProofPhotoStatus.captured && delivery.hasProofPhoto;
@@ -165,10 +170,10 @@ class _ProofPhotoTile extends StatelessWidget {
         child: GestureDetector(
           onTap: uploading ? null : onCapture,
           child: ClipRRect(
-            borderRadius: OmdsBorderRadius.small,
+            borderRadius: BorderRadius.circular(_kTileRadius),
             child: Container(
               height: _kTileHeight,
-              color: colorScheme.surfaceContainerHigh,
+              color: glass.glassFillEmphasis,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -203,11 +208,11 @@ class _ProofPhotoTile extends StatelessWidget {
 
   Widget _label(BuildContext context, {required bool captured}) {
     final colorScheme = Theme.of(context).colorScheme;
-    // Captured state: the photo fills the tile, so the caption sits on a scrim
-    // instead of the tile fill — otherwise navy-on-photo is unreadable.
+    // MIDNIGHT: the tile's label is white in both states and the "done" signal
+    // is the GREEN check (`onSuccessContainer`, measured) — never orange.
     final style = context.jeebText.caption.copyWith(
       fontWeight: FontWeight.w700,
-      color: captured ? colorScheme.onPrimary : colorScheme.primary,
+      color: colorScheme.onSurface,
     );
     final text = Row(
       mainAxisSize: MainAxisSize.min,
@@ -222,7 +227,11 @@ class _ProofPhotoTile extends StatelessWidget {
         ),
         if (captured) ...[
           const SizedBox(width: Spacing.twoXSmall),
-          Icon(Icons.check, size: Sizes.medium, color: colorScheme.onPrimary),
+          Icon(
+            Icons.check,
+            size: Sizes.medium,
+            color: context.jeebRoles.onSuccessContainer,
+          ),
         ],
       ],
     );
@@ -233,7 +242,7 @@ class _ProofPhotoTile extends StatelessWidget {
           Icon(
             Icons.photo_camera,
             size: _kTileGlyphSize,
-            color: colorScheme.primary,
+            color: colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: Spacing.twoXSmall),
         ],
@@ -244,7 +253,7 @@ class _ProofPhotoTile extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.scrim.withValues(alpha: _kScrimOpacity),
-        borderRadius: OmdsBorderRadius.xSmall,
+        borderRadius: BorderRadius.circular(JeebRadii.sm),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -275,12 +284,16 @@ class _NoteTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final ink = expanded ? colorScheme.primary : jeebMutedInk(context);
+    final glass = jeebGlass(context);
+    // Board: the closed tile is entirely periwinkle; opening it promotes the
+    // ink to white. Orange stays on the panel frame and the CTA.
+    final ink = expanded ? colorScheme.onSurface : glass.mutedText;
     final body = Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.notes, size: _kTileGlyphSize, color: ink),
+          // The board's glyph is a bare `+`, not a notes rule.
+          Icon(Icons.add, size: _kTileGlyphSize, color: ink),
           const SizedBox(height: Spacing.twoXSmall),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.xSmall),
@@ -311,13 +324,17 @@ class _NoteTile extends StatelessWidget {
             child: expanded
                 ? DecoratedBox(
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHigh,
-                      borderRadius: OmdsBorderRadius.small,
+                      color: glass.glassFillEmphasis,
+                      borderRadius: BorderRadius.circular(_kTileRadius),
                     ),
                     child: body,
                   )
                 : CustomPaint(
-                    painter: _DashedBorderPainter(color: colorScheme.outline),
+                    // §8 puts dashed drop-zone borders at white .30–.35; the
+                    // ladder tops out at `glassBorderVivid` (.22) — clamped.
+                    painter: _DashedBorderPainter(
+                      color: glass.glassBorderVivid,
+                    ),
                     child: body,
                   ),
           ),
@@ -348,7 +365,7 @@ class _DashedBorderPainter extends CustomPainter {
         size.width - _kDashStroke,
         size.height - _kDashStroke,
       ),
-      Radius.circular(OmdsBorderRadius.small.topLeft.x),
+      const Radius.circular(_kTileRadius),
     );
     for (final metric in (Path()..addRRect(rect)).computeMetrics()) {
       var distance = 0.0;

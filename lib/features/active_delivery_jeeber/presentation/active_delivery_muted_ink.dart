@@ -11,7 +11,10 @@ import '../../../core/theme/jeeb_semantic_colors.dart';
 /// so does any downstream widget test that mounts the screen. The extension is
 /// always present in the real app; the fallback exists so a missing theme is a
 /// styling degradation and never a null-check crash.
-Color jeebMutedInk(BuildContext context) =>
-    (Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.light())
-        .mutedText;
+Color jeebMutedInk(BuildContext context) => jeebGlass(context).mutedText;
+
+/// The whole Midnight token set, read with the same defensive fallback — 18's
+/// evidence tiles and dashed note frame are glass, not opaque navy.
+JeebSemanticColors jeebGlass(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.light();

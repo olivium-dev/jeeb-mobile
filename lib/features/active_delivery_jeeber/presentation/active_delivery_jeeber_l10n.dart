@@ -20,7 +20,7 @@ import '../../../l10n/app_localizations.dart';
 /// Delete this file once the integrator adds:
 ///   activeDeliveryHandoffTitle · activeDeliveryProofPhotoTile
 ///   · activeDeliveryDoorCodePrompt · activeDeliveryCollectCash
-///   · activeDeliveryCollectCashNoAmount · activeDeliveryDirectionsCta
+///   · activeDeliveryCollectCashNoAmount
 ///   · activeDeliveryQuickActionMaps · activeDeliveryQuickActionChat
 ///   · activeDeliveryQuickActionCosts
 ///   and changes `activeDeliveryOtpSubmit` to "Verify code & complete".
@@ -77,9 +77,6 @@ class ActiveDeliveryJeeberL10n {
         'Collect the order amount in cash on delivery',
         'حصّل قيمة الطلب نقدًا عند التسليم',
       );
-
-  /// A11y label for the drop-off card's Ø38 directions circle (`tpl 1063`).
-  String get directionsCta => _pick('Directions', 'الاتجاهات');
 
   // ── footer pills ─────────────────────────────────────────────────────────
   //

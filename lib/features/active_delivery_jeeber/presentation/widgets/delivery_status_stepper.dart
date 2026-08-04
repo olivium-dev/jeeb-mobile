@@ -3,6 +3,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_stepper.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/jeeber_delivery_status.dart';
@@ -74,9 +75,13 @@ class _DeliveryProgress extends StatelessWidget {
     final currentIndex = jeeberDeliveryProgressStages.indexOf(currentStatus);
     return Column(
       children: [
+        // TODO(midnight): the tile draws 4 segments; this renders 5 because
+        // `active_delivery_stage_done` is frozen — owner ruling pending.
         JeebStepper.bars(
           stepCount: jeeberDeliveryProgressStages.length,
           currentIndex: currentIndex,
+          // MIDNIGHT R18 fills its passed run periwinkle (R3 runs it orange).
+          doneInk: JeebStepperDoneInk.periwinkle,
           // The frozen per-stage ValueKeys are re-homed from the deleted stage
           // icons onto the bar segments, so `find.byKey` keeps resolving.
           segmentKeys: <Key>[
@@ -197,8 +202,9 @@ class _AdvanceButton extends StatelessWidget {
       identifier: 'mark_delivered_advance_cta',
       container: true,
       button: true,
-      child: OmdsLoadingButton(
-        text: label,
+      // Periwinkle, not accent: 18 spends its orange on the at-door panel.
+      child: JeebCtaButton.primary(
+        label: label,
         isLoading: isLoading,
         onTap: onAdvance,
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -39,7 +40,7 @@ class GpsPermissionBanner extends StatelessWidget {
         padding: const EdgeInsetsDirectional.all(Spacing.medium),
         decoration: BoxDecoration(
           color: colorScheme.errorContainer,
-          borderRadius: OmdsBorderRadius.medium,
+          borderRadius: BorderRadius.circular(JeebRadii.lg),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

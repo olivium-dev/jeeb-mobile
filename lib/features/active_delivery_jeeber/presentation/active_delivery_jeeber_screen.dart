@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
-import '../../../core/accessibility/accessibility.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
@@ -36,9 +38,9 @@ const double _kInlineQuickActionsMinWidth = 320;
 const EdgeInsetsGeometry _kDropOffCardPadding =
     EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium, vertical: 14);
 
-/// Diameter of the drop-off card's trailing directions circle (`tpl 1063`).
-/// No `Sizes` rung is 38 (32 and 40 bracket it).
-const double _kDirectionsCircleSize = 38;
+/// R18's own bottom glow: `rgba(215,59,0,.24)` measured under the pill row —
+/// one notch above the `content` variant's .22.
+const double _kFieldGlowAlpha = 0.24;
 
 /// Jeeber active-delivery / mark-delivered screen (T-MOB-031, JM-051).
 ///
@@ -156,30 +158,57 @@ class ActiveDeliveryJeeberScreen extends StatelessWidget {
   }
 }
 
+/// The Midnight page: transparent scaffold over the `content` field, its one
+/// quiet glow anchored bottom-centre exactly where the board draws it.
+class _Field extends StatelessWidget {
+  const _Field({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.bottom,
+        glowColor: context.jeebRoles.accent.withValues(alpha: _kFieldGlowAlpha),
+        child: SafeArea(child: child),
+      ),
+    );
+  }
+}
+
 class _Unavailable extends StatelessWidget {
   const _Unavailable();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            JeebTopBar.back(
-              title: l10n.activeDeliveryTitle,
-              identifier: 'mark_delivered_back',
-            ),
-            // mark_delivered_root is exposed even on the unavailable shell so a
-            // cold deep-link / seam pin can still assert the screen rendered.
-            Expanded(
-              child: Semantics(
-                identifier: 'mark_delivered_root',
-                child: Center(child: Text(l10n.activeDeliveryUnavailable)),
+    return _Field(
+      child: Column(
+        children: [
+          JeebTopBar.back(
+            title: l10n.activeDeliveryTitle,
+            identifier: 'mark_delivered_back',
+          ),
+          // mark_delivered_root is exposed even on the unavailable shell so a
+          // cold deep-link / seam pin can still assert the screen rendered.
+          Expanded(
+            child: Semantics(
+              identifier: 'mark_delivered_root',
+              child: Center(
+                child: SingleChildScrollView(
+                  child: JeebEmptyState(
+                    status: JeebEmptyStateStatus.error,
+                    headline: l10n.activeDeliveryTitle,
+                    body: l10n.activeDeliveryUnavailable,
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -254,26 +283,24 @@ class _Body extends StatelessWidget {
 
   Widget _buildScaffold(BuildContext context, ActiveDeliveryState state) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      body: SafeArea(
-        // mark_delivered_root (JM-051) — root of the active-delivery /
-        // mark-delivered screen, asserted on first frame by the seam route pin.
-        child: Semantics(
-          identifier: 'mark_delivered_root',
-          explicitChildNodes: true,
-          // The bar is hoisted ABOVE the mode switch on purpose: loading, error
-          // and terminal all used to inherit it from `appBar:`, and an in-body
-          // bar built inside the ready branch would leave those three modes with
-          // no title and no way back.
-          child: Column(
-            children: [
-              JeebTopBar.back(
-                title: l10n.activeDeliveryTitle,
-                identifier: 'mark_delivered_back',
-              ),
-              Expanded(child: _buildBody(context, state, l10n)),
-            ],
-          ),
+    return _Field(
+      // mark_delivered_root (JM-051) — root of the active-delivery /
+      // mark-delivered screen, asserted on first frame by the seam route pin.
+      child: Semantics(
+        identifier: 'mark_delivered_root',
+        explicitChildNodes: true,
+        // The bar is hoisted ABOVE the mode switch on purpose: loading, error
+        // and terminal all used to inherit it from `appBar:`, and an in-body
+        // bar built inside the ready branch would leave those three modes with
+        // no title and no way back.
+        child: Column(
+          children: [
+            JeebTopBar.back(
+              title: l10n.activeDeliveryTitle,
+              identifier: 'mark_delivered_back',
+            ),
+            Expanded(child: _buildBody(context, state, l10n)),
+          ],
         ),
       ),
     );
@@ -286,11 +313,32 @@ class _Body extends StatelessWidget {
   ) {
     switch (state.mode) {
       case ActiveDeliveryMode.loading:
-        return const Center(child: OmdsLoadingState());
+        return Center(
+          child: SingleChildScrollView(
+            // TODO(midnight): l10n-queued activeDeliveryLoadingHeadline.
+            child: JeebEmptyState(
+              status: JeebEmptyStateStatus.loading,
+              headline: l10n.activeDeliveryTitle,
+              identifier: 'active_delivery_loading',
+            ),
+          ),
+        );
       case ActiveDeliveryMode.error:
-        return OmdsErrorState(
-          message: state.errorMessage ?? l10n.activeDeliveryLoadError,
-          onRetry: () => context.read<ActiveDeliveryCubit>().loadDelivery(),
+        return Center(
+          child: SingleChildScrollView(
+            // TODO(midnight): l10n-queued activeDeliveryErrorHeadline.
+            child: JeebEmptyState(
+              status: JeebEmptyStateStatus.error,
+              headline: l10n.activeDeliveryTitle,
+              body: state.errorMessage ?? l10n.activeDeliveryLoadError,
+              identifier: 'active_delivery_error',
+              action: JeebCtaButton.primary(
+                label: l10n.deliveryStatusRetry,
+                onTap: () =>
+                    context.read<ActiveDeliveryCubit>().loadDelivery(),
+              ),
+            ),
+          ),
         );
       case ActiveDeliveryMode.ready:
       case ActiveDeliveryMode.transitioning:
@@ -441,12 +489,7 @@ class _ReadyContent extends StatelessWidget {
                 _CompletedPanel(l10n: l10n),
                 const SizedBox(height: Spacing.small),
               ],
-              _AddressCard(
-                delivery: delivery,
-                l10n: l10n,
-                copy: copy,
-                onOpenMaps: onOpenMaps,
-              ),
+              _AddressCard(delivery: delivery, l10n: l10n, copy: copy),
               // JM-051 AC1/AC2: the handoff card — proof photo (D3), optional
               // note, and either the CTA or the door-code block.
               if (showMarkDelivered) ...[
@@ -505,11 +548,11 @@ class _UnsuccessfulTerminalContent extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(Spacing.large),
         children: [
-          OmdsEmptyState(
+          JeebEmptyState(
             key: ValueKey<String>(_identifier),
-            icon: _icon,
-            title: _title,
-            subtitle: _body,
+            variant: JeebEmptyStateVariant.street,
+            headline: _title,
+            body: _body,
           ),
         ],
       ),
@@ -520,13 +563,6 @@ class _UnsuccessfulTerminalContent extends StatelessWidget {
     JeeberDeliveryStatus.cancelled => 'delivery_cancelled_state',
     JeeberDeliveryStatus.expired => 'delivery_expired_state',
     JeeberDeliveryStatus.disputed => 'delivery_disputed_state',
-    _ => throw StateError('Expected an unsuccessful terminal status'),
-  };
-
-  IconData get _icon => switch (status) {
-    JeeberDeliveryStatus.cancelled => Icons.cancel_outlined,
-    JeeberDeliveryStatus.expired => Icons.timer_off_outlined,
-    JeeberDeliveryStatus.disputed => Icons.report_problem_outlined,
     _ => throw StateError('Expected an unsuccessful terminal status'),
   };
 
@@ -559,54 +595,31 @@ class _CompletedPanel extends StatelessWidget {
       identifier: 'delivery_completed_state',
       container: true,
       label: l10n.deliveryCompletedBanner,
-      child: Container(
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          // Success, not "primary": a completed delivery is a green outcome,
-          // and primaryContainer here rendered the same navy tone as an active
-          // affordance.
-          color: context.jeebRoles.successContainer,
-          borderRadius: OmdsBorderRadius.medium,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.check_circle,
-              color: context.jeebRoles.onSuccessContainer,
-              size: Sizes.large,
-            ),
-            const SizedBox(width: Spacing.small),
-            Expanded(
-              child: Text(
-                l10n.deliveryCompletedBanner,
-                style: context.jeebText.cardTitle.copyWith(
-                  color: context.jeebRoles.onSuccessContainer,
-                ),
-              ),
-            ),
-          ],
-        ),
+      // Success, not "primary": a completed delivery is a green outcome, and
+      // primaryContainer here rendered the same navy as an active affordance.
+      child: JeebInfoNote.success(
+        icon: Icons.check_circle,
+        text: l10n.deliveryCompletedBanner,
       ),
     );
   }
 }
 
+/// The drop-off card (`tpl 1057-1062`). MIDNIGHT draws pin + address + collect
+/// line and NO trailing circle — the docked `Maps` pill owns that action.
 class _AddressCard extends StatelessWidget {
   const _AddressCard({
     required this.delivery,
     required this.l10n,
     required this.copy,
-    required this.onOpenMaps,
   });
 
   final JeeberDelivery delivery;
   final AppLocalizations l10n;
   final ActiveDeliveryJeeberL10n copy;
-  final VoidCallback onOpenMaps;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final mutedText = jeebMutedInk(context);
     // Run-22 P1-A: never fabricate an amount. `?? \'\'` used to render
     // "Pay  cash to ..." on a snapshot with no amount, and the old party
@@ -625,12 +638,11 @@ class _AddressCard extends StatelessWidget {
       semanticLabel: l10n.activeDeliveryDropOffLabel,
       child: Row(
         children: [
-          // Stated divergence: the board's pin is a raw red #E02020, which no
-          // token carries. `accent` is the nearest sanctioned ink, so the pin
-          // renders red-orange rather than red.
+          // MIDNIGHT measures the pin at `#FF5252` — the board's danger red,
+          // which IS a token. Pass-1's orange stand-in also spent the budget.
           Icon(
             Icons.location_on,
-            color: context.jeebRoles.accent,
+            color: Theme.of(context).colorScheme.error,
             size: Sizes.large,
           ),
           const SizedBox(width: Spacing.small),
@@ -661,32 +673,6 @@ class _AddressCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: Spacing.xSmall),
-          Semantics(
-            identifier: 'mark_delivered_directions_cta',
-            button: true,
-            label: copy.directionsCta,
-            child: ExcludeSemantics(
-              // Visible geometry stays the board's Ø38; the tap target is the
-              // 48dp a11y floor around it.
-              child: MinTapTarget(
-                onTap: onOpenMaps,
-                child: Container(
-                  width: _kDirectionsCircleSize,
-                  height: _kDirectionsCircleSize,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHigh,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.directions,
-                    size: Sizes.medium,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -696,19 +682,20 @@ class _AddressCard extends StatelessWidget {
 /// One footer pill. The `Semantics(identifier:, container:, button:)` wrapper is
 /// the shipped idiom and stays; the long localized sentence moves onto the
 /// button's own node so the board's one-word label never reaches TalkBack bare.
+///
+/// MIDNIGHT draws these as **label-only** glass pills — the pass-1 glyphs are
+/// gone, which also retires the queued `Icons.map` → `Icons.directions` swap.
 class _QuickActionPill extends StatelessWidget {
   const _QuickActionPill({
     required this.identifier,
     required this.label,
     required this.semanticLabel,
-    required this.icon,
     required this.onTap,
   });
 
   final String identifier;
   final String label;
   final String semanticLabel;
-  final IconData icon;
   final VoidCallback onTap;
 
   @override
@@ -720,9 +707,6 @@ class _QuickActionPill extends StatelessWidget {
       child: JeebCtaButton.outline(
         label: label,
         semanticLabel: semanticLabel,
-        leadingIcon: icon,
-        iconSize: Sizes.medium,
-        iconSpacing: Spacing.xSmall,
         height: JeebCtaButton.outlineHeight,
         onTap: onTap,
       ),
@@ -757,25 +741,21 @@ class _QuickActionFooter extends StatelessWidget {
         identifier: 'mark_delivered_open_maps_cta',
         label: copy.quickActionMaps,
         semanticLabel: l10n.activeDeliveryOpenMapsButton,
-        icon: Icons.map,
         onTap: onOpenMaps,
       ),
       _QuickActionPill(
         identifier: 'mark_delivered_open_chat_cta',
         label: copy.quickActionChat,
         semanticLabel: l10n.activeDeliveryOpenChatButton,
-        icon: Icons.chat,
         onTap: onOpenChat,
       ),
-      // Sprint 2 Stream G: goods-cost entry point (D11). Only shown when the
-      // caller wired the navigation closure — `app_router.dart` never does, so
-      // production keeps two pills and no dead route is shipped.
+      // TODO(midnight): the tile draws this third pill, but `GoodsCostScreen`
+      // has no route, so production still renders two — owner Q7 pending.
       if (enterGoodsCost != null)
         _QuickActionPill(
           identifier: 'mark_delivered_goods_cost_cta',
           label: copy.quickActionCosts,
           semanticLabel: l10n.activeDeliveryEnterGoodsCostButton,
-          icon: Icons.receipt_long,
           onTap: enterGoodsCost,
         ),
     ];

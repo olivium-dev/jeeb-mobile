@@ -9,6 +9,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
@@ -120,6 +121,12 @@ Widget _host(ActiveDeliveryRepository repo) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // MIDNIGHT: the terminal/error bodies mount JeebEmptyState, whose
+    // illustration loops ∞ by design — pumpAndSettle needs reduce-motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: ActiveDeliveryJeeberScreen(
       deliveryId: 'req-run23',
       repository: repo,
@@ -212,7 +219,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(OmdsErrorState), findsOneWidget);
+      // MIDNIGHT: the error body is the kit empty-state family, retry intact.
+      expect(find.byType(JeebEmptyState), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
     },
   );
 

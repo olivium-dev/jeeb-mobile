@@ -208,21 +208,25 @@ void main() {
       );
     });
 
-    testWidgets('RTL: the directions circle mirrors to the start edge', (
+    // MIDNIGHT draws no trailing directions circle — the docked `Maps` pill
+    // owns that action — so the card's RTL guard moves onto the leading pin.
+    testWidgets('RTL: the leading pin mirrors to the end edge', (
       tester,
     ) async {
       final cubit = await _seed(_delivery());
       addTearDown(cubit.close);
       await _pump(tester, cubit: cubit, locale: const Locale('ar'));
 
-      final pin = tester.getCenter(find.byIcon(Icons.location_on));
-      final circle = tester.getCenter(
-        find.bySemanticsIdentifier('mark_delivered_directions_cta'),
-      );
       expect(
-        circle.dx,
-        lessThan(pin.dx),
-        reason: 'under RTL the trailing circle sits on the visual left',
+        find.bySemanticsIdentifier('mark_delivered_directions_cta'),
+        findsNothing,
+      );
+      final pin = tester.getCenter(find.byIcon(Icons.location_on));
+      final address = tester.getCenter(find.text('Rue Monot 42'));
+      expect(
+        pin.dx,
+        greaterThan(address.dx),
+        reason: 'under RTL the leading pin sits on the visual right',
       );
     });
   });

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_code_cells.dart';
@@ -16,9 +18,9 @@ import '../active_delivery_jeeber_l10n.dart';
 import '../active_delivery_muted_ink.dart';
 import 'handoff_tiles.dart';
 
-/// Card radius — the board's `border-radius: 18` (`tpl 1066`). Both card
-/// primitives take a radius; 18 is the value 18 and 24 share.
-const double _kHandoffCardRadius = 18;
+/// Card radius — the board's `border-radius: 18` (`tpl 1066`), which is the
+/// ladder's `lg` rung.
+const double _kHandoffCardRadius = JeebRadii.lg;
 
 /// CTA height — the board's `height: 54` (`tpl 1083`). `JeebCtaButton`'s
 /// primary default is 56; this screen's pill is two px shorter.
@@ -128,10 +130,18 @@ class MarkDeliveredPanel extends StatelessWidget {
       ],
     );
     if (atDoor) {
-      return JeebAccentFrameCard(
-        radius: _kHandoffCardRadius,
-        padding: const EdgeInsets.all(Spacing.medium),
-        child: content,
+      // MIDNIGHT caption: "the whole handoff panel sits in an orange-rimmed
+      // glow at the door moment" — the rim is the kit frame, the glow is here.
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_kHandoffCardRadius),
+          boxShadow: JeebShadows.glowRest,
+        ),
+        child: JeebAccentFrameCard(
+          radius: _kHandoffCardRadius,
+          padding: const EdgeInsets.all(Spacing.medium),
+          child: content,
+        ),
       );
     }
     return JeebOutlinedCard(
@@ -208,7 +218,9 @@ class _DoorOtpEntryState extends State<_DoorOtpEntry> {
         Semantics(
           identifier: 'mark_delivered_otp_submit',
           container: true,
-          child: JeebCtaButton.primary(
+          // The board draws THIS pill orange — the at-door act is the one
+          // moment 18 spends accent on a CTA as well as on the frame.
+          child: JeebCtaButton.accent(
             key: const Key('markDelivered.otpSubmit'),
             label: widget.copy.otpSubmit,
             isLoading: widget.isVerifying,
