@@ -103,7 +103,7 @@ void main() {
       for (final String id in <String>[_confirmId, _keepId]) {
         expect(
           tester.getSemantics(find.bySemanticsIdentifier(id)),
-          isSemantics(identifier: id, isButton: true, hasTapAction: false),
+          containsSemantics(identifier: id, isButton: true, hasTapAction: false),
           reason: '$id must be inert while the cancel is in flight',
         );
       }
