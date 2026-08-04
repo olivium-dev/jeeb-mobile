@@ -132,7 +132,7 @@ void main() {
     await cubit.close();
   });
 
-  testWidgets('d: at the door the third step reads "At Door" but keeps the '
+  testWidgets('d: at the door the third step reads "At door" but keeps the '
       'tracking_step_in_transit identifier (P6/A5)', (tester) async {
     final semantics = tester.ensureSemantics();
     final cubit = await _pumpStatus(tester, 'AtDoor');
@@ -142,7 +142,7 @@ void main() {
       find.bySemanticsIdentifier('tracking_step_in_transit'),
     );
     // Relabelled…
-    expect(node.value, 'At Door');
+    expect(node.value, 'At door');
     // …but the id a Maestro flow addresses is unchanged.
     expect(node.identifier, 'tracking_step_in_transit');
     expect(find.bySemanticsIdentifier('tracking_step_at_door'), findsNothing);

@@ -213,7 +213,7 @@ void main() {
       final SemanticsNode node = tester.getSemantics(
         find.bySemanticsIdentifier('tracking_step_in_transit'),
       );
-      expect(node.value, 'At Door');
+      expect(node.value, 'At door');
       expect(find.bySemanticsIdentifier('tracking_step_at_door'), findsNothing);
       handle.dispose();
     });
