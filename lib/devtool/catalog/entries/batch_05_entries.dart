@@ -279,6 +279,17 @@ final CatalogEntry _kycWizardEntry = CatalogEntry(
       ),
     ),
     CatalogState(
+      'Identity — front done, back is the live step (R23 board frame)',
+      (_) => KycWizardScreen(
+        cubit: KycWizardScreenPreviewFixtures.seededCubit(
+          KycWizardScreenPreviewFixtures.identityState(
+            idFrontCaptured: true,
+            tosAccepted: true,
+          ),
+        ),
+      ),
+    ),
+    CatalogState(
       'Identity — ready to submit (captures + ToS done)',
       (_) => KycWizardScreen(
         cubit: KycWizardScreenPreviewFixtures.seededCubit(

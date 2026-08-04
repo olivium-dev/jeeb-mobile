@@ -62,6 +62,17 @@ abstract final class OnboardingScreenPreviewFixtures {
   static OnboardingScreenCubits arabic(Locale _) =>
       _cubits(saved: 'ar', device: const Locale('ar'));
 
+  /// The locale a factory pins, or null when it follows the ambient one.
+  /// The catalog/capture harness has no `MaterialApp.locale` bound to
+  /// `LocaleCubit`, so without this a pinned-AR card seats an AR cubit under an
+  /// EN `Localizations` — the toggle flips and nothing else does.
+  static Locale? pinnedLocaleOf(OnboardingScreenCubitFactory create) =>
+      identical(create, arabic)
+          ? const Locale('ar')
+          : identical(create, english)
+              ? const Locale('en')
+              : null;
+
   static OnboardingScreenCubits _cubits({
     required Locale device,
     String? saved,
@@ -152,7 +163,7 @@ class _OnboardingScreenPreviewHostState
   @override
   Widget build(BuildContext context) {
     final OnboardingScreenCubits cubits = _cubits!;
-    final Widget seated = MultiBlocProvider(
+    Widget seated = MultiBlocProvider(
       providers: <BlocProvider<dynamic>>[
         BlocProvider<OnboardingCubit>.value(value: cubits.onboarding),
         BlocProvider<LocaleCubit>.value(value: cubits.locale),
@@ -162,6 +173,15 @@ class _OnboardingScreenPreviewHostState
         child: widget.child,
       ),
     );
+    final Locale? pinned =
+        OnboardingScreenPreviewFixtures.pinnedLocaleOf(widget.create);
+    if (pinned != null && pinned != Localizations.maybeLocaleOf(context)) {
+      seated = Localizations.override(
+        context: context,
+        locale: pinned,
+        child: seated,
+      );
+    }
     final Size? frame = widget.box;
     if (frame == null) return seated;
     return Align(

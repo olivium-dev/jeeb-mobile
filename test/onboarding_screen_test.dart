@@ -8,7 +8,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:jeeb_mobile/features/onboarding/presentation/widgets/walkthrough_tracking_art.dart';
+import 'package:jeeb_mobile/features/onboarding/presentation/widgets/walkthrough_trust_art.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import 'support/sync_app_localizations.dart';
@@ -33,18 +36,18 @@ Widget _harness({
     child: OnboardingScreen(onComplete: onComplete),
   );
   return wrapForTest(
-    textScale == 1.0
-        ? screen
-        // Copy the ambient MediaQuery so the sheet's viewport-height cap keeps
-        // a real height; only the text scale is overridden.
-        : Builder(
-            builder: (context) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaler: TextScaler.linear(textScale),
-              ),
-              child: screen,
-            ),
-          ),
+    // Midnight motion loops ∞ by design (19 animated elements across the four
+    // tiles this screen draws), so every harness pins reduce motion: it parks
+    // each primitive on its first keyframe AND lets `pumpAndSettle` terminate.
+    Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          disableAnimations: true,
+          textScaler: TextScaler.linear(textScale),
+        ),
+        child: screen,
+      ),
+    ),
     locale: locale,
   );
 }
@@ -194,20 +197,6 @@ void main() {
 
   // ---- FR-P1-1: real slide illustrations wired ----
 
-  /// The asset behind the *illustration slot* specifically — the redesign's
-  /// top bar renders a second [SvgPicture] (the wordmark), so an unscoped
-  /// `find.byType(SvgPicture)` no longer identifies the slide artwork.
-  String? svgAssetName(WidgetTester tester) {
-    final svg = tester.widget<SvgPicture>(
-      find.descendant(
-        of: find.byKey(const Key('onboarding.illustration')),
-        matching: find.byType(SvgPicture),
-      ),
-    );
-    final loader = svg.bytesLoader;
-    return loader is SvgAssetLoader ? loader.assetName : null;
-  }
-
   testWidgets('slide 1 renders the decorative marketplace-preview collage',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
@@ -258,7 +247,7 @@ void main() {
     );
   });
 
-  testWidgets('slide 3 renders the real live-tracking SVG illustration',
+  testWidgets('slide 3 renders W3 night-map art, not an exported SVG',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
@@ -269,21 +258,18 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.next')));
     await tester.pumpAndSettle();
 
+    // MIDNIGHT W3 draws its own night map; the generic brand vector is gone.
+    expect(find.byType(WalkthroughTrackingArt), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const Key('onboarding.illustration')),
         matching: find.byType(SvgPicture),
       ),
-      findsOneWidget,
-    );
-    expect(
-      svgAssetName(tester),
-      'assets/illustrations/onboarding_live_tracking.svg',
+      findsNothing,
     );
   });
 
-  testWidgets(
-      'slide 2 renders the real trusted-Jeebers SVG illustration (FR-D1D2)',
+  testWidgets('slide 2 renders W2 trust art, not an exported SVG',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
@@ -292,21 +278,16 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.next')));
     await tester.pumpAndSettle();
 
-    // FR-D1D2: slide 2's placeholder shield/check glyph was replaced with a
-    // real exported brand vector, matching slides 1 and 3. The illustration
-    // slot now hosts the trusted-Jeebers SvgPicture, NOT a Material Icon.
-    final illustration = find.byKey(const Key('onboarding.illustration'));
+    // MIDNIGHT W2 draws a real Jeeber identity card with the trust mechanics
+    // floating around it; the generic brand vector is gone.
+    expect(find.byType(WalkthroughTrustArt), findsOneWidget);
+    expect(find.text(WalkthroughTrustCopy.name), findsOneWidget);
     expect(
-      find.descendant(of: illustration, matching: find.byType(SvgPicture)),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: illustration, matching: find.byType(Icon)),
+      find.descendant(
+        of: find.byKey(const Key('onboarding.illustration')),
+        matching: find.byType(SvgPicture),
+      ),
       findsNothing,
-    );
-    expect(
-      svgAssetName(tester),
-      'assets/illustrations/onboarding_trusted_jeebers.svg',
     );
   });
 
@@ -413,13 +394,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('onboarding.preview')), findsNothing);
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('onboarding.illustration')),
-        matching: find.byType(SvgPicture),
-      ),
-      findsOneWidget,
-    );
+    expect(find.byType(WalkthroughTrustArt), findsOneWidget);
   });
 
   testWidgets('mirrors the CTA arrow and keeps the toggle live under RTL',
@@ -433,15 +408,25 @@ void main() {
     );
     await tester.pump();
 
-    // `Icon` never auto-mirrors, so the advance arrow must be resolved
-    // directionally — it points to the reading-end (left) in Arabic.
-    final arrow = tester.widget<Icon>(
+    // `Icon` never auto-mirrors. The kit's `mirrorIcons` flips the glyph in
+    // paint, so the IconData stays `arrow_forward` and a Transform turns it
+    // around — assert the flip itself, not the codepoint.
+    final cta = tester.widget<JeebCtaButton>(
+      find.byKey(const Key('onboarding.next')),
+    );
+    expect(cta.trailingIcon, Icons.arrow_forward);
+    expect(cta.mirrorIcons, isTrue);
+    final flip = tester.widgetList<Transform>(
       find.descendant(
         of: find.byKey(const Key('onboarding.next')),
-        matching: find.byType(Icon),
+        matching: find.byType(Transform),
       ),
+    ).where((t) => t.transform.storage[0] == -1.0);
+    expect(
+      flip,
+      isNotEmpty,
+      reason: 'the advance arrow must be horizontally flipped under RTL',
     );
-    expect(arrow.icon, Icons.arrow_back);
 
     // The mirrored top bar still drives the locale.
     await tester.tap(find.text('EN'));
