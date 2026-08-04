@@ -325,6 +325,51 @@ void main() {
       expect(glowed.r, lessThan(glowed.g));
     });
 
+    testWidgets('the glow ellipse is the board\'s 520×420 radii', (
+      WidgetTester tester,
+    ) async {
+      // Centre-anchored so the whole ellipse is measurable on-canvas, and
+      // differenced against a fully transparent glow so the base wash cancels.
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.centerUpper,
+      );
+      final Color Function(double, double) lit = await sampler(tester);
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.centerUpper,
+        glowColor: const Color(0x00D73B00),
+      );
+      final Color Function(double, double) bare = await sampler(tester);
+
+      const double centreY = 0.38;
+      double delta(double fy) => lit(0.5, fy).r - bare(0.5, fy).r;
+      final double peak = delta(centreY);
+      expect(peak, greaterThan(0.1));
+
+      // CSS `radial-gradient(520px 420px …)` are RADII on the 440 board frame,
+      // so rx = 520/440 of the width; the ramp is linear to nothing at the 60%
+      // stop, which puts half-peak at exactly 0.3 × ry.
+      final double rx = _fieldSize.width * 520 / 440;
+      final double ry = rx * 420 / 520;
+
+      double halfMax = 1;
+      for (double fy = centreY; fy <= 1; fy += 0.001) {
+        if (delta(fy) <= peak / 2) {
+          halfMax = fy;
+          break;
+        }
+      }
+      expect(
+        (halfMax - centreY) * _fieldSize.height,
+        closeTo(0.3 * ry, 7),
+        reason: 'the shipped 1.35× factor lands 15px past this',
+      );
+    });
+
     testWidgets('the wash runs light at the top and deepest at the bottom', (
       WidgetTester tester,
     ) async {

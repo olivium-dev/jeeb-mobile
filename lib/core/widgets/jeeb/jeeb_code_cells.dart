@@ -442,8 +442,10 @@ class JeebCodeCells extends StatelessWidget {
           decoration: BoxDecoration(
             color: glass.glassFillEmphasis,
             borderRadius: BorderRadius.circular(displayTileRadius),
+            // R13's tile stroke measures white .22 — the vivid rung, not the
+            // .16 the entry cells carry.
             border: Border.all(
-              color: glass.glassBorderStrong,
+              color: glass.glassBorderVivid,
               width: glassBorderWidth,
             ),
             // Backlit, not lifted: the room's orange glow is the depth cue.

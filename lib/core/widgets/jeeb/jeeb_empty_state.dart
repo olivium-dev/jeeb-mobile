@@ -6,12 +6,22 @@ import '../../motion/jeeb_motion.dart';
 import '../../theme/jeeb_color_roles.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
+import 'jeeb_avatar.dart';
 
-/// The composed illustration a [JeebEmptyState] draws — E1 plus its three
-/// approved alternates (master plan §2.7).
+/// The composed illustration a [JeebEmptyState] draws — E1 and E2/E3 of §2.7's
+/// canonical four, plus E1's three approved alternates.
 enum JeebEmptyStateVariant {
   /// E1: mic on the route-dot ring, four medallions, waveform ears.
   e1,
+
+  /// E2: the waiting radar — three pulsing rings walking inward, the broadcast
+  /// core at the centre, jeeber initials fading in and out of range.
+  radar,
+
+  /// E3: the night street — a parked scooter listening under a breathing
+  /// streetlamp. Distinct from [balcony], which draws a request bubble and a
+  /// `jDash` route E3 does not (wave-B ruling 2).
+  street,
 
   /// Sample A: the empty pocket, mic peeking out.
   pocket,
@@ -54,7 +64,8 @@ enum JeebEmptyMedallionArt {
   gift,
 }
 
-/// One medallion on the E1 route-dot ring — drawn [art] or a consumer glyph.
+/// One medallion on a [JeebEmptyState] ring — drawn [art], a consumer glyph, or
+/// an [initial].
 @immutable
 class JeebEmptyMedallion {
   /// A Material glyph, for a subject the four drawn defaults do not cover.
@@ -62,22 +73,37 @@ class JeebEmptyMedallion {
     required IconData this.icon,
     this.tint,
     this.semanticLabel,
-  }) : art = null;
+  })  : art = null,
+        initial = null;
 
   /// One of E1's four drawn subjects. [tint] does not apply: the art is
   /// two-tone by construction.
   const JeebEmptyMedallion.art(this.art, {this.semanticLabel})
       : icon = null,
-        tint = null;
+        tint = null,
+        initial = null;
 
-  /// The glyph inside the glass disc, or null when [art] is set.
+  /// A letter — E2's "K" / "N" / "R" jeeber discs. Accepts either the letter or
+  /// the name it comes from: [JeebAvatar.initialFrom] resolves both, so one
+  /// derivation serves the avatar kit and the illustrations.
+  const JeebEmptyMedallion.letter(String this.initial, {
+    this.tint,
+    this.semanticLabel,
+  })  : icon = null,
+        art = null;
+
+  /// The glyph inside the glass disc, or null when [art] or [initial] is set.
   final IconData? icon;
 
-  /// The drawn subject, or null when [icon] is set.
+  /// The drawn subject, or null when [icon] or [initial] is set.
   final JeebEmptyMedallionArt? art;
 
-  /// Glyph ink. Null reads `onSurface`; pass an accent only where a tile draws
-  /// one, per the orange budget.
+  /// The letter (or the name it derives from), or null when [icon] or [art] is
+  /// set.
+  final String? initial;
+
+  /// Glyph or letter ink. Null reads `onSurface`; pass an accent only where a
+  /// tile draws one, per the orange budget.
   final Color? tint;
 
   /// Announced label. Null leaves the medallion decorative.
@@ -88,11 +114,12 @@ class JeebEmptyMedallion {
       other is JeebEmptyMedallion &&
       other.icon == icon &&
       other.art == art &&
+      other.initial == initial &&
       other.tint == tint &&
       other.semanticLabel == semanticLabel;
 
   @override
-  int get hashCode => Object.hash(icon, art, tint, semanticLabel);
+  int get hashCode => Object.hash(icon, art, initial, tint, semanticLabel);
 }
 
 /// "Empty ≠ dead" — the Midnight empty / loading / error pattern (master plan
@@ -180,6 +207,21 @@ class JeebEmptyState extends StatelessWidget {
         JeebEmptyMedallion.art(JeebEmptyMedallionArt.gift),
       ];
 
+  /// E2's three jeebers fading in and out of range. A consumer with real names
+  /// passes its own three; extra entries past the three ring anchors are
+  /// ignored, exactly as on E1.
+  static const List<JeebEmptyMedallion> radarMedallions = <JeebEmptyMedallion>[
+    JeebEmptyMedallion.letter('K'),
+    JeebEmptyMedallion.letter('N'),
+    JeebEmptyMedallion.letter('R'),
+  ];
+
+  /// The medallions [variant] draws when the caller passes none.
+  static List<JeebEmptyMedallion> medallionsFor(JeebEmptyStateVariant variant) =>
+      variant == JeebEmptyStateVariant.radar
+          ? radarMedallions
+          : defaultMedallions;
+
   /// White headline, `h1` centred.
   final String headline;
 
@@ -192,12 +234,13 @@ class JeebEmptyState extends StatelessWidget {
   /// Empty, loading or error.
   final JeebEmptyStateStatus status;
 
-  /// Replaces the mic disc at the centre of [JeebEmptyStateVariant.e1]. The
-  /// breathing halo, ring, arcs and waveform stay.
+  /// Replaces the centre disc of [JeebEmptyStateVariant.e1] (the mic) or
+  /// [JeebEmptyStateVariant.radar] (the broadcast core). Everything around it —
+  /// halo, rings, arcs, waveform — stays.
   final Widget? center;
 
-  /// The four E1 medallions. Null uses [defaultMedallions]; extra entries past
-  /// the four ring anchors are ignored.
+  /// The ring medallions. Null uses [medallionsFor]; extra entries past the
+  /// variant's anchors (four on E1, three on the radar) are ignored.
   final List<JeebEmptyMedallion>? medallions;
 
   /// Optional CTA, hidden while loading.
@@ -248,7 +291,7 @@ class JeebEmptyState extends StatelessWidget {
               status: status,
               ink: ink,
               center: center,
-              medallions: medallions ?? defaultMedallions,
+              medallions: medallions ?? medallionsFor(variant),
               size: illustrationSize,
             ),
             SizedBox(height: compact ? compactHeadlineGap : headlineGap),
@@ -367,6 +410,12 @@ class _Ink {
 const Size _e1ViewBox = Size(300, 280);
 const Size _sampleViewBox = Size(300, 270);
 
+/// E2's radar board is the square 300×300 div (lines 1759–1774).
+const Size _radarViewBox = Size(300, 300);
+
+/// E3's SVG viewBox (line 1817).
+const Size _streetViewBox = Size(300, 260);
+
 /// The route-dot pattern of token sheet §8 — `1 9`, period 10, which divides
 /// `jDash`'s −40 travel exactly.
 const double _dotDash = 1;
@@ -381,6 +430,58 @@ const List<Offset> _medallionAnchors = <Offset>[
 
 const double _medallionRadius = 27;
 const double _medallionGlyph = 26;
+
+// ── E2 · radar (board lines 1759–1774) ──
+
+const Offset _radarCentre = Offset(150, 150);
+
+/// Ø300 / Ø216 / Ø132 with a 1px CSS border, i.e. inset half a stroke.
+const List<double> _radarRingRadii = <double>[149.5, 107.5, 65.5];
+const List<double> _radarRingAlphas = <double>[0.12, 0.20, 0.32];
+
+/// Outward-to-inward, so the pulse reads as travelling toward the centre.
+const List<Duration> _radarRingDelays = <Duration>[
+  Duration(seconds: 1),
+  Duration(milliseconds: 500),
+  Duration.zero,
+];
+const Duration _radarRingPeriod = Duration(seconds: 3);
+const Duration _radarGlowPeriod = Duration(seconds: 3);
+const Duration _radarDiscPeriod = Duration(milliseconds: 2600);
+
+const double _radarGlowRadius = 75;
+const double _radarCoreRadius = 29;
+const double _radarBloomWidth = 8;
+const double _radarBloomAlpha = 0.22;
+const double _radarSatelliteRadius = 3;
+const Offset _radarSatellite = Offset(267, 201);
+
+const double _radarDiscDiameter = 36;
+const List<Offset> _radarAnchors = <Offset>[
+  Offset(56, 92),
+  Offset(238, 138),
+  Offset(92, 230),
+];
+
+/// Fill, border and ink step down together — the three read as one jeeber
+/// nearer than the next.
+const List<double> _radarDiscFills = <double>[0.12, 0.09, 0.06];
+const List<double> _radarDiscBorders = <double>[0.25, 0.18, 0.12];
+const List<double> _radarDiscInks = <double>[1, 0.7, 0.45];
+const List<Duration> _radarDiscDelays = <Duration>[
+  Duration.zero,
+  Duration(milliseconds: 800),
+  Duration(milliseconds: 1600),
+];
+
+// ── E3 · street (board lines 1817–1888) ──
+
+const Duration _streetLampPeriod = Duration(milliseconds: 3600);
+const Duration _streetArcPeriod = Duration(milliseconds: 2200);
+const List<Duration> _streetArcDelays = <Duration>[
+  Duration.zero,
+  Duration(milliseconds: 450),
+];
 
 /// Inner-to-outer radius of the board's 4-point sparkle (3 / 11 diagonal).
 const double _starInnerRatio = 0.386;
@@ -419,9 +520,7 @@ class _Illustration extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool skeleton = status == JeebEmptyStateStatus.loading;
-    final Size viewBox = skeleton || variant == JeebEmptyStateVariant.e1
-        ? _e1ViewBox
-        : _sampleViewBox;
+    final Size viewBox = skeleton ? _e1ViewBox : _viewBoxFor(variant);
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -458,8 +557,17 @@ class _Illustration extends StatelessWidget {
     ),
   ];
 
+  static Size _viewBoxFor(JeebEmptyStateVariant variant) => switch (variant) {
+    JeebEmptyStateVariant.e1 => _e1ViewBox,
+    JeebEmptyStateVariant.radar => _radarViewBox,
+    JeebEmptyStateVariant.street => _streetViewBox,
+    _ => _sampleViewBox,
+  };
+
   List<Widget> _layers() => switch (variant) {
     JeebEmptyStateVariant.e1 => _e1Layers(),
+    JeebEmptyStateVariant.radar => _radarLayers(),
+    JeebEmptyStateVariant.street => _streetLayers(),
     JeebEmptyStateVariant.pocket => _pocketLayers(),
     JeebEmptyStateVariant.balcony => _balconyLayers(),
     JeebEmptyStateVariant.beacon => _beaconLayers(),
@@ -494,7 +602,11 @@ class _Illustration extends StatelessWidget {
         top: _medallionAnchors[i].dy - _medallionRadius,
         width: _medallionRadius * 2,
         height: _medallionRadius * 2,
-        child: _Medallion(medallion: medallions[i], ink: ink),
+        child: _Medallion(
+          medallion: medallions[i],
+          ink: ink,
+          diameter: _medallionRadius * 2,
+        ),
       ),
     Positioned.fill(child: _vector('e1-arcs', ink, (Canvas canvas) => _paintE1Arcs(canvas, ink))),
     if (center == null)
@@ -542,6 +654,148 @@ class _Illustration extends StatelessWidget {
       dot: true,
       duration: const Duration(milliseconds: 2600),
       delay: const Duration(milliseconds: 400),
+    ),
+  ];
+
+  // E2 · lines 1746–1794. Animated: 3 rings, centre glow, 3 avatar discs.
+  // STATIC: the orange core with its bloom ring, and the satellite dot.
+  List<Widget> _radarLayers() => <Widget>[
+    for (int i = 0; i < _radarRingRadii.length; i++)
+      Positioned.fill(
+        child: JArcPulse(
+          duration: _radarRingPeriod,
+          delay: _radarRingDelays[i],
+          child: _vector(
+            'radar-ring-$i',
+            ink,
+            (Canvas canvas) => _drawRadarRing(canvas, ink, i),
+          ),
+        ),
+      ),
+    Positioned(
+      left: _radarCentre.dx - _radarGlowRadius,
+      top: _radarCentre.dy - _radarGlowRadius,
+      width: _radarGlowRadius * 2,
+      height: _radarGlowRadius * 2,
+      child: JBreathe(
+        duration: _radarGlowPeriod,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: <Color>[
+                ink.accent.withValues(alpha: 0.35),
+                ink.accent.withValues(alpha: 0),
+              ],
+              stops: const <double>[0, 0.7],
+            ),
+          ),
+        ),
+      ),
+    ),
+    if (center == null)
+      Positioned.fill(
+        child: _vector(
+          'radar-core',
+          ink,
+          (Canvas canvas) => _paintRadarCore(canvas, ink),
+        ),
+      )
+    else
+      Positioned(
+        left: _radarCentre.dx - _radarCoreRadius,
+        top: _radarCentre.dy - _radarCoreRadius,
+        width: _radarCoreRadius * 2,
+        height: _radarCoreRadius * 2,
+        child: center!,
+      ),
+    for (int i = 0; i < math.min(medallions.length, _radarAnchors.length); i++)
+      Positioned(
+        left: _radarAnchors[i].dx - _radarDiscDiameter / 2,
+        top: _radarAnchors[i].dy - _radarDiscDiameter / 2,
+        width: _radarDiscDiameter,
+        height: _radarDiscDiameter,
+        child: JBreathe(
+          duration: _radarDiscPeriod,
+          delay: _radarDiscDelays[i],
+          child: _Medallion(
+            medallion: medallions[i],
+            ink: ink,
+            diameter: _radarDiscDiameter,
+            fill: ink.white(_radarDiscFills[i]),
+            border: ink.white(_radarDiscBorders[i]),
+            letterInk: ink.white(_radarDiscInks[i]),
+          ),
+        ),
+      ),
+    Positioned.fill(
+      child: _vector(
+        'radar-satellite',
+        ink,
+        (Canvas canvas) => _paintRadarSatellite(canvas, ink),
+      ),
+    ),
+  ];
+
+  // E3 · lines 1817–1888. Animated: lamp bulb + cone as ONE element, 2 arcs.
+  // STATIC: the box, ground, road dashes, emitter dot and BOTH sparkles.
+  List<Widget> _streetLayers() => <Widget>[
+    Positioned.fill(
+      child: _vector(
+        'street-back',
+        ink,
+        (Canvas canvas) => _paintStreetBack(canvas, ink),
+      ),
+    ),
+    Positioned.fill(
+      child: _vector(
+        'street-post',
+        ink,
+        (Canvas canvas) => _paintStreetPost(canvas, ink),
+      ),
+    ),
+    Positioned.fill(
+      child: JBreathe(
+        duration: _streetLampPeriod,
+        child: _vector(
+          'street-lamp',
+          ink,
+          (Canvas canvas) => _paintStreetLamp(canvas, ink),
+        ),
+      ),
+    ),
+    Positioned.fill(
+      child: _vector(
+        'street-ground',
+        ink,
+        (Canvas canvas) => _paintStreetGround(canvas, ink),
+      ),
+    ),
+    Positioned.fill(
+      child: _vector(
+        'street-scooter',
+        ink,
+        (Canvas canvas) => _paintStreetScooter(canvas, ink),
+      ),
+    ),
+    for (int i = 0; i < _streetArcDelays.length; i++)
+      Positioned.fill(
+        child: JArcPulse(
+          duration: _streetArcPeriod,
+          delay: _streetArcDelays[i],
+          child: _vector(
+            'street-arc-$i',
+            ink,
+            (Canvas canvas) => _drawStreetArc(canvas, ink, i),
+          ),
+        ),
+      ),
+    Positioned.fill(
+      child: _vector(
+        'street-specks',
+        ink,
+        (Canvas canvas) => _paintStreetSpecks(canvas, ink),
+      ),
     ),
   ];
 
@@ -761,33 +1015,74 @@ class _Illustration extends StatelessWidget {
 }
 
 class _Medallion extends StatelessWidget {
-  const _Medallion({required this.medallion, required this.ink});
+  const _Medallion({
+    required this.medallion,
+    required this.ink,
+    required this.diameter,
+    this.fill,
+    this.border,
+    this.letterInk,
+  });
 
   final JeebEmptyMedallion medallion;
   final _Ink ink;
 
+  /// Disc width in board units — the letter scales off it.
+  final double diameter;
+
+  /// Radar discs step their own glass; null keeps E1's §4 glass rungs.
+  final Color? fill;
+  final Color? border;
+  final Color? letterInk;
+
   @override
   Widget build(BuildContext context) {
     final JeebEmptyMedallionArt? art = medallion.art;
-    final Widget content = art == null
-        ? Center(
-            child: Icon(
-              medallion.icon,
-              size: _medallionGlyph,
-              color: medallion.tint ?? ink.scheme.onSurface,
-              semanticLabel: medallion.semanticLabel,
-            ),
-          )
-        : Semantics(
-            label: medallion.semanticLabel,
-            child: CustomPaint(painter: _MedallionArt(art: art, ink: ink)),
-          );
+    final String? initial = medallion.initial;
+    final Widget content;
+    if (art != null) {
+      content = Semantics(
+        label: medallion.semanticLabel,
+        child: CustomPaint(painter: _MedallionArt(art: art, ink: ink)),
+      );
+    } else if (initial != null) {
+      final Widget letter = Center(
+        child: Text(
+          JeebAvatar.initialFrom(initial),
+          maxLines: 1,
+          textScaler: TextScaler.noScaling,
+          style: context.jeebText.h2.copyWith(
+            fontSize: diameter * JeebAvatar.initialSizeRatio,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+            height: 1,
+            color: medallion.tint ?? letterInk ?? ink.scheme.onSurface,
+          ),
+        ),
+      );
+      content = medallion.semanticLabel == null
+          ? ExcludeSemantics(child: letter)
+          : Semantics(
+              label: medallion.semanticLabel,
+              excludeSemantics: true,
+              child: letter,
+            );
+    } else {
+      content = Center(
+        child: Icon(
+          medallion.icon,
+          size: _medallionGlyph,
+          color: medallion.tint ?? ink.scheme.onSurface,
+          semanticLabel: medallion.semanticLabel,
+        ),
+      );
+    }
 
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: ink.semantic.glassFillEmphasis,
-        border: Border.all(color: ink.semantic.glassBorderStrong),
+        color: fill ?? ink.semantic.glassFillEmphasis,
+        border: Border.all(color: border ?? ink.semantic.glassBorderStrong),
       ),
       child: content,
     );
@@ -1153,6 +1448,211 @@ void _paintSkeleton(Canvas canvas, _Ink ink) {
         _strokePaint(ink.semantic.glassBorder, 1),
       );
   }
+}
+
+// ── E2 · the waiting radar ──
+
+void _drawRadarRing(Canvas canvas, _Ink ink, int index) {
+  canvas.drawCircle(
+    _radarCentre,
+    _radarRingRadii[index],
+    _strokePaint(
+      ink.accent.withValues(alpha: _radarRingAlphas[index]),
+      1,
+      StrokeCap.butt,
+    ),
+  );
+}
+
+/// The "your request" core: an orange disc inside a bloom ring, both still.
+void _paintRadarCore(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(
+      _radarCentre,
+      _radarCoreRadius + _radarBloomWidth / 2,
+      _strokePaint(
+        ink.accent.withValues(alpha: _radarBloomAlpha),
+        _radarBloomWidth,
+        StrokeCap.butt,
+      ),
+    )
+    ..drawCircle(_radarCentre, _radarCoreRadius, _fillPaint(ink.accent));
+
+  // The broadcast glyph, traced from the board's 24-unit icon at 26px.
+  const double unit = _medallionGlyph / 24;
+  canvas.drawCircle(_radarCentre, 2 * unit, _fillPaint(ink.onAccent));
+  final Rect sweep = Rect.fromCircle(center: _radarCentre, radius: 8 * unit);
+  final Paint arc = _strokePaint(ink.onAccent, 2 * unit);
+  canvas
+    ..drawArc(sweep, -math.pi / 4, math.pi / 2, false, arc)
+    ..drawArc(sweep, math.pi * 3 / 4, math.pi / 2, false, arc);
+}
+
+void _paintRadarSatellite(Canvas canvas, _Ink ink) {
+  canvas.drawCircle(
+    _radarSatellite,
+    _radarSatelliteRadius,
+    _fillPaint(ink.accent),
+  );
+}
+
+// ── E3 · the quiet street ──
+
+void _paintStreetBack(Canvas canvas, _Ink ink) {
+  const Rect glow = Rect.fromLTWH(54, 44, 192, 172);
+  canvas
+    ..drawCircle(const Offset(150, 128), 122, _strokePaint(ink.white(0.07), 1.5))
+    ..drawOval(
+      glow,
+      Paint()
+        ..shader = RadialGradient(
+          colors: <Color>[
+            ink.periwinkle.withValues(alpha: 0.35),
+            ink.periwinkle.withValues(alpha: 0),
+          ],
+        ).createShader(glow),
+    );
+}
+
+void _paintStreetPost(Canvas canvas, _Ink ink) {
+  canvas.drawPath(
+    Path()
+      ..moveTo(236, 196)
+      ..lineTo(236, 78)
+      ..quadraticBezierTo(236, 64, 222, 64)
+      ..lineTo(212, 64),
+    _strokePaint(ink.white(0.3), 4),
+  );
+}
+
+/// Bulb and cone breathe as ONE element (motion notes §E3).
+void _paintStreetLamp(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(const Offset(208, 64), 7, _fillPaint(ink.semantic.amber))
+    ..drawPath(
+      Path()
+        ..moveTo(208, 64)
+        ..lineTo(184, 118)
+        ..relativeLineTo(48, 0)
+        ..close(),
+      _fillPaint(ink.semantic.amber.withValues(alpha: 0.12)),
+    );
+}
+
+void _paintStreetGround(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawLine(
+      const Offset(46, 196),
+      const Offset(254, 196),
+      _strokePaint(ink.white(0.22), 3),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(62, 210)
+        ..lineTo(120, 210)
+        ..moveTo(136, 210)
+        ..lineTo(168, 210),
+      _strokePaint(ink.white(0.1), 3),
+    )
+    // The board's `rgba(0,0,0,.35)` pool, taken from the page navy so the kit
+    // stays token-only.
+    ..drawOval(
+      const Rect.fromLTWH(68, 192, 156, 14),
+      _fillPaint(ink.scheme.surfaceContainerLowest.withValues(alpha: 0.45)),
+    );
+}
+
+void _paintStreetScooter(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawRRect(_rrect(70, 102, 40, 34, 7), _fillPaint(ink.white(0.16)))
+    ..drawRRect(_rrect(70, 102, 40, 34, 7), _strokePaint(ink.white(0.35), 1.5))
+    ..drawCircle(const Offset(90, 119), 7.5, _fillPaint(ink.accent))
+    ..drawPath(
+      Path()
+        ..moveTo(90, 115)
+        ..relativeLineTo(0, 8)
+        ..moveTo(86.5, 119)
+        ..relativeLineTo(7, 0),
+      _strokePaint(ink.onAccent, 2),
+    )
+    ..drawRect(const Rect.fromLTWH(84, 140, 12, 26), _fillPaint(ink.white(0.22)))
+    ..drawRRect(_rrect(70, 132, 50, 13, 6.5), _fillPaint(ink.accent))
+    ..drawPath(
+      Path()
+        ..moveTo(96, 166)
+        ..relativeQuadraticBezierTo(-14, 2, -12, 14)
+        ..relativeQuadraticBezierTo(1, 10, 14, 10)
+        ..relativeLineTo(20, 0)
+        ..relativeQuadraticBezierTo(16, 2, 30, 2),
+      _strokePaint(ink.white(0.35), 5),
+    )
+    ..drawRRect(_rrect(118, 172, 58, 9, 4.5), _fillPaint(ink.white(0.2)))
+    ..drawLine(
+      const Offset(206, 118),
+      const Offset(182, 176),
+      _strokePaint(ink.white(0.35), 9),
+    )
+    ..drawPath(
+      Path()
+        ..moveTo(200, 122)
+        ..relativeQuadraticBezierTo(-20, 24, -14, 54),
+      _strokePaint(ink.white(0.16), 12),
+    )
+    ..drawLine(
+      const Offset(200, 118),
+      const Offset(222, 118),
+      _strokePaint(ink.white(0.5), 5),
+    )
+    ..drawLine(
+      const Offset(204, 116),
+      const Offset(200, 102),
+      _strokePaint(ink.white(0.4), 3),
+    )
+    ..drawCircle(const Offset(199, 98), 4.5, _fillPaint(ink.white(0.55)))
+    ..drawCircle(const Offset(224, 124), 5.5, _fillPaint(ink.semantic.amber));
+  for (final double cx in const <double>[102, 196]) {
+    canvas
+      ..drawCircle(Offset(cx, 190), 17, _fillPaint(ink.scheme.surface))
+      ..drawCircle(Offset(cx, 190), 17, _strokePaint(ink.white(0.65), 4.5))
+      ..drawCircle(Offset(cx, 190), 4, _fillPaint(ink.white(0.7)));
+  }
+  canvas.drawLine(
+    const Offset(120, 186),
+    const Offset(112, 200),
+    _strokePaint(ink.white(0.4), 3.5),
+  );
+}
+
+/// The two listening arcs rising off the delivery box.
+void _drawStreetArc(Canvas canvas, _Ink ink, int index) {
+  final Path path = index == 0
+      ? (Path()
+          ..moveTo(64, 96)
+          ..arcToPoint(const Offset(76, 72), radius: const Radius.circular(34)))
+      : (Path()
+          ..moveTo(52, 92)
+          ..arcToPoint(const Offset(69, 58), radius: const Radius.circular(48)));
+  canvas.drawPath(path, _strokePaint(ink.accent, 3.5));
+}
+
+/// Emitter dot and both sparkles — static on this tile, unlike E1/E4.
+void _paintStreetSpecks(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(const Offset(66, 70), 3.5, _fillPaint(ink.accent))
+    ..drawCircle(const Offset(44, 140), 3, _fillPaint(ink.white(0.35)))
+    ..drawPath(
+      Path()
+        ..moveTo(256, 44)
+        ..relativeLineTo(2.5, 6.5)
+        ..relativeLineTo(6.5, 2.5)
+        ..relativeLineTo(-6.5, 2.5)
+        ..relativeLineTo(-2.5, 6.5)
+        ..relativeLineTo(-2.5, -6.5)
+        ..relativeLineTo(-6.5, -2.5)
+        ..relativeLineTo(6.5, -2.5)
+        ..close(),
+      _fillPaint(ink.white(0.5)),
+    );
 }
 
 // ── Sample A · the empty pocket ──

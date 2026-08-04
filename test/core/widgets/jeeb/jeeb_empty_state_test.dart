@@ -361,6 +361,306 @@ void main() {
     });
   });
 
+  group('JeebEmptyState · E2 radar', () {
+    const JeebEmptyState radar = JeebEmptyState(
+      headline: 'Broadcasting to 12 Jeebers…',
+      body: 'First offers usually land within 4 minutes.',
+      variant: JeebEmptyStateVariant.radar,
+    );
+
+    List<BoxDecoration> discsOf(WidgetTester tester) => tester
+        .widgetList<DecoratedBox>(inState(DecoratedBox))
+        .map((DecoratedBox box) => box.decoration as BoxDecoration)
+        .where((BoxDecoration d) => d.color != null)
+        .toList();
+
+    testWidgets('the ring ladder walks OUTWARD-to-INWARD on one 3s period',
+        (tester) async {
+      await tester.pumpWidget(wrap(radar));
+      await tester.pump();
+
+      expect(
+        durationsOf<JArcPulse>(tester, (JArcPulse w) => w.duration),
+        List<Duration>.filled(3, const Duration(seconds: 3)),
+      );
+      // 1 / .5 / 0 — reversing this ladder makes the pulse travel outward,
+      // which is the opposite reading (motion notes §E2).
+      expect(
+        durationsOf<JArcPulse>(tester, (JArcPulse w) => w.delay),
+        <Duration>[
+          const Duration(seconds: 1),
+          const Duration(milliseconds: 500),
+          Duration.zero,
+        ],
+      );
+    });
+
+    testWidgets('glow shares the 3s period; the three discs ride 2.6s at 0/.8/1.6',
+        (tester) async {
+      await tester.pumpWidget(wrap(radar));
+      await tester.pump();
+
+      expect(
+        durationsOf<JBreathe>(tester, (JBreathe w) => w.duration),
+        <Duration>[
+          const Duration(seconds: 3),
+          const Duration(milliseconds: 2600),
+          const Duration(milliseconds: 2600),
+          const Duration(milliseconds: 2600),
+        ],
+      );
+      expect(
+        durationsOf<JBreathe>(tester, (JBreathe w) => w.delay),
+        <Duration>[
+          Duration.zero,
+          Duration.zero,
+          const Duration(milliseconds: 800),
+          const Duration(milliseconds: 1600),
+        ],
+      );
+    });
+
+    testWidgets('the core, its bloom and the satellite dot do NOT move',
+        (tester) async {
+      await tester.pumpWidget(wrap(radar));
+      await tester.pump();
+
+      // 7 animated elements exactly: 3 rings + glow + 3 discs. The satellite
+      // is a dot, not a twinkle, and the orange core is still.
+      expect(inState(JArcPulse), findsNWidgets(3));
+      expect(inState(JBreathe), findsNWidgets(4));
+      expect(inState(JTwinkle), findsNothing);
+      expect(inState(JFloat), findsNothing);
+      expect(inState(JHalo), findsNothing);
+      expect(inState(JDashedPath), findsNothing);
+      expect(inState(JWaveBar), findsNothing);
+    });
+
+    testWidgets('the radar board is the square 300x300 div', (tester) async {
+      await tester.pumpWidget(wrap(radar, disableAnimations: true));
+      await tester.pumpAndSettle();
+
+      final Size size = tester.getSize(inState(FittedBox).first);
+      expect(size.width, 288);
+      expect(size.height, closeTo(288, 0.01));
+    });
+
+    testWidgets('defaults to K/N/R discs whose glass steps down together',
+        (tester) async {
+      await tester.pumpWidget(wrap(radar, disableAnimations: true));
+      await tester.pumpAndSettle();
+
+      expect(
+        JeebEmptyState.radarMedallions
+            .map((JeebEmptyMedallion m) => m.initial)
+            .toList(),
+        <String>['K', 'N', 'R'],
+      );
+      for (final String letter in <String>['K', 'N', 'R']) {
+        expect(find.text(letter), findsOneWidget);
+      }
+      // Fill, border and ink step down together — one jeeber nearer than the
+      // next; break the pairing and the discs stop reading as distance.
+      final List<BoxDecoration> discs = discsOf(tester);
+      expect(discs.length, 3);
+      expect(
+        discs.map((BoxDecoration d) => d.color!.a).toList(),
+        <Matcher>[closeTo(0.12, 0.005), closeTo(0.09, 0.005), closeTo(0.06, 0.005)],
+      );
+      expect(
+        discs.map((BoxDecoration d) => d.border!.top.color.a).toList(),
+        <Matcher>[closeTo(0.25, 0.005), closeTo(0.18, 0.005), closeTo(0.12, 0.005)],
+      );
+      expect(
+        <String>['K', 'N', 'R']
+            .map((String l) => tester.widget<Text>(find.text(l)).style!.color!.a)
+            .toList(),
+        <Matcher>[closeTo(1, 0.005), closeTo(0.7, 0.005), closeTo(0.45, 0.005)],
+      );
+      expect(discs.every((BoxDecoration d) => d.shape == BoxShape.circle), isTrue);
+      // Decorative: three stray letters must not be announced.
+      expect(find.bySemanticsLabel('K'), findsNothing);
+    });
+
+    testWidgets('a consumer may pass real names and a custom centre',
+        (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState(
+            headline: 'Broadcasting',
+            variant: JeebEmptyStateVariant.radar,
+            center: Placeholder(key: ValueKey<String>('core')),
+            medallions: <JeebEmptyMedallion>[
+              JeebEmptyMedallion.letter('Nour', semanticLabel: 'Nour'),
+              JeebEmptyMedallion.letter('rami'),
+              JeebEmptyMedallion.letter('  '),
+              JeebEmptyMedallion.letter('Zeina'),
+            ],
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Same derivation as the avatar kit, and capped at the three anchors.
+      expect(find.text('N'), findsOneWidget);
+      expect(find.text('R'), findsOneWidget);
+      expect(find.text('?'), findsOneWidget);
+      expect(find.text('Z'), findsNothing);
+      expect(find.bySemanticsLabel('Nour'), findsOneWidget);
+      // Ø58 core, replaced but still centred.
+      expect(find.byKey(const ValueKey<String>('core')), findsOneWidget);
+      expect(tester.getSize(find.byType(Placeholder)).width, closeTo(58, 0.01));
+    });
+
+    testWidgets('error danger-tints the radar centre', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState(
+            headline: 'Something went wrong',
+            variant: JeebEmptyStateVariant.radar,
+            status: JeebEmptyStateStatus.error,
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final DecoratedBox glow =
+          tester.widget<DecoratedBox>(inState(DecoratedBox).first);
+      final RadialGradient gradient =
+          (glow.decoration as BoxDecoration).gradient! as RadialGradient;
+      expect(gradient.colors.first.withValues(alpha: 1), JeebMidnight.danger);
+      expect(gradient.stops, <double>[0, 0.7]);
+    });
+  });
+
+  group('JeebEmptyState · E3 street', () {
+    const JeebEmptyState street = JeebEmptyState(
+      headline: 'Quiet street right now',
+      body: 'No requests nearby — you\'re online.',
+      variant: JeebEmptyStateVariant.street,
+    );
+
+    testWidgets('bulb and cone breathe as ONE 3.6s element', (tester) async {
+      await tester.pumpWidget(wrap(street));
+      await tester.pump();
+
+      // Two board nodes, one composed widget: splitting them lets the cone
+      // drift out of phase with its own bulb.
+      expect(
+        durationsOf<JBreathe>(tester, (JBreathe w) => w.duration),
+        <Duration>[const Duration(milliseconds: 3600)],
+      );
+      expect(
+        durationsOf<JBreathe>(tester, (JBreathe w) => w.delay),
+        <Duration>[Duration.zero],
+      );
+    });
+
+    testWidgets('two listening arcs ripple outward at 2.2s, 0 / .45s',
+        (tester) async {
+      await tester.pumpWidget(wrap(street));
+      await tester.pump();
+
+      expect(
+        durationsOf<JArcPulse>(tester, (JArcPulse w) => w.duration),
+        List<Duration>.filled(2, const Duration(milliseconds: 2200)),
+      );
+      expect(
+        durationsOf<JArcPulse>(tester, (JArcPulse w) => w.delay),
+        <Duration>[Duration.zero, const Duration(milliseconds: 450)],
+      );
+    });
+
+    testWidgets('THIS tile\'s sparkles are static — no E1/E4 twinkle ladder',
+        (tester) async {
+      await tester.pumpWidget(wrap(street));
+      await tester.pump();
+
+      expect(inState(JTwinkle), findsNothing);
+      expect(inState(JFloat), findsNothing);
+      expect(inState(JHalo), findsNothing);
+      expect(inState(JWaveBar), findsNothing);
+      // Not `balcony`: E3 draws neither a request bubble nor a jDash route.
+      expect(inState(JDashedPath), findsNothing);
+    });
+
+    testWidgets('keeps E3\'s 300x260 SVG viewBox', (tester) async {
+      await tester.pumpWidget(wrap(street, disableAnimations: true));
+      await tester.pumpAndSettle();
+
+      final Size size = tester.getSize(inState(FittedBox).first);
+      expect(size.width, 288);
+      expect(size.height, closeTo(288 * 260 / 300, 0.01));
+    });
+  });
+
+  group('JeebEmptyState · medallion letters', () {
+    test('medallionsFor only re-points the radar', () {
+      expect(
+        JeebEmptyState.medallionsFor(JeebEmptyStateVariant.radar),
+        JeebEmptyState.radarMedallions,
+      );
+      for (final JeebEmptyStateVariant variant
+          in JeebEmptyStateVariant.values.where(
+        (JeebEmptyStateVariant v) => v != JeebEmptyStateVariant.radar,
+      )) {
+        expect(
+          JeebEmptyState.medallionsFor(variant),
+          JeebEmptyState.defaultMedallions,
+          reason: '$variant',
+        );
+      }
+    });
+
+    test('a letter medallion carries no icon and no art', () {
+      const JeebEmptyMedallion letter = JeebEmptyMedallion.letter('K');
+      expect(letter.icon, isNull);
+      expect(letter.art, isNull);
+      expect(letter.initial, 'K');
+      expect(
+        const JeebEmptyMedallion(icon: Icons.pets).initial,
+        isNull,
+      );
+      expect(
+        const JeebEmptyMedallion.art(JeebEmptyMedallionArt.gift).initial,
+        isNull,
+      );
+    });
+
+    test('equality reads the letter', () {
+      final JeebEmptyMedallion built =
+          JeebEmptyMedallion.letter(String.fromCharCode(75));
+      expect(built, const JeebEmptyMedallion.letter('K'));
+      expect(built.hashCode, const JeebEmptyMedallion.letter('K').hashCode);
+      expect(built, isNot(const JeebEmptyMedallion.letter('N')));
+      expect(built, isNot(const JeebEmptyMedallion(icon: Icons.pets)));
+    });
+
+    testWidgets('E1 medallions accept a letter too, at the Ø54 disc size',
+        (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState(
+            headline: 'Nothing here',
+            medallions: <JeebEmptyMedallion>[
+              JeebEmptyMedallion.letter('K', tint: JeebMidnight.orangeSoft),
+            ],
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final TextStyle style = tester.widget<Text>(find.text('K')).style!;
+      expect(style.fontSize, closeTo(54 * 0.36, 0.01));
+      expect(style.fontWeight, FontWeight.w800);
+      expect(style.color, JeebMidnight.orangeSoft);
+      expect(inState(Icon), findsNothing);
+    });
+  });
+
   group('JeebEmptyState · states', () {
     testWidgets('loading breathes a skeleton and withholds the CTA',
         (tester) async {

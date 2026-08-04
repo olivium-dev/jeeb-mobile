@@ -168,9 +168,9 @@ class JeebMidnightField extends StatelessWidget {
   }
 }
 
-// §8 glow: an ellipse of rx = 1.35 × field width, ry/rx = 420/520, fading to
-// transparent at the 60% stop.
-const double _glowRadiusFactor = 1.35;
+// §8 glow: CSS `radial-gradient(520px 420px …)` are RADII on the 440 board, so
+// rx = 520/440 = 1.18 × field width, ry/rx = 420/520, transparent at the 60%.
+const double _glowRadiusFactor = 1.18;
 const double _glowAspect = 420 / 520;
 const double _glowFade = 0.6;
 

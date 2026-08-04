@@ -360,7 +360,11 @@ void main() {
           JeebRadii.xl,
         );
         expect(tile.boxShadow, JeebShadows.glowRest);
-        expect(tile.border!.top.color, _glass.glassBorderStrong);
+        // R13 measures white .22 — the vivid rung, NOT the .16 the entry
+        // cells carry.
+        expect(tile.border!.top.color, _glass.glassBorderVivid);
+        expect(tile.border!.top.color, const Color(0x38FFFFFF));
+        expect(tile.border!.top.color, isNot(_glass.glassBorderStrong));
         expect(tile.border!.top.width, JeebCodeCells.glassBorderWidth);
       }
 

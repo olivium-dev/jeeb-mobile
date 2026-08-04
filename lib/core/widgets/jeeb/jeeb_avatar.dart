@@ -27,7 +27,13 @@ enum JeebAvatarFill {
   dormant,
 
   /// On the orange banner: `onAccent` @ 20 % + `onAccent` ink (13 `tpl 800`).
-  onAccent;
+  onAccent,
+
+  /// Glass on the Midnight field: white @ [JeebAvatar.glassFillAlpha] + WHITE
+  /// ink (15's Ø74 ratee disc, E2's ring avatars). The only translucent rung —
+  /// [primary] is opaque navy and [dormant] forces periwinkle ink, so neither
+  /// reads on a field. Wave-B ruling 3.
+  glass;
 
   /// The stack's fill rotation, in board order (04 `tpl 208-210`).
   static const List<JeebAvatarFill> rotation = <JeebAvatarFill>[
@@ -204,6 +210,9 @@ class JeebAvatar extends StatelessWidget {
 
   /// The check inside a [JeebAvatarBadge.completed] badge.
   static const double badgeGlyphSize = 13;
+
+  /// [JeebAvatarFill.glass]'s white fill alpha — the ratified 22 % rung.
+  static const double glassFillAlpha = 0.22;
 
   /// Every realized size sits within a rounding of `0.36 × Ø`; the four exact
   /// values are hardcoded in [initialSizeFor], this covers the rest.
@@ -400,6 +409,13 @@ class JeebAvatar extends StatelessWidget {
       case JeebAvatarFill.onAccent:
         return (
           fill: roles.onAccent.withValues(alpha: 0.2),
+          ink: roles.onAccent,
+        );
+      case JeebAvatarFill.glass:
+        // Translucent by contract: it must not re-tone on a navy card the way
+        // [primary] does, or the field stops showing through.
+        return (
+          fill: roles.onAccent.withValues(alpha: glassFillAlpha),
           ink: roles.onAccent,
         );
     }

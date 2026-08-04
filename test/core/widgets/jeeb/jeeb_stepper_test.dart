@@ -511,6 +511,64 @@ void main() {
       );
     });
 
+    testWidgets('doneInk defaults to periwinkle — 18\'s fill, unchanged', (
+      WidgetTester tester,
+    ) async {
+      const JeebStepper bars = JeebStepper.bars(stepCount: 4, currentIndex: 2);
+      expect(bars.doneInk, JeebStepperDoneInk.periwinkle);
+
+      await tester.pumpWidget(_wrap(bars));
+      final List<BoxDecoration> rules = _rules(tester).toList();
+      expect(rules[0].color, _periwinkle);
+      expect(rules[1].color, _periwinkle);
+      expect(rules[2].color, _orange);
+      expect(rules[3].color, _glassFillPressed);
+    });
+
+    testWidgets('doneInk.accent runs R3\'s orange fill through the active bar', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const JeebStepper.bars(
+            stepCount: 4,
+            currentIndex: 2,
+            doneInk: JeebStepperDoneInk.accent,
+          ),
+        ),
+      );
+
+      final List<BoxDecoration> rules = _rules(tester).toList();
+      // R3: every segment up to AND INCLUDING the active one is orange…
+      expect(rules[0].color, _orange);
+      expect(rules[1].color, _orange);
+      expect(rules[2].color, _orange);
+      expect(rules[0].color, _roles.accent);
+      expect(rules[3].color, _glassFillPressed);
+      // …and the active one alone still carries the glow.
+      expect(rules[0].boxShadow, isNull);
+      expect(rules[1].boxShadow, isNull);
+      expect(rules[2].boxShadow, JeebStepper.barGlow);
+      expect(rules[3].boxShadow, isNull);
+    });
+
+    testWidgets('doneInk leaves the node form\'s connectors periwinkle', (
+      WidgetTester tester,
+    ) async {
+      const JeebStepper nodes = JeebStepper(
+        currentIndex: 2,
+        labels: _trackingLabels,
+        stepIdentifiers: _trackingIds,
+      );
+      expect(nodes.doneInk, JeebStepperDoneInk.periwinkle);
+
+      await tester.pumpWidget(_wrap(nodes));
+      final List<BoxDecoration> rules = _rules(tester).toList();
+      expect(rules[0].color, _scheme.secondary);
+      expect(rules[1].color, _scheme.secondary);
+      expect(rules[2].color, _glassFillPressed);
+    });
+
     testWidgets('the active segment carries glowDot, not the node halo',
         (WidgetTester tester) async {
       await tester.pumpWidget(

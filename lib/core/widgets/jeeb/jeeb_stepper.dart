@@ -12,6 +12,25 @@ import '../../theme/jeeb_text_styles.dart';
 /// passed in — one source of truth means the two forms cannot disagree.
 enum _JeebStepState { done, active, pending }
 
+/// Which ink [JeebStepper.bars] fills its **passed** segments with.
+///
+/// The two board tiles that draw the bar form genuinely disagree, so the fill
+/// is a parameter rather than a per-screen repaint: 18 (R18) leaves the passed
+/// run periwinkle, R3 (live tracking) runs it ORANGE so the fill reads as one
+/// continuous bar up to and including the active segment.
+///
+/// The ink is resolved from the theme inside the kit — a raw [Color] here
+/// would push a semantic colour literal back out into `lib/features`.
+/// Bar form only: the node form's connectors are always periwinkle.
+enum JeebStepperDoneInk {
+  /// `colorScheme.secondary`. The default, and what every caller drew before
+  /// this parameter existed.
+  periwinkle,
+
+  /// `jeebRoles.accent`, against the orange budget on the tiles that draw it.
+  accent,
+}
+
 /// The linear-progress widget (redesign-2026-08 §5 #11), in its **two realized
 /// forms**.
 ///
@@ -43,6 +62,7 @@ class JeebStepper extends StatelessWidget {
     this.identifier,
     this.semanticLabel,
   })  : segmentKeys = null,
+        doneInk = JeebStepperDoneInk.periwinkle,
         _barCount = 0,
         _isBars = false;
 
@@ -54,10 +74,14 @@ class JeebStepper extends StatelessWidget {
   /// `'<Label>, <State>'` a11y strings. [segmentKeys] re-homes that screen's
   /// `ValueKey<String>('active_delivery_stage_<name>_<state>')`s onto the
   /// segments so its `find.byKey` family keeps passing unedited.
+  ///
+  /// [doneInk] selects the passed-segment fill; it defaults to the periwinkle
+  /// 18 draws, so existing call sites are unaffected.
   const JeebStepper.bars({
     super.key,
     required int stepCount,
     required this.currentIndex,
+    this.doneInk = JeebStepperDoneInk.periwinkle,
     this.segmentKeys,
     this.identifier,
     this.semanticLabel,
@@ -159,6 +183,10 @@ class JeebStepper extends StatelessWidget {
   /// Keys for the bar form's segments, index-aligned with `stepCount`.
   final List<Key>? segmentKeys;
 
+  /// Bar form only: the fill a **passed** segment carries. The active segment
+  /// is always accent + [barGlow]; the node form ignores this.
+  final JeebStepperDoneInk doneInk;
+
   /// Optional Maestro id for the stepper as a whole, applied via an explicit
   /// `Semantics` wrapper (never OMDS's own `identifier:`).
   ///
@@ -245,15 +273,19 @@ class JeebStepper extends StatelessWidget {
     final Color accent = context.jeebRoles.accent;
     final JeebSemanticColors semantics =
         theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
+    final Color done = switch (doneInk) {
+      JeebStepperDoneInk.periwinkle => theme.colorScheme.secondary,
+      JeebStepperDoneInk.accent => accent,
+    };
     final List<Widget> children = <Widget>[];
     for (var index = 0; index < _barCount; index++) {
       if (index > 0) {
         children.add(const SizedBox(width: barGap));
       }
       final _JeebStepState state = _stateAt(index);
-      // Board: passed = periwinkle, active = orange + glow, pending = glass.
+      // Board: passed = doneInk, active = orange + glow, pending = glass.
       final Color fill = switch (state) {
-        _JeebStepState.done => theme.colorScheme.secondary,
+        _JeebStepState.done => done,
         _JeebStepState.active => accent,
         _JeebStepState.pending => semantics.glassFillPressed,
       };

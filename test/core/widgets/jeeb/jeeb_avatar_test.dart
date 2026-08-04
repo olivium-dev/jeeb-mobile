@@ -218,6 +218,61 @@ void main() {
       expect(avatar.initialColor, roles.onAccent);
     });
 
+    test('glass is ADDITIVE — the stack rotation is untouched', () {
+      // Wave-B ruling 3 adds a rung; it must not join the 04 stack rotation.
+      expect(JeebAvatarFill.rotation.length, 3);
+      expect(JeebAvatarFill.rotation, isNot(contains(JeebAvatarFill.glass)));
+      expect(JeebAvatarFill.forIndex(3), JeebAvatarFill.primary);
+      expect(JeebAvatar.glassFillAlpha, 0.22);
+    });
+
+    testWidgets('glass is white @22% with a WHITE initial', (tester) async {
+      final OmdsProfileAvatar avatar =
+          await pumpFill(tester, JeebAvatarFill.glass);
+      expect(
+        avatar.backgroundColor,
+        _white.withValues(alpha: JeebAvatar.glassFillAlpha),
+      );
+      expect(avatar.initialColor, _white);
+      expect(avatar.initialColor, roles.onAccent);
+      // The two rungs it exists because of: primary is opaque navy, dormant
+      // forces periwinkle ink — neither reads on the Midnight field.
+      expect(avatar.backgroundColor, isNot(_surfaceHigh));
+      expect(avatar.initialColor, isNot(_inkMuted));
+    });
+
+    testWidgets('glass stays translucent on a navy card', (tester) async {
+      // Unlike primary, it must NOT re-tone: the field has to show through.
+      final OmdsProfileAvatar avatar = await pumpFill(
+        tester,
+        JeebAvatarFill.glass,
+        tone: (BuildContext context) => JeebSurfaceToneData.navy(context),
+      );
+      expect(avatar.backgroundColor!.a, closeTo(0.22, 0.001));
+      expect(avatar.initialColor, _white);
+    });
+
+    testWidgets('R15 mounts it at Ø74 with the completion badge', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrapAvatar(
+          const JeebAvatar.hero(
+            initial: 'Karim',
+            fill: JeebAvatarFill.glass,
+            badge: JeebAvatarBadge.completed,
+          ),
+        ),
+      );
+
+      final OmdsProfileAvatar avatar =
+          composedAvatar(tester, find.byType(JeebAvatar));
+      expect(avatar.size, JeebAvatar.heroDiameter);
+      expect(avatar.initial, 'K');
+      expect(avatar.initialColor, _white);
+      expect(find.byKey(JeebAvatar.badgeKey), findsOneWidget);
+    });
+
     testWidgets('primary re-tones on a navy surface instead of vanishing', (
       tester,
     ) async {
