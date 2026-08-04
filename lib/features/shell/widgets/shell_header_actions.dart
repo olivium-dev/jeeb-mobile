@@ -128,7 +128,7 @@ Widget shellHeaderActionsRequestsTab() => _shellHeaderActionsHosted(
       idPrefix: 'orders_home',
       body: ListView(
         children: <Widget>[
-          ClientHomeGreeting(name: 'Sami'),
+          const ClientHomeGreeting(name: 'Sami'),
         ],
       ),
     );
@@ -145,7 +145,7 @@ Widget shellHeaderActionsRequestsNarrowLongName() => _shellHeaderActionsHosted(
       idPrefix: 'orders_home',
       body: ListView(
         children: <Widget>[
-          ClientHomeGreeting(
+          const ClientHomeGreeting(
             name: _shellHeaderActionsLongFirstName,
           ),
         ],

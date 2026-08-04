@@ -330,7 +330,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    final l10n = await SyncAppLocalizationsDelegate().load(const Locale('en'));
+    final l10n = await const SyncAppLocalizationsDelegate().load(const Locale('en'));
     final ink = tester
         .widget<Text>(find.text(l10n.jeeberActiveDeliveriesTitle))
         .style!

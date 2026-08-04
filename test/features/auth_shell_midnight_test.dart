@@ -20,7 +20,7 @@ import '../support/sync_app_localizations.dart';
 void main() {
   group('L13 — the empty-stack recovery frame', () {
     test('paints page navy, not a transparent hole onto the native window', () {
-      final frame = kEmptyStackFrame;
+      const frame = kEmptyStackFrame;
       expect(frame, isA<ColoredBox>());
       expect((frame as ColoredBox).color, JeebMidnight.page);
 

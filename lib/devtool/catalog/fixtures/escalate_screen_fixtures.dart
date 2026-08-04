@@ -1,5 +1,6 @@
 /// Designed states for EscalateScreen (JM-060).
 /// fetchEvidence and submitEscalation are scripted independently.
+library;
 
 import 'dart:async';
 

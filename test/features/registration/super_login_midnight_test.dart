@@ -131,12 +131,12 @@ void main() {
       final shape = theme.bottomSheetTheme.shape! as RoundedRectangleBorder;
       expect(
         shape.borderRadius,
-        BorderRadius.vertical(top: Radius.circular(JeebRadii.sheet)),
+        const BorderRadius.vertical(top: Radius.circular(JeebRadii.sheet)),
       );
       // Discrimination: the shipped override was `OmdsBorderRadius.topLarge`.
       expect(
         shape.borderRadius,
-        isNot(BorderRadius.vertical(top: Radius.circular(Spacing.large))),
+        isNot(const BorderRadius.vertical(top: Radius.circular(Spacing.large))),
       );
     });
   });

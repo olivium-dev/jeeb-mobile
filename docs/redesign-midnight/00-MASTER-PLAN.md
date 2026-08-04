@@ -315,7 +315,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
   export cannot depict a success beat, but it CAN express idle motion via CSS keyframes, so a tile
   declaring none IS evidence for stillness. Infinite motion on static tiles removed; user-triggered
   one-shots kept WITH their reduce-motion contract proved. ·
-  [ ] **G-M6** audit gate · [ ] **G-M7** S22 sign-off
+  [x] **G-M6** audit gate @2026-08-04 — analyze **0 errors / 26 infos** (BELOW the 30 baseline) ·
+  full suite **7489 pass / 61 skip / 10 fail** with **ZERO new failures vs the G-M2 known-good set
+  and 15 CLOSED** (25 → 10) · router **131/131** · captures **343/343** · lottie 3.3.1. · [ ] **G-M7** S22 sign-off
 
 ### M0 Foundation
 - [x] M0-1 Token sheet ratified (Fable) — `01-TOKEN-SHEET.md`: palette→ColorScheme/roles mapping, ramp re-cut (h1 26/−0.6, body 14.5/21, price 22), radii ladder 9/14/18/22/26/34/40/999, glass recipe, field gradients (175deg wash + measured glows), shadow/glow set, Baloo Bhaijaan 2 confirmed from `_ds` tokens @2026-08-03
@@ -580,6 +582,11 @@ Seeded from doc-13 §4 — these survive into Midnight:
 
 43. [Q-043] (M4) **THREE new ORPHAN candidates, evidence-complete, awaiting your ratification.** All three are production-dead at the presentation layer, proven by an import graph over lib/ + test/ (relative and package: imports both resolved): `delivery_status/presentation/**` (self-tagged in code; live twin is `live_tracking/`), `tier_selection/presentation/**` (an in-code note at `app_router.dart:1136-1140` records the route was removed as "a dead duplicate of /request-type"), and the `prohibited_acknowledgment` dialog (zero production callers; its repository is a registered-but-never-resolved DI singleton). Ruled: **not restyled** (dead code) and **not deleted yet** — deleting three features with a 10-catalog-state / 20+-test blast radius immediately before device validation is churn for no user-visible gain. On a delete ruling, KEEP `delivery_status/domain/jeeber_summary.dart` and `tier_selection/{cubit,data,domain}` — those are live.
 
+44. [Q-044] (M6) **Every iOS cold start flashed full-screen white** — `LaunchScreen.storyboard` was solid white with 68-byte 1×1 placeholder images. FIXED to page navy. Flagging because **no widget test could ever have caught it** (it precedes Flutter's first frame) and it sits on the exact path M7 exercises — worth confirming on the S22's iOS counterpart during device validation.
+45. [Q-045] (M6) **Q6's recommendation was WRONG and is corrected here.** I advised holding R21's expired-row ink at 0.80; measured, that is **4.22:1 — still below AA**. A blanket 0.65 is 3.22:1. **Only `inkSoft` reaches AA when dimmed** (4.73 @0.65, 6.55 @0.80). Any expired/dimmed-row ruling must change the INK, not just the opacity.
+46. [Q-046] (M6) **The capture PNGs moved another workstream's hygiene metric.** `mb1_doc_residual_receipts_test` guards `skipped < trackedFiles/4`; the ~340 capture PNGs are undecodable by nature, so the tree crossed the ratio (812 vs 811) with the text corpus unchanged. Fixed by excluding binary extensions from both sides rather than raising the bar. Reinforces §8 Q10 — decide whether the 9.7 MB `actual/` set belongs in the repo.
+47. [Q-047] (M6) **5 raw hex are a sanctioned exemption, not a defect** — `social_sign_in_button.dart` carries Google/Facebook brand marks required by Apple App Store review item 4.0 and Google Identity branding (JEEB-57). The M6 gate asserts "≤5 hex outside theme, all in that file" rather than a plain zero. Confirm the exemption.
+
 *(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
 
 ---
@@ -660,6 +667,21 @@ Seeded from doc-13 §4 — these survive into Midnight:
   screen from its tile** — the follow-on wave adds `JeebFieldGlowPlacement.topStart` and fixes all
   three. Also found: **the golden gate is blind to token changes** (Q-027) — a 0.097% ink swap
   passed three goldens unchanged.
+- 2026-08-04 · **M4, M5 and M6 COMPLETE; G-M5 and G-M6 CLOSED. Every milestone I can close without
+  devices is done.** Final gate: analyze **0 errors / 26 infos** (below the 30 baseline), full suite
+  **7489 pass / 61 skip / 10 fail** with **zero new failures and 15 closed** (known-red 25 → 10),
+  router 131/131, captures 343/343. The four M6 audits settled three questions open for milestones:
+  the **glow survey** (a single alpha .24 beats the two-value split outright — the split explained
+  5.2% of variance and `hero` was correct for ZERO screens; radius 500/440 and aspect 420/500 must
+  move together because the shipped pair reproduced ry BY ACCIDENT; fade .58, declared by 16 of 29
+  radials against the shipped .60); **Q-022 was a PHANTOM** — the 5 tests red all engagement
+  computed a colour the app never paints; and **R15's chip closes as no-change** because WCAG 2.5.8
+  AA is 24×24, not the 48dp the kit doc demanded. Best find: **unset theme slots are orange no
+  source grep can see** — three slots resolved to #D73B00 having never been written, now gated by a
+  resolved-defaults probe. Also fixed: **every iOS cold start flashed white**. **My repeated
+  failure this stretch: I hardcoded the fan-out grouping in M4 and M5, and shipped a glow ruling to
+  1 of 6 lanes in M6 — three variants of "information that had to reach N lanes reached one", which
+  regressed R1 until paired.** M7 remains: real OTP login, two devices for chat, the physical S22.
 - 2026-08-04 · **M3 COMPLETE (46/46) + G-M3 CLOSED**, run as five tier waves (11+9+6+11 lanes).
   Numbers in the G-M3 row. The tile-less method held: every lane named a nearest tile, justified it,
   and traced each decision to a token value or a standing ruling; lanes that could not trace one

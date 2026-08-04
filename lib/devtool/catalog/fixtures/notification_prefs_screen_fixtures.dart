@@ -1,5 +1,6 @@
 /// Fixtures for NotificationPrefsScreen (JM-058, D64).
 /// Re-exports fixtures from notification_preferences_screen_fixtures.dart.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
