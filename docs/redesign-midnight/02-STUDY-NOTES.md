@@ -57,6 +57,26 @@ do their own STEP-0 tile read.
   reduce motion. **Catalog captures run with `disableAnimations: true`** so every capture is
   the deterministic rest frame (M0-9 harness must set this).
 
+## Wave-A review rulings (2026-08-04)
+
+Kit fixup round 2 (all board-measured, Fable-sanctioned): `JeebCtaButton.accent` (accent fill /
+onAccent / ctaOrange shadow / orangePressed) replacing R9+R12 Theme-swap workarounds ·
+`JeebWaveform` live ink → `#D73B00` (R2 measured 431px exact) + new `playbackBand` profile
+(R12: 6-bar/h26 full-orange) · R12 ticket chips = GLASS (measured white .10; M1 ruling 4
+narrows to "solid only where a tile draws opaque", R1) · `JeebEmptyState` medallions become
+custom two-tone art (E1 caption: "no stock art") + compact/inline variant (R11) ·
+`JeebSegmentedToggle` trackless option (E1 free pills) · `JeebNavySurfaceCard.selectedShadow`
+default → NONE (glow only where a tile draws it; accentSelected carries its own) · capture
+harness sets `debugShowCheckedModeBanner: false` · R9 badge keeps tinted treatment on lit rows.
+
+Accepted as shipped: R9 pre-selects Standard (carry-in beats the tile's drawn Flash frame) ·
+R11 `onCameraIdle` gate (map-unavailable explicit state queued to M4) · R2 rest-frame captures
+are the capture truth (M5 does live side-by-side) · R2 cubit `initialState` harness param ·
+shell badge kept (product feature, renders error-red, no orange spend) · closest-Material
+glyphs where no exact match exists (earnings note → §8) · Maestro jm-027 AC2
+behaviour-preserving reading (QA note → §8). Deferred deaths: `ClientHomeEmptyMark` (M5 audit),
+tier catalog helpers + `JeebTierRow.catalog` (M3), R12 voice-band fixture gap (M4).
+
 ## M1 kit-review rulings (2026-08-04, post-workflow)
 
 Confirmed as shipped: glass-capsule default radius = pill · pill nav strict 5 slots, navy

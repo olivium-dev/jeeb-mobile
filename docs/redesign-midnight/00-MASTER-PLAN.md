@@ -503,6 +503,10 @@ Seeded from doc-13 §4 — these survive into Midnight:
    T-MOB-032, never linked — restorable from git if product wires it later).
 10. `actual/` capture set (9.7 MB) committed for evidence — object if repo weight matters.
 
+11. [Q-011] (M2-01) Earnings tab glyph: no Material filled single-banknote-with-dot exists; shipped `Icons.payments`. Designer: want a custom glyph asset?
+12. [Q-012] (M2-02) Maestro jm-027 AC2: `replies_accept_cta` now opens the accept sheet from the card (behaviour-preserving). QA: confirm, or re-point AC2 to `offer_review_list_root`.
+13. [Q-013] (M2-06) R12 voice replay band has zero pixel evidence (no fixture carries a real audio path). Approve adding a voice-draft catalog state with an on-disk clip (M4).
+
 *(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
 
 ---
