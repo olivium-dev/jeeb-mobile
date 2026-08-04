@@ -18,8 +18,10 @@
 /// * **Colour is the consumer's job.** Nothing here imports `lib/core/theme`;
 ///   the module ships geometry and opacity only. ([JHalo] and [JDashedPath] take
 ///   a colour because they paint, not because they choose.)
-/// * **Reduce motion renders the rest frame** — the FIRST keyframe of the row —
-///   and schedules no frames at all. See `JMotionLoop`.
+/// * **Reduce motion renders a fixed keyframe of the row** — the FIRST one, or
+///   the LIT one for an element that carries information ([JMotionRest], Q-037)
+///   — and schedules no frames at all. Never a frozen mid-cycle value. See
+///   `JMotionLoop`.
 /// * **Every widget takes a `delay`**, which is the board's stagger; group
 ///   helpers live on [JeebMotion] (`stagger`, `spread`).
 ///

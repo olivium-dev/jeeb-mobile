@@ -22,12 +22,8 @@ class OtpAtDoorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSlide(
-      offset: Offset.zero,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
-      child: _CardContent(deliveryId: deliveryId, handoverCode: handoverCode),
-    );
+    // R3 animates nothing; the card enters on a hard cut.
+    return _CardContent(deliveryId: deliveryId, handoverCode: handoverCode);
   }
 }
 

@@ -27,6 +27,7 @@ void main() {
     Duration delay = Duration.zero,
     Duration duration = _period,
     double textScale = 1,
+    double restPhase = 0,
   }) async {
     Animation<double>? captured;
     await tester.pumpWidget(
@@ -40,6 +41,7 @@ void main() {
           child: JMotionLoop(
             duration: duration,
             delay: delay,
+            restPhase: restPhase,
             builder: (BuildContext context, Animation<double> animation, _) {
               captured = animation;
               return const SizedBox.shrink();
@@ -162,6 +164,117 @@ void main() {
       closeTo(0.25, 0.001),
       reason: 'a text-scale change must not rewind the animation',
     );
+  });
+
+  group('restPhase — the Q-037 seam', () {
+    testWidgets('pins the still at the chosen phase, not at 0', (
+      WidgetTester tester,
+    ) async {
+      final double Function() phase = await pumpLoop(
+        tester,
+        disableAnimations: true,
+        restPhase: 0.35,
+      );
+
+      expect(phase(), 0.35);
+      await tester.pump(_period);
+      expect(phase(), 0.35);
+      await tester.pumpAndSettle();
+      expect(phase(), 0.35, reason: 'pinned AND not ticking');
+    });
+
+    testWidgets('a mid-cycle switch lands on restPhase, not where it froze', (
+      WidgetTester tester,
+    ) async {
+      Animation<double>? captured;
+      Widget host({required bool disableAnimations}) => MediaQuery(
+        data: MediaQueryData(disableAnimations: disableAnimations),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: JMotionLoop(
+            duration: _period,
+            restPhase: 0.35,
+            builder: (BuildContext context, Animation<double> animation, _) {
+              captured = animation;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(host(disableAnimations: false));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1400));
+      expect(captured!.value, closeTo(0.7, 0.001));
+
+      await tester.pumpWidget(host(disableAnimations: true));
+      expect(captured!.value, 0.35);
+      await tester.pumpAndSettle();
+      expect(captured!.value, 0.35);
+    });
+
+    testWidgets('leaves the running loop and the stagger pre-roll on 0', (
+      WidgetTester tester,
+    ) async {
+      final double Function() phase = await pumpLoop(
+        tester,
+        restPhase: 0.35,
+        delay: const Duration(milliseconds: 800),
+      );
+
+      expect(
+        phase(),
+        0,
+        reason: 'the stagger holds the FIRST keyframe, always',
+      );
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(phase(), 0);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        phase(),
+        closeTo(0.25, 0.001),
+        reason: 'the cycle still starts at 0',
+      );
+    });
+
+    testWidgets('changing restPhase re-pins an already-still loop', (
+      WidgetTester tester,
+    ) async {
+      Animation<double>? captured;
+      Widget host({required double restPhase}) => MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: JMotionLoop(
+            duration: _period,
+            restPhase: restPhase,
+            builder: (BuildContext context, Animation<double> animation, _) {
+              captured = animation;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(host(restPhase: 0));
+      expect(captured!.value, 0);
+      await tester.pumpWidget(host(restPhase: 0.5));
+      expect(captured!.value, 0.5);
+    });
+
+    test('a phase outside 0..1 is rejected at construction', () {
+      Widget builder(BuildContext context, Animation<double> a, Widget? c) =>
+          const SizedBox.shrink();
+      expect(
+        () => JMotionLoop(duration: _period, restPhase: 1.5, builder: builder),
+        throwsAssertionError,
+      );
+      expect(
+        () => JMotionLoop(duration: _period, restPhase: -0.1, builder: builder),
+        throwsAssertionError,
+      );
+    });
   });
 
   testWidgets('disposing while the stagger delay is pending leaks no timer', (

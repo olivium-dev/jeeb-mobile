@@ -153,6 +153,43 @@ void main() {
       await tester.pumpAndSettle();
       expect(offset!.value, 0);
     });
+
+    testWidgets('reduce motion arriving mid-travel re-pins offset 0', (
+      WidgetTester tester,
+    ) async {
+      Animation<double>? offset;
+      Widget host({required bool disableAnimations}) => MediaQuery(
+        data: MediaQueryData(disableAnimations: disableAnimations),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: JDashOffset(
+            builder:
+                (
+                  BuildContext context,
+                  Animation<double> dashOffset,
+                  Widget? child,
+                ) {
+                  offset = dashOffset;
+                  return const SizedBox.shrink();
+                },
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(host(disableAnimations: false));
+      await tester.pump();
+      await tester.pump(JeebMotion.dashDuration ~/ 2);
+      expect(offset!.value, closeTo(-20, 0.01));
+
+      await tester.pumpWidget(host(disableAnimations: true));
+      expect(
+        offset!.value,
+        0,
+        reason: 'a still route must be the dash phase every capture agrees on',
+      );
+      await tester.pumpAndSettle();
+      expect(offset!.value, 0);
+    });
   });
 
   group('JDashedPath — the ready widget', () {

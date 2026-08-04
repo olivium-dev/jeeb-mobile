@@ -75,6 +75,10 @@ abstract final class JeebMotion {
   /// Twinkle peak scale, reached at 50% of the cycle.
   static const double twinklePeakScale = 1.15;
 
+  /// Where in the cycle the twinkle peak lands — the phase a UI-bearing twinkle
+  /// rests on under reduce motion (Q-037). Symmetric, so exactly the midpoint.
+  static const double twinklePeakAt = 0.5;
+
   /// First of the board's two twinkle stagger delays.
   static const Duration twinkleDelayA = Duration(milliseconds: 700);
 

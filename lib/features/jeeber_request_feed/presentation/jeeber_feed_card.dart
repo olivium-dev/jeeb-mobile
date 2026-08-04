@@ -38,9 +38,10 @@ import '../data/request_feed_models.dart';
 /// * [JeeberFeedItemStatus.accepted] — a delivery state-machine action pill.
 ///
 /// G3 graceful exit: when [isExpired] is true (a supplied server `expiresAt`
-/// has passed and the card is in its brief linger window), the card fades and
-/// the action row is replaced by an "Expired" status — the request never
-/// silently vanishes mid-glance.
+/// has passed and the card is in its brief linger window), the card is dimmed
+/// and the action row is replaced by an "Expired" status — the request never
+/// silently vanishes mid-glance. The dim is a STATE, not a transition: R16/R21
+/// list the expired-row dimming under *does not move*.
 class JeeberFeedCard extends StatelessWidget {
   const JeeberFeedCard({
     super.key,
@@ -81,7 +82,7 @@ class JeeberFeedCard extends StatelessWidget {
   final bool isActionBusy;
 
   /// G3: a supplied server `expiresAt` has passed and the card is in its linger
-  /// window — faded, actions replaced by the "Expired" status, taps inert. The
+  /// window — dimmed, actions replaced by the "Expired" status, taps inert. The
   /// feed cubit removes it after the linger elapses.
   final bool isExpired;
 
@@ -107,9 +108,8 @@ class JeeberFeedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
+    return Opacity(
       opacity: isExpired ? UIConstants.opacityDisabled : 1.0,
-      duration: UIConstants.animationFast,
       child: Padding(
         padding: rowPadding,
         // The frozen `jeeber_feed_request_card_<id>` rides the kit card itself:

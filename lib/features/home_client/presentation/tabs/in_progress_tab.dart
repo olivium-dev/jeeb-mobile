@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:omds/omds.dart';
 
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
@@ -10,7 +9,6 @@ import '../../application/client_home_cubit.dart';
 import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
 import '../widgets/active_request_card.dart';
-import '../widgets/client_home_motion.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'dart:async';
@@ -111,12 +109,14 @@ class _InProgressLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      key: Key('in-progress-loading'),
-      child: Padding(
-        padding: EdgeInsets.all(Spacing.large),
-        child: ClientHomeLoadingDots(),
-      ),
+    // §2.7: the wait is the SAME parcel tile as the empty and error arms,
+    // breathing — the tab must not change subject between states.
+    return JeebEmptyState(
+      key: const Key('in-progress-loading'),
+      variant: JeebEmptyStateVariant.parcel,
+      status: JeebEmptyStateStatus.loading,
+      identifier: 'in_progress_loading_state',
+      headline: AppLocalizations.of(context).homeEmptyTitle,
     );
   }
 }
@@ -368,11 +368,11 @@ Widget inProgressTabEmpty() => _inProgressTabHosted(
 Widget inProgressTabFailed() =>
     _inProgressTabHosted(const _InProgressTabFailingHomeRepository());
 
-/// The load is still in flight — an indeterminate spinner, centred.
+/// The load is still in flight — the parcel tile's own breathing skeleton.
 /// Held open by a future that never completes, so it is the one preview that
 @JeebPreview(
   group: 'home_client',
-  name: 'Loading · spinner',
+  name: 'Loading · skeleton',
   size: Size(_inProgressTabPhoneWidth, 200),
 )
 Widget inProgressTabLoading() =>

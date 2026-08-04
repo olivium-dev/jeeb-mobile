@@ -309,7 +309,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
   nullable lookup — mine, shipped in Tier 1 and caught two tiers late by a lane attributing OUT of
   its own scope), a **blank-name bug on Edit Profile that the catalog was masking**, a Retry that
   threw on every debug tap, and **8+ screens leaking orange** because pass-1 code assumed
-  `colorScheme.primary` was navy. · [ ] **G-M4** states gate · [ ] **G-M5** motion gate ·
+  `colorScheme.primary` was navy. · [ ] **G-M4** states gate · [x] **G-M5** motion gate @2026-08-04 — analyze 0 err/30 infos · router **131/131** · motion+kit+theme
+  **909/909** · captures **343/343** · lottie 3.3.1. Ruling recorded: **the board is a STATIC
+  artifact, so its silence about one-shot transitions is not evidence against them** — a frozen HTML
+  export cannot depict a success beat, but it CAN express idle motion via CSS keyframes, so a tile
+  declaring none IS evidence for stillness. Infinite motion on static tiles removed; user-triggered
+  one-shots kept WITH their reduce-motion contract proved. ·
   [ ] **G-M6** audit gate · [ ] **G-M7** S22 sign-off
 
 ### M0 Foundation
@@ -397,7 +402,19 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 ### M4/M5 sweeps
 - [x] M4-1 State inventory built — 5 independent search angles (widget-name, branch, light-theme-residue, kit, coverage) over all of lib/; **37+ non-conforming state surfaces**, each with file:line, kind, what it renders today, whether a catalog state reaches it, and a verdict. The coverage angle is what earned its keep: a large share were marked *no catalog entry*, i.e. invisible to every capture — exactly the class §4 said gets missed @2026-08-04
 - [x] M4-2 All reachable states restyled onto the §2.7 family; **captures 343/343 — the harness is fully green for the first time.** Kit `_skeleton()` now follows its variant's own geometry (was painting E1's 4-disc board for all seven) and disc count follows the caller; last capture red closed via `sqflite_common_ffi`. 7 inventory items were NOT restyled because their files are production-dead — see §8 Q-043 @2026-08-04
-- [ ] M5-1 Motion wiring per §2.6 · [ ] M5-2 Lottie audit on navy · [ ] M5-3 Reduced-motion pass
+- [x] M5-1 Motion wiring verified against 03-MOTION-NOTES — the audit re-derived the board census
+  independently (84 declarations, every per-tile count reproducing the notes) and found **ZERO
+  MISSING and ZERO wrong-shape**: all 76 in-scope declarations wired at the exact period AND delay,
+  every ladder correct incl. sample-A's deliberately UNEQUAL 3.4/3.2 and R11's deliberately LOCKED
+  2.6/2.6. `jWave` on the container at all 5 sites, `jHalo` on a ring sibling at all 4. All 18
+  findings were the other direction — motion the board never draws; ruled and closed @2026-08-04
+- [x] M5-2 Lottie/asset navy audit — `JeebLottieMark` (zero call sites) and 4 dead compositions
+  deleted after per-file verification; **`success-check.json` is now the only referenced composition
+  in the app**, and it reads on navy at worst 5.56:1 (green disc `#3BB273`, navy `#070C33` tick,
+  both exact sheet tokens). lottie still pinned EXACTLY 3.3.1 @2026-08-04
+- [x] M5-3 Reduced-motion pass — **found and fixed a real accessibility defect**: the jeeber
+  wrong-code shake fired `forward(from: 0)` unconditionally in `didUpdateWidget`, so it ran under
+  reduce motion. Every kept animation now proves its own reduce-motion contract by test @2026-08-04
 
 ---
 
@@ -553,7 +570,7 @@ Seeded from doc-13 §4 — these survive into Midnight:
 34. [Q-034] (M2-21, kit) W2 needs the periwinkle wash at (0.50, 0.32); `JeebFieldWashPlacement` has no `centerUpper` and no feature-safe way to name the wash ink, so it shipped through `glowColor` — right anchor and layer, **wrong hue**. Wants `centerUpper(0.50, 0.32, 0.22, 480/440, 420/480)` or a wash-ink lever.
 35. [Q-035] (M2-21, product) Which placement ships on onboarding slide 1 — **W1** (shipped; the only coherent three-slide set, since W2/W3 have no R-series twin) or **R5**? R5 is reachable via `slideOneVariant` and is captured; switching is one word at `app_router.dart:798`.
 36. [Q-036] (M2-21) Docked-sheet blur: the kit ladder tops at 12, but **R5/W1/W2/W3 all declare 18** — a four-tile cluster, not an outlier, so unlike the R14 border this may genuinely earn a rung. Ratify 18 for docked sheets?
-37. [Q-037] (M2-21, a11y/design) Captures are rest-frame, and `jTwinkle`/`jArcPulse` rest at ~.2 opacity — so W2's *verified badge* is nearly invisible in every still. Should reduce-motion pin **UI badges** at their lit keyframe the way `jBlink` already does, rather than at the low keyframe?
+37. [Q-037] ~~(M2-21, a11y/design) Captures are rest-frame, and `jTwinkle`/`jArcPulse` rest at ~.2 opacity — so W2's *verified badge* is nearly invisible in every still. Should reduce-motion pin **UI badges** at their lit keyframe the way `jBlink` already does, rather than at the low keyframe?~~ **SETTLED at M5 — yes, per ELEMENT, opt-in.** `JMotionRest.{decorative,informative}` on `JTwinkle`/`JArcPulse` (the only two primitives resting below legibility) selects which keyframe reduce motion pins; `JMotionLoop.restPhase` is the seam. Default stays `decorative`, so every sparkle, star field and orbit arc is unchanged and board-faithful. The **one** opt-in app-wide is W2's verified badge, which now stills at opacity 1 / scale 1.15 instead of .2 / .7 — 540 changed pixels, all inside the badge's own 26×26 box. Principle: reduce motion may remove movement, never information; and a still is always a real keyframe of the row, never a value between two.
 38. [Q-038] (M2-22, kit) R6 draws ONE quiet white orbit arc (~7%, r≈0.33W at (0.90, 0.055)). `content` paints none, and `showRings` paints R1's hero PAIR including an orange 15% inner arc R6 does not draw. Shipped ringless. Wants a single-quiet-ring option or an explicit ship-ringless ruling.
 39. [Q-039] (M2-22, kit) `JeebInfoNote` hard-wires its body ink to `surface.mutedInk` and exposes only `iconColor`; R6's trust footer is the **second** consumer wanting `inkSoft`. Cheapest fix is a `textInk` override — deliberately NOT a `JeebSurfaceTone.navy` wrapper, which is the shortcut that produced past drift.
 40. [Q-040] (M2-21) `assets/illustrations/onboarding_trusted_jeebers.svg` and `onboarding_live_tracking.svg` now have zero importers. Left in place (asset deletion is out of row scope) — delete in the M5/M6 sweep?

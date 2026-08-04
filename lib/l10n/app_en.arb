@@ -606,7 +606,7 @@
   },
   "onboardingSlide1Semantics": "Illustration: a person speaks a delivery request into the Jeeb app.",
   "@onboardingSlide1Semantics": {
-    "description": "Screen-reader alt text for the slide-1 voice-first illustration (assets/illustrations/onboarding_voice_first.svg)."
+    "description": "Screen-reader alt text for the slide-1 voice-first illustration (WalkthroughVoiceArt; the onboarding_voice_first.svg it once described was deleted in M5)."
   },
   "onboardingSlide2Semantics": "Illustration: a Jeeber identity card showing a verified badge, a star rating, and a delivery count.",
   "@onboardingSlide2Semantics": {

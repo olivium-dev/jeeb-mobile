@@ -479,4 +479,226 @@ void main() {
       expect(_opacityOf(tester, JBlink), 1);
     });
   });
+
+  // The rule that captures depend on: a still is a KEYFRAME, never "wherever the
+  // cycle had got to". Every test below runs the primitive to a phase where its
+  // value is demonstrably NOT the rest value, then turns motion off on the same
+  // element. Stopping the controller without re-pinning it passes every
+  // mount-with-motion-already-off test above and fails every one of these.
+  group('reduce motion arriving MID-CYCLE re-pins the rest keyframe', () {
+    const JFloat float = JFloat(child: SizedBox(key: _child, width: 20, height: 20));
+    const JTwinkle twinkle = JTwinkle(child: SizedBox(width: 8, height: 8));
+    const JBreathe breathe = JBreathe(child: SizedBox(width: 8, height: 8));
+    const JWaveBar wave = JWaveBar(child: SizedBox(width: 4, height: 24));
+    const JArcPulse arc = JArcPulse(child: SizedBox(width: 40, height: 40));
+    const JBlink blink = JBlink(child: SizedBox(width: 2, height: 18));
+    const JHalo halo = JHalo(
+      color: Color(0xFFD73B00),
+      child: SizedBox(width: 56, height: 56),
+    );
+
+    testWidgets('jFloat returns to offset 0', (WidgetTester tester) async {
+      await tester.pumpWidget(_host(float));
+      await tester.pump();
+      final double rest = tester.getTopLeft(find.byKey(_child)).dy;
+
+      await tester.pump(JeebMotion.floatDuration ~/ 2);
+      expect(tester.getTopLeft(find.byKey(_child)).dy, closeTo(rest - 7, 0.01));
+
+      await tester.pumpWidget(_host(float, disableAnimations: true));
+      expect(tester.getTopLeft(find.byKey(_child)).dy, rest);
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.byKey(_child)).dy, rest);
+    });
+
+    testWidgets('jTwinkle drops back to .2 / .7', (WidgetTester tester) async {
+      await tester.pumpWidget(_host(twinkle));
+      await tester.pump();
+      await tester.pump(JeebMotion.twinkleDuration ~/ 2);
+      expect(_opacityOf(tester, JTwinkle), closeTo(1, 0.001));
+
+      await tester.pumpWidget(_host(twinkle, disableAnimations: true));
+      expect(_opacityOf(tester, JTwinkle), JeebMotion.twinkleRestOpacity);
+      expect(_scaleOf(tester, JTwinkle), JeebMotion.twinkleRestScale);
+      await tester.pumpAndSettle();
+      expect(_opacityOf(tester, JTwinkle), JeebMotion.twinkleRestOpacity);
+    });
+
+    testWidgets('jBreathe drops back to .45', (WidgetTester tester) async {
+      await tester.pumpWidget(_host(breathe));
+      await tester.pump();
+      await tester.pump(JeebMotion.breatheDuration ~/ 2);
+      expect(_opacityOf(tester, JBreathe), closeTo(1, 0.001));
+
+      await tester.pumpWidget(_host(breathe, disableAnimations: true));
+      expect(_opacityOf(tester, JBreathe), JeebMotion.breatheRestOpacity);
+      await tester.pumpAndSettle();
+      expect(_opacityOf(tester, JBreathe), JeebMotion.breatheRestOpacity);
+    });
+
+    testWidgets('jWave drops back to scaleY .5', (WidgetTester tester) async {
+      await tester.pumpWidget(_host(wave));
+      await tester.pump();
+      await tester.pump(JeebMotion.waveDuration ~/ 2);
+      expect(_scaleYOf(tester, JWaveBar), closeTo(1.15, 0.001));
+
+      await tester.pumpWidget(_host(wave, disableAnimations: true));
+      expect(_scaleYOf(tester, JWaveBar), JeebMotion.waveRestScaleY);
+      await tester.pumpAndSettle();
+      expect(_scaleYOf(tester, JWaveBar), JeebMotion.waveRestScaleY);
+    });
+
+    testWidgets('jArcPulse drops back to .15', (WidgetTester tester) async {
+      await tester.pumpWidget(_host(arc));
+      await tester.pump();
+      await tester.pump(
+        JeebMotion.arcPulseDuration * JeebMotion.arcPulsePeakAt,
+      );
+      expect(_opacityOf(tester, JArcPulse), closeTo(1, 0.001));
+
+      await tester.pumpWidget(_host(arc, disableAnimations: true));
+      expect(_opacityOf(tester, JArcPulse), JeebMotion.arcPulseRestOpacity);
+      await tester.pumpAndSettle();
+      expect(_opacityOf(tester, JArcPulse), JeebMotion.arcPulseRestOpacity);
+    });
+
+    testWidgets('jBlink re-LIGHTS from its dark half', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_host(blink));
+      await tester.pump();
+      // 60% of the cycle: past the step, so the caret is currently invisible.
+      await tester.pump(JeebMotion.blinkDuration * 0.6);
+      expect(_opacityOf(tester, JBlink), 0);
+
+      await tester.pumpWidget(_host(blink, disableAnimations: true));
+      expect(
+        _opacityOf(tester, JBlink),
+        1,
+        reason: 'a caret frozen on its dark half is a caret the user never sees',
+      );
+      await tester.pumpAndSettle();
+      expect(_opacityOf(tester, JBlink), 1);
+    });
+
+    testWidgets('jHalo returns to scale .75 / opacity .8', (
+      WidgetTester tester,
+    ) async {
+      JHaloPainter painterOf(WidgetTester tester) =>
+          tester
+                  .widget<CustomPaint>(
+                    find.descendant(
+                      of: find.byType(JHalo),
+                      matching: find.byType(CustomPaint),
+                    ),
+                  )
+                  .painter!
+              as JHaloPainter;
+
+      await tester.pumpWidget(_host(halo));
+      await tester.pump();
+      await tester.pump(JeebMotion.haloDuration ~/ 2);
+      expect(painterOf(tester).progress.value, closeTo(0.5, 0.001));
+
+      await tester.pumpWidget(_host(halo, disableAnimations: true));
+      expect(painterOf(tester).progress.value, 0);
+      expect(JeebMotion.haloScale.transform(0), JeebMotion.haloStartScale);
+      expect(JeebMotion.haloOpacity.transform(0), JeebMotion.haloStartOpacity);
+      await tester.pumpAndSettle();
+      expect(painterOf(tester).progress.value, 0);
+    });
+  });
+
+  // Q-037, ratified at M5: reduce motion may remove movement, not information.
+  group('Q-037 — JMotionRest.informative rests on the LIT keyframe', () {
+    const JTwinkle badge = JTwinkle(
+      rest: JMotionRest.informative,
+      child: SizedBox(width: 22, height: 22),
+    );
+    const JTwinkle sparkle = JTwinkle(child: SizedBox(width: 8, height: 8));
+
+    testWidgets('an informative jTwinkle stills at opacity 1 / scale 1.15', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_host(badge, disableAnimations: true));
+
+      expect(_opacityOf(tester, JTwinkle), JeebMotion.twinklePeakOpacity);
+      expect(_scaleOf(tester, JTwinkle), JeebMotion.twinklePeakScale);
+      await tester.pump(JeebMotion.twinkleDuration);
+      expect(_opacityOf(tester, JTwinkle), JeebMotion.twinklePeakOpacity);
+      await tester.pumpAndSettle();
+      expect(
+        _opacityOf(tester, JTwinkle),
+        JeebMotion.twinklePeakOpacity,
+        reason: 'lit AND still — pinning a keyframe must not restart a ticker',
+      );
+    });
+
+    testWidgets('an informative jArcPulse stills at opacity 1', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _host(
+          const JArcPulse(
+            rest: JMotionRest.informative,
+            child: SizedBox(width: 40, height: 40),
+          ),
+          disableAnimations: true,
+        ),
+      );
+
+      expect(
+        _opacityOf(tester, JArcPulse),
+        closeTo(JeebMotion.arcPulsePeakOpacity, 0.001),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        _opacityOf(tester, JArcPulse),
+        closeTo(JeebMotion.arcPulsePeakOpacity, 0.001),
+      );
+    });
+
+    testWidgets('decoration is the default and keeps resting dark', (
+      WidgetTester tester,
+    ) async {
+      expect(sparkle.rest, JMotionRest.decorative);
+      await tester.pumpWidget(_host(sparkle, disableAnimations: true));
+      expect(_opacityOf(tester, JTwinkle), JeebMotion.twinkleRestOpacity);
+      expect(
+        const JArcPulse(child: SizedBox.shrink()).rest,
+        JMotionRest.decorative,
+      );
+    });
+
+    testWidgets('the ruling changes the STILL only — the loop is untouched', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_host(badge));
+      await tester.pump();
+
+      expect(
+        _opacityOf(tester, JTwinkle),
+        JeebMotion.twinkleRestOpacity,
+        reason: 'with motion on, an informative twinkle still starts dim',
+      );
+      await tester.pump(JeebMotion.twinkleDuration ~/ 2);
+      expect(_opacityOf(tester, JTwinkle), closeTo(1, 0.001));
+      await tester.pump(JeebMotion.twinkleDuration ~/ 2);
+      expect(_opacityOf(tester, JTwinkle), closeTo(0.2, 0.001));
+    });
+
+    testWidgets('losing motion mid-cycle still lands lit', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_host(badge));
+      await tester.pump();
+      await tester.pump(JeebMotion.twinkleDuration * 0.9);
+      expect(_opacityOf(tester, JTwinkle), lessThan(0.5));
+
+      await tester.pumpWidget(_host(badge, disableAnimations: true));
+      expect(_opacityOf(tester, JTwinkle), JeebMotion.twinklePeakOpacity);
+      await tester.pumpAndSettle();
+      expect(_opacityOf(tester, JTwinkle), JeebMotion.twinklePeakOpacity);
+    });
+  });
 }

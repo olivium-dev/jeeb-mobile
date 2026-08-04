@@ -300,14 +300,14 @@ void main() {
   });
 
   testWidgets(
-      'the live-valid tick fades in at a parseable number and back out below '
+      'the live-valid tick appears at a parseable number and goes again below '
       'the 7-digit minimum', (tester) async {
     await tester.pumpWidget(wrapForTest(
       RegistrationScreen(cubit: makeCubit()),
     ));
     await tester.pump();
 
-    // The tick always occupies its slot (AnimatedOpacity, not a conditional
+    // The tick always occupies its slot (an opacity swap, not a conditional
     // insert) so the field row never reflows per keystroke.
     expect(
       find.bySemanticsIdentifier('register_phone_valid_check'),
@@ -315,16 +315,17 @@ void main() {
     );
     final tick = find.ancestor(
       of: find.byIcon(Icons.check),
-      matching: find.byType(AnimatedOpacity),
+      matching: find.byType(Opacity),
     );
-    expect(tester.widget<AnimatedOpacity>(tick).opacity, 0);
+    expect(tester.widget<Opacity>(tick.first).opacity, 0);
 
     await tester.enterText(
       find.byKey(const Key('registration.phoneField')),
       '71123456',
     );
+    // ONE frame: M5 R6 moves nothing, so the tick is fully lit immediately.
     await tester.pump();
-    expect(tester.widget<AnimatedOpacity>(tick).opacity, 1);
+    expect(tester.widget<Opacity>(tick.first).opacity, 1);
 
     // Six digits is below `LebanonPhone.minNationalDigitCount` — the tick
     // hides again, agreeing with the now-disabled CTA.
@@ -333,7 +334,31 @@ void main() {
       '711234',
     );
     await tester.pump();
-    expect(tester.widget<AnimatedOpacity>(tick).opacity, 0);
+    expect(tester.widget<Opacity>(tick.first).opacity, 0);
+  });
+
+  // M5 B8: the notes give R6 zero animated elements — "does not move:
+  // anything ... including the phone field".
+  testWidgets('R6 is still: the valid tick does not fade', (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    expect(
+      find.ancestor(
+        of: find.byIcon(Icons.check),
+        matching: find.byType(AnimatedOpacity),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.bySemanticsIdentifier('register_phone_valid_check'),
+        matching: find.byType(FadeTransition),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('the docked trust note renders below the form', (tester) async {

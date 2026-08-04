@@ -2,8 +2,9 @@
 // because it is a painter, not a wrapper).
 //
 // Every one is a `StatelessWidget` over `JMotionLoop`, so a screen never owns a
-// controller, and every one honours reduce motion by parking on the FIRST
-// keyframe of its row. Colour is never a parameter of the motion itself —
+// controller, and every one honours reduce motion by parking on a fixed keyframe
+// of its row — the FIRST, unless the element opts into `JMotionRest.informative`
+// (Q-037). Colour is never a parameter of the motion itself —
 // `JHalo` takes a ring colour because it does the painting, and that is the only
 // exception; everything else animates the child the caller already coloured.
 
@@ -11,6 +12,29 @@ import 'package:flutter/material.dart';
 
 import 'jeeb_motion_loop.dart';
 import 'jeeb_motion_tokens.dart';
+
+/// Which keyframe of its row a primitive freezes on under reduce motion.
+///
+/// **Q-037, ratified at M5.** Every §2.6 row starts on its DIM keyframe, so
+/// pinning phase 0 leaves `jTwinkle` at opacity .2 and `jArcPulse` at .15 — fine
+/// for a sparkle, but W2's *verified badge* wears `jTwinkle`, and a badge that
+/// fades to .2 in every still has had its meaning switched off along with its
+/// motion. Reduce motion may remove movement; it may not remove information.
+///
+/// So the choice is per ELEMENT, not per primitive, and it is deliberately not a
+/// default: decoration keeps resting dark (board-faithful, and the stills stay
+/// quiet), while anything a sighted user reads opts in to [informative].
+///
+/// Both values pin a REAL keyframe of the row — reduce motion picks which
+/// keyframe, never a value between two.
+enum JMotionRest {
+  /// The row's first keyframe: dim and small. Sparkles, star fields, orbit arcs.
+  decorative,
+
+  /// The row's peak keyframe: fully lit. Badges, status marks — anything whose
+  /// absence from a still would cost the user a fact.
+  informative,
+}
 
 /// **jFloat** — `translateY 0 → −7px → 0`, 4s / 4.4s ease-in-out ∞, delays up
 /// to 1.2s. Floating illustrations, walkthrough art.
@@ -70,7 +94,9 @@ class JFloat extends StatelessWidget {
 ///
 /// Rest frame (reduce motion) = opacity .2 at scale .7: a dim, small star, which
 /// is the still state the board's first keyframe describes — stars stay visible,
-/// they just stop breathing.
+/// they just stop breathing. A twinkle carrying MEANING rather than sparkle
+/// passes `rest: JMotionRest.informative` and rests lit instead; see
+/// [JMotionRest].
 ///
 /// Scatter a field with [JeebMotion.twinkleDelayA] / [JeebMotion.twinkleDelayB]
 /// and mix [JeebMotion.twinkleDuration] with [JeebMotion.twinkleDurationSlow].
@@ -80,6 +106,7 @@ class JTwinkle extends StatelessWidget {
     required this.child,
     this.duration = JeebMotion.twinkleDuration,
     this.delay = Duration.zero,
+    this.rest = JMotionRest.decorative,
   });
 
   /// The star dot.
@@ -88,13 +115,18 @@ class JTwinkle extends StatelessWidget {
   /// One full twinkle cycle; the board runs 2.4s–3s.
   final Duration duration;
 
-  /// Stagger — the star holds the rest frame until it elapses.
+  /// Stagger — the star holds the first keyframe until it elapses.
   final Duration delay;
+
+  /// Which keyframe the still shows when animations are off. Q-037: raise it to
+  /// [JMotionRest.informative] for a badge, never for a sparkle.
+  final JMotionRest rest;
 
   @override
   Widget build(BuildContext context) => JMotionLoop(
     duration: duration,
     delay: delay,
+    restPhase: rest == JMotionRest.informative ? JeebMotion.twinklePeakAt : 0,
     child: child,
     builder: (BuildContext context, Animation<double> animation, Widget? c) =>
         FadeTransition(
@@ -396,7 +428,9 @@ class JHaloPainter extends CustomPainter {
 /// at 50% and read as a generic pulse.
 ///
 /// Rest frame (reduce motion) = opacity .15, the faint arc the board draws at
-/// rest.
+/// rest. Every arc on the board is decoration; [JMotionRest.informative] exists
+/// here only so the Q-037 rule holds for BOTH sub-.2 primitives rather than
+/// arbitrarily one.
 ///
 /// Stagger sibling arcs with [JeebMotion.arcPulseDelayA] /
 /// [JeebMotion.arcPulseDelayB].
@@ -406,6 +440,7 @@ class JArcPulse extends StatelessWidget {
     required this.child,
     this.duration = JeebMotion.arcPulseDuration,
     this.delay = Duration.zero,
+    this.rest = JMotionRest.decorative,
   });
 
   /// The arc — a painted stroke, an image, whatever the caller drew.
@@ -417,10 +452,14 @@ class JArcPulse extends StatelessWidget {
   /// This arc's phase offset.
   final Duration delay;
 
+  /// Which keyframe the still shows when animations are off. See [JMotionRest].
+  final JMotionRest rest;
+
   @override
   Widget build(BuildContext context) => JMotionLoop(
     duration: duration,
     delay: delay,
+    restPhase: rest == JMotionRest.informative ? JeebMotion.arcPulsePeakAt : 0,
     child: child,
     builder: (BuildContext context, Animation<double> animation, Widget? c) =>
         FadeTransition(

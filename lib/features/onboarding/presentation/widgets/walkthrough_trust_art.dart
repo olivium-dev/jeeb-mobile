@@ -332,7 +332,8 @@ class _IdentityHeadRow extends StatelessWidget {
 }
 
 /// The `jTwinkle` corner badge — 03-MOTION-NOTES' one instance of the primitive
-/// on a UI badge rather than a star.
+/// on a UI badge rather than a star, and therefore the one that rests LIT under
+/// reduce motion (Q-037): "verified" is a fact, not a sparkle.
 class _VerifiedBadge extends StatelessWidget {
   const _VerifiedBadge();
 
@@ -341,6 +342,7 @@ class _VerifiedBadge extends StatelessWidget {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebRoles roles = context.jeebRoles;
     return JTwinkle(
+      rest: JMotionRest.informative,
       duration: WalkthroughTrustArt.badgeDuration,
       child: Container(
         width: _JeeberIdentityCard.badgeDiameter,

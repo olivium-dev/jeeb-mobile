@@ -151,7 +151,7 @@
   {
     "featureType": "road.local",
     "elementType": "labels.text.fill",
-    "stylers": [{ "color": "#777fc0" }]
+    "stylers": [{ "color": "#8a93d8" }]
   },
   {
     "featureType": "transit",

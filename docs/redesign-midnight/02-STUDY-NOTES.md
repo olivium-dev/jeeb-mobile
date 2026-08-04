@@ -56,6 +56,13 @@ do their own STEP-0 tile read.
   Consequence: screen tests advance with `tester.pump(duration)`; `pumpAndSettle` only under
   reduce motion. **Catalog captures run with `disableAnimations: true`** so every capture is
   the deterministic rest frame (M0-9 harness must set this).
+- **Q-037, settled at M5.** The rest frame is a KEYFRAME, chosen, never "wherever the cycle
+  froze" — `JMotionLoop` re-pins on every reduce-motion change, proven per primitive. Which
+  keyframe is per element: `JMotionRest.decorative` (default, the row's first) for anything
+  ornamental, `JMotionRest.informative` (the row's peak) for anything a sighted user reads.
+  Offered on `jTwinkle`/`jArcPulse` only — they are the two rows resting under .2, and jBreathe
+  .45 / jWave .5 / jHalo .8 / jBlink 1 are already legible. One opt-in app-wide: W2's verified
+  badge.
 
 ## Wave-A review rulings (2026-08-04)
 
@@ -448,6 +455,43 @@ dead file — one hard-pins light-theme literals, the other asserts `tertiaryCon
 primaryContainer`, which is **false by design** under Midnight (both map to `orangeContainer`). The
 lane checked whether that was a live defect and it is not: the shipped `JeebTierRow` draws the badge
 as a solid accent pill, so the M1 kit already avoids the collision.
+
+## M5 rulings (2026-08-04) — motion pass
+
+**THE RULING THAT DECIDED THE MILESTONE: the board is a STATIC artifact, and its silence is only
+evidence about things it could have shown.** A frozen HTML export cannot depict a one-shot,
+user-triggered transition — a success beat, a page-dot slide, a selection tick — so its absence
+says nothing about them. It CAN express idle motion through CSS keyframes, so where a tile declares
+none, that silence IS evidence the designer chose stillness. Therefore:
+- **Infinite motion on a zero-animation tile = defect → remove.** (R1's Lottie loading-dots; a raw
+  `AnimationController..repeat()` on the chat screen that was jBreathe in all but name, built
+  OUTSIDE the motion module so it carried no reduce-motion contract and sat on no board period;
+  R23's infinite scan-line Lottie.)
+- **One-shot user-triggered transitions = keep**, but each must PROVE its reduce-motion contract.
+Rule 6's "no enter/exit or one-shot animations anywhere on the board" describes what was observable
+in the export, not a prohibition on the app.
+
+**The verification result is the reassuring part:** an independent re-derivation of the board census
+(84 declarations, per-tile counts reproducing the notes exactly) found **zero missing motion and
+zero wrong-shape**. Every ladder was correct, including the two that look like bugs and are not —
+sample A's float/shadow at a deliberately UNEQUAL 3.4/3.2 (they drift out of phase) and R11's
+pin/shadow deliberately LOCKED at 2.6/2.6. The two named repeat offenders held everywhere.
+
+**A real accessibility defect, not a style question:** the jeeber wrong-code shake called
+`_shakeCtrl.forward(from: 0)` unconditionally from `didUpdateWidget`, so it ran under reduce motion.
+Fixed with an early return that still advances the key, so no stale shake fires later. **Lesson: a
+kept animation is not "reduce-motion safe" because the module is — it is safe only if its own call
+site checks, and only a test proves it.**
+
+**Dead motion infrastructure removed:** `JeebLottieMark` (zero call sites) and 4 unreferenced
+compositions, each verified per-file rather than from the audit's list. `success-check.json` is now
+the only referenced composition in the entire app. Docs claiming other call sites were stale — M2
+had replaced them with drawn art.
+
+**MY ORCHESTRATION ERROR, REPEATED:** I hardcoded the fix-phase grouping again, one turn after
+writing "derive it from the audit output" into the loop prompt. Three audit-named dirs got no lane,
+exactly as in M4. Writing the rule down did not stop me repeating it — the grouping must be read out
+of the audit BEFORE the workflow is composed, not asserted afterwards.
 
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 

@@ -269,20 +269,11 @@ flutter:
     # Jeeb brand wordmark (Figma node 56572:1821 "Group 68"). Exported once
     # from the Figma Dev Mode MCP; rendered on the splash via SvgPicture.asset.
     - assets/brand/jeeb_logo.svg
-    # Client-home zero-orders hero illustration ("shop (1) 1", Figma node
-    # 56611:18663, aspect 743/756). Exported from the Figma Dev Mode MCP.
-    - assets/illustrations/empty_orders.png
-    # Walkthrough slide illustrations (300x300 brand vectors, FR-WALKTHROUGH).
-    #   voice_first      -> slide 1 (onboardingSlide1 "Voice-first deliveries")
-    #   trusted_jeebers  -> slide 2 (onboardingSlide2 "Trusted Jeebers, every time")
-    #   live_tracking    -> slide 3 (onboardingSlide3 "Live tracking, end to end")
-    # All three slides now ship a real brand vector (FR-D1D2 replaced slide 2's
-    # interim glyph with onboarding_trusted_jeebers.svg, drawn in the same
-    # 300x300 navy/orange/periwinkle idiom as the other two). Each renders via
-    # SvgPicture.asset (flutter_svg).
-    - assets/illustrations/onboarding_voice_first.svg
-    - assets/illustrations/onboarding_trusted_jeebers.svg
-    - assets/illustrations/onboarding_live_tracking.svg
+    # MIDNIGHT M5 — deleted here: empty_orders.png and the three 300x300
+    # onboarding_*.svg walkthrough vectors. All four had zero importers (M2-21
+    # drew the walkthrough art, M1's JeebEmptyState replaced the PNG) and all
+    # four are light-theme art: the SVGs ink their structure in #0B1351 (1.11:1
+    # on the field) over retired #EAE7EB/#E5E1E5 surfaces.
 
     # Lottie motion set (docs/redesign-2026-08/08-MOTION-SPEC.md). Registered
     # individually rather than as a directory so an unreferenced file cannot
@@ -292,24 +283,24 @@ flutter:
     # position the gateway does not provide, and the second would replace real localized
     # Arabic copy with placeholder bars (Lottie carries no fonts). Kept on disk, out of
     # the bundle; re-register when the data exists rather than re-authoring them.
-    - assets/animations/broadcasting.json
+    # MIDNIGHT M5 DELETED broadcasting / mic-listening / nearby-scan / voice-waveform
+    # outright: M2 replaced all four with drawn primitives (the radar empty state,
+    # jHalo / jDash / jWave), leaving zero loaders. Dead weight, not held art.
     - assets/animations/empty-say-it.json
     - assets/animations/kyc-review.json
     - assets/animations/loading-dots.json
-    - assets/animations/mic-listening.json
-    - assets/animations/nearby-scan.json
     - assets/animations/success-check.json
-    - assets/animations/voice-waveform.json
 
     # MIDNIGHT M0-7 — board artwork imported from the Rich UI export
     # (`export-rich-ui/assets/`), renamed to this repo's snake_case convention.
     #   jeeb_wordmark.svg -> the Rich UI wordmark lockup (distinct from
     #                        jeeb_logo.svg above, which is the Figma splash mark)
     #   delivery_3d.png   -> 3D hand/phone/shopping-bag hero
-    # NOTE for M5's navy-hostility audit: delivery_3d.png is cyan/magenta, NOT
-    # the navy/orange brand pair — it is imported as specified, not vetted.
+    # M5 VETTED delivery_3d.png and de-registered it: zero importers, mean HLS
+    # saturation .735 in cyan/magenta/pink, and pixel-identical to the deleted
+    # empty_orders.png at 342x347. §2.7 forbids stock art, so it must be redrawn
+    # rather than recoloured. Kept on disk (board import) pending the owner's call.
     - assets/brand/jeeb_wordmark.svg
-    - assets/illustrations/delivery_3d.png
 
     # MIDNIGHT M0-6 — the dark Google Maps style JSON. Google Maps renders its
     # LIGHT default until a style is applied, which on a #070C33 screen reads as

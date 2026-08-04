@@ -713,20 +713,16 @@ class _PhoneFieldState extends State<_PhoneField> {
                   ),
                 ),
                 const SizedBox(width: Spacing.small),
-                // Live-valid tick. Controller-driven rather than state-driven:
-                // two regression tests set the controller text WITHOUT firing
-                // `onChanged`, and the tick must agree with what is rendered.
-                // `AnimatedOpacity` (not conditional insertion) so the row
-                // never reflows per keystroke.
+                // Controller-driven: regression tests set the text WITHOUT
+                // `onChanged`. M5 R6 is still, so `Opacity`, not a fade.
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: widget.controller,
                   builder: (context, value, _) {
                     final isValid = LebanonPhone.tryParse(value.text) != null;
                     return Semantics(
                       identifier: 'register_phone_valid_check',
-                      child: AnimatedOpacity(
+                      child: Opacity(
                         opacity: isValid ? 1 : 0,
-                        duration: Durations.short3,
                         child: Icon(
                           Icons.check,
                           size: Sizes.large,

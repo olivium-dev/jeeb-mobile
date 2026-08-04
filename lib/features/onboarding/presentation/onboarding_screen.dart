@@ -55,7 +55,7 @@ import 'widgets/walkthrough_voice_art.dart';
 ///   - `walkthrough_get_started_cta` — the primary CTA on the last slide only.
 ///   - `walkthrough_skip_cta` — the Skip affordance, present from slide 1.
 /// The foundation-era `onboarding_next_button` (primary CTA) and
-/// `onboarding_headline` (animated step copy) identifiers are preserved.
+/// `onboarding_headline` (the step copy) identifiers are preserved.
 ///
 /// FR-P1-2: the EN/AR toggle ([OnboardingLanguageToggle]) drives
 /// [LocaleCubit.setLocale], which rebuilds `MaterialApp.locale` and flips the
@@ -430,8 +430,8 @@ class _LanguageSegment extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: UIConstants.animationNormal,
+        // M5: R5/W1 list the `عربي` pill as still — selection swaps, no tween.
+        child: Container(
           padding: padding,
           decoration: BoxDecoration(
             color: isSelected ? scheme.onSurface : Colors.transparent,
@@ -603,8 +603,8 @@ class _OnboardingSheet extends StatelessWidget {
   }
 }
 
-/// The sheet's copy block: the Arabic brand eyebrow over the slide's
-/// headline + body, cross-faded as the pager advances.
+/// The sheet's copy block: Arabic eyebrow over the slide headline + body.
+/// M5: R5/W1–W3 all list the headline as still, so it swaps, never fades.
 class _SlideCopy extends StatelessWidget {
   const _SlideCopy({
     super.key,
@@ -622,37 +622,33 @@ class _SlideCopy extends StatelessWidget {
     final page = pages[index];
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: _kSlideCopyMinHeight),
-      child: AnimatedSwitcher(
-        duration: UIConstants.animationNormal,
-        child: Column(
-          key: ValueKey<int>(index),
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Directionality(
-              // The brand slogan is Arabic in both locales, like the wordmark.
-              textDirection: TextDirection.rtl,
-              child: Text(
-                page.tagline,
-                textAlign: TextAlign.center,
-                style: context.jeebText.titleProminent.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: context.jeebRoles.accent,
-                ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Directionality(
+            // The brand slogan is Arabic in both locales, like the wordmark.
+            textDirection: TextDirection.rtl,
+            child: Text(
+              page.tagline,
+              textAlign: TextAlign.center,
+              style: context.jeebText.titleProminent.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.jeebRoles.accent,
               ),
             ),
-            const SizedBox(height: Spacing.twoXSmall),
-            OmdsWalkthroughStep(
-              label: page.title,
-              description: page.body,
-              labelStyle: context.jeebText.h1.copyWith(
-                color: scheme.onSurface,
-              ),
-              descriptionStyle: context.jeebText.body.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+          ),
+          const SizedBox(height: Spacing.twoXSmall),
+          OmdsWalkthroughStep(
+            label: page.title,
+            description: page.body,
+            labelStyle: context.jeebText.h1.copyWith(
+              color: scheme.onSurface,
             ),
-          ],
-        ),
+            descriptionStyle: context.jeebText.body.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

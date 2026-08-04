@@ -12,12 +12,14 @@ import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/data/fake_delivery_receipt_repository.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/presentation/widgets/receipt_confirmed_overlay.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
+import '../../support/lottie_ink.dart';
 import '../../support/sync_app_localizations.dart';
 
 const DeliveryReceipt _receipt = DeliveryReceipt(
@@ -92,6 +94,30 @@ Future<void> _confirm(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 50));
 }
 
+/// The [AnimationController] actually driving the overlay's composition.
+AnimationController _markController(WidgetTester tester) =>
+    tester.widget<LottieBuilder>(
+          find.descendant(
+            of: find.byType(ReceiptConfirmedOverlay),
+            matching: find.byType(LottieBuilder),
+          ),
+        ).controller!
+        as AnimationController;
+
+/// The overlay on its own, so its reduce-motion behaviour is proved at the
+/// widget — not left resting on the screen's decision not to mount it.
+Widget _bareOverlay({required bool disableAnimations}) => MaterialApp(
+  theme: AppTheme.midnight(),
+  home: Builder(
+    builder: (BuildContext context) => MediaQuery(
+      data: MediaQuery.of(
+        context,
+      ).copyWith(disableAnimations: disableAnimations),
+      child: const Scaffold(body: ReceiptConfirmedOverlay()),
+    ),
+  ),
+);
+
 void main() {
   testWidgets('confirming plays the one-shot mark over the prompt', (
     tester,
@@ -151,5 +177,72 @@ void main() {
     ]) {
       expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
     }
+  });
+
+  group('B1 — the kept beat, verified', () {
+    testWidgets('it runs forward, then settles and STAYS settled', (
+      tester,
+    ) async {
+      await _pumpLoaded(tester, _harness());
+      await _confirm(tester);
+
+      final AnimationController c = _markController(tester);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(c.isAnimating, isTrue);
+      expect(c.value, greaterThan(0));
+      expect(c.value, lessThan(1));
+
+      // Past the 900ms beat the overlay is gone with the route, so the settle
+      // is asserted on the bare widget instead.
+      await tester.pumpWidget(_bareOverlay(disableAnimations: false));
+      await tester.pump();
+      final AnimationController bare = _markController(tester);
+      await tester.pump(); // the ticker's first tick lands at t=0
+      await tester.pump(bare.duration! * 2);
+      expect(bare.value, 1.0);
+      expect(bare.isAnimating, isFalse, reason: 'one-shot: it may never re-arm');
+    });
+
+    testWidgets('mounted under reduce motion it holds the settled check', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_bareOverlay(disableAnimations: true));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final AnimationController c = _markController(tester);
+      expect(c.isAnimating, isFalse);
+      expect(c.value, 1.0);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(c.isAnimating, isFalse);
+      expect(c.value, 1.0);
+    });
+
+    testWidgets('its plate is the page navy, never a lighter slab', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_bareOverlay(disableAnimations: true));
+      await tester.pump();
+
+      final ColoredBox plate = tester.widget<ColoredBox>(
+        find.descendant(
+          of: find.byType(ReceiptConfirmedOverlay),
+          matching: find.byType(ColoredBox),
+        ),
+      );
+      expect(plate.color, JeebMidnight.page);
+    });
+
+    test('the mark it plates reads on that navy', () {
+      final Set<Color> ink = lottieSolidColors(
+        'assets/animations/success-check.json',
+      );
+      expect(ink, hasLength(2));
+      expect(
+        inkContrast(const Color(0xFF3BB273), JeebMidnight.page),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
   });
 }

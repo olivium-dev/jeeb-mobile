@@ -1,64 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
-// The two Lottie marks that head the KYC terminal states (08-MOTION-SPEC §2.8
-// and §2.5; both verified white-surface-safe in 09-MOTION-VALIDATION §7). They
-// replace the flat `Icons.hourglass_top_rounded` / `Icons.verified_rounded`
-// glyphs at the head of `_StatusScaffold` — same slot, same size band, so the
-// three status bodies stay visually consistent.
-//
-// Both marks are decorative: the title and body copy beneath them already say
-// "under review" / "approved", so each is wrapped in ExcludeSemantics rather
-// than emitting a second, redundant node inside `kyc_status_root`.
+// M5/A4: the pending terminal's looping `kyc-review.json` scan-line was removed
+// — R23 is board-static, so it renders the still `_GlyphMark` again.
 
-/// `kyc-review.json` — the document being scanned while the submission is
-/// pending (08-MOTION-SPEC §2.8). It **loops**, and legitimately so: the state
-/// it depicts is ongoing, which is exactly the loop policy's carve-out.
-///
-/// Reduce-motion renders frame 0 — the document with the orange beam still at
-/// opacity 0 — which is a perfectly good static "documents received" mark.
-class KycReviewMark extends StatelessWidget {
-  const KycReviewMark({super.key});
-
-  /// The composition is authored at 220x220 and canvases are ~2x display size
-  /// (08-MOTION-SPEC §4), which would put this at 110 — but `_StatusScaffold`
-  /// is a fixed `Column` with a `Spacer` and no scroll, and the pending body
-  /// (title + copy + two notes + three CTAs) has ~44px of slack over the 64px
-  /// glyph this replaces. 88 keeps the mark clearly bigger than the glyph with
-  /// headroom to spare; 110 overflowed by 2px on an 800x600 surface.
-  static const double _markSize = 88;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return ExcludeSemantics(
-      child: Center(
-        child: SizedBox(
-          width: _markSize,
-          height: _markSize,
-          child: Lottie.asset(
-            'assets/animations/kyc-review.json',
-            // Vertical scan travel only — 08-MOTION-SPEC §2.8 flags this file
-            // `RTL: none`, so it must NOT be mirrored in Arabic.
-            animate: !reduceMotion,
-            fit: BoxFit.contain,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// `success-check.json` — the shared terminal mark (08-MOTION-SPEC §2.5), fired
-/// once when the KYC decision lands on *approved*.
-///
-/// ONE-SHOT, enforced here rather than trusted: the composition carries no loop
-/// flag, so looping is purely the player's `repeat:` argument. A controller
-/// drives a single `forward()` and the file then holds its settled frame
-/// (validated: 18 held frames, pixel delta 0.0000).
-///
-/// It never gates anything — [_ApprovedBody]'s role activation and its three
-/// CTAs are live from the first frame.
+/// `success-check.json` — the shared terminal mark, played ONCE when the KYC
+/// decision lands on *approved*. Decorative (the copy beneath already says it),
+/// controller-driven so it can never loop, and it gates nothing.
 class KycApprovedMark extends StatefulWidget {
   const KycApprovedMark({super.key});
 

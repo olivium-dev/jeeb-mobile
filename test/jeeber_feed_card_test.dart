@@ -481,7 +481,8 @@ void main() {
 
   group('G3 graceful expiry state', () {
     testWidgets(
-      'expired card fades, swaps actions for "Expired", and goes inert',
+      'expired card dims without a fade, swaps actions for "Expired", and '
+      'goes inert',
       (tester) async {
         var tapped = false;
         var offered = false;
@@ -507,14 +508,22 @@ void main() {
           findsOneWidget,
         );
 
-        // Faded, not vanished.
-        final fade = tester.widget<AnimatedOpacity>(
+        // M5: dimmed, not vanished — and dimmed as a STATE. R16/R21 list the
+        // expired-row dimming under *does not move*, so no fade transition.
+        final dim = tester.widget<Opacity>(
           find.ancestor(
             of: find.byKey(const Key('jeeber-feed-card-req-1')),
-            matching: find.byType(AnimatedOpacity),
+            matching: find.byType(Opacity),
           ),
         );
-        expect(fade.opacity, lessThan(1.0));
+        expect(dim.opacity, UIConstants.opacityDisabled);
+        expect(
+          find.descendant(
+            of: find.byType(JeeberFeedCard),
+            matching: find.byType(AnimatedOpacity),
+          ),
+          findsNothing,
+        );
 
         // Inert: the tap-through is disabled during the linger window.
         await tester.tap(

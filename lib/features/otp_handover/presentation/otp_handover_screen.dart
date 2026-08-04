@@ -606,10 +606,12 @@ class _JeeberOtpEntryState extends State<_JeeberOtpEntry>
   @override
   void didUpdateWidget(_JeeberOtpEntry old) {
     super.didUpdateWidget(old);
-    if (widget.state.shakeKey != _lastShakeKey) {
-      _lastShakeKey = widget.state.shakeKey;
-      _shakeCtrl.forward(from: 0);
-    }
+    if (widget.state.shakeKey == _lastShakeKey) return;
+    _lastShakeKey = widget.state.shakeKey;
+    // Reduce motion: no shake. The error headline, its liveRegion and the
+    // attempt counter carry the whole message without moving anything.
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    _shakeCtrl.forward(from: 0);
   }
 
   @override

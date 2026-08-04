@@ -6,6 +6,8 @@ import 'package:omds/omds.dart';
 
 import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/motion/jeeb_motion_primitives.dart';
+import '../../../core/motion/jeeb_motion_tokens.dart';
 import '../../../core/widgets/jeeb/jeeb_chat_bubble.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
@@ -1284,49 +1286,30 @@ class _MessageRow extends StatelessWidget {
 /// It renders through [JeebChatBubble] rather than re-deriving the radii, fill
 /// and padding, so the loading frame and the resolved thread cannot drift.
 ///
-/// The slow pulse is not decoration. The pre-redesign `OmdsListItemShimmer`
-/// kept a frame scheduled for as long as the screen was loading, and several
+/// The pulse is the kit's `jBreathe`, not a local controller — same .45→1
+/// curve, but on `JMotionLoop`'s reduce-motion contract.
+///
+/// It keeps a frame scheduled for as long as the screen is loading, and several
 /// suites depend on that: their `pumpAndSettle()` is what lets the async lookup
 /// land (`chat_detail_active_thread_test` fails against a motionless
 /// placeholder). A skeleton with no motion also reads as an empty thread that
 /// finished loading, which is precisely the wrong statement.
-class ChatThreadSkeleton extends StatefulWidget {
+class ChatThreadSkeleton extends StatelessWidget {
   const ChatThreadSkeleton({super.key});
 
-  @override
-  State<ChatThreadSkeleton> createState() => _ChatThreadSkeletonState();
-}
-
-class _ChatThreadSkeletonState extends State<ChatThreadSkeleton>
-    with SingleTickerProviderStateMixin {
   /// Width of each placeholder as a fraction of the thread column — unequal on
   /// purpose, so the shell reads as "messages are coming" rather than as a
   /// rendered thread. Below the kit's own 0.78 ceiling.
   static const List<double> _widthFractions = <double>[0.62, 0.44, 0.7];
 
-  /// Trough of the pulse. High enough that the shells never blink out.
-  static const double _minOpacity = 0.45;
-
-  late final AnimationController _pulse =
-      AnimationController(vsync: this, duration: UIConstants.animationSlow)
-        ..repeat(reverse: true);
-
-  late final Animation<double> _fade = Tween<double>(
-    begin: _minOpacity,
-    end: 1,
-  ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
+  /// One full breath — `jBreathe`'s fast end (1.6s).
+  static const Duration pulseDuration = JeebMotion.breatheDurationMin;
 
   @override
   Widget build(BuildContext context) {
     return ExcludeSemantics(
-      child: FadeTransition(
-        opacity: _fade,
+      child: JBreathe(
+        duration: pulseDuration,
         child: Padding(
           // The thread's own gutter (24) and top inset (16) — html:31.
           padding: const EdgeInsetsDirectional.fromSTEB(

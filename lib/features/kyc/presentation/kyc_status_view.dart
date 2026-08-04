@@ -267,8 +267,8 @@ class _StatusScaffold extends StatelessWidget {
     this.mark,
   });
 
-  /// Matches the two authored marks' display size (88 / 100) so a glyph
-  /// terminal and a Lottie terminal occupy the same head band.
+  /// Sized against [KycApprovedMark.markSize] (100) so a glyph terminal and the
+  /// one Lottie terminal occupy the same head band.
   static const double glyphDiameter = 88;
 
   final Key titleKey;
@@ -286,9 +286,8 @@ class _StatusScaffold extends StatelessWidget {
   final List<Widget> actions;
   final Widget? extra;
 
-  /// Optional Lottie mark that takes the head slot instead of [icon]
-  /// (08-MOTION-SPEC §2.8/§2.5). The icon params stay required so the two
-  /// bodies with no authored composition keep their glyph.
+  /// Optional one-shot mark that takes the head slot instead of [icon]. The
+  /// icon params stay required so the three glyph terminals keep their glyph.
   final Widget? mark;
 
   @override
@@ -299,9 +298,8 @@ class _StatusScaffold extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          // Scrolls instead of overflowing when a looping mark, a long Arabic
-          // reason and a large text scale meet on a short device; whatever is
-          // left over stays white and top-aligned (R1).
+          // Scrolls instead of overflowing when a long Arabic reason and a
+          // large text scale meet on a short device (R1: stays top-aligned).
           child: ListView(
             padding: _kStatusBodyPadding,
             children: [
@@ -435,10 +433,6 @@ class _PendingContent extends StatelessWidget {
       icon: Icons.hourglass_top_rounded,
       iconColor: colorScheme.primary,
       iconTint: colorScheme.surfaceContainerHigh,
-      // The scan-line loop says "your document is being checked" better than a
-      // static hourglass; the glyph stays as the reduce-motion-free fallback
-      // for any caller that omits the mark.
-      mark: const KycReviewMark(),
       title: l10n.kycStatusPendingTitle,
       body: l10n.kycStatusPendingBody,
       extra: _PendingNotes(isExpired: isExpired),

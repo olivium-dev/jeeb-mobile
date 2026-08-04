@@ -4,11 +4,15 @@
 // contracts live here so no call site can get them wrong:
 //
 //   1. **Reduce motion.** `MediaQuery.disableAnimationsOf` pins the controller
-//      at 0 and STOPS the ticker — no frames are scheduled at all. Because every
-//      §2.6 `Animatable` puts the row's FIRST keyframe at 0, pinning at 0 is
-//      exactly "render the rest frame", which is what the spec's rule demands.
-//   2. **Delay = stagger.** `delay` reproduces CSS `animation-delay`: the rest
-//      frame is held for the delay, then the loop starts. The timer is cancelled
+//      at [JMotionLoop.restPhase] and STOPS the ticker — no frames are scheduled
+//      at all. The pin is absolute, never "wherever the cycle had reached", so a
+//      still is deterministic whether motion was off at mount or switched off
+//      mid-cycle. Because every §2.6 `Animatable` puts the row's FIRST keyframe
+//      at 0, the default phase 0 is exactly "render the rest frame". Q-037 lets
+//      an information-bearing element pin its LIT keyframe instead — see
+//      `JMotionRest`.
+//   2. **Delay = stagger.** `delay` reproduces CSS `animation-delay`: the FIRST
+//      keyframe is held for the delay, then the loop starts. The timer is cancelled
 //      on dispose and on any reduce-motion change, so nothing outlives the tree.
 //   3. **The loop is infinite**, as the board's `∞` says. That is a deliberate
 //      difference from `JeebLottieMark`, whose loops are bounded so
@@ -50,15 +54,31 @@ class JMotionLoop extends StatefulWidget {
     required this.duration,
     required this.builder,
     this.delay = Duration.zero,
+    this.restPhase = 0,
     this.child,
   }) : assert(duration > Duration.zero, 'duration must be positive'),
-       assert(delay >= Duration.zero, 'delay cannot be negative');
+       assert(delay >= Duration.zero, 'delay cannot be negative'),
+       assert(
+         restPhase >= 0 && restPhase <= 1,
+         'restPhase must be a 0..1 cycle phase',
+       );
 
   /// One full cycle of the primitive.
   final Duration duration;
 
-  /// Held at the rest frame before the loop starts — CSS `animation-delay`.
+  /// Held at phase 0 before the loop starts — CSS `animation-delay`. This is the
+  /// board's pre-roll and is deliberately NOT [restPhase]: staggering is about
+  /// the animated frame the element waits on, reduce motion about the still it
+  /// ships instead.
   final Duration delay;
+
+  /// The cycle phase the controller is pinned to under reduce motion.
+  ///
+  /// 0 — the row's first keyframe — for everything decorative. Pass a peak phase
+  /// only for an element whose first keyframe would hide information a sighted
+  /// user needs (Q-037); the primitives spell that as `JMotionRest.informative`
+  /// rather than a raw number.
+  final double restPhase;
 
   /// Builds the animated subtree. See [JMotionBuilder].
   final JMotionBuilder builder;
@@ -98,7 +118,8 @@ class _JMotionLoopState extends State<JMotionLoop>
       _controller.duration = widget.duration;
     }
     if (oldWidget.duration != widget.duration ||
-        oldWidget.delay != widget.delay) {
+        oldWidget.delay != widget.delay ||
+        oldWidget.restPhase != widget.restPhase) {
       _sync(force: true);
     }
   }
@@ -123,7 +144,7 @@ class _JMotionLoopState extends State<JMotionLoop>
       // ticker scheduling frames forever against a pinned value.
       _controller
         ..stop()
-        ..value = 0;
+        ..value = widget.restPhase;
       return;
     }
     _controller.value = 0;

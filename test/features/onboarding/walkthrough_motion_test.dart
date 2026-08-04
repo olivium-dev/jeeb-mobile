@@ -220,6 +220,48 @@ void main() {
       expect(find.byType(JDashedPath), findsNothing);
       expect(find.byType(JWaveBar), findsNothing);
     });
+
+    // Q-037: the badge is the board's one jTwinkle on a UI element, so its
+    // still must read "verified", not a .2-opacity ghost.
+    testWidgets('the verified badge rests LIT, while the rings rest faint', (
+      tester,
+    ) async {
+      await tester.pumpWidget(host(const WalkthroughTrustArt()));
+      await tester.pumpAndSettle();
+
+      final twinkle = all<JTwinkle>(tester).single;
+      expect(twinkle.rest, JMotionRest.informative);
+      expect(
+        tester
+            .widget<FadeTransition>(
+              find.descendant(
+                of: find.byType(JTwinkle),
+                matching: find.byType(FadeTransition),
+              ),
+            )
+            .opacity
+            .value,
+        JeebMotion.twinklePeakOpacity,
+      );
+
+      for (final arc in all<JArcPulse>(tester)) {
+        expect(
+          arc.rest,
+          JMotionRest.decorative,
+          reason: 'orbit rings are decoration — they keep resting at .15',
+        );
+      }
+      for (final opacity in tester
+          .widgetList<FadeTransition>(
+            find.descendant(
+              of: find.byType(JArcPulse),
+              matching: find.byType(FadeTransition),
+            ),
+          )
+          .map((f) => f.opacity.value)) {
+        expect(opacity, JeebMotion.arcPulseRestOpacity);
+      }
+    });
   });
 
   group('W3 · tracking art — 5 animated elements', () {

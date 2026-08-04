@@ -13,6 +13,7 @@ import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/features/onboarding/presentation/onboarding_screen.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/sync_app_localizations.dart';
 
@@ -174,6 +175,44 @@ void main() {
         );
       }
     });
+
+    // M5 B6: R5 and W1–W3 all list the headline under "does not move", and
+    // §7.5 item 6 bans one-shot transitions outright.
+    testWidgets('the slide copy swaps, it never cross-fades', (tester) async {
+      await tester.pumpWidget(harness());
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('onboarding.slideCopy')),
+          matching: find.byType(AnimatedSwitcher),
+        ),
+        findsNothing,
+      );
+
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(OnboardingScreen)),
+      );
+      expect(find.text(l10n.onboardingSlide1Body), findsOneWidget);
+
+      // Drive the pager frame by frame: a cross-fade would mount BOTH copy
+      // blocks for the length of its transition.
+      await tester.tap(find.byKey(const Key('onboarding.next')));
+      for (var elapsed = Duration.zero;
+          elapsed < const Duration(milliseconds: 900);
+          elapsed += const Duration(milliseconds: 16)) {
+        await tester.pump(const Duration(milliseconds: 16));
+        final outgoing = find.text(l10n.onboardingSlide1Body).evaluate().length;
+        final incoming = find.text(l10n.onboardingSlide2Body).evaluate().length;
+        expect(
+          outgoing + incoming,
+          1,
+          reason: 'exactly one copy block is mounted at every frame of the swap',
+        );
+      }
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.onboardingSlide2Body), findsOneWidget);
+    });
   });
 
   group('CTA + toggle', () {
@@ -213,15 +252,24 @@ void main() {
       await tester.pump();
 
       final scheme = AppTheme.midnight().colorScheme;
-      final pill = tester.widget<AnimatedContainer>(
+      final pill = tester.widget<Container>(
         find
             .ancestor(
               of: find.text('EN'),
-              matching: find.byType(AnimatedContainer),
+              matching: find.byType(Container),
             )
             .first,
       );
       expect((pill.decoration! as BoxDecoration).color, scheme.onSurface);
+      expect(
+        find.ancestor(
+          of: find.text('EN'),
+          matching: find.byType(AnimatedContainer),
+        ),
+        findsNothing,
+        reason: 'M5 B5: R5/W1 list the language pill under "does not move" — '
+            'selection swaps the fill, it does not tween it',
+      );
       final label = tester.widget<Text>(find.text('EN'));
       expect(
         label.style!.color,
