@@ -78,9 +78,16 @@ Future<void> _pump(
 }) async {
   await tester.pumpWidget(
     wrapForTest(
-      BlocProvider<EarningsCubit>(
-        create: (_) => EarningsCubit(repository: _FakeRepo(summary)),
-        child: const EarningsDashboardScreen(),
+      // MIDNIGHT: `JeebEmptyState`'s illustration loops forever by design, so
+      // reduce motion is the sanctioned harness fix (02-STUDY-NOTES §Motion).
+      Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: BlocProvider<EarningsCubit>(
+            create: (_) => EarningsCubit(repository: _FakeRepo(summary)),
+            child: const EarningsDashboardScreen(),
+          ),
+        ),
       ),
       locale: locale,
     ),
@@ -127,7 +134,7 @@ void main() {
     // The trust-breaker the audit caught: "0.00 USD · 0 Deliveries · 0.00 fees"
     expect(find.textContaining('0.00'), findsNothing);
     // The hero eyebrow is a JeebSectionLabel, which uppercases in EN.
-    expect(find.text('TOTAL CASH EARNED'), findsNothing);
+    expect(find.text('CASH COLLECTED'), findsNothing);
   });
 
   testWidgets('funded period → MoneyFormat amounts, no empty state',
@@ -135,7 +142,7 @@ void main() {
     await _pump(tester, _funded);
 
     expect(find.text('No earnings yet this period'), findsNothing);
-    expect(find.text('TOTAL CASH EARNED'), findsOneWidget);
+    expect(find.text('CASH COLLECTED'), findsOneWidget);
     // Rendered through the one money rule ($ for USD), not "1000.00 USD".
     expect(find.text('\u2066\$1,000.00\u2069'), findsOneWidget);
   });

@@ -52,8 +52,8 @@ class EarningsDashboardL10n {
   // ── Fee-only headline (D41/D44). ──────────────────────────────────────────
 
   /// `earnings_total_cash` — total cash collected off-wallet (COD, D41).
-  String get totalCashLabel =>
-      _pick('Total cash earned', 'إجمالي النقد المكتسب');
+  /// TODO(midnight): l10n-queued — tile literal `Cash collected` (`tpl 1147`).
+  String get totalCashLabel => _pick('Cash collected', 'النقد المُحصَّل');
   /// The trust line under the hero amount: cash never moves through Jeeb
   /// (D41). Shorter and more direct than the previous phrasing because the
   /// redesigned hero renders it as a single line under a 38px number.

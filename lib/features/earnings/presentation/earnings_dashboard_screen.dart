@@ -7,13 +7,17 @@ import 'package:open_file/open_file.dart';
 
 import '../../../core/accessibility/accessibility.dart';
 import '../../../core/formatting/money_format.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
-import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
@@ -23,20 +27,22 @@ import '../domain/earnings_repository.dart';
 import '../domain/earnings_summary.dart';
 import 'earnings_dashboard_l10n.dart';
 
-/// JM-052 — Earnings & Fees Dashboard (redesign-2026-08 screen 19).
+/// JM-052 — Earnings & Fees Dashboard (MIDNIGHT R19, `tpl 1136–1194`).
 ///
 /// The Earnings tab body:
 ///   * `earnings_total_cash` — the cash the Jeeber collected directly from
-///     customers; this never moves through Jeeb. Now the eyebrow + 38px
-///     amount + trust line inside the navy hero.
+///     customers; this never moves through Jeeb. Eyebrow + `statHero` amount +
+///     trust line inside the glass hero.
 ///   * `earnings_fees_paid` — platform fees the Jeeber paid from their
-///     pre-charged wallet on won offers (the outlined strip under the hero).
+///     pre-charged wallet on won offers (the glass strip under the hero).
 ///   * `earnings_net_per_offer` / `earnings_deliveries_count` /
 ///     `earnings_member_since` — the three hero stats under the hairline.
 ///     Member-since renders only when the wire surfaces it — never fabricated.
 ///   * `earnings_wallet_link` → `wallet` (wallet-hub, JM-053) — footer pill.
 ///   * `earnings_activity_link` → `wallet-activity` (wallet-activity-list,
-///     JM-055) — the section header's trailing link.
+///     JM-055) — re-homed onto the board-drawn period header (doc-13 Pattern D:
+///     a frozen id may move onto a drawn element; the added "See all" chrome
+///     the board never draws is deleted).
 ///
 /// Both cross-feature links target routes that are REGISTERED today, so they
 /// are real `pushNamed` edges — NOT guarded coming-soon. The hub's
@@ -51,19 +57,21 @@ import 'earnings_dashboard_l10n.dart';
 /// (→ `DioEarningsRepository`). The gateway rewrites `/v1/jeeb/earnings` →
 /// `/wallet-service/v1/jeeb/earnings` on :4010.
 ///
+/// MOTION: `03-MOTION-NOTES.md` §R19 — **0 animated elements**. The field's
+/// decor is pinned (`animateDecor: false`) and nothing on this screen moves.
+///
 /// D41/D44: fee-only framing throughout — "Platform fees paid", never
 /// "Commission", never a gross/net payout line. The board's `Jeeb fees paid`
-/// wording and its `★ 4.8 / This week` hero stat are deliberately NOT shipped
-/// (see `docs/redesign-2026-08/per-screen-revised/19-earnings.md` §2).
+/// wording is a recorded refusal (02-STUDY-NOTES §5 / `19-earnings.md` §2).
 class EarningsDashboardScreen extends StatelessWidget {
   const EarningsDashboardScreen({super.key});
 
-  /// `html:15` — the 24px page gutter with a 16px lead-in above the title.
+  /// `tpl 1140` — the 24px page gutter with a lead-in above the title.
   static const EdgeInsetsGeometry _headerPadding =
       EdgeInsetsDirectional.fromSTEB(Spacing.xLarge, Spacing.medium,
           Spacing.xLarge, 0);
 
-  /// `html:16` — the period row owns its own horizontal gutter (it scrolls),
+  /// `tpl 1141` — the period row owns its own horizontal gutter (it scrolls),
   /// so only the lead-in is applied from outside.
   static const EdgeInsetsGeometry _periodRowPadding =
       EdgeInsetsDirectional.only(top: Spacing.medium);
@@ -110,31 +118,41 @@ class EarningsDashboardScreen extends StatelessWidget {
     final isFunded = state.mode == EarningsViewMode.ready &&
         summary != null &&
         !summary.isEmpty;
-    // Both insets are consumed: inside the shell the top is already gone and
-    // the bottom carries the nav-bar reservation; on the pushed `/earnings`
-    // route this is the only thing keeping the title off the status bar.
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: _headerPadding,
-            child: Text(
-              copy.title,
-              style: context.jeebText.h2.copyWith(
-                color: theme.colorScheme.primary,
+    // `expand`: Scaffold lays its body out LOOSE, so the field's Stack would
+    // otherwise shrink-wrap a short state and leave the page bottom unpainted.
+    return SizedBox.expand(
+      child: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        // `tpl 1136` draws ONE orange glow at 85%/-6% and no rings, wash or
+        // twinkles — `content` at the ratified `topEnd`, and it does not move.
+        animateDecor: false,
+        // Both insets are consumed: the shell already ate the top, and on the
+        // pushed `/earnings` route this is what keeps the title off the bar.
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: _headerPadding,
+                child: Text(
+                  copy.title,
+                  style: context.jeebText.h2.copyWith(
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
               ),
-            ),
+              // Always mounted, in every state: switching period is how a jeeber
+              // recovers from an empty or failed load.
+              Padding(
+                padding: _periodRowPadding,
+                child:
+                    _PeriodFilterRow(selectedPeriod: state.period, copy: copy),
+              ),
+              Expanded(child: _stateBody(context, state, summary, copy)),
+              if (isFunded) _EarningsFooter(state: state, copy: copy),
+            ],
           ),
-          // Always mounted, in every state: switching period is how a jeeber
-          // recovers from an empty or failed load.
-          Padding(
-            padding: _periodRowPadding,
-            child: _PeriodFilterRow(selectedPeriod: state.period, copy: copy),
-          ),
-          Expanded(child: _stateBody(context, state, summary, copy)),
-          if (isFunded) _EarningsFooter(state: state, copy: copy),
-        ],
+        ),
       ),
     );
   }
@@ -146,18 +164,36 @@ class EarningsDashboardScreen extends StatelessWidget {
     EarningsDashboardL10n copy,
   ) {
     if (state.mode == EarningsViewMode.loading) {
-      return const Center(child: OmdsLoadingState());
-    }
-    if (state.mode == EarningsViewMode.error) {
-      return OmdsErrorState(
-        message: copy.loadError,
-        retryLabel: copy.retry,
-        onRetry: () => context.read<EarningsCubit>().loadEarnings(),
+      return Semantics(
+        identifier: 'earnings_loading',
+        container: true,
+        // TODO(midnight): l10n-queued `earningsLoadingHeadline`; `earningsTitle`
+        // is the nearest landed key.
+        child: JeebEmptyState.compact(
+          status: JeebEmptyStateStatus.loading,
+          headline: copy.title,
+        ),
       );
     }
-    // T11 / SW-01: no data for the period → honest empty/pending state, never a
-    // wall of confident zeros. Period pills + pull-to-refresh stay so the jeeber
-    // can retry or switch period.
+    if (state.mode == EarningsViewMode.error) {
+      return Semantics(
+        identifier: 'earnings_error',
+        container: true,
+        child: JeebEmptyState.compact(
+          status: JeebEmptyStateStatus.error,
+          headline: copy.loadError,
+          center: const _EarningsMark(glyph: Icons.cloud_off),
+          medallions: const [],
+          action: JeebCtaButton.outline(
+            label: copy.retry,
+            expand: false,
+            onTap: () => context.read<EarningsCubit>().loadEarnings(),
+          ),
+        ),
+      );
+    }
+    // T11 / SW-01: no data for the period → honest empty state, never a wall of
+    // confident zeros. Pills + pull-to-refresh stay so the jeeber can recover.
     if (summary == null || summary.isEmpty) {
       return _EmptyEarnings(copy: copy);
     }
@@ -183,13 +219,18 @@ class _EmptyEarnings extends StatelessWidget {
           Semantics(
             identifier: 'earnings_empty',
             container: true,
-            child: OmdsEmptyState(
-              icon: Icons.payments_outlined,
-              title: copy.emptyTitle,
-              subtitle: copy.emptyHint,
-              buttonText: copy.emptyRefresh,
-              onButtonTap: () =>
-                  context.read<EarningsCubit>().loadEarnings(),
+            child: JeebEmptyState.compact(
+              headline: copy.emptyTitle,
+              body: copy.emptyHint,
+              // E1's mic + shopping medallions are the CLIENT's "bring me
+              // anything"; a jeeber's empty ledger gets a money mark instead.
+              center: const _EarningsMark(glyph: Icons.payments),
+              medallions: const [],
+              action: JeebCtaButton.outline(
+                label: copy.emptyRefresh,
+                expand: false,
+                onTap: () => context.read<EarningsCubit>().loadEarnings(),
+              ),
             ),
           ),
         ],
@@ -205,6 +246,11 @@ class _ReadyBody extends StatelessWidget {
     required this.copy,
   });
 
+  /// `tpl 1157` — the breakdown band's lead-in, and `tpl 1159` its 10 under the
+  /// section label.
+  static const double _bandLeadIn = 18;
+  static const double _labelToRows = 10;
+
   final EarningsSummary summary;
   final EarningsState state;
   final EarningsDashboardL10n copy;
@@ -215,8 +261,8 @@ class _ReadyBody extends StatelessWidget {
     return OmdsPullToRefresh(
       onRefresh: () => context.read<EarningsCubit>().loadEarnings(),
       child: ListView(
-        // R1 density: with two or three rows the list simply ends and the
-        // white below it is the design. No Spacer, no centring, no shrinkWrap.
+        // R1 density: with two or three rows the list simply ends and the field
+        // below it is the design. No Spacer, no centring, no shrinkWrap.
         padding: const EdgeInsetsDirectional.symmetric(
           horizontal: Spacing.xLarge,
         ),
@@ -225,14 +271,16 @@ class _ReadyBody extends StatelessWidget {
           _CashHero(summary: summary, copy: copy),
           const SizedBox(height: Spacing.small),
           _FeeStrip(summary: summary, copy: copy),
-          const SizedBox(height: Spacing.medium),
+          const SizedBox(height: _bandLeadIn),
           _BreakdownHeader(period: state.period, copy: copy),
-          const SizedBox(height: Spacing.xSmall),
+          const SizedBox(height: _labelToRows),
           if (deliveries.isEmpty)
             Semantics(
               identifier: 'earnings_breakdown_empty',
               container: true,
-              child: const OmdsEmptyState(),
+              // TODO(midnight): l10n-queued `earningsBreakdownEmptyTitle`;
+              // `earningsEmpty` is the nearest landed key.
+              child: JeebEmptyState.compact(headline: copy.empty),
             )
           else
             for (var i = 0; i < deliveries.length; i++) ...[
@@ -254,11 +302,8 @@ class _PeriodFilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Scrollable, not fixed: three 48dp targets fit comfortably at 1x but not
-    // at the 200% text scale the a11y AC requires, and a fixed Row overflows
-    // there. The kit's scrollable form is non-lazy, so every
-    // `earnings_period_*` identifier stays findable even when it scrolls off.
-    // The gutter lives here so the trailing pill scrolls clear of the edge.
+    // Scrollable, not fixed: three 48dp targets overflow at the 200% scale the
+    // a11y AC requires. The kit's form is non-lazy, so every id stays findable.
     return JeebChipRow.scrollable(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.xLarge,
@@ -291,9 +336,9 @@ class _PeriodPill extends StatelessWidget {
     return Semantics(
       identifier: 'earnings_period_${period.name}',
       button: true,
+      selected: selected,
       // The kit capsule stays under 48dp on purpose; the tap target is this
-      // wrapper, which owns the gesture (its IgnorePointer makes a second
-      // handler on the chip dead weight).
+      // wrapper, which owns the gesture.
       child: MinTapTarget(
         onTap: () =>
             context.read<EarningsCubit>().loadEarnings(period: period),
@@ -312,37 +357,47 @@ class _PeriodPill extends StatelessWidget {
         return copy.periodToday;
       case EarningsPeriod.week:
         return copy.periodWeek;
+      // TODO(midnight): l10n-queued — the tile draws `Month`, `earningsPeriodMonth`
+      // still reads `This month`.
       case EarningsPeriod.month:
         return copy.periodMonth;
     }
   }
 }
 
-/// The navy hero (`html:22-32`): eyebrow + 38px cash amount + trust line, a
-/// hairline, then three stats.
+/// The glass cash hero (`tpl 1145–1156`): eyebrow + `statHero` amount + trust
+/// line, a hairline, then three stats — over its own orange inner glow.
+///
+/// This is the screen's ONE real `BackdropFilter` (§4 budget ≤2): the board
+/// draws `backdrop-filter: blur(16px)` here and nowhere else on R19.
 ///
 /// `earnings_total_cash` is scoped to the amount block rather than the whole
-/// card so the three stat ids stay flat siblings — `JeebNavySurfaceCard` adds
-/// no Semantics node of its own here, so nothing swallows them.
+/// card so the three stat ids stay flat siblings.
 class _CashHero extends StatelessWidget {
   const _CashHero({required this.summary, required this.copy});
 
-  /// The board's on-navy divider (`html:27`) — 1px white at 12%. NOT
-  /// `outlineVariant`: that is a light-surface ink and vanishes on navy.
+  /// `tpl 1146` — Ø150 orange radial at top-END, offset −40/−40, core 40%,
+  /// transparent at 70%.
+  static const double _glowDiameter = 150;
+  static const double _glowInset = -40;
+  static const double _glowCoreAlpha = 0.4;
+  static const double _glowStop = 0.7;
+
+  /// `tpl 1150` — 6 under the eyebrow, 4 under the amount, 14 above and below
+  /// the hairline, 18 between stat columns.
+  static const double _eyebrowGap = 6;
+  static const double _hairlineGap = 14;
+  static const double _statGap = 18;
   static const double _dividerThickness = 1;
-  static const double _dividerOpacity = 0.12;
 
   final EarningsSummary summary;
   final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    // Never a bare `!`: `wrapForTest` themes with ThemeData.light(), where the
-    // extension is absent, and the bang would crash every widget test.
-    final semantic = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
+    final scheme = Theme.of(context).colorScheme;
+    final semantic = _semantics(context);
+    final accent = context.jeebRoles.accent;
     final value = MoneyFormat.format(
       summary.totalCashEarned,
       currency: summary.currency,
@@ -352,94 +407,117 @@ class _CashHero extends StatelessWidget {
       currency: summary.currency,
     );
     final memberSince = summary.memberSince;
-    return JeebNavySurfaceCard(
-      radius: Spacing.large,
-      padding: const EdgeInsetsDirectional.all(Spacing.large),
-      shadow: JeebShadows.heroNavy,
-      rings: const [JeebNavyRing.statTopEnd],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return JeebGlassCapsule(
+      radius: JeebRadii.xl,
+      blurSigma: JeebGlassCapsule.heroBlur,
+      shadow: JeebShadows.floatNav,
+      padding: EdgeInsets.zero,
+      child: Stack(
         children: [
-          Semantics(
-            identifier: 'earnings_total_cash',
-            container: true,
+          PositionedDirectional(
+            top: _glowInset,
+            end: _glowInset,
+            width: _glowDiameter,
+            height: _glowDiameter,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    accent.withValues(alpha: _glowCoreAlpha),
+                    accent.withValues(alpha: 0),
+                  ],
+                  stops: const [0, _glowStop],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.all(Spacing.large),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Uppercased inside the widget so AR passes through untouched —
-                // never `.toUpperCase()` at the call site.
-                JeebSectionLabel(copy.totalCashLabel),
-                const SizedBox(height: Spacing.xSmall),
-                Text(
-                  value,
-                  style: context.jeebText.statHero.copyWith(
-                    color: scheme.onPrimary,
-                  ),
-                  semanticsLabel: value,
-                ),
-                const SizedBox(height: Spacing.twoXSmall),
-                Text(
-                  copy.totalCashHint,
-                  style: context.jeebText.bodySmall.copyWith(
-                    color: semantic.mutedText,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: Spacing.small),
-          SizedBox(
-            width: double.infinity,
-            height: _dividerThickness,
-            child: ColoredBox(
-              color: scheme.onPrimary.withValues(alpha: _dividerOpacity),
-            ),
-          ),
-          const SizedBox(height: Spacing.small),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Flexible(
-                child: Semantics(
-                  identifier: 'earnings_deliveries_count',
+                Semantics(
+                  identifier: 'earnings_total_cash',
                   container: true,
-                  child: _HeroStat(
-                    value: '${summary.deliveryCount}',
-                    label: copy.deliveriesLabel,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Uppercased inside the widget so AR passes through
+                      // untouched — never `.toUpperCase()` at the call site.
+                      JeebSectionLabel(copy.totalCashLabel),
+                      const SizedBox(height: _eyebrowGap),
+                      Text(
+                        value,
+                        style: context.jeebText.statHero.copyWith(
+                          color: scheme.onSurface,
+                        ),
+                        semanticsLabel: value,
+                      ),
+                      const SizedBox(height: Spacing.twoXSmall),
+                      Text(
+                        copy.totalCashHint,
+                        style: context.jeebText.bodySmall.copyWith(
+                          color: semantic.mutedText,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: Spacing.large),
-              Flexible(
-                child: Semantics(
-                  identifier: 'earnings_net_per_offer',
-                  container: true,
-                  // The D44 explanation lost its visual slot in the compressed
-                  // hero; it survives here so it is still announced.
-                  hint: copy.netPerOfferHint,
-                  child: _HeroStat(
-                    value: netPerOffer,
-                    valueSemanticsLabel: netPerOffer,
-                    label: copy.netPerOfferLabel,
-                  ),
+                const SizedBox(height: _hairlineGap),
+                SizedBox(
+                  width: double.infinity,
+                  height: _dividerThickness,
+                  child: ColoredBox(color: semantic.glassBorder),
                 ),
-              ),
-              // Same condition as before the rebuild: the join date is rendered
-              // only when the wire surfaces it, never fabricated.
-              if (memberSince != null) ...[
-                const SizedBox(width: Spacing.large),
-                Flexible(
-                  child: Semantics(
-                    identifier: 'earnings_member_since',
-                    container: true,
-                    child: _HeroStat(
-                      value: _formatMonth(memberSince),
-                      label: copy.memberSinceLabel,
+                const SizedBox(height: _hairlineGap),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Flexible(
+                      child: Semantics(
+                        identifier: 'earnings_deliveries_count',
+                        container: true,
+                        child: _HeroStat(
+                          value: '${summary.deliveryCount}',
+                          label: copy.deliveriesLabel,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: _statGap),
+                    Flexible(
+                      child: Semantics(
+                        identifier: 'earnings_net_per_offer',
+                        container: true,
+                        // The D44 explanation lost its visual slot in the
+                        // compressed hero; it survives here so it is announced.
+                        hint: copy.netPerOfferHint,
+                        child: _HeroStat(
+                          value: netPerOffer,
+                          valueSemanticsLabel: netPerOffer,
+                          label: copy.netPerOfferLabel,
+                        ),
+                      ),
+                    ),
+                    // TODO(midnight): omitted, not faked — the board's stat #3
+                    // is `★ 4.8`, a rating the wire has no field for (Pattern A).
+                    if (memberSince != null) ...[
+                      const SizedBox(width: _statGap),
+                      Flexible(
+                        child: Semantics(
+                          identifier: 'earnings_member_since',
+                          container: true,
+                          child: _HeroStat(
+                            value: _formatMonth(memberSince),
+                            label: copy.memberSinceLabel,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -453,8 +531,9 @@ class _CashHero extends StatelessWidget {
   }
 }
 
-/// One of the hero's three stat columns (`html:28-30`). Layout only — the
-/// board draws no card here, so this is not a private copy of a kit widget.
+/// One of the hero's three stat columns (`tpl 1152–1154`) — value `17/w800`
+/// white over an `11/w600` periwinkle label. Layout only: the board draws no
+/// card here, so this is not a private copy of a kit widget.
 class _HeroStat extends StatelessWidget {
   const _HeroStat({
     required this.value,
@@ -469,8 +548,7 @@ class _HeroStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final semantic = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
+    final semantic = _semantics(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,7 +556,8 @@ class _HeroStat extends StatelessWidget {
         Text(
           value,
           style: context.jeebText.titleProminent.copyWith(
-            color: theme.colorScheme.onPrimary,
+            color: theme.colorScheme.onSurface,
+            fontWeight: FontWeight.w800,
           ),
           semanticsLabel: valueSemanticsLabel,
           maxLines: 1,
@@ -497,22 +576,24 @@ class _HeroStat extends StatelessWidget {
   }
 }
 
-/// `earnings_fees_paid` — the outlined fee strip (`html:34-41`).
+/// `earnings_fees_paid` — the glass fee strip (`tpl 1157`).
 ///
 /// A single-value row, NOT a `JeebMoneyBreakdown`: the board draws no label /
 /// value rows, no divider, no total and no lock footnote here.
 class _FeeStrip extends StatelessWidget {
   const _FeeStrip({required this.summary, required this.copy});
 
+  /// `tpl 1158` — the Ø36 white-10% disc carrying the `%` glyph.
+  static const double _discSize = 36;
+  static const double _discGlyph = 18;
+
   final EarningsSummary summary;
   final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final semantic = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
+    final scheme = Theme.of(context).colorScheme;
+    final semantic = _semantics(context);
     final value = MoneyFormat.format(
       summary.feesPaid,
       currency: summary.currency,
@@ -523,19 +604,19 @@ class _FeeStrip extends StatelessWidget {
       child: JeebOutlinedCard(
         child: Row(
           children: [
-            Container(
-              width: Sizes.threeXLarge,
-              height: Sizes.threeXLarge,
-              alignment: AlignmentDirectional.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: scheme.surfaceContainerHigh,
-              ),
-              // Filled, single-colour (R10). A bare "%" Text has no l10n home.
-              child: Icon(
-                Icons.percent,
-                size: Sizes.medium,
-                color: scheme.primary,
+            SizedBox.square(
+              dimension: _discSize,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: semantic.glassFillEmphasis,
+                ),
+                // Filled, single-colour (R10). A bare "%" Text has no l10n home.
+                child: Icon(
+                  Icons.percent,
+                  size: _discGlyph,
+                  color: scheme.onSurface,
+                ),
               ),
             ),
             const SizedBox(width: Spacing.small),
@@ -544,16 +625,16 @@ class _FeeStrip extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // D41/D44: "Platform fees paid". The board's Jeeb-branded
-                  // "Jeeb fees paid" is refused — the fee is the platform's.
+                  // "Jeeb fees paid" is a recorded refusal, not a defect.
                   Text(
                     copy.feesPaidLabel,
                     style: context.jeebText.cardTitle.copyWith(
-                      color: scheme.primary,
+                      color: scheme.onSurface,
                     ),
                   ),
                   Text(
                     copy.feesPaidHint,
-                    style: context.jeebText.bodySmall.copyWith(
+                    style: context.jeebText.caption.copyWith(
                       color: semantic.mutedText,
                     ),
                   ),
@@ -564,7 +645,8 @@ class _FeeStrip extends StatelessWidget {
             Text(
               value,
               style: context.jeebText.titleProminent.copyWith(
-                color: scheme.primary,
+                color: scheme.onSurface,
+                fontWeight: FontWeight.w800,
               ),
               semanticsLabel: value,
             ),
@@ -575,11 +657,11 @@ class _FeeStrip extends StatelessWidget {
   }
 }
 
-/// The breakdown section header (`html:44`) plus the `earnings_activity_link`.
+/// The breakdown section header (`tpl 1158`) — the period label, uppercased.
 ///
-/// The board has no activity link here — this placement exists because the
-/// identifier is frozen and Maestro AC3 taps it, and the header is the only
-/// honest home for a "see everything" affordance.
+/// The board draws no "See all" link. doc-13 Pattern D: the frozen
+/// `earnings_activity_link` id is RE-HOMED onto this drawn label (which is
+/// tappable and still reaches wallet-activity), and the added pill is deleted.
 class _BreakdownHeader extends StatelessWidget {
   const _BreakdownHeader({required this.period, required this.copy});
 
@@ -588,44 +670,37 @@ class _BreakdownHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          // The visible label is the PERIOD ("THIS WEEK"); the screen reader
-          // still hears what the section is.
-          child: Semantics(
-            label: copy.breakdownTitle,
-            child: JeebSectionLabel(copy.period(period.name)),
-          ),
-        ),
-        Semantics(
-          identifier: 'earnings_activity_link',
-          button: true,
-          container: true,
-          child: JeebCtaButton.text(
-            label: copy.activityLink,
-            onTap: () => context.pushNamed('wallet-activity'),
-          ),
-        ),
-      ],
+    return Semantics(
+      identifier: 'earnings_activity_link',
+      button: true,
+      container: true,
+      // The visible label is the PERIOD ("THIS WEEK"); the screen reader still
+      // hears what the section is and where the tap goes.
+      label: copy.breakdownTitle,
+      hint: copy.activityLink,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.pushNamed('wallet-activity'),
+        child: JeebSectionLabel(copy.period(period.name)),
+      ),
     );
   }
 }
 
-/// One grey delivery row (`html:46-50`).
+/// One glass delivery row (`tpl 1160–1162`).
 class _DeliveryRow extends StatelessWidget {
   const _DeliveryRow({required this.item, required this.copy});
+
+  /// `tpl 1160` — the row's own gap, tighter than [JeebListRow]'s 12 default.
+  static const double _rowGap = 10;
 
   final EarningsDeliveryItem item;
   final EarningsDashboardL10n copy;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // BLOCKED on wiring/19-earnings.md §A: `signed:` puts the `+` INSIDE the
-    // LTR isolate. `'+' + …` is not an option — U+002B is bidi-class ES and
-    // renders on the wrong side of the amount in Arabic. If §A is refused,
-    // delete this one argument; the `+` is decorative.
+    // BLOCKED on wiring/19-earnings.md §A: `signed:` keeps the `+` inside the
+    // LTR isolate; `'+' + …` renders on the wrong side in Arabic (bidi ES).
     final cash = MoneyFormat.format(
       item.cashCollected,
       currency: item.currency,
@@ -642,22 +717,21 @@ class _DeliveryRow extends StatelessWidget {
     return Semantics(
       identifier: 'earnings_delivery_row_${item.deliveryId}',
       container: true,
-      child: Container(
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
-          borderRadius: OmdsBorderRadius.medium,
-        ),
-        // TODO(redesign-24): the board leads each row with a tier emoji and
-        // names the item ("Pharmacy run"). The wire entry is
-        // `{deliveryId, amount, syncedAt}` — no tier, no item name — so both
-        // are omitted rather than faked.
+      // TODO(midnight): omitted, not faked — the board's `⚡ Pharmacy run` tier
+      // and item name are absent from `{deliveryId, amount, syncedAt}`.
+      child: JeebOutlinedCard(
+        padding: EdgeInsets.zero,
         child: JeebListRow(
           title: title,
           subtitle: copy.deliveryRowFee(fee),
           showChevron: false,
+          gap: _rowGap,
           trailing: Text(
             cash,
-            style: context.jeebText.cardTitle.copyWith(color: scheme.primary),
+            style: context.jeebText.cardTitle.copyWith(
+              color: context.jeebRoles.onSuccessContainer,
+              fontWeight: FontWeight.w800,
+            ),
             semanticsLabel: cash,
           ),
         ),
@@ -666,15 +740,16 @@ class _DeliveryRow extends StatelessWidget {
   }
 }
 
-/// The docked footer (`html:64-67`): wallet pill + export CTA, two equal
-/// halves.
+/// The docked footer (`tpl 1167–1170`): glass wallet pill + orange export CTA,
+/// two equal halves 10 apart.
 class _EarningsFooter extends StatelessWidget {
   const _EarningsFooter({required this.state, required this.copy});
 
-  /// The board draws both pills at 52 (`html:65-66`). The kit's per-variant
-  /// defaults (50 outline / 56 primary) would misalign the pair, so both are
+  /// The board draws both pills at 52 (`tpl 1168-1169`). The kit's per-variant
+  /// defaults (50 outline / 56 accent) would misalign the pair, so both are
   /// pinned here rather than either being left to its default.
   static const double _pillHeight = 52;
+  static const double _pillGap = 10;
 
   final EarningsState state;
   final EarningsDashboardL10n copy;
@@ -690,6 +765,7 @@ class _EarningsFooter extends StatelessWidget {
             '${MoneyFormat.format(balance.availableBalance, currency: balance.currency)}';
     return JeebCtaFooter.split(
       expandLeading: true,
+      spacing: _pillGap,
       leading: Semantics(
         identifier: 'earnings_wallet_link',
         button: true,
@@ -704,7 +780,9 @@ class _EarningsFooter extends StatelessWidget {
         identifier: 'earnings_export_cta',
         button: true,
         container: true,
-        child: JeebCtaButton.primary(
+        // `accent`, not `primary`: `tpl 1169` draws the solid orange pill with
+        // the `ctaOrange` lift (wave-A ruling).
+        child: JeebCtaButton.accent(
           label: copy.exportButton,
           height: _pillHeight,
           // `isInteractive` already suppresses the tap while loading, so no
@@ -716,3 +794,45 @@ class _EarningsFooter extends StatelessWidget {
     );
   }
 }
+
+/// The centre disc of this screen's [JeebEmptyState] illustrations — the kit's
+/// 94×94 `center` slot, glass over the ring so the ledger reads as money rather
+/// than as a client's shopping run.
+class _EarningsMark extends StatelessWidget {
+  const _EarningsMark({required this.glyph});
+
+  static const double _disc = 94;
+  static const double _glyphSize = 46;
+
+  final IconData glyph;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantic = _semantics(context);
+    return Center(
+      child: SizedBox.square(
+        dimension: _disc,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: semantic.glassFillEmphasis,
+            border: Border.fromBorderSide(
+              BorderSide(color: semantic.glassBorderStrong),
+            ),
+          ),
+          child: Icon(
+            glyph,
+            size: _glyphSize,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Never a bare `!`: harnesses themed with `ThemeData.light()` carry no
+/// extension, and the bang would crash every widget test.
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
