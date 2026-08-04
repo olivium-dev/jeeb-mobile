@@ -339,6 +339,43 @@ pins the **frame treatment** — fill rung, painted surface, stroke, radius — 
 Pinning the pill would have failed on day one. The "visually identical" doc claim should be read as
 "identical framing", and if the owner means it more strictly that is a separate product call.
 
+## Wave-D review rulings (2026-08-04) — M2 COMPLETE at 24/24
+
+**The glow-alpha survey is now unavoidable — five independent data points, all disagreeing with
+the two-value split.** Board-declared glow alphas: R4 .26 · R9 .24 · R17 .24 · **R22 .20** · plus
+the pixel fits 0.246/0.249/0.259. The kit ships `content` .22 / `hero` .28. R22 also declares a
+**480×380** ellipse (rx factor 1.091), which sits **below** the 500–560 cluster the ratified 1.18
+was derived from, and a **58%** fade against the shipped .60 — the third tile to measure 58%.
+Ruling stands: **do not patch per screen.** M6 surveys all 30 tiles, then one ruling covers radius,
+alpha and fade together. Recorded here so the evidence is not re-gathered.
+
+**R6/R7 are a mirrored pair, and that is now measured, not inferred.** R6's field bloom is ORANGE
+at the top END (ΔB negative — blue falls, the orange signature); R7's is PERIWINKLE at the top
+START (channel-equal deltas), and a least-squares fit finds **no orange radial in R7's field at
+all**. Independent confirmation of the wave-C wash-vs-glow ruling from a lane that had no stake in it.
+
+**Accepted as shipped:**
+- R22's notification toggles left OMDS. `OmdsSettingsSwitchRow` only forwards `activeColor` (the
+  *thumb*), so the board's orange **track** and its bloom were unreachable through it — the rows had
+  been rendering a periwinkle track. Replaced with the board's own geometry; the OMDS-derived toggle
+  id was identifier-only chrome with zero references and was deleted, not re-homed.
+- R6's hero box **deleted** — the caption is explicit ("welcome typography sits straight on the
+  glowing field (no hero box)"), so this is a removal the board asks for, not a simplification.
+- R8's injected scrubber waveform **removed**, not stilled. 03-MOTION-NOTES calls this out
+  specifically: the tile draws none there, so stilling it would have been the wrong close-out.
+- R5/W1 ship as ONE widget with two placements (the motion notes' own cheat-sheet says to).
+- KYC's encryption/consent clause preserved verbatim under legal hold, even where the board's
+  layout would displace it.
+
+**Standing reminders re-confirmed this wave** (both were repeat offenders and both held): `jWave`
+goes on the waveform CONTAINER with static bars beneath it, never per-bar; `jHalo` goes on a ring
+SIBLING, never on the disc, which does not move.
+
+**Deferred, with the reasoning:** W2's wash shipped through `glowColor` (right anchor, right layer,
+**wrong hue**) because there is no feature-safe wash-ink lever — Q-034, kit. R6 ships ringless
+because `showRings` would draw R1's hero pair *including an orange 15% inner arc R6 does not draw*
+— Q-038; that restraint is correct, an unbudgeted orange would have been the worse error.
+
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
 | Screen | Ruling | Key evidence |
