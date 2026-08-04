@@ -711,61 +711,91 @@ Seeded from doc-13 §4 — these survive into Midnight:
 
 ---
 
-## 10. Resume prompt (MODEL-AGNOSTIC — paste into a NEW session on ANY capable model)
+## 10. Resume prompt (MODEL-AGNOSTIC — paste into a NEW session on ANY capable model, on ANY machine)
+
+**Updated 2026-08-04. M0–M6 are COMPLETE. What remains is M7, which needs physical devices.**
 
 ```
-Continue the Jeeb MIDNIGHT redesign — pass 2. The Rich UI board is the ratified spec for
-EVERY screen and EVERY empty/loading/error state. You are the ORCHESTRATOR: you make the
-critical calls (tokens, kit API, navigation, deletions, accept/reject, ambiguity rulings)
-and you delegate ALL implementation to parallel subagents. This role was previously run on
-Fable; whatever model you are, the same discipline applies verbatim.
+Resume the Jeeb MIDNIGHT redesign. Repo: olivium-dev/jeeb-mobile, branch
+feat/redesign-midnight (also fast-forwarded to feat/redesign, tag
+midnight-redesign-2026-08-04).
 
-Read IN ORDER, before anything else (all under
-/Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile/docs/redesign-midnight/):
-1. 00-MASTER-PLAN.md — contract, checklist §6 (live state: M0+M1 done, M2-01..06 done),
-   loop §7, gates, §8 owner questions, §9 log.
-2. 01-TOKEN-SHEET.md — every measured value; do NOT re-measure or invent.
-3. 02-STUDY-NOTES.md — ALL standing rulings (theme, motion, ORPHAN delete/keep, M1 review,
-   wave-A review). Rulings there BIND implementers; do not re-litigate.
-4. 03-MOTION-NOTES.md — board-measured motion per element; supersedes §2.6's example
-   column. 20 of 30 tiles are STATIC: never add motion the notes don't list.
+READ FIRST, IN ORDER, under docs/redesign-midnight/:
+  00-MASTER-PLAN.md  — contract, §6 checklist (live state), §8 owner questions, §9 log
+  01-TOKEN-SHEET.md  — every measured value; do NOT re-measure or invent
+  02-STUDY-NOTES.md  — ALL standing rulings. These BIND you; do not re-litigate
+  03-MOTION-NOTES.md — board-measured motion per element. 20 of 30 tiles are STATIC
 
-RESUME POINT: M2 wave B. The ready-to-run workflow script is
-docs/redesign-midnight/workflows/m2-waveB-workflow.js (6 screens + the l10n-merge lane for
-docs/redesign-midnight/l10n-queue/*). Before launching it, verify the wave-A kit-fixup
-landed (git log should show a "kit fixup round 2" / wave-A rulings commit touching
-JeebCtaButton.accent, JeebWaveform live ink, JeebEmptyState medallions): if absent, re-run
-that fixup first from 02-STUDY-NOTES §"Wave-A review rulings". Run §7.1 bootstrap, launch
-the wave via the Workflow tool ({scriptPath}), then on completion: review every lane's
-report, rule on escalations, commit ONE commit per checklist row (tick in the same commit),
-push, and author wave C the same way (next rows: M2-13..18; copy m2-waveB-workflow.js as
-the template — keep the ownership rules below).
+STATE: M0–M6 complete. All 70 screens carry Midnight. Gates G-BOOT, G-M0, G-M1,
+G-M2, G-M3, G-M5, G-M6 closed. Latest measured: analyze 0 errors, full suite
+7489 pass / 61 skip / 10 fail (ZERO new — every failure predates the work),
+router 131/131, catalog captures 343/343, lottie pinned EXACTLY 3.3.1.
 
-OPERATING RULES (learned + mandated this engagement — non-negotiable):
-- ONE branch feat/redesign-midnight; never a new repo/branch; push every ~3 commits.
-- USER MANDATE: use Workflow fan-outs and parallelize maximally. Per wave: lanes own
-  DISJOINT feature dirs; exactly ONE lane may touch lib/core/router/app_router.dart and
-  exactly ONE may touch lib/l10n/*.arb — everyone else queues keys to
-  docs/redesign-midnight/l10n-queue/<item>.md with TODO(midnight): l10n-queued call sites.
-- USER MANDATE: code comments max 2 lines, only when strictly necessary — in every
-  implementer prompt.
-- Implementers: model "opus", §7.3 template (tile-PNG read + 8 observations BEFORE code,
-  selfCritique after, scoped analyze/tests, captures to docs/redesign-midnight/captures/).
-  An implementer that hits ambiguity STOPS and returns the question; you rule or queue §8.
-- Kit is RE-FROZEN (570+ tests green). Kit/theme API changes happen ONLY by your explicit
-  sanction, batched into a dedicated fixup lane, recorded in 02-STUDY-NOTES.
-- Verification bar: flutter analyze 0 errors (~30 known infos) · kit suite all-green ·
-  targeted suites per screen · non-zero diff on primary files · the 3 parked ramp-overflow
-  regressions (G-M0 row) must be FIXED by M2-13/15/16 when those rows run, not re-parked.
-- NEVER build L1/L2 (ratified deletion) · lottie EXACTLY 3.3.1 · frozen test identifiers
-  re-homed, never dropped · RTL-safe · reduce-motion respected (tests pump(duration), never
-  pumpAndSettle on looping surfaces; captures are rest-frame by design).
-- On a machine other than oudays-mbp-2: re-apply docs/redesign-2026-08/_BASELINE.md env
-  fixes FIRST (stale omds/dio = ~155 phantom failures).
-- Final validation standard is unchanged: real OTP login, real taps, 2 devices for chat,
-  physical S22 (M7) — harness captures alone never close the engagement.
+WHAT IS LEFT
+1. M7 — device validation. THE ONLY THING THAT CLOSES THIS ENGAGEMENT. Real OTP
+   login, two-sided client<->jeeber journey, chat on TWO devices, door OTP,
+   rating, final pass on the physical handset. No harness evidence substitutes.
+2. The PR to main (#219) is OPEN and BLOCKED — see "CI" below.
+3. 51 owner questions in §8. Q-031 is the only one with correctness rather than
+   cosmetic risk: walletHubGiftBadge tells users gift credit is "included" in
+   available balance. If the gateway's giftCredit is NOT already inside
+   availableBalance, that string is FALSE and must revert.
 
-Work autonomously wave by wave. At wave gates run full analyze + full suite vs the G-M0
-classification, tick the G-row, append one line to §9. When you stop: §9 line + report
-rows completed / parked / §8 questions added.
+CI — READ BEFORE TRYING TO MERGE
+CI runs `dart analyze --fatal-infos .`, so INFOS FAIL THE BUILD. The §5 baseline
+in this plan says "0 errors, no new warnings" with ~30 infos accepted; that was
+never CI's bar and cost a full debugging cycle to discover.
+CI pins Flutter 3.38.9 while pubspec declares `sdk: ">=3.10.8"`. Three distinct
+breakages follow from that skew, all PRE-EXISTING on the integration line:
+  - `isSemantics` does not exist on 3.38.9 (fixed: use containsSemantics)
+  - PredictiveBackPageTransitionsBuilder.fallbackColor does not exist (removed)
+  - Null-aware collection elements (`[?x]`, `{'k': ?v}`) CRASH 3.38.9's analyzer
+    with `Bad state: Missing a visit method for a node of type
+    NullAwareElementImpl` inside use_build_context_synchronously. 35 sites in 13
+    files, ALL pre-existing. 7 rewritten to `if (x case final T v) v`; the rest
+    remain. main has the same syntax but does not crash, because its instances
+    are not inside a BuildContext-carrying widget tree.
+The clean fix is almost certainly to raise CI's FLUTTER_VERSION to match the
+pubspec floor, NOT to keep rewriting call sites. That is an owner decision with
+repo-wide blast radius — ask before doing it.
+
+HOW TO BUILD AND RUN
+  flutter build apk --debug --flavor dev --dart-define=JEEB_DEVTOOL_ENABLED=true
+  --flavor dev is REQUIRED: a flavourless build assembles all three flavours and
+  `staging` has no matching client in android/app/google-services.json.
+  The Dev Tool is a SECOND launcher icon ("Jeeber Dev Tool"), gated by BOTH the
+  dart-define above and the DevToolLauncher activity-alias. Without the
+  dart-define it is compiled out and tapping the icon opens the product app.
+  Accounts: use Super Login (mints a token from userId; no OTP, no phone). See
+  docs/redesign-midnight/smoke/DEVTOOL-AND-ACCOUNTS.md. Roster trap: the flat
+  `role` field under-reports jeebers — trust `roles[]`.
+  Gateway: http://192.168.2.39:10090 (/health/ready -> 200).
+
+ENVIRONMENT TRAPS
+  - Sibling ../omds-flutter must be on origin/main >= 6f9c166, and pubspec.lock
+    dio >= 5.11.0, or the local gate reports ~155 phantom failures.
+  - On any machine other than oudays-mbp-2, re-apply docs/redesign-2026-08/
+    _BASELINE.md env fixes FIRST.
+  - Build/dev work belongs on the Mac Studio, not a MacBook root disk (it fills
+    and freezes the shell for every agent).
+
+WORKING RULES (learned the hard way — all of these cost real time)
+  - Comments: max 2 lines, only when strictly necessary.
+  - Use Workflow fan-outs; lanes own DISJOINT dirs. Exactly ONE lane may touch
+    app_router.dart and exactly ONE lib/l10n/*.arb.
+  - DERIVE the fan-out grouping from audit output. Hardcoding it left whole
+    directories uncovered twice, and shipping a ruling to 1 of 6 lanes regressed
+    a screen a third time.
+  - Goldens are EVIDENCE, NOT GATES: the comparator tolerates 5% pixel diff, so
+    a token re-point on a small element passes unchanged. Assert per-element and
+    PROVE each assertion by reverting the value and confirming red.
+  - Attribute failures by DIFFING against a known-good set (a worktree at a known
+    commit), never by reasoning about which look pre-existing. Three confident
+    attributions this engagement were wrong.
+  - Run test/core/router/ at EVERY wave close, not only at gates — it mounts
+    everything and once caught a crash two tiers late.
+  - An animation is not reduce-motion safe because the module is; only its own
+    call site checking, proved by a test, makes it safe.
+  - Never restyle production-dead code, and never delete on a stale ruling
+    without re-verifying the evidence first.
 ```
