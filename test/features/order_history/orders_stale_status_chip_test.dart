@@ -154,7 +154,7 @@ void main() {
     await _pump(tester, repo: repo, pushSignals: push.stream);
 
     expect(find.text('Pending'), findsOneWidget);
-    expect(find.text('En route'), findsNothing);
+    expect(find.text('In transit'), findsNothing);
 
     // Time passing changes nothing — there is no cadence, by design.
     await tester.pump(const Duration(minutes: 5));
@@ -166,7 +166,7 @@ void main() {
 
   testWidgets(
       'POSITIVE — regaining shell-tab focus re-reads and the chip advances '
-      'Pending -> En route', (tester) async {
+      'Pending -> In transit', (tester) async {
     final repo = _AdvancingRepo(
       [OrderRequestStatus.pending, OrderRequestStatus.enRoute],
     );
@@ -182,7 +182,7 @@ void main() {
 
     expect(repo.reads, 2);
     expect(
-      find.text('En route'),
+      find.text('In transit'),
       findsOneWidget,
       reason: 'the chip must reflect where the jeeber actually is',
     );
@@ -226,7 +226,7 @@ void main() {
     host.setVisible(true);
     await tester.pumpAndSettle();
     expect(repo.reads, 2, reason: 'N hidden pushes cost ONE read, not N');
-    expect(find.text('En route'), findsOneWidget);
+    expect(find.text('In transit'), findsOneWidget);
   });
 
   testWidgets('the refetcher adds no second read at mount', (tester) async {

@@ -10,8 +10,8 @@ import '../../support/sync_app_localizations.dart';
 const _labels = <JeeberDeliveryStatus, String>{
   JeeberDeliveryStatus.ordered: 'Ordered',
   JeeberDeliveryStatus.picked: 'Picked',
-  JeeberDeliveryStatus.inTransit: 'In Transit',
-  JeeberDeliveryStatus.atDoor: 'At Door',
+  JeeberDeliveryStatus.inTransit: 'In transit',
+  JeeberDeliveryStatus.atDoor: 'At door',
   JeeberDeliveryStatus.done: 'Done',
 };
 

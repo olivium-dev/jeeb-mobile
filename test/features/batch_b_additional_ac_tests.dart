@@ -58,12 +58,20 @@ void main() {
 
       await tester.pumpWidget(
         wrapForTest(
-          MultiBlocProvider(
-            providers: [
-              BlocProvider<OnboardingCubit>.value(value: cubit),
-              BlocProvider<LocaleCubit>.value(value: localeCubit),
-            ],
-            child: OnboardingScreen(onComplete: () => completed = true),
+          // Midnight motion loops ∞ by design, so `pumpAndSettle` can only
+          // terminate under reduce motion. Copy the ambient MediaQuery: a bare
+          // MediaQueryData is Size.zero, which collapses the docked sheet.
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: MultiBlocProvider(
+                providers: [
+                  BlocProvider<OnboardingCubit>.value(value: cubit),
+                  BlocProvider<LocaleCubit>.value(value: localeCubit),
+                ],
+                child: OnboardingScreen(onComplete: () => completed = true),
+              ),
+            ),
           ),
         ),
       );
