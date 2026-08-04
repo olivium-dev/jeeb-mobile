@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/otp_handover/presentation/widgets/handover_code_display.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_glass_card.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/otp_at_door_card.dart';
 
 import '../preview_test_harness.dart';
@@ -101,7 +102,18 @@ void main() {
       // The render harness pumps an 800 px viewport, so a preview that forgot
       await pumpPreview(tester, otpAtDoorCardNarrowPhone);
 
-      expect(tester.getSize(find.byKey(_ctaKey)).width, 320 - 24 * 2);
+      // Assert the 320 pin on the card itself. The old form pinned the CTA at
+      // `320 - 24 * 2`, which silently doubled as a card-padding assertion and
+      // went red when M2-08 restyled the card onto JeebGlassCard's 20 gutter.
+      final double cardWidth = tester
+          .getSize(find.byType(JeebGlassCard).first)
+          .width;
+      expect(cardWidth, 320);
+      expect(
+        tester.getSize(find.byKey(_ctaKey)).width,
+        lessThan(cardWidth),
+        reason: 'the CTA lives inside the card gutter',
+      );
     });
 
     testWidgets('the map backdrop contributes no text of its own', (

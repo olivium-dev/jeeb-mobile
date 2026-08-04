@@ -263,7 +263,7 @@ ClientHomeRequest _homeTabReplyRow({
 /// The default landing: a named sender with two requests out for bids.
 /// The composed shape the sub-tab previews cannot show — personalized greeting,
 @JeebPreview(group: 'shell', name: 'Pending · two requests', size: _homeTabBox)
-Widget homeTabPending() => _homeTabHosted(
+Widget homeTabPendingPreview() => _homeTabHosted(
   _HomeTabSeededRepository(
     pending: <ClientHomeRequest>[
       _homeTabPendingRow(orderId: 'ORD-23470'),
