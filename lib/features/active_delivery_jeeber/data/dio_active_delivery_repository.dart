@@ -89,6 +89,7 @@ class DioActiveDeliveryRepository implements ActiveDeliveryRepository {
           '$_v1DeliveriesPath/$deliveryId/otp',
         );
       } on DioException {
+        // OTP prefetch is opportunistic; the screen fetches it again.
       }
       final response = await _dio.post<Map<String, dynamic>>(
         '$_v1DeliveriesPath/$deliveryId/otp/verify',

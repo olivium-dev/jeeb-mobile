@@ -179,8 +179,8 @@ void main() {
           return true;
         });
       }
-      // ignore: deprecated_member_use
       // Walks the semantics tree via the test binding's pipelineOwner;
+      // ignore: deprecated_member_use
       walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
       expect(found, isTrue, reason: 'Expected semantics label starting with "$expectedPrefix" not found');
       handle.dispose();
@@ -209,8 +209,8 @@ void main() {
           return true;
         });
       }
-      // ignore: deprecated_member_use
       // Walks the semantics tree via the test binding's pipelineOwner;
+      // ignore: deprecated_member_use
       walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
       expect(found, isTrue,
           reason: 'Expected semantics label starting with "$expectedPrefix" not found');

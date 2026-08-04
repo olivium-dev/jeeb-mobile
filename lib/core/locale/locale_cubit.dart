@@ -85,6 +85,8 @@ class LocaleCubit extends Cubit<Locale> {
       emit(Locale(code));
       await _prefs.setString(_kLocalePrefKey, code);
     } on Object {
+      // Best effort: the locale already changed in memory; a failed write
+      // must not undo it.
     }
   }
 
@@ -94,6 +96,7 @@ class LocaleCubit extends Cubit<Locale> {
     try {
       await remote.save(languageCode);
     } on Object {
+      // Best effort: the remote copy is a convenience, not the source.
     }
   }
 }

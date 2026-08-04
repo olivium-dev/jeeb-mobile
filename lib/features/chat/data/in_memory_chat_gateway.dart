@@ -32,7 +32,7 @@ class InMemoryChatGateway extends ChatGateway {
   }
 
   @override
-  Future<ConversationPhase> loadPhase(String deliveryId) async =>
+  Future<ConversationPhase> loadPhase(String conversationId) async =>
       ConversationPhase.accepted;
 
   @override

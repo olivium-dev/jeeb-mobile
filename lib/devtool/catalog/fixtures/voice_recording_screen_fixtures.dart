@@ -80,8 +80,8 @@ voiceRecordingScreenCubitWithTicker({
   VoiceUploadFailure? uploadFailure,
   VoiceRecordingRepository? repository,
 }) {
-  // ignore: close_sinks
   // A dev surface's cubit/controller pair lives for the duration of that
+  // ignore: close_sinks
   final StreamController<Duration> controller =
       StreamController<Duration>.broadcast();
   return (

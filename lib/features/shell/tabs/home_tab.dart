@@ -13,7 +13,6 @@ import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/profile_refresh_signals.dart';
 import '../../customer_profile/data/dev_customer_profile_fixtures.dart';
 import '../../customer_profile/data/dio_customer_profile_repository.dart';
-import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../customer_profile/domain/customer_profile_repository.dart';
 import '../../home_client/application/client_home_cubit.dart';
 import '../../home_client/application/client_home_state.dart';

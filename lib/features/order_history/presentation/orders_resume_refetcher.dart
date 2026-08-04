@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
-import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../shell/tab_visibility.dart';
 import '../application/order_history_cubit.dart';
 

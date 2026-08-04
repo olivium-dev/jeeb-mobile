@@ -269,6 +269,7 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       }
       _syncGpsUpload();
     } on ActiveDeliveryException {
+      // GPS sync is best effort and must not fail the state transition.
     }
   }
 

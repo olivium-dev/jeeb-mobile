@@ -69,6 +69,7 @@ class SettingsCubit extends Cubit<SettingsState> {
       await repo.submitDisplayName(name);
       _refreshSignals?.signalProfileChanged();
     } on Object {
+      // Pre-existing contract: the caller re-reads state to see the result.
     }
   }
 

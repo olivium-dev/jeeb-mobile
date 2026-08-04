@@ -65,8 +65,8 @@ class _CountingChatGateway implements ChatGateway {
   Completer<void>? gate;
   bool failHistory = false;
 
-  // ignore: close_sinks
   // Broadcast controller for the (unused) inbound event stream. Never closed
+  // ignore: close_sinks
   final StreamController<ChatEvent> _events =
       StreamController<ChatEvent>.broadcast();
 

@@ -69,7 +69,7 @@ abstract class SuperLoginDemoUserService {
   Future<List<SuperLoginDemoUser>> fetchDemoUsers();
 }
 
-/// Dio-backed implementation using shared client (sl<Dio>()).
+/// Dio-backed implementation using shared client (sl`<Dio>`()).
 class DefaultSuperLoginDemoUserService implements SuperLoginDemoUserService {
   DefaultSuperLoginDemoUserService({required Dio dio}) : _dio = dio;
 

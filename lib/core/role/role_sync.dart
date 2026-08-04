@@ -50,6 +50,7 @@ class RoleSync {
 
       await _roleCubit.setRole(role);
     } on CustomerProfileRepositoryException {
+      // Profile unavailable: leave the role as-is rather than guessing.
     } catch (_) {
     } finally {
       _inFlight = false;

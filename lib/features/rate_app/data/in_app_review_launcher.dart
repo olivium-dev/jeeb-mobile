@@ -15,6 +15,7 @@ class InAppReviewLauncher implements AppReviewLauncher {
         await review.requestReview();
       }
     } on Object {
+      // Store review is fire-and-forget; never surface a failure.
     }
   }
 }

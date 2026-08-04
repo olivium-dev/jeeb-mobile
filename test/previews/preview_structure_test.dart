@@ -4,8 +4,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-// ignore: avoid_relative_lib_imports — `tool/` is not a package; this relative
 // import is what keeps the detector single-sourced with the CLI.
+// ignore: avoid_relative_lib_imports — `tool/` is not a package; this relative
 import '../../tool/preview_inventory.dart';
 
 /// Maximum number of uncovered widgets allowed. Lower it as previews land —

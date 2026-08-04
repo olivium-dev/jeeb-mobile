@@ -20,8 +20,8 @@ class DeferredRefreshGate implements PollingVisibility {
 
   final String debugLabel;
 
-  // ignore: cancel_subscriptions
   // Cancelled in [dispose]. The analyzer's `cancel_subscriptions` rule cannot
+  // ignore: cancel_subscriptions
   StreamSubscription<void>? _subscription;
   bool _visible;
   bool _pending = false;

@@ -31,6 +31,7 @@ class LocationPickerCubit extends Cubit<LocationPickerState> {
         draftSelection: saved.dropoff,
       ));
     } on Object {
+      // No saved location, or it failed to decode: start empty.
     }
   }
 

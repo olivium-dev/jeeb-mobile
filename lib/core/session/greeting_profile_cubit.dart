@@ -45,6 +45,7 @@ class GreetingProfileCubit extends Cubit<GreetingProfileState> {
       final profile = await repo.fetchProfile();
       _emitFrom(profile);
     } on CustomerProfileRepositoryException {
+      // Greeting is decorative; keep whatever was already emitted.
 
     } catch (_) {
 
