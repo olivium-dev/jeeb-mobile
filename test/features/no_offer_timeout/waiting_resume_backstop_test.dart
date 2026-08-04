@@ -105,15 +105,22 @@ class _ScriptedWaitingRepository implements WaitingRepository {
 /// wall-clock timer leaks into the headless binding. The resume path under test
 /// is production code — nothing about it is stubbed.
 Widget _screen(_ScriptedWaitingRepository repository) => wrapForTest(
-  NoOfferTimeoutScreen(
-    requestId: _requestId,
-    repository: repository,
-    cubitFactory: (repo, requestId) => WaitingCubit(
-      repository: repo,
-      requestId: requestId,
-      now: () => _fixedNow,
-      refreshSignals: const Stream<void>.empty(),
-      clockTicks: const Stream<void>.empty(),
+  // MIDNIGHT: the E2 radar loops ∞ by design (03-MOTION-NOTES), so the
+  // `pumpAndSettle` below only terminates under reduce motion.
+  Builder(
+    builder: (context) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: NoOfferTimeoutScreen(
+        requestId: _requestId,
+        repository: repository,
+        cubitFactory: (repo, requestId) => WaitingCubit(
+          repository: repo,
+          requestId: requestId,
+          now: () => _fixedNow,
+          refreshSignals: const Stream<void>.empty(),
+          clockTicks: const Stream<void>.empty(),
+        ),
+      ),
     ),
   ),
 );
@@ -153,7 +160,7 @@ Future<void> _pumpLoaded(
   await tester.pumpWidget(_screen(repository));
   await tester.pumpAndSettle();
   expect(
-    find.text('Finding Jeebers'),
+    find.bySemanticsIdentifier('waiting_notified_count'),
     findsOneWidget,
     reason: 'the broadcast state must be on screen before it can go stale',
   );
@@ -232,7 +239,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.text('Finding Jeebers'),
+          find.bySemanticsIdentifier('waiting_notified_count'),
           findsNothing,
           reason: 'the stale broadcast state is GONE, not merely supplemented',
         );
