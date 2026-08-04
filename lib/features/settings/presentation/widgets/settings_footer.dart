@@ -45,7 +45,7 @@ class SettingsFooter extends StatelessWidget {
     );
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final muted = Theme.of(context).extension<JeebSemanticColors>()!.mutedText;
+    final muted = (Theme.of(context).extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight()).mutedText;
     final captionStyle = context.jeebText.caption.copyWith(color: muted);
 
     return Semantics(

@@ -32,7 +32,7 @@ class SettingsBecomeJeeberCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final roles = context.jeebRoles;
-    final semantics = Theme.of(context).extension<JeebSemanticColors>()!;
+    final semantics = (Theme.of(context).extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight());
 
     return _FrameGlow(
       radius: JeebRadii.lg,

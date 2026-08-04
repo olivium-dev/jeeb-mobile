@@ -169,8 +169,7 @@ class _LoadingView extends StatelessWidget {
         status: JeebEmptyStateStatus.loading,
         medallions: const <JeebEmptyMedallion>[],
         identifier: NotificationPrefsScreen.loadingIdentifier,
-        // TODO(midnight): l10n-queued — notificationPrefsLoadingHeadline.
-        headline: l10n.notificationsLoadingHeadline,
+        headline: l10n.notificationPrefsLoadingHeadline,
       ),
     );
   }
@@ -192,8 +191,7 @@ class _ErrorView extends StatelessWidget {
         status: JeebEmptyStateStatus.error,
         medallions: const <JeebEmptyMedallion>[],
         identifier: NotificationPrefsScreen.loadErrorIdentifier,
-        // TODO(midnight): l10n-queued — notificationPrefsErrorTitle.
-        headline: l10n.notificationsErrorTitle,
+        headline: l10n.notificationPrefsErrorTitle,
         body: l10n.notificationPrefsLoadError,
         action: JeebCtaButton.outline(
           label: l10n.notificationPrefsRetry,
@@ -346,7 +344,7 @@ class _TransactionalLockedRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final muted = Theme.of(context).extension<JeebSemanticColors>()!.mutedText;
+    final muted = (Theme.of(context).extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight()).mutedText;
 
     return Semantics(
       // JM-058 AC2: the locked-transactional indicator. The flow asserts

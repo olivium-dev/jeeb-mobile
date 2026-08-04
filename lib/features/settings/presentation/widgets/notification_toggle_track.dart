@@ -31,7 +31,7 @@ class NotificationToggleTrack extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final roles = context.jeebRoles;
-    final semantics = Theme.of(context).extension<JeebSemanticColors>()!;
+    final semantics = (Theme.of(context).extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight());
 
     return SizedBox(
       width: trackWidth,

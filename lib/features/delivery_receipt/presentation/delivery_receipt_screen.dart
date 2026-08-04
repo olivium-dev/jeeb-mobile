@@ -492,7 +492,7 @@ class _CashStatement extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final mutedText =
-        Theme.of(context).extension<JeebSemanticColors>()!.mutedText;
+        (Theme.of(context).extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight()).mutedText;
     final roles = context.jeebRoles;
 
     // Cash is the gross order amount paid in person; the Jeeber name degrades

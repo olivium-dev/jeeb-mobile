@@ -42,7 +42,7 @@ class SettingsIdentityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
-    final muted = Theme.of(context).extension<JeebSemanticColors>()!.mutedText;
+    final muted = (Theme.of(context).extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight()).mutedText;
     final displayName = state.profile.name ?? l10n.profileNamePlaceholder;
 
     return JeebNavySurfaceCard(
