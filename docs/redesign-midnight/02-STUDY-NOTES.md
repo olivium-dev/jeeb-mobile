@@ -376,6 +376,36 @@ SIBLING, never on the disc, which does not move.
 because `showRings` would draw R1's hero pair *including an orange 15% inner arc R6 does not draw*
 — Q-038; that restraint is correct, an unbudgeted orange would have been the worse error.
 
+## M3 Tier-1 rulings (2026-08-04) — the tile-less method works
+
+**The derivation discipline held.** Every lane named a nearest tile, justified it, and traced its
+decisions to a token-sheet value or a standing ruling. Two lanes reached a decision they could not
+trace and returned the question instead of inventing — which is exactly the behaviour the M3 brief
+asked for and the reason M3 rows are safe to run without tiles.
+
+**A live orange-budget defect found on an M3 row.** `delivery_detail_screen`'s rating-summary star
+was inked `colorScheme.primary` under a code comment reading *"Navy, not warm"* — true in pass 1,
+false under Midnight, where `primary` **IS** `#D73B00`. A read-only summary was spending the orange
+budget. This is the same class already fixed on R16's headline, R3's courier card and the jeeber
+feed's search glyph: **any pass-1 comment asserting `primary` is a cool colour is now a lie, and
+`colorScheme.primary` on a non-CTA is a defect signature worth grepping for at M6.**
+
+**Counterpart-name carry-in CLOSED, with a role gate the brief did not anticipate.**
+`OrderChatSummary.jeeberName` is real wire data, but it names the *counterpart* only for a CLIENT
+viewer — for a jeeber viewer it names the viewer themselves. The lane gated on viewer role, passed
+null on the jeeber leg (no customer-name field exists on that wire) and filtered synthetic
+`jeeb-<hash>` handles through `displayNameOrNull` rather than rendering them. Nothing fabricated.
+`app_router.dart` needed no edit — the helper's signature was already right.
+
+**Standing rulings re-confirmed:** M3 screens ship with no motion beyond what kit widgets bring;
+`animateDecor: false` unless a reason is named. Glow (orange) and wash (periwinkle) stay distinct
+layers — R21's derived screen correctly took wash `topStart` + glow `topEnd`, not one anchor for both.
+
+**Deliberate non-fixes, all correctly reasoned rather than papered over:** the cancellation picked
+row does not ignite (no danger `accentSelected` rung exists — Q-041); glow alpha runs ~.02 low on
+derived screens (wave-D ruling: **do not patch per screen**, M6 surveys all 30 tiles); a screen with
+one content group leaves the lower half empty because no wire data exists for a second band.
+
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
 | Screen | Ruling | Key evidence |

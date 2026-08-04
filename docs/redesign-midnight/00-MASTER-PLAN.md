@@ -549,6 +549,9 @@ Seeded from doc-13 §4 — these survive into Midnight:
 39. [Q-039] (M2-22, kit) `JeebInfoNote` hard-wires its body ink to `surface.mutedInk` and exposes only `iconColor`; R6's trust footer is the **second** consumer wanting `inkSoft`. Cheapest fix is a `textInk` override — deliberately NOT a `JeebSurfaceTone.navy` wrapper, which is the shortcut that produced past drift.
 40. [Q-040] (M2-21) `assets/illustrations/onboarding_trusted_jeebers.svg` and `onboarding_live_tracking.svg` now have zero importers. Left in place (asset deletion is out of row scope) — delete in the M5/M6 sweep?
 
+41. [Q-041] (M3-04, kit — **safety-shaped, not cosmetic**) **The destructive CTA has no destructive ink.** `JeebCtaButton._ink` hard-overwrites any `labelStyle` colour and the kit has no glass-pill + `onErrorContainer` rung, so a cancellation screen's terminal destructive act renders in plain `onSurface` — quieter than every affirmative CTA in the app. The lane refused both workarounds on principle: re-implementing `accentSelected` locally in a different hue is the Theme-swap class wave-A deleted, and a danger `selectedShadow` contradicts the wave-A "glow only where a tile draws it" ruling. **Recommend sanctioning a `JeebCtaButton.danger` rung** in the next kit lane. Until then a destructive action reads like a neutral one.
+42. [Q-042] (M3-01) Terminal order buckets render no identity band, so a delivered order's courier name and amount are on the fixture but not on screen. Extending the band there forces a product call — either duplicate the state ("Delivered" banner + "Delivered" band) or delete the banner body copy the frozen ids carry. Restructuring, not styling; not done.
+
 *(Append new questions here as `[Q-###]` with the checklist item that raised them.)*
 
 ---
