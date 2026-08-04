@@ -214,8 +214,8 @@ class _ClientOffersView extends StatelessWidget {
     switch (state.status) {
       case OffersScreenStatus.initial:
       case OffersScreenStatus.loading:
-        // The waiting block's own skeleton, so loading → waiting does not
-        // swap one illustration for another.
+        // The waiting block's own skeleton, so loading → waiting stays one
+        // block. The kit draws E1's skeleton for every variant.
         return const _CenteredBlock(
           child: OffersWaitingState(
             blockKey: Key('offer-loading-state'),

@@ -509,7 +509,8 @@ Seeded from doc-13 §4 — these survive into Midnight:
 14. [Q-014] (l10n merge) **R2 copy contradicts behaviour.** The tile draws "Recording — release to send", but the phase machine is `recording→recorded→playing→sending→sent`: release lands in a local review with playback and an explicit send. Shipped as "release to stop" (prior ruling C-05.1 upheld — we do not ship copy that over-promises). Designer/product: is the board asking for a *send-on-release* flow (a product change), or is the tile literal just loose?
 15. [Q-015] (M2-12) E3 ships on the `balcony` illustration until the sanctioned `street` variant lands in the fixup lane. Confirm the night-street scene (parked scooter, amber streetlamp, listening arcs) is the intended E3 subject.
 16. [Q-016] (M2-11) **Counterpart-name plumbing is only half-closable.** `mutualRatingLocation()` now exists; `chat_detail_screen` (name available → assigned to M2-16) and `delivery_detail_screen` (→ M3-01) are one-line swaps. But `otp_handover_screen.dart:271` has **no name in scope** — `_DoneBody` receives only `deliveryId` + `isClient`, so closing it needs a repo/state change, not plumbing. Approve that state change, or accept the nameless leg there permanently?
-17. [Q-017] (l10n merge) **Live defect, pre-existing:** `pickOnMap()` always resolves null because `CaptureLocationScreen._onPin` pops without a value — so "Edit pin" on the address-detail form silently discards the chosen coordinate. Fixed in the fixup lane; flagging because it shipped broken long before Midnight and may have a matching field report.
+17. [Q-017] ~~(l10n merge) Live defect, pre-existing: `pickOnMap()` resolves null because `_onPin` pops without a value.~~ **WITHDRAWN — misdiagnosed by me, refuted by the fixup lane and verified.** Neither live call site reaches that branch. Superseded by Q-021.
+21. [Q-021] (wave-B fixup) **Live risk, open — a Confirm tap can silently discard the user's pin.** M2-05's ratified JEBV4-176 camera-liveness gate makes both capture-location call sites pop `cameraLive ? centre : null`, and `cameraLive` only becomes true on the first `onCameraIdle`. On a real device a Confirm landing before that first idle returns null, so `address_detail_form_screen.dart:219` ("Edit pin") discards the chosen coordinate with no feedback. Two candidate fixes: disable the CTA until the first settle (needs a liveness signal plumbed into the screen), or treat "the user moved the camera" as the liveness proof instead of "the camera idled". Recommend the latter. **Also worth confirming whether the gate was ever meant to apply to the launcher path at all** — the B-35 test that motivated it only exercises the router path.
 18. [Q-018] (M2-07) E2's "Add details to attract offers" CTA has no destination anywhere in the app. Shipped unmounted. Does product want an edit-request flow, or should the slot stay empty?
 19. [Q-019] (M2-07) R10's third offer card is drawn dimmed with no action row; §7.2-C4 says every offer stays acceptable. Shipped un-dimmed. Frame amendment, or rule change?
 20. [Q-020] (M2-12) R16's ★ rating pill and the shell's header actions want the same corner. Which owns it?
@@ -550,6 +551,20 @@ Seeded from doc-13 §4 — these survive into Midnight:
   the E1 empty state loops ∞ by design and `pumpAndSettle` cannot settle), and `pickOnMap()` has
   long discarded the pinned coordinate. Both go to the fixup lane, not the parking lot.
   New owner questions Q-014..Q-020.
+- 2026-08-04 · **Wave-B FIXUP complete** (7 agents / 0 errors / ~45 min, 2 phases). All 7 sanctioned
+  kit/theme changes landed and the kit re-froze at **757/757**; `test/core/router/` went
+  **95/38 → 133/133**; R3's stepper duplicate was deleted and came back byte-identical in the
+  captures. Full re-baseline of every Midnight capture (the glow correction moved all of them):
+  **294/296**, and the 2 reds are exactly the known pre-existing pair — the live-tracking ×2 that
+  used to fail are now cured. Two corrections to my own rulings, both from lanes pushing back with
+  evidence: (a) **my capture-location diagnosis was wrong** — the null comes from M2-05's ratified
+  camera-liveness gate, not the valueless pop, which makes it a *wave-A regression* rather than a
+  pre-existing defect, and the real live risk is now Q-021; (b) the periwinkle wash has **no single
+  ratifiable factor** (board draws rx 460–900 with no cluster), so `bottomEnd` keeps 1.0 and
+  adopters measure their own tile. Also learned: the old glow factor had **no test holding it** —
+  28 field tests were all relational, so a wrong constant was invisible; the replacement test was
+  proved discriminating before being accepted. Deferred: E2's loading skeleton is still E1-shaped
+  (M4 owns loading states); kit E3 colour deviations (M6).
 
 ---
 

@@ -4,8 +4,6 @@ import 'package:omds/omds.dart';
 import '../../../../core/formatting/countdown_format.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_radii.dart';
-import '../../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
@@ -15,10 +13,10 @@ import 'offer_window_timer.dart';
 /// E2 · "Empty ≠ dead" — the waiting-for-offers surface of the offer-review
 /// list, and the same block in its loading and load-failed forms.
 ///
-/// The tile draws a live radar: the request broadcasting at the centre of the
-/// ring set while Jeeber discs fade in and out of range. It is composed from
-/// [JeebEmptyState] — the sanctioned empty family — with the broadcast disc in
-/// the `center` slot and person medallions on the ring anchors.
+/// [JeebEmptyStateVariant.radar] is the tile: three orange rings pulsing
+/// inward, the request broadcasting from the still core, and three jeeber discs
+/// fading in and out of range on the kit's brightness ladder. The failure form
+/// swaps that core for a no-signal disc; the kit danger-tints the rest itself.
 class OffersWaitingState extends StatelessWidget {
   const OffersWaitingState({
     super.key,
@@ -59,14 +57,18 @@ class OffersWaitingState extends StatelessWidget {
     return JeebEmptyState(
       key: blockKey,
       identifier: 'offer_review_empty_state',
+      variant: JeebEmptyStateVariant.radar,
       status: status,
       // TODO(midnight): l10n-queued — the board headlines the live reach
       // ("Broadcasting to 12 Jeebers…"); no reach count is on the wire, so the
       // count is omitted, not faked.
       headline: override ?? l10n.offersEmptyTitle,
       body: override == null ? l10n.offersEmptyBody : body,
-      center: _BroadcastDisc(status: status),
-      medallions: _kJeeberMedallions,
+      // Waiting keeps the kit's own broadcast core (bloom ring + `(·)` glyph);
+      // only the failure form overrides it. Discs default to the tile's K/N/R.
+      center: status == JeebEmptyStateStatus.error
+          ? const _BroadcastLostDisc()
+          : null,
       action:
           action ??
           (remaining == null ? null : _WindowChip(remaining: remaining)),
@@ -76,59 +78,31 @@ class OffersWaitingState extends StatelessWidget {
   }
 }
 
-/// The three Jeeber discs the tile fades in and out of range. They are people,
-/// not subjects: no name is known while the request is still broadcasting, so a
-/// person glyph stands in rather than a fabricated initial.
-const List<JeebEmptyMedallion> _kJeeberMedallions = <JeebEmptyMedallion>[
-  JeebEmptyMedallion(icon: Icons.person),
-  JeebEmptyMedallion(icon: Icons.person),
-  JeebEmptyMedallion(icon: Icons.person),
-];
+/// Glyph inside the failure core, sized off the radar's Ø58 core slot.
+const double _kLostGlyph = 28;
 
-/// Diameter of the broadcast disc inside the illustration's 94dp centre slot.
-const double _kBroadcastDisc = 66;
-
-/// Glyph inside it.
-const double _kBroadcastGlyph = 34;
-
-/// The request itself, broadcasting — the orange disc at the centre of the
-/// radar (the tile's `(·)` mark over the accent gradient and its bloom).
-class _BroadcastDisc extends StatelessWidget {
-  const _BroadcastDisc({required this.status});
-
-  final JeebEmptyStateStatus status;
+/// The failure form's centre: the request is no longer reaching anyone, so the
+/// core goes danger and drops the bloom the live broadcast earns.
+class _BroadcastLostDisc extends StatelessWidget {
+  const _BroadcastLostDisc();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final roles = context.jeebRoles;
-    final semantics =
-        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
-    // The kit danger-tints the layers it paints; the centre is ours, so it has
-    // to follow or the failure reads as a live broadcast.
-    final bool danger = status == JeebEmptyStateStatus.error;
-    final Color top = danger
-        ? theme.colorScheme.onErrorContainer
-        : semantics.orangeBright;
-    final Color bottom = danger ? theme.colorScheme.error : roles.accent;
-    return Center(
-      child: SizedBox.square(
-        dimension: _kBroadcastDisc,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[top, bottom],
-            ),
-            boxShadow: danger ? null : JeebShadows.glowRest,
-          ),
-          child: Icon(
-            danger ? Icons.cloud_off_outlined : Icons.wifi_tethering,
-            size: _kBroadcastGlyph,
-            color: danger ? theme.colorScheme.onError : roles.onAccent,
-          ),
+    final scheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[scheme.onErrorContainer, scheme.error],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.cloud_off_outlined,
+          size: _kLostGlyph,
+          color: scheme.onError,
         ),
       ),
     );

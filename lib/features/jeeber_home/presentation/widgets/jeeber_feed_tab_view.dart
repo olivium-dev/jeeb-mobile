@@ -406,7 +406,7 @@ class _OfflineEmptyBody extends StatelessWidget {
             child: Center(
               child: JeebEmptyState(
                 identifier: 'jeeber_feed_offline_empty_state',
-                variant: JeebEmptyStateVariant.balcony,
+                variant: JeebEmptyStateVariant.street,
                 headline: l10n.jeeberFeedOfflineBannerTitle,
                 body: l10n.jeeberFeedOfflineBannerSubtitle,
               ),

@@ -358,6 +358,11 @@ void main() {
   testWidgets('ClientOffersScreen — failed load shows retry CTA', (
     tester,
   ) async {
+    // Centring is only claimable where the block FITS: E2's square radar does
+    // not on the 800x600 default, so this one measures the board's canvas.
+    tester.view.physicalSize = const Size(440, 956);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     final repo = ScriptedOffersRepository(
       snapshots: [_snapshot(const [])],
       fetchFailure: OffersFailure.network,

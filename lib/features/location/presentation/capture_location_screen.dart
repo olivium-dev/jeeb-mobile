@@ -29,7 +29,8 @@ class CaptureLocationScreen extends StatelessWidget {
     this.showCentrePin = true,
   });
 
-  /// Invoked when the user confirms the pinned point. Defaults to a back-pop.
+  /// Invoked when the user confirms the pinned point. When null the screen pops
+  /// the route with [controller]'s centre as the result.
   final VoidCallback? onPinned;
 
   /// Builds the map viewport. When null a neutral [CaptureMapViewport]
@@ -95,9 +96,11 @@ class CaptureLocationScreen extends StatelessWidget {
     final handler = onPinned;
     if (handler != null) {
       handler();
-    } else {
-      Navigator.of(context).maybePop();
+      return;
     }
+    // With no callback the pinned point IS the route result; a null controller
+    // means nothing was pinned, so nothing is handed back (JEBV4-176).
+    Navigator.of(context).maybePop(controller?.center);
   }
 }
 

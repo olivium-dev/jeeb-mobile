@@ -112,10 +112,6 @@ class JeeberFeedEmptyPanel extends StatelessWidget {
 
 /// E3's "Empty ≠ dead" block, shared by every no-requests surface on this
 /// screen so the jeeber never meets two different empties for one condition.
-///
-/// The drawn scene is the kit's nearest composed illustration; E3's own
-/// night-street art (scooter under a streetlamp, listening delivery box) is not
-/// a `JeebEmptyStateVariant` and adding one is a kit API change (see §open).
 class JeeberFeedEmptyBlock extends StatelessWidget {
   const JeeberFeedEmptyBlock({super.key, this.onRefresh});
 
@@ -129,7 +125,7 @@ class JeeberFeedEmptyBlock extends StatelessWidget {
     return JeebEmptyState(
       key: rootKey,
       identifier: 'jeeber_feed_empty_state',
-      variant: JeebEmptyStateVariant.balcony,
+      variant: JeebEmptyStateVariant.street,
       // TODO(midnight): l10n-queued jeeberFeedQuietStreetTitle / ...Body — the
       // tile reads "Quiet street right now" / "No requests nearby — …".
       headline: l10n.requestFeedEmptyTitle,

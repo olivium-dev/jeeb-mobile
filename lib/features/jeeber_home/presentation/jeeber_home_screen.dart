@@ -457,7 +457,7 @@ class _LoadingView extends StatelessWidget {
     return Center(
       child: JeebEmptyState(
         status: JeebEmptyStateStatus.loading,
-        variant: JeebEmptyStateVariant.balcony,
+        variant: JeebEmptyStateVariant.street,
         headline: AppLocalizations.of(context).requestFeedEmptyTitle,
       ),
     );
@@ -477,7 +477,7 @@ class _LoadErrorView extends StatelessWidget {
     return Center(
       child: JeebEmptyState(
         status: JeebEmptyStateStatus.error,
-        variant: JeebEmptyStateVariant.balcony,
+        variant: JeebEmptyStateVariant.street,
         headline: l10n.availabilityLoadError,
         action: Semantics(
           identifier: 'jeeber_home_load_error_retry_cta',

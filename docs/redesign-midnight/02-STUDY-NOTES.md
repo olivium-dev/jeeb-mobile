@@ -155,11 +155,60 @@ This is a **test-harness gap, not a spec violation** — R1's field decor is cor
 wave gates and wave A was not a gate. **Lesson: run the router/shell suites at every wave close,
 not only at gates.**
 
-**Live defect found, pre-existing:** `CaptureLocationScreen._onPin` calls `Navigator.maybePop()`
-with **no value**, so `GoogleMapPickerLauncher.pickOnMap()` always resolves null. Live consumer is
-`address_detail_form_screen.dart:219` ("Edit pin"), which therefore silently discards the pinned
-coordinate. Byte-identical before M2-05 (`git show ca57dda2^`), so it predates Midnight. Fixed in
-the wave-B fixup lane rather than parked — we had just shipped R11 as done.
+**Live defect — CORRECTED 2026-08-04, my first diagnosis was WRONG.** I originally recorded this
+as "`CaptureLocationScreen._onPin` pops with no value, so `pickOnMap()` resolves null, and it
+predates Midnight." The fixup lane refuted it and I verified the refutation directly:
+**neither live call site ever reaches that branch** — `google_map_picker_launcher.dart:47` and
+`app_router.dart:182` both pass `onPinned` and both pop `cameraLive ? controller.center : null`.
+The real cause of the null is **M2-05's JEBV4-176 camera-liveness gate** (`onCameraSettled` /
+`cameraLive` did not exist before M2-05), which is *ratified wave-A behaviour*, not a defect —
+and the two launcher tests were GREEN before M2-05, so this is a **wave-A regression**, not a
+pre-existing one. Disposition: the stale launcher tests were realigned to the ratified contract
+(their non-contradictory coverage kept), and `_onPin`'s valueless branch was still fixed to pop
+`controller?.center` as defensive correctness with a new regression guard.
+**The genuine risk survives and is NOT closed** (§8 Q-021): on a real device a Confirm tap landing
+before the first `onCameraIdle` silently returns null, so "Edit pin" discards the user's choice.
+Note the verify set as I briefed it was internally contradictory — `pin_location_coordinate_
+survives_b35_test.dart` asserts the confirm pops WITHOUT a coordinate, which is the same condition.
+**Lesson: a diagnosis handed to an implementer is a hypothesis, not a finding — say so, and let the
+lane refute it.**
+
+## Wave-B FIXUP outcomes (2026-08-04) — all 7 sanctioned changes landed
+
+Kit re-frozen again at **757/757** (kit+theme) and **613** in `test/core/widgets/jeeb` alone.
+- Added: `JeebEmptyStateVariant.radar` / `.street`, `JeebEmptyMedallion.letter()`,
+  `JeebEmptyState.radarMedallions` / `medallionsFor()`, `JeebAvatarFill.glass`,
+  `JeebStepperDoneInk{periwinkle,accent}` + `JeebStepper.bars(doneInk:)` (default = today's
+  behaviour, so no existing caller moved). `JeebCodeCells` display border → `glassBorderVivid`.
+- **`_glowRadiusFactor` 1.35 → 1.18.** Finding worth keeping: **no test held the old value** —
+  all 28 field tests were relational or pinned points already outside the fade stop, so the wrong
+  factor was invisible to the suite. A discriminating test was added and *proved* discriminating
+  (reverting the const fails it at 115.36 vs 103.09 expected).
+- `test/core/router/` **95/38 → 133/133**. Two edits were needed, not one: the reduce-motion
+  wrapper, and then draining a 150ms fake-latency timer in `InMemoryClientHomeRepository` that the
+  timeout had been *masking*. **Anyone applying the wrapper elsewhere must pair the two.**
+- R3's stepper duplicate deleted; the two stepper-bearing captures came back **byte-identical**,
+  which is the strongest available proof the kit widget reproduces the deleted painter exactly.
+
+**Ruling — the periwinkle wash is per-tile, not a constant.** The fixup lane asked whether
+`bottomEnd`'s `radiusFactor: 1.0` is the same class of error as the glow's 1.35. It is not
+resolvable the same way: the board draws the wash at rx **460 / 480 / 500 / 520 / 600 / 700 / 900**
+across tiles (factors 1.05–2.05), with no cluster, whereas the orange glow sits tightly at 500–560.
+So there is no single ratifiable wash factor. `startMid` is pixel-measured on R1 and stands;
+`bottomEnd` keeps 1.0; **any screen adopting a wash placement measures its own tile and passes an
+override.** Also confirmed: the trailing `1.35` in the `startMid(...)` tuple is the *aspect*, not a
+radius — correctly left alone.
+
+**Accepted from the adoption lanes:** E2 pins one existing test to the board canvas (440×956)
+rather than loosening a 1px centring tolerance — right call. E2's error form keeps a local
+"no signal" centre so a failed load does not bloom a live broadcast glyph. E3's lamp reads at 45%
+in stills because `JMotionLoop` pins reduce-motion at the breathe rest opacity — kit-wide
+convention, not an E3 miss.
+**Deferred to M4 (states sweep):** `JeebEmptyState._skeleton()` still paints E1's 4-disc 300×280
+shape for *every* variant, so E2 loads a 4-disc skeleton that morphs into a 3-disc radar. It is a
+kit change and M4 owns loading states.
+**Deferred to M6:** the kit's own E3 colour deviations (background glow on `#8A93D8` vs the board's
+legacy `#777FC0`; ground shadow as page-navy @ .45 vs black @ .35).
 
 ## ORPHAN rulings (M3 rows, ratified 2026-08-04 from the evidence sweep — owner confirm batched as §8 Q9)
 
