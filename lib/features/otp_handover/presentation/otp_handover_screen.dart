@@ -4,18 +4,46 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_code_cells.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/otp_handover_cubit.dart';
 import '../application/otp_handover_state.dart';
-import 'otp_handover_l10n.dart';
 import 'widgets/handover_arrival_banner.dart';
 import 'widgets/handover_code_display.dart';
+
+/// R13's own glow: `520x440 at 50% 42%, rgba(215,59,0,.26)` (`tpl 799`) — one
+/// step above the `content` variant's .22, because the code tiles sit on it.
+const double _kFieldGlowAlpha = 0.26;
+
+/// Board `margin:18px` under the header, less the bar's 4dp tap overhang.
+const double _kBannerTopGap = 18 - JeebTopBar.tapOverhang;
+
+/// Board `padding:36px` above "Say it or show it" (`tpl 805`). Measured from
+/// the banner; without one it falls under the bar and loses the overhang.
+const double _kInstructionTopGap = 36;
+const double _kInstructionTopGapNoBanner =
+    _kInstructionTopGap - JeebTopBar.tapOverhang;
+
+/// Board `margin-top:5px` under the instruction headline (`tpl 807`).
+const double _kInstructionSubtitleGap = 5;
+
+/// Board `padding:26px` above the code tiles (`tpl 808`).
+const double _kCodeTopGap = 26;
+
+/// Board `margin:22px` above the safety note (`tpl 813`).
+const double _kSafetyNoteTopGap = 22;
+
+/// Board `margin-top:14px` between the SMS sentence and the dispute pill
+/// (`tpl 819`).
+const double _kFooterStackGap = 14;
 
 /// T-MOB-018: OTP handover screen — client display + Jeeber entry.
 ///
@@ -26,11 +54,11 @@ import 'widgets/handover_code_display.dart';
 /// AC5: client code announced via Semantics liveRegion; OTP input navigable.
 /// AC6: OTP code is never logged (raw string stays in ephemeral widget state).
 ///
-/// redesign-2026-08 screen 13: the client surface is the board's "handoff
-/// moment" — orange arrival banner, four giant navy code tiles, one safety
-/// note, then real emptiness down to a docked footer (R1: one spacer, one
-/// dock). The Jeeber entry, SMS fallback and done bodies are restyled to the
-/// same grammar; the board draws the client leg only.
+/// MIDNIGHT R13: the client surface is the board's "handoff moment" — the
+/// content field's orange glow behind four backlit-glass code tiles, ONE solid
+/// orange block (the arrival banner), one glass safety note, then real
+/// emptiness down to a docked footer. The Jeeber entry, SMS fallback and done
+/// bodies follow the same grammar; the board draws the client leg only.
 class OtpHandoverScreen extends StatelessWidget {
   const OtpHandoverScreen({
     super.key,
@@ -51,29 +79,36 @@ class OtpHandoverScreen extends StatelessWidget {
       // identifiers that Maestro targets inside this screen.
       explicitChildNodes: true,
       child: Scaffold(
+        backgroundColor: Colors.transparent,
         // The board's header is an in-body row, not a Material app bar.
-        body: SafeArea(
-          child: Column(
-            children: [
-              JeebTopBar(
-                title: isClient
-                    ? l10n.otpHandoverClientTitle
-                    : l10n.otpHandoverJeeberTitle,
-                identifier: 'otp_handover_back',
-                onLeadingPressed: () => _back(context),
-              ),
-              Expanded(
-                child: BlocConsumer<OtpHandoverCubit, OtpHandoverState>(
-                  listenWhen: _shouldListen,
-                  listener: _onStateChange,
-                  builder: (context, state) => _OtpBody(
-                    state: state,
-                    isClient: isClient,
-                    deliveryId: deliveryId,
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.centerUpper,
+          glowColor:
+              context.jeebRoles.accent.withValues(alpha: _kFieldGlowAlpha),
+          child: SafeArea(
+            child: Column(
+              children: [
+                JeebTopBar.back(
+                  title: isClient
+                      ? l10n.otpHandoverClientTitle
+                      : l10n.otpHandoverJeeberTitle,
+                  identifier: 'otp_handover_back',
+                  onLeadingPressed: () => _back(context),
+                ),
+                Expanded(
+                  child: BlocConsumer<OtpHandoverCubit, OtpHandoverState>(
+                    listenWhen: _shouldListen,
+                    listener: _onStateChange,
+                    builder: (context, state) => _OtpBody(
+                      state: state,
+                      isClient: isClient,
+                      deliveryId: deliveryId,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -122,13 +157,12 @@ class OtpHandoverScreen extends StatelessWidget {
   }
 }
 
-/// R1's page shape: content at the top, ONE spacer, one docked footer.
+/// R13's page shape: content at the top, ONE spacer, one docked footer.
 ///
 /// A bare `Column` + `Spacer` asserts once the text scale pushes the content
 /// past the viewport, so the whole thing sits in a scroll view whose child is
 /// forced to at least the viewport height. At 1× that reproduces the board's
 /// genuinely empty lower band; at 200 % it scrolls instead of overflowing.
-/// Content is never re-centred and the footer never floats up into the gap.
 class _HandoffPage extends StatelessWidget {
   const _HandoffPage({required this.content, required this.footer});
 
@@ -168,10 +202,11 @@ class _OtpBody extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (state.mode) {
       case OtpHandoverViewMode.loading:
-        return const Center(child: OmdsLoadingState());
+        return _LoadingBody(isClient: isClient);
       case OtpHandoverViewMode.error:
         return _ErrorBody(
           state: state,
+          isClient: isClient,
           onRetry: () => context.read<OtpHandoverCubit>().retry(),
         );
       case OtpHandoverViewMode.success:
@@ -187,20 +222,59 @@ class _OtpBody extends StatelessWidget {
   }
 }
 
+/// Screen title as the headline is the interim: the queued
+/// `otpHandoverLoadingHeadline` says what is actually in flight.
+String _stateHeadline(AppLocalizations l10n, bool isClient) =>
+    // TODO(midnight): l10n-queued otpHandoverLoadingHeadline /
+    // otpHandoverErrorHeadline.
+    isClient ? l10n.otpHandoverClientTitle : l10n.otpHandoverJeeberTitle;
+
+class _LoadingBody extends StatelessWidget {
+  const _LoadingBody({required this.isClient});
+
+  final bool isClient;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          headline: _stateHeadline(l10n, isClient),
+          identifier: 'otp_handover_loading',
+        ),
+      ),
+    );
+  }
+}
+
 class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({required this.state, required this.onRetry});
+  const _ErrorBody({
+    required this.state,
+    required this.isClient,
+    required this.onRetry,
+  });
 
   final OtpHandoverState state;
+  final bool isClient;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Center(
-      child: OmdsErrorState(
-        message: _mapMessage(l10n, state.errorMessage),
-        onRetry: onRetry,
-        retryLabel: l10n.otpRetry,
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.error,
+          headline: _stateHeadline(l10n, isClient),
+          body: _mapMessage(l10n, state.errorMessage),
+          identifier: 'otp_handover_error',
+          action: JeebCtaButton.primary(
+            label: l10n.otpRetry,
+            onTap: onRetry,
+          ),
+        ),
       ),
     );
   }
@@ -219,13 +293,12 @@ class _ErrorBody extends StatelessWidget {
 
 /// T-MOB-018 AC2: Celebratory done state shown after successful OTP verify.
 ///
-/// JEEBER-LOOP F1: navigation now targets the blind mutual-rating screen
-/// (`/orders/:id/mutual-rate`, T-MOB-020) — not the single-side `/feedback`
-/// placeholder — and threads [isClient] so the Jeeber leg carries
-/// `?mode=jeeber`. The router resolves `isClient = mode != 'jeeber'`, so an
-/// absent `mode` lands the client and `?mode=jeeber` lands the delivery man on
-/// his side of the two-party rating. Without the param the Jeeber would be
-/// mis-routed to the client-facing rating screen.
+/// JEEBER-LOOP F1: navigation targets the blind mutual-rating screen
+/// (`/orders/:id/mutual-rate`, T-MOB-020) and threads [isClient] so the Jeeber
+/// leg carries `?mode=jeeber` (the router resolves `isClient = mode !=
+/// 'jeeber'`). This is the ONE post-verify forward path the board's silence
+/// leaves room for, so it keeps the full CTA weight — unlike the client
+/// code-display's demoted twin (Pattern D).
 class _DoneBody extends StatelessWidget {
   const _DoneBody({required this.deliveryId, required this.isClient});
 
@@ -358,19 +431,17 @@ class _ClientSmsFallback extends StatelessWidget {
   }
 }
 
-/// T-MOB-018 AC1/AC5: Client sees the code as four navy tiles; announced via
-/// liveRegion.
+/// T-MOB-018 AC1/AC5: Client sees the code as four backlit-glass tiles,
+/// announced via liveRegion.
 ///
-/// redesign-2026-08 screen 13 (`tpl 799-821`), top to bottom: arrival banner →
-/// "say it or show it" instruction → the tiles → safety note → spacer → footer.
+/// MIDNIGHT R13 (`tpl 799-821`), top to bottom: arrival banner → "Say it or
+/// show it" → the tiles → safety note → spacer → footer.
 ///
-/// JEEBER-LOOP F2: the client OTP-display had no forward path — once the
-/// Jeeber verified the code the client sat here indefinitely (there is no
-/// status polling). A manual "Rate now" CTA lets the client advance to the
-/// mutual-rate screen (`/orders/:id/mutual-rate`, client leg) after handover,
-/// closing the client side of the two-party loop without introducing polling.
-/// That is why the realized footer carries three rows where the board draws
-/// two.
+/// Footer hierarchy is the board's, restored: the SMS sentence, then the glass
+/// dispute pill. The client's forward path to mutual rating survives as a
+/// DEMOTED text action beneath it (doc-13 Pattern D — the board draws no
+/// post-handover path; owner Q5 pending). There is no status polling, so
+/// removing it outright would strand the client on this screen.
 class _ClientOtpDisplay extends StatelessWidget {
   const _ClientOtpDisplay({
     required this.code,
@@ -385,7 +456,6 @@ class _ClientOtpDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final copy = OtpHandoverL10n.of(context);
     final scheme = Theme.of(context).colorScheme;
     final text = context.jeebText;
     final arrival = state.arrival;
@@ -399,45 +469,68 @@ class _ClientOtpDisplay extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (arrival != null) ...[
-              const SizedBox(height: Spacing.large),
+              const SizedBox(height: _kBannerTopGap),
               HandoverArrivalBanner(arrival: arrival),
-            ],
-            const SizedBox(height: Spacing.twoXLarge),
+              const SizedBox(height: _kInstructionTopGap),
+            ] else
+              const SizedBox(height: _kInstructionTopGapNoBanner),
             Text(
               l10n.otpClientShareInstruction,
-              style: text.cardTitle.copyWith(color: scheme.onSurface),
+              style: text.titleProminent.copyWith(color: scheme.onSurface),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: Spacing.twoXSmall),
+            const SizedBox(height: _kInstructionSubtitleGap),
             Text(
               // Never render a placeholder name: the arrival read is
               // best-effort, so the generic line is the honest default.
               arrival != null
-                  ? copy.shareSubtitleNamed(arrival.name)
-                  : copy.shareSubtitle,
-              // C-13.3: the board inks this periwinkle on white, which the
-              // repo's own contrast test records as below AA. Body ink on
-              // white is onSurfaceVariant; muted ink survives only inside the
-              // kit's info note and on the navy/orange surfaces.
+                  ? l10n.otpClientShareSubtitleNamed(arrival.name)
+                  : l10n.otpClientShareSubtitle,
+              // Periwinkle IS the muted ink on navy — pass-1's brown AA
+              // stopgap died with the light theme (plan §2.1).
               style: text.body.copyWith(color: scheme.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: Spacing.xLarge),
+            const SizedBox(height: _kCodeTopGap),
             HandoverCodeDisplay(code: code),
-            const SizedBox(height: Spacing.large),
+            const SizedBox(height: _kSafetyNoteTopGap),
             JeebInfoNote.muted(
               icon: Icons.shield,
               text: l10n.otpClientDoNotShare,
+              // The board draws this note on the stacked metrics even though
+              // it has no title (`tpl 813`).
+              padding: JeebInfoNote.stackedPadding,
+              gap: JeebInfoNote.stackedGap,
+              iconSize: JeebInfoNote.stackedIconSize,
             ),
           ],
         ),
       ),
       footer: JeebCtaFooter.single(
-        below: JeebCtaButton.outline(
-          label: copy.disputeCta,
-          identifier: 'otp_handover_dispute',
-          // `push`, not `go`: BACK from the dispute form returns to the code.
-          onTap: () => context.push('/orders/$deliveryId/escalate'),
+        spacing: _kFooterStackGap,
+        below: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            JeebCtaButton.outline(
+              label: l10n.otpDisputeCta,
+              identifier: 'otp_handover_dispute',
+              // `push`, not `go`: BACK from the dispute form returns to the
+              // code.
+              onTap: () => context.push('/orders/$deliveryId/escalate'),
+            ),
+            Semantics(
+              // QA: uiautomator-addressable handle for the client's rate-now
+              // action. Kept in screen code, wrapping the kit button, so
+              // `tester.getSemantics(find.byKey(...))` still resolves it.
+              identifier: 'client_otp_rate_now',
+              child: JeebCtaButton.text(
+                key: const Key('otpHandover.clientRateNow'),
+                label: l10n.otpRateNowCta,
+                onTap: () => context.go(_mutualRateRoute(deliveryId, true)),
+              ),
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -447,14 +540,14 @@ class _ClientOtpDisplay extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    copy.resendSmsPrompt,
+                    l10n.otpClientResendSmsPrompt,
                     style: text.bodySmall.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ),
                 JeebCtaButton.accentText(
-                  label: copy.resendSmsAction,
+                  label: l10n.otpClientResendSmsAction,
                   identifier: 'otp_handover_send_sms',
                   // Tight inset so the two halves read as one sentence, the
                   // way the board draws them.
@@ -470,23 +563,11 @@ class _ClientOtpDisplay extends StatelessWidget {
               Semantics(
                 liveRegion: true,
                 child: Text(
-                  copy.resendFailed,
+                  l10n.otpResendFailed,
                   style: text.caption.copyWith(color: scheme.error),
                   textAlign: TextAlign.center,
                 ),
               ),
-            const SizedBox(height: Spacing.small),
-            Semantics(
-              // QA: uiautomator-addressable handle for the client's rate-now
-              // CTA. Kept in screen code, wrapping the kit button, so
-              // `tester.getSemantics(find.byKey(...))` still resolves it.
-              identifier: 'client_otp_rate_now',
-              child: JeebCtaButton.primary(
-                key: const Key('otpHandover.clientRateNow'),
-                label: l10n.otpRateNowCta,
-                onTap: () => context.go(_mutualRateRoute(deliveryId, true)),
-              ),
-            ),
           ],
         ),
       ),
@@ -602,7 +683,7 @@ class _OtpInstruction extends StatelessWidget {
       liveRegion: hasError,
       child: Text(
         hasError ? _errorText(l10n) : l10n.otpJeeberInstruction,
-        style: context.jeebText.cardTitle.copyWith(
+        style: context.jeebText.titleProminent.copyWith(
           color: hasError ? scheme.error : scheme.onSurface,
         ),
         textAlign: TextAlign.center,
@@ -629,6 +710,8 @@ class _ShakingOtpInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final glass = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Semantics(
       // QA: uiautomator-addressable handle for the Jeeber OTP entry field.
       // `container: true` makes the identifier surface as its own queryable
@@ -659,7 +742,9 @@ class _ShakingOtpInput extends StatelessWidget {
           boxWidth: JeebCodeCells.inputBoxWidth,
           boxHeight: JeebCodeCells.inputBoxHeight,
           spacing: JeebCodeCells.inputCellGap,
-          fillColor: scheme.surfaceContainerHigh,
+          // Glass, matching JeebCodeCells' own cells — the jeeber leg is not
+          // on the board, so it borrows the kit's grammar.
+          fillColor: glass.glassFillEmphasis,
           focusedBorderColor: context.jeebRoles.accent,
           errorBorderColor: scheme.error,
           hasError: hasError,

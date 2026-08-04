@@ -1,9 +1,25 @@
 import 'dart:async';
 
+import '../../../features/delivery_status/domain/jeeber_summary.dart';
+import '../../../features/live_tracking/domain/delivery_tracking_info.dart';
+import '../../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../../features/otp_handover/application/otp_handover_cubit.dart';
 import '../../../features/otp_handover/domain/handover_code_store.dart';
 import '../../../features/otp_handover/domain/otp_handover_repository.dart';
 import '../../../features/otp_handover/domain/otp_handover_result.dart';
+
+/// Fixed arrival source for R13's orange banner (doc-13 Pattern G: the banner
+/// had no fixture, so no capture ever showed the board's one solid block).
+class ScriptedArrivalTracking implements LiveTrackingRepository {
+  const ScriptedArrivalTracking(this.info);
+
+  final DeliveryTrackingInfo info;
+
+  @override
+  Future<DeliveryTrackingInfo> fetchDeliveryStatus({
+    required String deliveryId,
+  }) async => info;
+}
 
 /// Fake [OtpHandoverRepository] with independent fetch and submit paths.
 class ScriptedOtpHandoverRepository implements OtpHandoverRepository {
@@ -128,11 +144,30 @@ class OtpHandoverScreenPreviewFixtures {
   static HandoverCodeStore codeStore([String code = storedCode]) =>
       InMemoryHandoverCodeStore(code);
 
+  /// The board's own banner payload: `Karim` · `Scooter` · `$8` · at the door.
+  static LiveTrackingRepository arrivalAtDoor({
+    TrackingStage stage = TrackingStage.atDoor,
+    double? price = 8,
+  }) => ScriptedArrivalTracking(
+    DeliveryTrackingInfo(
+      deliveryId: deliveryId,
+      currentStage: stage,
+      stageTimestamps: const <TrackingStage, DateTime>{},
+      jeeber: const JeeberSummary(
+        displayName: 'Karim',
+        vehicleLabel: 'Scooter',
+      ),
+      price: price,
+      currency: 'USD',
+    ),
+  );
+
   /// Cubit mounted above the screen, optionally pre-driven.
   static OtpHandoverCubit cubit({
     required bool isClient,
     required OtpHandoverRepository repository,
     HandoverCodeStore? codeStore,
+    LiveTrackingRepository? deliveryInfo,
     Future<void> Function(OtpHandoverCubit cubit)? drive,
   }) {
     final OtpHandoverCubit cubit = OtpHandoverCubit(
@@ -140,6 +175,7 @@ class OtpHandoverScreenPreviewFixtures {
       deliveryId: deliveryId,
       isClient: isClient,
       codeStore: codeStore,
+      deliveryInfo: deliveryInfo,
     );
     if (drive != null) unawaited(drive(cubit));
     return cubit;

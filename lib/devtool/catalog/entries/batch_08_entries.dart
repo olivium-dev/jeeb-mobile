@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../../features/order_history/application/order_history_cubit.dart';
 import '../../../features/order_history/domain/order_repository.dart';
@@ -42,6 +43,7 @@ Widget _otpHandoverScreen({
   required bool isClient,
   required OtpHandoverRepository repository,
   HandoverCodeStore? codeStore,
+  LiveTrackingRepository? deliveryInfo,
   Future<void> Function(OtpHandoverCubit cubit)? drive,
 }) {
   return BlocProvider<OtpHandoverCubit>(
@@ -49,6 +51,7 @@ Widget _otpHandoverScreen({
       isClient: isClient,
       repository: repository,
       codeStore: codeStore,
+      deliveryInfo: deliveryInfo,
       drive: drive,
     ),
     child: OtpHandoverScreen(
@@ -180,6 +183,16 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
               isClient: false,
               repository: OtpHandoverScreenPreviewFixtures.accepting(),
               drive: OtpHandoverScreenPreviewFixtures.driveSuccessfulSubmit,
+            ),
+          ),
+          // The R13 board frame: code tiles UNDER the orange arrival banner.
+          CatalogState(
+            'Client — Code + Arrival Banner',
+            (_) => _otpHandoverScreen(
+              isClient: true,
+              repository: OtpHandoverScreenPreviewFixtures.accepting(),
+              codeStore: OtpHandoverScreenPreviewFixtures.codeStore('2144'),
+              deliveryInfo: OtpHandoverScreenPreviewFixtures.arrivalAtDoor(),
             ),
           ),
         ],

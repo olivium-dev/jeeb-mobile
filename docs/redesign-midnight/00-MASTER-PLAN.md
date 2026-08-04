@@ -318,7 +318,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M2-06 R12 Request summary — ICU plural, canPop hardened, all 4 catalog states render (was 3 RenderErrorBoxes) @2026-08-04
 - [x] M2-07 R10+E2 Offers + waiting empty — lit card = rim+glow (not a fill), glass sibling CTAs, money column un-flexed (P1), E2 waiting/loading/error from one JeebEmptyState block @2026-08-04
 - [x] M2-08 R3 Live tracking — full-bleed dark map + frosted sheet, stepper bar form, pinned header reduced to a semantics carrier (P1 by construction), route STATIC per motion notes; fixed a real 1.6px AR@200% overflow; catalog useLiveMap:false cures 2 of the 4 known harness render failures @2026-08-04
-- [ ] M2-09 R13 OTP handover
+- [x] M2-09 R13 OTP handover — rating CTA demoted to a text action below the dispute pill (Pattern D), arrival-banner fixture + 8th catalog state (closes a Pattern-G gap), feature-local l10n stopgap deleted now its 9 keys have landed @2026-08-04
 - [ ] M2-10 R14 Receipt confirm
 - [ ] M2-11 R15 Mutual rating
 - [ ] M2-12 R16+E3 Jeeber home + feed empty
