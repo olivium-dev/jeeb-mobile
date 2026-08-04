@@ -588,9 +588,10 @@ class AppTheme {
           // Spread first: iOS/macOS keep the Cupertino slide, which paints no
           // slab at all, so only the three colour-bearing builders are re-cut.
           ...const PageTransitionsTheme().builders,
-          TargetPlatform.android: const PredictiveBackPageTransitionsBuilder(
-            fallbackColor: JeebMidnight.page,
-          ),
+          // No fallbackColor: it does not exist on CI's Flutter 3.38.9. Keeping
+          // the builder preserves Android 14+ predictive back; the slab tint
+          // returns when CI's SDK catches up.
+          TargetPlatform.android: const PredictiveBackPageTransitionsBuilder(),
           TargetPlatform.windows: const ZoomPageTransitionsBuilder(
             backgroundColor: JeebMidnight.page,
           ),
