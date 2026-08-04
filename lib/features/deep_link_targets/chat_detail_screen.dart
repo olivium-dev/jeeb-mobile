@@ -21,10 +21,11 @@ import '../../core/network/network_reachability_signals.dart';
 import '../../core/notifications/domain/active_chat_thread.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/router/app_route_observer.dart';
+import '../../core/router/app_router.dart';
 import '../../core/role/user_role.dart';
-import '../../core/widgets/jeeb/jeeb_chat_bubble.dart';
 import '../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/application/order_compose_coordinator.dart';
 import '../chat/data/dev_chat_fixture_gateway.dart';
@@ -61,14 +62,6 @@ import 'dev_chat_detail_fixtures.dart';
 // it was three repeated calls, not one. The pinned status chip is now driven by
 // the `delivery` push (proven arriving on physical hardware) plus one-shot reads
 // on open, on returning to this route, and on foreground resume.
-
-/// Canonical post-delivery blind mutual-rating route (T-MOB-020). Mirrors the
-/// builder the OTP-handover completion uses (`otp_handover_screen.dart`): the
-/// client leg carries no `mode`, the jeeber leg appends `?mode=jeeber`, and the
-/// router resolves `isClient = mode != 'jeeber'`. Kept as a tiny local helper
-/// so this screen never hard-codes the audience suffix in two places.
-String _mutualRateRoute(String deliveryId, {required bool isClient}) =>
-    '/orders/$deliveryId/mutual-rate${isClient ? '' : '?mode=jeeber'}';
 
 /// Deep-link entry point for `/chat/:id` — the `order-chat` surface (JM-025).
 ///
@@ -1237,7 +1230,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // role keeps the leg correct if the observation ever widens.
     // (The summary refresh is only armed for the client-accepted surface.)
     final isJeeber = _readRole(context) == UserRole.jeeber;
-    context.go(_mutualRateRoute(_deliveryId, isClient: !isJeeber));
+    // M2-11 carry-in: of the three mutual-rating call sites this is the ONE
+    // where the counterpart's name is in scope, so the rating screen finally
+    // gets a real `?name=` instead of its role-generic fallback. Never faked —
+    // an empty name is passed as null and the helper drops the param.
+    final name = _summary?.jeeberName.trim().isNotEmpty ?? false
+        ? _summary!.jeeberName
+        : displayNameOrNull(_counterpartName);
+    context.go(
+      mutualRatingLocation(
+        _deliveryId,
+        isClient: !isJeeber,
+        counterpartName: name,
+      ),
+    );
   }
 
   /// True when a delivery lifecycle status is a SUCCESSFUL delivery completion
@@ -1824,94 +1830,15 @@ class _ChatResolvingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: ChatAppBar(title: title),
-      body: const _ChatThreadSkeleton(),
-    );
-  }
-}
-
-/// Placeholder bubbles in the kit's own geometry, shown while the conversation
-/// resolves.
-///
-/// One deliberate refusal: **no outgoing (navy) placeholder**. A navy bubble is
-/// the board's "you said this"; drawing one before a single message has loaded
-/// would assert content that may not exist. Every placeholder is an incoming
-/// muted shell.
-///
-/// It renders through [JeebChatBubble] rather than re-deriving the radii, fill
-/// and padding, so the resolving frame and the resolved thread cannot drift.
-///
-/// The slow pulse is not decoration. `OmdsLoadingState`'s spinner kept a frame
-/// scheduled for as long as this screen was resolving, and several suites
-/// depend on that: their `pumpAndSettle()` is what lets the async lookup land
-/// (`chat_detail_active_thread_test` fails against a motionless placeholder).
-/// A skeleton with no motion also reads as an empty thread that finished
-/// loading, which is precisely the wrong statement. Same ticker semantics as
-/// before, in the redesign's language.
-class _ChatThreadSkeleton extends StatefulWidget {
-  const _ChatThreadSkeleton();
-
-  @override
-  State<_ChatThreadSkeleton> createState() => _ChatThreadSkeletonState();
-}
-
-class _ChatThreadSkeletonState extends State<_ChatThreadSkeleton>
-    with SingleTickerProviderStateMixin {
-  /// Width of each placeholder as a fraction of the thread column — unequal on
-  /// purpose, so the shell reads as "messages are coming" rather than as a
-  /// rendered thread. Below the kit's own 0.78 ceiling.
-  static const List<double> _widthFractions = <double>[0.62, 0.44, 0.7];
-
-  /// Trough of the pulse. High enough that the shells never blink out.
-  static const double _minOpacity = 0.45;
-
-  late final AnimationController _pulse =
-      AnimationController(vsync: this, duration: UIConstants.animationSlow)
-        ..repeat(reverse: true);
-
-  late final Animation<double> _fade = Tween<double>(
-    begin: _minOpacity,
-    end: 1,
-  ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ExcludeSemantics(
-      child: FadeTransition(
-        opacity: _fade,
-        child: Padding(
-          // The thread's own gutter (24) and top inset (16) — html:31.
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            Spacing.xLarge,
-            Spacing.medium,
-            Spacing.xLarge,
-            0,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              for (final fraction in _widthFractions) ...<Widget>[
-                JeebChatBubble(
-                  side: JeebChatBubbleSide.incoming,
-                  maxWidthFraction: fraction,
-                  // An empty line box: the bubble supplies the fill and the
-                  // 18/18/18/6 corners, this supplies its height.
-                  child: const SizedBox(
-                    width: double.infinity,
-                    height: Sizes.small,
-                  ),
-                ),
-                const SizedBox(height: Spacing.small),
-              ],
-            ],
-          ),
-        ),
+      // Same field, same placement as the resolved thread, so the page does
+      // not repaint its background under the user when resolution lands.
+      body: const JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        child: ChatThreadSkeleton(),
       ),
     );
   }
@@ -1946,33 +1873,39 @@ class ChatResolutionErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: ChatAppBar(title: title),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Spacing.xLarge,
-              vertical: Spacing.xLarge,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                JeebInfoNote.error(
-                  // The failure this screen can actually name: the lookup could
-                  // not reach the gateway. Never a generic "error".
-                  icon: Icons.wifi_off_rounded,
-                  title: l10n.chatHistoryErrorTitle,
-                  text: l10n.chatHistoryErrorMessage,
-                ),
-                const SizedBox(height: Spacing.large),
-                JeebCtaButton.primary(
-                  label: l10n.chatHistoryErrorRetry,
-                  onTap: onRetry,
-                  identifier: 'chat_detail_resolution_retry',
-                ),
-              ],
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        child: SafeArea(
+          top: false,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: Spacing.xLarge,
+                vertical: Spacing.xLarge,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  JeebInfoNote.error(
+                    // The failure this screen can actually name: the lookup
+                    // could not reach the gateway. Never a generic "error".
+                    icon: Icons.wifi_off_rounded,
+                    title: l10n.chatHistoryErrorTitle,
+                    text: l10n.chatHistoryErrorMessage,
+                  ),
+                  const SizedBox(height: Spacing.large),
+                  JeebCtaButton.primary(
+                    label: l10n.chatHistoryErrorRetry,
+                    onTap: onRetry,
+                    identifier: 'chat_detail_resolution_retry',
+                  ),
+                ],
+              ),
             ),
           ),
         ),

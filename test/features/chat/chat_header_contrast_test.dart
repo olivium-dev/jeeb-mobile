@@ -25,9 +25,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import 'package:jeeb_mobile/features/chat/domain/order_chat_summary.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_system_chip.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/offer_accepted_banner.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/order_chat_pinned_summary.dart';
 import 'package:omds/omds.dart';
@@ -187,7 +190,11 @@ void main() {
       }
     });
 
-    testWidgets('offer-accepted banner', (tester) async {
+    // MIDNIGHT (M2-16): the green success band is DEMOTED to the thread's own
+    // quiet timeline chip, so the roles this row used to bind — successContainer
+    // / onSuccessContainer / success — are gone by ruling, not by accident.
+    testWidgets('offer-accepted banner is the demoted timeline chip',
+        (tester) async {
       await tester.pumpWidget(themedHost(Scaffold(
         body: OfferAcceptedBanner(
           jeeberName: 'Kamal Hajj',
@@ -196,22 +203,25 @@ void main() {
         ),
       )));
       await tester.pump();
-      final theme = AppTheme.light();
-      final roles = theme.extension<JeebColorRoles>()!;
+      final context = tester.element(find.byType(OfferAcceptedBanner));
 
-      final box = tester.widget<DecoratedBox>(find
-          .descendant(
-            of: find.byType(OfferAcceptedBanner),
-            matching: find.byType(DecoratedBox),
-          )
-          .first);
-      final decoration = box.decoration as BoxDecoration;
-      expect(decoration.color, roles.successContainer,
-          reason: 'the banner is a SUCCESS surface, not the brand navy slab');
-      expect((decoration.border! as Border).bottom.color, roles.success);
+      // No band: nothing inside the banner paints the success surface or a
+      // full-bleed divider any more.
+      final roles = AppTheme.light().extension<JeebColorRoles>()!;
+      for (final box in tester.widgetList<DecoratedBox>(find.descendant(
+        of: find.byType(OfferAcceptedBanner),
+        matching: find.byType(DecoratedBox),
+      ))) {
+        final decoration = box.decoration;
+        if (decoration is BoxDecoration) {
+          expect(decoration.color, isNot(roles.successContainer));
+          expect(decoration.border, isNull, reason: 'no divider band');
+        }
+      }
+      expect(find.byType(JeebSystemChip), findsOneWidget);
       expect(
         tester.widget<Text>(find.text('Offer accepted!')).style!.color,
-        roles.onSuccessContainer,
+        JeebSystemChip.inkOf(context, JeebSystemChipTone.filled),
       );
       expect(
         tester
@@ -220,15 +230,15 @@ void main() {
               matching: find.byType(Icon),
             ))
             .color,
-        roles.onSuccessContainer,
+        Theme.of(context).colorScheme.onSecondaryContainer,
       );
-      // The CTA keeps the OMDS primary treatment (primary / onPrimary).
+      // The CTA is the kit's navy pill — R20 spends no orange here.
       expect(
         tester
-            .widget<OmdsPrimaryButton>(
+            .widget<JeebCtaButton>(
                 find.byKey(const Key('chat-start-active-delivery-cta')))
             .variant,
-        OmdsButtonVariant.primary,
+        JeebCtaVariant.primary,
       );
     });
   });
@@ -239,14 +249,13 @@ void main() {
   group('measured WCAG 2.2 AA contrast', () {
     List<_Row> rowsFor(ThemeData theme) {
       final cs = theme.colorScheme;
-      final roles = theme.extension<JeebColorRoles>()!;
       // redesign-2026-08: HEADER 1 is the navy strip. Its "chip fill" is the
       // kit tone's `onPrimary @ .14` OVER the navy, so the measurement blends
       // it — a translucent fill measured as if opaque is exactly the class of
       // instrument error this file exists to prevent.
       final header = cs.primary;
       final chip = blend(cs.onPrimary, header, 0.14);
-      final banner = roles.successContainer;
+      final semantics = theme.extension<JeebSemanticColors>()!;
       final list = cs.surface;
       return <_Row>[
         // ── HEADER 1 · pinned order summary (navy) ──────────────────────────
@@ -279,21 +288,22 @@ void main() {
         // requirement, and the only ways to pass it would be to lower the
         // threshold or to recolour the board's one accent.
         // ── HEADER 2 · offer-accepted banner ────────────────────────────────
-        _Row('H2 success icon', roles.onSuccessContainer, banner,
-            kAaLargeTextAndNonText),
-        _Row('H2 title (labelLarge bold)', roles.onSuccessContainer, banner,
+        // MIDNIGHT (M2-16): the banner is DEMOTED to the thread's timeline chip
+        // — no success band, no divider, a navy CTA pill. The rows below
+        // measure what it paints now; the retired ones measured a surface that
+        // no longer exists.
+        _Row('H2 chip label', semantics.inkSoft, cs.surfaceContainerHigh,
             kAaBodyText),
-        _Row('H2 body sentence (bodySmall)', roles.onSuccessContainer, banner,
+        // NOT measured, deliberately (same reasoning as the Ø8 accent dot
+        // above): the chip's tonal fill is decoration behind its own label,
+        // not a control boundary that conveys state, so SC 1.4.11 does not
+        // reach it. Its LABEL is measured, and that is the requirement.
+        _Row('H2 dismiss icon', cs.onSecondaryContainer, list,
+            kAaLargeTextAndNonText),
+        _Row('H2 CTA label on CTA fill', cs.onSecondary, cs.secondary,
             kAaBodyText),
-        _Row('H2 dismiss icon', roles.onSuccessContainer, banner,
-            kAaLargeTextAndNonText),
-        _Row('H2 CTA label on CTA fill', cs.onPrimary, cs.primary, kAaBodyText),
-        _Row('H2 CTA fill vs banner (component boundary)', cs.primary, banner,
-            kAaLargeTextAndNonText),
-        _Row('H2 bottom divider vs banner', roles.success, banner,
-            kAaLargeTextAndNonText),
-        _Row('H2 bottom divider vs message list', roles.success, list,
-            kAaLargeTextAndNonText),
+        _Row('H2 CTA fill vs message list (component boundary)', cs.secondary,
+            list, kAaLargeTextAndNonText),
       ];
     }
 

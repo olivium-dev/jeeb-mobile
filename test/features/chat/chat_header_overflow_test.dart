@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/domain/order_chat_summary.dart';
 import 'package:jeeb_mobile/features/chat/presentation/chat_screen.dart';
+import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_composer.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_header_expansion_store.dart';
 
 import 'chat_header_support.dart';
@@ -256,6 +257,42 @@ void main() {
     expect(tapped, isTrue,
         reason: 'CTA must be hit-testable — not laid out off-screen. '
             'findsOneWidget alone passed while it was unreachable.');
+  });
+
+  testWidgets(
+      'MIDNIGHT: the bottom band is bounded too — 320x480 at 2.0 wants 254 dp '
+      'of a 202 dp body (composer 190 + quick replies 64) and degrades by '
+      'scrolling to the composer, not by overflowing', (tester) async {
+    await _pump(tester, size: const Size(320, 480), keyboard: 220, textScale: 2);
+    expect(tester.takeException(), isNull);
+
+    final slot = find.byKey(chatComposerSlotKey);
+    expect(slot, findsOneWidget);
+    // `reverse: true` puts the END of the band at the viewport bottom, so the
+    // send circle is what the user lands on.
+    final send = find.byKey(ChatComposer.sendButtonKey);
+    expect(send, findsOneWidget);
+    final sendRect = tester.getRect(send);
+    final slotRect = tester.getRect(slot);
+    expect(sendRect.bottom, lessThanOrEqualTo(slotRect.bottom + 0.5),
+        reason: 'the send circle must be inside the visible band, not below it');
+  });
+
+  testWidgets('MIDNIGHT: the bottom bound is INERT at the ordinary size — the '
+      'band takes its natural height and does not scroll', (tester) async {
+    await _pump(tester);
+    final slotHeight = tester.getSize(find.byKey(chatComposerSlotKey)).height;
+    final natural = tester
+        .getSize(find
+            .descendant(
+              of: find.byKey(chatComposerSlotKey),
+              matching: find.byType(Column),
+            )
+            .first)
+        .height;
+    expect(natural, closeTo(slotHeight, 0.5),
+        reason: 'a bound that is always engaged would be hiding the composer '
+            'rather than budgeting it');
   });
 
   testWidgets('no pinned summary + no banner: the slot is absent entirely',

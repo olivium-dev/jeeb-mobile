@@ -6,6 +6,11 @@ import 'package:omds/omds.dart';
 
 import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/di/injection_container.dart';
+import '../../../core/widgets/jeeb/jeeb_chat_bubble.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
@@ -97,6 +102,11 @@ const double kChatQuickReplyReserve = 48;
 /// ordinary case does NOT scroll (a bound that is always engaged would be
 /// hiding content rather than budgeting it).
 const Key chatHeaderSlotKey = Key('chat-screen-header-slot');
+
+/// Key on the bounded BOTTOM slot's scrollable (quick replies + composer), the
+/// twin of [chatHeaderSlotKey]. Same assertion available: the ordinary case
+/// must not scroll.
+const Key chatComposerSlotKey = Key('chat-screen-composer-slot');
 
 /// Jeeber-only balance-deduction notice configuration for [ChatScreen].
 ///
@@ -473,6 +483,8 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
         phase != ConversationPhase.closed;
     return Scaffold(
       key: ChatScreen.rootKey,
+      // MIDNIGHT: the field paints the page; the Scaffold contributes nothing.
+      backgroundColor: Colors.transparent,
       appBar: ChatAppBar(
         title: widget.counterpartName,
         avatarUrl: widget.counterpartAvatarUrl,
@@ -498,15 +510,22 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
               )
             : null,
       ),
-      body: SafeArea(
-        bottom: false,
-        child: BlocConsumer<ChatCubit, ChatState>(
-          listenWhen: (prev, curr) =>
-              prev.messages.length != curr.messages.length ||
-              prev.error != curr.error ||
-              prev.phase != curr.phase,
-          listener: (context, state) => _onStateChanged(context, state, l10n),
-          builder: (context, state) => _buildBody(state, l10n),
+      // R20 is a board-still tile (03-MOTION-NOTES: 0 animated elements), so
+      // the field draws its layers at rest and nothing ticks behind the thread.
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.bottom,
+        animateDecor: false,
+        child: SafeArea(
+          bottom: false,
+          child: BlocConsumer<ChatCubit, ChatState>(
+            listenWhen: (prev, curr) =>
+                prev.messages.length != curr.messages.length ||
+                prev.error != curr.error ||
+                prev.phase != curr.phase,
+            listener: (context, state) => _onStateChanged(context, state, l10n),
+            builder: (context, state) => _buildBody(state, l10n),
+          ),
         ),
       ),
     );
@@ -725,7 +744,7 @@ class _ChatBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.isLoadingHistory) return const _ChatHistoryShimmer();
+    if (state.isLoadingHistory) return const ChatThreadSkeleton();
     // b02: the FAILURE branch has to be tested BEFORE the emptiness branch.
     // Ordering them the other way round is the whole defect: a 500 leaves
     // `messages` empty, so an emptiness-first body renders "No conversation
@@ -828,12 +847,20 @@ class _ChatBody extends StatelessWidget {
         kChatComposerReserve +
         (showQuickReplies ? kChatQuickReplyReserve : 0);
 
+    // MIDNIGHT — the SECOND over-constraint, measured at 320x480 + 220 dp
+    // keyboard + text scale 2.0: the bottom band (quick replies 64 + composer
+    // 190) wants 254 dp of a 202 dp body and overflowed by 52 px. The composer
+    // is 190 there and only 106 at 411 dp, because the hint wraps to three
+    // lines in a 135 dp field — an intrinsic height [kChatComposerReserve]
+    // cannot predict, so no reserve constant can fix it. The bound can: the
+    // band is given what the header left and degrades by SCROLLING, exactly
+    // like [_ChatHeaderSlot]. Inert whenever the band fits, which is every
+    // device class below a 2.0 scale on a 320 dp phone.
     return LayoutBuilder(
-      builder: (context, constraints) => Column(
-        children: [
-          if (header.isNotEmpty)
-            _ChatHeaderSlot(
-              maxHeight: math.max(
+      builder: (context, constraints) {
+        final double headerAllowance = header.isEmpty
+            ? 0.0
+            : math.max(
                 // The FLOOR — only when the slot holds the Start-delivery CTA,
                 // and never more than a third of the viewport so the thread and
                 // composer keep priority everywhere else. Without this the
@@ -852,45 +879,55 @@ class _ChatBody extends StatelessWidget {
                         // message, then the order summary). At the real device
                         // class it is the full 96 dp and the CTA is reachable.
                         math.max(
-                          0,
+                          0.0,
                           constraints.maxHeight -
                               chromeReserve *
                                   MediaQuery.textScalerOf(context).scale(1),
                         ),
                       )
-                    : 0,
+                    : 0.0,
                 math.min(
                   constraints.maxHeight * kChatHeaderMaxViewportFraction,
                   constraints.maxHeight -
                       chromeReserve *
                           MediaQuery.textScalerOf(context).scale(1),
                 ),
-              ),
-              children: header,
-            ),
-          Expanded(child: body),
-          if (showQuickReplies) const ChatQuickReplyBar(),
-          if (state.isComposerVisible)
-            ChatComposer(
-              hintText: composerHint,
-              // JM-025: the customer order-chat surface exposes the
-              // `order_chat_composer_*` ids the W1 flow drives; every other
-              // caller keeps the default `chat_detail_*` ids.
-              inputIdentifier: isOrderChat
-                  ? 'order_chat_composer_input'
-                  : 'chat_detail_message_input',
-              sendIdentifier: isOrderChat
-                  ? 'order_chat_composer_send'
-                  : 'chat_detail_send_button',
-              onVoiceRecordingComplete: (bytes, mime, ms) =>
-                  context.read<ChatCubit>().sendVoiceNote(
-                    audioBytes: bytes,
-                    mimeType: mime,
-                    durationMs: ms,
+              );
+        return Column(
+          children: [
+            if (header.isNotEmpty)
+              _ChatHeaderSlot(maxHeight: headerAllowance, children: header),
+            Expanded(child: body),
+            _ChatComposerSlot(
+              maxHeight: math.max(0.0, constraints.maxHeight - headerAllowance),
+              children: [
+                if (showQuickReplies) const ChatQuickReplyBar(),
+                if (state.isComposerVisible)
+                  ChatComposer(
+                    // TODO(midnight): l10n-queued — the board hint is
+                    // "Message…"; `chatComposerHint` is the nearest key.
+                    hintText: composerHint,
+                    // JM-025: the customer order-chat surface exposes the
+                    // `order_chat_composer_*` ids the W1 flow drives; every
+                    // other caller keeps the default `chat_detail_*` ids.
+                    inputIdentifier: isOrderChat
+                        ? 'order_chat_composer_input'
+                        : 'chat_detail_message_input',
+                    sendIdentifier: isOrderChat
+                        ? 'order_chat_composer_send'
+                        : 'chat_detail_send_button',
+                    onVoiceRecordingComplete: (bytes, mime, ms) =>
+                        context.read<ChatCubit>().sendVoiceNote(
+                          audioBytes: bytes,
+                          mimeType: mime,
+                          durationMs: ms,
+                        ),
                   ),
+              ],
             ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
@@ -927,6 +964,37 @@ class _ChatHeaderSlot extends StatelessWidget {
   }
 }
 
+/// The bounded bottom band — quick replies + composer — the twin of
+/// [_ChatHeaderSlot].
+///
+/// Both are non-flexible Column children whose intrinsic height the reserve
+/// constants only ESTIMATE: the composer's hint wraps at small widths and large
+/// text scales, so its real height (190 dp at 320x480 + 2.0) can exceed
+/// [kChatComposerReserve] by 70 dp and the Column overflows by the difference.
+/// Bounding the band to what the header left makes the excess a SCROLL — the
+/// send circle stays reachable — instead of a clip.
+class _ChatComposerSlot extends StatelessWidget {
+  const _ChatComposerSlot({required this.maxHeight, required this.children});
+
+  final double maxHeight;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: SingleChildScrollView(
+        key: chatComposerSlotKey,
+        // The band is pinned to the bottom, so an overflowing one must reveal
+        // its END (the send circle), not its start.
+        reverse: true,
+        child: Column(mainAxisSize: MainAxisSize.min, children: children),
+      ),
+    );
+  }
+}
+
 /// Adapts a [ChatFeeNotice] config into the rendered [ChatFeeBanner].
 class _FeeBannerSlot extends StatelessWidget {
   const _FeeBannerSlot({required this.notice});
@@ -953,8 +1021,11 @@ class _FeeBannerSlot extends StatelessWidget {
 /// it anyway is how a Firestore outage reached users as an empty chat while
 /// their Jeeber was in transit, with nothing to tap.
 ///
-/// OMDS only: [OmdsErrorState], which owns the icon/title/message/retry layout
-/// and its own theming.
+/// MIDNIGHT: the same two kit primitives the `/chat/:id` container's
+/// resolution error uses — [JeebInfoNote.error] carries the statement and a
+/// navy [JeebCtaButton] carries the retry — so a transport failure looks
+/// identical whichever of the two layers caught it. Replaces `OmdsErrorState`,
+/// the last pre-redesign surface this body could show.
 class _ChatHistoryErrorState extends StatelessWidget {
   const _ChatHistoryErrorState({required this.l10n});
 
@@ -973,12 +1044,29 @@ class _ChatHistoryErrorState extends StatelessWidget {
           child: Center(
             child: Semantics(
               identifier: 'chat_history_error',
-              child: OmdsErrorState(
+              child: Padding(
                 key: ChatScreen.historyErrorKey,
-                title: l10n.chatHistoryErrorTitle,
-                message: l10n.chatHistoryErrorMessage,
-                retryLabel: l10n.chatHistoryErrorRetry,
-                onRetry: () => context.read<ChatCubit>().retryLoad(),
+                padding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: Spacing.xLarge,
+                  vertical: Spacing.xLarge,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    JeebInfoNote.error(
+                      icon: Icons.wifi_off_rounded,
+                      title: l10n.chatHistoryErrorTitle,
+                      text: l10n.chatHistoryErrorMessage,
+                    ),
+                    const SizedBox(height: Spacing.large),
+                    JeebCtaButton.primary(
+                      label: l10n.chatHistoryErrorRetry,
+                      onTap: () => context.read<ChatCubit>().retryLoad(),
+                      identifier: 'chat_history_error_retry',
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -989,6 +1077,11 @@ class _ChatHistoryErrorState extends StatelessWidget {
 }
 
 /// Empty conversation placeholder, copy keyed to the conversation [phase].
+///
+/// MIDNIGHT: the empty family is [JeebEmptyState] — `compact`, because this
+/// block sits inside the thread column rather than owning the screen. The
+/// broadcasting phase takes the `radar` variant: "waiting for Jeebers" IS E2's
+/// subject, and reusing it keeps one waiting illustration in the app.
 class _ChatEmptyState extends StatelessWidget {
   const _ChatEmptyState({required this.phase, required this.l10n});
 
@@ -1008,6 +1101,9 @@ class _ChatEmptyState extends StatelessWidget {
       ),
       _ => (l10n.chatEmptyThreadTitle, l10n.chatEmptyThreadSubtitle),
     };
+    final variant = phase == ConversationPhase.broadcasting
+        ? JeebEmptyStateVariant.radar
+        : JeebEmptyStateVariant.e1;
     // Run-22 fix ("BOTTOM OVERFLOWED BY 6.6 PIXELS"): the empty-state column
     // (80dp icon + title + subtitle + paddings) has a fixed natural height, but
     // the slot the chat body hands it shrinks below that once the fee banner /
@@ -1021,11 +1117,17 @@ class _ChatEmptyState extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
           child: Center(
-            child: OmdsEmptyState(
-              key: ChatScreen.emptyStateKey,
-              icon: Icons.chat_bubble_outline,
-              title: title,
-              subtitle: subtitle,
+            // R20 is a board-still tile, so its in-thread empty block draws at
+            // rest — the call-site equivalent of the field's `animateDecor`,
+            // which JeebEmptyState has no knob for (kit question §open).
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: JeebEmptyState.compact(
+                key: ChatScreen.emptyStateKey,
+                variant: variant,
+                headline: title,
+                body: subtitle,
+              ),
             ),
           ),
         ),
@@ -1171,26 +1273,90 @@ class _MessageRow extends StatelessWidget {
   }
 }
 
-/// Skeleton placeholder shown while the chat history is loading.
+/// Placeholder bubbles in the kit's own geometry, shown while a thread is
+/// unknown — the history read here, the conversation resolution in the
+/// `/chat/:id` container. ONE skeleton for both, so the two loading frames
+/// cannot drift.
 ///
-/// Uses [OmdsListItemShimmer] (the canonical OMDS list-loading primitive) to
-/// hint at the upcoming message bubble layout — leading avatar circle plus a
-/// title-and-subtitle text pair — instead of a content-free spinner.
-class _ChatHistoryShimmer extends StatelessWidget {
-  const _ChatHistoryShimmer();
+/// One deliberate refusal: **no outgoing (tinted) placeholder**. A tinted
+/// bubble is the board's "you said this"; drawing one before a single message
+/// has loaded would assert content that may not exist. Every placeholder is an
+/// incoming rest-glass shell.
+///
+/// It renders through [JeebChatBubble] rather than re-deriving the radii, fill
+/// and padding, so the loading frame and the resolved thread cannot drift.
+///
+/// The slow pulse is not decoration. The pre-redesign `OmdsListItemShimmer`
+/// kept a frame scheduled for as long as the screen was loading, and several
+/// suites depend on that: their `pumpAndSettle()` is what lets the async lookup
+/// land (`chat_detail_active_thread_test` fails against a motionless
+/// placeholder). A skeleton with no motion also reads as an empty thread that
+/// finished loading, which is precisely the wrong statement.
+class ChatThreadSkeleton extends StatefulWidget {
+  const ChatThreadSkeleton({super.key});
 
-  static const int _placeholderCount = 6;
+  @override
+  State<ChatThreadSkeleton> createState() => _ChatThreadSkeletonState();
+}
+
+class _ChatThreadSkeletonState extends State<ChatThreadSkeleton>
+    with SingleTickerProviderStateMixin {
+  /// Width of each placeholder as a fraction of the thread column — unequal on
+  /// purpose, so the shell reads as "messages are coming" rather than as a
+  /// rendered thread. Below the kit's own 0.78 ceiling.
+  static const List<double> _widthFractions = <double>[0.62, 0.44, 0.7];
+
+  /// Trough of the pulse. High enough that the shells never blink out.
+  static const double _minOpacity = 0.45;
+
+  late final AnimationController _pulse =
+      AnimationController(vsync: this, duration: UIConstants.animationSlow)
+        ..repeat(reverse: true);
+
+  late final Animation<double> _fade = Tween<double>(
+    begin: _minOpacity,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      key: const Key('chat-screen-history-shimmer'),
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.small,
+    return ExcludeSemantics(
+      child: FadeTransition(
+        opacity: _fade,
+        child: Padding(
+          // The thread's own gutter (24) and top inset (16) — html:31.
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            Spacing.xLarge,
+            Spacing.medium,
+            Spacing.xLarge,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              for (final fraction in _widthFractions) ...<Widget>[
+                JeebChatBubble(
+                  side: JeebChatBubbleSide.incoming,
+                  maxWidthFraction: fraction,
+                  // An empty line box: the bubble supplies the fill and the
+                  // 18/18/18/6 corners, this supplies its height.
+                  child: const SizedBox(
+                    width: double.infinity,
+                    height: Sizes.small,
+                  ),
+                ),
+                const SizedBox(height: Spacing.small),
+              ],
+            ],
+          ),
+        ),
       ),
-      itemCount: _placeholderCount,
-      itemBuilder: (context, index) => const OmdsListItemShimmer(),
     );
   }
 }

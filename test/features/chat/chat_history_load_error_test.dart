@@ -97,11 +97,13 @@ class _NoopPicker implements PhotoPickerService {
   Future<RawPhoto> pickFromGallery() => throw UnimplementedError();
 }
 
-/// The retry CTA inside the error body. `find.byType` compares runtime types
-/// EXACTLY and `FilledButton.icon` builds a private `_FilledButtonWithIcon`
+/// The retry CTA inside the error body. MIDNIGHT: the body is now
+/// [JeebInfoNote.error] + a kit [JeebCtaButton] (no Material `FilledButton` in
+/// the tree at all), so the affordance is addressed by its identifier — the
+/// thing that is actually frozen — rather than by a Material runtime type.
 final Finder _retryButton = find.descendant(
   of: find.byKey(ChatScreen.historyErrorKey),
-  matching: find.byWidgetPredicate((w) => w is FilledButton),
+  matching: find.bySemanticsIdentifier('chat_history_error_retry'),
 );
 
 void main() {

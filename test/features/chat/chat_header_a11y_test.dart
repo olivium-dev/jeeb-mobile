@@ -265,7 +265,9 @@ void main() {
       );
     });
 
-    testWidgets('with no CTA there is room, so the sentence is painted too',
+    testWidgets(
+        'MIDNIGHT: with no CTA the sentence is STILL only announced — the '
+        'demoted banner is a one-line timeline chip in every state',
         (tester) async {
       await tester.binding.setSurfaceSize(const Size(411, 914));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -273,7 +275,11 @@ void main() {
         body: OfferAcceptedBanner(jeeberName: 'Kamal Hajj', onDismiss: () {}),
       )));
       await tester.pump();
-      expect(find.text('You are now chatting with your Jeeber.'), findsOneWidget);
+      expect(find.text('You are now chatting with your Jeeber.'), findsNothing);
+      expect(
+        nodeFor(tester, 'offer_accepted_banner_text').label,
+        'Offer accepted! You are now chatting with your Jeeber.',
+      );
     });
   });
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -10,6 +12,16 @@ import 'chat_fee_banner.dart';
 import 'chat_message_bubble.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
+/// MIDNIGHT (Pattern D — demoted). This used to be a full-bleed **green**
+/// success band: an off-palette `successContainer` slab that the board never
+/// draws and that repeated a fact the thread already states as its
+/// `Offer accepted · 9:12` timeline chip.
+///
+/// It is now that same quiet chip, centred over the thread, with the CTA and
+/// the dismiss target kept beside it — because the CTA is the Jeeber's primary
+/// action during a live delivery and the frozen `offer_accepted_*` identifiers
+/// (plus `Key('offer-accepted-banner')`) are Maestro-pinned, so the chrome is
+/// demoted rather than deleted.
 class OfferAcceptedBanner extends StatelessWidget {
   const OfferAcceptedBanner({
     super.key,
@@ -28,104 +40,57 @@ class OfferAcceptedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final roles = Theme.of(context).extension<JeebColorRoles>();
-    final colors = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context);
     final startDelivery = onStartActiveDelivery;
     final trackOrder = onTrackOrder;
-    final hasCta = startDelivery != null || trackOrder != null;
-    final container = roles?.successContainer ?? colors.tertiaryContainer;
-    final onContainer = roles?.onSuccessContainer ?? colors.onTertiaryContainer;
-    final divider = roles?.success ?? colors.outline;
 
     return Semantics(
       identifier: 'offer_accepted_banner',
       container: true,
       explicitChildNodes: true,
-      child: DecoratedBox(
+      child: Padding(
         key: const Key('offer-accepted-banner'),
-        decoration: BoxDecoration(
-          color: container,
-          border: Border(
-            bottom: BorderSide(color: divider, width: UIConstants.dividerWidth),
-          ),
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          Spacing.xSmall,
+          Spacing.twoXSmall,
+          Spacing.xSmall,
         ),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            Spacing.medium,
-            Spacing.xSmall,
-            Spacing.twoXSmall,
-            Spacing.xSmall,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: Spacing.xSmall,
-                  runSpacing: Spacing.twoXSmall,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _OfferAcceptedText(
-                      foreground: onContainer,
-                      showBody: !hasCta,
-                    ),
-                    if (startDelivery != null)
-                      _BannerCta(
-                        identifier: 'chat_start_active_delivery_cta',
-                        buttonKey: const Key('chat-start-active-delivery-cta'),
-                        label: l10n.chatStartActiveDeliveryButton,
-                        icon: Icons.local_shipping_outlined,
-                        onTap: startDelivery,
-                      ),
-                    if (trackOrder != null)
-                      _BannerCta(
-                        identifier: 'offer_accepted_track_cta',
-                        buttonKey: const Key('offer-accepted-track-cta'),
-                        label: l10n.homeTrackOrderCta,
-                        icon: Icons.location_on_outlined,
-                        onTap: trackOrder,
-                      ),
-                  ],
-                ),
-              ),
-              if (onDismiss != null)
-                _OfferAcceptedDismiss(
-                  onDismiss: onDismiss!,
-                  foreground: onContainer,
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OfferAcceptedText extends StatelessWidget {
-  const _OfferAcceptedText({required this.foreground, required this.showBody});
-
-  final Color foreground;
-  final bool showBody;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'offer_accepted_banner_text',
-      container: true,
-      label: '${l10n.chatOfferAcceptedBannerTitle} '
-          '${l10n.chatOfferAcceptedBannerBody}',
-      child: ExcludeSemantics(
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.check_circle_outline,
-              color: foreground,
-              size: Sizes.large,
+            Expanded(
+              // With no action beside it the chip is the tile's own centred
+              // timeline note; with one it shares the run and sits inline.
+              child: startDelivery == null && trackOrder == null
+                  ? const _OfferAcceptedText(center: true)
+                  : Wrap(
+                      spacing: Spacing.xSmall,
+                      runSpacing: Spacing.twoXSmall,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const _OfferAcceptedText(),
+                        if (startDelivery != null)
+                          _BannerCta(
+                            identifier: 'chat_start_active_delivery_cta',
+                            buttonKey: const Key(
+                              'chat-start-active-delivery-cta',
+                            ),
+                            label: l10n.chatStartActiveDeliveryButton,
+                            icon: Icons.local_shipping_outlined,
+                            onTap: startDelivery,
+                          ),
+                        if (trackOrder != null)
+                          _BannerCta(
+                            identifier: 'offer_accepted_track_cta',
+                            buttonKey: const Key('offer-accepted-track-cta'),
+                            label: l10n.homeTrackOrderCta,
+                            icon: Icons.location_on_outlined,
+                            onTap: trackOrder,
+                          ),
+                      ],
+                    ),
             ),
-            const SizedBox(width: Spacing.xSmall),
-            Flexible(child: _TitleAndBody(foreground: foreground, showBody: showBody)),
+            if (onDismiss != null) _OfferAcceptedDismiss(onDismiss: onDismiss!),
           ],
         ),
       ),
@@ -133,49 +98,40 @@ class _OfferAcceptedText extends StatelessWidget {
   }
 }
 
-class _TitleAndBody extends StatelessWidget {
-  const _TitleAndBody({required this.foreground, required this.showBody});
+/// The settled fact, in the thread's own timeline-chip language.
+class _OfferAcceptedText extends StatelessWidget {
+  const _OfferAcceptedText({this.center = false});
 
-  final Color foreground;
-  final bool showBody;
+  /// True centres the chip in its slot; false lets the Wrap position it (the
+  /// kit's own `Align` would otherwise eat the whole run).
+  final bool center;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          l10n.chatOfferAcceptedBannerTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: textTheme.labelLarge?.copyWith(
-            color: foreground,
-            fontWeight: FontWeight.w700,
-          ),
+    // The supporting sentence is no longer PAINTED — a timeline chip is one
+    // line by construction — but it is still announced, so nothing is lost to
+    // a screen reader.
+    return Semantics(
+      identifier: 'offer_accepted_banner_text',
+      container: true,
+      label:
+          '${l10n.chatOfferAcceptedBannerTitle} '
+          '${l10n.chatOfferAcceptedBannerBody}',
+      child: ExcludeSemantics(
+        child: JeebSystemChip.filled(
+          label: l10n.chatOfferAcceptedBannerTitle,
+          center: center,
         ),
-        if (showBody)
-          Text(
-            l10n.chatOfferAcceptedBannerBody,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: textTheme.bodySmall?.copyWith(color: foreground),
-          ),
-      ],
+      ),
     );
   }
 }
 
 class _OfferAcceptedDismiss extends StatelessWidget {
-  const _OfferAcceptedDismiss({
-    required this.onDismiss,
-    required this.foreground,
-  });
+  const _OfferAcceptedDismiss({required this.onDismiss});
 
   final VoidCallback onDismiss;
-  final Color foreground;
 
   @override
   Widget build(BuildContext context) {
@@ -190,13 +146,20 @@ class _OfferAcceptedDismiss extends StatelessWidget {
         child: SizedBox(
           width: Sizes.fourXLarge,
           height: Sizes.fourXLarge,
-          child: Icon(Icons.close, size: Sizes.large, color: foreground),
+          child: Icon(
+            Icons.close,
+            size: Sizes.large,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
+          ),
         ),
       ),
     );
   }
 }
 
+/// The one action the demoted chip keeps beside it — a navy kit pill, not the
+/// orange CTA: R20's orange budget is spent on the outgoing bubbles and the
+/// composer's send circle.
 class _BannerCta extends StatelessWidget {
   const _BannerCta({
     required this.identifier,
@@ -214,39 +177,18 @@ class _BannerCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Semantics(
-      identifier: identifier,
-      button: true,
-      child: IntrinsicWidth(
-        child: OmdsPrimaryButton(
-          key: buttonKey,
-          text: label,
-          height: Sizes.fourXLarge,
-          onTap: onTap,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: Sizes.medium,
-                color: theme.colorScheme.onPrimary,
-              ),
-              const SizedBox(width: Spacing.xSmall),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.onPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+    // `expand: false` only drops the infinite width; the pill's inner `Center`
+    // still fills a loose slot, so the intrinsic pass is what keeps it a pill.
+    return IntrinsicWidth(
+      child: JeebCtaButton.primary(
+        key: buttonKey,
+        label: label,
+        leadingIcon: icon,
+        onTap: onTap,
+        identifier: identifier,
+        height: Sizes.fourXLarge,
+        labelStyle: context.jeebText.bodySmall,
+        expand: false,
       ),
     );
   }
@@ -294,7 +236,9 @@ Widget _offerAcceptedBannerHosted({
         onStartActiveDelivery: startDelivery ? () {} : null,
         onTrackOrder: trackOrder ? () {} : null,
       ),
-      ChatMessageBubble(message: _offerAcceptedBannerAcceptedNotice(jeeberName)),
+      ChatMessageBubble(
+        message: _offerAcceptedBannerAcceptedNotice(jeeberName),
+      ),
     ],
   );
   if (width == null) return body;
@@ -307,16 +251,21 @@ Widget _offerAcceptedBannerHosted({
 /// The client's first reading of an accepted offer: no delivery id yet, so no
 /// CTA — the state the G5 fix deliberately leaves CTA-less rather than shipping
 @JeebPreview(group: 'chat', name: 'Client · no CTA yet', size: Size(390, 220))
-Widget offerAcceptedBannerClientNoCta() => _offerAcceptedBannerHosted(jeeberName: 'Kamal Hajj');
+Widget offerAcceptedBannerClientNoCta() =>
+    _offerAcceptedBannerHosted(jeeberName: 'Kamal Hajj');
 
 /// The Jeeber leg, in its real chrome: the balance-deduction band sits directly
 /// on top of this banner (`_ChatBody.header` emits `feeNotice` first), so two
-@JeebPreview(group: 'chat', name: 'Jeeber · start delivery', size: Size(390, 340))
+@JeebPreview(
+  group: 'chat',
+  name: 'Jeeber · start delivery',
+  size: Size(390, 340),
+)
 Widget offerAcceptedBannerJeeberStartDelivery() => _offerAcceptedBannerHosted(
-      jeeberName: 'Rana',
-      startDelivery: true,
-      chrome: const <Widget>[ChatFeeBanner(amount: r'$0.50')],
-    );
+  jeeberName: 'Rana',
+  startDelivery: true,
+  chrome: const <Widget>[ChatFeeBanner(amount: r'$0.50')],
+);
 
 /// The client leg once the accept response surfaced a delivery id (G5): the
 /// row becomes `icon · title · Track my order · ×`, and the supporting sentence
@@ -328,16 +277,16 @@ Widget offerAcceptedBannerClientTrackOrder() =>
 /// the longer of the two CTAs.
 @JeebPreview(group: 'chat', name: 'Small phone 320dp', size: Size(320, 220))
 Widget offerAcceptedBannerSmallPhone() => _offerAcceptedBannerHosted(
-      jeeberName: 'Ziad',
-      trackOrder: true,
-      width: 320,
-    );
+  jeeberName: 'Ziad',
+  trackOrder: true,
+  width: 320,
+);
 
 /// The widest the row can get: icon, title, BOTH CTAs and the dismiss target.
 /// Today's two hosts pick one CTA on role, so this combination is not reachable
 @JeebPreview(group: 'chat', name: 'Both CTAs', size: Size(390, 240))
 Widget offerAcceptedBannerBothCtas() => _offerAcceptedBannerHosted(
-      jeeberName: 'Layla',
-      startDelivery: true,
-      trackOrder: true,
-    );
+  jeeberName: 'Layla',
+  startDelivery: true,
+  trackOrder: true,
+);
