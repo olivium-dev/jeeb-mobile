@@ -192,9 +192,7 @@ class _RepliesActions extends StatelessWidget {
             button: true,
             child: JeebCtaButton.primary(
               key: Key('replies-check-offers-${request.id}'),
-              // TODO(midnight): l10n-queued homeRepliesViewOffersCta — the
-              // board pill reads "View offers" (the ar value already does).
-              label: l10n.homeRepliesCheckOffersCta,
+              label: l10n.homeRepliesViewOffersCta,
               height: JeebCtaButton.outlineHeight,
               expand: false,
               onTap: onCheckOffers,

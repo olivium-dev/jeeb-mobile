@@ -115,9 +115,7 @@ class CapturePickerSheet extends StatelessWidget {
                       boxShadow: isConfirming ? null : JeebShadows.ctaOrange,
                     ),
                     child: OmdsPrimaryButton(
-                      // TODO(midnight): l10n-queued — tile literal is
-                      // "Confirm drop-off".
-                      text: l10n.captureLocationPinCta,
+                      text: l10n.captureLocationConfirmDropOffCta,
                       isEnabled: !isConfirming,
                       height: ctaHeight,
                       borderRadius: OmdsBorderRadius.pill,

@@ -331,9 +331,7 @@ class _PendingServerStatus extends StatelessWidget {
         const SizedBox(width: Spacing.twoXSmall),
         Flexible(
           child: Text(
-            // TODO(midnight): l10n-queued pendingTabBroadcastingLabel — the
-            // tile reads "Broadcasting".
-            l10n.pendingTabSearchingLabel,
+            l10n.pendingTabBroadcastingLabel,
             style: context.jeebText.bodySmall.copyWith(
               fontWeight: FontWeight.w700,
               color: accent,

@@ -63,9 +63,9 @@ class CaptureLocationPin extends StatelessWidget {
               Semantics(
                 identifier: 'capture_location_pin_callout',
                 image: true,
-                label: l10n.captureLocationPinCallout,
+                label: l10n.captureLocationDropOffCallout,
                 child: _Callout(
-                  text: l10n.captureLocationPinCallout,
+                  text: l10n.captureLocationDropOffCallout,
                   verticalPadding: _calloutPadV,
                 ),
               ),
@@ -126,7 +126,6 @@ class _Callout extends StatelessWidget {
           vertical: verticalPadding,
         ),
         child: Text(
-          // TODO(midnight): l10n-queued — tile literal is "Drop-off here".
           text,
           style: context.jeebText.bodySmall.copyWith(
             color: scheme.onSurface,

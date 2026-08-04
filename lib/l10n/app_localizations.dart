@@ -704,7 +704,6 @@ class AppLocalizations {
   String get waitingRequestSummaryLabel => _get('waitingRequestSummaryLabel');
 
   String get captureLocationTitle => _get('captureLocationTitle');
-  String get captureLocationPinCta => _get('captureLocationPinCta');
   String get captureLocationMapSemantic => _get('captureLocationMapSemantic');
   String get captureLocationPinSemantic => _get('captureLocationPinSemantic');
   String get captureLocationMapPreview => _get('captureLocationMapPreview');
@@ -2541,7 +2540,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get requestTypeChangeCta => _get('requestTypeChangeCta');
 
   // 08 · Tier catalog (the enhanced picker section of /request-type)
-  String get tierCatalogSubtitle => _get('tierCatalogSubtitle');
   String get tierCatalogSlaFlexible => _get('tierCatalogSlaFlexible');
   String get tierCatalogPriceHighest => _get('tierCatalogPriceHighest');
   String get tierCatalogPriceHigher => _get('tierCatalogPriceHigher');
@@ -2568,7 +2566,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   // 09 · Location picker
   String clientLocationGpsAccuracy(int meters) =>
       _get('clientLocationGpsAccuracy').replaceAll('{meters}', '$meters');
-  String get captureLocationPinCallout => _get('captureLocationPinCallout');
 
   // 10 · Request summary
   String get requestSummaryBroadcastCta => _get('requestSummaryBroadcastCta');
@@ -2809,4 +2806,46 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('orderHistoryFilterRangeTo').replaceFirst('{to}', to);
   String get orderHistoryTrackCta => _get('orderHistoryTrackCta');
   String get orderHistoryReorderCta => _get('orderHistoryReorderCta');
+
+  // MIDNIGHT R1 + E1 · client home
+  String get homeHeroPromptMorning => _get('homeHeroPromptMorning');
+  String get homeHeroPromptAfternoon => _get('homeHeroPromptAfternoon');
+  String get homeHeroPromptEvening => _get('homeHeroPromptEvening');
+  String get homeCapsuleHoldToTalk => _get('homeCapsuleHoldToTalk');
+  String get homeCapsuleOrTapToType => _get('homeCapsuleOrTapToType');
+  String get homeCapsuleFirstRequestTitle =>
+      _get('homeCapsuleFirstRequestTitle');
+  String get homeCapsuleFirstRequestSubtitle =>
+      _get('homeCapsuleFirstRequestSubtitle');
+  String get homePendingEmptyMidnight => _get('homePendingEmptyMidnight');
+  String get pendingTabBroadcastingLabel => _get('pendingTabBroadcastingLabel');
+  String get homeTabPending => _get('homeTabPending');
+  String get homeRepliesViewOffersCta => _get('homeRepliesViewOffersCta');
+
+  // MIDNIGHT R2 · voice recording
+  String get voiceRecordingLiveTranscriptLabel =>
+      _get('voiceRecordingLiveTranscriptLabel');
+  String get voiceRecordingTranscriptSemantic =>
+      _get('voiceRecordingTranscriptSemantic');
+
+  // MIDNIGHT R9 · request type + tier catalog
+  String get requestTypeTierSummaryFlash => _get('requestTypeTierSummaryFlash');
+  String get requestTypeTierSummaryExpress =>
+      _get('requestTypeTierSummaryExpress');
+  String get requestTypeTierSummaryStandard =>
+      _get('requestTypeTierSummaryStandard');
+  String get requestTypeTierSummaryOnTheWay =>
+      _get('requestTypeTierSummaryOnTheWay');
+  String get requestTypeTierSummaryEco => _get('requestTypeTierSummaryEco');
+  String get requestTypeCurrentLocationQualifier =>
+      _get('requestTypeCurrentLocationQualifier');
+  String get requestTypeTiersEmptyHeadline =>
+      _get('requestTypeTiersEmptyHeadline');
+  String get requestTypeTiersEmptyBody => _get('requestTypeTiersEmptyBody');
+
+  // MIDNIGHT R11 · location picker
+  String get captureLocationDropOffCallout =>
+      _get('captureLocationDropOffCallout');
+  String get captureLocationConfirmDropOffCta =>
+      _get('captureLocationConfirmDropOffCta');
 }

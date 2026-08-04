@@ -85,7 +85,10 @@ void main() {
       // its own prompt in this composition, so it is still printed once.
       expect(find.text('What do you need?'), findsOneWidget);
       expect(
-        find.text('No pending requests — broadcast a new one to get offers.'),
+        find.text(
+          'No pending requests — say it, and offers from nearby Jeebers '
+          'arrive in minutes.',
+        ),
         findsOneWidget,
       );
       expect(find.byIcon(Icons.hourglass_empty_rounded), findsNothing);
@@ -139,7 +142,9 @@ void main() {
 
       expect(find.text('ماذا تحتاج؟'), findsOneWidget);
       expect(
-        find.text('لا توجد طلبات معلّقة — أنشئ طلبًا جديدًا لتلقّي العروض.'),
+        find.text(
+          'لا توجد طلبات معلّقة — قلها، وستصلك عروض من جيبرز قريبين خلال دقائق.',
+        ),
         findsOneWidget,
       );
       expect(

@@ -226,11 +226,14 @@ void main() {
       expect(find.bySemanticsIdentifier('orders_search_bar'), findsNothing);
       handle.dispose();
 
-      expect(find.text('Pending Requests'), findsOneWidget);
+      expect(find.text('Pending'), findsOneWidget);
       expect(find.text('Replies'), findsOneWidget);
       expect(find.text('What do you need?'), findsOneWidget);
       expect(
-        find.text('No pending requests — broadcast a new one to get offers.'),
+        find.text(
+          'No pending requests — say it, and offers from nearby Jeebers '
+          'arrive in minutes.',
+        ),
         findsOneWidget,
       );
       // MIDNIGHT E1: the CTA is the voice capsule, which now carries the empty
@@ -378,7 +381,9 @@ void main() {
 
       expect(find.text('ماذا تحتاج؟'), findsOneWidget);
       expect(
-        find.text('لا توجد طلبات معلّقة — أنشئ طلبًا جديدًا لتلقّي العروض.'),
+        find.text(
+          'لا توجد طلبات معلّقة — قلها، وستصلك عروض من جيبرز قريبين خلال دقائق.',
+        ),
         findsOneWidget,
       );
       // The empty CTA is the capsule now; its Arabic label rides the frozen
@@ -452,7 +457,7 @@ void main() {
 
         expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
         expect(find.text('+6'), findsOneWidget);
-        expect(find.text('Check Offers'), findsOneWidget);
+        expect(find.text('View offers'), findsOneWidget);
         // doc-13 P0-7: the second inline Accept button is gone; the board draws
         // one pill. `replies_accept_cta` is re-homed onto the card surface.
         expect(find.byKey(const Key('replies-accept-rep-1')), findsNothing);

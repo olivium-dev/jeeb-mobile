@@ -487,9 +487,7 @@ class _ClientHomeTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // TODO(midnight): l10n-queued homeTabPending — the tile's segment reads
-    // "Pending", which is also what keeps the control at the drawn width.
-    final labels = <String>[l10n.homeTabPendingRequests, l10n.homeTabReplies];
+    final labels = <String>[l10n.homeTabPending, l10n.homeTabReplies];
     return Padding(
       padding: _kGutter,
       child: Align(

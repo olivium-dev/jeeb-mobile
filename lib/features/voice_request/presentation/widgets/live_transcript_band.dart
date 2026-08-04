@@ -34,9 +34,7 @@ class LiveTranscriptBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    // TODO(midnight): l10n-queued — voiceRecordingLiveTranscriptLabel
-    // ("Live transcript") + voiceRecordingTranscriptSemantic.
-    final String label = l10n.transcriptionFieldLabel;
+    final String label = l10n.voiceRecordingLiveTranscriptLabel;
     return JeebGlassCard(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.large,
@@ -45,7 +43,7 @@ class LiveTranscriptBand extends StatelessWidget {
         Spacing.medium,
       ),
       identifier: 'voice_request_live_transcript',
-      semanticLabel: label,
+      semanticLabel: l10n.voiceRecordingTranscriptSemantic,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

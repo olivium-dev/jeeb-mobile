@@ -44,14 +44,13 @@ String tierCatalogName(AppLocalizations l10n, TierId id) => switch (id) {
   TierId.eco => l10n.tierEcoTitle,
 };
 
-/// TODO(midnight): l10n-queued — R9 draws `Under 1 hour · Highest price ·
-/// Priority pickup`; `requestTypeTierSummary*` in l10n-queue/M2-04-r9.md.
+/// The R9 one-line row summary, middot-separated and ellipsized.
 String tierCatalogSummary(AppLocalizations l10n, TierId id) => switch (id) {
-  TierId.flash => l10n.tierFlashValue,
-  TierId.express => l10n.tierExpressValue,
-  TierId.standard => l10n.tierStandardValue,
-  TierId.onTheWay => l10n.tierOnTheWayValue,
-  TierId.eco => l10n.tierEcoValue,
+  TierId.flash => l10n.requestTypeTierSummaryFlash,
+  TierId.express => l10n.requestTypeTierSummaryExpress,
+  TierId.standard => l10n.requestTypeTierSummaryStandard,
+  TierId.onTheWay => l10n.requestTypeTierSummaryOnTheWay,
+  TierId.eco => l10n.requestTypeTierSummaryEco,
 };
 
 /// The `{speed}` run of the row's spoken label — richer than the ellipsized

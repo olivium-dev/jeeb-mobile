@@ -32,8 +32,8 @@ void main() {
     await tester.pump(); // start the push
     await tester.pump(const Duration(milliseconds: 350)); // route transition
 
-    // The "Pin Location" CTA is on the pushed capture screen.
-    final cta = find.text('Pin Location');
+    // The "Confirm drop-off" CTA is on the pushed capture screen.
+    final cta = find.text('Confirm drop-off');
     expect(cta, findsOneWidget);
     await tester.ensureVisible(cta);
     await tester.tap(cta);
@@ -65,7 +65,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
 
-    final cta = find.text('Pin Location');
+    final cta = find.text('Confirm drop-off');
     await tester.ensureVisible(cta);
     await tester.tap(cta);
     await tester.pumpAndSettle();

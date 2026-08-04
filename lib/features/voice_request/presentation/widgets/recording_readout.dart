@@ -107,8 +107,6 @@ class RecordingReadout extends StatelessWidget {
           const SizedBox(height: Spacing.twoXSmall),
           JBreathe(
             duration: statusBreatheDuration,
-            // TODO(midnight): l10n-queued — the tile reads
-            // "Recording — release to send", the ARB still says "to stop".
             child: Text(
               l10n.voiceRecordingStatusRecording,
               textAlign: TextAlign.center,

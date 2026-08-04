@@ -252,7 +252,7 @@ void main() {
         find.bySemanticsIdentifier('capture_location_pin_cta'),
         findsOneWidget,
       );
-      expect(find.text('Pin Location'), findsOneWidget);
+      expect(find.text('Confirm drop-off'), findsOneWidget);
     });
 
     testWidgets('pin callback fires on CTA tap', (tester) async {

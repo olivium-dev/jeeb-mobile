@@ -24,10 +24,7 @@ class ClientHomeEmptyView extends StatelessWidget {
     return JeebEmptyState(
       identifier: '_request_empty_state_root',
       headline: l10n.homeEmptyTitle,
-      // TODO(midnight): l10n-queued homePendingEmptyMidnight — the tile reads
-      // "No pending requests — say it, and offers from nearby Jeebers arrive
-      // in minutes."
-      body: l10n.homePendingEmpty,
+      body: l10n.homePendingEmptyMidnight,
     );
   }
 }

@@ -44,6 +44,10 @@ class ClientHomeRequestHero extends StatelessWidget {
   /// Gap under the prompt headline (board `margin:6px 0 0`).
   static const double _taglineGap = 6;
 
+  /// Same device-clock split the greeting eyebrow uses.
+  static const int _afternoonHour = 12;
+  static const int _eveningHour = 17;
+
   /// Runs the host shell's create-request flow. Null leaves the body inert
   /// (the mic still routes), which is the honest rendering of a host that has
   /// not wired one.
@@ -75,9 +79,7 @@ class ClientHomeRequestHero extends StatelessWidget {
       children: [
         if (showPrompt) ...[
           Text(
-            // TODO(midnight): l10n-queued homeHeroPromptEvening — the tile
-            // draws the time-of-day form "What do you need tonight?".
-            l10n.homeEmptyTitle,
+            _prompt(l10n),
             style: context.jeebText.h1.copyWith(color: colorScheme.onSurface),
           ),
           const SizedBox(height: _taglineGap),
@@ -140,9 +142,9 @@ class ClientHomeRequestHero extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              // TODO(midnight): l10n-queued homeCapsuleHoldToTalk — "Hold to
-              // talk" (E1: "Hold to talk — Jeeb it").
-              l10n.homeMicLabel,
+              firstRequest
+                  ? l10n.homeCapsuleFirstRequestTitle
+                  : l10n.homeCapsuleHoldToTalk,
               style: context.jeebText.titleProminent.copyWith(
                 color: colorScheme.onSurface,
               ),
@@ -151,9 +153,9 @@ class ClientHomeRequestHero extends StatelessWidget {
             ),
             const SizedBox(height: Spacing.twoXSmall),
             Text(
-              // TODO(midnight): l10n-queued homeCapsuleOrTapToType — "or tap to
-              // type" (E1: "or tap to type your first request").
-              l10n.homeHeroSubtitle,
+              firstRequest
+                  ? l10n.homeCapsuleFirstRequestSubtitle
+                  : l10n.homeCapsuleOrTapToType,
               style: context.jeebText.bodySmall.copyWith(
                 color: semantic.mutedText,
               ),
@@ -174,6 +176,14 @@ class ClientHomeRequestHero extends StatelessWidget {
       );
     }
     return body;
+  }
+
+  /// Time-of-day prompt off the DEVICE clock, like the greeting eyebrow.
+  String _prompt(AppLocalizations l10n) {
+    final hour = DateTime.now().hour;
+    if (hour < _afternoonHour) return l10n.homeHeroPromptMorning;
+    if (hour < _eveningHour) return l10n.homeHeroPromptAfternoon;
+    return l10n.homeHeroPromptEvening;
   }
 
   /// Both mic gestures land on the same registered route

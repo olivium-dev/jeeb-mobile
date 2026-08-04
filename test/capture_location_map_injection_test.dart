@@ -40,7 +40,7 @@ void main() {
     expect(find.byType(CaptureLocationPin), findsOneWidget);
   });
 
-  testWidgets('Pin Location CTA fires onPinned (the route returns the centre)',
+  testWidgets('Confirm drop-off CTA fires onPinned (the route returns the centre)',
       (tester) async {
     var pinned = 0;
     await tester.pumpWidget(
@@ -53,7 +53,7 @@ void main() {
     );
     await tester.pump();
 
-    final cta = find.text('Pin Location');
+    final cta = find.text('Confirm drop-off');
     await tester.ensureVisible(cta);
     await tester.tap(cta);
     await tester.pump();

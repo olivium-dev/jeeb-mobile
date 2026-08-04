@@ -114,7 +114,7 @@ void main() {
         await tester.pumpWidget(_harness(repo: repo));
         await tester.pumpAndSettle();
 
-        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        expect(find.text('Broadcasting'), findsOneWidget);
         expect(find.text('Expired'), findsNothing);
         expect(find.byKey(const Key('pending-server-status')), findsOneWidget);
       },
@@ -130,7 +130,7 @@ void main() {
         await tester.pumpWidget(_harness(repo: repo));
         await tester.pumpAndSettle();
 
-        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        expect(find.text('Broadcasting'), findsOneWidget);
         expect(find.text('Expired'), findsNothing);
       },
     );
@@ -161,7 +161,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Expired'), findsNothing);
-        expect(find.text('Searching for Jeebers…'), findsOneWidget);
+        expect(find.text('Broadcasting'), findsOneWidget);
         await tester.tap(find.byKey(const Key('pending-countdown-card-pen-1')));
         expect(tapped, 1);
       },
@@ -178,7 +178,10 @@ void main() {
       // prompt in this composition, so it is still printed exactly once).
       expect(find.text('What do you need?'), findsOneWidget);
       expect(
-        find.text('No pending requests — broadcast a new one to get offers.'),
+        find.text(
+          'No pending requests — say it, and offers from nearby Jeebers '
+          'arrive in minutes.',
+        ),
         findsOneWidget,
       );
       // The board draws no CTA button here — the voice capsule the SCREEN
@@ -204,7 +207,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(PendingCountdownCard), findsNWidgets(2));
-      expect(find.text('Searching for Jeebers…'), findsNWidgets(2));
+      expect(find.text('Broadcasting'), findsNWidgets(2));
       expect(find.text('Expired'), findsNothing);
     });
 
@@ -285,7 +288,7 @@ void main() {
 
         expect(find.byKey(const Key('pending-offers-badge')), findsOneWidget);
         expect(find.text('3 offers'), findsOneWidget);
-        expect(find.text('Searching for Jeebers…'), findsNothing);
+        expect(find.text('Broadcasting'), findsNothing);
         expect(find.byKey(const Key('pending-server-status')), findsNothing);
       },
     );

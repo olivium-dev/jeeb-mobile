@@ -337,8 +337,8 @@ class _Bar extends StatelessWidget {
   }
 }
 
-/// Error and empty share one body: in both the customer cannot pick a speed and
-/// the only move is to retry.
+/// Error and empty share one recovery — retry — but not one read: an empty
+/// catalog is a coverage gap, not a failed call.
 class _UnavailableView extends StatelessWidget {
   const _UnavailableView({required this.status});
 
@@ -347,12 +347,14 @@ class _UnavailableView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final isEmpty = status == JeebEmptyStateStatus.empty;
     return Center(
-      // TODO(midnight): l10n-queued — `requestTypeTiersEmptyHeadline`/`Body`
-      // give the empty read its own copy; queue file l10n-queue/M2-04-r9.md.
       child: JeebEmptyState(
         status: status,
-        headline: l10n.requestSummaryErrorNetwork,
+        headline: isEmpty
+            ? l10n.requestTypeTiersEmptyHeadline
+            : l10n.requestSummaryErrorNetwork,
+        body: isEmpty ? l10n.requestTypeTiersEmptyBody : null,
         action: JeebCtaButton.outline(
           label: l10n.requestSummaryRetry,
           identifier: 'request_type_tiers_retry',
