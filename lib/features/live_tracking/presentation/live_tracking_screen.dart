@@ -1,14 +1,23 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/accessibility/accessibility.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_code_cells.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../delivery_status/domain/jeeber_summary.dart';
@@ -34,15 +43,13 @@ import 'widgets/otp_at_door_card.dart';
 /// AC4: `tracking_noshow_cta` opens the `tracking_noshow_sheet` →
 ///      reassign (`offer-review`) / re-broadcast (`waiting-no-coverage`) [D88].
 ///
-/// The live map + at-door OTP card + GPS-lost retry (T-MOB-017) are retained
-/// beneath the stepper. Navigation side-effects live in the `BlocListener`
-/// (gated by `listenWhen`), never the builder (40_GUARDRAILS_ARCH §3).
-///
-/// redesign-2026-08: the Material app bar is gone. The back affordance is an
-/// in-body circle — carried by [OrderSummaryPinnedHeader]'s [JeebTopBar] once
-/// the row has a summary, and by [_TrackingBackBar] in every state where that
-/// header does not mount. Exactly one emitter of `tracking_back` is ever in the
-/// tree.
+/// MIDNIGHT R3: the night map is the full background and every control lives on
+/// a frosted bottom sheet. The pinned summary SLAB is gone — the board draws no
+/// header — so its five facts are re-homed: the name onto the courier line, the
+/// price/cash onto its qualifier, the ETA onto the map chip, the chat CTA onto
+/// the courier row's circle, and the rest onto zero-size semantics nodes
+/// ([OrderSummaryPinnedHeader]). Navigation side-effects live in the
+/// `BlocListener` (gated by `listenWhen`), never the builder.
 class LiveTrackingScreen extends StatelessWidget {
   const LiveTrackingScreen({
     super.key,
@@ -77,7 +84,7 @@ class LiveTrackingScreen extends StatelessWidget {
       // instead of folding them into the screen-signature node.
       explicitChildNodes: true,
       child: Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
         // JEBV4-282: force an immediate re-fetch when the app returns to the
         // foreground (the 5s poll timer is suspended while backgrounded), so the
         // customer's status stepper reflects a transition that happened off-screen
@@ -138,7 +145,7 @@ class _TrackingStateView extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (state.mode) {
       case LiveTrackingViewMode.loading:
-        return const _BackBarScaffold(child: Center(child: OmdsLoadingState()));
+        return const _BackBarScaffold(child: _TrackingLoadingBody());
       case LiveTrackingViewMode.error:
         return _BackBarScaffold(
           child: _TrackingErrorBody(
@@ -173,13 +180,11 @@ class _TrackingStateView extends StatelessWidget {
   }
 }
 
-/// Mounts [_TrackingBackBar] above a body that has no header of its own.
+/// Mounts [_TrackingBackBar] above a body that has no map of its own, on the
+/// Midnight `content` field.
 ///
-/// Deleting the app bar deleted the back affordance from five view states at
-/// once: [OrderSummaryPinnedHeader] mounts only when `info.hasSummary`, and not
-/// at all while loading, on an error, or on any of the three terminal bodies. A
-/// screen with no way back is a dead end, so every one of those states gets the
-/// circle — and the terminal body widgets themselves stay untouched.
+/// [OrderTrackingStepper]'s sheet only exists in the ready state, so loading,
+/// error and the three terminal bodies would otherwise have no way back.
 class _BackBarScaffold extends StatelessWidget {
   const _BackBarScaffold({required this.child});
 
@@ -187,23 +192,25 @@ class _BackBarScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _TrackingBackBar(),
-          Expanded(child: child),
-        ],
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      animateDecor: false,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _TrackingBackBar(),
+            Expanded(child: child),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// The bare back circle, for every state without a [OrderSummaryPinnedHeader].
+/// The bare back circle, for every state without a map to float over.
 ///
-/// It is the kit's own top bar with no title — same Ø40 `surfaceContainerHigh`
-/// disc, same 20px direction-aware glyph, same `tracking_back` identifier, same
-/// 48dp tap target. Exactly one of this widget and the header's bar is ever
+/// Exactly one of this widget and [TrackingMapSurface]'s floating circle is ever
 /// mounted, so `tracking_back` never has two emitters.
 class _TrackingBackBar extends StatelessWidget {
   const _TrackingBackBar();
@@ -215,7 +222,30 @@ class _TrackingBackBar extends StatelessWidget {
       // `maybePop` alone no-ops when tracking IS the stack root (a push-
       // notification or deep-link landing), leaving a dead circle. `'/'` is
       // exactly `AppRouter.backFallbacks['live-tracking']`.
-      onLeadingPressed: () => context.canPop() ? context.pop() : context.go('/'),
+      onLeadingPressed: () => trackingBack(context),
+    );
+  }
+}
+
+/// The one back destination this screen has: pop when there is a stack, else
+/// `AppRouter.backFallbacks['live-tracking']`.
+void trackingBack(BuildContext context) =>
+    context.canPop() ? context.pop() : context.go('/');
+
+/// The cold read — the Midnight loading skeleton, not a bare spinner.
+class _TrackingLoadingBody extends StatelessWidget {
+  const _TrackingLoadingBody();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState.compact(
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.trackingTitle,
+        ),
+      ),
     );
   }
 }
@@ -232,38 +262,14 @@ class _TrackingCancelledBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
+    return _TerminalBody(
+      stateKey: cancelledStateKey,
       identifier: 'tracking_cancelled_state',
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.large),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              OmdsEmptyState(
-                key: cancelledStateKey,
-                icon: Icons.cancel_outlined,
-                title: l10n.deliveryCancelledBanner,
-                subtitle: l10n.trackingCancelledBody,
-              ),
-              const SizedBox(height: Spacing.large),
-              Semantics(
-                identifier: 'tracking_cancelled_home_cta',
-                container: true,
-                button: true,
-                child: OmdsPrimaryButton(
-                  key: const Key('tracking-cancelled-home-cta'),
-                  text: l10n.trackingCancelledHomeCta,
-                  // `context.go('/')` resolves the role-aware shell home — the
-                  // same terminal destination the cancel-request sheet uses.
-                  onTap: () => context.go('/'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      headline: l10n.deliveryCancelledBanner,
+      body: l10n.trackingCancelledBody,
+      ctaIdentifier: 'tracking_cancelled_home_cta',
+      ctaKey: const Key('tracking-cancelled-home-cta'),
+      ctaLabel: l10n.trackingCancelledHomeCta,
     );
   }
 }
@@ -279,36 +285,14 @@ class _TrackingExpiredBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
+    return _TerminalBody(
+      stateKey: expiredStateKey,
       identifier: 'tracking_expired_state',
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.large),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              OmdsEmptyState(
-                key: expiredStateKey,
-                icon: Icons.timer_off_outlined,
-                title: l10n.trackingExpiredTitle,
-                subtitle: l10n.trackingExpiredBody,
-              ),
-              const SizedBox(height: Spacing.large),
-              Semantics(
-                identifier: 'tracking_expired_home_cta',
-                container: true,
-                button: true,
-                child: OmdsPrimaryButton(
-                  key: const Key('tracking-expired-home-cta'),
-                  text: l10n.trackingCancelledHomeCta,
-                  onTap: () => context.go('/'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      headline: l10n.trackingExpiredTitle,
+      body: l10n.trackingExpiredBody,
+      ctaIdentifier: 'tracking_expired_home_cta',
+      ctaKey: const Key('tracking-expired-home-cta'),
+      ctaLabel: l10n.trackingCancelledHomeCta,
     );
   }
 }
@@ -328,23 +312,62 @@ class _TrackingUnderReviewBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
+    return _TerminalBody(
+      stateKey: underReviewStateKey,
       identifier: 'tracking_under_review_state',
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.large),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              OmdsEmptyState(
-                key: underReviewStateKey,
-                icon: Icons.report_problem_outlined,
-                title: l10n.trackingUnderReviewTitle,
-                subtitle: l10n.trackingUnderReviewBody,
-              ),
-            ],
-          ),
+      headline: l10n.trackingUnderReviewTitle,
+      body: l10n.trackingUnderReviewBody,
+    );
+  }
+}
+
+/// The shared shape of the three terminal bodies — one [JeebEmptyState] block
+/// with an optional exit CTA.
+class _TerminalBody extends StatelessWidget {
+  const _TerminalBody({
+    required this.stateKey,
+    required this.identifier,
+    required this.headline,
+    required this.body,
+    this.ctaIdentifier,
+    this.ctaKey,
+    this.ctaLabel,
+  });
+
+  final Key stateKey;
+  final String identifier;
+  final String headline;
+  final String body;
+  final String? ctaIdentifier;
+  final Key? ctaKey;
+  final String? ctaLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = ctaLabel;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: Spacing.large),
+        child: JeebEmptyState.compact(
+          key: stateKey,
+          identifier: identifier,
+          headline: headline,
+          body: body,
+          action: label == null
+              ? null
+              : Semantics(
+                  identifier: ctaIdentifier,
+                  container: true,
+                  button: true,
+                  child: JeebCtaButton.accent(
+                    key: ctaKey,
+                    label: label,
+                    expand: true,
+                    // `context.go('/')` resolves the role-aware shell home — the
+                    // same terminal destination the cancel-request sheet uses.
+                    onTap: () => context.go('/'),
+                  ),
+                ),
         ),
       ),
     );
@@ -360,6 +383,10 @@ class _TrackingBody extends StatelessWidget {
     this.handoverCode,
   });
 
+  /// How much of the viewport the sheet may claim before it scrolls internally
+  /// (board 0.22 at rest; the ceiling is for 200% text and the at-door card).
+  static const double sheetMaxHeightFactor = 0.78;
+
   final DeliveryTrackingInfo info;
   final bool isAtDoor;
   final String deliveryId;
@@ -373,134 +400,304 @@ class _TrackingBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) => Stack(
         children: [
-          // JM-031: pinned summary header at the very top (visible in both chat
-          // + tracking contexts). Only mounted once the row carries the summary
-          // — below that threshold the bare back circle stands in, so the screen
-          // is never without a way out.
-          if (info.hasSummary)
-            OrderSummaryPinnedHeader(
+          Positioned.fill(
+            child: TrackingMapSurface(
               info: info,
-              // EDGE: order_summary_open_chat → order-chat (JM-025). Routes by
-              // the REQUEST id (== correlationKey), falling back to the
-              // delivery id — NEVER the conversationId. `ChatDetailScreen`
-              // resolves the thread via
-              // `GET /v1/conversations?correlationKey={requestId}`, so a
-              // conversationId param guarantees a 404 on that lookup (BUG-17).
-              onOpenChat: () => context.goNamed(
-                'chat-detail',
-                pathParameters: {
-                  'id': (info.requestId?.isNotEmpty ?? false)
-                      ? info.requestId!
-                      : deliveryId,
-                },
-              ),
-              // The Track CTA is the current surface — omitted to avoid a
-              // self-navigating button (JM-031 renders it on the chat surface).
-            )
-          else
-            const _TrackingBackBar(),
-          // JM-032 AC1: the 4-step stepper is the PRIMARY visual.
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(
-              Spacing.xLarge,
-              Spacing.medium,
-              Spacing.xLarge,
-              0,
-            ),
-            // P6/A5: at the door the third step RELABELS to "At Door" (its
-            // identifier stays `tracking_step_in_transit`) — the 4-step
-            // blueprint is unchanged, no fifth step.
-            child: OrderTrackingStepper(
-              currentStep: info.trackingStepIndex4,
-              atDoor: info.currentStage == TrackingStage.atDoor,
+              useLiveMap: useLiveMap,
+              fillViewport: true,
+              onBack: () => trackingBack(context),
             ),
           ),
-          // The scroll view exists only so 200% text scale cannot overflow; at
-          // 1.0x the lower third of the screen is deliberately white (R1), with
-          // the action bar docked below it.
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // T-MOB-017: the live map, now a fixed 250px rounded card fed
-                  // the latest courier GPS fix + route polyline straight from
-                  // the tracking feed.
-                  Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(
-                      Spacing.xLarge,
-                      Spacing.medium,
-                      Spacing.xLarge,
-                      0,
-                    ),
-                    child: TrackingMapSurface(
-                      info: info,
-                      useLiveMap: useLiveMap,
-                    ),
-                  ),
-                  if (info.jeeber != null)
-                    _TrackingJeeberSection(
-                      jeeber: info.jeeber!,
-                      price: info.price,
-                      currency: info.currency,
-                    ),
-                  if (isAtDoor)
-                    // G4: at the door the code is PROMINENT — inline in the card.
-                    OtpAtDoorCard(
-                      deliveryId: deliveryId,
-                      handoverCode: handoverCode,
-                    )
-                  else ...[
-                    // G4: as soon as the code is known (accept time) it is
-                    // discoverable — a quiet one-line row, not a hero banner.
-                    //
-                    // P0 (2026-07-31, ship-p0 g5): this row used to be gated on
-                    // `handoverCode != null`, and [OtpAtDoorCard] — the ONLY
-                    // other route from this screen to `/orders/{id}/otp` — is
-                    // gated on `isAtDoor`. Both gates failed at once on real
-                    // hardware, so the customer had NO path to the code and the
-                    // delivery dead-ended:
-                    //  * the code was null because the accept parser dropped it
-                    //    (fixed in `acceptResponseDeliveryId`), and
-                    //  * `isAtDoor` was false because the status axis is
-                    //    push-only since #185/N7 and the AtDoor push did not
-                    //    land on that device (gateway journal 21:48:52 CEST:
-                    //    "accepted by push service for recipient
-                    //    d1000000-…0001 … fcmAccepted=3/24 deviceRows
-                    //    fcmRejected=21"). The a33 capture shows ZERO
-                    //    `/v1/deliveries/{id}` reads between 19:46:55 and
-                    //    19:49:58 across the 19:48:47 AtDoor transition.
-                    // The row is therefore UNCONDITIONAL now. A best-effort
-                    // push and a best-effort local cache must not, between
-                    // them, be able to hide the one thing the hand-over cannot
-                    // happen without: when the code is not cached the row still
-                    // opens the OTP screen, which fetches it (that fallback is
-                    // proven — dev-e2e `a33/G4-11-show-otp.png`, code 2144).
-                    _HandoverCodeRow(code: handoverCode, deliveryId: deliveryId),
-                    _TrackingPanelSection(info: info),
-                  ],
-                ],
+          PositionedDirectional(
+            start: 0,
+            end: 0,
+            bottom: 0,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: constraints.maxHeight * sheetMaxHeightFactor,
+              ),
+              child: _TrackingSheet(
+                info: info,
+                isAtDoor: isAtDoor,
+                deliveryId: deliveryId,
+                handoverCode: handoverCode,
               ),
             ),
           ),
-          // JM-032 AC3/AC4: dispute + no-show CTAs.
-          _TrackingActionBar(info: info, deliveryId: deliveryId),
         ],
       ),
     );
   }
 }
 
-/// JM-032 AC3 (dispute) + AC4 (no-show). Both controls carry their coined ids
-/// from 63_W1_TEST_PLAN §2.12. Dispute routes to the registered `escalate`
-/// route (its `dispute_reason` body is JM-060/W4); no-show opens the sheet.
+/// R3's frosted bottom sheet — the one place every control lives.
 ///
-/// redesign-2026-08: the kit footer owns the geometry — h50 pills, r999, the
-/// 1.5px outline, the 12px gap and the docked `0/24/32` padding. Both halves are
-/// `flex: 1` (`tpl 781-783`).
+/// The screen's single real `BackdropFilter` besides the ETA chip (§4 budget:
+/// ≤2), so the map genuinely blurs through the navy instead of faking it.
+class _TrackingSheet extends StatelessWidget {
+  const _TrackingSheet({
+    required this.info,
+    required this.isAtDoor,
+    required this.deliveryId,
+    required this.handoverCode,
+  });
+
+  /// The board insets the sheet from the phone edge by 4 and rounds its
+  /// corners at 21 dp — the `xl` rung, not `sheet`.
+  static const double edgeInset = 4;
+  static const double cornerRadius = JeebRadii.xl;
+
+  /// Grab-handle geometry (board 46×5 px at the export's 1.1x = 42×4 dp).
+  static const double handleWidth = 42;
+  static const double handleHeight = 4;
+
+  /// Sheet fill opacity — the board composites to `surfaceContainerLow` over
+  /// the dimmed map; the remainder is what the blur samples.
+  static const double fillOpacity = 0.88;
+
+  final DeliveryTrackingInfo info;
+  final bool isAtDoor;
+  final String deliveryId;
+  final String? handoverCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    final radius = BorderRadius.circular(cornerRadius);
+
+    return Padding(
+      padding: const EdgeInsets.all(edgeInset),
+      child: DecoratedBox(
+        // Outside the clip, or the clip eats the lift.
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          boxShadow: JeebShadows.floatNav,
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(
+              sigmaX: JeebGlassCapsule.heroBlur,
+              sigmaY: JeebGlassCapsule.heroBlur,
+            ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerLow
+                    .withValues(alpha: fillOpacity),
+                borderRadius: radius,
+                border: Border.all(color: semantics.glassBorder),
+              ),
+              child: SafeArea(
+                top: false,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      Spacing.xLarge,
+                      Spacing.large - Spacing.twoXSmall,
+                      Spacing.xLarge,
+                      Spacing.xLarge,
+                    ),
+                    child: _SheetContent(
+                      info: info,
+                      isAtDoor: isAtDoor,
+                      deliveryId: deliveryId,
+                      handoverCode: handoverCode,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetContent extends StatelessWidget {
+  const _SheetContent({
+    required this.info,
+    required this.isAtDoor,
+    required this.deliveryId,
+    required this.handoverCode,
+  });
+
+  final DeliveryTrackingInfo info;
+  final bool isAtDoor;
+  final String deliveryId;
+  final String? handoverCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    final jeeber = info.jeeber;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Center(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: semantics.glassBorderVivid,
+              borderRadius: BorderRadius.circular(JeebRadii.pill),
+            ),
+            child: const SizedBox(
+              width: _TrackingSheet.handleWidth,
+              height: _TrackingSheet.handleHeight,
+            ),
+          ),
+        ),
+        const SizedBox(height: Spacing.large - Spacing.twoXSmall),
+        // JM-032 AC1: the 4-step stepper is the PRIMARY visual.
+        // P6/A5: at the door the third step RELABELS to "At Door" (its
+        // identifier stays `tracking_step_in_transit`).
+        OrderTrackingStepper(
+          currentStep: info.trackingStepIndex4,
+          atDoor: info.currentStage == TrackingStage.atDoor,
+        ),
+        if (jeeber != null || info.hasSummary) ...[
+          const SizedBox(height: Spacing.medium),
+          _TrackingCourierRow(info: info, jeeber: jeeber, deliveryId: deliveryId),
+        ],
+        const SizedBox(height: Spacing.medium),
+        if (isAtDoor)
+          // G4: at the door the code is PROMINENT — inline in the card.
+          OtpAtDoorCard(deliveryId: deliveryId, handoverCode: handoverCode)
+        else ...[
+          // G4: as soon as the code is known (accept time) it is discoverable.
+          //
+          // P0 (2026-07-31): this row used to be gated on `handoverCode != null`
+          // and [OtpAtDoorCard] on `isAtDoor`. Both gates failed at once on real
+          // hardware, so the customer had NO path to the code and the delivery
+          // dead-ended. The row is therefore UNCONDITIONAL: when the code is not
+          // cached the trailing slot becomes the "Show OTP" CTA and the OTP
+          // screen fetches it (proven — dev-e2e `a33/G4-11-show-otp.png`).
+          _HandoverCodeRow(code: handoverCode, deliveryId: deliveryId),
+          const SizedBox(height: Spacing.small),
+          DeliveryTrackingPanel(info: info),
+        ],
+        // Zero-size carriers for the summary facts the board does not draw.
+        OrderSummaryPinnedHeader(info: info),
+        _TrackingActionBar(info: info, deliveryId: deliveryId),
+      ],
+    );
+  }
+}
+
+/// The board's courier line: Ø50 avatar, name + qualifier, chat circle.
+///
+/// The row also mounts on a summary-bearing delivery with no [JeeberSummary]
+/// yet — `order_summary_open_chat` is a contract that cannot depend on the
+/// courier slice having landed.
+class _TrackingCourierRow extends StatelessWidget {
+  const _TrackingCourierRow({
+    required this.info,
+    required this.jeeber,
+    required this.deliveryId,
+  });
+
+  final DeliveryTrackingInfo info;
+  final JeeberSummary? jeeber;
+  final String deliveryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = LiveTrackingL10n.of(context);
+    final courier = jeeber;
+    // EDGE: order_summary_open_chat → order-chat (JM-025). Routes by the
+    // REQUEST id (== correlationKey), falling back to the delivery id — NEVER
+    // the conversationId, which guarantees a 404 on the thread lookup (BUG-17).
+    final chat = _TrackingCircleAction(
+      icon: Icons.chat_bubble,
+      identifier: 'order_summary_open_chat',
+      semanticLabel: l10n.summaryOpenChat,
+      onTap: () => context.goNamed(
+        'chat-detail',
+        pathParameters: {
+          'id': (info.requestId?.isNotEmpty ?? false)
+              ? info.requestId!
+              : deliveryId,
+        },
+      ),
+    );
+
+    if (courier == null) {
+      return Align(alignment: AlignmentDirectional.centerEnd, child: chat);
+    }
+    return TrackingCourierCard(
+      jeeber: courier,
+      price: info.price,
+      currency: info.currency,
+      trailing: chat,
+    );
+  }
+}
+
+/// One Ø48 glass circle action, the board's own courier-row affordance.
+class _TrackingCircleAction extends StatelessWidget {
+  const _TrackingCircleAction({
+    required this.icon,
+    required this.identifier,
+    required this.semanticLabel,
+    required this.onTap,
+  });
+
+  /// Board Ø48 — already the a11y minimum, so the circle IS the tap target.
+  static const double diameter = A11y.minTapTargetSize;
+
+  /// Glyph size (`tpl 771`).
+  static const double glyphSize = 19;
+
+  final IconData icon;
+  final String identifier;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    return Semantics(
+      identifier: identifier,
+      label: semanticLabel,
+      button: true,
+      container: true,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          splashColor: semantics.glassFillPressed,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: semantics.glassFillEmphasis,
+              shape: BoxShape.circle,
+              border: Border.all(color: semantics.glassBorder),
+            ),
+            child: SizedBox.square(
+              dimension: diameter,
+              child: Center(
+                child: Icon(icon, size: glyphSize, color: scheme.onSurface),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// JM-032 AC3 (dispute) + AC4 (no-show). Both controls carry their coined ids
+/// from 63_W1_TEST_PLAN §2.12. The board does not draw them on R3; they ship as
+/// the quietest pair in the sheet because the dispute exit is a product lock.
 class _TrackingActionBar extends StatelessWidget {
   const _TrackingActionBar({required this.info, required this.deliveryId});
 
@@ -517,6 +714,8 @@ class _TrackingActionBar extends StatelessWidget {
         : deliveryId;
     return JeebCtaFooter.split(
       expandLeading: true,
+      // The sheet already owns the 24 gutter and the safe-area inset.
+      padding: const EdgeInsetsDirectional.fromSTEB(0, Spacing.medium, 0, 0),
       leading: Semantics(
         identifier: 'tracking_noshow_cta',
         button: true,
@@ -555,16 +754,13 @@ class _TrackingActionBar extends StatelessWidget {
   }
 }
 
-/// G4: compact, discoverable hand-over code row shown from accept time until
-/// the at-door moment (where [OtpAtDoorCard] takes over prominently). One quiet
-/// muted strip — key glyph, one label line, the code — tappable through to the
-/// full-screen display (`tpl 774-779`).
+/// G4: the board's door-code strip — key glyph, one label line, the code —
+/// tappable through to the full-screen display.
 ///
 /// P0 (2026-07-31): [code] is NULLABLE and the row renders either way. It is
-/// this screen's only unconditional route to `/orders/{id}/otp`, and the
-/// hand-over cannot happen without it, so it must not be hidden by a cache
-/// miss. With no cached code the trailing slot becomes the "Show OTP" CTA and
-/// the OTP screen fetches the code.
+/// this screen's only unconditional route to `/orders/{id}/otp`, so it must not
+/// be hidden by a cache miss; with no cached code the trailing slot becomes the
+/// "Show OTP" CTA and the OTP screen fetches it.
 class _HandoverCodeRow extends StatelessWidget {
   const _HandoverCodeRow({required this.code, required this.deliveryId});
 
@@ -576,106 +772,52 @@ class _HandoverCodeRow extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final trackingL10n = LiveTrackingL10n.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final knownCode = code;
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Spacing.small,
-        Spacing.xLarge,
-        0,
-      ),
-      child: Semantics(
-        // Contract unchanged: one node, button, the chip label, and the code
-        // read out digit-by-digit (or the CTA when there is none).
-        identifier: 'tracking_handover_code_row',
-        button: true,
-        label: l10n.trackingCodeChipLabel,
-        value: knownCode == null
-            ? l10n.trackingAtDoorCta
-            : knownCode.split('').join(' '),
-        child: JeebInfoNote.muted(
-          // The board draws this key NAVY, not in the muted tone's periwinkle.
-          icon: Icons.vpn_key_outlined,
-          iconSize: Sizes.large,
-          iconColor: scheme.primary,
-          gap: Spacing.small,
-          onTap: () => context.push('/orders/$deliveryId/otp'),
-          // `label` rather than `text` because the ink is deliberately not the
-          // muted tone's: the board's periwinkle fails AA on `surface-high` at
-          // this size by the repo's own pinned contrast guard.
-          label: Text(
-            trackingL10n.doorCodeNote,
-            style: context.jeebText.bodySmall
-                .copyWith(color: scheme.onSurfaceVariant),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: knownCode == null
-              ? Text(
+    return Semantics(
+      // Contract unchanged: one node, button, the chip label, and the code
+      // read out digit-by-digit (or the CTA when there is none).
+      identifier: 'tracking_handover_code_row',
+      button: true,
+      label: l10n.trackingCodeChipLabel,
+      value: knownCode == null
+          ? l10n.trackingAtDoorCta
+          : knownCode.split('').join(' '),
+      child: JeebInfoNote.muted(
+        // The board draws this key in ink, not in the muted tone's periwinkle.
+        icon: Icons.vpn_key_outlined,
+        iconSize: Sizes.large,
+        iconColor: scheme.onSurface,
+        gap: Spacing.small,
+        onTap: () => context.push('/orders/$deliveryId/otp'),
+        label: Text(
+          trackingL10n.doorCodeNote,
+          style: context.jeebText.bodySmall
+              .copyWith(color: semantics.mutedText),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        // Flexible: the note's trailing slot is inflexible, so an Arabic CTA at
+        // 200% overflows the strip without it.
+        trailing: knownCode == null
+            ? Flexible(
+                child: Text(
                   l10n.trackingAtDoorCta,
                   key: const Key('tracking.codeRowValue'),
                   style: context.jeebText.cardTitle
                       .copyWith(color: scheme.primary),
-                )
-              // ONE Text in an LTR isolate — never per-digit widgets: the tests
-              // assert `find.text('1234')` on the visible run.
-              : JeebCodeCells.strip(
-                  knownCode,
-                  textKey: const Key('tracking.codeRowValue'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-        ),
+              )
+            // ONE Text in an LTR isolate — never per-digit widgets: the tests
+            // assert `find.text('1234')` on the visible run.
+            : JeebCodeCells.strip(
+                knownCode,
+                textKey: const Key('tracking.codeRowValue'),
+              ),
       ),
-    );
-  }
-}
-
-/// The matched-Jeeber card rendered above the code row / OTP card. Mounted ONLY
-/// when a jeeber is assigned, so no "looking for a Jeeber…" placeholder ever
-/// shows on an already GPS-streaming delivery.
-class _TrackingJeeberSection extends StatelessWidget {
-  const _TrackingJeeberSection({
-    required this.jeeber,
-    this.price,
-    this.currency,
-  });
-
-  final JeeberSummary jeeber;
-  final double? price;
-  final String? currency;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Spacing.small,
-        Spacing.xLarge,
-        0,
-      ),
-      child: TrackingCourierCard(
-        jeeber: jeeber,
-        price: price,
-        currency: currency,
-      ),
-    );
-  }
-}
-
-class _TrackingPanelSection extends StatelessWidget {
-  const _TrackingPanelSection({required this.info});
-
-  final DeliveryTrackingInfo info;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Spacing.small,
-        Spacing.xLarge,
-        Spacing.small,
-      ),
-      child: DeliveryTrackingPanel(info: info),
     );
   }
 }
@@ -699,17 +841,21 @@ class _TrackingErrorBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final isNotFound = title != null;
     return Center(
-      child: OmdsErrorState(
-        key: errorStateKey,
-        title: title,
-        message: message ?? l10n.trackingGpsLostBody,
-        // A 404 is a "nothing to track yet" state — use a neutral box icon
-        // rather than the GPS-lost crosshair so it doesn't read as a fault.
-        icon: isNotFound ? Icons.inbox_outlined : Icons.location_off_outlined,
-        onRetry: onRetry,
-        retryLabel: l10n.trackingGpsLostRetry,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: Spacing.large),
+        child: JeebEmptyState.compact(
+          key: errorStateKey,
+          status: JeebEmptyStateStatus.error,
+          identifier: 'tracking_error_state',
+          headline: title ?? l10n.trackingGpsLostTitle,
+          body: message ?? l10n.trackingGpsLostBody,
+          action: JeebCtaButton.accent(
+            label: l10n.trackingGpsLostRetry,
+            expand: true,
+            onTap: onRetry,
+          ),
+        ),
       ),
     );
   }
@@ -734,14 +880,9 @@ class _ResumeRefresh extends StatefulWidget {
 class _ResumeRefreshState extends State<_ResumeRefresh>
     with ResumeRefetchMixin {
   /// b02 P0 — moved off the raw `resumed` notification onto the ONE coalesced
-  /// resume bus. `LiveTrackingCubit.refreshNow`'s own in-flight latch (whose
-  /// doc already noted that `resumed` "can fire MORE THAN ONCE for a single
-  /// background→foreground trip") only collapses OVERLAPPING calls; the rate
-  /// floor that collapses a burst lives in [AppResumeSignals].
-  ///
-  /// Direct call — see the note on the active-delivery twin: the old post-frame
-  /// deferral only bought a `mounted` guard the mixin already gives, and cost a
-  /// refetch that never lands on a screen with no other frame source.
+  /// resume bus. `LiveTrackingCubit.refreshNow`'s own in-flight latch only
+  /// collapses OVERLAPPING calls; the rate floor that collapses a burst lives
+  /// in [AppResumeSignals].
   @override
   void onAppResumed() => context.read<LiveTrackingCubit>().refreshNow();
 

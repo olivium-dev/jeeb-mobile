@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -125,7 +124,9 @@ void main() {
 
       expect(find.byKey(TrackingMapSurface.rootKey), findsOneWidget);
       expect(find.byType(TrackingGoogleMap), findsNothing);
-      expect(find.byIcon(Icons.navigation_outlined), findsOneWidget);
+      // MIDNIGHT R3: the placeholder is the drawn night-map frame (static
+      // dotted route + courier disc), not a single Material glyph.
+      expect(find.byType(TrackingMapPlaceholder), findsOneWidget);
     });
 
     testWidgets('renders the placeholder when there is no tracking info yet',

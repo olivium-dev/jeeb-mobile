@@ -78,9 +78,16 @@ final CatalogEntry _languageEntry = CatalogEntry(
 /// No refresh source wired (eliminates timer leaks in preview).
 Widget _liveTrackingPreview(LiveTrackingRepository repository) {
   return BlocProvider<LiveTrackingCubit>.value(
-    value: LiveTrackingScreenFixtures.cubit(repository),
+    value: LiveTrackingScreenFixtures.cubit(
+      repository,
+      // The board draws the door code, so the catalog must know one.
+      code: LiveTrackingScreenFixtures.handoverCode,
+    ),
+    // MIDNIGHT: the deterministic R3 map frame, not a platform view — a live
+    // GoogleMap cannot render under `flutter test` (the two capture crashes).
     child: const LiveTrackingScreen(
       deliveryId: LiveTrackingScreenFixtures.deliveryId,
+      useLiveMap: false,
     ),
   );
 }

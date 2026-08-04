@@ -50,21 +50,30 @@ DeliveryTrackingInfo _info({JeeberSummary? jeeber}) => DeliveryTrackingInfo(
       jeeber: jeeber,
     );
 
-Future<void> _pumpScreen(WidgetTester tester, DeliveryTrackingInfo info) async {
+Future<void> _pumpScreen(
+  WidgetTester tester,
+  DeliveryTrackingInfo info, {
+  Locale locale = const Locale('en'),
+  double textScale = 1.0,
+}) async {
   await tester.pumpWidget(
     wrapForTest(
-      BlocProvider<LiveTrackingCubit>(
-        create: (_) => LiveTrackingCubit(
-          repository: _FakeRepo(info),
-          deliveryId: info.deliveryId,
-          refreshSignals: const Stream<void>.empty(),
-        ),
-        child: LiveTrackingScreen(
-          deliveryId: info.deliveryId,
-          // No keyless GoogleMap in tests.
-          useLiveMap: false,
+      MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+        child: BlocProvider<LiveTrackingCubit>(
+          create: (_) => LiveTrackingCubit(
+            repository: _FakeRepo(info),
+            deliveryId: info.deliveryId,
+            refreshSignals: const Stream<void>.empty(),
+          ),
+          child: LiveTrackingScreen(
+            deliveryId: info.deliveryId,
+            // No keyless GoogleMap in tests.
+            useLiveMap: false,
+          ),
         ),
       ),
+      locale: locale,
     ),
   );
   // Two pumps: frame 1 = loading; the synchronous fetch resolves on the next
@@ -117,5 +126,24 @@ void main() {
 
     // The rest of the ready body still renders.
     expect(find.byKey(TrackingMapSurface.rootKey), findsOneWidget);
+  });
+
+  // MIDNIGHT R3: the sheet is height-capped and scrolls internally, which is
+  // what the pinned header's overflow guard used to protect. Arabic at 200% is
+  // the worst case the a11y AC requires.
+  testWidgets('the tracking sheet never overflows at 200% text scale (AR)',
+      (tester) async {
+    tester.view.physicalSize = const Size(411.4, 914.0);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await _pumpScreen(
+      tester,
+      _info(jeeber: _kamal),
+      locale: const Locale('ar'),
+      textScale: 2.0,
+    );
+
+    expect(tester.takeException(), isNull);
   });
 }

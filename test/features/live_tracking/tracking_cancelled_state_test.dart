@@ -6,8 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:omds/omds.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/live_tracking/application/live_tracking_cubit.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/delivery_tracking_info.dart';
 import 'package:jeeb_mobile/features/live_tracking/domain/live_tracking_repository.dart';
@@ -33,6 +33,12 @@ Widget _harness(LiveTrackingCubit cubit) => MaterialApp(
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // JeebEmptyState's illustration loops ∞ (02-STUDY-NOTES M0-4):
+      // `pumpAndSettle` only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       home: BlocProvider<LiveTrackingCubit>.value(
         value: cubit,
         child:
@@ -235,14 +241,18 @@ void main() {
         find.byKey(const Key('live-tracking-cancelled-state')),
         findsOneWidget,
       );
-      expect(find.byType(OmdsEmptyState), findsOneWidget);
+      // MIDNIGHT: the empty family is JeebEmptyState now, at `empty` status.
+      expect(find.byType(JeebEmptyState), findsOneWidget);
       expect(find.text('Delivery cancelled'), findsOneWidget);
       expect(
         find.byKey(const Key('tracking-cancelled-home-cta')),
         findsOneWidget,
       );
       // The live stepper and error state must NOT render for a terminal row.
-      expect(find.byType(OmdsErrorState), findsNothing);
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
+        JeebEmptyStateStatus.empty,
+      );
       expect(find.text('Ordered'), findsNothing);
 
       await cubit.close();

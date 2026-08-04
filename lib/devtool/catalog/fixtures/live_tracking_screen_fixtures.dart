@@ -125,6 +125,7 @@ final class LiveTrackingScreenFixtures {
     stageTimestamps: <TrackingStage, DateTime>{},
     distanceLabel: '3 km',
     etaMinutes: 20,
+    jeeber: jeeber,
     requestId: deliveryId,
     price: 9,
     currency: 'USD',
