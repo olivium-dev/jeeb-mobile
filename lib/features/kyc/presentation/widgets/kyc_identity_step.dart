@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/jeeb_commission.dart';
 import '../../../../core/text/digit_normalization.dart';
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
@@ -47,8 +48,18 @@ import 'kyc_liveness_prompt_card.dart';
 /// selfie row stays visually locked until both ID sides exist
 /// ([KycWizardState.isSelfieUnlocked]) — a PRESENTATION lock only; the cubit
 /// path stays open because neither Maestro nor the widget tests can drive the
-/// OS camera. A `kyc_scroll_hint` affordance (JEBV4-295) still marks the fold
-/// boundary and can drive the scroll itself.
+/// OS camera.
+///
+/// MIDNIGHT R23 / doc-13 P1: the contract-required ID type + number band used
+/// to sit BETWEEN the ID rows and the selfie, splitting the board's 3-row
+/// checklist and pushing the selfie below the fold. It now follows the selfie
+/// block, so front · back · selfie read as one run exactly as the tile draws
+/// them; the band itself is unchanged and still required.
+///
+/// That relocation deleted the fold `kyc_scroll_hint` (JEBV4-295) existed to
+/// advertise, so the pill went with it: the selfie row is now in view at a
+/// real phone viewport, the tile draws no such affordance, and leaving it in
+/// re-split the very run the P1 fix healed. No Maestro flow referenced it.
 class KycIdentityStep extends StatefulWidget {
   const KycIdentityStep({super.key});
 
@@ -62,10 +73,6 @@ class KycIdentityStep extends StatefulWidget {
   static const Key livenessPromptKey = Key('kyc-selfie-liveness-prompt');
   static const Key tosCheckboxKey = Key('kyc-tos-accept-checkbox');
   static const Key submitButtonKey = Key('kyc-submit-cta');
-
-  /// JEBV4-295: tappable "scroll for selfie" affordance shown while the
-  /// selfie section is still below the fold and not yet captured.
-  static const Key scrollHintKey = Key('kyc-scroll-hint');
 
   /// Card corner radius of the ID-type / ID-number group — matches the capture
   /// rows so the Step-1 block reads as one family (`22 tpl 1308`).
@@ -106,15 +113,8 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
   /// review finding 4).
   late final TextEditingController _idNumberController;
 
-  /// JEBV4-295: owns the identity screen's single scroll view so the
-  /// "scroll for selfie" affordance (`kyc_scroll_hint`) can drive it.
+  /// Owns the identity screen's single scroll view.
   late final ScrollController _scrollController;
-
-  /// Anchor the scroll hint aims at. The selfie row is no longer the last
-  /// thing on the page (the review note and the terms sit below it), so
-  /// scrolling to `maxScrollExtent` would push the row the hint is advertising
-  /// almost off the top.
-  final GlobalKey _selfieAnchorKey = GlobalKey();
 
   @override
   void initState() {
@@ -123,26 +123,6 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
       text: context.read<KycWizardCubit>().state.submission.idNumber ?? '',
     );
     _scrollController = ScrollController();
-  }
-
-  void _scrollToSelfie() {
-    const duration = Duration(milliseconds: 400);
-    final anchor = _selfieAnchorKey.currentContext;
-    if (anchor != null) {
-      Scrollable.ensureVisible(
-        anchor,
-        alignment: 0.12,
-        duration: duration,
-        curve: Curves.easeOut,
-      );
-      return;
-    }
-    if (!_scrollController.hasClients) return;
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
-      duration: duration,
-      curve: Curves.easeOut,
-    );
   }
 
   @override
@@ -271,6 +251,10 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
         final isNationalId = idType == KycIdType.nationalId;
         // Presentation-only: the cubit path stays open (see the class doc).
         final isSelfieLocked = !state.isSelfieUnlocked && !submission.hasSelfie;
+        // The board lights exactly one row: the first slot still to capture
+        // that is not gated. Everything before it is done, everything after is
+        // pending or locked.
+        final activeSlot = _activeSlot(state);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -285,6 +269,8 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                   children: [
                     const SizedBox(height: Spacing.large),
                     // ── Gov-ID rows ─────────────────────────────────────────
+                    // TODO(midnight): l10n-queued — the board's capture pill
+                    // reads "Capture"; kycIdCaptureCta still says "Take photo".
                     Semantics(
                       identifier: 'kyc_id_front_upload',
                       button: true,
@@ -299,6 +285,7 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                             : l10n.kycIdCaptureCta,
                         isProcessing:
                             state.capturing == KycCaptureSlot.idFront,
+                        isActive: activeSlot == KycCaptureSlot.idFront,
                         captureCtaSemantic: submission.hasIdFront
                             ? l10n.kycIdRetake
                             : l10n.kycIdCaptureCta,
@@ -319,18 +306,65 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                             ? l10n.kycIdRetake
                             : l10n.kycIdCaptureCta,
                         isProcessing: state.capturing == KycCaptureSlot.idBack,
+                        isActive: activeSlot == KycCaptureSlot.idBack,
                         captureCtaSemantic: submission.hasIdBack
                             ? l10n.kycIdRetake
                             : l10n.kycIdCaptureCta,
                         onTap: cubit.captureIdBack,
                       ),
                     ),
+                    const SizedBox(height: Spacing.small),
+                    // ── Selfie row (step 2) ─────────────────────────────────
+                    Semantics(
+                      identifier: 'kyc_selfie_upload',
+                      button: true,
+                      container: true,
+                      child: KycCaptureTile(
+                        tileKey: KycIdentityStep.selfieTileKey,
+                        label: l10n.kycSelfieStepTitle,
+                        photo: submission.selfie,
+                        isSelfie: true,
+                        isLocked: isSelfieLocked,
+                        isActive: activeSlot == KycCaptureSlot.selfie,
+                        hint: isSelfieLocked ? l10n.kycSelfieLockedHint : null,
+                        trailingLabel: submission.hasSelfie
+                            ? l10n.kycSelfieRetake
+                            : (isSelfieLocked
+                                ? null
+                                : l10n.kycSelfieCaptureCta),
+                        isProcessing: state.capturing == KycCaptureSlot.selfie,
+                        captureCtaSemantic: submission.hasSelfie
+                            ? l10n.kycSelfieRetake
+                            : l10n.kycSelfieCaptureCta,
+                        onTap: cubit.captureSelfie,
+                      ),
+                    ),
+                    // Coaching arrives at the moment step 2 actually opens.
+                    if (state.isSelfieUnlocked && !submission.hasSelfie) ...[
+                      const SizedBox(height: Spacing.small),
+                      KycLivenessPromptCard(
+                        cardKey: KycIdentityStep.livenessPromptKey,
+                        title: l10n.kycSelfieLivenessPrompt,
+                        prompts: [
+                          KycLivenessPrompt(
+                            icon: Icons.remove_red_eye_outlined,
+                            text: l10n.kycSelfieLivenessBlink,
+                          ),
+                          KycLivenessPrompt(
+                            icon: Icons.sentiment_satisfied_alt_rounded,
+                            text: l10n.kycSelfieLivenessSmile,
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: Spacing.large),
+
                     // ── ID type + number (E3/Q-042: national_id | passport |
                     //    residency — exactly the ratified pilot set). The
                     //    board drew neither control; both are CONTRACT
-                    //    REQUIRED (`id_number` 400s when absent), so they stay
-                    //    and are grouped into one card inside "Step 1". ─────
+                    //    REQUIRED (`id_number` 400s when absent). doc-13 P1:
+                    //    the band sits AFTER the three capture rows so the
+                    //    checklist reads unbroken, as the tile draws it. ────
                     JeebSectionLabel(l10n.kycIdTypeLabel),
                     const SizedBox(height: Spacing.xSmall),
                     JeebOutlinedCard(
@@ -412,76 +446,15 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: Spacing.large),
-
-                    // JEBV4-295: the selfie row sits below the fold on this
-                    // single-scroll screen — an automated driver and a
-                    // first-time user can both miss it. Show a tappable
-                    // "scroll for selfie" cue right at this fold boundary
-                    // until the selfie is captured; tapping it animates the
-                    // scroll the rest of the way for the user.
-                    if (!submission.hasSelfie) ...[
-                      Center(
-                        child: _ScrollForSelfieHint(
-                          label: l10n.kycScrollForSelfieHint,
-                          onTap: _scrollToSelfie,
-                        ),
-                      ),
-                      const SizedBox(height: Spacing.large),
-                    ],
-
-                    // ── Selfie row (step 2) ─────────────────────────────────
-                    Semantics(
-                      key: _selfieAnchorKey,
-                      identifier: 'kyc_selfie_upload',
-                      button: true,
-                      container: true,
-                      child: KycCaptureTile(
-                        tileKey: KycIdentityStep.selfieTileKey,
-                        label: l10n.kycSelfieStepTitle,
-                        photo: submission.selfie,
-                        isSelfie: true,
-                        isLocked: isSelfieLocked,
-                        hint: isSelfieLocked ? l10n.kycSelfieLockedHint : null,
-                        trailingLabel: submission.hasSelfie
-                            ? l10n.kycSelfieRetake
-                            : (isSelfieLocked
-                                ? null
-                                : l10n.kycSelfieCaptureCta),
-                        isProcessing: state.capturing == KycCaptureSlot.selfie,
-                        captureCtaSemantic: submission.hasSelfie
-                            ? l10n.kycSelfieRetake
-                            : l10n.kycSelfieCaptureCta,
-                        onTap: cubit.captureSelfie,
-                      ),
-                    ),
-                    // Coaching arrives at the moment step 2 actually opens.
-                    if (state.isSelfieUnlocked && !submission.hasSelfie) ...[
-                      const SizedBox(height: Spacing.small),
-                      KycLivenessPromptCard(
-                        cardKey: KycIdentityStep.livenessPromptKey,
-                        title: l10n.kycSelfieLivenessPrompt,
-                        prompts: [
-                          KycLivenessPrompt(
-                            icon: Icons.remove_red_eye_outlined,
-                            text: l10n.kycSelfieLivenessBlink,
-                          ),
-                          KycLivenessPrompt(
-                            icon: Icons.sentiment_satisfied_alt_rounded,
-                            text: l10n.kycSelfieLivenessSmile,
-                          ),
-                        ],
-                      ),
-                    ],
                     const SizedBox(height: Spacing.medium),
-                    // C4 hold: the board also promised "encrypted at rest".
+                    // LEGAL HOLD (C4): the board also promises "encrypted and".
                     // The app can verify the read-audience claim, not storage
                     // encryption — an unverified security promise inside a
-                    // signed-terms flow is a legal risk, so it is omitted
-                    // until legal ratifies it.
+                    // signed-terms flow is a legal risk, so the clause stays
+                    // out and this note stays exactly as ratified.
                     JeebInfoNote.muted(
                       identifier: 'kyc_review_note',
-                      icon: Icons.access_time_filled,
+                      icon: Icons.schedule,
                       title: l10n.kycReviewTimeTitle,
                       text: l10n.kycReviewPrivacyNote,
                     ),
@@ -501,7 +474,9 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                 identifier: 'kyc_submit_cta',
                 button: true,
                 container: true,
-                child: JeebCtaButton.primary(
+                // R23 measures the submit pill ORANGE at 45% while unlit, not
+                // the periwinkle default — `accent`, the one CTA on the tile.
+                child: JeebCtaButton.accent(
                   key: KycIdentityStep.submitButtonKey,
                   label: state.step == KycWizardStep.submitting
                       ? l10n.kycWizardSubmitting
@@ -530,60 +505,14 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
   }
 }
 
-/// JEBV4-295: a tappable pill cueing that more content (the selfie row) sits
-/// below the fold, and driving the scroll there on tap. Purely a visual
-/// affordance — it never blocks or replaces manual scrolling.
-///
-/// R5: it is deliberately NOT orange. `primaryContainer` became the brand
-/// orange `#FFDBD1` in the redesign, and orange marks decay/urgency on this
-/// product, never navigation.
-class _ScrollForSelfieHint extends StatelessWidget {
-  const _ScrollForSelfieHint({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Semantics(
-      identifier: 'kyc_scroll_hint',
-      button: true,
-      label: label,
-      child: Material(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: OmdsBorderRadius.pill,
-        child: InkWell(
-          key: KycIdentityStep.scrollHintKey,
-          borderRadius: OmdsBorderRadius.pill,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: Spacing.medium,
-              vertical: Spacing.xSmall,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: context.jeebText.bodySmall.copyWith(
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(width: Spacing.xSmall),
-                Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: colorScheme.primary,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+/// The one capture slot the board lights: the first that is still empty and
+/// not gated. `null` once every slot is captured.
+KycCaptureSlot? _activeSlot(KycWizardState state) {
+  final submission = state.submission;
+  if (!submission.hasIdFront) return KycCaptureSlot.idFront;
+  if (!submission.hasIdBack) return KycCaptureSlot.idBack;
+  if (!submission.hasSelfie) return KycCaptureSlot.selfie;
+  return null;
 }
 
 /// The plain-words terms line the user signs on submit, plus the way into the
@@ -610,13 +539,22 @@ class _TosAgreementRow extends StatelessWidget {
       children: [
         Semantics(
           identifier: 'kyc_tos_accept',
-          child: OmdsCheckboxTile(
-            key: KycIdentityStep.tosCheckboxKey,
-            title: l10n.kycTosAgreeLine(percent: kJeebCommissionPercent),
-            value: accepted,
-            onChanged: onChanged,
-            contentPadding: EdgeInsets.zero,
-            dense: true,
+          // R23 draws the accepted box `#D73B00` with a WHITE tick; the app
+          // theme's navy `checkColor` would knock it out. Local override only.
+          child: CheckboxTheme(
+            data: CheckboxTheme.of(context).copyWith(
+              checkColor: WidgetStatePropertyAll<Color>(
+                context.jeebRoles.onAccent,
+              ),
+            ),
+            child: OmdsCheckboxTile(
+              key: KycIdentityStep.tosCheckboxKey,
+              title: l10n.kycTosAgreeLine(percent: kJeebCommissionPercent),
+              value: accepted,
+              onChanged: onChanged,
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
           ),
         ),
         JeebCtaButton.text(

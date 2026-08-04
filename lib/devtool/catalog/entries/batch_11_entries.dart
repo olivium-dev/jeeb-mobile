@@ -248,6 +248,13 @@ final CatalogEntry _transcriptionEntry = CatalogEntry(
       ),
     ),
     CatalogState(
+      'Ready — Arabic transcript, language detected',
+      (_) => TranscriptionScreen(
+        clip: transcriptionScreenArabicClip,
+        cubit: transcriptionScreenArabicCubit(),
+      ),
+    ),
+    CatalogState(
       'Queued — no transcript yet, type instead',
       (_) => const TranscriptionScreen(
         clip: transcriptionScreenQueuedClip,

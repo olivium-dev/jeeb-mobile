@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 
@@ -35,17 +36,19 @@ class KycLivenessPromptCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    // R5: `primaryContainer` is the brand orange (#FFDBD1) after the redesign;
-    // orange marks decay, not coaching. This card is a neutral muted surface.
+    // MIDNIGHT: coaching is never orange, and an opaque navy slab vanishes
+    // against the field — this is rest glass, the same surface as the rows it
+    // sits under. The board does not draw this card at all.
     final semantic = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
+        JeebSemanticColors.midnight();
     final jeebText = context.jeebText;
     return Container(
       key: cardKey,
       padding: const EdgeInsets.all(Spacing.medium),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: OmdsBorderRadius.medium,
+        color: semantic.glassFill,
+        border: Border.all(color: semantic.glassBorder),
+        borderRadius: BorderRadius.circular(JeebRadii.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,7 +65,7 @@ class KycLivenessPromptCard extends StatelessWidget {
             if (i > 0) const SizedBox(height: Spacing.xSmall),
             _PromptRow(
               prompt: prompts[i],
-              foreground: scheme.onSurface,
+              foreground: semantic.inkSoft,
               iconColor: semantic.mutedText,
               textStyle: jeebText.bodySmall,
             ),

@@ -113,10 +113,16 @@ class KycWizardScreenPreviewFixtures {
     KycIdType idType = KycIdType.nationalId,
     String? idNumber,
     bool govIdCaptured = false,
+    bool? idFrontCaptured,
+    bool? idBackCaptured,
     bool selfieCaptured = false,
     bool tosAccepted = false,
     KycSubmitFieldError? submitFieldError,
   }) {
+    // Per-side overrides exist for R23's own frame: front done, back live,
+    // selfie locked. `govIdCaptured` remains the both-sides shorthand.
+    final front = idFrontCaptured ?? govIdCaptured;
+    final back = idBackCaptured ?? govIdCaptured;
     return KycWizardState(
       step: KycWizardStep.identity,
       tosAccepted: tosAccepted,
@@ -125,8 +131,8 @@ class KycWizardScreenPreviewFixtures {
         status: KycStatus.notSubmitted,
         idType: idType,
         idNumber: idNumber,
-        idFront: govIdCaptured ? _photo('id-front', idCardBytes) : null,
-        idBack: govIdCaptured ? _photo('id-back', idCardBytes) : null,
+        idFront: front ? _photo('id-front', idCardBytes) : null,
+        idBack: back ? _photo('id-back', idCardBytes) : null,
         selfie: selfieCaptured ? _photo('selfie', selfieBytes) : null,
       ),
     );

@@ -9,6 +9,7 @@ import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_meter.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
@@ -92,10 +93,9 @@ class _WizardScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    // The BlocBuilder sits ABOVE the Scaffold so `appBar:` can read the step:
-    // the redesigned identity and status steps own their own JeebTopBar chrome,
-    // while the schema/submitting steps keep the OMDS bar.
+    // MIDNIGHT R23: every step owns its own `JeebTopBar` over the field, so
+    // there is no `appBar:` left to read the step for — the last Material bar
+    // on this screen (a light OMDS slab under Midnight) is gone.
     return MultiBlocListener(
       listeners: [
         BlocListener<KycWizardCubit, KycWizardState>(
@@ -127,15 +127,26 @@ class _WizardScaffold extends StatelessWidget {
       child: BlocBuilder<KycWizardCubit, KycWizardState>(
         builder: (context, state) => Scaffold(
           key: KycWizardScreen.rootKey,
-          appBar: _ownsItsChrome(state.step)
-              ? null
-              : OMDSAppBar(title: l10n.kycWizardTitle, centerTitle: false),
+          backgroundColor: Colors.transparent,
           // `kyc_wizard_root` (65_W2_TEST_PLAN §2 JM-040): the asserted root id
           // of the KYC wizard. Wraps the whole body on EVERY step.
           body: Semantics(
             identifier: 'kyc_wizard_root',
             container: true,
-            child: SafeArea(child: _buildBody(context, state, l10n)),
+            // R23 is board-still: the base wash plus one quiet orange glow at
+            // the top end, no rings, no twinkles and no ticker.
+            child: JeebMidnightField(
+              variant: JeebFieldVariant.content,
+              glowPlacement: JeebFieldGlowPlacement.topEnd,
+              animateDecor: false,
+              child: SafeArea(
+                child: _buildBody(
+                  context,
+                  state,
+                  AppLocalizations.of(context),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -155,47 +166,41 @@ class _WizardScaffold extends StatelessWidget {
     context.goNamed('onboarding-funding');
   }
 
-  /// Steps that render their own [JeebTopBar] instead of the OMDS app bar.
-  bool _ownsItsChrome(KycWizardStep step) =>
-      step == KycWizardStep.identity || step == KycWizardStep.status;
-
   Widget _buildBody(
     BuildContext context,
     KycWizardState state,
     AppLocalizations l10n,
   ) {
-    if (state.step == KycWizardStep.status) {
-      // redesign-2026-08: the terminal states get the board's header — a Ø40
-      // back circle + `jeebText.h2` title in-body — rather than the Material
-      // app bar their neighbour (screen 22's identity step) already dropped.
-      return Column(
-        children: [
-          JeebTopBar(
-            title: l10n.kycWizardTitle,
-            identifier: 'kyc_wizard_back',
-            leadingTooltip: MaterialLocalizations.of(context).backButtonTooltip,
-            onLeadingPressed: () => _leaveWizard(context),
-          ),
-          const Expanded(child: KycStatusView()),
-        ],
-      );
-    }
+    // The submit spinner is the one step with no exit — a back circle there
+    // would advertise a cancel the cubit cannot honour.
     if (state.step == KycWizardStep.submitting) {
       return const KycSubmittingView();
     }
-    if (state.step == KycWizardStep.schema) {
-      return _SchemaLoadingView(l10n: l10n, state: state);
+    final bar = JeebTopBar(
+      key: state.step == KycWizardStep.identity
+          ? KycWizardScreen.backLeadingKey
+          : null,
+      title: l10n.kycWizardTitle,
+      identifier: 'kyc_wizard_back',
+      leadingTooltip: MaterialLocalizations.of(context).backButtonTooltip,
+      onLeadingPressed: () => _leaveWizard(context),
+    );
+    if (state.step == KycWizardStep.status) {
+      return Column(
+        children: [bar, const Expanded(child: KycStatusView())],
+      );
     }
-    // identity — owns its own chrome (no OMDSAppBar above it).
+    if (state.step == KycWizardStep.schema) {
+      return Column(
+        children: [
+          bar,
+          Expanded(child: _SchemaLoadingView(l10n: l10n, state: state)),
+        ],
+      );
+    }
     return Column(
       children: [
-        JeebTopBar(
-          key: KycWizardScreen.backLeadingKey,
-          title: l10n.kycWizardTitle,
-          identifier: 'kyc_wizard_back',
-          leadingTooltip: MaterialLocalizations.of(context).backButtonTooltip,
-          onLeadingPressed: () => _leaveWizard(context),
-        ),
+        bar,
         _CaptureProgress(state: state),
         const Expanded(child: KycIdentityStep()),
       ],
@@ -263,7 +268,13 @@ class _SchemaLoadingView extends StatelessWidget {
     if (hasError) {
       return _SchemaErrorView(l10n: l10n);
     }
-    return const Center(child: OmdsLoadingState());
+    // OmdsLoadingState defaults its spinner to `colorScheme.primary`, which is
+    // the brand orange under Midnight; a cold-start spinner is not live.
+    return Center(
+      child: OmdsLoadingState(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    );
   }
 }
 
@@ -308,8 +319,12 @@ class _SchemaErrorView extends StatelessWidget {
   }
 }
 
-/// "Step 1 of 2 — Your ID" · "then Selfie" over a two-segment bar
-/// (`22 tpl 1300-1306`).
+/// "Step 1 of 2 — Your ID" · "then Selfie" over a two-segment bar.
+///
+/// MIDNIGHT R23 measures the step label WHITE (not accent), the hint
+/// `#8A93D8`, the filled segment solid `#D73B00` and the empty track white 14%
+/// — the kit's default `surfaceContainerHighest` track is opaque navy and
+/// disappears against the field.
 ///
 /// [KycWizardState.currentCaptureStep] is the single source for BOTH the label
 /// and the fill, so the old off-by-one (label clamped to 1, bar showing 0)
@@ -324,7 +339,7 @@ class _CaptureProgress extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final semantic = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
+        JeebSemanticColors.midnight();
     final jeebText = context.jeebText;
     final current = state.currentCaptureStep;
     final isLastStep = current >= KycWizardState.totalCaptureSteps;
@@ -354,7 +369,7 @@ class _CaptureProgress extends StatelessWidget {
                   ),
                   style: jeebText.bodySmall.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.primary,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -376,6 +391,7 @@ class _CaptureProgress extends StatelessWidget {
           JeebMeter.segmented(
             steps: KycWizardState.totalCaptureSteps,
             filled: current,
+            trackColor: semantic.glassFillPressed,
           ),
         ],
       ),

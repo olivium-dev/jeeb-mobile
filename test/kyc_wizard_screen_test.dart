@@ -441,35 +441,15 @@ void main() {
       },
     );
 
+    // MIDNIGHT R23 / doc-13 P1 replaced JEBV4-295's `kyc_scroll_hint` outright:
+    // the contract ID band moved BELOW the selfie, so the fold the cue existed
+    // to advertise is gone. These two tests now pin the stronger contract that
+    // replaced it — the selfie row is reachable with no cue at all — instead of
+    // the affordance that solved the old layout.
     testWidgets(
-      'the RTL-safe scroll-for-selfie cue (kyc_scroll_hint) is visible '
-      'before the selfie is captured, and hidden once it is',
+      'the selfie row needs no scroll cue: it is in view on a real phone '
+      'viewport, and the retired kyc_scroll_hint is not re-mounted',
       (tester) async {
-        final cubit = _newCubit();
-        await tester.pumpWidget(_host(cubit));
-        await tester.pumpAndSettle();
-
-        expect(_byIdentifier('kyc_scroll_hint'), findsOneWidget,
-            reason: 'the selfie section is below the fold and not yet '
-                'captured — the affordance must be visible');
-
-        await cubit.captureSelfie();
-        await tester.pumpAndSettle();
-
-        expect(_byIdentifier('kyc_scroll_hint'), findsNothing,
-            reason: 'once the selfie is captured the cue has nothing left '
-                'to prompt for');
-      },
-    );
-
-    testWidgets(
-      'tapping kyc_scroll_hint scrolls the identity screen towards the '
-      'selfie tile',
-      (tester) async {
-        // The redesign (screen 22) shortened the column by ~340pt, so the
-        // "selfie is below the fold" precondition would otherwise depend on
-        // the harness's 800×600 luck. Pin a real phone viewport instead of
-        // weakening the assertions.
         tester.view.physicalSize = const Size(1080, 1920); // 360×640 @3x
         tester.view.devicePixelRatio = 3.0;
         addTearDown(tester.view.resetPhysicalSize);
@@ -480,20 +460,28 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byKey(KycIdentityStep.selfieTileKey).hitTestable(),
-            findsNothing);
+            findsOneWidget,
+            reason: 'the P1 relocation is what buys this — if the ID band '
+                'moves back above the selfie, this fails first');
+        expect(_byIdentifier('kyc_scroll_hint'), findsNothing);
+      },
+    );
 
-        // The cue itself sits at the ID/selfie fold boundary and may also
-        await tester.ensureVisible(
-          find.byKey(KycIdentityStep.scrollHintKey),
-        );
-        await tester.pump();
-        await tester.tap(find.byKey(KycIdentityStep.scrollHintKey));
-        // Let the scroll animation run to completion.
+    testWidgets(
+      'the three capture rows are one unbroken checklist — nothing is laid '
+      'out between the ID-back row and the selfie row',
+      (tester) async {
+        final cubit = _newCubit();
+        await tester.pumpWidget(_host(cubit));
         await tester.pumpAndSettle();
 
-        expect(find.byKey(KycIdentityStep.selfieTileKey).hitTestable(),
-            findsOneWidget,
-            reason: 'the scroll-hint tap must reveal the selfie tile');
+        final backBottom =
+            tester.getRect(find.byKey(KycIdentityStep.backTileKey)).bottom;
+        final selfieTop =
+            tester.getRect(find.byKey(KycIdentityStep.selfieTileKey)).top;
+
+        // Board gap between consecutive capture rows is 12dp.
+        expect(selfieTop - backBottom, closeTo(12, 1));
       },
     );
 
