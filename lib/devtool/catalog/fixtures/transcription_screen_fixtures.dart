@@ -10,6 +10,16 @@ const VoiceClip transcriptionScreenReadyClip = VoiceClip(
       'Please deliver 2 bags of rice and a water gallon to Hamra, Beirut.',
 );
 
+/// The R8 tile's own frame: Arabic transcript + a detected language, so the
+/// capture is directly comparable to `08-r8-transcription-review.png`.
+const VoiceClip transcriptionScreenArabicClip = VoiceClip(
+  audioPath: 'audio-ar-1',
+  localAudioPath: 'audio-ar-1',
+  durationMs: 7000,
+  language: 'ar-LB',
+  transcript: 'جيب لي دوا من الفرماشية يلي حد البيت',
+);
+
 /// Queued: upload landed, transcript pending.
 const VoiceClip transcriptionScreenQueuedClip = VoiceClip(
   audioPath: 'audio-queued-1',
@@ -58,6 +68,12 @@ TranscriptionCubit transcriptionScreenFailedCubit({
   VoiceClip clip = transcriptionScreenFailedClip,
   TranscriptionFailure failure = TranscriptionFailure.network,
 }) => transcriptionScreenCubit(clip)..markFailed(failure);
+
+/// Seeded to the tile's `0:04 / 0:07` playhead so the scrubber's orange fill —
+/// a budgeted-orange element — is actually visible in the capture.
+TranscriptionCubit transcriptionScreenArabicCubit() =>
+    transcriptionScreenCubit(transcriptionScreenArabicClip)
+      ..seekTo(const Duration(seconds: 4));
 
 /// Seed then `startEditing()` — text field open over transcript.
 TranscriptionCubit transcriptionScreenEditingCubit({

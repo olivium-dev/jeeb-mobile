@@ -4,6 +4,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/transcription_cubit.dart';
@@ -112,16 +113,24 @@ class _TranscriptionView extends StatelessWidget {
   Widget build(BuildContext context) {
     // No Material app bar: the board's header is a body row (JeebTopBar).
     return Scaffold(
-      body: SafeArea(
-        child: BlocBuilder<TranscriptionCubit, TranscriptionState>(
-          builder: (context, state) => Semantics(
-            identifier: TranscriptionKeys.root,
-            container: true,
-            explicitChildNodes: true,
-            child: _TranscriptionBody(
-              state: state,
-              onConfirm: onConfirm,
-              onReRecord: onReRecord,
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        // R8 declares one radial (orange .22, no periwinkle) and 03-MOTION-NOTES
+        // lists zero animated elements, so the decor is still.
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        child: SafeArea(
+          child: BlocBuilder<TranscriptionCubit, TranscriptionState>(
+            builder: (context, state) => Semantics(
+              identifier: TranscriptionKeys.root,
+              container: true,
+              explicitChildNodes: true,
+              child: _TranscriptionBody(
+                state: state,
+                onConfirm: onConfirm,
+                onReRecord: onReRecord,
+              ),
             ),
           ),
         ),
@@ -221,8 +230,6 @@ class _TranscriptionHeader extends StatelessWidget {
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.transcriptionSubtitle,
-          // NOT periwinkle — periwinkle-on-white is a test-documented AA
-          // failure (color_role_contrast_test.dart).
           style: context.jeebText.body.copyWith(
             color: colorScheme.onSurfaceVariant,
           ),
@@ -259,7 +266,8 @@ class _TranscriptionFooter extends StatelessWidget {
           Semantics(
             identifier: TranscriptionKeys.confirmButton,
             container: true,
-            child: JeebCtaButton.primary(
+            // Tile draws #D73B00 + `0 14 32 rgba(215,59,0,.45)` = ctaOrange.
+            child: JeebCtaButton.accent(
               label: l10n.transcriptionSubmit,
               isEnabled: state.canConfirm,
               onTap: () =>

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../transcription_screen.dart';
 
@@ -35,27 +38,26 @@ class TranscriptionLanguageChip extends StatelessWidget {
     if (name == null) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    // TODO(redesign-24): swap to JeebSelectChip(role: meta) when the kit ships
-    // it — the shipped role enum has no static meta pill.
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    // TODO(midnight): swap to JeebSelectChip(role: meta) when the kit ships it
+    // — the shipped role enum still has no static meta pill.
     return Semantics(
       identifier: TranscriptionKeys.languageChip,
       container: true,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHigh,
-          borderRadius: OmdsBorderRadius.pill,
+      child: JeebOutlinedCard(
+        radius: JeebRadii.pill,
+        // Board `rgba(255,255,255,.15)` — the §4 strong rung, not rest glass.
+        borderColor: semantics.glassBorderStrong,
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.small,
+          vertical: Spacing.twoXSmall,
         ),
-        child: Padding(
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Spacing.small,
-            vertical: Spacing.twoXSmall,
-          ),
-          child: Text(
-            l10n.transcriptionLanguageDetected(name),
-            style: context.jeebText.bodySmall.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colorScheme.onSurface,
-            ),
+        child: Text(
+          l10n.transcriptionLanguageDetected(name),
+          style: context.jeebText.bodySmall.copyWith(
+            fontWeight: FontWeight.w700,
+            color: colorScheme.onSurface,
           ),
         ),
       ),

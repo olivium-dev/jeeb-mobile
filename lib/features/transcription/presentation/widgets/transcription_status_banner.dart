@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/transcription_cubit.dart';
 import '../transcription_screen.dart';
@@ -48,6 +49,8 @@ class TranscriptionStatusBanner extends StatelessWidget {
   }
 }
 
+/// Queued is the kit's quiet glass strip; failed keeps the M3 error pair. Both
+/// are the stacked [JeebInfoNote] form — the board draws neither state.
 class _BannerSurface extends StatelessWidget {
   const _BannerSurface({
     required this.isFailed,
@@ -63,74 +66,29 @@ class _BannerSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    // workaround. Failed keeps the M3 error pair.
-    final roles = context.jeebRoles;
-    final container =
-        isFailed ? colorScheme.errorContainer : roles.infoContainer;
-    final onContainer = isFailed
-        ? colorScheme.onErrorContainer
-        : roles.onInfoContainer;
+    final IconData icon = isFailed ? Icons.error_outline : Icons.schedule;
+    final Widget note = isFailed
+        ? JeebInfoNote.error(icon: icon, title: title, text: body)
+        : JeebInfoNote.muted(icon: icon, title: title, text: body);
     return Semantics(
       container: true,
+      // `explicitChildNodes` is what stops the copy being announced twice AND
+      // what keeps the Retry button its own addressable node.
+      explicitChildNodes: true,
       label: '$title. $body',
-      child: Container(
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: container,
-          borderRadius: OmdsBorderRadius.medium,
-        ),
-        child: _BannerContent(
-          icon: isFailed ? Icons.error_outline : Icons.schedule,
-          color: onContainer,
-          title: title,
-          body: body,
-          retry: retry,
-        ),
-      ),
-    );
-  }
-}
-
-class _BannerContent extends StatelessWidget {
-  const _BannerContent({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.body,
-    this.retry,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String body;
-  final Widget? retry;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: color, size: Sizes.large),
-        const SizedBox(width: Spacing.small),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title,
-                  style: textTheme.titleSmall?.copyWith(color: color)),
-              const SizedBox(height: Spacing.xSmall),
-              Text(body, style: textTheme.bodySmall?.copyWith(color: color)),
-              if (retry != null) ...[
+      child: retry == null
+          ? note
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                note,
                 const SizedBox(height: Spacing.small),
-                retry!,
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: retry,
+                ),
               ],
-            ],
-          ),
-        ),
-      ],
+            ),
     );
   }
 }
@@ -146,7 +104,7 @@ class _RetryButton extends StatelessWidget {
     return Semantics(
       identifier: TranscriptionKeys.retryButton,
       button: true,
-      child: OMDSOutlinedButton(text: label, onTap: onTap),
+      child: JeebCtaButton.outline(label: label, onTap: onTap, expand: false),
     );
   }
 }

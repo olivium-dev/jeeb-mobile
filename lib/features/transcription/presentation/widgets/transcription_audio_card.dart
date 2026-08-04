@@ -1,40 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:lottie/lottie.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_meter.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/transcription_cubit.dart';
 import '../transcription_screen.dart';
 
-/// Replay control for the original recording (redesign-2026-08 tpl 310-320):
-/// a tonal card holding a solid navy play/pause disc and, filling the rest of
-/// the row, a seekable scrubber with the start/end times split to the edges.
+JeebSemanticColors _semanticsOf(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
+
+/// Replay control for the original recording (MIDNIGHT R8, board `tpl 479-488`):
+/// rest glass at `lg`, an orange play disc, then the seekable scrubber with the
+/// start/end times split to the edges. The board draws NO waveform in this row.
 class TranscriptionAudioCard extends StatelessWidget {
   const TranscriptionAudioCard({super.key, required this.state});
 
   final TranscriptionState state;
 
+  /// Board `padding:14px 16px`, border-box (the card folds its own stroke in).
+  static const EdgeInsetsGeometry _padding =
+      EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14);
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.small,
-      ),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: OmdsBorderRadius.medium,
-      ),
+    return JeebOutlinedCard(
+      radius: JeebRadii.lg,
+      // Board stroke is `rgba(255,255,255,.15)` — the §4 strong rung.
+      borderColor: _semanticsOf(context).glassBorderStrong,
+      padding: _padding,
       child: Row(
         children: [
           _PlaybackToggle(isPlaying: state.isPlaying),
-          const SizedBox(width: Spacing.small),
-          _PlaybackWaveform(isPlaying: state.isPlaying),
           const SizedBox(width: Spacing.small),
           Expanded(child: _PlaybackProgress(state: state)),
         ],
@@ -51,7 +55,7 @@ class _PlaybackToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    final roles = context.jeebRoles;
     return Semantics(
       identifier: TranscriptionKeys.audioToggle,
       button: true,
@@ -59,9 +63,10 @@ class _PlaybackToggle extends StatelessWidget {
           isPlaying ? l10n.transcriptionPauseAudio : l10n.transcriptionPlayAudio,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colorScheme.primary,
+          color: roles.accent,
           shape: BoxShape.circle,
-          boxShadow: JeebShadows.raised,
+          // Board `0 10px 22px rgba(215,59,0,.45)` → the §7 small orange lift.
+          boxShadow: JeebShadows.ctaOrangeSmall,
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -74,52 +79,11 @@ class _PlaybackToggle extends StatelessWidget {
               child: Icon(
                 isPlaying ? Icons.pause : Icons.play_arrow,
                 size: Sizes.large,
-                color: colorScheme.onPrimary,
+                color: roles.onAccent,
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// The voice mark inside the replay card (motion spec §2.2 — 06 is a listed
-/// consumer of `voice-waveform.json`, "previewing a voice clip").
-///
-/// It occupies the same box whether or not the clip is running, so starting
-/// playback never resizes the scrubber beside it; the bars move only while
-/// audio is genuinely playing and otherwise rest on the composition's first
-/// frame. Decorative: the toggle and the scrubber already carry the card's
-/// semantics.
-///
-/// Radially symmetric (09-MOTION-VALIDATION §8 `RTL: none`) — no mirror.
-class _PlaybackWaveform extends StatelessWidget {
-  const _PlaybackWaveform({required this.isPlaying});
-
-  /// 320×96 canvas, 90f, seamless loop, orange bars with an alpha tail.
-  static const String _asset = 'assets/animations/voice-waveform.json';
-
-  /// Sized to sit on the row's midline beside a Ø48 disc without crowding the
-  /// scrubber; the width holds the composition's 320:96 canvas aspect. The
-  /// film wants ~48dp of height to render its 6px bars at full weight, which
-  /// this row cannot give without halving the (functional) scrubber — the
-  /// scrubber wins.
-  static const double _height = 24;
-  static const double _width = _height * 320 / 96;
-
-  final bool isPlaying;
-
-  @override
-  Widget build(BuildContext context) {
-    return ExcludeSemantics(
-      child: Lottie.asset(
-        _asset,
-        width: _width,
-        height: _height,
-        // Reduce-motion (and pause) hold frame 0 — a still voice mark.
-        animate: isPlaying && !MediaQuery.disableAnimationsOf(context),
-        addRepaintBoundary: true,
       ),
     );
   }
@@ -142,8 +106,6 @@ class _PlaybackProgress extends StatelessWidget {
         : (state.playbackPosition.inMilliseconds / total.inMilliseconds)
             .clamp(0.0, 1.0);
     final timeStyle = context.jeebText.caption.copyWith(
-      // NOT periwinkle: periwinkle-on-white is a documented AA failure
-      // (color_role_contrast_test.dart).
       color: colorScheme.onSurfaceVariant,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
@@ -157,6 +119,9 @@ class _PlaybackProgress extends StatelessWidget {
           value: '$position / $duration',
           child: JeebMeter.scrubber(
             value: progress,
+            // Board `rgba(255,255,255,.15)`; the tone default is opaque navy,
+            // which reads as a bar ON the glass instead of a hole in it.
+            trackColor: _semanticsOf(context).glassFillPressed,
             onSeek: (fraction) => context.read<TranscriptionCubit>().seekTo(
                   Duration(
                     milliseconds: (total.inMilliseconds * fraction).round(),

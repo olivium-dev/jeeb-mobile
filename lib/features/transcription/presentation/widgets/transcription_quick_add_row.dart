@@ -104,11 +104,12 @@ class _QuickAddChip extends StatelessWidget {
             role: JeebChipRole.inlineAction,
             label: entry.label,
             // A leading glyph rather than a baked-in '+' so the prefix mirrors
-            // to the correct side under RTL for free.
+            // to the correct side under RTL for free. The board's `+` is part
+            // of the white label run — it spends no orange.
             leading: Icon(
               Icons.add,
               size: Sizes.small,
-              color: colorScheme.primary,
+              color: colorScheme.onSurface,
             ),
           ),
         ),

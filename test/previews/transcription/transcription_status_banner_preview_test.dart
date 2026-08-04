@@ -182,7 +182,8 @@ void main() {
     testWidgets('the banner announces its title and body ONCE', (
       WidgetTester tester,
     ) async {
-      // KNOWN DEFECT, pinned. `_BannerSurface` wraps the card in
+      // Was a pinned defect: the container merged its children in, so the copy
+      // was announced twice. M2-24 added `explicitChildNodes` and fixed it.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, transcriptionStatusBannerFailedNetwork);
@@ -197,10 +198,10 @@ void main() {
           'Transcription unavailable'.allMatches(node.label).length;
       expect(
         titleCount,
-        equals(2),
-        reason: 'Expected the pinned duplicate announcement. 1 means the '
-            'widget was fixed — flip this to equals(1). Anything else means '
-            'the semantics container changed shape.',
+        equals(1),
+        reason: 'The banner must announce its title exactly once. 2 means the '
+            'container lost `explicitChildNodes` and is merging children in '
+            'again. Anything else means the semantics container changed shape.',
       );
 
       // The handle must be disposed inside the test body — an `addTearDown`
@@ -238,10 +239,11 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('KNOWN DEFECT: the Arabic Retry label overflows its button', (
+    testWidgets('the Arabic Retry label no longer overflows its button', (
       WidgetTester tester,
     ) async {
-      // `_RetryButton` hands the localized label to `OMDSOutlinedButton`, which
+      // Was a pinned RenderFlex overflow: `OMDSOutlinedButton` fixed its own
+      // width. M2-24 moved it to `JeebCtaButton.outline`, which sizes to label.
       await _pumpOnPhone(
         tester,
         transcriptionStatusBannerFailedPayloadTooLarge,
@@ -250,15 +252,9 @@ void main() {
         locale: const Locale('ar'),
       );
 
-      final Object? error = tester.takeException();
-      expect(
-        error,
-        isA<FlutterError>(),
-        reason: 'Expected the pinned RenderFlex overflow from the Arabic '
-            'Retry label. No exception means the button now wraps its label — '
-            'delete this test.',
-      );
-      expect(error.toString(), contains('overflowed'));
+      expect(tester.takeException(), isNull);
+      expect(_byIdentifier(TranscriptionKeys.retryButton), findsOneWidget);
+      expect(find.text('إعادة المحاولة'), findsOneWidget);
     });
   });
 }

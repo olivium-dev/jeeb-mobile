@@ -5,6 +5,7 @@ import 'package:intl/intl.dart' show Bidi;
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
@@ -50,6 +51,9 @@ class _TranscriptionDisplay extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final hasText = state.text.trim().isNotEmpty;
     return JeebOutlinedCard(
+      // Board draws this panel at 20 where the replay card is 18; snapping both
+      // to `lg` would erase a distinction the tile makes on purpose.
+      radius: JeebRadii.xl,
       padding: const EdgeInsetsDirectional.all(Spacing.large),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,8 +125,8 @@ class _TappableTranscriptState extends State<_TappableTranscript> {
     _disposeRecognizers();
     final spans = <InlineSpan>[];
     var cursor = 0;
-    // TODO(redesign-24): needs gateway word-confidence offsets on
-    // TranscribeResponse — underline omitted, not faked.
+    // TODO(midnight): omitted, not faked — the tile's 3px orange low-confidence
+    // underline needs word offsets `/transcribe` does not return today.
     for (final match in _wordPattern.allMatches(widget.text)) {
       if (match.start > cursor) {
         spans.add(TextSpan(text: widget.text.substring(cursor, match.start)));
@@ -164,8 +168,8 @@ class _TappableTranscriptState extends State<_TappableTranscript> {
   }
 }
 
-/// tpl 326-331: orange info glyph + the tap hint, with `Edit all` pushed to the
-/// end edge of the same row, inside the card.
+/// Board `tpl 494-499`: orange alert glyph + the tap hint, with `Edit all`
+/// pushed to the end edge of the same row, inside the panel.
 class _TranscriptionHintRow extends StatelessWidget {
   const _TranscriptionHintRow();
 
@@ -175,12 +179,16 @@ class _TranscriptionHintRow extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
+        // The board glyph is a filled disc with an EXCLAMATION (bar above dot),
+        // not the info `i` the pass-1 build shipped.
         Icon(
-          Icons.info_rounded,
+          Icons.error,
           size: Sizes.medium,
           color: context.jeebRoles.accent,
         ),
         const SizedBox(width: Spacing.xSmall),
+        // TODO(midnight): l10n-queued `transcriptionTapHintLowConfidence` —
+        // gated on the same missing word-confidence wire as the underline.
         Expanded(
           child: Text(
             l10n.transcriptionTapHint,
