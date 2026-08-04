@@ -357,7 +357,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M3-07 `customer_profile/presentation/customer_profile_screen.dart` (193) — customer profile derived from R15/R22 identity blocks @2026-08-04
 - [x] M3-08 `notifications/presentation/notifications_list_screen.dart` (326) — notifications list derived from R21 rows; inherits R21's open dimming question rather than inventing a read/unread value @2026-08-04
 - [x] M3-09 `rating/presentation/rating_screen.dart` (308) — single-sided rating inherits the shipped mutual-rating treatment (radial-gradient star halo — a BoxShadow halo paints nothing on the golden canvas); stars stay still @2026-08-04
-- [ ] M3-10 `delivery_man_profile/presentation/delivery_man_profile_screen.dart` (150)
+- [x] M3-10 `delivery_man_profile/presentation/delivery_man_profile_screen.dart` (150) — delivery-man profile derived from R15 identity + R16 rating pill @2026-08-04
 
 ### M3 — Tier 2 (money surfaces)
 - [ ] M3-11 `wallet_activity_list_screen.dart` (392) · [ ] M3-12 `transaction_detail_screen.dart` (388)

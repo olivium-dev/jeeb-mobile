@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_man_profile_view_data.dart';
 import 'delivery_review_card.dart';
 
-/// The list of review cards (or an [OmdsEmptyState] when there are none).
+/// The list of review cards (or a [JeebEmptyState] when there are none).
 /// Lazily built ([ListView.separated]) because a Jeeber can have hundreds of
 /// reviews (design §5). Non-scrollable + shrink-wrapped: it lives inside the
 /// page's single scroll view so the whole column scrolls as one.
@@ -48,13 +49,15 @@ class _EmptyReviews extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // `parcel` (E4) is the board's "this record is still empty" subject, and
+    // `compact` because this is a band inside the profile, not the screen.
     return Padding(
       padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
-      child: OmdsEmptyState(
+      child: JeebEmptyState.compact(
         key: const Key('delivery-man-profile-reviews-empty'),
-        icon: Icons.reviews_outlined,
-        title: l10n.deliveryManProfileEmptyReviewsTitle,
-        subtitle: l10n.deliveryManProfileEmptyReviewsSubtitle,
+        variant: JeebEmptyStateVariant.parcel,
+        headline: l10n.deliveryManProfileEmptyReviewsTitle,
+        body: l10n.deliveryManProfileEmptyReviewsSubtitle,
       ),
     );
   }

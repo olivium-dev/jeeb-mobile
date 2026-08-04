@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
@@ -47,6 +48,8 @@ class _ReviewCardBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final semantic = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final firstName = review.reviewerFirstName;
     final isAnonymous = firstName.isEmpty;
     final displayName = isAnonymous ? l10n.reviewerAnonymousLabel : firstName;
@@ -74,7 +77,7 @@ class _ReviewCardBody extends StatelessWidget {
                   Text(
                     displayName,
                     style: context.jeebText.cardTitle.copyWith(
-                      color: theme.colorScheme.primary,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   if (review.isVerified) ...[
@@ -82,7 +85,7 @@ class _ReviewCardBody extends StatelessWidget {
                     Text(
                       l10n.reviewerVerifiedBadge,
                       style: context.jeebText.caption.copyWith(
-                        color: theme.colorScheme.onSecondaryContainer,
+                        color: semantic.mutedText,
                       ),
                     ),
                   ],
@@ -98,8 +101,9 @@ class _ReviewCardBody extends StatelessWidget {
             ),
             Text(
               l10n.reviewRelativeDaysAgo(review.daysAgo),
+              // R16's card timestamp, measured: 11.5/w600 `#8A93D8`.
               style: context.jeebText.caption.copyWith(
-                color: theme.colorScheme.onSecondaryContainer,
+                color: semantic.mutedText,
               ),
             ),
           ],
@@ -127,8 +131,12 @@ class _ReviewStars extends StatelessWidget {
   final double rating;
   final String semanticsLabel;
 
+  /// R15's own star pair: `amber` filled, white 22 % (`glassBorderVivid`)
+  /// empty, and never a hollow glyph — the board draws none.
   @override
   Widget build(BuildContext context) {
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Semantics(
       label: semanticsLabel,
       container: true,
@@ -137,21 +145,18 @@ class _ReviewStars extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: List.generate(5, (index) {
             final value = index + 1;
-            final icon = rating >= value
-                ? Icons.star
-                : rating >= value - 0.5
-                ? Icons.star_half
-                : Icons.star_border;
+            final filled = rating >= value;
+            final half = !filled && rating >= value - 0.5;
             return Padding(
               padding: EdgeInsetsDirectional.only(
                 end: index < 4 ? Sizes.threeXSmall : 0,
               ),
               child: Icon(
-                icon,
+                half ? Icons.star_half : Icons.star,
                 size: Sizes.small,
-                // Navy, deliberately: §4.1 rations the warm ink to the three
-                // screens where a specific person's score drives a decision.
-                color: Theme.of(context).colorScheme.primary,
+                color: filled || half
+                    ? semantic.amber
+                    : semantic.glassBorderVivid,
               ),
             );
           }),

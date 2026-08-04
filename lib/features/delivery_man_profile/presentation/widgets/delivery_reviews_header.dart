@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -52,7 +53,7 @@ class _ReviewsTitle extends StatelessWidget {
       l10n.deliveryManProfileReviewsTitle,
       // NOT `JeebSectionLabel`: that widget uppercases, and both the widget
       // test and the Maestro flow read the natural-cased "Reviews".
-      style: context.jeebText.h2.copyWith(color: theme.colorScheme.primary),
+      style: context.jeebText.h2.copyWith(color: theme.colorScheme.onSurface),
     );
   }
 }
@@ -66,7 +67,8 @@ class _CountAndViewAll extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -75,7 +77,7 @@ class _CountAndViewAll extends StatelessWidget {
           child: Text(
             l10n.deliveryManProfileReviewsCount(reviewCount),
             style: context.jeebText.bodySmall.copyWith(
-              color: theme.colorScheme.onSecondaryContainer,
+              color: semantic.mutedText,
             ),
           ),
         ),

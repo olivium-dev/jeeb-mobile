@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 
 /// A small icon + text meta row in the delivery-man profile header
 /// (rating summary, location/availability).
 ///
-/// redesign-2026-08: the board's meta line is 12/w600 periwinkle
-/// (`context.jeebText.bodySmall` + `colorScheme.onSecondaryContainer`) with a
-/// navy leading glyph — the same treatment the jeeber-home cards use for
-/// "1.2 km · Achrafieh". The glyph ink is `ColorScheme.primary` (navy), which
-/// is what keeps the rating star off the rationed warm ink (§4.1).
+/// MIDNIGHT: R15's below-disc meta line and R16's card meta run — periwinkle
+/// `mutedText` copy with the glyph in board ink (`onSurface`), which is how
+/// §4.1 keeps the aggregate star off the rationed warm inks.
 class DeliveryManMetaRow extends StatelessWidget {
   const DeliveryManMetaRow({
     super.key,
@@ -38,7 +37,7 @@ class DeliveryManMetaRow extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: Sizes.medium, color: theme.colorScheme.primary),
+          Icon(icon, size: Sizes.medium, color: theme.colorScheme.onSurface),
           const SizedBox(width: Spacing.xSmall),
           Flexible(child: _MetaText(text: text)),
         ],
@@ -54,12 +53,11 @@ class _MetaText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Text(
       text,
-      style: context.jeebText.bodySmall.copyWith(
-        color: theme.colorScheme.onSecondaryContainer,
-      ),
+      style: context.jeebText.bodySmall.copyWith(color: semantic.mutedText),
       overflow: TextOverflow.ellipsis,
     );
   }

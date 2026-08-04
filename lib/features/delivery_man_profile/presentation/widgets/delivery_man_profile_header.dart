@@ -16,6 +16,9 @@ import 'delivery_man_meta_row.dart';
 /// The row keeps its own name node because `delivery_man_profile_name` is a
 /// frozen Maestro id and `JeebProfileHeader` has no name slot to carry it (nor
 /// a place for the verified badge) — see the apply report.
+///
+/// MIDNIGHT (M3-10): R15's identity block — a CENTRED Ø74 glass disc over the
+/// field with the name and the meta lines stacked under it, not a list row.
 class DeliveryManProfileHeader extends StatelessWidget {
   const DeliveryManProfileHeader({
     super.key,
@@ -45,11 +48,13 @@ class DeliveryManProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       // The board's 24px side gutter (§4.3).
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.xLarge,
-        vertical: Spacing.xSmall,
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.xSmall,
+        Spacing.xLarge,
+        0,
       ),
-      child: _HeaderRow(
+      child: _HeaderColumn(
         name: name,
         avatarUrl: avatarUrl,
         isVerified: isVerified,
@@ -63,8 +68,8 @@ class DeliveryManProfileHeader extends StatelessWidget {
   }
 }
 
-class _HeaderRow extends StatelessWidget {
-  const _HeaderRow({
+class _HeaderColumn extends StatelessWidget {
+  const _HeaderColumn({
     required this.name,
     required this.avatarUrl,
     required this.isVerified,
@@ -86,22 +91,22 @@ class _HeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         _Avatar(name: name, avatarUrl: avatarUrl),
-        const SizedBox(width: Spacing.medium),
-        Expanded(
-          child: _Details(
-            name: name,
-            isVerified: isVerified,
-            rating: rating,
-            reviewCount: reviewCount,
-            location: location,
-            isAvailable: isAvailable,
-            isColdStart: isColdStart,
-          ),
+        // R15's disc→meta gap is 10; 12 is the nearest 4-scale rung.
+        const SizedBox(height: Spacing.small),
+        _NameRow(name: name, isVerified: isVerified),
+        const SizedBox(height: Spacing.xSmall),
+        _RatingRow(
+          rating: rating,
+          reviewCount: reviewCount,
+          isColdStart: isColdStart,
         ),
+        const SizedBox(height: Spacing.twoXSmall),
+        _AvailabilityRow(location: location, isAvailable: isAvailable),
       ],
     );
   }
@@ -117,50 +122,13 @@ class _Avatar extends StatelessWidget {
   Widget build(BuildContext context) {
     // `JeebAvatar.hero` normalises the initial itself (first non-blank
     // character, '?' when there is none) — the same fallback this widget used
-    // to compute by hand.
+    // to compute by hand. `glass` is R15's own Ø74 rung (wave-B ruling 3): the
+    // opaque navy fill vanishes into the field this screen now mounts.
     return JeebAvatar.hero(
       initial: name,
       imageUrl: avatarUrl,
+      fill: JeebAvatarFill.glass,
       avatarKey: const Key('delivery-man-profile-avatar'),
-    );
-  }
-}
-
-class _Details extends StatelessWidget {
-  const _Details({
-    required this.name,
-    required this.isVerified,
-    required this.rating,
-    required this.reviewCount,
-    required this.location,
-    required this.isAvailable,
-    required this.isColdStart,
-  });
-
-  final String name;
-  final bool isVerified;
-  final double rating;
-  final int reviewCount;
-  final String location;
-  final bool isAvailable;
-  final bool isColdStart;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _NameRow(name: name, isVerified: isVerified),
-        const SizedBox(height: Spacing.xSmall),
-        _RatingRow(
-          rating: rating,
-          reviewCount: reviewCount,
-          isColdStart: isColdStart,
-        ),
-        const SizedBox(height: Spacing.twoXSmall),
-        _AvailabilityRow(location: location, isAvailable: isAvailable),
-      ],
     );
   }
 }
@@ -191,9 +159,8 @@ class _RatingRow extends StatelessWidget {
       );
     }
     return DeliveryManMetaRow(
-      // The star stays navy (§4.1 rations the one warm ink): this profile's
-      // score is a meta line, not a rating stat, so it must NOT be tinted with
-      // `omdsColorTokens.starRatingColor`.
+      // Aggregate score: board ink, never amber — the same call the kit's own
+      // R16 rating pill makes for this exact datum (§4.1).
       icon: Icons.star,
       text: l10n.deliveryManProfileRatingSummary(
         rating.toStringAsFixed(1),
@@ -241,6 +208,8 @@ class _NameRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Flexible(child: _NameText(name: name)),
@@ -265,8 +234,11 @@ class _NameText extends StatelessWidget {
       identifier: 'delivery_man_profile_name',
       child: AutoDirectionText(
         name,
-        // The board's identity name: navy `h2` (20/w700), not a headline.
-        style: context.jeebText.h2.copyWith(color: theme.colorScheme.primary),
+        // R15's identity headline: `h2` (20/w700) in `onSurface`. It rode
+        // `primary`, which MIDNIGHT re-points to the rationed orange.
+        style: context.jeebText.h2.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
       ),
     );
   }
@@ -277,9 +249,19 @@ class _NameBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return JeebVerifiedBadge(
-      semanticsLabel:
-          AppLocalizations.of(context).deliveryManProfileVerifiedBadgeLabel,
+    final theme = Theme.of(context);
+    // The shared badge inks itself from `secondaryContainer`, which MIDNIGHT
+    // values as raised navy — invisible on the field. Same re-point as R4's.
+    return Theme(
+      data: theme.copyWith(
+        colorScheme: theme.colorScheme.copyWith(
+          secondaryContainer: theme.colorScheme.onSurface,
+        ),
+      ),
+      child: JeebVerifiedBadge(
+        semanticsLabel:
+            AppLocalizations.of(context).deliveryManProfileVerifiedBadgeLabel,
+      ),
     );
   }
 }

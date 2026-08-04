@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../domain/delivery_man_profile_view_data.dart';
@@ -22,6 +23,11 @@ import 'widgets/delivery_reviews_list.dart';
 /// identity block a `JeebAvatar` + `context.jeebText` ramp, and the review
 /// cards `JeebOutlinedCard`s on the 24px gutter. Same flow, same copy, same
 /// identifiers — this is a re-skin, not a product change.
+///
+/// MIDNIGHT (M3-10, tile-less — derived from R15's identity block and R16's
+/// score/meta inks): the screen mounts the field instead of the flat
+/// `scaffoldBackgroundColor` (token sheet §8) and the identity block becomes
+/// R15's centred Ø74 glass disc under the close bar.
 ///
 /// JM-067 changes against the divergent baseline (20_GAP_MAP):
 ///   - NO Helpful/Reply controls — reviews are immutable/read-only (D57).
@@ -52,21 +58,29 @@ class DeliveryManProfileScreen extends StatelessWidget {
       identifier: rootId,
       container: true,
       child: Scaffold(
+        backgroundColor: Colors.transparent,
         // The board's header is an in-body row, not a Material app bar; the
         // close circle is its leading slot (JeebTopBar.close is the one
         // realized close treatment), so `Scaffold.appBar` stays null.
-        body: SafeArea(
-          child: Column(
-            children: [
-              JeebTopBar.close(
-                // Canonical id per JM-067 AC + 41_GUARDRAILS_TESTING §1.1
-                // (`profile_close`) — the bar lands it on the leading circle.
-                identifier: 'profile_close',
-                leadingTooltip: l10n.deliveryManProfileCloseLabel,
-                onLeadingPressed: () => _close(context),
-              ),
-              Expanded(child: _DeliveryManProfileBody(data: data)),
-            ],
+        body: JeebMidnightField(
+          // A reading surface, not a hero: base wash + one quiet glow at the
+          // majority top-end anchor. Still, like the 20 board-still tiles.
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          animateDecor: false,
+          child: SafeArea(
+            child: Column(
+              children: [
+                JeebTopBar.close(
+                  // Canonical id per JM-067 AC + 41_GUARDRAILS_TESTING §1.1
+                  // (`profile_close`) — the bar lands it on the leading circle.
+                  identifier: 'profile_close',
+                  leadingTooltip: l10n.deliveryManProfileCloseLabel,
+                  onLeadingPressed: () => _close(context),
+                ),
+                Expanded(child: _DeliveryManProfileBody(data: data)),
+              ],
+            ),
           ),
         ),
       ),
