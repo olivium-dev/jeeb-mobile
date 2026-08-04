@@ -84,6 +84,12 @@ Widget _harness(
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
+      // MIDNIGHT M3-03: this flow lands on the waiting screen, whose E2 radar
+      // loops ∞ by design — pumpAndSettle only terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
     ),
   );
 }

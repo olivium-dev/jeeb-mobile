@@ -348,5 +348,15 @@ final CatalogEntry _noOfferTimeoutEntry = CatalogEntry(
         NoOfferTimeoutScreenPreviewFixtures.contractViolation(),
       ),
     ),
+    // Appended, never inserted: the capture file names carry the state INDEX.
+    CatalogState(
+      'Loading (cold read in flight)',
+      (_) => _waitingPreview(NoOfferTimeoutScreenPreviewFixtures.stalledLoad()),
+    ),
+    CatalogState(
+      'Terminal (expired)',
+      (_) =>
+          _waitingPreview(NoOfferTimeoutScreenPreviewFixtures.terminalExpired()),
+    ),
   ],
 );

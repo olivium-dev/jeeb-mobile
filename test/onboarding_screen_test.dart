@@ -145,7 +145,7 @@ void main() {
     // The Arabic slide-1 title renders (proves ARB ar parity + RTL tree).
     // OmdsWalkthroughStep draws the label via RichText, so findRichText.
     expect(
-      find.text('توصيل بالصوت أولًا', findRichText: true),
+      find.text('قول شو بدك', findRichText: true),
       findsWidgets,
     );
     expect(
@@ -220,33 +220,6 @@ void main() {
     expect(semantics.properties.label, isNotEmpty);
   });
 
-  testWidgets(
-      'slide 3 title keeps "end to end" unbreakable so it wraps cleanly',
-      (tester) async {
-    // Bug fix: the headline previously wrapped as "Live tracking, end to / end",
-    // orphaning a trailing "end". Non-breaking spaces (U+00A0) bind "end to end"
-    // into one unit so the break falls after the comma instead.
-    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
-    await tester.pump();
-
-    final l10n = AppLocalizations.of(
-      tester.element(find.byType(OnboardingScreen)),
-    );
-    const nbsp = '\u00A0';
-    expect(
-      l10n.onboardingSlide3Title,
-      'Live tracking, end${nbsp}to${nbsp}end',
-      reason: 'slide-3 headline must bind "end to end" with non-breaking spaces',
-    );
-    // Guard against a regression that reintroduces breakable spaces in the
-    // bound phrase (which is what caused the orphaned "end").
-    expect(
-      l10n.onboardingSlide3Title.contains('end to end'),
-      isFalse,
-      reason: 'plain-space "end to end" reintroduces the awkward orphan wrap',
-    );
-  });
-
   testWidgets('slide 3 renders W3 night-map art, not an exported SVG',
       (tester) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
@@ -281,7 +254,10 @@ void main() {
     // MIDNIGHT W2 draws a real Jeeber identity card with the trust mechanics
     // floating around it; the generic brand vector is gone.
     expect(find.byType(WalkthroughTrustArt), findsOneWidget);
-    expect(find.text(WalkthroughTrustCopy.name), findsOneWidget);
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(OnboardingScreen)),
+    );
+    expect(find.text(l10n.walkthroughTrustName), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const Key('onboarding.illustration')),

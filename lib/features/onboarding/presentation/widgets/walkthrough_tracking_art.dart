@@ -9,18 +9,6 @@ import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'walkthrough_glass.dart';
 
-/// W3's decorative map copy, verbatim from the tile.
-///
-/// TODO(midnight): l10n-queued `walkthroughTrackingCashChip` — the ARB lane
-/// owns `lib/l10n` (see l10n-queue/M2-21-r5-w123). The ETA chip already has an
-/// exact key and uses it.
-abstract final class WalkthroughTrackingCopy {
-  static const String cashChip = 'Pay cash at the door';
-
-  /// The tile's ETA, fed to the existing `trackingArrivingIn` key.
-  static const int etaMinutes = 20;
-}
-
 /// W3's stage art: the night map with the glowing scooter mid-route.
 ///
 /// Motion (03-MOTION-NOTES W3, 5 animated elements): the route is the **only
@@ -31,6 +19,9 @@ abstract final class WalkthroughTrackingCopy {
 /// and the blocks do not move.
 class WalkthroughTrackingArt extends StatelessWidget {
   const WalkthroughTrackingArt({super.key});
+
+  /// The tile's decorative ETA, fed to the existing `trackingArrivingIn` key.
+  static const int etaMinutes = 20;
 
   /// Board `jDash 2.6s linear`.
   static const Duration routeDuration = Duration(milliseconds: 2600);
@@ -78,6 +69,7 @@ class WalkthroughTrackingArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final JeebRoles roles = context.jeebRoles;
     final JeebSemanticColors semantics =
         Theme.of(context).extension<JeebSemanticColors>() ??
@@ -133,18 +125,16 @@ class WalkthroughTrackingArt extends StatelessWidget {
               start: chipInset,
               top: etaChipTopY + stageOriginY,
               child: WalkthroughFloatChip(
-                label: AppLocalizations.of(
-                  context,
-                ).trackingArrivingIn(WalkthroughTrackingCopy.etaMinutes),
+                label: l10n.trackingArrivingIn(etaMinutes),
                 tone: WalkthroughGlassTone.glass,
                 duration: WalkthroughFloat.lead,
               ),
             ),
-            const PositionedDirectional(
+            PositionedDirectional(
               end: chipInset,
               top: cashChipTopY + stageOriginY,
               child: WalkthroughFloatChip(
-                label: WalkthroughTrackingCopy.cashChip,
+                label: l10n.walkthroughTrackingCashChip,
                 tone: WalkthroughGlassTone.accent,
                 duration: WalkthroughFloat.trail,
                 delay: WalkthroughFloat.mapChipDelay,

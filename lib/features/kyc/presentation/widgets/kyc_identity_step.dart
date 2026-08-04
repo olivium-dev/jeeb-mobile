@@ -269,8 +269,6 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                   children: [
                     const SizedBox(height: Spacing.large),
                     // ── Gov-ID rows ─────────────────────────────────────────
-                    // TODO(midnight): l10n-queued — the board's capture pill
-                    // reads "Capture"; kycIdCaptureCta still says "Take photo".
                     Semantics(
                       identifier: 'kyc_id_front_upload',
                       button: true,

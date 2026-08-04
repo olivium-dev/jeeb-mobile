@@ -94,6 +94,7 @@ CatalogState _cancellationScreenState(CancellationScreenDesignedState state) {
       isJeeber: state.isJeeber,
       repository: state.repository,
       initialState: state.initialState,
+      initialReason: state.initialReason,
     ),
   );
 }
@@ -104,7 +105,12 @@ final CatalogEntry _cancellationScreenEntry = CatalogEntry(
   states: [
     _cancellationScreenState(cancellationScreenClientPickerState),
     _cancellationScreenState(cancellationScreenJeeberPickerState),
+    _cancellationScreenState(cancellationScreenSelectedState),
     _cancellationScreenState(cancellationScreenSubmittingState),
+    // M3-04: both failure lanes are drawn states now, so they can be captured
+    // instead of being an invisible snackbar.
+    _cancellationScreenState(cancellationScreenRejectedState),
+    _cancellationScreenState(cancellationScreenTooLateState),
   ],
 );
 

@@ -234,34 +234,25 @@ List<_OnboardingPage> _onboardingPages(
   required WalkthroughVoicePlacement slideOneVariant,
 }) => [
   _OnboardingPage(
-    // TODO(midnight): l10n-queued — W1 reads "Say what you need" over
-    // "Hold the mic and ask in your own words — Arabic, English, or both."
     title: l10n.onboardingSlide1Title,
     body: l10n.onboardingSlide1Body,
-    // TODO(midnight): l10n-queued walkthroughSlide1Tagline (W1 keeps this one).
     tagline: l10n.onboardingTagline,
     semanticsLabel: l10n.onboardingSlide1Semantics,
     field: _SlideField.accentGlow,
     art: WalkthroughVoiceArt(placement: slideOneVariant),
   ),
   _OnboardingPage(
-    // TODO(midnight): l10n-queued — W2 reads "Neighbours you can trust".
     title: l10n.onboardingSlide2Title,
     body: l10n.onboardingSlide2Body,
-    // TODO(midnight): l10n-queued walkthroughSlide2Tagline — W2 reads
-    // "جيران تثق فيهم".
-    tagline: l10n.onboardingTagline,
+    tagline: l10n.walkthroughSlide2Tagline,
     semanticsLabel: l10n.onboardingSlide2Semantics,
     field: _SlideField.periwinkleWash,
     art: const WalkthroughTrustArt(),
   ),
   _OnboardingPage(
-    // TODO(midnight): l10n-queued — W3 reads "Watch it come to you".
     title: l10n.onboardingSlide3Title,
     body: l10n.onboardingSlide3Body,
-    // TODO(midnight): l10n-queued walkthroughSlide3Tagline — W3 reads
-    // "تابعها لعندك".
-    tagline: l10n.onboardingTagline,
+    tagline: l10n.walkthroughSlide3Tagline,
     semanticsLabel: l10n.onboardingSlide3Semantics,
     field: _SlideField.none,
     art: const WalkthroughTrackingArt(),

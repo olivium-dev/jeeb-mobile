@@ -71,6 +71,12 @@ Widget _harness({
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: DeliveryManProfileScreen(data: data ?? _data()),
   );
 }
@@ -135,7 +141,7 @@ void main() {
       expect(find.text('Verified Technician'), findsNothing);
     });
 
-    testWidgets('renders the OmdsEmptyState when there are no reviews',
+    testWidgets('renders the JeebEmptyState when there are no reviews',
         (tester) async {
       await tester.pumpWidget(
         _harness(

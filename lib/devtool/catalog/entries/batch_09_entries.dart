@@ -271,6 +271,25 @@ final CatalogEntry _ratingScreenEntry = CatalogEntry(
         repository: RatingScreenFakeRepository(),
       ),
     ),
+    // The lit frame: amber stars + halo, verdict word, selected chips and the
+    // enabled orange CTA — none of it reachable from a state with 0 stars.
+    CatalogState(
+      'Feedback — Stars Picked',
+      (_) => const RatingScreen(
+        deliveryId: ratingScreenDeliveryId,
+        rateeName: ratingScreenRatedRatee,
+        repository: RatingScreenFakeRepository(),
+        initialStars: 4,
+        initialTags: <String>['punctuality', 'courtesy'],
+      ),
+    ),
+    CatalogState(
+      'Feedback — No Name On File',
+      (_) => const RatingScreen(
+        deliveryId: ratingScreenDeliveryId,
+        repository: RatingScreenFakeRepository(),
+      ),
+    ),
   ],
 );
 

@@ -79,6 +79,7 @@ class CancellationScreenDesignedState {
     required this.isJeeber,
     required this.repository,
     this.initialState,
+    this.initialReason,
     this.deliveryId = cancellationScreenDeliveryId,
   });
 
@@ -96,8 +97,21 @@ class CancellationScreenDesignedState {
   /// exactly as production does.
   final CancellationState? initialState;
 
+  /// The same seam for the picker: the reason code the screen opens with.
+  final String? initialReason;
+
   final String deliveryId;
 }
+
+/// A reason picked. The ONLY state that draws the destructive mark, so without
+/// it the screen's danger ink has no capture at all.
+const CancellationScreenDesignedState cancellationScreenSelectedState =
+    CancellationScreenDesignedState(
+  label: 'Client — reason picked',
+  isJeeber: false,
+  repository: CancellationScreenFakeRepository(),
+  initialReason: 'changed_mind',
+);
 
 /// The state every client opens: four reasons, nothing selected, submit
 /// disabled.

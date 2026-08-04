@@ -826,7 +826,6 @@ class AppLocalizations {
   String get kycErrorSubmitFailed => _get('kycErrorSubmitFailed');
   String get kycErrorSubmitValidationFailed =>
       _get('kycErrorSubmitValidationFailed');
-  String get kycScrollForSelfieHint => _get('kycScrollForSelfieHint');
 
   String get profileKycSectionTitle => _get('profileKycSectionTitle');
   String get profileKycStatusNotSubmitted =>
@@ -2920,4 +2919,40 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('captureLocationDropOffCallout');
   String get captureLocationConfirmDropOffCta =>
       _get('captureLocationConfirmDropOffCta');
+
+  // MIDNIGHT R22 · settings
+  String get settingsNotificationCategoryOffers =>
+      _get('settingsNotificationCategoryOffers');
+
+  // MIDNIGHT R5 + W1/W2/W3 · onboarding walkthrough
+  String get walkthroughSlide2Tagline => _get('walkthroughSlide2Tagline');
+  String get walkthroughSlide3Tagline => _get('walkthroughSlide3Tagline');
+  String get walkthroughTrustName => _get('walkthroughTrustName');
+  String get walkthroughTrustRoleLine => _get('walkthroughTrustRoleLine');
+  String get walkthroughTrustRatingValue => _get('walkthroughTrustRatingValue');
+  String get walkthroughTrustRatingsLabel =>
+      _get('walkthroughTrustRatingsLabel');
+  String get walkthroughTrustDeliveriesValue =>
+      _get('walkthroughTrustDeliveriesValue');
+  String get walkthroughTrustDeliveriesLabel =>
+      _get('walkthroughTrustDeliveriesLabel');
+  String get walkthroughTrustIdCheckValue =>
+      _get('walkthroughTrustIdCheckValue');
+  String get walkthroughTrustIdChip => _get('walkthroughTrustIdChip');
+  String get walkthroughTrustRatedChip => _get('walkthroughTrustRatedChip');
+  String get walkthroughTrustCodeChip => _get('walkthroughTrustCodeChip');
+  String get walkthroughTrackingCashChip =>
+      _get('walkthroughTrackingCashChip');
+  String get onboardingPreviewOfferQuoteShort =>
+      _get('onboardingPreviewOfferQuoteShort');
+
+  // MIDNIGHT R6 · registration
+  String get registrationSocialGoogleShort =>
+      _get('registrationSocialGoogleShort');
+  String get registrationSocialAppleShort =>
+      _get('registrationSocialAppleShort');
+
+  // MIDNIGHT R8 · transcription review
+  String get transcriptionTapHintLowConfidence =>
+      _get('transcriptionTapHintLowConfidence');
 }

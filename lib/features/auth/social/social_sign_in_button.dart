@@ -169,17 +169,15 @@ class SocialSignInButton extends StatelessWidget {
 
   String _visibleLabel(AppLocalizations l10n) {
     if (!compact) return _accessibleLabel(l10n);
-    // TODO(midnight): l10n-queued — registrationSocialGoogleShort /
-    // registrationSocialAppleShort. Brand names are identical in every shipped
-    // locale (both ARBs already carry them latin), so the literal is honest
-    // until the queue lands.
     switch (provider) {
       case SocialProvider.google:
-        return 'Google';
+        return l10n.registrationSocialGoogleShort;
       case SocialProvider.facebook:
+        // Still no Facebook key (see _accessibleLabel); the brand name is the
+        // same latin proper noun in every shipped locale.
         return 'Facebook';
       case SocialProvider.apple:
-        return 'Apple';
+        return l10n.registrationSocialAppleShort;
     }
   }
 }

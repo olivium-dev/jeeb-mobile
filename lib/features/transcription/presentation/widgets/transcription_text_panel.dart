@@ -187,8 +187,8 @@ class _TranscriptionHintRow extends StatelessWidget {
           color: context.jeebRoles.accent,
         ),
         const SizedBox(width: Spacing.xSmall),
-        // TODO(midnight): l10n-queued `transcriptionTapHintLowConfidence` —
-        // gated on the same missing word-confidence wire as the underline.
+        // TODO(midnight): omitted, not faked — transcriptionTapHintLowConfidence
+        // has landed but stays unwired until word-confidence offsets do.
         Expanded(
           child: Text(
             l10n.transcriptionTapHint,

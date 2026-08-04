@@ -301,9 +301,7 @@ class _OfferBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: switch (placement) {
           WalkthroughVoicePlacement.r5 => <Widget>[
-            // TODO(midnight): l10n-queued onboardingPreviewOfferQuoteShort —
-            // the tile reads `"40 mins — $8"`.
-            Text(l10n.onboardingPreviewOfferQuote, style: title),
+            Text(l10n.onboardingPreviewOfferQuoteShort, style: title),
             const SizedBox(height: Sizes.threeXSmall),
             Text(
               // The ★ inherits this ink on purpose — a rating star is never

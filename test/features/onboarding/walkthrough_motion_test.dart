@@ -8,6 +8,7 @@ import 'package:jeeb_mobile/features/onboarding/presentation/widgets/walkthrough
 import 'package:jeeb_mobile/features/onboarding/presentation/widgets/walkthrough_tracking_art.dart';
 import 'package:jeeb_mobile/features/onboarding/presentation/widgets/walkthrough_trust_art.dart';
 import 'package:jeeb_mobile/features/onboarding/presentation/widgets/walkthrough_voice_art.dart';
+import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/sync_app_localizations.dart';
 
@@ -160,13 +161,16 @@ void main() {
       await tester.pumpWidget(host(const WalkthroughTrustArt()));
       await tester.pump();
 
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(WalkthroughTrustArt)),
+      );
       final twinkles = all<JTwinkle>(tester);
       expect(twinkles, hasLength(1));
       expect(twinkles.single.duration, const Duration(milliseconds: 2600));
       expect(
         find.descendant(
           of: find.byType(JTwinkle),
-          matching: find.text(WalkthroughTrustCopy.name),
+          matching: find.text(l10n.walkthroughTrustName),
         ),
         findsNothing,
         reason: 'jTwinkle rides the badge alone — the K disc is still',
@@ -185,6 +189,9 @@ void main() {
       await tester.pumpWidget(host(const WalkthroughTrustArt()));
       await tester.pump();
 
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(WalkthroughTrustArt)),
+      );
       final floats = all<JFloat>(tester);
       expect(floats, hasLength(2));
       expect(floats[0].duration, const Duration(seconds: 4));
@@ -198,7 +205,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(JBreathe),
-          matching: find.text(WalkthroughTrustCopy.codeChip),
+          matching: find.text(l10n.walkthroughTrustCodeChip),
         ),
         findsOneWidget,
         reason: 'the orange handoff chip breathes rather than floating',

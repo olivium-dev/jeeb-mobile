@@ -154,7 +154,10 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byKey(const Key('settings-screen-list'))),
       );
-      expect(find.text(l10n.notificationCategoryOffers), findsOneWidget);
+      expect(
+        find.text(l10n.settingsNotificationCategoryOffers),
+        findsOneWidget,
+      );
       expect(
         find.text(l10n.notificationCategoryOffersSubtitle),
         findsNothing,

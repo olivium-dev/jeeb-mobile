@@ -41,9 +41,7 @@ class SettingsNotificationsCard extends StatelessWidget {
             _ToggleRow(
               rowKey: const Key('settings-row-notifications-offers'),
               identifier: 'settings_notifications_offers_toggle',
-              // TODO(midnight): l10n-queued — the tile reads "New offers";
-              // this shared key ships "Offers" (doc-13 P1 copy drift).
-              title: l10n.notificationCategoryOffers,
+              title: l10n.settingsNotificationCategoryOffers,
               value: notifications.offers,
               onChanged: (v) =>
                   cubit.setNotification(NotificationCategory.offers, v),

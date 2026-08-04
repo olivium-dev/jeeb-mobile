@@ -189,6 +189,13 @@ List<CatalogEntry> get batch08Entries => <CatalogEntry>[
             'Failed — Not Found',
             (_) => _orderSummaryScreen(OrderSummaryScreenFixtures.notFound),
           ),
+          // A 404 draws the EMPTY rung and a transport failure the ERROR rung,
+          // so the two need separate captures.
+          CatalogState(
+            'Failed — Network',
+            (_) =>
+                _orderSummaryScreen(OrderSummaryScreenFixtures.networkFailure),
+          ),
           CatalogState(
             'Loading',
             (_) => _orderSummaryScreen(OrderSummaryScreenFixtures.coldRead),

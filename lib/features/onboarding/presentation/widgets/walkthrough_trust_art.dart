@@ -11,23 +11,6 @@ import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'walkthrough_glass.dart';
 
-/// W2's decorative sample identity, verbatim from the tile.
-///
-/// TODO(midnight): l10n-queued — the ARB lane owns `lib/l10n`, so these hold
-/// the literals until `walkthroughTrust*` lands (see l10n-queue/M2-21-r5-w123).
-abstract final class WalkthroughTrustCopy {
-  static const String name = 'Karim';
-  static const String roleLine = 'Jeeber · Achrafieh';
-  static const String rating = '★ 4.9';
-  static const String ratingsLabel = '127 ratings';
-  static const String deliveries = '214';
-  static const String deliveriesLabel = 'Deliveries';
-  static const String idCheck = 'ID ✓';
-  static const String idChip = 'ID-verified';
-  static const String ratedChip = 'Rated after every delivery';
-  static const String codeChip = 'Your 4-digit code proves the handoff';
-}
-
 /// W2's stage art: a Jeeber identity card with the trust mechanics floating
 /// around it.
 ///
@@ -68,6 +51,7 @@ class WalkthroughTrustArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final JeebSemanticColors semantics =
         Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
@@ -112,8 +96,8 @@ class WalkthroughTrustArt extends StatelessWidget {
             PositionedDirectional(
               start: idChipStartInset,
               top: stage * idChipTopFraction,
-              child: const WalkthroughFloatChip(
-                label: WalkthroughTrustCopy.idChip,
+              child: WalkthroughFloatChip(
+                label: l10n.walkthroughTrustIdChip,
                 tone: WalkthroughGlassTone.glass,
                 duration: WalkthroughFloat.lead,
                 leading: Icons.shield_outlined,
@@ -122,8 +106,8 @@ class WalkthroughTrustArt extends StatelessWidget {
             PositionedDirectional(
               end: ratedChipEndInset,
               top: stage * ratedChipTopFraction,
-              child: const WalkthroughFloatChip(
-                label: WalkthroughTrustCopy.ratedChip,
+              child: WalkthroughFloatChip(
+                label: l10n.walkthroughTrustRatedChip,
                 tone: WalkthroughGlassTone.glass,
                 duration: WalkthroughFloat.trail,
                 delay: WalkthroughFloat.trustChipDelay,
@@ -133,11 +117,11 @@ class WalkthroughTrustArt extends StatelessWidget {
               top: stage * codeChipTopFraction,
               left: 0,
               right: 0,
-              child: const Center(
+              child: Center(
                 child: JBreathe(
                   duration: accentChipDuration,
                   child: WalkthroughStillChip(
-                    label: WalkthroughTrustCopy.codeChip,
+                    label: l10n.walkthroughTrustCodeChip,
                     tone: WalkthroughGlassTone.accent,
                   ),
                 ),
@@ -227,6 +211,7 @@ class _JeeberIdentityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final JeebSemanticColors semantics =
         Theme.of(context).extension<JeebSemanticColors>() ??
@@ -262,25 +247,23 @@ class _JeeberIdentityCard extends StatelessWidget {
               children: <Widget>[
                 Flexible(
                   child: _TrustStat(
-                    value: WalkthroughTrustCopy.rating,
+                    value: l10n.walkthroughTrustRatingValue,
                     valueInk: semantics.amber,
-                    label: WalkthroughTrustCopy.ratingsLabel,
+                    label: l10n.walkthroughTrustRatingsLabel,
                   ),
                 ),
                 Flexible(
                   child: _TrustStat(
-                    value: WalkthroughTrustCopy.deliveries,
+                    value: l10n.walkthroughTrustDeliveriesValue,
                     valueInk: scheme.onSurface,
-                    label: WalkthroughTrustCopy.deliveriesLabel,
+                    label: l10n.walkthroughTrustDeliveriesLabel,
                   ),
                 ),
                 Flexible(
                   child: _TrustStat(
-                    value: WalkthroughTrustCopy.idCheck,
+                    value: l10n.walkthroughTrustIdCheckValue,
                     valueInk: context.jeebRoles.onSuccessContainer,
-                    label: AppLocalizations.of(
-                      context,
-                    ).deliveryManProfileVerifiedBadgeLabel,
+                    label: l10n.deliveryManProfileVerifiedBadgeLabel,
                   ),
                 ),
               ],
@@ -299,19 +282,20 @@ class _IdentityHeadRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Row(
       spacing: Spacing.small,
       children: <Widget>[
-        const Stack(
+        Stack(
           clipBehavior: Clip.none,
           children: <Widget>[
             JeebAvatar(
-              initial: WalkthroughTrustCopy.name,
+              initial: l10n.walkthroughTrustName,
               diameter: _JeeberIdentityCard.avatarDiameter,
               fill: JeebAvatarFill.glass,
             ),
-            PositionedDirectional(
+            const PositionedDirectional(
               end: -_JeeberIdentityCard.badgeRing,
               bottom: -_JeeberIdentityCard.badgeRing,
               child: _VerifiedBadge(),
@@ -324,7 +308,7 @@ class _IdentityHeadRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                WalkthroughTrustCopy.name,
+                l10n.walkthroughTrustName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: context.jeebText.titleProminent.copyWith(
@@ -332,7 +316,7 @@ class _IdentityHeadRow extends StatelessWidget {
                 ),
               ),
               Text(
-                WalkthroughTrustCopy.roleLine,
+                l10n.walkthroughTrustRoleLine,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: context.jeebText.bodySmall.copyWith(

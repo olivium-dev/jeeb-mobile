@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/escalate/application/escalate_cubit.dart';
 import 'package:jeeb_mobile/features/escalate/domain/escalate_repository.dart';
 import 'package:jeeb_mobile/features/escalate/presentation/escalate_screen.dart';
@@ -87,10 +88,16 @@ void main() {
   Widget build({EscalateRepository? repo, Locale locale = const Locale('en')}) {
     final router = _router(repo: repo);
     return MaterialApp.router(
-      theme: ThemeData.light(),
+      theme: AppTheme.midnight(),
       locale: locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: delegates,
+      // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+      // terminates under reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       routerConfig: router,
     );
   }
