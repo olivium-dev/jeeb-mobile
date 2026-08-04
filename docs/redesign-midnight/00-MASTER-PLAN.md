@@ -348,7 +348,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M2-24 R8 Transcription review — injected scrubber waveform REMOVED per the board, low-confidence underline as a Pattern-A slot, fully static @2026-08-04
 
 ### M3 Remainder (46) — Tier 1
-- [ ] M3-01 `deep_link_targets/delivery_detail_screen.dart` (697, `/orders/:id`)
+- [x] M3-01 `deep_link_targets/delivery_detail_screen.dart` (697, `/orders/:id`) — derived from R21; field mounted (was a flat Scaffold), rating star moved off colorScheme.primary — which IS orange on Midnight — onto amber, rating sheet off bare Material, counterpart-name carry-in CLOSED with a role gate (jeeberName names the counterpart only for a client viewer) @2026-08-04
 - [ ] M3-02 `escalate/presentation/escalate_screen.dart` (739)
 - [ ] M3-03 `no_offer_timeout/presentation/no_offer_timeout_screen.dart` (567)
 - [ ] M3-04 `cancellation/presentation/cancellation_screen.dart` (317)

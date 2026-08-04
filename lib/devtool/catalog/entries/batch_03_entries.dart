@@ -71,6 +71,15 @@ final List<CatalogEntry> _deliveryDetailEntries = <CatalogEntry>[
     screen: 'DeliveryDetailScreen',
     states: [
       CatalogState(
+        'Loading — first status read in flight',
+        (context) => const DeliveryDetailScreen(
+          deliveryId: DeliveryDetailScreenFixtures.deliveryId,
+          summaryRepository: DeliveryDetailScreenFixtures.statusPending,
+          ratingRepository: DeliveryDetailScreenFixtures.notYetRated,
+          refreshSignals: Stream<void>.empty(),
+        ),
+      ),
+      CatalogState(
         'Action hub — status unavailable, fails open',
         (context) => const DeliveryDetailScreen(
           deliveryId: DeliveryDetailScreenFixtures.deliveryId,

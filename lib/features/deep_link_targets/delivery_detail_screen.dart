@@ -9,14 +9,22 @@ import 'package:omds/omds.dart';
 import '../../core/lifecycle/app_resume_signals.dart';
 import '../../core/delivery/delivery_status_vocab.dart';
 import '../../core/di/injection_container.dart';
+import '../../core/formatting/friendly_reference.dart';
 import '../../core/role/role_cubit.dart';
 import '../../core/role/user_role.dart';
+import '../../core/router/app_router.dart';
 import '../../core/router/root_aware_back_scope.dart';
+import '../../core/theme/jeeb_color_roles.dart';
+import '../../core/theme/jeeb_semantic_colors.dart';
+import '../../core/theme/jeeb_shadows.dart';
 import '../../core/theme/jeeb_text_styles.dart';
+import '../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
 import '../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../l10n/app_localizations.dart';
@@ -137,11 +145,19 @@ class DeliveryDetailScreen extends StatefulWidget {
 
 class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
     with ResumeRefetchMixin {
-  /// Last-known wire `statusId`. Null/empty ⇒ status not yet resolved or
-  /// unavailable ⇒ the hub fails open.
-  String? _statusId;
+  /// Last-known summary. The screen already paid for the whole record to read
+  /// one field; MIDNIGHT renders the rest of it (ref, stage, price, jeeber).
+  OrderChatSummary? _summary;
+
+  /// True once ONE read attempt has finished, success or failure. Separates
+  /// "still loading" from the fail-open "unavailable" the buckets share.
+  bool _statusSettled = false;
   StreamSubscription<void>? _refreshSub;
   OrderChatSummaryRepository? _summaryRepo;
+
+  /// Last-known wire `statusId`. Null/empty ⇒ status not yet resolved or
+  /// unavailable ⇒ the hub fails open.
+  String? get _statusId => _summary?.statusId;
 
   @override
   void initState() {
@@ -213,18 +229,23 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
     // prompted the second trigger, so it already sees at least as much.
     if (_statusLoadInFlight) return;
     _statusLoadInFlight = true;
+    OrderChatSummary? next;
     try {
-      final summary = await repo.fetchSummary(widget.deliveryId);
-      if (!mounted) return;
-      if (summary.statusId != _statusId) {
-        setState(() => _statusId = summary.statusId);
-      }
+      next = await repo.fetchSummary(widget.deliveryId);
     } on OrderChatSummaryException {
       // Unavailable — keep last-known status (fail-open while still null).
     } catch (_) {
       // Defensive: never let a status read crash the hub.
     } finally {
       _statusLoadInFlight = false;
+    }
+    if (!mounted) return;
+    final bool changed = next != null && next != _summary;
+    if (!_statusSettled || changed) {
+      setState(() {
+        _statusSettled = true;
+        if (next != null) _summary = next;
+      });
     }
   }
 
@@ -252,31 +273,43 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
         identifier: 'order-detail-root',
         container: true,
         child: Scaffold(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          // Redesign: an in-body [JeebTopBar], not a Material app bar — the
-          // house header shape shared with the two screens this hub sits
-          // between (24 Order history, 12 Live tracking).
-          body: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                JeebTopBar.back(
-                  identifier: 'order_detail_back',
-                  title: l10n.deliveryDetailsTitle,
-                  // Same root-awareness the surrounding [RootAwareBackScope]
-                  // gives the system gesture: `maybePop` alone would be a dead
-                  // circle when the hub IS the stack root (push / deep link).
-                  onLeadingPressed: () =>
-                      context.canPop() ? context.pop() : context.go('/'),
-                ),
-                Expanded(
-                  child: ListView(
-                    key: const Key('delivery-detail-list'),
-                    padding: _kBandPadding,
-                    children: _buildChildren(context, l10n),
+          // §8: the flat scaffold colour is a fallback only — the field paints.
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+          // R21's field: base wash + one quiet orange glow top-end, the
+          // periwinkle wash top-start, no rings/twinkles, zero motion.
+          body: JeebMidnightField(
+            variant: JeebFieldVariant.content,
+            glowPlacement: JeebFieldGlowPlacement.topEnd,
+            washPlacement: JeebFieldWashPlacement.topStart,
+            animateDecor: false,
+            // Redesign: an in-body [JeebTopBar], not a Material app bar — the
+            // house header shape shared with the two screens this hub sits
+            // between (24 Order history, 12 Live tracking).
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  JeebTopBar.back(
+                    identifier: 'order_detail_back',
+                    title: l10n.deliveryDetailsTitle,
+                    // R3/R21 both carry a second fact in the header band; here
+                    // it is the request `displayId`, absent until the read lands.
+                    subtitle: _orderRef,
+                    // Same root-awareness the surrounding [RootAwareBackScope]
+                    // gives the system gesture: `maybePop` alone would be a dead
+                    // circle when the hub IS the stack root (push / deep link).
+                    onLeadingPressed: () =>
+                        context.canPop() ? context.pop() : context.go('/'),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: ListView(
+                      key: const Key('delivery-detail-list'),
+                      padding: _kBandPadding,
+                      children: _buildChildren(context, l10n),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -284,7 +317,27 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
     );
   }
 
+  /// Human order reference for the header band. Empty/absent renders nothing —
+  /// TODO(midnight): omitted, not faked (the wire only carries it post-accept).
+  String? get _orderRef {
+    final String ref = _summary?.orderRef.trim() ?? '';
+    return ref.isEmpty ? null : ref;
+  }
+
   List<Widget> _buildChildren(BuildContext context, AppLocalizations l10n) {
+    // Cold read: the kit skeleton, not a guessed action list. A host with NO
+    // status source never enters this branch, so fail-open is untouched.
+    if (_summaryRepo != null && !_statusSettled) {
+      return [
+        JeebEmptyState(
+          key: const Key('order-detail-loading'),
+          identifier: 'order_detail_loading',
+          status: JeebEmptyStateStatus.loading,
+          variant: JeebEmptyStateVariant.parcel,
+          headline: l10n.deliveryDetailsTitle,
+        ),
+      ];
+    }
     switch (_bucket) {
       case _StatusBucket.unknown:
         return _failOpenChildren(context, l10n);
@@ -320,7 +373,14 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   /// pre-pickup / on-hold free-cancel window is open (JEBV4-289). Rate is a
   /// delivered-class-only affordance, so it is not shown here.
   List<Widget> _activeChildren(BuildContext context, AppLocalizations l10n) {
+    final OrderChatSummary? summary = _summary;
     return [
+      // R21's in-motion row: the one orange element this surface earns. The
+      // terminal buckets already state themselves; active had no band at all.
+      if (summary != null) ...[
+        _ActiveStatusBand(summary: summary),
+        const SizedBox(height: _kBlockGap),
+      ],
       JeebOutlinedCard.grouped(
         children: [
           _ActionRow(action: _trackAction(l10n)),
@@ -436,15 +496,19 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   /// mounted from push deep links / isolated tests where the cubit may be
   /// absent) and degrades to the customer wording.
   String _contactLabel(BuildContext context, AppLocalizations l10n) {
-    UserRole role;
-    try {
-      role = context.read<RoleCubit>().state;
-    } on ProviderNotFoundException {
-      role = UserRole.client;
-    }
-    return role == UserRole.jeeber
+    return _viewerIsJeeber(context)
         ? l10n.deliveryActionContactCustomer
         : l10n.deliveryActionContact;
+  }
+
+  /// Reads [RoleCubit] defensively — this hub is also mounted from push deep
+  /// links / isolated tests where the cubit may be absent.
+  bool _viewerIsJeeber(BuildContext context) {
+    try {
+      return context.read<RoleCubit>().state == UserRole.jeeber;
+    } on ProviderNotFoundException {
+      return false;
+    }
   }
 
   /// Resolves the rating repository from the test seam, falling back to DI.
@@ -482,19 +546,16 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
     await _showRatingSummary(context, status);
   }
 
-  /// Canonical blind mutual-rating route for this delivery, role-aware: a
-  /// jeeber rates the customer (`?mode=jeeber`), a customer rates the jeeber
-  /// (no query). Reads [RoleCubit] defensively (this hub is also mounted from
-  /// push deep links / isolated tests where the cubit may be absent).
+  /// Canonical mutual-rating route via [mutualRatingLocation]. The name is only
+  /// honest on the CLIENT leg — TODO(midnight): omitted, not faked, for jeebers.
   String _mutualRateLocation(BuildContext context) {
-    UserRole role;
-    try {
-      role = context.read<RoleCubit>().state;
-    } on ProviderNotFoundException {
-      role = UserRole.client;
-    }
-    final suffix = role == UserRole.jeeber ? '?mode=jeeber' : '';
-    return '/orders/${widget.deliveryId}/mutual-rate$suffix';
+    final bool isClient = !_viewerIsJeeber(context);
+    return mutualRatingLocation(
+      widget.deliveryId,
+      isClient: isClient,
+      counterpartName:
+          isClient ? displayNameOrNull(_summary?.jeeberName) : null,
+    );
   }
 
   /// Read-only summary for an already-rated delivery (no re-editable form):
@@ -558,53 +619,64 @@ class _RatingSummarySheet extends StatelessWidget {
   final String content;
   final String doneLabel;
 
+  /// Star ink. §3 ratifies `amber` as the stars/ratings token; `primary` is
+  /// ORANGE on Midnight, which spent the §2.2 budget on a read-only summary.
+  static Color starInk(BuildContext context) =>
+      (Theme.of(context).extension<JeebSemanticColors>() ??
+              JeebSemanticColors.midnight())
+          .amber;
+
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'delivery-rating-summary',
       container: true,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(
-            Spacing.xLarge,
-            Spacing.xSmall,
-            Spacing.xLarge,
-            Spacing.large,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Navy, not warm: the board rations orange to do-it-now moments,
-              // and a read-only summary is not one (§4.1 — the same rule that
-              // keeps JeebProfileHeader's star navy).
-              Icon(
-                Icons.star_rounded,
-                size: Sizes.threeXLarge,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: Spacing.medium),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: context.jeebText.h2,
-              ),
-              const SizedBox(height: Spacing.xSmall),
-              Text(
-                content,
-                textAlign: TextAlign.center,
-                style: context.jeebText.body.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+      // Navy base + one top glow: the sheet rung, the same field R21's own
+      // date-filter sheet mounts.
+      child: JeebMidnightField(
+        variant: JeebFieldVariant.sheet,
+        animateDecor: false,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              Spacing.xLarge,
+              Spacing.xSmall,
+              Spacing.xLarge,
+              Spacing.large,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Icon(
+                  Icons.star_rounded,
+                  size: Sizes.threeXLarge,
+                  color: starInk(context),
                 ),
-              ),
-              const SizedBox(height: _kBlockGap),
-              JeebCtaButton(
-                key: const Key('delivery-rating-summary-done'),
-                identifier: 'delivery-rating-summary-done',
-                label: doneLabel,
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ],
+                const SizedBox(height: Spacing.medium),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: context.jeebText.h2.copyWith(color: scheme.onSurface),
+                ),
+                const SizedBox(height: Spacing.xSmall),
+                Text(
+                  content,
+                  textAlign: TextAlign.center,
+                  style: context.jeebText.body.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: _kBlockGap),
+                JeebCtaButton(
+                  key: const Key('delivery-rating-summary-done'),
+                  identifier: 'delivery-rating-summary-done',
+                  label: doneLabel,
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -643,6 +715,178 @@ class _StatusBanner extends StatelessWidget {
       icon: icon,
       title: title,
       text: body,
+    );
+  }
+}
+
+/// R21's in-motion row for the ONE order this hub details: accent frame over an
+/// orange-12% fill, glowing Ø9 dot, price at the end. An absent fact draws none.
+class _ActiveStatusBand extends StatelessWidget {
+  const _ActiveStatusBand({required this.summary});
+
+  /// Ø18 in the board is the glyph box; the live dot itself is Ø9 (R21).
+  static const double liveDotSize = 9;
+
+  /// The Ø3 meta separator — a shape, so no l10n key and no bidi hazard.
+  static const double metaDotSize = 3;
+
+  /// R21's row padding (`24-order-history.html` tpl 1427).
+  static const EdgeInsetsGeometry bandPadding = EdgeInsetsDirectional.symmetric(
+    horizontal: Spacing.medium,
+    vertical: 14,
+  );
+
+  final OrderChatSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final String? name = displayNameOrNull(summary.jeeberName);
+    final int? eta = summary.etaMinutes;
+    final String stage = _stageLabel(summary.statusId, l10n);
+    // R21's identity title is the ITEM, not the state; the state belongs to the
+    // meta run. Without a description the stage is promoted and not repeated.
+    final bool titleIsItem = summary.hasDescription;
+    // R21: the status run reads #FFB499 on the lit fill; the lit row carries no
+    // periwinkle at all, so everything else steps up to inkSoft (#B9C0F0).
+    final Color metaInk = scheme.onSecondaryContainer;
+    final Color statusInk = context.jeebRoles.onAccentContainer;
+    final List<Widget> meta = <Widget>[
+      if (titleIsItem) _MetaText(text: stage, ink: statusInk),
+      if (titleIsItem && eta != null) _MetaDot(ink: statusInk),
+      if (eta != null)
+        // TODO(midnight): l10n-queued — deliveryDetailEtaMinutes.
+        _MetaText(text: l10n.chatOfferEtaMinutes(eta), ink: statusInk),
+      if (name != null && (titleIsItem || eta != null)) _MetaDot(ink: metaInk),
+      if (name != null) _MetaText(text: name, ink: metaInk),
+    ];
+
+    return JeebAccentFrameCard(
+      key: const Key('order-detail-status-active'),
+      identifier: 'order-detail-status-active',
+      fill: JeebAccentFrameFill.accentTint,
+      padding: bandPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                key: const Key('order-detail-live-dot'),
+                width: liveDotSize,
+                height: liveDotSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: context.jeebRoles.accent,
+                  boxShadow: JeebShadows.glowDot,
+                ),
+              ),
+              const SizedBox(width: Spacing.xSmall),
+              Expanded(
+                child: Text(
+                  titleIsItem ? summary.description.trim() : stage,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.jeebText.cardTitle.copyWith(
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ),
+              if (summary.hasPrice) ...<Widget>[
+                const SizedBox(width: Spacing.xSmall),
+                Text(
+                  summary.priceLabel,
+                  maxLines: 1,
+                  // `body` w800, not `cardTitle`: R21 keeps the amount a weight
+                  // heavier and a size smaller so 2× text does not overflow.
+                  style: context.jeebText.body.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (meta.isNotEmpty) ...<Widget>[
+            const SizedBox(height: Spacing.small),
+            Row(children: meta),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Canonical stage label for a wire status, tolerating the same spellings the
+  /// tracking surfaces accept. Unknown reads as the matched floor.
+  static String _stageLabel(String statusId, AppLocalizations l10n) {
+    switch (statusId.trim().toLowerCase()) {
+      // R3's stepper vocabulary: the pre-accept spellings are "Ordered", not
+      // "Matched" — DeliveryStatusVocab._prePickup holds both classes.
+      case 'ordered':
+      case 'placed':
+      case 'created':
+      case 'new':
+      case 'pending':
+      case 'requested':
+        return l10n.trackingStepOrdered;
+      case 'picked':
+      case 'picked_up':
+      case 'pickedup':
+      case 'at_pickup':
+        return l10n.deliveryStagePickedUp;
+      case 'intransit':
+      case 'in_transit':
+      case 'in transit':
+      case 'atdoor':
+      case 'at_door':
+      case 'at door':
+      case 'en_route':
+        return l10n.deliveryStageInTransit;
+      default:
+        return l10n.deliveryStageMatched;
+    }
+  }
+}
+
+/// One ellipsizing run in the band's meta row.
+class _MetaText extends StatelessWidget {
+  const _MetaText({required this.text, required this.ink});
+
+  final String text;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    return Flexible(
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: context.jeebText.bodySmall.copyWith(color: ink),
+      ),
+    );
+  }
+}
+
+/// The Ø3 meta separator with its own breathing room on both sides (R21).
+class _MetaDot extends StatelessWidget {
+  const _MetaDot({required this.ink});
+
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Spacing.twoXSmall,
+      ),
+      child: Container(
+        width: _ActiveStatusBand.metaDotSize,
+        height: _ActiveStatusBand.metaDotSize,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: ink),
+      ),
     );
   }
 }
