@@ -175,7 +175,7 @@
   "earningsEmpty": "Earnings will appear here once you complete a delivery.",
   "earningsPeriodToday": "Today",
   "earningsPeriodWeek": "This week",
-  "earningsPeriodMonth": "This month",
+  "earningsPeriodMonth": "Month",
   "earningsSummaryHeaderToday": "Today's earnings",
   "earningsSummaryHeaderWeek": "Earnings this week",
   "earningsSummaryHeaderMonth": "Earnings this month",
@@ -2904,7 +2904,7 @@
   "orderHistoryStatusCancelled": "Cancelled",
   "orderHistoryStatusDelivered": "Delivered",
   "orderHistoryStatusDisputed": "Disputed",
-  "orderHistoryStatusEnRoute": "En route",
+  "orderHistoryStatusEnRoute": "In transit",
   "orderHistoryStatusMatched": "Matched",
   "orderHistoryStatusPending": "Pending",
   "orderHistoryStatusPickedUp": "Picked up",
@@ -3954,7 +3954,7 @@
     "description": "T-MOB-030 AC4: Snack shown when the server returns 409 (request gone)."
   },
 
-  "activeDeliveryTitle": "Active Delivery",
+  "activeDeliveryTitle": "Active delivery",
   "@activeDeliveryTitle": {
     "description": "T-MOB-031: App-bar title for the Jeeber active-delivery screen."
   },
@@ -3998,11 +3998,11 @@
   "@activeDeliveryStatusPicked": {
     "description": "T-MOB-031: Status step label — picked up."
   },
-  "activeDeliveryStatusInTransit": "In Transit",
+  "activeDeliveryStatusInTransit": "In transit",
   "@activeDeliveryStatusInTransit": {
     "description": "T-MOB-031: Status step label — in transit."
   },
-  "activeDeliveryStatusAtDoor": "At Door",
+  "activeDeliveryStatusAtDoor": "At door",
   "@activeDeliveryStatusAtDoor": {
     "description": "T-MOB-031: Status step label — at door."
   },
@@ -4975,8 +4975,6 @@
   "@offerComposerEtaSectionLabel": {"description": "PICKUP ETA section label."},
   "offerComposerEtaCeilingHint": "· ≤ {minutes} min",
   "@offerComposerEtaCeilingHint": {"description": "Inline ceiling hint after the ETA section label; the caller LTR-isolates the numeric run.", "placeholders": {"minutes": {"type": "int"}}},
-  "offerComposerEtaOther": "Other",
-  "@offerComposerEtaOther": {"description": "Fourth ETA pill opening the full band when the inline three do not cover it."},
   "offerComposerOfferRowLabel": "Your offer",
   "@offerComposerOfferRowLabel": {"description": "offer_composer_offer_line label — the Jeeber's own bid."},
   "offerComposerFeeRowLabel": "Platform fee ({percent}%)",
@@ -5003,8 +5001,6 @@
   "@activeDeliveryCollectCash": {"description": "Cash-collection line; {amount} is MoneyFormat output.", "placeholders": {"amount": {"type": "String"}}},
   "activeDeliveryCollectCashNoAmount": "Collect the order amount in cash on delivery",
   "@activeDeliveryCollectCashNoAmount": {"description": "Degraded variant used when the delivery carries no price — never fabricate $0.00."},
-  "activeDeliveryDirectionsCta": "Directions",
-  "@activeDeliveryDirectionsCta": {"description": "A11y label for the drop-off card's directions circle."},
   "activeDeliveryQuickActionMaps": "Maps",
   "@activeDeliveryQuickActionMaps": {"description": "Footer pill; the long form stays the Semantics label."},
   "activeDeliveryQuickActionChat": "Chat",
@@ -5222,5 +5218,35 @@
   "jeeberFeedWidenZoneAction": "Widen my zone",
   "@jeeberFeedWidenZoneAction": {"description": "E3 second pill. Not mounted — the app has no service-zone surface."},
   "jeeberFeedBusiestHours": "Busiest hours in your zone: {range}",
-  "@jeeberFeedBusiestHours": {"description": "E3 footnote. Not mounted — no busiest-hours feed exists.", "placeholders": {"range": {"type": "String", "example": "6–9 pm"}}}
+  "@jeeberFeedBusiestHours": {"description": "E3 footnote. Not mounted — no busiest-hours feed exists.", "placeholders": {"range": {"type": "String", "example": "6–9 pm"}}},
+  "offerComposerPriceRequired": "Enter a price above 0",
+  "@offerComposerPriceRequired": {"description": "R17 offer composer — validation under the price field when no positive price is entered (was hardcoded English in OfferFormCubit)."},
+  "offerComposerEtaRequired": "Pick a pickup ETA",
+  "@offerComposerEtaRequired": {"description": "R17 offer composer — validation under the ETA pill row when no pickup ETA is selected (was hardcoded English in OfferFormCubit)."},
+  "activeDeliveryLoadingHeadline": "Loading your delivery",
+  "@activeDeliveryLoadingHeadline": {"description": "R18 loading-state headline (active_delivery_loading); the screen title is no longer reused as the loading copy."},
+  "activeDeliveryErrorHeadline": "We couldn't load this delivery",
+  "@activeDeliveryErrorHeadline": {"description": "R18 error-state headline (active_delivery_error); the mapped activeDeliveryLoadError sentence becomes the body under it."},
+  "earningsLoadingHeadline": "Loading your earnings",
+  "@earningsLoadingHeadline": {"description": "R19 loading-state headline (earnings_loading) while GET /v1/jeeb/earnings is in flight."},
+  "earningsBreakdownEmptyTitle": "No deliveries this period",
+  "@earningsBreakdownEmptyTitle": {"description": "R19 breakdown-band empty headline (earnings_breakdown_empty): the period has totals but the wire returned no per-delivery rows."},
+  "chatComposerHintMessage": "Message…",
+  "@chatComposerHintMessage": {"description": "R20 order-chat composer placeholder — the board's single word + ellipsis, not the longer chatComposerHint sentence."},
+  "orderHistoryEmptyBody": "Your first errand is one voice note away — medicine, groceries, that thing you forgot.",
+  "@orderHistoryEmptyBody": {"description": "E4 body copy under \"No orders yet\"; Active bucket only."},
+  "orderHistoryEmptyCta": "Jeeb it — your first request",
+  "@orderHistoryEmptyCta": {"description": "E4 orange CTA; enters the create flow (request-type)."},
+  "orderHistoryRebroadcastCta": "Re-broadcast",
+  "@orderHistoryRebroadcastCta": {"description": "The expired order-history row's inline orange text action; re-broadcasts a request that drew no offers. Carries the FROZEN identifier order_history_reorder_cta_<id>, so it is a label change only."},
+  "orderHistoryLoadingHeadline": "Loading your orders",
+  "@orderHistoryLoadingHeadline": {"description": "R21 loading-state headline; must not repeat the header band's own \"Delivery\" title."},
+  "walletHubReservedNow": "Reserved now",
+  "@walletHubReservedNow": {"description": "R4 wallet bank-card footer label above the live reserve figure. Not wired — wallet_hub_l10n.dart still serves this string (kit-fixup lane owns the call site)."},
+  "walletHubGiftBadge": "{amount} starter credit included",
+  "@walletHubGiftBadge": {"description": "R4 gift-credit badge; restores the \"included\" clause (doc-13 P1). Not wired — see the open question in the M2-18 queue row.", "placeholders": {"amount": {"type": "String", "example": "$5.00"}}},
+  "walletHubAffordabilityEnoughBody": "Enough for the {percent}% reserve on typical offers.",
+  "@walletHubAffordabilityEnoughBody": {"description": "R4 affordability body for the enough state; percent is derived from kJeebCommissionPercent, never spelled out. Not wired.", "placeholders": {"percent": {"type": "int", "example": "10"}}},
+  "walletHubLiveOffers": "Live offers",
+  "@walletHubLiveOffers": {"description": "R4 second stat column in the wallet balance card: how many live offers hold a reserve. Not wired — no count on GET /v1/jeeb/wallet."}
 }

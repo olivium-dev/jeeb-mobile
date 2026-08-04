@@ -315,10 +315,9 @@ class _Body extends StatelessWidget {
       case ActiveDeliveryMode.loading:
         return Center(
           child: SingleChildScrollView(
-            // TODO(midnight): l10n-queued activeDeliveryLoadingHeadline.
             child: JeebEmptyState(
               status: JeebEmptyStateStatus.loading,
-              headline: l10n.activeDeliveryTitle,
+              headline: l10n.activeDeliveryLoadingHeadline,
               identifier: 'active_delivery_loading',
             ),
           ),
@@ -326,10 +325,9 @@ class _Body extends StatelessWidget {
       case ActiveDeliveryMode.error:
         return Center(
           child: SingleChildScrollView(
-            // TODO(midnight): l10n-queued activeDeliveryErrorHeadline.
             child: JeebEmptyState(
               status: JeebEmptyStateStatus.error,
-              headline: l10n.activeDeliveryTitle,
+              headline: l10n.activeDeliveryErrorHeadline,
               body: state.errorMessage ?? l10n.activeDeliveryLoadError,
               identifier: 'active_delivery_error',
               action: JeebCtaButton.primary(

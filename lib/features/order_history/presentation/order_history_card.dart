@@ -402,8 +402,7 @@ class _MetaRow extends StatelessWidget {
         order.status == OrderRequestStatus.disputed;
     if (!isExpired || onReorder == null) return null;
     return JeebCtaButton.accentText(
-      // TODO(midnight): l10n-queued `orderHistoryRebroadcastCta` = Re-broadcast.
-      label: l10n.orderHistoryReorderCta,
+      label: l10n.orderHistoryRebroadcastCta,
       onTap: onReorder,
       height: OrderHistoryCard.metaActionHeight,
       labelStyle: context.jeebText.bodySmall,

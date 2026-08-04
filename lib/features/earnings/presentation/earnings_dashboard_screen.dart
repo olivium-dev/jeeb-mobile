@@ -167,11 +167,9 @@ class EarningsDashboardScreen extends StatelessWidget {
       return Semantics(
         identifier: 'earnings_loading',
         container: true,
-        // TODO(midnight): l10n-queued `earningsLoadingHeadline`; `earningsTitle`
-        // is the nearest landed key.
         child: JeebEmptyState.compact(
           status: JeebEmptyStateStatus.loading,
-          headline: copy.title,
+          headline: copy.loadingHeadline,
         ),
       );
     }
@@ -278,9 +276,9 @@ class _ReadyBody extends StatelessWidget {
             Semantics(
               identifier: 'earnings_breakdown_empty',
               container: true,
-              // TODO(midnight): l10n-queued `earningsBreakdownEmptyTitle`;
-              // `earningsEmpty` is the nearest landed key.
-              child: JeebEmptyState.compact(headline: copy.empty),
+              child: JeebEmptyState.compact(
+                headline: copy.breakdownEmptyTitle,
+              ),
             )
           else
             for (var i = 0; i < deliveries.length; i++) ...[
@@ -357,8 +355,6 @@ class _PeriodPill extends StatelessWidget {
         return copy.periodToday;
       case EarningsPeriod.week:
         return copy.periodWeek;
-      // TODO(midnight): l10n-queued — the tile draws `Month`, `earningsPeriodMonth`
-      // still reads `This month`.
       case EarningsPeriod.month:
         return copy.periodMonth;
     }

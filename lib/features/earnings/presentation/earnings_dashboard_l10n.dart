@@ -48,11 +48,12 @@ class EarningsDashboardL10n {
   String get retry => _l10n.earningsLoadRetry;
   String get exportButton => _l10n.earningsExportButton;
   String get empty => _l10n.earningsEmpty;
+  String get loadingHeadline => _l10n.earningsLoadingHeadline;
+  String get breakdownEmptyTitle => _l10n.earningsBreakdownEmptyTitle;
 
   // ── Fee-only headline (D41/D44). ──────────────────────────────────────────
 
   /// `earnings_total_cash` — total cash collected off-wallet (COD, D41).
-  /// TODO(midnight): l10n-queued — tile literal `Cash collected` (`tpl 1147`).
   String get totalCashLabel => _pick('Cash collected', 'النقد المُحصَّل');
   /// The trust line under the hero amount: cash never moves through Jeeb
   /// (D41). Shorter and more direct than the previous phrasing because the

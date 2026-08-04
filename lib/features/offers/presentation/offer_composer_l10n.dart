@@ -94,10 +94,8 @@ class OfferComposerL10n {
         'زيادة العرض بمقدار ١',
       );
 
-  /// Validation under the price field. TODO(midnight): l10n-queued as
-  /// `offerComposerPriceRequired` — it was hardcoded English in the cubit.
-  String get priceRequiredError =>
-      _pick('Enter a price above 0', 'أدخل سعراً أكبر من ٠');
+  /// Validation under the price field.
+  String get priceRequiredError => _l10n.offerComposerPriceRequired;
 
   // ── ETA block (bounded by the tier SLA, D14) ────────────────────────────
   /// `PICKUP ETA` section label.
@@ -115,10 +113,8 @@ class OfferComposerL10n {
   String etaOption(int minutes) =>
       _pick('${_ltr('$minutes')} min', '${_ltr('$minutes')} دقيقة');
 
-  /// Validation under the ETA row. TODO(midnight): l10n-queued as
-  /// `offerComposerEtaRequired` — it was hardcoded English in the cubit.
-  String get etaRequiredError =>
-      _pick('Pick a pickup ETA', 'اختر وقت الاستلام');
+  /// Validation under the ETA row.
+  String get etaRequiredError => _l10n.offerComposerEtaRequired;
 
   // ── Note field (optional free text, wire field `note`) ───────────────────
   /// `offer_composer_note_field` accessibility label. The redesigned field

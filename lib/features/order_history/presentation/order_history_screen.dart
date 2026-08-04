@@ -375,9 +375,7 @@ class _OrderTabViewState extends State<_OrderTabView>
           return _StateBlock(
             key: const Key('order-history-loading'),
             status: JeebEmptyStateStatus.loading,
-            // TODO(midnight): l10n-queued `orderHistoryLoadingHeadline`; the
-            // screen title would just echo the header band two lines above.
-            headline: l10n.deliveryStatusLoading,
+            headline: l10n.orderHistoryLoadingHeadline,
             identifier: 'order_history_loading',
           );
         }
@@ -484,13 +482,10 @@ class _OrdersEmptyView extends StatelessWidget {
           identifier: 'order_history_empty_${tab.name}',
           variant: JeebEmptyStateVariant.parcel,
           headline: l10n.orderHistoryEmptyTitle,
-          // TODO(midnight): l10n-queued `orderHistoryEmptyBody` — the tile's
-          // "one voice note away" line; nearest existing key meanwhile.
           body: _emptySubtitle(tab, l10n),
           action: isFirstRun
               ? JeebCtaButton.accent(
-                  // TODO(midnight): l10n-queued `orderHistoryEmptyCta`.
-                  label: l10n.homeEmptyCta,
+                  label: l10n.orderHistoryEmptyCta,
                   leadingIcon: Icons.mic,
                   identifier: 'order_history_empty_cta',
                   onTap: () => GoRouter.of(context).pushNamed('request-type'),
@@ -504,7 +499,7 @@ class _OrdersEmptyView extends StatelessWidget {
   static String _emptySubtitle(OrderHistoryTab tab, AppLocalizations l10n) {
     switch (tab) {
       case OrderHistoryTab.active:
-        return l10n.orderHistoryEmptyActive;
+        return l10n.orderHistoryEmptyBody;
       case OrderHistoryTab.completed:
         return l10n.orderHistoryEmptyCompleted;
       case OrderHistoryTab.cancelled:

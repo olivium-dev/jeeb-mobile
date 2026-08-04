@@ -2734,7 +2734,6 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('offerComposerEtaSectionLabel');
   String offerComposerEtaCeilingHint(String minutes) =>
       _get('offerComposerEtaCeilingHint').replaceFirst('{minutes}', minutes);
-  String get offerComposerEtaOther => _get('offerComposerEtaOther');
   String get offerComposerOfferRowLabel => _get('offerComposerOfferRowLabel');
   String offerComposerFeeRowLabel(int percent) =>
       _get('offerComposerFeeRowLabel').replaceFirst('{percent}', '$percent');
@@ -2746,6 +2745,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get offerComposerNoteHint => _get('offerComposerNoteHint');
   String get offerComposerPriceDecrement => _get('offerComposerPriceDecrement');
   String get offerComposerPriceIncrement => _get('offerComposerPriceIncrement');
+  String get offerComposerPriceRequired => _get('offerComposerPriceRequired');
+  String get offerComposerEtaRequired => _get('offerComposerEtaRequired');
 
   // 18 · Active delivery (Jeeber)
   String get activeDeliveryHandoffTitle => _get('activeDeliveryHandoffTitle');
@@ -2757,13 +2758,16 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('activeDeliveryCollectCash').replaceFirst('{amount}', amount);
   String get activeDeliveryCollectCashNoAmount =>
       _get('activeDeliveryCollectCashNoAmount');
-  String get activeDeliveryDirectionsCta => _get('activeDeliveryDirectionsCta');
   String get activeDeliveryQuickActionMaps =>
       _get('activeDeliveryQuickActionMaps');
   String get activeDeliveryQuickActionChat =>
       _get('activeDeliveryQuickActionChat');
   String get activeDeliveryQuickActionCosts =>
       _get('activeDeliveryQuickActionCosts');
+  String get activeDeliveryLoadingHeadline =>
+      _get('activeDeliveryLoadingHeadline');
+  String get activeDeliveryErrorHeadline =>
+      _get('activeDeliveryErrorHeadline');
 
   // 19 · Earnings
   String get earningsTotalCashHint => _get('earningsTotalCashHint');
@@ -2776,6 +2780,9 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('earningsDeliveryRowTitleDated')
           .replaceFirst('{id}', id)
           .replaceFirst('{weekday}', weekday);
+  String get earningsLoadingHeadline => _get('earningsLoadingHeadline');
+  String get earningsBreakdownEmptyTitle =>
+      _get('earningsBreakdownEmptyTitle');
 
   // 20 · Settings
   String settingsIdentitySubtitle({
@@ -2804,6 +2811,7 @@ extension AppLocalizationsRestored on AppLocalizations {
           .replaceFirst('{time}', time);
   String chatCounterpartRatingA11y(String value) =>
       _get('chatCounterpartRatingA11y').replaceFirst('{value}', value);
+  String get chatComposerHintMessage => _get('chatComposerHintMessage');
 
   // 22 · Become a Jeeber (KYC identity step)
   String kycWizardProgressStepLabel({
@@ -2846,6 +2854,13 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get walletCashDisclaimer => _get('walletCashDisclaimer');
   String walletFeesExplainerLine1(int rate) =>
       _get('walletFeesExplainerLine1').replaceFirst('{rate}', '$rate');
+  String get walletHubReservedNow => _get('walletHubReservedNow');
+  String get walletHubLiveOffers => _get('walletHubLiveOffers');
+  String walletHubGiftBadge(String amount) =>
+      _get('walletHubGiftBadge').replaceFirst('{amount}', amount);
+  String walletHubAffordabilityEnoughBody(int percent) =>
+      _get('walletHubAffordabilityEnoughBody')
+          .replaceFirst('{percent}', '$percent');
 
   // 24 · Order history
   String orderHistoryFilterRange(String from, String to) =>
@@ -2858,6 +2873,11 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('orderHistoryFilterRangeTo').replaceFirst('{to}', to);
   String get orderHistoryTrackCta => _get('orderHistoryTrackCta');
   String get orderHistoryReorderCta => _get('orderHistoryReorderCta');
+  String get orderHistoryRebroadcastCta => _get('orderHistoryRebroadcastCta');
+  String get orderHistoryEmptyBody => _get('orderHistoryEmptyBody');
+  String get orderHistoryEmptyCta => _get('orderHistoryEmptyCta');
+  String get orderHistoryLoadingHeadline =>
+      _get('orderHistoryLoadingHeadline');
 
   // MIDNIGHT R1 + E1 · client home
   String get homeHeroPromptMorning => _get('homeHeroPromptMorning');

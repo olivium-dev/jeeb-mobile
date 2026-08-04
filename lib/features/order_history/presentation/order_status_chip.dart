@@ -9,7 +9,7 @@ import '../domain/order_summary.dart';
 /// status→string switch. It stays a top-level helper — and this file stays on
 /// disk — because `orders_stale_status_chip_test.dart` is the regression guard
 /// for the stale-status defect and asserts on these exact strings
-/// (`find.text('Pending' / 'Picked up' / 'En route')`).
+/// (`find.text('Pending' / 'Picked up' / 'In transit')`).
 ///
 /// Deriving the label from the wire status (never from the tab bucket) is what
 /// keeps a future backend state rendering sensibly instead of blank.

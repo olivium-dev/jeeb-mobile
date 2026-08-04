@@ -191,7 +191,7 @@ class ChatScreen extends StatelessWidget {
   final ChatFeeNotice? feeNotice;
 
   /// Composer hint override. The Jeeber variant passes the localized
-  /// "Price / time" hint; null falls back to the default "Type a message".
+  /// "Price / time" hint; null falls back to the board's "Message…".
   final String? composerHint;
 
   /// Jeeber-only entry point into the active-delivery screen. When non-null,
@@ -904,9 +904,7 @@ class _ChatBody extends StatelessWidget {
                 if (showQuickReplies) const ChatQuickReplyBar(),
                 if (state.isComposerVisible)
                   ChatComposer(
-                    // TODO(midnight): l10n-queued — the board hint is
-                    // "Message…"; `chatComposerHint` is the nearest key.
-                    hintText: composerHint,
+                    hintText: composerHint ?? l10n.chatComposerHintMessage,
                     // JM-025: the customer order-chat surface exposes the
                     // `order_chat_composer_*` ids the W1 flow drives; every
                     // other caller keeps the default `chat_detail_*` ids.
