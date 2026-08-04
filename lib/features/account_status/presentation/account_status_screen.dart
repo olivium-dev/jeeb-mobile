@@ -8,7 +8,10 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../settings/presentation/widgets/logout_delete_confirm_sheet.dart';
 import '../application/account_status_cubit.dart';
 import '../application/account_status_state.dart';
@@ -18,8 +21,9 @@ import '../domain/account_status.dart';
 import '../domain/account_status_repository.dart';
 import 'account_status_l10n.dart';
 
-/// The board's header band: 24px gutters, 16px above the title
-/// (redesign-2026-08 §4.3 — `--screen-gutter: 24`).
+/// The bare padded title band — R19's shape (`earnings_dashboard_screen.dart`
+/// `_headerPadding`), the one header form for a screen that must not offer a
+/// back circle.
 const EdgeInsetsGeometry _kHeaderPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
   Spacing.medium,
@@ -27,8 +31,7 @@ const EdgeInsetsGeometry _kHeaderPadding = EdgeInsetsDirectional.fromSTEB(
   0,
 );
 
-/// The scrolling band under the header — same 24px gutter, 20px of air below
-/// the title before the state panel.
+/// The scrolling band under the header — same 24 gutter, R22's 20 band lead-in.
 const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
   Spacing.large,
@@ -50,12 +53,17 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 /// (retry). The screen NEVER polices its own reachability (40_GUARDRAILS_ARCH
 /// §12) — the gate owns that.
 ///
-/// redesign-2026-08: re-skinned onto the Jeeb kit — the OMDS app bar becomes an
-/// in-body padded title (screen 19's shape; a gate screen must NOT gain the
-/// [JeebTopBar] back circle, `app_router.backFallbacks` excludes it by name),
-/// the blocked state becomes a role-coloured [JeebInfoNote] instead of a 64px
-/// error glyph over centred text, and the two exits dock in a [JeebCtaFooter]
-/// under a real empty band (R1 — never vertically centre, never fill it).
+/// MIDNIGHT M3-22 (derived; no tile). Nearest tiles: **R23** for the chrome
+/// (`content` field, one orange glow top-end, no periwinkle, board-still) and
+/// **R22** for the status rungs (glass strip stating a fact, docked exits,
+/// destructive on danger-SOFT). Bands, top to bottom:
+///   - bare padded title, `onSurface` ink (R19's header; a gate screen must NOT
+///     gain the [JeebTopBar] back circle, `app_router.backFallbacks` excludes
+///     it by name)
+///   - the WHICH-blocked-state panel — soft danger `JeebInfoNote.error`
+///   - the reason on R23's glass info strip
+///   - a real empty band, then the docked support / sign-out exits
+///
 /// Flow, copy and both edges are unchanged.
 ///
 /// CTAs (both target REGISTERED routes — navigation honesty, CTO brief §6.7):
@@ -73,6 +81,13 @@ class AccountStatusScreen extends StatelessWidget {
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final AccountStatusRepository? repository;
+
+  /// The in-flight read (`account_status_loading`).
+  static const String loadingIdentifier = 'account_status_loading';
+
+  /// The failed read (`account_status_load_error`) and its retry pill.
+  static const String loadErrorIdentifier = 'account_status_load_error';
+  static const String retryIdentifier = 'account_status_retry_cta';
 
   /// Resolves the repo: an explicit override (tests) → the registered
   /// `AccountStatusRepository` (when the integrator DI batch lands it) → a LIVE
@@ -111,48 +126,139 @@ class _AccountStatusView extends StatelessWidget {
     return Semantics(
       identifier: 'account_status_root',
       container: true,
-      child: Scaffold(
-        // No app bar: the title is an in-body band so it reads identically in
-        // every state (loading / failed / loaded), like the rest of the board.
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: _kHeaderPadding,
-                child: Text(
-                  copy.title,
-                  style: context.jeebText.h2.copyWith(color: scheme.primary),
+      // R23's field: `content`, one orange glow at the top end, no periwinkle
+      // wash, no rings — and it does not move.
+      child: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          // No app bar: the title is an in-body band so it reads identically in
+          // every state (loading / failed / loaded), like the rest of the board.
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: _kHeaderPadding,
+                  child: Text(
+                    copy.title,
+                    style: context.jeebText.h2.copyWith(
+                      color: scheme.onSurface,
+                    ),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: BlocBuilder<AccountStatusCubit, AccountStatusState>(
-                  builder: (context, state) {
-                    switch (state.status) {
-                      case AccountStatusScreenStatus.initial:
-                      case AccountStatusScreenStatus.loading:
-                        return const OmdsLoadingState();
-                      case AccountStatusScreenStatus.failed:
-                        return OmdsErrorState(
-                          message: copy.loadError,
-                          retryLabel: copy.retry,
-                          onRetry: () =>
-                              context.read<AccountStatusCubit>().refresh(),
-                        );
-                      case AccountStatusScreenStatus.loaded:
-                        return _BlockedBody(
-                          value: state.value,
-                          serverReason: state.reason,
-                          copy: copy,
-                        );
-                    }
-                  },
+                Expanded(
+                  child: BlocBuilder<AccountStatusCubit, AccountStatusState>(
+                    builder: (context, state) {
+                      switch (state.status) {
+                        case AccountStatusScreenStatus.initial:
+                        case AccountStatusScreenStatus.loading:
+                          return _LoadingBody(copy: copy);
+                        case AccountStatusScreenStatus.failed:
+                          return _FailedBody(copy: copy);
+                        case AccountStatusScreenStatus.loaded:
+                          return _BlockedBody(
+                            value: state.value,
+                            serverReason: state.reason,
+                            copy: copy,
+                          );
+                      }
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The cold read of `GET /users/me`. `radar` is the variant for the same reason
+/// M3-07 picked it on the profile tab: it is the only one whose subject is an
+/// account "listening for a signal" rather than a request (a mic, a parcel, a
+/// scooter). Its three identity discs are dropped — E2 draws jeebers in range,
+/// and there is no second party on this surface to name.
+class _LoadingBody extends StatelessWidget {
+  const _LoadingBody({required this.copy});
+
+  final AccountStatusL10n copy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: JeebEmptyState(
+        variant: JeebEmptyStateVariant.radar,
+        status: JeebEmptyStateStatus.loading,
+        medallions: const <JeebEmptyMedallion>[],
+        identifier: AccountStatusScreen.loadingIdentifier,
+        headline: copy.loadingHeadline,
+      ),
+    );
+  }
+}
+
+/// The failed read. Same illustration, danger-tinted centre (kit ruling 1), and
+/// the retry is the glass pill — never an orange act the board does not draw.
+class _FailedBody extends StatelessWidget {
+  const _FailedBody({required this.copy});
+
+  final AccountStatusL10n copy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: JeebEmptyState(
+        variant: JeebEmptyStateVariant.radar,
+        status: JeebEmptyStateStatus.error,
+        medallions: const <JeebEmptyMedallion>[],
+        identifier: AccountStatusScreen.loadErrorIdentifier,
+        headline: copy.loadErrorTitle,
+        body: copy.loadError,
+        action: JeebCtaButton.outline(
+          label: copy.retry,
+          expand: false,
+          identifier: AccountStatusScreen.retryIdentifier,
+          onTap: () => context.read<AccountStatusCubit>().refresh(),
+        ),
+      ),
+    );
+  }
+}
+
+/// R23's `[glyph] gap [copy]` strip row, composed through [JeebInfoNote.label]
+/// rather than its `icon:` slot for two reasons: the kit centres a leading
+/// glyph on the row, and `statusReason` is free server text — at the measured
+/// ceiling the glyph floats mid-paragraph, which the board never draws. The
+/// `label:` hatch also keeps this line on the 14.5 `body` ramp instead of the
+/// strip's 12.5 default. Sizes and gap are the kit's own consts.
+class _ReasonLine extends StatelessWidget {
+  const _ReasonLine({required this.reason});
+
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = JeebSurfaceTone.of(context).mutedInk;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          Icons.info_outline,
+          size: JeebInfoNote.stripIconSize,
+          color: muted,
+        ),
+        const SizedBox(width: JeebInfoNote.stripGap),
+        Expanded(
+          child: Text(
+            reason,
+            style: context.jeebText.body.copyWith(color: muted),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -180,14 +286,12 @@ class _BlockedBody extends StatelessWidget {
       children: [
         Expanded(
           // Scrolls rather than overflows when a long server reason meets a
-          // large text scale; the residual space stays white and top-aligned.
+          // large text scale; the residual space stays top-aligned on the field.
           child: ListView(
             padding: _kBodyPadding,
             children: [
-              // Status banner — the WHICH-blocked-state headline (D5). The
-              // kit's error tone is the soft Wave-0 errorContainer, not the
-              // legacy red slab; the state is the message, so it keeps its
-              // role colour on every surface.
+              // WHICH-blocked-state panel (D5). Glyph is danger-SOFT, never
+              // full-strength `error` — R22's ruling, and §9 gates only that pair.
               Semantics(
                 identifier: 'account_status_banner',
                 container: true,
@@ -195,33 +299,26 @@ class _BlockedBody extends StatelessWidget {
                   icon: value == AccountStatusValue.locked
                       ? Icons.lock_outline_rounded
                       : Icons.pause_circle_outline_rounded,
+                  iconColor: scheme.onErrorContainer,
                   title: copy.banner(value),
                 ),
               ),
-              const SizedBox(height: Spacing.medium),
-              // Reason — server reason verbatim, else localized per-state copy.
+              const SizedBox(height: Spacing.small),
+              // Reason — server reason verbatim, else localized per-state copy,
+              // on R23's glass info strip.
               Semantics(
                 identifier: 'account_status_reason',
-                // container so the reason owns its own node, mirroring the
-                // banner above. Without it the default explicitChildNodes:false
-                // annotation merges this identifier up into account_status_root
-                // (which already owns that node), folding the reason id away
-                // (JM-049 merge class).
+                // Without container the id merges up into account_status_root
+                // and is folded away (JM-049 merge class).
                 container: true,
-                child: Text(
-                  reason,
-                  style: context.jeebText.body.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
+                child: JeebInfoNote.muted(label: _ReasonLine(reason: reason)),
               ),
             ],
           ),
         ),
         JeebCtaFooter.single(
-          // EDGE → logout-delete-account (JM-062, JM-066 AC3). Open the
-          // confirm sheet (`logout_delete_sheet`) directly; on confirm the
-          // session is cleared and the gate routes to splash → /login (D5).
+          // EDGE → logout-delete-account (JM-062, AC3): opens the confirm sheet.
+          // Neutral glass — R22 reserves the dim red for Delete account.
           below: Semantics(
             identifier: 'account_status_signout_cta',
             button: true,

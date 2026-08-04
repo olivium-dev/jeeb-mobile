@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_meter.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -42,6 +43,8 @@ class _ProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // TODO(midnight): l10n-queued — R23's caption carries the step name and a
+    // "then <next>" hint; neither placeholder exists on this key yet.
     final label = l10n.dmOnboardingStepProgressLabel(
       current: state.currentStepNumber,
       total: DmOnboardingState.totalSteps,
@@ -49,23 +52,29 @@ class _ProgressBar extends StatelessWidget {
     return Semantics(
       identifier: 'dm_onboarding_progress',
       value: label,
+      // R23's rule: segment N is filled while the user is ON step N. Passing
+      // `completedSteps` drew "Step 3 of 3" over a 2/3 bar.
       child: _ProgressBarTrack(
         label: label,
-        completedSteps: state.completedSteps,
+        filledSteps: state.isSubmitted
+            ? DmOnboardingState.totalSteps
+            : state.currentStepNumber,
       ),
     );
   }
 }
 
 class _ProgressBarTrack extends StatelessWidget {
-  const _ProgressBarTrack({required this.label, required this.completedSteps});
+  const _ProgressBarTrack({required this.label, required this.filledSteps});
 
   final String label;
-  final int completedSteps;
+  final int filledSteps;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final semantic =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     return Padding(
       key: DmOnboardingProgressHeader.rootKey,
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -81,15 +90,18 @@ class _ProgressBarTrack extends StatelessWidget {
             child: Text(
               label,
               style: context.jeebText.bodySmall.copyWith(
-                color: scheme.primary,
+                color: theme.colorScheme.onSurface,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
           const SizedBox(height: Spacing.xSmall),
+          // R23's meter exactly: the kit's default track is opaque navy and
+          // disappears against the field, so the glass rung carries it.
           JeebMeter.segmented(
             steps: DmOnboardingState.totalSteps,
-            filled: completedSteps,
+            filled: filledSteps,
+            trackColor: semantic.glassFillPressed,
           ),
         ],
       ),

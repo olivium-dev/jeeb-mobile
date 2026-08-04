@@ -4,15 +4,21 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/money_format.dart';
-import '../../../core/theme/jeeb_shadows.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
+import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../wallet/domain/wallet_repository.dart';
+
+/// How the one wallet read this screen makes is going.
+enum _WalletRead { loading, loaded, failed }
 
 /// onboarding-funding (JM-041). Starter-credit explainer shown after KYC is
 /// submitted: a fixed, non-refundable starter credit usable post-KYC (D42) +
@@ -36,15 +42,18 @@ import '../../wallet/domain/wallet_repository.dart';
 ///   onboarding-funding → wallet-charge-info  (`funding_topup_cta`)
 ///   onboarding-funding → kyc-pending-status  (`funding_continue_cta`)
 ///
-/// Redesign-2026-08 (Jeeb design system, no board render for this screen — the
-/// language is taken from its journey neighbour, 23-wallet): a re-skin, not a
-/// product change. Same data, same route, same two CTAs in the same order, all
-/// four identifiers unmoved. Three bands over a deliberately empty lower third
-/// (R1): navy starter-credit hero (the same `heroNavy` + bottom-END accent ring
-/// the wallet balance hero wears, so the two money surfaces read as one
-/// family) → the reserve rule as a kit info note carrying the live reserved
-/// amount → the docked CTA pair. Prepaid, fee-only: nothing here implies an
-/// in-app card payment (D92/D93).
+/// MIDNIGHT M3-18 (no board tile — derived). Nearest tiles: **R4 wallet** for the
+/// money treatment and **R23 become-a-jeeber** for the funnel chrome. Carried
+/// from R4: the hero money surface (`glassFillEmphasis` + `glassBorderStrong`
+/// rung with 23's own Ø170 bottom-END accent ring), the eyebrow-over-figure
+/// lockup, the `caption`-over-`cardTitle` w800 reserve stat, and the
+/// wallet-family state block. Carried from R23 (this screen's caller, the KYC
+/// wizard): the `content` field with ONE quiet orange glow at the top end, no
+/// wash, no rings, no motion. Money emphasis is `price` 22/w800 (token sheet
+/// §6) — R4's 40px `statHero` belongs to the wallet's one balance, and an
+/// explainer must not out-shout it. No orange CTA: no tile draws this screen,
+/// so theme ruling 3 ("when in doubt: not orange") holds and the only orange
+/// left is the field glow and the hero ring.
 class OnboardingFundingScreen extends StatefulWidget {
   const OnboardingFundingScreen({super.key, this.repository});
 
@@ -57,10 +66,11 @@ class OnboardingFundingScreen extends StatefulWidget {
 }
 
 class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
-  /// The live wallet snapshot, or `null` while loading / on failure. The
-  /// explainer never blocks on it (fail-safe): a `null` snapshot simply hides
-  /// the enrichment amounts and shows the static copy alone.
+  /// The live wallet snapshot, or `null` until [_read] reaches
+  /// [_WalletRead.loaded]. The explainer never blocks on it (fail-safe).
   WalletBalance? _balance;
+
+  _WalletRead _read = _WalletRead.loading;
 
   @override
   void initState() {
@@ -72,172 +82,157 @@ class _OnboardingFundingScreenState extends State<OnboardingFundingScreen> {
     final repo = widget.repository ?? sl<WalletRepository>();
     try {
       final balance = await repo.fetchBalance();
-      if (mounted) setState(() => _balance = balance);
+      if (mounted) {
+        setState(() {
+          _balance = balance;
+          _read = _WalletRead.loaded;
+        });
+      }
     } on WalletRepositoryException {
-      // Fail-safe: the explainer is static copy; a failed wallet fetch must not
-      // hide it. Leave `_balance` null so only the enrichment is omitted.
+      // Fail-safe: the explainer is static copy, so a failed wallet fetch only
+      // drops the enrichment and raises the retryable state block.
+      if (mounted) setState(() => _read = _WalletRead.failed);
     } catch (_) {
-      // Same — any unexpected error must not break the explainer.
+      if (mounted) setState(() => _read = _WalletRead.failed);
     }
+  }
+
+  void _retry() {
+    setState(() => _read = _WalletRead.loading);
+    _loadBalance();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
     final balance = _balance;
+    final money = _MoneyEnrichment.of(balance);
+
     return Scaffold(
-      // The board's header is an in-body row, not a Material app bar (§5 #1).
-      body: SafeArea(
-        child: Column(
-          children: [
-            JeebTopBar(
-              identifier: 'funding_back',
-              title: l10n.fundingTitle,
-              // Normally pushed after KYC submission, but also reachable via
-              // deep link with an empty Navigator stack. Pop when we can
-              // (pushed entry), else return to the shell — never pop the last
-              // page (which would leave an empty Navigator → black surface).
-              onLeadingPressed: () =>
-                  context.canPop() ? context.pop() : context.go('/'),
-            ),
-            // `funding_explainer` is the screen ROOT (65_W2_TEST_PLAN §2
-            // JM-041) and is ALWAYS present regardless of the wallet load state
-            // — the explainer is the AC, not the live numbers.
-            Expanded(
-              child: Semantics(
-                identifier: 'funding_explainer',
-                container: true,
-                explicitChildNodes: true,
-                child: CustomScrollView(
-                  slivers: [
-                    SliverPadding(
-                      // 24px gutters; the footer owns the bottom inset, so this
-                      // sliver ends flush.
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        Spacing.xLarge,
-                        Spacing.medium,
-                        Spacing.xLarge,
-                        0,
-                      ),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          // ── Starter credit (D42) ────────────────────────
-                          _StarterCreditHero(
-                            body: l10n.fundingStarterCreditBody,
-                            // Live enrichment: the actual D42 gift-credit
-                            // amount, shown only once the wallet snapshot
-                            // loads and it is non-zero.
-                            amount: balance != null && balance.giftCredit > 0
-                                ? MoneyFormat.format(
-                                    balance.giftCredit,
-                                    currency: balance.currency,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(height: Spacing.small),
-                          // ── Reserve-10%-per-offer (D1) ──────────────────
-                          // `accent` is the tone whose INK is navy (the orange
-                          // is only ever its optional link, which this note has
-                          // none of) — the rule is body copy, and periwinkle
-                          // body text is banned on light surfaces.
-                          JeebInfoNote.accent(
-                            icon: Icons.lock,
-                            text: l10n.fundingReserveBody,
-                            // Live enrichment: the amount currently reserved
-                            // across live offers (D1), shown only when non-zero.
-                            trailing: balance != null && balance.reservedNow > 0
-                                ? Semantics(
-                                    identifier: 'funding_reserved_now_amount',
-                                    child: Text(
-                                      MoneyFormat.format(
-                                        balance.reservedNow,
-                                        currency: balance.currency,
-                                      ),
-                                      style: context.jeebText.cardTitle
-                                          .copyWith(
-                                            fontWeight: FontWeight.w800,
-                                            color: scheme.onSurface,
-                                          ),
+      backgroundColor: Colors.transparent,
+      // R23's field: base wash + ONE quiet orange glow at the top end, no rings,
+      // no twinkles, no motion — the chrome this screen's caller already wears.
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        // The board's header is an in-body row, not a Material app bar (§5 #1).
+        child: SafeArea(
+          child: Column(
+            children: [
+              JeebTopBar(
+                identifier: 'funding_back',
+                title: l10n.fundingTitle,
+                leadingTooltip:
+                    MaterialLocalizations.of(context).backButtonTooltip,
+                // Reachable by deep link with an empty stack: pop when we can,
+                // else go to the shell — never pop the last page.
+                onLeadingPressed: () =>
+                    context.canPop() ? context.pop() : context.go('/'),
+              ),
+              // `funding_explainer` is the screen ROOT (65_W2_TEST_PLAN §2
+              // JM-041) and renders in EVERY load state — the copy is the AC.
+              Expanded(
+                child: Semantics(
+                  identifier: 'funding_explainer',
+                  container: true,
+                  explicitChildNodes: true,
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverPadding(
+                        // 24px gutters; the footer owns the bottom inset, so
+                        // this sliver ends flush.
+                        padding: const EdgeInsetsDirectional.fromSTEB(
+                          Spacing.xLarge,
+                          Spacing.medium,
+                          Spacing.xLarge,
+                          0,
+                        ),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            // ── Starter credit (D42) ──────────────────────
+                            _StarterCreditHero(
+                              // TODO(midnight): l10n-queued —
+                              // `fundingStarterCreditLabel`.
+                              label: l10n.fundingTitle,
+                              body: l10n.fundingStarterCreditBody,
+                              amount: money.starterCredit,
+                            ),
+                            const SizedBox(height: Spacing.small),
+                            // ── Reserve-10%-per-offer (D1) ────────────────
+                            // The kit's documented wallet reserve-row form.
+                            JeebInfoNote.outlined(
+                              icon: Icons.lock,
+                              text: l10n.fundingReserveBody,
+                              trailing: money.reservedNow == null
+                                  ? null
+                                  : _ReservedNowStat(
+                                      // TODO(midnight): l10n-queued —
+                                      // `fundingReservedNowLabel`.
+                                      label: l10n.walletHubReservedNow,
+                                      value: money.reservedNow!,
                                     ),
-                                  )
-                                : null,
-                          ),
-                        ]),
-                      ),
-                    ),
-                    // ── The empty lower third is the design (R1): fill the
-                    // viewport, dock the CTAs at its foot, and scroll only once
-                    // the content genuinely overflows (200% text scale, long AR
-                    // copy).
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Align(
-                        alignment: AlignmentDirectional.bottomCenter,
-                        // Order is the flow's, not the hierarchy's: top-up
-                        // stays the first affordance (as it shipped), Continue
-                        // stays the navy pill the thumb lands on last.
-                        child: JeebCtaFooter.single(
-                          padding: const EdgeInsetsDirectional.fromSTEB(
-                            Spacing.xLarge,
-                            Spacing.xLarge,
-                            Spacing.xLarge,
-                            Spacing.twoXLarge,
-                          ),
-                          // ── Continue → kyc-pending-status (top-up allowed
-                          // pre-approval, D38/D39).
-                          below: Semantics(
-                            identifier: 'funding_continue_cta',
-                            button: true,
-                            container: true,
-                            child: JeebCtaButton.primary(
-                              label: l10n.fundingContinueCta,
-                              // The KYC wizard hosts the status view at
-                              // `/profile/kyc?step=status` (registered name
-                              // `kyc-status`). The `step=status` param is
-                              // forward-compatible: JM-042 wires the wizard to
-                              // open the status view on it; the route resolves
-                              // honestly today either way.
-                              onTap: () => context.goNamed(
-                                'kyc-status',
-                                queryParameters: const {'step': 'status'},
-                              ),
                             ),
-                          ),
-                          // ── Top up → wallet-charge-info (D92/D93, NO in-app
-                          // pay).
-                          child: Semantics(
-                            identifier: 'funding_topup_cta',
-                            button: true,
-                            container: true,
-                            child: JeebCtaButton.outline(
-                              label: l10n.fundingTopupCta,
-                              // EDGE → wallet-charge-info (D92/D93, JM-054).
-                              onTap: () => context.goNamed('wallet-charge-info'),
-                            ),
-                          ),
+                            // Not in the lower third: SliverFillRemaining
+                            // measures intrinsics, the illustration cannot.
+                            _WalletReadBlock(read: _read, onRetry: _retry),
+                          ]),
                         ),
                       ),
-                    ),
-                  ],
+                      // ── The empty lower third is the design (R1/R4): dock
+                      // the CTAs at its foot, scroll only on real overflow.
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Align(
+                          alignment: AlignmentDirectional.bottomCenter,
+                          child: _FundingCtas(l10n: l10n),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// The navy starter-credit hero (D42) — the amount when the wallet snapshot
-/// knows it, over the explainer copy that is the AC and therefore renders in
-/// every load state. Same shadow + off-canvas accent ring as the wallet balance
-/// hero (screen 23) so the jeeber's two money surfaces read as one family.
-class _StarterCreditHero extends StatelessWidget {
-  const _StarterCreditHero({required this.body, this.amount});
+/// The two enrichment figures, already formatted — or null where the wallet has
+/// nothing to say. Keeps the "only when non-zero" rule in ONE place.
+@immutable
+class _MoneyEnrichment {
+  const _MoneyEnrichment({this.starterCredit, this.reservedNow});
 
-  /// The always-visible explainer sentence.
+  factory _MoneyEnrichment.of(WalletBalance? balance) {
+    if (balance == null) return const _MoneyEnrichment();
+    return _MoneyEnrichment(
+      starterCredit: balance.giftCredit > 0
+          ? MoneyFormat.format(balance.giftCredit, currency: balance.currency)
+          : null,
+      reservedNow: balance.reservedNow > 0
+          ? MoneyFormat.format(balance.reservedNow, currency: balance.currency)
+          : null,
+    );
+  }
+
+  final String? starterCredit;
+  final String? reservedNow;
+}
+
+/// The starter-credit money surface (D42) — R4's hero lockup at explainer
+/// scale: eyebrow, `price` figure when the snapshot knows it, then the copy
+/// that is the AC and therefore renders in every load state.
+class _StarterCreditHero extends StatelessWidget {
+  const _StarterCreditHero({
+    required this.label,
+    required this.body,
+    this.amount,
+  });
+
+  final String label;
   final String body;
 
   /// The live gift-credit amount, or `null` when it is unknown or zero.
@@ -246,16 +241,20 @@ class _StarterCreditHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final money = amount;
 
     return JeebNavySurfaceCard(
-      radius: Spacing.large,
       padding: const EdgeInsetsDirectional.all(Spacing.large),
-      shadow: JeebShadows.heroNavy,
+      // 23's own wallet-hero ring — the carry that makes the jeeber's two money
+      // surfaces read as one family.
       rings: const [JeebNavyRing.statBottomEnd],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          JeebSectionLabel(label),
+          const SizedBox(height: Spacing.xSmall),
           if (money != null) ...[
             Semantics(
               identifier: 'funding_starter_credit_amount',
@@ -266,8 +265,9 @@ class _StarterCreditHero extends StatelessWidget {
                 alignment: AlignmentDirectional.centerStart,
                 child: Text(
                   money,
-                  style: context.jeebText.statHero
-                      .copyWith(color: scheme.onPrimary),
+                  style: context.jeebText.price.copyWith(
+                    color: scheme.onSurface,
+                  ),
                 ),
               ),
             ),
@@ -275,9 +275,138 @@ class _StarterCreditHero extends StatelessWidget {
           ],
           Text(
             body,
-            style: context.jeebText.body.copyWith(color: scheme.onPrimary),
+            style: context.jeebText.body.copyWith(color: semantic.inkSoft),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// R4's balance-card stat, reused as the reserve row's trailing slot: a caption
+/// label over a w800 money figure.
+class _ReservedNowStat extends StatelessWidget {
+  const _ReservedNowStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    final text = context.jeebText;
+
+    return Semantics(
+      identifier: 'funding_reserved_now_amount',
+      container: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            label,
+            textAlign: TextAlign.end,
+            style: text.caption.copyWith(color: semantic.mutedText),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            textAlign: TextAlign.end,
+            style: text.cardTitle.copyWith(
+              fontWeight: FontWeight.w800,
+              color: scheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The wallet read's own loading / error rung, docked above the CTAs so it can
+/// never displace the AC explainer. `pocket` is the money subject of the empty
+/// family — an empty pocket is what a wallet with nothing to report looks like.
+/// The loaded rung draws nothing: the empty lower third is the design.
+class _WalletReadBlock extends StatelessWidget {
+  const _WalletReadBlock({required this.read, required this.onRetry});
+
+  final _WalletRead read;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (read == _WalletRead.loaded) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+    final failed = read == _WalletRead.failed;
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Spacing.medium),
+      child: JeebEmptyState.compact(
+        identifier: failed ? 'funding_wallet_error' : 'funding_wallet_loading',
+        status: failed
+            ? JeebEmptyStateStatus.error
+            : JeebEmptyStateStatus.loading,
+        variant: JeebEmptyStateVariant.pocket,
+        headline: l10n.walletHubTitle,
+        body: failed ? l10n.walletHubLoadError : null,
+        action: failed
+            ? JeebCtaButton.outline(
+                identifier: 'funding_wallet_retry',
+                label: l10n.walletHubRetry,
+                expand: false,
+                onTap: onRetry,
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+/// The docked CTA pair. Order is the flow's, not the hierarchy's: top-up stays
+/// the first affordance (as it shipped), Continue stays the pill the thumb
+/// lands on last.
+class _FundingCtas extends StatelessWidget {
+  const _FundingCtas({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return JeebCtaFooter.single(
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        Spacing.xLarge,
+        Spacing.xLarge,
+        Spacing.xLarge,
+        Spacing.twoXLarge,
+      ),
+      // ── Continue → kyc-pending-status (D38/D39). Periwinkle `primary`,
+      // never accent: no tile draws an orange act on this screen.
+      below: Semantics(
+        identifier: 'funding_continue_cta',
+        button: true,
+        container: true,
+        child: JeebCtaButton.primary(
+          label: l10n.fundingContinueCta,
+          // `kyc-status` = `/profile/kyc?step=status`; the param is
+          // forward-compatible (JM-042) and resolves honestly today.
+          onTap: () => context.goNamed(
+            'kyc-status',
+            queryParameters: const {'step': 'status'},
+          ),
+        ),
+      ),
+      // ── Top up → wallet-charge-info (D92/D93, NO in-app pay).
+      child: Semantics(
+        identifier: 'funding_topup_cta',
+        button: true,
+        container: true,
+        child: JeebCtaButton.outline(
+          label: l10n.fundingTopupCta,
+          // EDGE → wallet-charge-info (D92/D93, JM-054).
+          onTap: () => context.goNamed('wallet-charge-info'),
+        ),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/account_status/domain/account_status.dart';
 import 'package:jeeb_mobile/features/account_status/domain/account_status_repository.dart';
 import 'package:jeeb_mobile/features/account_status/presentation/account_status_screen.dart';
@@ -73,6 +74,7 @@ Widget _harness(AccountStatusRepository repo, {Locale locale = const Locale('en'
   return MaterialApp.router(
     routerConfig: router,
     locale: locale,
+    theme: AppTheme.midnight(),
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const [
       SyncAppLocalizationsDelegate(),
@@ -80,6 +82,13 @@ Widget _harness(AccountStatusRepository repo, {Locale locale = const Locale('en'
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): the loading/error
+    // illustrations never settle, so `pumpAndSettle` only terminates under
+    // reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
   );
 }
 
@@ -144,7 +153,14 @@ void main() {
       ),
     );
     expect(find.bySemanticsIdentifier('account_status_root'), findsOneWidget);
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier(AccountStatusScreen.loadErrorIdentifier),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier(AccountStatusScreen.retryIdentifier),
+      findsOneWidget,
+    );
     // No body CTAs while failed.
     expect(find.bySemanticsIdentifier('account_status_support_cta'),
         findsNothing);
@@ -157,7 +173,10 @@ void main() {
     await pump(tester, repo);
 
     // First load failed → error state with retry.
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier(AccountStatusScreen.loadErrorIdentifier),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
 

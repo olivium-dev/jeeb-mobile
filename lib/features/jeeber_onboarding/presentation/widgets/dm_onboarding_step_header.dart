@@ -6,11 +6,10 @@ import '../../../../core/theme/jeeb_text_styles.dart';
 /// Heading + supporting line shared by the onboarding steps that have one
 /// (photo step 56591:5331/5332, service-area step).
 ///
-/// Title is `jeebText.h1` (24/w700) in brand navy — the board's screen
-/// headline. The supporting line is `jeebText.bodySmall` in the warm
-/// `onSurfaceVariant` subtitle ink, **not** periwinkle: `#777FC0` is the muted
-/// decorative voice and fails AA as body text on white. Both are start-aligned
-/// so they mirror under RTL.
+/// MIDNIGHT: R5/R6 both draw the intro run as a WHITE `h1` over a periwinkle
+/// `body` — the `primary` ink this carried was navy in pass 1 and is `#D73B00`
+/// now, i.e. an orange-budget leak on a heading. Both start-aligned so they
+/// mirror under RTL.
 class DmOnboardingStepHeader extends StatelessWidget {
   const DmOnboardingStepHeader({
     super.key,
@@ -28,11 +27,11 @@ class DmOnboardingStepHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: text.h1.copyWith(color: scheme.primary)),
+        Text(title, style: text.h1.copyWith(color: scheme.onSurface)),
         const SizedBox(height: Spacing.twoXSmall),
         Text(
           subtitle,
-          style: text.bodySmall.copyWith(color: scheme.onSurfaceVariant),
+          style: text.body.copyWith(color: scheme.onSurfaceVariant),
         ),
       ],
     );

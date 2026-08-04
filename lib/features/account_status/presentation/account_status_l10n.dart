@@ -42,9 +42,22 @@ class AccountStatusL10n {
             'أو سجّل الخروج.',
       );
 
+  /// TODO(midnight): l10n-queued accountStatusLoadingHeadline — queue entry in
+  /// docs/redesign-midnight/l10n-queue/M3-22.md. Inline here like the four
+  /// members below, which this feature has always shipped outside the ARB.
+  String get loadingHeadline =>
+      _isArabic ? 'جارٍ التحقق من حسابك' : 'Checking your account';
+
+  /// The two halves of the shipped `loadError` sentence, split at its own full
+  /// stop so the Midnight error block gets a headline + body with nothing
+  /// invented and nothing dropped.
+  String get loadErrorTitle => _isArabic
+      ? 'تعذّر تحميل حالة الحساب'
+      : "Couldn't load your account status";
+
   String get loadError => _isArabic
-      ? 'تعذّر تحميل حالة الحساب. تحقّق من اتصالك وحاول مجددًا.'
-      : "Couldn't load your account status. Check your connection and try again.";
+      ? 'تحقّق من اتصالك وحاول مجددًا.'
+      : 'Check your connection and try again.';
 
   String get retry => _isArabic ? 'إعادة المحاولة' : 'Retry';
 

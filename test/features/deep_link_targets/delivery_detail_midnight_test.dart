@@ -205,7 +205,7 @@ void main() {
       expect(find.text(l10n.deliveryStageInTransit), findsOneWidget);
       expect(find.text('Karim'), findsOneWidget);
       expect(find.text(r'$8.00'), findsOneWidget);
-      expect(find.text(l10n.chatOfferEtaMinutes(20)), findsOneWidget);
+      expect(find.text(l10n.deliveryDetailEtaMinutes(20)), findsOneWidget);
     });
 
     testWidgets('a bare summary draws the band with no meta run — absent, '

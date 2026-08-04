@@ -365,9 +365,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [D] M3-15 `settlement_screen.dart` **DELETED** · [D] M3-16 `settlement_detail_screen.dart` **DELETED** — ratified ORPHAN ruling, evidence re-verified independently first (zero inbound nav, zero deep links, zero Maestro). Disproved a FALSE `// FROZEN identifier` comment before relying on it, and re-homed the D41/D44 'Platform fee' decision lock onto the offer composer rather than letting the deletion silently drop it. Cubit/repo KEPT (still DI-registered) @2026-08-04
 
 ### M3 — Tier 3 (KYC funnel)
-- [ ] M3-17 `dm_onboarding_screen.dart` (258) · [ ] M3-18 `onboarding_funding_screen.dart` (202)
-- [ ] M3-19 `offer_kyc_gate_screen.dart` (260) · [ ] M3-20 `delivery_register_prompt_screen.dart` (96)
-- [ ] M3-21 `kyc_rejected_screen.dart` (222) · [ ] M3-22 `account_status_screen.dart` (205)
+- [x] M3-17 `dm_onboarding_screen.dart` (258) — dm onboarding derived from the shipped R23 chrome @2026-08-04 · [x] M3-18 `onboarding_funding_screen.dart` (202) — onboarding funding — R4 money treatment inside R23 funnel chrome @2026-08-04
+- [x] M3-19 `offer_kyc_gate_screen.dart` (260) — offer KYC gate derived from R23 + R17 @2026-08-04 · [x] M3-20 `delivery_register_prompt_screen.dart` (96) — delivery register prompt, same lane as M3-19 @2026-08-04
+- [x] M3-21 `kyc_rejected_screen.dart` (222) — KYC rejected — danger ink on onErrorContainer per the R22 ruling, JeebEmptyState error status @2026-08-04 · [x] M3-22 `account_status_screen.dart` (205) — account status — suspended/locked states on the R22 status-row rung @2026-08-04
 
 ### M3 — Tier 4 (settings subtree)
 - [ ] M3-23 `profile_edit_screen.dart` (293) **ORPHAN — ruling** · [ ] M3-24 `notification_prefs_screen.dart` (324)

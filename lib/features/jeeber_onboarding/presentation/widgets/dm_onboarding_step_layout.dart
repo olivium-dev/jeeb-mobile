@@ -85,7 +85,9 @@ class _ContinueButton extends StatelessWidget {
       builder: (context, state) => Semantics(
         identifier: identifier,
         button: true,
-        child: JeebCtaButton.primary(
+        // MIDNIGHT: the funnel's docked CTA is ORANGE on both neighbouring
+        // tiles (R23 "Submit for review", R5 "Next") — accent, not periwinkle.
+        child: JeebCtaButton.accent(
           label: l10n.dmOnboardingContinue,
           isLoading: state.isSubmitting,
           isEnabled: enabled && !state.isSubmitting,

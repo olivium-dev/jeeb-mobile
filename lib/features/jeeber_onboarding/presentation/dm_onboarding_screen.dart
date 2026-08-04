@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
@@ -119,15 +120,21 @@ class _Scaffold extends StatelessWidget {
       ],
       child: const Scaffold(
         key: DmOnboardingScreen.rootKey,
-        // Redesign-2026-08 §5 #1: the header is a body row, not a Material app
-        // bar — no elevation, no surface tint, start-aligned title.
-        body: SafeArea(
-          child: Column(
-            children: [
-              _OnboardingTopBar(),
-              DmOnboardingProgressHeader(),
-              Expanded(child: _OnboardingBody()),
-            ],
+        backgroundColor: Colors.transparent,
+        // MIDNIGHT (R23 carry): the KYC funnel is board-still — base wash plus
+        // one quiet orange glow at the top end, no rings, no wash, no ticker.
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          animateDecor: false,
+          child: SafeArea(
+            child: Column(
+              children: [
+                _OnboardingTopBar(),
+                DmOnboardingProgressHeader(),
+                Expanded(child: _OnboardingBody()),
+              ],
+            ),
           ),
         ),
       ),
@@ -163,7 +170,7 @@ class _Scaffold extends StatelessWidget {
 }
 
 /// The wizard header: the kit's Ø40 tonal back circle + the start-aligned
-/// `jeebText.h2` navy step title, on the board's 24px gutter.
+/// `jeebText.h2` step title, on the board's 24px gutter (R23's bar exactly).
 class _OnboardingTopBar extends StatelessWidget {
   const _OnboardingTopBar();
 
@@ -185,6 +192,8 @@ class _OnboardingTopBar extends StatelessWidget {
     );
   }
 
+  // TODO(midnight): l10n-queued — R23 holds the constant flow name here and
+  // moves the step name into the caption; `dmOnboardingWizardTitle` is missing.
   String _titleFor(AppLocalizations l10n, DmOnboardingStep step) {
     switch (step) {
       case DmOnboardingStep.photo:
