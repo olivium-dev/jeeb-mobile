@@ -206,10 +206,13 @@ final CatalogEntry _prohibitedItemReportScreenEntry = CatalogEntry(
   ],
 );
 
-Widget _mutualRatingScreen(MutualRatingCubit Function() cubit) {
+Widget _mutualRatingScreen(
+  MutualRatingCubit Function() cubit, {
+  String rateeName = '',
+}) {
   return BlocProvider<MutualRatingCubit>(
     create: (_) => cubit(),
-    child: const MutualRatingScreen(),
+    child: MutualRatingScreen(rateeName: rateeName),
   );
 }
 
@@ -221,11 +224,23 @@ final CatalogEntry _mutualRatingScreenEntry = CatalogEntry(
       'Rate — Client Rates Jeeber',
       (_) => _mutualRatingScreen(mutualRatingScreenFreshCubit),
     ),
+    // The board frame: named counterpart, 4 stars, two tags lit.
+    CatalogState(
+      'Rate — Board Frame',
+      (_) => _mutualRatingScreen(
+        mutualRatingScreenBoardCubit,
+        rateeName: 'Karim',
+      ),
+    ),
     CatalogState(
       'Rate — Jeeber Rates Client',
       (_) => _mutualRatingScreen(
         () => mutualRatingScreenFreshCubit(isClient: false),
       ),
+    ),
+    CatalogState(
+      'Submitting — In Flight',
+      (_) => _mutualRatingScreen(mutualRatingScreenSubmittingCubit),
     ),
     CatalogState(
       'Error — Submit Failed',

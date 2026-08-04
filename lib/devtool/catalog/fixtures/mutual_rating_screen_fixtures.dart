@@ -137,6 +137,18 @@ MutualRatingCubit mutualRatingScreenFilledCubit() =>
       ),
     );
 
+/// The R15 board frame: four stars, "Punctual" + "Friendly" lit, no note.
+MutualRatingCubit mutualRatingScreenBoardCubit() =>
+    MutualRatingScreenSeededCubit(
+      repository: const MutualRatingScreenFakeRepository(),
+      deliveryId: mutualRatingScreenDeliveryId,
+      isClient: true,
+      seed: const MutualRatingState(
+        stars: 4,
+        tags: <String>['punctuality', 'courtesy'],
+      ),
+    );
+
 /// `POST /v1/ratings/jeeb/submit` in flight — the whole body is replaced by a
 /// centred spinner.
 MutualRatingCubit mutualRatingScreenSubmittingCubit() =>

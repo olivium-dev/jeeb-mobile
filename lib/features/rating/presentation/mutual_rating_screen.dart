@@ -4,13 +4,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
+import '../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/mutual_rating_cubit.dart';
 import '../application/mutual_rating_state.dart';
@@ -29,9 +34,9 @@ class MutualRatingScreen extends StatelessWidget {
   const MutualRatingScreen({super.key, this.rateeName = ''});
 
   /// Display name of the counterpart being rated, forwarded by the router from
-  /// `?name=`. Empty is the supported default (no caller holds a display name
-  /// today) — the headline, the avatar initial and the blind-reveal note each
-  /// carry a finished role-aware fallback, so nothing is ever fabricated.
+  /// `?name=`. Empty is the supported default — the headline, the avatar
+  /// initial and the blind-reveal note each carry a finished role-aware
+  /// fallback, so nothing is ever fabricated.
   final String rateeName;
 
   @override
@@ -59,21 +64,28 @@ class MutualRatingScreen extends StatelessWidget {
     // previews) `PopScope` alone already suppresses BACK correctly, so the
     // listener is added only when a Router exists.
     //
-    // redesign-24: the OMDSAppBar is gone — the board leads with the in-body
-    // "How was <name>?" headline, and there was never a leading control to
-    // lose, so removing it is D56-safe.
+    // MIDNIGHT: no app bar — the board leads with the in-body "How was <name>?"
+    // headline, and there was never a leading control to lose, so its absence
+    // is D56-safe.
     final scope = PopScope(
       canPop: false,
       child: Scaffold(
-        // `rating_root` is the screen signature id (JM-034 §2.14, AC4). A
-        // boundary container so the id surfaces as its own queryable node.
-        body: Semantics(
-          identifier: 'rating_root',
-          container: true,
-          child: BlocConsumer<MutualRatingCubit, MutualRatingState>(
-            listenWhen: (p, n) => p.phase != n.phase,
-            listener: _onPhaseChanged,
-            builder: _buildBody,
+        backgroundColor: Colors.transparent,
+        // R15 draws the base wash with one quiet glow low on the field, under
+        // the orange CTA. No rings, no twinkles, nothing that ticks.
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.bottom,
+          // `rating_root` is the screen signature id (JM-034 §2.14, AC4). A
+          // boundary container so the id surfaces as its own queryable node.
+          child: Semantics(
+            identifier: 'rating_root',
+            container: true,
+            child: BlocConsumer<MutualRatingCubit, MutualRatingState>(
+              listenWhen: (p, n) => p.phase != n.phase,
+              listener: _onPhaseChanged,
+              builder: _buildBody,
+            ),
           ),
         ),
       ),
@@ -101,7 +113,7 @@ class MutualRatingScreen extends StatelessWidget {
         return _InputView(state: state, rateeName: rateeName);
       case MutualRatingPhase.submitting:
       case MutualRatingPhase.submitted:
-        return const Center(child: OmdsLoadingState());
+        return const _SubmittingView();
       case MutualRatingPhase.error:
         return const _ErrorView();
       // The blind-reveal phases are server-owned (T-BE-025 cron) and are not
@@ -124,7 +136,7 @@ class _InputView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      // R1: the board leaves the bottom ~40 % of this screen empty. That is
+      // R15: the board leaves the bottom ~40 % of this screen empty. That is
       // delivered by `Expanded` + a docked footer, never by a `Spacer` inside
       // the scroll column (which would overflow the 800×600 widget tests).
       child: Column(
@@ -147,7 +159,7 @@ class _InputScrollArea extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,
-        Spacing.medium,
+        Spacing.xLarge,
         Spacing.xLarge,
         Spacing.xLarge,
       ),
@@ -192,7 +204,12 @@ class _RatingHeadline extends StatelessWidget {
             : l10n.mutualRatingHeadlineClient);
     // A plain `Text` is bidi-correct for a Latin name inside an Arabic
     // sentence — `MixedDirectionText` is for name-ONLY lines.
-    return Text(headline, style: context.jeebText.h2);
+    return Text(
+      headline,
+      style: context.jeebText.h2.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
   }
 }
 
@@ -213,16 +230,21 @@ class _RateeIdentity extends StatelessWidget {
     // The badge is a COMPLETION mark, never "verified": on the `?mode=jeeber`
     // leg the ratee is a customer with no KYC.
     //
-    // TODO(redesign-24): the board prints a recap line directly below this
-    // disc (item · duration · fare). It needs a delivery summary on the rating
-    // surface, which neither MutualRatingState nor RatingRepository carries —
-    // omitted, not faked, and deliberately not smuggled through query params.
+    // TODO(midnight): omitted — the board prints a recap line below this disc
+    // (item · duration · fare). Neither MutualRatingState nor RatingRepository
+    // carries a delivery summary, so the slot is left empty rather than faked.
+    // The board's disc is a light glass puck, not the `surfaceContainerHigh`
+    // navy that vanishes into this field; the emphasis tone is the closest
+    // ratified pairing (white 14 % fill, white initial). See open questions.
     return Center(
-      child: JeebAvatar.hero(
-        initial: name,
-        badge: JeebAvatarBadge.completed,
-        identifier: 'mutual_rating_ratee_avatar',
-        semanticLabel: name.isEmpty ? l10n.mutualRatingTitle : name,
+      child: JeebSurfaceTone(
+        tone: JeebSurfaceToneData.navy(context),
+        child: JeebAvatar.hero(
+          initial: name,
+          badge: JeebAvatarBadge.completed,
+          identifier: 'mutual_rating_ratee_avatar',
+          semanticLabel: name.isEmpty ? l10n.mutualRatingTitle : name,
+        ),
       ),
     );
   }
@@ -235,31 +257,123 @@ class _StarSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       // QA: addressable handle for the star-rating input. `container: true`
-      // surfaces the id as its own node even though OmdsStarRating renders
-      // multiple tappable stars (CAP-1).
+      // surfaces the id as its own node even though the row renders five
+      // separately addressable stars (CAP-1).
       identifier: 'mutual_rating_stars',
       container: true,
       label: l10n.mutualRatingStarsA11yLabel(stars),
+      // `mutualRating.stars` is a frozen QA key, re-homed onto the Midnight
+      // row from the retired OMDS widget.
       child: Center(
-        // The active star colour is deliberately NOT passed: the app-wide
-        // `OmdsColorTokens.starRatingColor` is already the redesign's amber
-        // (`app.dart:623`). A plain `Row` under the hood mirrors in `ar`, so
-        // star 1 lands at the right edge and the fill grows leftward.
-        //
-        // TODO(redesign-24): the board draws the EMPTY star FILLED grey; OMDS
-        // draws `Icons.star_border`. Swaps to `JeebStarInput` (wiring request
-        // `kit`) when the kit lane lands it, which also brings the per-star
-        // ids jm-034 needs.
-        child: OmdsStarRating(
-          key: const Key('mutualRating.stars'),
-          rating: stars,
-          starSize: Sizes.threeXLarge,
-          spacing: Spacing.xSmall,
-          inactiveColor: scheme.surfaceContainerHighest,
-          onRatingChanged: (v) => context.read<MutualRatingCubit>().setStars(v),
+        child: _StarRow(key: const Key('mutualRating.stars'), stars: stars),
+      ),
+    );
+  }
+}
+
+/// R15's star input. Amber fill, a **filled** muted glyph for the unselected
+/// stars (the board never draws a hollow star) and the static amber halo the
+/// caption calls for. It does not twinkle: 03-MOTION-NOTES lists zero animated
+/// elements on this tile.
+class _StarRow extends StatelessWidget {
+  const _StarRow({super.key, required this.stars});
+
+  /// Board glyph 37 tile-px ÷ 1.1 ≈ 34dp drawn inside a 40dp box; pitch 52dp
+  /// reproduces the measured 57 tile-px star-to-star spacing.
+  static const double starSize = 40;
+  static const double starGap = Spacing.small;
+
+  /// The measured halo: ≈12 % amber at the glyph edge, linear to nothing by
+  /// 30dp out. A gradient, not a `BoxShadow` — the falloff is what was
+  /// measured, and it stays identical under the software golden canvas.
+  static const double _glowInset = -10;
+  static const double _glowAlpha = 0.32;
+
+  static const int starCount = 5;
+
+  final int stars;
+
+  @override
+  Widget build(BuildContext context) {
+    final semantic = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    // A plain `Row` mirrors under `ar`, so star 1 lands at the end edge and the
+    // fill grows inward — the board's own RTL behaviour.
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        for (int value = 1; value <= starCount; value++) ...<Widget>[
+          if (value > 1) const SizedBox(width: starGap),
+          _Star(
+            value: value,
+            filled: stars >= value,
+            fill: semantic.amber,
+            // White 22 % is the board's unselected star, composited over navy.
+            emptyFill: semantic.glassBorderVivid,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _Star extends StatelessWidget {
+  const _Star({
+    required this.value,
+    required this.filled,
+    required this.fill,
+    required this.emptyFill,
+  });
+
+  final int value;
+  final bool filled;
+  final Color fill;
+  final Color emptyFill;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'mutual_rating_star_$value',
+      button: true,
+      selected: filled,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.read<MutualRatingCubit>().setStars(value),
+        child: SizedBox.square(
+          dimension: _StarRow.starSize,
+          child: Stack(
+            // The halo is `Positioned` beyond the box on purpose: it must not
+            // widen the row, and it must not be clipped to the glyph.
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: <Widget>[
+              if (filled)
+                Positioned(
+                  left: _StarRow._glowInset,
+                  top: _StarRow._glowInset,
+                  right: _StarRow._glowInset,
+                  bottom: _StarRow._glowInset,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: <Color>[
+                          fill.withValues(alpha: _StarRow._glowAlpha),
+                          fill.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              Icon(
+                Icons.star,
+                size: _StarRow.starSize,
+                color: filled ? fill : emptyFill,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -280,7 +394,10 @@ class _StarVerdict extends StatelessWidget {
     return Text(
       _starVerdict(l10n, stars),
       textAlign: TextAlign.center,
-      style: context.jeebText.bodySmall.copyWith(fontWeight: FontWeight.w700),
+      style: context.jeebText.bodySmall.copyWith(
+        fontWeight: FontWeight.w700,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
     );
   }
 }
@@ -324,8 +441,9 @@ class _CommentField extends StatelessWidget {
       child: OmdsTextField(
         key: const Key('mutualRating.comment'),
         hintText: l10n.ratingCommentHint,
-        fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-        borderRadius: Sizes.medium,
+        // Fill/border/hint ink come from the Midnight OMDS token set
+        // (`glassFill` + 1px `glassBorder` + `inkMuted`) — the measured recipe.
+        borderRadius: JeebRadii.lg,
         minLines: 3,
         maxLines: 4,
         // Same 500-character cap as before, enforced by a formatter instead of
@@ -364,13 +482,14 @@ class MutualRatingTag {
 /// `JeebRatingVocabulary.AllowedTags` taxonomy and are the ON-THE-WIRE values.
 /// Exposed for the JEBV4-297 wire-contract test.
 ///
-/// The render's chip order is a `flex-wrap` artefact of the design tool — this
-/// list's order is the wire contract and is NOT reordered to match it.
+/// The order is the BOARD's reading order (Punctual · Friendly · Communication
+/// · Careful · Navigation), not a `flex-wrap` artefact as an earlier note
+/// claimed. Order is presentational only: the wire contract is the key set.
 const kMutualRatingTags = <MutualRatingTag>[
   MutualRatingTag(key: 'punctuality', label: 'Punctual'),
+  MutualRatingTag(key: 'courtesy', label: 'Friendly'),
   MutualRatingTag(key: 'communication', label: 'Communication'),
   MutualRatingTag(key: 'package_condition', label: 'Careful'),
-  MutualRatingTag(key: 'courtesy', label: 'Friendly'),
   MutualRatingTag(key: 'navigation', label: 'Navigation'),
 ];
 
@@ -411,11 +530,12 @@ class _TagsSection extends StatelessWidget {
         const SizedBox(height: Spacing.small),
         // JEBV4-296: `textDirection` is passed explicitly (rather than
         // relying on Wrap's implicit ambient-Directionality fallback) so the
-        // chip order is provably RTL-safe under `ar` — logical order stays
-        // punctuality→communication→package_condition→courtesy→navigation,
-        // mirrored right-to-left on screen.
+        // chip order is provably RTL-safe under `ar` — the board's logical
+        // order is preserved and mirrored right-to-left on screen.
+        // Measured: 12dp between pills, 8dp between runs — the gap that makes
+        // the board wrap 3 + 2.
         Wrap(
-          spacing: Spacing.xSmall,
+          spacing: Spacing.small,
           runSpacing: Spacing.xSmall,
           textDirection: Directionality.of(context),
           children: kMutualRatingTags
@@ -482,6 +602,10 @@ class _BlindRevealNote extends StatelessWidget {
       container: true,
       child: JeebInfoNote.outlined(
         icon: Icons.visibility,
+        // TODO(midnight): l10n-queued — the board shortens both strings to
+        // "<name> rates you too. Both ratings reveal together." and gives the
+        // nameless leg the same promise instead of today's confidentiality
+        // wording. Queued in docs/redesign-midnight/l10n-queue/M2-11-r15.md.
         text: name.isNotEmpty
             ? l10n.mutualRatingBlindNoteNamed(name)
             : l10n.mutualRatingSubtitle,
@@ -504,11 +628,36 @@ class _SubmitButton extends StatelessWidget {
       child: Semantics(
         identifier: 'rating_submit_cta',
         container: true,
-        child: JeebCtaButton.primary(
+        // The board draws this act ORANGE (`#D73B00` + ctaOrange lift), which
+        // is the tile-sanctioned accent spend on R15.
+        child: JeebCtaButton.accent(
           key: const Key('mutualRating.submit'),
           label: l10n.mutualRatingSubmit,
           isEnabled: stars > 0,
           onTap: () => context.read<MutualRatingCubit>().submit(),
+        ),
+      ),
+    );
+  }
+}
+
+/// `POST /v1/ratings/jeeb/submit` in flight. The board draws no in-flight
+/// frame, so this is the ratified loading member of the empty-state family.
+class _SubmittingView extends StatelessWidget {
+  const _SubmittingView();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          child: JeebEmptyState.compact(
+            status: JeebEmptyStateStatus.loading,
+            // TODO(midnight): l10n-queued `mutualRatingSubmittingHeadline`.
+            headline: l10n.mutualRatingSubmit,
+            identifier: 'mutual_rating_loading',
+          ),
         ),
       ),
     );
@@ -521,9 +670,20 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return OmdsErrorState(
-      message: l10n.mutualRatingError,
-      onRetry: () => context.read<MutualRatingCubit>().submit(),
+    return SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          child: JeebEmptyState.compact(
+            status: JeebEmptyStateStatus.error,
+            headline: l10n.mutualRatingError,
+            identifier: 'mutual_rating_error',
+            action: JeebCtaButton.outline(
+              label: l10n.ratingLoadRetry,
+              onTap: () => context.read<MutualRatingCubit>().submit(),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

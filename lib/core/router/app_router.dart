@@ -222,6 +222,31 @@ String? normalizeChatDeepLink(Uri uri) {
   return id.isEmpty ? null : '/chat/$id';
 }
 
+/// The counterpart display name both rating terminals read off the URL.
+const String kRateeNameParam = 'name';
+
+/// Canonical location of the blind mutual-rating terminal (T-MOB-020).
+///
+/// [counterpartName] is the person being rated. Passing it is what turns 15's
+/// personalised headline, avatar initial and blind-reveal sentence on; omitting
+/// it leaves the finished role-aware fallback, never a fabricated name. Callers
+/// that hold a name (chat summary, delivery detail, OTP handover) should build
+/// their location here rather than re-deriving the `?mode=jeeber` suffix.
+String mutualRatingLocation(
+  String deliveryId, {
+  required bool isClient,
+  String? counterpartName,
+}) {
+  final String name = counterpartName?.trim() ?? '';
+  final Map<String, String> query = <String, String>{
+    if (!isClient) 'mode': 'jeeber',
+    if (name.isNotEmpty) kRateeNameParam: name,
+  };
+  final String suffix =
+      query.isEmpty ? '' : '?${Uri(queryParameters: query).query}';
+  return '/orders/$deliveryId/mutual-rate$suffix';
+}
+
 /// Resolves the id the live-tracking surface should load (S9 P0, restored
 /// after an integration merge dropped it while keeping its test + the CTAs
 /// that thread the query param). The delivery's REAL server-created id
@@ -1487,7 +1512,7 @@ class AppRouter {
             return RatingScreen(
               deliveryId: deliveryId,
               isClient: isClient,
-              rateeName: state.uri.queryParameters['name'] ?? '',
+              rateeName: state.uri.queryParameters[kRateeNameParam] ?? '',
             );
           },
         ),
@@ -1506,11 +1531,11 @@ class AppRouter {
                 deliveryId: deliveryId,
                 isClient: isClient,
               ),
-              // 15: optional `?name=` counterpart display name, mirroring the
-              // sibling `/orders/:id/feedback` route. Absent → the screen's
-              // role-aware fallback headline.
+              // 15: optional `?name=` counterpart display name, built by
+              // [mutualRatingLocation]. Absent → the screen's role-aware
+              // fallback headline.
               child: MutualRatingScreen(
-                rateeName: state.uri.queryParameters['name'] ?? '',
+                rateeName: state.uri.queryParameters[kRateeNameParam] ?? '',
               ),
             );
           },
@@ -1569,8 +1594,11 @@ class AppRouter {
               // missing leg: the screen fired `onMarkedDelivered` but the route
               // passed no callback, so mark-delivered completed (stepper filled)
               // yet never opened the rating screen (`rating_submit_cta`).
+              // TODO(midnight): omitted — the ACTIVE-delivery route holds no
+              // customer display name, so 15 falls back to its role-aware
+              // headline on this leg (carry-in P1, see mutualRatingLocation).
               onMarkedDelivered: () {
-                context.go('/orders/$deliveryId/mutual-rate?mode=jeeber');
+                context.go(mutualRatingLocation(deliveryId, isClient: false));
               },
               // T-MOB-031 AC4: open destination in Google Maps via url_launcher.
               mapsUrlBuilder: (url) => launchUrl(
