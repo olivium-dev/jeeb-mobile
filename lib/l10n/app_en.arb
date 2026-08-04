@@ -1900,10 +1900,6 @@
   "@requestSummaryProhibitedConfirm": {
     "description": "Confirm CTA on the prohibited-items modal"
   },
-  "requestSummaryFindingTitle": "Finding Jeebers",
-  "@requestSummaryFindingTitle": {
-    "description": "Headline shown after submit while the matching service fans the request out"
-  },
   "requestSummaryFindingNotifiedZero": "No Jeebers nearby yet",
   "requestSummaryFindingNotifiedOne": "1 Jeeber notified",
   "requestSummaryFindingNotifiedMany": "{count} Jeebers notified",
@@ -4411,8 +4407,6 @@
   "@waitingNoCoverageTitle": { "description": "JM-026 softened no-offers-yet title (waiting_no_coverage_state) shown only once the broadcast window has elapsed with zero offers in. NOT gated on notifiedCount (BUG-4 / JM-026 false-no-coverage)." },
   "waitingNoCoverageBody": "Jeebers near you are still reviewing your request. Keep waiting, re-target, or cancel — it's free, nothing is charged.",
   "@waitingNoCoverageBody": { "description": "JM-026 softened no-offers-yet body (waiting_no_coverage_state)." },
-  "waitingReachingOutLabel": "We're reaching out to Jeebers near you...",
-  "@waitingReachingOutLabel": { "description": "JM-026 neutral reassurance copy rendered in the broadcast header (waiting_notified_count) while still broadcasting when the gateway never populated notifiedCount (notifiedCount <= 0). Replaces the false 'No Jeebers nearby yet' count-zero copy (BUG-4 / JM-026 false-no-coverage)." },
   "waitingReviewOffersCta": "Review offers",
   "@waitingReviewOffersCta": { "description": "JM-026 review-offers CTA (waiting_review_offers_cta) shown when offers arrive → offer-review-list (JM-028)." },
   "waitingRetargetCta": "Re-target request",
@@ -5288,5 +5282,48 @@
   "@registrationSocialAppleShort": {"description": "R6 compact two-up social pill label. The full registrationContinueWithApple sentence stays as the accessibility label. Brand proper noun — identical in every shipped locale."},
 
   "transcriptionTapHintLowConfidence": "Tap the underlined word to fix it",
-  "@transcriptionTapHintLowConfidence": {"description": "R8 hint for the low-confidence variant. NOT WIRED — POST /transcribe returns no per-word confidence or offsets, so the underline it names cannot render; the screen keeps transcriptionTapHint. Wire both together when word offsets land on TranscribeResponse."}
+  "@transcriptionTapHintLowConfidence": {"description": "R8 hint for the low-confidence variant. NOT WIRED — POST /transcribe returns no per-word confidence or offsets, so the underline it names cannot render; the screen keeps transcriptionTapHint. Wire both together when word offsets land on TranscribeResponse."},
+
+  "deliveryDetailEtaMinutes": "ETA {minutes} min",
+  "@deliveryDetailEtaMinutes": {"description": "M3-01 locked ETA on the client order-detail in-motion status band (/orders/:id). Same wording as chatOfferEtaMinutes, which this replaces at that call site; chatOfferEtaMinutes stays for the offer-card bubble.", "placeholders": {"minutes": {"type": "int"}}},
+
+  "escalateAutoAttachNote": "Your chat history and delivery timeline are attached automatically.",
+  "@escalateAutoAttachNote": {"description": "JM-060 AC1 / D53 — the dispute_auto_attach_note strip. Do NOT reuse escalateSubtitle: that is the screen lede about support response times."},
+  "escalateEvidenceLoading": "Attaching your chat and delivery timeline…",
+  "@escalateEvidenceLoading": {"description": "JM-060: in-flight row inside dispute_evidence_timeline while fetchEvidence is running."},
+  "escalateEvidenceEmpty": "No chat or tracking history could be attached.",
+  "@escalateEvidenceEmpty": {"description": "JM-060 / D53: degraded auto-attach — fetchEvidence returned nothing. Must not imply evidence was attached."},
+  "escalateRetryCta": "Retry",
+  "@escalateRetryCta": {"description": "JM-060 error-state action (retryFromError). Same word as otpRetry; a separate key so R13's copy can move without moving this one."},
+  "escalateVoiceLabel": "Voice note (optional)",
+  "@escalateVoiceLabel": {"description": "JM-060 D53 voice-evidence section label (dispute_voice). Not voiceRecordingTitle — that is the create-flow's 'Record your request'."},
+
+  "waitingErrorTitle": "Couldn't load your request",
+  "@waitingErrorTitle": {"description": "JM-026 waiting-screen load-failure headline. The mapped waitingErrorBody / waitingErrorContractBody sentence becomes the body under it, the same headline+body split R10 uses (offersLoadErrorTitle)."},
+
+  "cancellationTooLateHeadline": "Too late to cancel",
+  "@cancellationTooLateHeadline": {"description": "M3-04 empty-rung headline (cancellation_too_late, JeebEmptyState street variant). The first half of cancellationTooLate, cut on its existing em-dash so the sentence spans the headline and body ink rungs."},
+  "cancellationTooLateBody": "Your Jeeber is already on the way.",
+  "@cancellationTooLateBody": {"description": "M3-04 body under cancellationTooLateHeadline; the second half of cancellationTooLate. Same copy, no new product statement."},
+  "cancellationErrorNote": "Couldn't cancel — please try again.",
+  "@cancellationErrorNote": {"description": "M3-04 persistent JeebInfoNote.error strip above the CTA (cancellation_error_note). Names the subject and the recovery, which the dialog-era cancellationGenericError does not."},
+
+  "orderSummaryNotFoundTitle": "This order isn't here",
+  "@orderSummaryNotFoundTitle": {"description": "M3-05 empty-rung headline when /orders/:id/summary 404s — the order was cancelled, cleared, or the deep link carried an id this account cannot see. Do NOT reuse receiptErrorNotFound: that is JM-033 receipt error-banner copy on another screen."},
+  "orderSummaryNotFoundBody": "It may have been cancelled, or the link is out of date.",
+  "@orderSummaryNotFoundBody": {"description": "M3-05 empty-rung body under orderSummaryNotFoundTitle. Names the two real causes of a 404 on this route; deliberately does NOT offer a retry, because refetching a deleted delivery cannot succeed."},
+  "orderSummaryErrorTitle": "Couldn't load this order",
+  "@orderSummaryErrorTitle": {"description": "M3-05 error-rung headline on /orders/:id/summary (network or server failure; a 404 takes the empty rung instead). Singular on purpose — orderHistoryErrorTitle is the plural list-screen twin."},
+
+  "customerProfileLoadingHeadline": "Loading your profile",
+  "@customerProfileLoadingHeadline": {"description": "M3-07 profile member of the shipped \"Loading your …\" family (activeDeliveryLoadingHeadline / earningsLoadingHeadline / orderHistoryLoadingHeadline)."},
+  "customerProfileLoadErrorTitle": "Couldn't load your profile",
+  "@customerProfileLoadErrorTitle": {"description": "M3-07 error headline on the customer profile tab. Same shape as homeLoadFailedTitle / orderHistoryErrorTitle / requestFeedErrorTitle — one per surface, each naming its own noun."},
+  "customerProfileLoadErrorRetry": "Retry",
+  "@customerProfileLoadErrorRetry": {"description": "M3-07 retry action beside customerProfileLoadErrorTitle. Textually identical to homeLoadFailedRetry; a separate key because the ARB convention here is one key per surface."},
+
+  "notificationsLoadingHeadline": "Loading notifications",
+  "@notificationsLoadingHeadline": {"description": "M3-08 loading headline on the notifications list. Not notificationsTitle — that duplicates the top bar."},
+  "notificationsErrorTitle": "Couldn't load notifications",
+  "@notificationsErrorTitle": {"description": "M3-08 error headline on the notifications list. Lifts NotificationsL10n.loadError into the ARB and drops its full stop, which made it read as a body line in h1."}
 }

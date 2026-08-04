@@ -52,11 +52,9 @@ class CustomerProfileStatusBlock extends StatelessWidget {
         variant: JeebEmptyStateVariant.radar,
         status: JeebEmptyStateStatus.error,
         identifier: errorIdentifier,
-        // TODO(midnight): l10n-queued customerProfileLoadErrorTitle — the ARB
-        // lane owns lib/l10n; queue entry in docs/redesign-midnight/l10n-queue.
-        headline: l10n.requestSummaryErrorGeneric,
+        headline: l10n.customerProfileLoadErrorTitle,
         action: JeebCtaButton.outline(
-          label: l10n.homeLoadFailedRetry,
+          label: l10n.customerProfileLoadErrorRetry,
           onTap: onRetry,
           expand: false,
           identifier: retryIdentifier,
@@ -67,9 +65,7 @@ class CustomerProfileStatusBlock extends StatelessWidget {
       variant: JeebEmptyStateVariant.radar,
       status: JeebEmptyStateStatus.loading,
       identifier: loadingIdentifier,
-      // TODO(midnight): l10n-queued customerProfileLoadingHeadline — the
-      // "Loading your …" family has no profile member yet.
-      headline: l10n.customerProfileTitle,
+      headline: l10n.customerProfileLoadingHeadline,
     );
   }
 }

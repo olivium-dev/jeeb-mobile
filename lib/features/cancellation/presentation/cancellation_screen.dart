@@ -350,9 +350,8 @@ class _TooLateView extends StatelessWidget {
       child: JeebEmptyState(
         variant: JeebEmptyStateVariant.street,
         identifier: 'cancellation_too_late',
-        // TODO(midnight): l10n-queued — `cancellationTooLateHeadline` +
-        // `cancellationTooLateBody` split this sentence across the two rungs.
-        headline: l10n.cancellationTooLate,
+        headline: l10n.cancellationTooLateHeadline,
+        body: l10n.cancellationTooLateBody,
       ),
     );
   }
@@ -371,9 +370,7 @@ class _ErrorStrip extends StatelessWidget {
       child: JeebInfoNote.error(
         identifier: 'cancellation_error_note',
         icon: Icons.error,
-        // TODO(midnight): l10n-queued — `cancellationErrorNote` names the
-        // subject and the recovery; this dialog-era string does neither.
-        text: l10n.cancellationGenericError,
+        text: l10n.cancellationErrorNote,
       ),
     );
   }

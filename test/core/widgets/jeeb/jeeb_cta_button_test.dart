@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
@@ -19,6 +20,8 @@ const Color _orangePressed = Color(0xFFC23300);
 const Color _white = Color(0xFFFFFFFF);
 const Color _glassFill = Color(0x12FFFFFF);
 const Color _glassBorderStrong = Color(0x29FFFFFF);
+const Color _dangerSoft = Color(0xFFFF7B7B);
+const Color _danger = Color(0xFFFF5252);
 
 JeebSemanticColors _semanticsOf(BuildContext context) =>
     Theme.of(context).extension<JeebSemanticColors>()!;
@@ -242,6 +245,262 @@ void main() {
         ctaDecorationOf(tester, find.byType(JeebCtaButton)).border,
         isNotNull,
       );
+    });
+  });
+
+  group('JeebCtaButton.danger', () {
+    testWidgets('is outline geometry with danger-SOFT onErrorContainer ink',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapCta(JeebCtaButton.danger(label: 'Cancel request', onTap: () {})),
+      );
+
+      final BuildContext context = tester.element(find.text('Cancel request'));
+      final ColorScheme scheme = Theme.of(context).colorScheme;
+      final JeebSemanticColors semantics = _semanticsOf(context);
+      final BoxDecoration decoration =
+          ctaDecorationOf(tester, find.byType(JeebCtaButton));
+      final Text label = tester.widget<Text>(find.text('Cancel request'));
+
+      // Ink is the whole delta — every other dimension matches `.outline`.
+      expect(label.style!.color, scheme.onErrorContainer);
+      expect(label.style!.color, _dangerSoft);
+      expect(
+        label.style!.color,
+        isNot(scheme.error),
+        reason: 'R22: destructive ink is danger-SOFT, never #FF5252',
+      );
+      expect(label.style!.color, isNot(_danger));
+      expect(
+        label.style!.color,
+        isNot(scheme.onSurface),
+        reason: 'Q-041: a destructive act must not render as a neutral one',
+      );
+
+      expect(decoration.color, semantics.glassFill);
+      expect(decoration.color, _glassFill);
+      expect((decoration.border! as Border).top.color, _glassBorderStrong);
+      expect((decoration.border! as Border).top.width, 1);
+      expect(
+        decoration.borderRadius,
+        BorderRadius.circular(JeebCtaButton.pillRadius),
+      );
+      expect(
+        decoration.boxShadow,
+        isNull,
+        reason: 'glow only where a tile draws it — no tile draws this act',
+      );
+      expect(
+        tester.getSize(find.byType(JeebCtaButton)).height,
+        JeebCtaButton.outlineHeight,
+      );
+      expect(tester.getSize(find.byType(JeebCtaButton)).width, 320);
+    });
+
+    testWidgets('never spends orange and never fills with error',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapCta(JeebCtaButton.danger(label: 'Delete account', onTap: () {})),
+      );
+
+      final BuildContext context = tester.element(find.text('Delete account'));
+      final ColorScheme scheme = Theme.of(context).colorScheme;
+      final BoxDecoration decoration =
+          ctaDecorationOf(tester, find.byType(JeebCtaButton));
+      final InkWell well = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byType(JeebCtaButton),
+          matching: find.byType(InkWell),
+        ),
+      );
+
+      expect(decoration.color, isNot(scheme.error));
+      expect(decoration.color, isNot(scheme.errorContainer));
+      expect(decoration.color, isNot(context.jeebRoles.accent));
+      expect(
+        tester.widget<Text>(find.text('Delete account')).style!.color,
+        isNot(context.jeebRoles.accent),
+      );
+      // The fill-swap press is the accent pill's alone; glass keeps its ripple.
+      expect(well.highlightColor, isNot(_orangePressed));
+      expect(well.splashColor, isNull);
+    });
+
+    testWidgets('matches .outline in every non-ink dimension', (tester) async {
+      Future<void> pumpVariant(JeebCtaVariant variant) => tester.pumpWidget(
+            wrapCta(
+              JeebCtaButton(
+                label: 'Stop',
+                variant: variant,
+                leadingIcon: Icons.close,
+                onTap: () {},
+              ),
+            ),
+          );
+
+      await pumpVariant(JeebCtaVariant.outline);
+      final Size outlineSize = tester.getSize(find.byType(JeebCtaButton));
+      final BoxDecoration outlineBox =
+          ctaDecorationOf(tester, find.byType(JeebCtaButton));
+      final TextStyle outlineStyle =
+          tester.widget<Text>(find.text('Stop')).style!;
+      final double outlineGlyph =
+          tester.widget<Icon>(find.byIcon(Icons.close)).size!;
+
+      await pumpVariant(JeebCtaVariant.danger);
+      final BoxDecoration dangerBox =
+          ctaDecorationOf(tester, find.byType(JeebCtaButton));
+      final TextStyle dangerStyle =
+          tester.widget<Text>(find.text('Stop')).style!;
+
+      expect(tester.getSize(find.byType(JeebCtaButton)), outlineSize);
+      expect(dangerBox.color, outlineBox.color);
+      expect(dangerBox.border, outlineBox.border);
+      expect(dangerBox.borderRadius, outlineBox.borderRadius);
+      expect(dangerBox.boxShadow, outlineBox.boxShadow);
+      expect(dangerStyle.fontSize, outlineStyle.fontSize);
+      expect(dangerStyle.fontWeight, outlineStyle.fontWeight);
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.close)).size,
+        outlineGlyph,
+        reason: 'the glass glyph is 16 on both rungs',
+      );
+      expect(dangerStyle.color, isNot(outlineStyle.color));
+    });
+
+    testWidgets('glyph and spinner carry the destructive ink too',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapCta(
+          JeebCtaButton.danger(
+            label: 'Cancel request',
+            leadingIcon: Icons.close,
+            onTap: () {},
+          ),
+        ),
+      );
+
+      final BuildContext context = tester.element(find.text('Cancel request'));
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.close)).color,
+        Theme.of(context).colorScheme.onErrorContainer,
+      );
+
+      await tester.pumpWidget(
+        wrapCta(
+          JeebCtaButton.danger(
+            label: 'Cancel request',
+            isLoading: true,
+            onTap: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final CircularProgressIndicator spinner =
+          tester.widget<CircularProgressIndicator>(
+        find.byType(CircularProgressIndicator),
+      );
+      // Loading is a disabled state, so the ink arrives multiplicatively dimmed.
+      expect(
+        spinner.valueColor!.value,
+        _dangerSoft.withValues(alpha: JeebCtaButton.disabledFillOpacity),
+      );
+    });
+
+    testWidgets('h54 override and the disabled dim behave like .outline',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapCta(
+          JeebCtaButton.danger(
+            label: 'Cancel request',
+            height: JeebCtaButton.outlineHeightTall,
+            isEnabled: false,
+            onTap: () {},
+          ),
+        ),
+      );
+
+      final BuildContext context = tester.element(find.text('Cancel request'));
+      final JeebSemanticColors semantics = _semanticsOf(context);
+      final BoxDecoration decoration =
+          ctaDecorationOf(tester, find.byType(JeebCtaButton));
+
+      expect(tester.getSize(find.byType(JeebCtaButton)).height, 54);
+      expect(decoration.border, isNotNull);
+      expect(
+        decoration.color!.a,
+        closeTo(semantics.glassFill.a * JeebCtaButton.disabledFillOpacity, 1e-6),
+      );
+      expect(
+        tester.widget<Text>(find.text('Cancel request')).style!.color!.a,
+        closeTo(JeebCtaButton.disabledFillOpacity, 1e-6),
+      );
+    });
+
+    testWidgets('labelStyle sets typography but never the ink', (tester) async {
+      await tester.pumpWidget(
+        wrapCta(
+          Builder(
+            builder: (BuildContext context) => JeebCtaButton.danger(
+              label: 'Cancel request',
+              labelStyle: context.jeebText.bodySmall.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.jeebRoles.accent,
+              ),
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      final BuildContext context = tester.element(find.text('Cancel request'));
+      final Text label = tester.widget<Text>(find.text('Cancel request'));
+
+      expect(label.style!.fontSize, context.jeebText.bodySmall.fontSize);
+      expect(label.style!.fontWeight, FontWeight.w700);
+      expect(
+        label.style!.color,
+        Theme.of(context).colorScheme.onErrorContainer,
+        reason: 'a caller may not buy orange through labelStyle',
+      );
+      expect(label.style!.color, isNot(context.jeebRoles.accent));
+    });
+
+    testWidgets('reads the error roles safely under a bare ThemeData.light()',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.light(),
+          home: Scaffold(
+            body: JeebCtaButton.danger(label: 'Cancel', onTap: () {}),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    testWidgets('fires onTap and drops it when disabled', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        wrapCta(JeebCtaButton.danger(label: 'Cancel', onTap: () => taps++)),
+      );
+      await tester.tap(find.byType(JeebCtaButton));
+      expect(taps, 1);
+
+      await tester.pumpWidget(
+        wrapCta(
+          JeebCtaButton.danger(
+            label: 'Cancel',
+            isEnabled: false,
+            onTap: () => taps++,
+          ),
+        ),
+      );
+      await tester.tap(find.byType(JeebCtaButton));
+      expect(taps, 1);
     });
   });
 
@@ -565,14 +824,21 @@ void main() {
       expect(JeebCtaButton.textHeight, 48);
     });
 
-    test('the variant set is the five ratified treatments', () {
+    test('the variant set is the six ratified treatments', () {
       expect(JeebCtaVariant.values, <JeebCtaVariant>[
         JeebCtaVariant.primary,
         JeebCtaVariant.accent,
         JeebCtaVariant.outline,
+        JeebCtaVariant.danger,
         JeebCtaVariant.text,
         JeebCtaVariant.accentText,
       ]);
+    });
+
+    test('the destructive ink traces to the ratified §1 danger rows', () {
+      final ColorScheme scheme = AppTheme.midnight().colorScheme;
+      expect(scheme.onErrorContainer, _dangerSoft);
+      expect(scheme.error, _danger);
     });
   });
 

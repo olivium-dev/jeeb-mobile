@@ -40,12 +40,11 @@ class OrderSummaryL10n {
 
   String get itemLabel => _pick('Item', 'الطلب');
 
-  /// TODO(midnight): l10n-queued — `orderSummaryErrorTitle`; this two-sentence
-  /// blob repeats "try again" over the network body.
-  String get errorGeneric => _l10n.requestSummaryErrorGeneric;
+  String get errorTitle => _l10n.orderSummaryErrorTitle;
 
-  /// TODO(midnight): l10n-queued — `orderSummaryNotFoundTitle`.
-  String get notFoundTitle => _l10n.receiptErrorNotFound;
+  String get notFoundTitle => _l10n.orderSummaryNotFoundTitle;
+
+  String get notFoundBody => _l10n.orderSummaryNotFoundBody;
 
   String get errorNetworkBody => _l10n.orderHistoryErrorNetwork;
 

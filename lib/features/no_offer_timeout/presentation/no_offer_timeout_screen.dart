@@ -314,9 +314,7 @@ class _WaitingError extends StatelessWidget {
         identifier: 'waiting_error_state',
         variant: JeebEmptyStateVariant.radar,
         status: JeebEmptyStateStatus.error,
-        // TODO(midnight): l10n-queued `waitingErrorTitle`; `requestFeedErrorTitle`
-        // is the nearest shipped "Couldn't load requests" headline.
-        headline: l10n.requestFeedErrorTitle,
+        headline: l10n.waitingErrorTitle,
         body: message,
         center: const _NoSignalCore(),
         action: JeebCtaButton.primary(

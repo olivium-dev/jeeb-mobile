@@ -1027,7 +1027,6 @@ class AppLocalizations {
   String get requestSummaryProhibitedConfirm =>
       _get('requestSummaryProhibitedConfirm');
 
-  String get requestSummaryFindingTitle => _get('requestSummaryFindingTitle');
   String requestSummaryFindingNotifiedCount(int count) {
     if (count == 0) return _get('requestSummaryFindingNotifiedZero');
     if (count == 1) return _get('requestSummaryFindingNotifiedOne');
@@ -2290,7 +2289,6 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get waitingCountdownPending => _get('waitingCountdownPending');
   String get waitingNoCoverageTitle => _get('waitingNoCoverageTitle');
   String get waitingNoCoverageBody => _get('waitingNoCoverageBody');
-  String get waitingReachingOutLabel => _get('waitingReachingOutLabel');
   String get waitingReviewOffersCta => _get('waitingReviewOffersCta');
   String get waitingRetargetCta => _get('waitingRetargetCta');
   String get waitingCancelCta => _get('waitingCancelCta');
@@ -2955,4 +2953,42 @@ extension AppLocalizationsRestored on AppLocalizations {
   // MIDNIGHT R8 · transcription review
   String get transcriptionTapHintLowConfidence =>
       _get('transcriptionTapHintLowConfidence');
+
+  // MIDNIGHT M3-01 · client order detail
+  String deliveryDetailEtaMinutes(int minutes) =>
+      _get('deliveryDetailEtaMinutes').replaceFirst('{minutes}', '$minutes');
+
+  // MIDNIGHT M3-02 · escalate (dispute open + evidence)
+  String get escalateAutoAttachNote => _get('escalateAutoAttachNote');
+  String get escalateEvidenceLoading => _get('escalateEvidenceLoading');
+  String get escalateEvidenceEmpty => _get('escalateEvidenceEmpty');
+  String get escalateRetryCta => _get('escalateRetryCta');
+  String get escalateVoiceLabel => _get('escalateVoiceLabel');
+
+  // MIDNIGHT M3-03 · waiting / no coverage
+  String get waitingErrorTitle => _get('waitingErrorTitle');
+
+  // MIDNIGHT M3-04 · cancellation
+  String get cancellationTooLateHeadline =>
+      _get('cancellationTooLateHeadline');
+  String get cancellationTooLateBody => _get('cancellationTooLateBody');
+  String get cancellationErrorNote => _get('cancellationErrorNote');
+
+  // MIDNIGHT M3-05 · order summary
+  String get orderSummaryNotFoundTitle => _get('orderSummaryNotFoundTitle');
+  String get orderSummaryNotFoundBody => _get('orderSummaryNotFoundBody');
+  String get orderSummaryErrorTitle => _get('orderSummaryErrorTitle');
+
+  // MIDNIGHT M3-07 · customer profile
+  String get customerProfileLoadingHeadline =>
+      _get('customerProfileLoadingHeadline');
+  String get customerProfileLoadErrorTitle =>
+      _get('customerProfileLoadErrorTitle');
+  String get customerProfileLoadErrorRetry =>
+      _get('customerProfileLoadErrorRetry');
+
+  // MIDNIGHT M3-08 · notifications list
+  String get notificationsLoadingHeadline =>
+      _get('notificationsLoadingHeadline');
+  String get notificationsErrorTitle => _get('notificationsErrorTitle');
 }

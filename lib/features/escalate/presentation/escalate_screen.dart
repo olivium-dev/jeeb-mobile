@@ -267,9 +267,7 @@ class _InputForm extends StatelessWidget {
                 JeebInfoNote.muted(
                   identifier: 'dispute_auto_attach_note',
                   icon: Icons.attachment,
-                  // TODO(midnight): l10n-queued `escalateAutoAttachNote` — this
-                  // is the screen lede, not the auto-attach sentence the id names.
-                  text: l10n.escalateSubtitle,
+                  text: l10n.escalateAutoAttachNote,
                   padding: JeebInfoNote.stackedPadding,
                   gap: JeebInfoNote.stackedGap,
                   iconSize: JeebInfoNote.stackedIconSize,
@@ -522,9 +520,7 @@ class _VoiceSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // TODO(midnight): l10n-queued `escalateVoiceLabel` — this reads
-        // "Record your request", which is the create-flow's sentence.
-        JeebSectionLabel(l10n.voiceRecordingTitle),
+        JeebSectionLabel(l10n.escalateVoiceLabel),
         const SizedBox(height: Spacing.small),
         Semantics(
           identifier: 'dispute_voice',
@@ -621,8 +617,7 @@ class _EvidenceSection extends StatelessWidget {
     if (!loaded) {
       return _EvidenceLine(
         icon: Icons.hourglass_top,
-        // TODO(midnight): l10n-queued `escalateEvidenceLoading`.
-        label: l10n.deliveryStatusLoading,
+        label: l10n.escalateEvidenceLoading,
       );
     }
     if (evidence.isEmpty) {
@@ -637,8 +632,7 @@ class _EvidenceSection extends StatelessWidget {
           ),
           JeebEmptyState.compact(
             variant: _kEmptyVariant,
-            // TODO(midnight): l10n-queued `escalateEvidenceEmpty`.
-            headline: l10n.activeDeliveryUnavailable,
+            headline: l10n.escalateEvidenceEmpty,
           ),
         ],
       );
@@ -819,8 +813,7 @@ class _ErrorView extends StatelessWidget {
                     onTap: () => _leave(context),
                   )
                 : JeebCtaButton.primary(
-                    // TODO(midnight): l10n-queued `escalateRetryCta`.
-                    label: l10n.otpRetry,
+                    label: l10n.escalateRetryCta,
                     onTap: () =>
                         context.read<EscalateCubit>().retryFromError(),
                   ),

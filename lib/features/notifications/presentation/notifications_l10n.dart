@@ -22,9 +22,9 @@ class NotificationsL10n {
   String get title => _l10n.notificationsTitle;
   String get emptyTitle => _l10n.notificationsEmptyTitle;
   String get emptyBody => _l10n.notificationsEmptyBody;
+  String get loadingHeadline => _l10n.notificationsLoadingHeadline;
+  String get errorTitle => _l10n.notificationsErrorTitle;
 
-  String get loadError =>
-      _pick('Could not load notifications.', 'تعذّر تحميل الإشعارات.');
   String get networkError => _pick(
         'No connection. Check your network and try again.',
         'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',

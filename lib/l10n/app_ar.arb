@@ -669,7 +669,6 @@
   "requestSummaryProhibitedItemCash": "مبالغ نقدية كبيرة أو ممتلكات ثمينة غير مغلّفة",
   "requestSummaryProhibitedAcknowledge": "أؤكد أن طردي لا يحتوي على أيٍّ من هذه العناصر.",
   "requestSummaryProhibitedConfirm": "فهمت",
-  "requestSummaryFindingTitle": "نبحث عن جيبر",
   "requestSummaryFindingNotifiedZero": "لا يوجد جيبر قريب حتى الآن",
   "requestSummaryFindingNotifiedOne": "تم إخطار جيبر واحد",
   "requestSummaryFindingNotifiedMany": "تم إخطار {count} جيبر",
@@ -1520,7 +1519,6 @@
   "waitingCountdownPending": "جارٍ البحث عن جيبر لك",
   "waitingNoCoverageTitle": "لا توجد عروض بعد",
   "waitingNoCoverageBody": "الجيبرز القريبون منك ما زالوا يراجعون طلبك. واصل الانتظار، أو أعد توجيه طلبك، أو ألغِه — الإلغاء مجاني ولن يُحتسب أي رسوم.",
-  "waitingReachingOutLabel": "نتواصل مع الجيبرز القريبين منك...",
   "waitingReviewOffersCta": "مراجعة العروض",
   "waitingRetargetCta": "إعادة توجيه الطلب",
   "waitingCancelCta": "إلغاء الطلب",
@@ -1975,5 +1973,30 @@
   "registrationSocialGoogleShort": "Google",
   "registrationSocialAppleShort": "Apple",
 
-  "transcriptionTapHintLowConfidence": "اضغط على الكلمة المسطّرة لتصحيحها"
+  "transcriptionTapHintLowConfidence": "اضغط على الكلمة المسطّرة لتصحيحها",
+
+  "deliveryDetailEtaMinutes": "الوصول خلال {minutes} دقيقة",
+
+  "escalateAutoAttachNote": "يتم إرفاق سجل المحادثة والجدول الزمني للتوصيل تلقائيًا.",
+  "escalateEvidenceLoading": "جارٍ إرفاق المحادثة والجدول الزمني للتوصيل…",
+  "escalateEvidenceEmpty": "تعذّر إرفاق سجل المحادثة أو التتبع.",
+  "escalateRetryCta": "إعادة المحاولة",
+  "escalateVoiceLabel": "ملاحظة صوتية (اختياري)",
+
+  "waitingErrorTitle": "تعذّر تحميل طلبك",
+
+  "cancellationTooLateHeadline": "فات الأوان على الإلغاء",
+  "cancellationTooLateBody": "السائق في الطريق إليك.",
+  "cancellationErrorNote": "تعذّر الإلغاء — يُرجى المحاولة مرة أخرى.",
+
+  "orderSummaryNotFoundTitle": "هذا الطلب غير موجود",
+  "orderSummaryNotFoundBody": "قد يكون قد أُلغي، أو أن الرابط لم يعد صالحاً.",
+  "orderSummaryErrorTitle": "تعذّر تحميل هذا الطلب",
+
+  "customerProfileLoadingHeadline": "جارٍ تحميل ملفك",
+  "customerProfileLoadErrorTitle": "تعذّر تحميل ملفك",
+  "customerProfileLoadErrorRetry": "إعادة المحاولة",
+
+  "notificationsLoadingHeadline": "جارٍ تحميل الإشعارات",
+  "notificationsErrorTitle": "تعذّر تحميل الإشعارات"
 }

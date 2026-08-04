@@ -144,17 +144,13 @@ class _NotificationsListView extends StatelessWidget {
                             case NotificationsListStatus.loading:
                               return _StateBlock(
                                 status: JeebEmptyStateStatus.loading,
-                                // TODO(midnight): l10n-queued —
-                                // notificationsLoadingHeadline.
-                                headline: copy.title,
+                                headline: copy.loadingHeadline,
                                 identifier: 'notifications_loading',
                               );
                             case NotificationsListStatus.failed:
                               return _StateBlock(
                                 status: JeebEmptyStateStatus.error,
-                                // TODO(midnight): l10n-queued —
-                                // notificationsErrorTitle.
-                                headline: copy.loadError,
+                                headline: copy.errorTitle,
                                 body:
                                     state.error == NotificationsFailure.network
                                     ? copy.networkError

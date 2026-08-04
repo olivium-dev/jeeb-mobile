@@ -48,6 +48,12 @@ Widget _wrapRouter(GoRouter router) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // JeebEmptyState's illustrations loop ∞ by design (02-STUDY-NOTES §Motion),
+    // so pumpAndSettle only terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
   );
 }
 

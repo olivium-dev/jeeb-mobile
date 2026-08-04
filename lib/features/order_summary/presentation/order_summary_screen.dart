@@ -145,6 +145,7 @@ class _OrderSummaryView extends StatelessWidget {
   Widget _notFound(OrderSummaryL10n l10n) => _StateBlock(
         status: JeebEmptyStateStatus.empty,
         headline: l10n.notFoundTitle,
+        body: l10n.notFoundBody,
         identifier: 'order_summary_empty',
       );
 
@@ -156,7 +157,7 @@ class _OrderSummaryView extends StatelessWidget {
     if (failure == OrderSummaryFailure.notFound) return _notFound(l10n);
     return _StateBlock(
       status: JeebEmptyStateStatus.error,
-      headline: l10n.errorGeneric,
+      headline: l10n.errorTitle,
       body: failure == OrderSummaryFailure.network
           ? l10n.errorNetworkBody
           : l10n.errorServerBody,

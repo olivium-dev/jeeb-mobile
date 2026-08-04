@@ -6,7 +6,7 @@ import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_shadows.dart';
 import '../../theme/jeeb_text_styles.dart';
 
-/// The five realized call-to-action treatments (redesign-2026-08 §5 #2).
+/// The six realized call-to-action treatments (redesign-2026-08 §5 #2).
 enum JeebCtaVariant {
   /// MIDNIGHT: periwinkle `secondary` pill, navy `onSecondary`
   /// [JeebTextStyles.button], no lift. h56 (01 08 15 23) or h58 (10 14 17).
@@ -20,6 +20,17 @@ enum JeebCtaVariant {
   /// MIDNIGHT: glass pill — `glassFill` + 1px `glassBorderStrong`, `onSurface`
   /// ink. h50 (12 18) or h54 (14).
   outline,
+
+  /// MIDNIGHT: [outline]'s glass pill in the danger family — same fill, same
+  /// hairline, same h50/h54 geometry, `colorScheme.onErrorContainer` ink.
+  ///
+  /// The terminal destructive act (11 `Cancel request`, the delete confirms).
+  /// The board draws no destructive CTA, so nothing is copied: this is the R22
+  /// ruling (destructive text is danger-SOFT `#FF7B7B`, never full-strength
+  /// `error` `#FF5252`) lifted from R22's bare label onto pill geometry. No
+  /// fill of its own and no lift — a solid `error` pill would out-shout the
+  /// rationed accent CTA (§2.2), and glow belongs only where a tile draws it.
+  danger,
 
   /// No pill at all — `colorScheme.onSurfaceVariant` ink (01 `Skip`,
   /// 12 `Report no-show`, 11 `Cancel request`).
@@ -141,6 +152,30 @@ class JeebCtaButton extends StatelessWidget {
     this.semanticHint,
   }) : variant = JeebCtaVariant.outline;
 
+  /// Destructive glass pill — [JeebCtaVariant.danger].
+  ///
+  /// Identical to [JeebCtaButton.outline] in every dimension except the ink, so
+  /// `height: outlineHeightTall` and the h50 label override apply unchanged.
+  const JeebCtaButton.danger({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.isEnabled = true,
+    this.isLoading = false,
+    this.height,
+    this.expand,
+    this.labelStyle,
+    this.leadingIcon,
+    this.trailingIcon,
+    this.iconSize,
+    this.iconSpacing = 10,
+    this.mirrorIcons = false,
+    this.contentPadding,
+    this.identifier,
+    this.semanticLabel,
+    this.semanticHint,
+  }) : variant = JeebCtaVariant.danger;
+
   /// Bare `onSurfaceVariant` label (01 11 12).
   const JeebCtaButton.text({
     super.key,
@@ -247,7 +282,8 @@ class JeebCtaButton extends StatelessWidget {
   /// Overrides the per-variant label style. The board realizes the bare and
   /// outline labels at 13.5–15.5px depending on the pill height, so 12 (14/w600
   /// at h50) and 14 (15.5/w600 at h54) set this from a `jeebText` token —
-  /// never a raw `fontSize:`.
+  /// never a raw `fontSize:`. Typography only — its `color` is always replaced
+  /// by the [variant]'s ink, which is what keeps orange rationed to §4.1.
   final TextStyle? labelStyle;
 
   /// Leading glyph — 23's `＋` (19px), 10's `wifi_tethering` (20px), 14's
@@ -293,7 +329,12 @@ class JeebCtaButton extends StatelessWidget {
   bool get _isPill =>
       variant == JeebCtaVariant.primary ||
       variant == JeebCtaVariant.accent ||
-      variant == JeebCtaVariant.outline;
+      _isGlassPill;
+
+  /// `outline` and `danger` share the entire glass construction — fill, border,
+  /// height, glyph size, label style — and differ in the label ink alone.
+  bool get _isGlassPill =>
+      variant == JeebCtaVariant.outline || variant == JeebCtaVariant.danger;
 
   double get _defaultHeight {
     switch (variant) {
@@ -301,6 +342,7 @@ class JeebCtaButton extends StatelessWidget {
       case JeebCtaVariant.accent:
         return primaryHeight;
       case JeebCtaVariant.outline:
+      case JeebCtaVariant.danger:
         return outlineHeight;
       case JeebCtaVariant.text:
       case JeebCtaVariant.accentText:
@@ -308,7 +350,7 @@ class JeebCtaButton extends StatelessWidget {
     }
   }
 
-  double get _defaultIconSize => variant == JeebCtaVariant.outline ? 16 : 19;
+  double get _defaultIconSize => _isGlassPill ? 16 : 19;
 
   EdgeInsetsGeometry get _defaultContentPadding => _isPill
       ? const EdgeInsetsDirectional.symmetric(horizontal: 20)
@@ -355,7 +397,7 @@ class JeebCtaButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: _fill(roles, scheme, semantics, live),
           borderRadius: radius,
-          border: variant == JeebCtaVariant.outline
+          border: _isGlassPill
               ? Border.all(
                   color: _alpha(semantics.glassBorderStrong, live),
                   // The board is `box-sizing: border-box`, and so is a Flutter
@@ -448,6 +490,7 @@ class JeebCtaButton extends StatelessWidget {
         // 17/w600 — the board's CTA label on every h56/h58 pill.
         return text.button;
       case JeebCtaVariant.outline:
+      case JeebCtaVariant.danger:
         // 14.5/w600 — the board's glass CTA label; h50 draws 13.5 (override).
         return text.body.copyWith(fontWeight: FontWeight.w600);
       case JeebCtaVariant.text:
@@ -471,6 +514,7 @@ class JeebCtaButton extends StatelessWidget {
       case JeebCtaVariant.accent:
         return _alpha(roles.accent, live);
       case JeebCtaVariant.outline:
+      case JeebCtaVariant.danger:
         return _alpha(semantics.glassFill, live);
       case JeebCtaVariant.text:
       case JeebCtaVariant.accentText:
@@ -490,6 +534,10 @@ class JeebCtaButton extends StatelessWidget {
             : roles.onAccent.withValues(alpha: disabledLabelOpacity);
       case JeebCtaVariant.outline:
         return _alpha(scheme.onSurface, live);
+      case JeebCtaVariant.danger:
+        // R22: danger-SOFT. `error` #FF5252 is the harsher ink on this glass
+        // (5.10:1 vs 6.48:1) and is reserved for strokes and glyphs.
+        return _alpha(scheme.onErrorContainer, live);
       case JeebCtaVariant.text:
         return _alpha(scheme.onSurfaceVariant, live);
       case JeebCtaVariant.accentText:

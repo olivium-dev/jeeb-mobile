@@ -756,8 +756,7 @@ class _ActiveStatusBand extends StatelessWidget {
       if (titleIsItem) _MetaText(text: stage, ink: statusInk),
       if (titleIsItem && eta != null) _MetaDot(ink: statusInk),
       if (eta != null)
-        // TODO(midnight): l10n-queued — deliveryDetailEtaMinutes.
-        _MetaText(text: l10n.chatOfferEtaMinutes(eta), ink: statusInk),
+        _MetaText(text: l10n.deliveryDetailEtaMinutes(eta), ink: statusInk),
       if (name != null && (titleIsItem || eta != null)) _MetaDot(ink: metaInk),
       if (name != null) _MetaText(text: name, ink: metaInk),
     ];
