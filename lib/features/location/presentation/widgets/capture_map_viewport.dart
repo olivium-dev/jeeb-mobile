@@ -6,6 +6,9 @@ import '../../../../l10n/app_localizations.dart';
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
+/// The map stand-in shown when no `mapBuilder` is injected. Both production
+/// mounts now inject the live `GoogleMapCaptureView`, so this is the catalog /
+/// widget-test surface only — a flat night slab, never a light one.
 class CaptureMapViewport extends StatelessWidget {
   const CaptureMapViewport({super.key});
 
@@ -13,7 +16,7 @@ class CaptureMapViewport extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      color: scheme.surfaceContainerHighest,
+      color: scheme.surfaceContainerLow,
       alignment: Alignment.center,
       child: const _PreviewContent(),
     );
@@ -27,6 +30,8 @@ class _PreviewContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
+    // The theme's own ramp, not `jeebText.body`: its taller line box overflows
+    // the 96pt strip the preview suite pins.
     final style = Theme.of(context)
         .textTheme
         .bodyMedium
@@ -90,7 +95,7 @@ Widget _captureMapViewportMeasured(String caption, Widget constrained) => Center
 
 /// Production geometry #1: the full-bleed map area of `CaptureLocationScreen`.
 /// `_Body` puts the viewport in an `Expanded` above the "Pin Location" CTA and
-@JeebPreview(group: 'location', 
+@JeebPreview(group: 'location',
   name: 'Capture screen (production, full bleed)',
   size: Size(_captureMapViewportPhoneWidth, 560),
 )
@@ -105,7 +110,7 @@ Widget captureMapViewportCaptureScreen() => _captureMapViewportMeasured(
 
 /// Production geometry #2: the 160 pt pin band on `AddressDetailFormScreen`.
 /// `_PinPreview` clips the viewport to `OmdsBorderRadius.large` and draws an
-@JeebPreview(group: 'location', 
+@JeebPreview(group: 'location',
   name: 'Address form band (production, 160pt)',
   size: Size(_captureMapViewportPhoneWidth, 220),
 )
@@ -135,7 +140,7 @@ Widget captureMapViewportThumbnail() => _captureMapViewportMeasured(
 
 /// The state that breaks: a 96 pt strip — tall enough at 1× text, not at 200%.
 /// The content column is 56 pt of icon + 12 pt of gap + one line of
-@JeebPreview(group: 'location', 
+@JeebPreview(group: 'location',
   name: 'Short strip 96pt (breaks at 200%)',
   size: Size(_captureMapViewportPhoneWidth, 160),
 )

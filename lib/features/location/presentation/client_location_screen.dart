@@ -13,7 +13,10 @@ import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_shadows.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/directional_icons.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../registration/domain/lebanon_phone.dart';
@@ -280,8 +283,13 @@ class _ScaffoldState extends State<_Scaffold> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+    // MIDNIGHT: the layered field replaces the flat scaffold fill. The glow
+    // stays at the default top-end anchor — a bottom one tinted every
+    // translucent card on the list warm.
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      child: Scaffold(
+      backgroundColor: Colors.transparent,
       // Redesign: the header is an in-body row, not a Material app bar — no
       // elevation, no surface tint, no centred title (kit §5 #1).
       body: SafeArea(
@@ -314,13 +322,15 @@ class _ScaffoldState extends State<_Scaffold> {
           ),
         ),
       ),
-      bottomNavigationBar: BlocBuilder<LocationSelectCubit, LocationSelectState>(
+      bottomNavigationBar:
+          BlocBuilder<LocationSelectCubit, LocationSelectState>(
         builder: (context, state) => _ConfirmFooter(
           state: state,
           description: _description,
           submitting: _submitting,
           onConfirm: widget.onConfirm,
         ),
+      ),
       ),
     );
   }
@@ -581,6 +591,10 @@ class _SavedAddressesRow extends StatelessWidget {
 class _SavedAddressesError extends StatelessWidget {
   const _SavedAddressesError({required this.onRetry});
 
+  /// The block is one band inside a scrolling list, not the whole surface, so
+  /// the E1 illustration is drawn at less than half its 300px board width.
+  static const double _illustrationSize = 140;
+
   final VoidCallback onRetry;
 
   @override
@@ -588,12 +602,16 @@ class _SavedAddressesError extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsetsDirectional.only(bottom: Spacing.medium),
-      child: Semantics(
+      child: JeebEmptyState(
         identifier: 'location_select_saved_addresses_error',
-        child: OmdsErrorState(
-          message: l10n.savedLocationsError,
-          onRetry: onRetry,
-          retryLabel: l10n.earningsLoadRetry,
+        status: JeebEmptyStateStatus.error,
+        headline: l10n.savedLocationsError,
+        illustrationSize: _illustrationSize,
+        padding: EdgeInsetsDirectional.zero,
+        action: JeebCtaButton.outline(
+          label: l10n.earningsLoadRetry,
+          expand: false,
+          onTap: onRetry,
         ),
       ),
     );
@@ -662,7 +680,7 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
                   decoration: BoxDecoration(
                     borderRadius: OmdsBorderRadius.pill,
                     // A disabled CTA drops its lift (kit §1.6).
-                    boxShadow: enabled ? JeebShadows.ctaNavy : null,
+                    boxShadow: enabled ? JeebShadows.ctaOrange : null,
                   ),
                   child: OmdsLoadingButton(
                     // l10n: reuses `locationConfirm` ("Confirm location"); a
@@ -1012,7 +1030,7 @@ class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
         Text(
           l10n.recipientPhoneLabel,
           style: context.jeebText.cardTitle.copyWith(
-            color: theme.colorScheme.primary,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: Spacing.small),
@@ -1027,18 +1045,19 @@ class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[\d+\s\-()]')),
             ],
-            style: theme.textTheme.bodyLarge,
+            style: context.jeebText.body.copyWith(
+              color: theme.colorScheme.onSurface,
+            ),
             onChanged: (v) {
               _touched = true;
               _commit(v);
             },
+            // Fill, stroke and radius come from the Midnight
+            // `inputDecorationTheme` — the old opaque navy fill + borderless
+            // pill was a light-theme remnant.
             decoration: InputDecoration(
               hintText: l10n.recipientPhoneHint,
               errorText: _errorText,
-              filled: true,
-              // tpl 545 — the board's input fill is one step lighter than the
-              // old `surfaceContainerHighest`.
-              fillColor: theme.colorScheme.surfaceContainerHigh,
               prefixIcon: Padding(
                 padding: const EdgeInsetsDirectional.symmetric(
                   horizontal: Spacing.medium,
@@ -1046,18 +1065,13 @@ class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
                 ),
                 child: Text(
                   LebanonPhone.dialCode,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
+                  style: context.jeebText.body.copyWith(
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
               ),
               prefixIconConstraints:
                   const BoxConstraints(minWidth: 0, minHeight: 0),
-              border: const OutlineInputBorder(
-                borderRadius: OmdsBorderRadius.pill,
-                borderSide: BorderSide.none,
-              ),
             ),
           ),
         ),
@@ -1080,10 +1094,11 @@ class _Heading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // MIDNIGHT: `primary` is now ORANGE; section headings are white ink.
     return Text(
       text,
-      style: context.jeebText.h1.copyWith(
-        color: Theme.of(context).colorScheme.primary,
+      style: context.jeebText.h2.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }

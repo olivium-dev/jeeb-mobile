@@ -88,7 +88,8 @@ class _SavedPill extends StatelessWidget {
             leading: Icon(
               _iconFor(address.category),
               size: SavedAddressPillRow._glyphSize,
-              color: selected ? scheme.onPrimary : scheme.primary,
+              // Not orange: the pill glyph is not one of the board's accents.
+              color: selected ? scheme.onInverseSurface : scheme.onSurface,
             ),
           ),
         ),

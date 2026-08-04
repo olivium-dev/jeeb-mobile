@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:ui' show Tristate;
+import 'dart:ui' show CheckedState;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -100,7 +100,8 @@ void main() {
       // The heading now lives in the in-body top bar (the duplicate section
       // heading was removed), so it is still exactly one widget.
       expect(find.text('Choose your request'), findsOneWidget);
-      expect(find.text('Deliver to'), findsOneWidget);
+      // MIDNIGHT R9: the section eyebrow is the uppercase periwinkle label.
+      expect(find.text('DELIVER TO'), findsOneWidget);
       // The card draws the short action word; "Change Location" survives as the
       // accessible name on `request_type_change_location_button`.
       expect(find.text('Change'), findsOneWidget);
@@ -129,19 +130,17 @@ void main() {
       // `request_type_<tier>_radio` id (was `request_type_tier_<enum>`).
       final ecoCard = find.bySemanticsIdentifier('request_type_eco_radio');
       expect(ecoCard, findsOneWidget);
-      // redesign-2026-08 · 08: the picker rows are the catalog variant, whose
-      // a11y contract is `selected` (a fill swap), not the radio `checked`.
-      // Every tier starts unselected until the customer makes a choice.
+      // MIDNIGHT R9: compact rows are radios again — `checked`, not
+      // `selected` — and Standard (the recommended tier) loads lit.
       expect(
-        tester.getSemantics(ecoCard).flagsCollection.isSelected,
-        Tristate.isFalse,
+        tester.getSemantics(ecoCard).flagsCollection.isChecked,
+        CheckedState.isFalse,
       );
       await tester.tap(ecoCard);
       await tester.pumpAndSettle();
-      // After the tap the Eco card reports as the selected option.
       expect(
-        tester.getSemantics(ecoCard).flagsCollection.isSelected,
-        Tristate.isTrue,
+        tester.getSemantics(ecoCard).flagsCollection.isChecked,
+        CheckedState.isTrue,
       );
     });
 
@@ -237,7 +236,9 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(_harness(const CaptureLocationScreen()));
-      await tester.pumpAndSettle();
+      // MIDNIGHT R11: the centre pin floats/breathes forever (M0-4 ruling), so
+      // this screen advances with pump(), never pumpAndSettle.
+      await tester.pump();
       expect(find.byType(CaptureMapViewport), findsOneWidget);
       expect(
         find.bySemanticsIdentifier('capture_location_map'),
@@ -259,7 +260,7 @@ void main() {
       await tester.pumpWidget(
         _harness(CaptureLocationScreen(onPinned: () => pinned = true)),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
       await tester.tap(find.bySemanticsIdentifier('capture_location_pin_cta'));
       expect(pinned, isTrue);
     });

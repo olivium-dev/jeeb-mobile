@@ -229,7 +229,10 @@ void main() {
 
         // Residual push path: the user opens the capture route while the POST is
         router.pushNamed('capture-location');
-        await tester.pumpAndSettle();
+        // MIDNIGHT R11: the centre pin floats/breathes forever, so the capture
+        // route never settles — advance it by hand.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
         expect(
           find.bySemanticsIdentifier('capture_location_pin_cta'),
           findsOneWidget,

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/location_select_state.dart';
 import 'client_location_option_card.dart';
@@ -76,17 +79,13 @@ class CurrentLocationStatusCard extends StatelessWidget {
   Widget? _inCardDetail(AppLocalizations l10n) {
     switch (status) {
       case CurrentGpsStatus.resolving:
-        return _Resolving(
-          label: l10n.clientLocationGpsResolving,
-          onNavy: selected,
-        );
+        return _Resolving(label: l10n.clientLocationGpsResolving);
       case CurrentGpsStatus.resolved:
         final meters = accuracyMeters;
         return _Resolved(
           label: meters == null
               ? l10n.clientLocationGpsResolved
               : l10n.clientLocationGpsAccuracy(meters.round()),
-          onNavy: selected,
         );
       case CurrentGpsStatus.idle:
       case CurrentGpsStatus.permissionDenied:
@@ -140,19 +139,15 @@ class CurrentLocationStatusCard extends StatelessWidget {
 }
 
 class _Resolving extends StatelessWidget {
-  const _Resolving({required this.label, required this.onNavy});
+  const _Resolving({required this.label});
 
   final String label;
 
-  /// True while the host card carries the navy selected fill — the meta ink
-  /// has to invert with it or it disappears.
-  final bool onNavy;
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final ink = onNavy ? scheme.onPrimary : scheme.onSurfaceVariant;
+    // The host card publishes its own meta ink, so rest glass and the selected
+    // emphasis fill each get the right muted step with nothing to remember.
+    final ink = JeebSurfaceTone.of(context).mutedInk;
     return Semantics(
       identifier: 'current_location_gps_resolving',
       liveRegion: true,
@@ -180,15 +175,13 @@ class _Resolving extends StatelessWidget {
 }
 
 class _Resolved extends StatelessWidget {
-  const _Resolved({required this.label, required this.onNavy});
+  const _Resolved({required this.label});
 
   final String label;
-  final bool onNavy;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final ink = onNavy ? scheme.onPrimary : scheme.onSurfaceVariant;
+    final ink = JeebSurfaceTone.of(context).mutedInk;
     return Semantics(
       identifier: 'current_location_gps_resolved',
       child: Text(
@@ -214,9 +207,6 @@ class _Recovery extends StatelessWidget {
     this.retryLabel,
   });
 
-  /// The redesign's outline weight (§5 #3).
-  static const double _borderWidth = 1.5;
-
   final String identifier;
   final IconData icon;
   final String title;
@@ -231,14 +221,9 @@ class _Recovery extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: identifier,
-      child: Container(
-        margin: const EdgeInsetsDirectional.only(top: Spacing.small),
-        padding: const EdgeInsets.all(Spacing.medium),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: OmdsBorderRadius.medium,
-          border: Border.all(color: scheme.outline, width: _borderWidth),
-        ),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(top: Spacing.small),
+        child: JeebOutlinedCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -265,10 +250,9 @@ class _Recovery extends StatelessWidget {
             Semantics(
               identifier: 'current_location_gps_primary_cta',
               button: true,
-              child: OmdsPrimaryButton(
-                text: primaryLabel,
+              child: JeebCtaButton.primary(
+                label: primaryLabel,
                 onTap: onPrimary,
-                borderRadius: OmdsBorderRadius.pill,
               ),
             ),
             if (onRetry != null && retryLabel != null) ...[
@@ -276,14 +260,15 @@ class _Recovery extends StatelessWidget {
               Semantics(
                 identifier: 'current_location_gps_retry_cta',
                 button: true,
-                child: OmdsPrimaryButton(
-                  text: retryLabel!,
+                child: JeebCtaButton.text(
+                  label: retryLabel!,
+                  expand: true,
                   onTap: onRetry!,
-                  variant: OmdsButtonVariant.text,
                 ),
               ),
             ],
           ],
+        ),
         ),
       ),
     );

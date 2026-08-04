@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
-import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
+import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'map_capture_controller.dart';
 
-/// The bottom sheet docked over the capture map (redesign-2026-08 screen 09,
-/// HTML tpl 538-561): a grab handle, the pinned-point card, and the confirm
-/// CTA.
+/// The frosted sheet docked over the capture map (MIDNIGHT R11): a grab handle,
+/// the pinned-point card, and the confirm CTA. R11's caption — "the whole
+/// picker lives on one frosted bottom sheet".
 ///
 /// What the board draws here and this sheet deliberately does NOT build:
 /// the "Pickup set / 2 · Drop-off" step chips, the search field and the
 /// saved-place pills. All three are refused in
 /// `per-screen-revised/09-location-picker.md` §3 — the create flow's location
 /// leg is a SINGLE point, there is no geocoding source in the app, and drawing
-/// either would fabricate state the backend does not have.
+/// either would fabricate state the backend does not have. (Two-leg vs
+/// one-coordinate remains owner question Q2.)
 class CapturePickerSheet extends StatelessWidget {
   const CapturePickerSheet({
     super.key,
@@ -26,11 +29,11 @@ class CapturePickerSheet extends StatelessWidget {
     this.controller,
   });
 
-  /// Grab-handle geometry (tpl 539).
+  /// Grab-handle geometry (R11: 44 × 5, white 20%).
   static const double _handleWidth = 44;
   static const double _handleHeight = 5;
 
-  /// The board's CTA height (tpl 559). `OmdsPrimaryButton` defaults to 48.
+  /// The board's CTA height. `OmdsPrimaryButton` defaults to 48.
   static const double ctaHeight = 56;
 
   /// How much of the screen bottom this sheet occupies, EXCLUDING the device
@@ -38,8 +41,8 @@ class CapturePickerSheet extends StatelessWidget {
   /// controls clear of the sheet instead of hiding them behind it — the sheet
   /// owns its own composition, so it is the only honest source for this.
   ///
-  /// = top pad 12 + handle 5 + gap 16 + card ~48 + gap 16 + CTA 56 + pad 32.
-  static const double dockedClearance = 185;
+  /// = top pad 12 + handle 5 + gap 16 + card ~60 + gap 16 + CTA 56 + pad 28.
+  static const double dockedClearance = 193;
 
   /// Fires the "Pin Location" confirm.
   final VoidCallback onPin;
@@ -47,22 +50,30 @@ class CapturePickerSheet extends StatelessWidget {
   /// Disables the CTA while the pin is being handed back.
   final bool isConfirming;
 
-  /// The live map centre. Null on the placeholder route (no Maps key, B-23),
-  /// which is exactly why the pinned-point card is conditional: with no map
-  /// there is no coordinate to show, and inventing one is the bug JEBV4-176
-  /// removed.
+  /// The live map centre. Null when the caller mounts the screen without a map
+  /// (dev seam / tests), which is exactly why the pinned-point card is
+  /// conditional: with no map there is no coordinate to show, and inventing one
+  /// is the bug JEBV4-176 removed.
   final MapCaptureController? controller;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final glass = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final live = controller;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: OmdsBorderRadius.topXLarge,
-        boxShadow: JeebShadows.sheet,
+        color: scheme.surfaceContainerLow,
+        borderRadius: const BorderRadiusDirectional.vertical(
+          top: Radius.circular(JeebRadii.sheet),
+        ),
+        border: BorderDirectional(
+          top: BorderSide(color: scheme.outline),
+        ),
+        boxShadow: JeebShadows.floatNav,
       ),
       child: SafeArea(
         top: false,
@@ -71,9 +82,8 @@ class CapturePickerSheet extends StatelessWidget {
             Spacing.xLarge,
             Spacing.small,
             Spacing.xLarge,
-            Spacing.twoXLarge,
+            Spacing.large,
           ),
-          // TODO(redesign-24): step chips omitted — single-point leg; owner decision D-09a.
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -82,8 +92,8 @@ class CapturePickerSheet extends StatelessWidget {
                   width: _handleWidth,
                   height: _handleHeight,
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHighest,
-                    borderRadius: OmdsBorderRadius.pill,
+                    color: glass.glassBorderVivid,
+                    borderRadius: BorderRadius.circular(JeebRadii.pill),
                   ),
                 ),
               ),
@@ -100,16 +110,19 @@ class CapturePickerSheet extends StatelessWidget {
                   button: true,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      borderRadius: OmdsBorderRadius.pill,
+                      borderRadius: BorderRadius.circular(JeebRadii.pill),
                       // A disabled CTA drops its lift (kit §1.6).
-                      boxShadow: isConfirming ? null : JeebShadows.ctaNavy,
+                      boxShadow: isConfirming ? null : JeebShadows.ctaOrange,
                     ),
                     child: OmdsPrimaryButton(
+                      // TODO(midnight): l10n-queued — tile literal is
+                      // "Confirm drop-off".
                       text: l10n.captureLocationPinCta,
                       isEnabled: !isConfirming,
                       height: ctaHeight,
                       borderRadius: OmdsBorderRadius.pill,
-                      textStyle: context.jeebText.button,
+                      textStyle: context.jeebText.button
+                          .copyWith(fontWeight: FontWeight.w700),
                       onTap: onPin,
                     ),
                   ),
@@ -123,7 +136,8 @@ class CapturePickerSheet extends StatelessWidget {
   }
 }
 
-/// The pinned-point card (tpl 549): a red pin and the live coordinate under it.
+/// The pinned-point card: a red pin, the live coordinate, and the accuracy
+/// meta line the board draws under the address.
 ///
 /// The board draws a street address ("Rue Monot 42, Achrafieh"). We show the
 /// coordinate instead, because the app has no reverse-geocode source — the only
@@ -132,7 +146,7 @@ class CapturePickerSheet extends StatelessWidget {
 class _PinnedPointCard extends StatelessWidget {
   const _PinnedPointCard({required this.controller});
 
-  /// tpl 550 — the pin glyph.
+  /// The board's pin glyph inside the card.
   static const double _pinSize = 19;
 
   /// Coordinate precision, matching the create draft's own label.
@@ -154,7 +168,11 @@ class _PinnedPointCard extends StatelessWidget {
           final centre = controller.center;
           final label = '${centre.latitude.toStringAsFixed(_fractionDigits)}, '
               '${centre.longitude.toStringAsFixed(_fractionDigits)}';
-          return JeebOutlinedCard(
+          return JeebGlassCard(
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Spacing.medium,
+              vertical: Spacing.small,
+            ),
             child: Row(
               children: [
                 Icon(Icons.location_on, size: _pinSize, color: scheme.error),
@@ -168,11 +186,13 @@ class _PinnedPointCard extends StatelessWidget {
                     child: Text(
                       label,
                       style: context.jeebText.cardTitle
-                          .copyWith(color: scheme.primary),
+                          .copyWith(color: scheme.onSurface),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
+                // TODO(midnight): omitted — the board's "GPS · accurate to 8 m"
+                // meta line has no wire value on this leg (no reverse-geocode).
               ],
             ),
           );

@@ -157,17 +157,25 @@ void main() {
         await tester.tap(
           find.bySemanticsIdentifier('location_select_new_location_cta'),
         );
-        await tester.pumpAndSettle();
+        // MIDNIGHT R11: the capture route's centre pin floats/breathes forever,
+        // so this surface never settles — advance it by hand (M0-4 ruling).
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
         expect(
           find.bySemanticsIdentifier('capture_location_pin_cta'),
           findsOneWidget,
         );
 
-        // Confirm the pin — the production builder pops WITHOUT a coordinate
+        // Confirm the pin. MIDNIGHT M2-05 wired the live map here, but the pop
+        // is gated on a camera that really settled: a platform view that never
+        // rendered (this harness, a missing SDK key) still pops WITHOUT a
+        // coordinate, so the seed can never masquerade as the customer's pick.
         await tester.tap(
           find.bySemanticsIdentifier('capture_location_pin_cta'),
         );
         await tester.pumpAndSettle();
+
 
         // Back on location-select: supply the G1 description, then attempt to
         await tester.enterText(

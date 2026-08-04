@@ -121,7 +121,11 @@ Future<void> _driveToLocationSelect(WidgetTester tester) async {
   expect(continueCta, findsOneWidget);
   await tester.ensureVisible(continueCta);
   await tester.tap(continueCta);
-  await tester.pumpAndSettle();
+  // MIDNIGHT M0-4: the saved-addresses error band is a `JeebEmptyState` whose
+  // illustration loops forever — advance the transition by hand.
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 /// G1: the Confirm CTA is additionally gated on a non-empty "What do you
@@ -180,9 +184,11 @@ void main() {
 
         await _driveToLocationSelect(tester);
 
-        // The saved-locations error banner is shown — proving the fetch failed.
+        // The saved-locations error banner is shown — proving the fetch
+        // failed. MIDNIGHT: the band is a `JeebEmptyState`, so the assertion is
+        // re-homed onto its frozen identifier rather than the widget type.
         expect(
-          find.byType(OmdsErrorState, skipOffstage: false),
+          find.bySemanticsIdentifier('location_select_saved_addresses_error'),
           findsOneWidget,
           reason: 'the saved-locations fetch must have failed in this case',
         );
@@ -202,7 +208,9 @@ void main() {
         await tester.tap(
           find.bySemanticsIdentifier('location_select_confirm_cta'),
         );
-        await tester.pumpAndSettle();
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
 
         expect(
           submission.submitCount,

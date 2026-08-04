@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/map/jeeb_map_style.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../background_gps/data/geolocator_geocapture_gateway.dart';
@@ -24,6 +25,7 @@ class GoogleMapCaptureView extends StatefulWidget {
     super.key,
     required this.controller,
     this.gateway,
+    this.onCameraSettled,
     this.initialZoom = 16,
     this.bottomInset = Spacing.large,
   });
@@ -34,6 +36,12 @@ class GoogleMapCaptureView extends StatefulWidget {
   /// GPS source for the "centre on me" button. Injected so widget tests can
   /// pass a stub; production resolves the geolocator-backed gateway from DI.
   final GeolocatorGeocaptureGateway? gateway;
+
+  /// Fires on every `onCameraIdle` — the ONLY proof the platform view really
+  /// rendered a camera. Callers gate "return this coordinate" on it, so a map
+  /// that never initialised (no SDK key, no view) cannot hand back the seed as
+  /// if the customer had chosen it (JEBV4-176).
+  final VoidCallback? onCameraSettled;
 
   final double initialZoom;
 
@@ -106,6 +114,7 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
           style: _mapStyle,
           onMapCreated: (controller) => _map = controller,
           onCameraMove: _onCameraMove,
+          onCameraIdle: widget.onCameraSettled,
           myLocationButtonEnabled: false,
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
@@ -124,16 +133,16 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
 /// so uiautomator/Maestro can target it; sits in the bottom-end corner clear of
 /// the centre pin.
 ///
-/// Redesign 09 (tpl 534/535): a plain Ø48 white disc with the `floatPill`
-/// shadow — not a Material FAB. The board has no FAB shape anywhere, and the
-/// FAB's own surface tint / 16px radius fought the map.
+/// MIDNIGHT R11: a Ø48 GLASS disc floating on the night map — `glassFill`
+/// (measured white 12%) + a 1px vivid glass stroke + `JeebShadows.overlay`,
+/// white glyph. Not a Material FAB: the board has no FAB shape anywhere.
 class _CentreOnMeButton extends StatelessWidget {
   const _CentreOnMeButton({
     required this.onPressed,
     required this.bottomInset,
   });
 
-  /// tpl 535 — 22px sits between `Sizes.large` (20) and `Sizes.xLarge` (24).
+  /// R11 — 22px sits between `Sizes.large` (20) and `Sizes.xLarge` (24).
   static const double _glyphSize = 22;
 
   final Future<void> Function() onPressed;
@@ -144,7 +153,10 @@ class _CentreOnMeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final glass = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return PositionedDirectional(
       // The docked sheet ends at the safe-area edge, so the inset the caller
       // quotes is measured from there, not from the raw screen bottom.
@@ -159,8 +171,9 @@ class _CentreOnMeButton extends StatelessWidget {
           height: Sizes.fourXLarge,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: scheme.surface,
-            boxShadow: JeebShadows.floatPill,
+            color: glass.glassFillEmphasis,
+            border: Border.all(color: glass.glassBorderVivid),
+            boxShadow: JeebShadows.overlay,
           ),
           child: Material(
             type: MaterialType.transparency,
@@ -171,7 +184,7 @@ class _CentreOnMeButton extends StatelessWidget {
                 child: Icon(
                   Icons.my_location,
                   size: _glyphSize,
-                  color: scheme.primary,
+                  color: scheme.onSurface,
                 ),
               ),
             ),

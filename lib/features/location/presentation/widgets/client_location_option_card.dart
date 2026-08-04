@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 
-/// Selectable location option card on the Client Location screen
-/// (redesign-2026-08 screen 09, HTML tpl 549).
+/// Selectable location option card on the Client Location screen (MIDNIGHT
+/// R11's address card).
 ///
-/// The board's address card: a red location pin, a navy title, and an optional
-/// meta line beneath it. Unselected is white with a `1.5px colorScheme.outline`
-/// stroke; selected swaps the FILL to navy (R8 — selection is a fill swap,
-/// never a border swap) and inverts the ink. The radio glyph is gone: the
-/// redesign has no radio anywhere.
+/// A danger-red location pin, a white title, and an optional meta line beneath
+/// it, on rest glass. Selection is a FILL swap to emphasis glass (R8 — never a
+/// thicker border), delegated to `JeebOutlinedCard`'s own selected state so the
+/// subtree re-tones itself. The radio glyph is gone: the board has none.
 ///
 /// [subtitle] is a SLOT, not a string, because the current-location card feeds
 /// its live GPS state through it and that widget carries its own Semantics
@@ -25,11 +25,8 @@ class ClientLocationOptionCard extends StatelessWidget {
     this.subtitle,
   });
 
-  /// tpl 550 — the pin glyph, 19px, between `Sizes.medium` and `Sizes.large`.
+  /// R11 — the card's pin glyph, 19px, between `Sizes.medium` and `Sizes.large`.
   static const double _pinSize = 19;
-
-  /// The redesign's outline weight (§5 #3).
-  static const double _borderWidth = 1.5;
 
   final String label;
   final bool selected;
@@ -41,6 +38,7 @@ class ClientLocationOptionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final detail = subtitle;
     return Semantics(
       identifier: 'client_location_option_current',
       inMutuallyExclusiveGroup: true,
@@ -49,66 +47,48 @@ class ClientLocationOptionCard extends StatelessWidget {
       label: label,
       container: true,
       explicitChildNodes: true,
-      child: Material(
-        color: selected ? scheme.primary : scheme.surface,
-        borderRadius: OmdsBorderRadius.medium,
-        child: InkWell(
-          borderRadius: OmdsBorderRadius.medium,
-          onTap: onTap,
-          child: _body(context, scheme),
+      child: JeebOutlinedCard(
+        state: selected ? JeebCardState.selected : JeebCardState.normal,
+        // R11's address card is neutral glass: the kit's default orange
+        // `glowRest` halo on a selected card is not on this tile.
+        selectedShadow: const <BoxShadow>[],
+        onTap: onTap,
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.medium,
+          vertical: Spacing.small,
         ),
-      ),
-    );
-  }
-
-  Widget _body(BuildContext context, ColorScheme scheme) {
-    final foreground = selected ? scheme.onPrimary : scheme.primary;
-    final detail = subtitle;
-    return Container(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.medium,
-        vertical: Spacing.small,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: OmdsBorderRadius.medium,
-        border: Border.all(
-          // Corrected rule: a brown ring on the navy fill reads as a defect,
-          // so only the UNSELECTED branch moves to `outline`.
-          color: selected ? scheme.primary : scheme.outline,
-          width: _borderWidth,
-        ),
-      ),
-      child: Row(
-        children: [
-          ExcludeSemantics(
-            child: Icon(
-              Icons.location_on,
-              size: _pinSize,
-              color: selected ? scheme.onPrimary : scheme.error,
+        child: Row(
+          children: [
+            ExcludeSemantics(
+              child: Icon(
+                Icons.location_on,
+                size: _pinSize,
+                color: scheme.error,
+              ),
             ),
-          ),
-          const SizedBox(width: Spacing.small),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ExcludeSemantics(
-                  child: Text(
-                    label,
-                    style: context.jeebText.cardTitle
-                        .copyWith(color: foreground),
-                    overflow: TextOverflow.ellipsis,
+            const SizedBox(width: Spacing.small),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ExcludeSemantics(
+                    child: Text(
+                      label,
+                      style: context.jeebText.cardTitle
+                          .copyWith(color: scheme.onSurface),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                if (detail != null) ...[
-                  const SizedBox(height: Spacing.twoXSmall),
-                  detail,
+                  if (detail != null) ...[
+                    const SizedBox(height: Spacing.twoXSmall),
+                    detail,
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

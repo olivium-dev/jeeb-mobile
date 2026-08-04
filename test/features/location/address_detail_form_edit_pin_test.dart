@@ -41,20 +41,28 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      // MIDNIGHT R11: the pin preview band embeds the floating/breathing
+      // centre pin, which loops forever — advance by hand (M0-4 ruling).
+      await _settle(tester);
 
       // First tap: the dead no-op is gone — the button opens the picker. On the
       await tester.tap(find.text('Edit pin'));
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(launcher.calls, 1);
       expect(launcher.lastInitial, isNull);
 
       // Second tap: now seeded with the point the first pick returned — proving
       await tester.tap(find.text('Edit pin'));
-      await tester.pumpAndSettle();
+      await _settle(tester);
       expect(launcher.calls, 2);
       expect(launcher.lastInitial?.latitude, 1.5);
       expect(launcher.lastInitial?.longitude, 2.5);
     },
   );
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }

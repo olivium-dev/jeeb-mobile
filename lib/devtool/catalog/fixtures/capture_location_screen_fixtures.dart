@@ -5,6 +5,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_shadows.dart';
+import '../../../features/location/presentation/widgets/capture_picker_sheet.dart';
 import '../../../features/location/presentation/widgets/gps_denied_state.dart';
 import '../../../l10n/app_localizations.dart';
 
@@ -71,6 +74,9 @@ class _CaptureLocationScreenFakeMapState
   /// the determinism matters — the same drag always yields the same readout.
   static const double _degreesPerPixel = 0.00002;
 
+  /// Below the status bar and the Ø40 back circle.
+  static const double _readoutTop = 96;
+
   Offset _pan = Offset.zero;
 
   /// The coordinate under the screen's fixed centre pin, in the same
@@ -106,13 +112,15 @@ class _CaptureLocationScreenFakeMapState
               ),
             ),
             PositionedDirectional(
-              top: Spacing.medium,
-              start: Spacing.medium,
+              // Clear of the floating back circle, which owns the top-start.
+              top: _readoutTop,
+              end: Spacing.medium,
               child: _CaptureLocationScreenReadout(coordinates: _readout),
             ),
             if (widget.centreOnMe)
               PositionedDirectional(
-                bottom: Spacing.large,
+                // Mirrors the real view: lifted clear of the docked sheet.
+                bottom: CapturePickerSheet.dockedClearance + Spacing.large,
                 end: Spacing.large,
                 child: _CaptureLocationScreenCentreOnMe(
                   onPressed: () => setState(() => _pan = Offset.zero),
@@ -178,14 +186,34 @@ class _CaptureLocationScreenCentreOnMe extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final JeebSemanticColors glass =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
     return Semantics(
       identifier: 'capture_location_my_location',
       button: true,
       label: l10n.captureLocationMyLocation,
-      child: FloatingActionButton.small(
-        heroTag: null,
-        onPressed: onPressed,
-        child: const Icon(Icons.my_location),
+      child: Container(
+        width: Sizes.fourXLarge,
+        height: Sizes.fourXLarge,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: glass.glassFillEmphasis,
+          border: Border.all(color: glass.glassBorderVivid),
+          boxShadow: JeebShadows.overlay,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: Icon(
+              Icons.my_location,
+              size: 22,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ),
       ),
     );
   }

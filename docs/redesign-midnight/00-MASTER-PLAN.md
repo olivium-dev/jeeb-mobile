@@ -314,7 +314,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M2-02 R1+E1 Client home + empty — hero field static (animateDecor knob), capsule promise P0-6, single View-offers P0-7, E1 kit empty @2026-08-04
 - [x] M2-03 R2 Voice recording — live transcript band + jBlink caret (P0-5), container jWave, micActive halo; fixed inherited AR@200% overflow @2026-08-04
 - [x] M2-04 R9 Request type — compact tier rows, accentSelected, Standard pre-selected + badge (P0-3/4) @2026-08-04
-- [ ] M2-05 R11 Location picker (map wiring + legacy `/location` DELETION)
+- [x] M2-05 R11 Location picker — real map wired (onCameraIdle gate), /location route + placeholder + devtool twin DELETED per ORPHAN ruling @2026-08-04
 - [ ] M2-06 R12 Request summary (harness first — screen is unverified)
 - [ ] M2-07 R10+E2 Offers + waiting empty
 - [ ] M2-08 R3 Live tracking

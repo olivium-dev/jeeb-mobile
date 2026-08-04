@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:omds/omds.dart' show Spacing;
 import 'package:open_file/open_file.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -72,14 +73,18 @@ import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
+import '../../features/location/data/location_repository.dart' show LocationPoint;
 import '../../features/location/presentation/screens/address_detail_form_screen.dart';
-import '../../features/location/presentation/screens/location_picker_screen.dart';
+import '../../features/location/presentation/widgets/capture_picker_sheet.dart';
+import '../../features/location/presentation/widgets/google_map_capture_view.dart';
+import '../../features/location/presentation/widgets/map_capture_controller.dart';
 import '../../features/no_offer_timeout/presentation/no_offer_timeout_screen.dart';
 import '../../features/order_summary/presentation/order_summary_screen.dart';
 import '../../features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import '../../features/active_delivery_jeeber/domain/jeeber_delivery_status.dart';
 import '../../features/active_delivery_jeeber/presentation/active_delivery_jeeber_screen.dart';
 import '../../features/background_gps/application/background_gps_cubit.dart';
+import '../../features/background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/offers/domain/offer_submission_repository.dart';
 import '../../features/offers/domain/offer_submission_service.dart';
@@ -120,36 +125,64 @@ import '../diagnostics/diagnostics_screen.dart';
 import '../observability/session_trace/session_trace.dart';
 import '../onboarding/onboarding_cubit.dart';
 
-/// `/capture-location` route host (B-35).
+/// `/capture-location` route host (B-35, MIDNIGHT M2-05 P0-1).
 ///
-/// JEBV4-176: this placeholder route has NO live draggable map injected yet
-/// (B-23, Maps SDK key owner-gated), so there is NO real user-picked coordinate
-/// to return. It therefore refuses to fabricate one. Previously it seeded a
-/// `MapCaptureController` with a hardcoded Beirut-downtown centre
-/// (`33.8938, 35.5018`) and popped THAT back on "Pin Location", so — because
-/// the neutral [CaptureMapViewport] placeholder never pans — every confirmed
-/// pin silently collapsed to downtown Beirut and could create a Beirut-pinned
-/// request. That silent fabrication is exactly what JEBV4-176 removes.
+/// The route now injects the SAME live `GoogleMap` surface
+/// `GoogleMapPickerLauncher` builds — `JeebMapStyle`-dark, panning under the
+/// screen's fixed centre pin — and pops the camera centre the customer can
+/// actually see. Before this it mounted the neutral placeholder and popped with
+/// no coordinate (JEBV4-176), because a viewport that cannot pan would have
+/// collapsed every pin to the seeded Beirut centre; a real map removes that
+/// fabrication risk without re-introducing the default.
 ///
-/// Now "Pin Location" pops with NO coordinate. client-location's `markPinned`
-/// then records the pinned CHOICE but no point, and [LocationSelectState]
-/// keeps that choice un-confirmable (Confirm stays disabled) — the same honest
-/// gating the GPS-recovery path uses, so no fabricated coordinate can reach a
-/// created request. Once B-23 injects a live `GoogleMap` `mapBuilder` here,
-/// wire a `MapCaptureController` whose camera-idle writes the REAL point and
-/// pop that instead.
+/// The controller is owned by the State so a rebuild cannot reset the camera
+/// centre the map has already reported, and the pop stays gated on a camera
+/// that really settled: a map that never initialised still pops with NO
+/// coordinate, so the seed can never masquerade as the customer's choice.
 @visibleForTesting
-class CaptureLocationRoute extends StatelessWidget {
+class CaptureLocationRoute extends StatefulWidget {
   const CaptureLocationRoute({super.key});
+
+  /// Camera seed — Beirut downtown, the same point the launcher starts from.
+  /// It is a VIEWPORT seed, never a returned answer: the map reports its own
+  /// centre on the first frame and every pan after it.
+  static const LocationPoint initialCentre = LocationPoint(
+    latitude: 33.8938,
+    longitude: 35.5018,
+  );
+
+  @override
+  State<CaptureLocationRoute> createState() => _CaptureLocationRouteState();
+}
+
+class _CaptureLocationRouteState extends State<CaptureLocationRoute> {
+  final MapCaptureController _controller = MapCaptureController(
+    initial: CaptureLocationRoute.initialCentre,
+  );
+  final GeolocatorGeocaptureGateway _gateway = GeolocatorGeocaptureGateway();
+
+  /// True once the live camera has settled at least once.
+  bool _cameraLive = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return CaptureLocationScreen(
-      // JEBV4-176: no live map → no real picked point → pop WITHOUT a
-      // coordinate rather than fabricate the old Beirut default. Once a live
-      // map is injected, pass its `mapBuilder` and pop the real camera centre.
+      controller: _controller,
+      mapBuilder: (_) => GoogleMapCaptureView(
+        controller: _controller,
+        gateway: _gateway,
+        onCameraSettled: () => _cameraLive = true,
+        bottomInset: CapturePickerSheet.dockedClearance + Spacing.large,
+      ),
       onPinned: () {
-        if (context.canPop()) context.pop();
+        if (!context.canPop()) return;
+        context.pop(_cameraLive ? _controller.center : null);
       },
     );
   }
@@ -473,7 +506,6 @@ class AppRouter {
     'jeeber-onboarding': '/',
     'customer-profile': '/',
     'delivery-man-profile': '/',
-    'location-picker': '/',
     'settings': '/',
     'settings-profile': '/settings',
     'address-detail': '/settings/addresses',
@@ -963,11 +995,6 @@ class AppRouter {
             }
             return const ProfileUnavailableScreen();
           },
-        ),
-        GoRoute(
-          path: '/location',
-          name: 'location-picker',
-          builder: (context, state) => const LocationPickerScreen(),
         ),
         GoRoute(
           path: '/settings',

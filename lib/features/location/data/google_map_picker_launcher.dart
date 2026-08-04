@@ -26,6 +26,9 @@ class GoogleMapPickerLauncher implements MapPickerLauncher {
   @override
   Future<LocationPoint?> pickOnMap({LocationPoint? initial}) {
     final controller = MapCaptureController(initial: initial ?? _defaultCenter);
+    // Only a camera that really settled proves the platform view rendered; a
+    // map that never initialised must not hand the seed back as a choice.
+    var cameraLive = false;
     return Navigator.of(_context).push<LocationPoint>(
       MaterialPageRoute<LocationPoint>(
         fullscreenDialog: true,
@@ -36,12 +39,14 @@ class GoogleMapPickerLauncher implements MapPickerLauncher {
           mapBuilder: (mapContext) => GoogleMapCaptureView(
             controller: controller,
             gateway: _gateway,
+            onCameraSettled: () => cameraLive = true,
             // Lift the recentre control clear of the docked picker sheet —
             // the map runs full-bleed underneath it now.
             bottomInset: CapturePickerSheet.dockedClearance + Spacing.large,
           ),
-          onPinned: () =>
-              Navigator.of(routeContext).pop<LocationPoint>(controller.center),
+          onPinned: () => Navigator.of(routeContext).pop<LocationPoint>(
+            cameraLive ? controller.center : null,
+          ),
         ),
       ),
     );

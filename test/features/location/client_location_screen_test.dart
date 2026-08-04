@@ -169,7 +169,11 @@ void main() {
         ),
       )),
     );
-    await tester.pumpAndSettle();
+    // MIDNIGHT M0-4: the error band is a `JeebEmptyState` whose illustration
+    // loops forever, so this surface advances with pump(), never pumpAndSettle.
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
 
     // The create flow stays usable: Current + New + Confirm still present.
     expect(

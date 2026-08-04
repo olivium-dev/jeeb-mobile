@@ -15,13 +15,15 @@ import 'package:jeeb_mobile/features/live_tracking/presentation/live_tracking_sc
 
 import '../fixtures/live_tracking_screen_fixtures.dart';
 
-import 'package:jeeb_mobile/features/location/cubit/location_picker_cubit.dart';
-import 'package:jeeb_mobile/features/location/presentation/location_picker_screen.dart';
+import 'package:jeeb_mobile/features/location/data/location_repository.dart'
+    show LocationPoint;
+import 'package:jeeb_mobile/features/location/presentation/capture_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/saved_locations_screen.dart';
+import 'package:jeeb_mobile/features/location/presentation/widgets/map_capture_controller.dart';
 
+import '../fixtures/capture_location_screen_fixtures.dart';
 import '../fixtures/client_location_screen_fixtures.dart';
-import '../fixtures/location_picker_screen_fixtures.dart';
 
 import 'package:jeeb_mobile/features/masked_call/application/masked_call_cubit.dart';
 import 'package:jeeb_mobile/features/masked_call/presentation/masked_call_button.dart';
@@ -39,9 +41,9 @@ import '../fixtures/saved_locations_screen_fixtures.dart';
 List<CatalogEntry> get batch06Entries => <CatalogEntry>[
       _languageEntry,
       _liveTrackingEntry,
-      _locationPickerEntry,
       _savedLocationsEntry,
       _clientLocationEntry,
+      _captureLocationEntry,
       _maskedCallEntry,
       _mixedDirectionEntry,
       _noOfferTimeoutEntry,
@@ -122,39 +124,6 @@ final CatalogEntry _liveTrackingEntry = CatalogEntry(
   ],
 );
 
-/// mapPickerLauncher null intentionally (two-button Row overflows phone).
-Widget _locationPickerPreview(LocationPickerCubit cubit) {
-  return LocationPickerScreen(
-    cubit: cubit,
-    onCompleted: (_) {}, // safe no-op — never pops the catalog preview route.
-  );
-}
-
-final CatalogEntry _locationPickerEntry = CatalogEntry(
-  feature: 'location',
-  screen: 'Location Picker (pickup/dropoff)',
-  states: [
-    CatalogState(
-      'Pickup — no selection',
-      (_) => _locationPickerPreview(
-        LocationPickerScreenFixtures.pickupNoSelection(),
-      ),
-    ),
-    CatalogState(
-      'Dropoff — pickup confirmed',
-      (_) => _locationPickerPreview(
-        LocationPickerScreenFixtures.dropoffPickupConfirmed(),
-      ),
-    ),
-    CatalogState(
-      'Confirmed (done)',
-      (_) => _locationPickerPreview(
-        LocationPickerScreenFixtures.confirmedPair(),
-      ),
-    ),
-  ],
-);
-
 final CatalogEntry _savedLocationsEntry = CatalogEntry(
   feature: 'location',
   screen: 'Saved Addresses',
@@ -205,6 +174,44 @@ final CatalogEntry _clientLocationEntry = CatalogEntry(
     ),
   ],
 );
+
+/// R11's map leg. The live `GoogleMapCaptureView` is a platform view the
+/// harness cannot render, so every state drives the screen's `mapBuilder` seam.
+final CatalogEntry _captureLocationEntry = CatalogEntry(
+  feature: 'location',
+  screen: 'Capture Location (map pin)',
+  states: [
+    CatalogState(
+      'Map pinned',
+      (_) => CaptureLocationScreen(
+        controller: _captureCentre(),
+        mapBuilder: CaptureLocationScreenPreviewFixtures.liveMap(),
+      ),
+    ),
+    CatalogState(
+      'Confirming the pin',
+      (_) => CaptureLocationScreen(
+        controller: _captureCentre(),
+        isConfirming: true,
+        mapBuilder: CaptureLocationScreenPreviewFixtures.liveMap(),
+      ),
+    ),
+    CatalogState(
+      'Location permission denied',
+      (_) => CaptureLocationScreen(
+        showCentrePin: false,
+        mapBuilder: CaptureLocationScreenPreviewFixtures.permissionDenied(),
+      ),
+    ),
+  ],
+);
+
+MapCaptureController _captureCentre() => MapCaptureController(
+      initial: const LocationPoint(
+        latitude: CaptureLocationScreenPreviewFixtures.beirutLatitude,
+        longitude: CaptureLocationScreenPreviewFixtures.beirutLongitude,
+      ),
+    );
 
 /// Emits [seed] on microtask (after mount) to avoid network calls.
 class _SeededMaskedCallCubit extends MaskedCallCubit {

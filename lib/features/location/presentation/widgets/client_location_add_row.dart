@@ -5,12 +5,10 @@ import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 
 /// "New Location" row on the Client Location screen: a start-aligned label and
-/// a trailing circular navy add button. The whole row is the tap target
-/// (mirrors the card behaviour); the glyph is `onPrimary` on the navy circle.
-///
-/// Redesign 09: the row now sits inside a [JeebOutlinedCard] so it reads as a
-/// peer of the address card above it instead of a bare list line. The board
-/// draws no such row at all, so this is a minimum restyle, not a rebuild.
+/// a trailing circular add button, inside a [JeebOutlinedCard] so it reads as a
+/// peer of the address card above it. The board draws no such row at all, so
+/// this is a minimum restyle, not a rebuild — and the disc is PERIWINKLE, not
+/// orange: the orange budget covers tile-drawn CTAs only (kit ruling 3).
 class ClientLocationAddRow extends StatelessWidget {
   const ClientLocationAddRow({
     super.key,
@@ -68,7 +66,8 @@ class _RowContent extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: context.jeebText.cardTitle.copyWith(color: scheme.primary),
+              style: context.jeebText.cardTitle
+                  .copyWith(color: scheme.onSurface),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -96,13 +95,13 @@ class _AddButton extends StatelessWidget {
           height: Sizes.threeXLarge,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: scheme.primary,
+            color: scheme.secondary,
           ),
           // R10 — 20px is the board's content-circle glyph size.
           child: Icon(
             Icons.add,
             size: Sizes.large,
-            color: scheme.onPrimary,
+            color: scheme.onSecondary,
           ),
         ),
       ),

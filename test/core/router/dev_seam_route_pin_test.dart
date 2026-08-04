@@ -142,7 +142,11 @@ void main() {
 
         // User taps "New Location" → pushes the capture screen. Pre-fix this
         built.router.push('/capture-location');
-        await tester.pumpAndSettle();
+        // MIDNIGHT R11: the capture screen's centre pin loops forever (M0-4),
+        // so it never settles — advance it by hand.
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
 
         expect(
           find.byType(CaptureLocationScreen),
@@ -188,7 +192,11 @@ void main() {
 
         // The chat fixture is another initial capture pin. Before JEBV4-321 its
         built.router.push('/capture-location');
-        await tester.pumpAndSettle();
+        // MIDNIGHT R11: the capture screen's centre pin loops forever (M0-4),
+        // so it never settles — advance it by hand.
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
 
         expect(
           find.byType(CaptureLocationScreen),
@@ -215,7 +223,11 @@ void main() {
 
         // A push to a normal route is honoured (no dev-seam interference). We
         built.router.push('/capture-location');
-        await tester.pumpAndSettle();
+        // MIDNIGHT R11: the capture screen's centre pin loops forever (M0-4),
+        // so it never settles — advance it by hand.
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
         expect(
           find.byType(CaptureLocationScreen),
           findsOneWidget,

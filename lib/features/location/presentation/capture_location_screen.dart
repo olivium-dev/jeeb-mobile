@@ -7,16 +7,17 @@ import 'widgets/capture_map_viewport.dart';
 import 'widgets/capture_picker_sheet.dart';
 import 'widgets/map_capture_controller.dart';
 
-/// "Capture Location" — the map-first pin picker (redesign-2026-08 screen 09).
+/// "Capture Location" — the map-first pin picker (MIDNIGHT R11).
 ///
-/// The map runs full-bleed to every edge; the chrome floats on top of it: a
-/// circular back button under the status bar, and a docked sheet carrying the
-/// pinned point and the "Pin Location" CTA. The map pans under a fixed centre
-/// pin, so the point the user is choosing is always the viewport centre.
+/// The night map runs full-bleed to every edge; the chrome floats on top of it:
+/// a glass back circle under the status bar, and a frosted sheet carrying the
+/// pinned point and the confirm CTA. The map pans under a fixed centre pin, so
+/// the point the user is choosing is always the viewport centre.
 ///
 /// Live map tiles are provided by the `google_maps_flutter` view, injected as
-/// [mapBuilder]: production passes it (via `GoogleMapPickerLauncher`), the dev
-/// seam / tests pass nothing and get a neutral placeholder. The board's map
+/// [mapBuilder] — `JeebMapStyle`-dark. BOTH production mounts pass it (the
+/// `/capture-location` route and `GoogleMapPickerLauncher`); only the catalog
+/// and widget tests fall back to the neutral placeholder. The board's map
 /// raster is a mock and is never bundled.
 class CaptureLocationScreen extends StatelessWidget {
   const CaptureLocationScreen({
@@ -25,6 +26,7 @@ class CaptureLocationScreen extends StatelessWidget {
     this.mapBuilder,
     this.isConfirming = false,
     this.controller,
+    this.showCentrePin = true,
   });
 
   /// Invoked when the user confirms the pinned point. Defaults to a back-pop.
@@ -42,6 +44,11 @@ class CaptureLocationScreen extends StatelessWidget {
   /// so the sheet renders without a coordinate card rather than invent one.
   final MapCaptureController? controller;
 
+  /// False when [mapBuilder] returns a RECOVERY surface (permission denied,
+  /// outside the service area) instead of a map: there is nothing to pin, so
+  /// drawing the centre pin over the message would be a lie.
+  final bool showCentrePin;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -49,7 +56,7 @@ class CaptureLocationScreen extends StatelessWidget {
     // chrome carries the inset itself.
     final topPad = MediaQuery.viewPaddingOf(context).top;
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      backgroundColor: colorScheme.surfaceContainerLowest,
       body: Semantics(
         identifier: 'capture_location_root',
         container: true,
@@ -57,7 +64,7 @@ class CaptureLocationScreen extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            _MapStack(mapBuilder: mapBuilder),
+            _MapStack(mapBuilder: mapBuilder, showCentrePin: showCentrePin),
             PositionedDirectional(
               start: 0,
               end: 0,
@@ -97,9 +104,10 @@ class CaptureLocationScreen extends StatelessWidget {
 /// The map viewport with the fixed centre pin layered on top. The pin never
 /// moves — the map pans underneath — so it sits in an [IgnorePointer] overlay.
 class _MapStack extends StatelessWidget {
-  const _MapStack({required this.mapBuilder});
+  const _MapStack({required this.mapBuilder, required this.showCentrePin});
 
   final WidgetBuilder? mapBuilder;
+  final bool showCentrePin;
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +120,7 @@ class _MapStack extends StatelessWidget {
           label: l10n.captureLocationMapSemantic,
           child: mapBuilder?.call(context) ?? const CaptureMapViewport(),
         ),
-        const Center(child: CaptureLocationPin()),
+        if (showCentrePin) const Center(child: CaptureLocationPin()),
       ],
     );
   }
