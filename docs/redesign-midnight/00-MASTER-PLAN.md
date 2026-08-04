@@ -354,7 +354,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M3-04 `cancellation/presentation/cancellation_screen.dart` (317) — cancellation on the content field; picked-row and destructive-CTA gaps reported rather than worked around (see Q-041) — the kit has no danger CTA rung and re-implementing accentSelected locally is the workaround wave-A deleted @2026-08-04
 - [x] M3-05 `order_summary/presentation/order_summary_screen.dart` (152) — order summary carried over from the shipped R12 pattern rather than re-derived; money on the w800 ramp @2026-08-04
 - [x] M3-06 `jeeber_request_detail/…/jeeber_request_detail_screen.dart` (258) — jeeber request detail derived from R16/R17 @2026-08-04
-- [ ] M3-07 `customer_profile/presentation/customer_profile_screen.dart` (193)
+- [x] M3-07 `customer_profile/presentation/customer_profile_screen.dart` (193) — customer profile derived from R15/R22 identity blocks @2026-08-04
 - [ ] M3-08 `notifications/presentation/notifications_list_screen.dart` (326)
 - [ ] M3-09 `rating/presentation/rating_screen.dart` (308)
 - [ ] M3-10 `delivery_man_profile/presentation/delivery_man_profile_screen.dart` (150)

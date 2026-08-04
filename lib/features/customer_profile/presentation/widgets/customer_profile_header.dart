@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
-import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
@@ -14,17 +14,19 @@ import 'customer_profile_rating.dart';
 /// Profile identity card: navy surface holding the avatar, the name (+ verified
 /// badge), the per-role rating and the account email (JM-035 AC1).
 ///
-/// redesign-2026-08: this is the same navy identity card the neighbouring
-/// Settings screen opens with (`settings_identity_card.dart`, board
-/// `20-settings` `tpl 1171-1177`) — Ø50 avatar, r18, and the ONE shadowed
-/// surface on the screen, every card below it being outline-over-shadow. It is
-/// deliberately **not** tappable: unlike Settings, this tab exposes no
+/// MIDNIGHT M3-07: this is R22's identity card (`22-r22-settings.png`
+/// `tpl 1354-1360`), the same geometry `settings_identity_card.dart` ships from
+/// the same measurement — emphasis glass, radius `lg`, `16/15` padding, gap 13,
+/// Ø50 disc. **No shadow**: the fill step and the 1px stroke are what raise it
+/// (`JeebNavySurfaceCard` doc; theme ruling 1 retires the navy-tinted set).
+/// It is deliberately **not** tappable: unlike Settings, this tab exposes no
 /// edit-profile edge today, and the restyle adds no navigation.
 ///
 /// Exposes the JM-035 AC1 identifiers `customer_profile_avatar`,
 /// `customer_profile_name` and `customer_profile_rating` (the wallet chip + bell
 /// are shell-owned, painted by `ShellHeaderActions` — NOT here, to avoid
-/// duplicate ids).
+/// duplicate ids). All three survive every state: the card is mounted whether or
+/// not `GET /users/me` has landed.
 class CustomerProfileHeader extends StatelessWidget {
   const CustomerProfileHeader({
     super.key,
@@ -36,13 +38,20 @@ class CustomerProfileHeader extends StatelessWidget {
     required this.ratingCount,
   });
 
-  /// Card radius — 18 (board `tpl 1171`), matching the Settings identity card.
-  static const double radius = 18;
+  /// Board 20 → the `lg` rung of the §5 ladder, inside its ±2 tolerance.
+  static const double radius = JeebRadii.lg;
 
-  /// Avatar diameter (board `tpl 1172`). Ø50 is off the kit's four named sizes,
+  /// `15px 16px` (board `tpl 1354`).
+  static const EdgeInsetsGeometry padding =
+      EdgeInsetsDirectional.symmetric(horizontal: 16, vertical: 15);
+
+  /// Avatar diameter (board `tpl 1355`). Ø50 is off the kit's four named sizes,
   /// so it uses [JeebAvatar]'s unnamed constructor; its measured initial size
   /// for Ø50 is the board's 18px.
   static const double avatarDiameter = 50;
+
+  /// Gap between the disc and the text block (board `gap:13`).
+  static const double gap = 13;
 
   final String? name;
   final String? email;
@@ -51,16 +60,18 @@ class CustomerProfileHeader extends StatelessWidget {
   final double? rating;
   final int ratingCount;
 
+  bool get _hasName => (name ?? '').trim().isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     return JeebNavySurfaceCard(
       radius: radius,
-      shadow: JeebShadows.ctaNavy,
+      padding: padding,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _Avatar(name: name, avatarUrl: avatarUrl),
-          const SizedBox(width: Spacing.small),
+          _Avatar(name: name, avatarUrl: avatarUrl, known: _hasName),
+          const SizedBox(width: gap),
           Expanded(
             child: _Identity(
               name: name,
@@ -77,10 +88,15 @@ class CustomerProfileHeader extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.name, required this.avatarUrl});
+  const _Avatar({
+    required this.name,
+    required this.avatarUrl,
+    required this.known,
+  });
 
   final String? name;
   final String? avatarUrl;
+  final bool known;
 
   @override
   Widget build(BuildContext context) {
@@ -93,8 +109,9 @@ class _Avatar extends StatelessWidget {
         initial: name ?? '',
         diameter: CustomerProfileHeader.avatarDiameter,
         imageUrl: avatarUrl,
-        // The disc re-tones on navy (onPrimary @14%) — the board's
-        // `rgba(255,255,255,.14)` — with no parameter.
+        // No name on file is the kit's `dormant` mark — the honest "we do not
+        // know this person" rung, never a fabricated initial.
+        fill: known ? JeebAvatarFill.primary : JeebAvatarFill.dormant,
         avatarKey: const Key('customer-profile-avatar'),
       ),
     );
@@ -162,15 +179,20 @@ class _NameText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolved = (name ?? '').trim().isEmpty
+        ? AppLocalizations.of(context).profileNamePlaceholder
+        : name!;
     return Semantics(
       identifier: 'customer_profile_name',
-      label: name ?? '',
+      label: resolved,
       child: AutoDirectionText(
-        name ?? '',
+        resolved,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        // `onSurface` (#EDEFFC), not `onPrimary` (#FFFFFF): §1 is the heading
+        // ink app-wide and a tile reading pure white does not override it.
         style: context.jeebText.cardTitle.copyWith(
-          color: Theme.of(context).colorScheme.onPrimary,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
@@ -183,13 +205,12 @@ class _NameBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // The shared badge inks itself from `secondaryContainer` (navy) and would be
-    // invisible on this navy card. Re-point that one role for the badge subtree
-    // rather than forking a private copy of a shared widget.
+    // The shared badge inks itself from `secondaryContainer` (surfaceHigh) and
+    // would be invisible on this navy card; re-point that one role to §1's ink.
     return Theme(
       data: theme.copyWith(
         colorScheme: theme.colorScheme.copyWith(
-          secondaryContainer: theme.colorScheme.onPrimary,
+          secondaryContainer: theme.colorScheme.onSurface,
         ),
       ),
       child: JeebVerifiedBadge(
@@ -213,8 +234,7 @@ class _Email extends StatelessWidget {
       email,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      // Periwinkle on navy — the same subtitle ink the Settings identity card
-      // uses (board `tpl 1175`).
+      // Periwinkle on navy — R22's identity subtitle ink (`tpl 1357`).
       style: context.jeebText.bodySmall.copyWith(color: muted),
     );
   }

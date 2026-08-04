@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_accent_frame_card.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -13,6 +14,13 @@ import '../../../../l10n/app_localizations.dart';
 /// Become-a-Jeeber row, and it spends this screen's whole orange budget: the
 /// Ø38 disc is the only accent fill and `Register` the only accent word, so
 /// every other card stays outline-over-shadow.
+///
+/// MIDNIGHT M3-07: the frame takes `JeebAccentFrameFill.accentTint` — R22's lit
+/// frame measures an orange 10–12 % fill inside the 2px stroke (`tpl 1362`,
+/// wave-C ruling 10), which `SettingsBecomeJeeberCard` already ships and this
+/// twin did not. The frame's `0 0 24px` bloom is NOT drawn here: the painter
+/// that draws it is private to the Settings widget, and duplicating it across
+/// feature dirs is what the kit exists to prevent (open question Q-M3-07-1).
 ///
 /// It replaces the old navy `OmdsPrimaryButton` pill that used to be the
 /// trailing affordance of a plain row. The tap target, the destination and the
@@ -33,10 +41,12 @@ class CustomerProfileRegisterCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     final roles = context.jeebRoles;
+    final semantics = Theme.of(context).extension<JeebSemanticColors>()!;
 
     return JeebAccentFrameCard(
       identifier: 'customer_profile_register_delivery_row',
       semanticLabel: l10n.customerProfileRegisterAsDelivery,
+      fill: JeebAccentFrameFill.accentTint,
       onTap: onTap,
       child: Row(
         children: [
@@ -56,11 +66,25 @@ class CustomerProfileRegisterCard extends StatelessWidget {
           ),
           const SizedBox(width: Spacing.small),
           Expanded(
-            child: Text(
-              l10n.customerProfileRegisterAsDelivery,
-              style: context.jeebText.cardTitle.copyWith(
-                color: colorScheme.onSurface,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.customerProfileRegisterAsDelivery,
+                  style: context.jeebText.body.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  l10n.becomeJeeberCardSubtitle,
+                  style: context.jeebText.bodySmall.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: semantics.inkSoft,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: Spacing.small),

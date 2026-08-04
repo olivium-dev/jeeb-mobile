@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/layout/bottom_inset.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../rate_app/domain/app_review_launcher.dart';
 import '../../settings/presentation/widgets/logout_delete_confirm_sheet.dart';
 import '../application/customer_profile_cubit.dart';
@@ -16,11 +18,24 @@ import '../domain/customer_profile_repository.dart';
 import '../domain/customer_profile_view_data.dart';
 import 'widgets/customer_profile_header.dart';
 import 'widgets/customer_profile_rows.dart';
+import 'widgets/customer_profile_status_block.dart';
 
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/customer_profile_screen_fixtures.dart';
 
 /// Customer Profile tab body (JM-035). Tab surface shared by cl
+///
+/// MIDNIGHT M3-07 — the board never drew this screen, so it is derived from its
+/// nearest tile, **R22 Settings** (`22-r22-settings.png`): identity card →
+/// one lit orange frame → periwinkle section labels over grouped glass row
+/// cards → a detached sign-out card. Both screens already cite the same board
+/// template run, and `settings_screen.dart` is the measured twin.
+///
+/// Field: `content` variant, ORANGE glow `topEnd` — R22 declares
+/// `radial-gradient(480px 380px at 88% -6%)` and **no periwinkle wash**
+/// (study notes, wave-C/D). `animateDecor: false`: R22 is board-still, and an
+/// M3 row earns no motion the board never drew. The shell paints no field of
+/// its own (`shell_screen.dart`), so every tab body mounts one.
 class CustomerProfileScreen extends StatelessWidget {
   const CustomerProfileScreen({
     super.key,
@@ -75,11 +90,17 @@ class _CustomerProfileView extends StatelessWidget {
     return Semantics(
       identifier: 'customer_profile_root',
       container: true,
-      child: Scaffold(
-        body: SafeArea(
-          child: BlocBuilder<CustomerProfileCubit, CustomerProfileState>(
-            builder: (context, state) =>
-                _Body(data: state.data, reviewLauncher: reviewLauncher),
+      child: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topEnd,
+        animateDecor: false,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: BlocBuilder<CustomerProfileCubit, CustomerProfileState>(
+              builder: (context, state) =>
+                  _Body(state: state, reviewLauncher: reviewLauncher),
+            ),
           ),
         ),
       ),
@@ -88,24 +109,24 @@ class _CustomerProfileView extends StatelessWidget {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.data, required this.reviewLauncher});
+  const _Body({required this.state, required this.reviewLauncher});
 
-  final CustomerProfileViewData data;
+  final CustomerProfileState state;
   final AppReviewLauncher reviewLauncher;
 
   @override
   Widget build(BuildContext context) {
+    final CustomerProfileViewData data = state.data;
     return ListView(
       key: CustomerProfileScreen.rootKey,
-      // redesign-2026-08: the board's 24px side gutter, owned once by the list
-      // instead of by each band. The top inset clears the shell-overlaid header
-      // actions (wallet chip + bell) so the identity card never sits under them;
-      // Spacing tops out at fourXLarge, so the 56 comes from the Sizes ramp.
-      padding: const EdgeInsetsDirectional.fromSTEB(
+      // The board's 24px side gutter, owned once by the list instead of by each
+      // band. The top inset clears the shell-overlaid header actions; the bottom
+      // one reserves the floating pill nav this tab scrolls under.
+      padding: EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,
         Sizes.fiveXLarge,
         Spacing.xLarge,
-        Spacing.twoXLarge,
+        Spacing.twoXLarge + context.scrollBodyBottomInset,
       ),
       children: [
         CustomerProfileHeader(
@@ -116,6 +137,14 @@ class _Body extends StatelessWidget {
           rating: data.rating,
           ratingCount: data.ratingCount,
         ),
+        if (CustomerProfileStatusBlock.showsFor(state)) ...[
+          const SizedBox(height: Spacing.small),
+          CustomerProfileStatusBlock(
+            state: state,
+            onRetry: () =>
+                unawaited(context.read<CustomerProfileCubit>().refresh()),
+          ),
+        ],
         const SizedBox(height: Spacing.small),
         CustomerProfileRows(
           showRegister: !data.isJeeber,

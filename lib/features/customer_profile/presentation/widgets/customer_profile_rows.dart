@@ -64,9 +64,11 @@ class CustomerProfileRows extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // R22 opens each labelled band with 20 (`tpl 1370`/`1377`), not the 16
+        // that separates the two cards above the first label.
         if (showRegister) ...[
           CustomerProfileRegisterCard(onTap: onRegisterDelivery),
-          const SizedBox(height: Spacing.medium),
+          const SizedBox(height: Spacing.large),
         ],
 
         // ── Account ──────────────────────────────────────────────────────
@@ -105,7 +107,7 @@ class CustomerProfileRows extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: Spacing.medium),
+        const SizedBox(height: Spacing.large),
 
         // ── Support ──────────────────────────────────────────────────────
         JeebSectionLabel(l10n.customerProfileSectionSupport),
@@ -126,7 +128,7 @@ class CustomerProfileRows extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: Spacing.small),
+        const SizedBox(height: Spacing.large),
 
         // ── Sign out — its own card, no chevron: it opens the confirm sheet
         //    in place instead of navigating (board `tpl 1216`).

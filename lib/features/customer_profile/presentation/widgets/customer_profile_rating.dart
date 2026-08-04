@@ -3,7 +3,6 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
-import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../l10n/app_localizations.dart';
 
 /// Per-role rating line on the customer-profile identity card (JM-035 AC1, D6).
@@ -13,10 +12,10 @@ import '../../../../l10n/app_localizations.dart';
 /// "★ 4.9 · 312 Reviews", an unrated account shows a deterministic "No reviews
 /// yet" state. The id is presence-only (i18n-safe); the value is never asserted.
 ///
-/// redesign-2026-08: the star inherits the SURFACE ink via [JeebSurfaceTone]
-/// (white on the navy identity card, navy on a light one) rather than the warm
-/// `starRatingColor` — §4.1 rations orange/amber to rating *stats*, and
-/// `JeebProfileHeader`'s pinned navy star is the same rule.
+/// MIDNIGHT M3-07: the star is `JeebSemanticColors.amber` (`#FFC107`), the
+/// token sheet §3 field whose stated use is "stars/ratings" — R15's caption is
+/// explicit that the board's stars shine amber on the night field. The count
+/// run stays `mutedText`; amber is the glyph only.
 ///
 /// Copy reuses the existing `deliveryManProfile*` rating keys (same rating-row
 /// semantics) — no new ARB keys (l10n is integrator-owned). A dedicated
@@ -37,8 +36,8 @@ class CustomerProfileRating extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final tone = JeebSurfaceTone.of(context);
-    final muted = Theme.of(context).extension<JeebSemanticColors>()?.mutedText;
+    final semantics = Theme.of(context).extension<JeebSemanticColors>();
+    final muted = semantics?.mutedText;
 
     final ratingText = (rating ?? 0).toStringAsFixed(1);
     final label = _hasRating
@@ -61,7 +60,8 @@ class CustomerProfileRating extends StatelessWidget {
           Icon(
             _hasRating ? Icons.star_rounded : Icons.star_border_rounded,
             size: Sizes.medium,
-            color: tone.titleInk,
+            // R15 draws the unearned star muted, never a dim amber.
+            color: _hasRating ? semantics?.amber : muted,
           ),
           const SizedBox(width: Spacing.twoXSmall),
           Flexible(
