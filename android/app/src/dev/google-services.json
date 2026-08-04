@@ -58,6 +58,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "1051234312170-1fo2gccm3phur4v66rp3oc442hkpdh2l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.jeeb.mobile.dev",
+            "certificate_hash": "7055838373f8bc1ea4b02c97ec6431543f126224"
+          }
+        },
+        {
           "client_id": "1051234312170-8hbgasvbfmerg6h2rk3vgu80ojh4hq3d.apps.googleusercontent.com",
           "client_type": 3
         }

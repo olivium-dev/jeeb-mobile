@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../core/network/auth_token_store.dart';
 import 'social_auth_token.dart';
 
 /// Secure persistence for the JWT bundle minted by jeeb-gateway after a
@@ -12,27 +13,24 @@ abstract class SocialAuthTokenStore {
 }
 
 class SecureSocialAuthTokenStore implements SocialAuthTokenStore {
-  SecureSocialAuthTokenStore({FlutterSecureStorage? storage})
-      : _storage = storage ??
-            const FlutterSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
-              iOptions: IOSOptions(
-                accessibility: KeychainAccessibility.first_unlock,
-              ),
-            );
+  SecureSocialAuthTokenStore({
+    FlutterSecureStorage? storage,
+    AuthTokenStore? authTokenStore,
+  })  : _storage = storage ?? const FlutterSecureStorage(),
+        _authTokenStore = authTokenStore ?? AuthTokenStore();
 
   final FlutterSecureStorage _storage;
+  final AuthTokenStore _authTokenStore;
 
-  static const _userIdKey = 'jeeb.auth.userId';
-  static const _authTokenKey = 'jeeb.auth.authToken';
-  static const _refreshTokenKey = 'jeeb.auth.refreshToken';
   static const _recentlyCreatedKey = 'jeeb.auth.recentlyCreated';
 
   @override
   Future<void> save(SocialAuthSession session) async {
-    await _storage.write(key: _userIdKey, value: session.userId);
-    await _storage.write(key: _authTokenKey, value: session.authToken);
-    await _storage.write(key: _refreshTokenKey, value: session.refreshToken);
+    await _authTokenStore.save(
+      accessToken: session.authToken,
+      refreshToken: session.refreshToken,
+      userId: session.userId,
+    );
     await _storage.write(
       key: _recentlyCreatedKey,
       value: session.recentlyCreated ? '1' : '0',
@@ -41,9 +39,9 @@ class SecureSocialAuthTokenStore implements SocialAuthTokenStore {
 
   @override
   Future<SocialAuthSession?> read() async {
-    final userId = await _storage.read(key: _userIdKey);
-    final authToken = await _storage.read(key: _authTokenKey);
-    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    final userId = await _authTokenStore.userId;
+    final authToken = await _authTokenStore.accessToken;
+    final refreshToken = await _authTokenStore.refreshToken;
     if (userId == null || authToken == null || refreshToken == null) {
       return null;
     }
@@ -58,9 +56,7 @@ class SecureSocialAuthTokenStore implements SocialAuthTokenStore {
 
   @override
   Future<void> clear() async {
-    await _storage.delete(key: _userIdKey);
-    await _storage.delete(key: _authTokenKey);
-    await _storage.delete(key: _refreshTokenKey);
+    await _authTokenStore.clear();
     await _storage.delete(key: _recentlyCreatedKey);
   }
 }

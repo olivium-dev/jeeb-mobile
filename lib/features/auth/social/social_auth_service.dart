@@ -1,6 +1,8 @@
 import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -38,15 +40,22 @@ class DefaultSocialAuthService implements SocialAuthService {
   DefaultSocialAuthService({
     required Dio dio,
     GoogleSignIn? googleSignIn,
+    FirebaseAuth? firebaseAuth,
+    Future<void> Function()? firebaseInitializer,
     bool Function()? isApplePlatform,
     SocialAuthSeamResolver? seamResolver,
   })  : _dio = dio,
         _google = googleSignIn ?? GoogleSignIn(scopes: const ['email']),
+        _firebaseAuth = firebaseAuth,
+        _firebaseInitializer =
+            firebaseInitializer ?? _defaultFirebaseInitializer,
         _isApplePlatform = isApplePlatform ?? _defaultIsApplePlatform,
         _seamResolver = seamResolver;
 
   final Dio _dio;
   final GoogleSignIn _google;
+  final FirebaseAuth? _firebaseAuth;
+  final Future<void> Function() _firebaseInitializer;
   final bool Function() _isApplePlatform;
 
   final SocialAuthSeamResolver? _seamResolver;
@@ -63,21 +72,25 @@ class DefaultSocialAuthService implements SocialAuthService {
       if (seamed != null) return seamed;
     }
     try {
-      final idToken = switch (provider) {
+      final credential = switch (provider) {
         SocialProvider.google => await _signInWithGoogle(),
         SocialProvider.apple => await _signInWithApple(),
         SocialProvider.facebook => await _signInWithFacebook(),
       };
-      if (idToken == null) {
+      if (credential == null) {
         return const SocialAuthFailure(SocialAuthError.cancelled);
       }
-      return await _exchangeToken(provider: provider, idToken: idToken);
-    } on _CancelledException {
-      return const SocialAuthFailure(SocialAuthError.cancelled);
+      return await _exchangeToken(provider: provider, credential: credential);
+    } on _InvalidTokenException {
+      return const SocialAuthFailure(SocialAuthError.invalidToken);
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code == AuthorizationErrorCode.canceled) {
         return const SocialAuthFailure(SocialAuthError.cancelled);
       }
+      return const SocialAuthFailure(SocialAuthError.unknown);
+    } on FirebaseAuthException catch (e) {
+      return SocialAuthFailure(_mapFirebaseAuthError(e));
+    } on FirebaseException {
       return const SocialAuthFailure(SocialAuthError.unknown);
     } on PlatformException catch (e) {
       if (_isCancellationCode(e.code)) {
@@ -100,18 +113,32 @@ class DefaultSocialAuthService implements SocialAuthService {
     }
   }
 
-  Future<String?> _signInWithGoogle() async {
+  Future<_SocialCredential?> _signInWithGoogle() async {
     final account = await _google.signIn();
     if (account == null) return null; // user cancelled
     final auth = await account.authentication;
-    final token = auth.idToken;
-    if (token == null || token.isEmpty) {
-      throw const _CancelledException();
+    final googleIdToken = auth.idToken;
+    if (googleIdToken == null || googleIdToken.isEmpty) {
+      throw const _InvalidTokenException();
     }
-    return token;
+
+    await _firebaseInitializer();
+    final googleCredential = GoogleAuthProvider.credential(
+      accessToken: auth.accessToken,
+      idToken: googleIdToken,
+    );
+    final firebaseCredential = await (_firebaseAuth ?? FirebaseAuth.instance)
+        .signInWithCredential(googleCredential);
+    final user = firebaseCredential.user;
+    if (user == null) throw const _InvalidTokenException();
+    final firebaseIdToken = await user.getIdToken();
+    if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
+      throw const _InvalidTokenException();
+    }
+    return _SocialCredential(socialId: user.uid, socialToken: firebaseIdToken);
   }
 
-  Future<String?> _signInWithApple() async {
+  Future<_SocialCredential?> _signInWithApple() async {
     if (!_isApplePlatform()) {
       return null;
     }
@@ -123,25 +150,34 @@ class DefaultSocialAuthService implements SocialAuthService {
     );
     final token = credential.identityToken;
     if (token == null || token.isEmpty) {
-      throw const _CancelledException();
+      throw const _InvalidTokenException();
     }
-    return token;
+    return _SocialCredential(
+      socialId: credential.userIdentifier ?? 'apple',
+      socialToken: token,
+    );
   }
 
-  Future<String?> _signInWithFacebook() async {
-    return 'facebook-oauth-grant';
+  Future<_SocialCredential?> _signInWithFacebook() async {
+    return const _SocialCredential(
+      socialId: 'facebook',
+      socialToken: 'facebook-oauth-grant',
+    );
   }
 
   Future<SocialAuthResult> _exchangeToken({
     required SocialProvider provider,
-    required String idToken,
+    required _SocialCredential credential,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/v1/auth/social',
         data: <String, dynamic>{
+          'socialId': credential.socialId,
+          'socialToken': credential.socialToken,
+          'socialPlatform': provider.wireName,
           'provider': provider.wireName,
-          'idToken': idToken,
+          'idToken': credential.socialToken,
         },
       );
       final data = response.data;
@@ -205,6 +241,35 @@ class DefaultSocialAuthService implements SocialAuthService {
     }
   }
 
+  SocialAuthError _mapFirebaseAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'network-request-failed':
+        return SocialAuthError.network;
+      case 'user-disabled':
+        return SocialAuthError.accountDisabled;
+      case 'account-exists-with-different-credential':
+      case 'credential-already-in-use':
+      case 'email-already-in-use':
+        return SocialAuthError.collision;
+      case 'invalid-credential':
+      case 'invalid-user-token':
+      case 'user-token-expired':
+        return SocialAuthError.invalidToken;
+      default:
+        return SocialAuthError.unknown;
+    }
+  }
+
+  static Future<void> _defaultFirebaseInitializer() async {
+    if (Firebase.apps.isNotEmpty) return;
+    try {
+      await Firebase.initializeApp();
+    } on FirebaseException catch (e) {
+      if (e.code == 'duplicate-app') return;
+      rethrow;
+    }
+  }
+
   static const _googleCancelCodes = {
     'sign_in_canceled',
     'canceled',
@@ -215,6 +280,13 @@ class DefaultSocialAuthService implements SocialAuthService {
   bool _isCancellationCode(String code) => _googleCancelCodes.contains(code);
 }
 
-class _CancelledException implements Exception {
-  const _CancelledException();
+class _InvalidTokenException implements Exception {
+  const _InvalidTokenException();
+}
+
+class _SocialCredential {
+  const _SocialCredential({required this.socialId, required this.socialToken});
+
+  final String socialId;
+  final String socialToken;
 }

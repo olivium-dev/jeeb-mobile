@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -342,7 +344,7 @@ class _RegistrationViewState extends State<_RegistrationView> {
                                       state: state,
                                       phoneController: _phoneController,
                                       onSocialAuthenticated: () =>
-                                          _onSocialAuthenticated(context),
+                                          unawaited(_onSocialAuthenticated()),
                                     ),
                                   ],
                                 ),
@@ -365,12 +367,12 @@ class _RegistrationViewState extends State<_RegistrationView> {
     );
   }
 
-  void _onSocialAuthenticated(BuildContext context) {
+  Future<void> _onSocialAuthenticated() async {
     final cb = widget.onSocialAuthenticated ?? widget.onVerified;
     if (cb != null) {
       cb();
     } else {
-      context.go('/');
+      await _navigateHome();
     }
   }
 }
