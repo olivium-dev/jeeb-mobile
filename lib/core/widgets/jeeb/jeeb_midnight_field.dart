@@ -38,13 +38,17 @@ enum JeebFieldGlowPlacement {
       AlignmentDirectional(fx * 2 - 1, fy * 2 - 1);
 }
 
-/// Periwinkle-wash anchors, both attested. Directional, like the glow.
+/// Periwinkle-wash anchors, all attested. Directional, like the glow.
 enum JeebFieldWashPlacement {
   /// R1's own wash, measured: start edge at mid-height, dying by x ≈ 0.40.
   startMid(0.0, 0.39, 0.18, 0.667, 1.35),
 
   /// The §8 anchor, drawn by other tiles.
-  bottomEnd(0.90, 1.0, 0.22, 1.0, _glowAspect);
+  bottomEnd(0.90, 1.0, 0.22, 1.0, _glowAspect),
+
+  /// R14/R7/R21/E4's top-start bloom, board `480px 400px at 12% -6%` — the
+  /// start-side mirror of the `topEnd` glow, above the top edge, not at mid.
+  topStart(0.12, -0.06, 0.22, 480 / 440, 400 / 480);
 
   const JeebFieldWashPlacement(
     this.fx,

@@ -14,10 +14,10 @@ enum _JeebStepState { done, active, pending }
 
 /// Which ink [JeebStepper.bars] fills its **passed** segments with.
 ///
-/// The two board tiles that draw the bar form genuinely disagree, so the fill
-/// is a parameter rather than a per-screen repaint: 18 (R18) leaves the passed
-/// run periwinkle, R3 (live tracking) runs it ORANGE so the fill reads as one
-/// continuous bar up to and including the active segment.
+/// The board tiles that draw the bar form genuinely disagree, so the fill is a
+/// parameter rather than a per-screen repaint: R18 washes the passed run WHITE,
+/// R3 (live tracking) runs it ORANGE so the fill reads as one continuous bar up
+/// to and including the active segment.
 ///
 /// The ink is resolved from the theme inside the kit — a raw [Color] here
 /// would push a semantic colour literal back out into `lib/features`.
@@ -29,6 +29,10 @@ enum JeebStepperDoneInk {
 
   /// `jeebRoles.accent`, against the orange budget on the tiles that draw it.
   accent,
+
+  /// R18's measured white wash. Deliberately OFF the 7/10/14 glass ladder —
+  /// a stepper ink, not a new glass rung (wave-C ruling 11).
+  washed,
 }
 
 /// The linear-progress widget (redesign-2026-08 §5 #11), in its **two realized
@@ -75,8 +79,8 @@ class JeebStepper extends StatelessWidget {
   /// `ValueKey<String>('active_delivery_stage_<name>_<state>')`s onto the
   /// segments so its `find.byKey` family keeps passing unedited.
   ///
-  /// [doneInk] selects the passed-segment fill; it defaults to the periwinkle
-  /// 18 draws, so existing call sites are unaffected.
+  /// [doneInk] selects the passed-segment fill; it defaults to periwinkle, so
+  /// existing call sites are unaffected.
   const JeebStepper.bars({
     super.key,
     required int stepCount,
@@ -144,6 +148,10 @@ class JeebStepper extends StatelessWidget {
 
   /// Retained for API stability: the retired spread-ring form of [barGlow].
   static const double barGlowSpread = 3;
+
+  /// [JeebStepperDoneInk.washed] — board `rgba(255,255,255,.35)`, R18 `tpl
+  /// 1085-1087`.
+  static const Color washedInk = Color(0x59FFFFFF);
 
   // ── Pulse ────────────────────────────────────────────────────────────────
 
@@ -276,6 +284,7 @@ class JeebStepper extends StatelessWidget {
     final Color done = switch (doneInk) {
       JeebStepperDoneInk.periwinkle => theme.colorScheme.secondary,
       JeebStepperDoneInk.accent => accent,
+      JeebStepperDoneInk.washed => washedInk,
     };
     final List<Widget> children = <Widget>[];
     for (var index = 0; index < _barCount; index++) {

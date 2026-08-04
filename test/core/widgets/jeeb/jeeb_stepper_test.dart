@@ -84,6 +84,7 @@ const Color _periwinkle = Color(0xFF8A93D8);
 const Color _pageNavy = Color(0xFF070C33);
 const Color _orange = Color(0xFFD73B00);
 const Color _glassFillPressed = Color(0x24FFFFFF);
+const Color _washedWhite = Color(0x59FFFFFF);
 const Color _glassBorderStrong = Color(0x29FFFFFF);
 
 TextStyle _labelStyleOf(WidgetTester tester, String label) =>
@@ -550,6 +551,48 @@ void main() {
       expect(rules[1].boxShadow, isNull);
       expect(rules[2].boxShadow, JeebStepper.barGlow);
       expect(rules[3].boxShadow, isNull);
+    });
+
+    testWidgets('doneInk.washed fills R18\'s passed bars white', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const JeebStepper.bars(
+            stepCount: 4,
+            currentIndex: 2,
+            doneInk: JeebStepperDoneInk.washed,
+          ),
+        ),
+      );
+
+      final List<BoxDecoration> rules = _rules(tester).toList();
+      // Board `rgba(255,255,255,.35)`, NOT the ratified periwinkle.
+      expect(rules[0].color, _washedWhite);
+      expect(rules[1].color, _washedWhite);
+      expect(rules[0].color, JeebStepper.washedInk);
+      expect(rules[0].color, isNot(_periwinkle));
+      expect(rules[0].color, isNot(_scheme.secondary));
+      expect(rules[0].boxShadow, isNull);
+      // The ink moves the passed run only.
+      expect(rules[2].color, _orange);
+      expect(rules[2].boxShadow, JeebStepper.barGlow);
+      expect(rules[3].color, _glassFillPressed);
+    });
+
+    test('washed sits OFF the 7/10/14 glass ladder', () {
+      expect(JeebStepper.washedInk.a, closeTo(0.35, 1 / 255));
+      expect(
+        JeebStepper.washedInk.a,
+        greaterThan(_semantics.glassFillPressed.a),
+      );
+      for (final Color rung in <Color>[
+        _semantics.glassFill,
+        _semantics.glassFillEmphasis,
+        _semantics.glassFillPressed,
+      ]) {
+        expect(JeebStepper.washedInk, isNot(rung));
+      }
     });
 
     testWidgets('doneInk leaves the node form\'s connectors periwinkle', (

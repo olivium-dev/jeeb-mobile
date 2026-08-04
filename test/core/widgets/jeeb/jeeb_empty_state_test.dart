@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/motion/jeeb_motion.dart';
@@ -593,6 +595,243 @@ void main() {
       final Size size = tester.getSize(inState(FittedBox).first);
       expect(size.width, 288);
       expect(size.height, closeTo(288 * 260 / 300, 0.01));
+    });
+  });
+
+  group('JeebEmptyState · E4 parcel', () {
+    const JeebEmptyState parcel = JeebEmptyState(
+      headline: 'No orders yet',
+      body: 'Your first errand is one voice note away.',
+      variant: JeebEmptyStateVariant.parcel,
+    );
+
+    /// The illustration's static layers, in `_parcelLayers` order:
+    /// 0 orbit ring · 1 box · 2 mic.
+    RenderObject layer(WidgetTester tester, int index) =>
+        tester.renderObject(inState(CustomPaint).at(index));
+
+    testWidgets('animates exactly 4 elements — glow + the sparkle ladder',
+        (tester) async {
+      await tester.pumpWidget(wrap(parcel));
+      await tester.pump();
+
+      expect(
+        durationsOf<JBreathe>(tester, (JBreathe w) => w.duration),
+        <Duration>[const Duration(milliseconds: 3200)],
+      );
+      expect(
+        durationsOf<JBreathe>(tester, (JBreathe w) => w.delay),
+        <Duration>[Duration.zero],
+      );
+      expect(inState(JTwinkle), findsNWidgets(3));
+
+      // The 250px orbit ring does NOT pulse, and E4 draws no waveform ears,
+      // no float, no halo and no route — those are E1/pocket/balcony.
+      expect(inState(JArcPulse), findsNothing);
+      expect(inState(JWaveBar), findsNothing);
+      expect(inState(JFloat), findsNothing);
+      expect(inState(JHalo), findsNothing);
+      expect(inState(JDashedPath), findsNothing);
+    });
+
+    testWidgets('rides E1\'s three-sparkle ladder verbatim', (tester) async {
+      await tester.pumpWidget(wrap(parcel));
+      await tester.pump();
+      final List<Duration> parcelPeriods =
+          durationsOf<JTwinkle>(tester, (JTwinkle w) => w.duration);
+      final List<Duration> parcelDelays =
+          durationsOf<JTwinkle>(tester, (JTwinkle w) => w.delay);
+
+      await tester.pumpWidget(wrap(e1));
+      await tester.pump();
+      // E1's first three ARE the ladder; its 4th and 5th are the extra star
+      // dots E4 does not draw.
+      expect(
+        parcelPeriods,
+        durationsOf<JTwinkle>(tester, (JTwinkle w) => w.duration).sublist(0, 3),
+      );
+      expect(
+        parcelDelays,
+        durationsOf<JTwinkle>(tester, (JTwinkle w) => w.delay).sublist(0, 3),
+      );
+      expect(parcelPeriods, <Duration>[
+        const Duration(milliseconds: 2400),
+        const Duration(milliseconds: 2800),
+        const Duration(seconds: 3),
+      ]);
+      expect(parcelDelays, <Duration>[
+        Duration.zero,
+        const Duration(milliseconds: 700),
+        const Duration(milliseconds: 1300),
+      ]);
+    });
+
+    testWidgets('keeps E4\'s 270x250 board box', (tester) async {
+      await tester.pumpWidget(wrap(parcel, disableAnimations: true));
+      await tester.pumpAndSettle();
+
+      final Size size = tester.getSize(inState(FittedBox).first);
+      expect(size.width, 288);
+      expect(size.height, closeTo(288 * 250 / 270, 0.01));
+    });
+
+    testWidgets('the 250px orbit ring is a 1px white-7% hairline',
+        (tester) async {
+      await tester.pumpWidget(wrap(parcel, disableAnimations: true));
+      await tester.pumpAndSettle();
+
+      expect(
+        layer(tester, 0),
+        paints
+          ..circle(
+            x: 135,
+            y: 125,
+            radius: 125,
+            color: JeebMidnight.ink.withValues(alpha: 0.07),
+            strokeWidth: 1,
+            style: PaintingStyle.stroke,
+          ),
+      );
+    });
+
+    testWidgets('the box is emphasis glass under a lid tipped off it',
+        (tester) async {
+      await tester.pumpWidget(wrap(parcel, disableAnimations: true));
+      await tester.pumpAndSettle();
+
+      expect(
+        layer(tester, 1),
+        paints
+          ..rrect(
+            rrect: RRect.fromRectAndRadius(
+              const Rect.fromLTWH(70, 95, 130, 78),
+              const Radius.circular(14),
+            ),
+            color: JeebMidnight.glassFillEmphasis,
+          )
+          ..rrect(color: JeebMidnight.glassBorderVivid)
+          // The lid is drawn under its own -4° rotation, so the open box reads
+          // as open rather than as a second rectangle.
+          ..rotate(angle: -4 * math.pi / 180)
+          ..rrect(
+            rrect: RRect.fromRectAndRadius(
+              const Rect.fromLTWH(60, 77, 150, 26),
+              const Radius.circular(8),
+            ),
+            color: JeebMidnight.ink.withValues(alpha: 0.16),
+          ),
+      );
+    });
+
+    testWidgets('the mic glows orange inside the box', (tester) async {
+      await tester.pumpWidget(wrap(parcel, disableAnimations: true));
+      await tester.pumpAndSettle();
+
+      expect(
+        layer(tester, 2),
+        paints
+          // Ø34 disc + its `0 0 0 6px` bloom, centred on the box mouth.
+          ..circle(
+            x: 135,
+            y: 130,
+            radius: 20,
+            color: JeebMidnight.orange.withValues(alpha: 0.2),
+            strokeWidth: 6,
+            style: PaintingStyle.stroke,
+          )
+          ..circle(
+            x: 135,
+            y: 130,
+            radius: 17,
+            color: JeebMidnight.orange,
+            style: PaintingStyle.fill,
+          ),
+      );
+    });
+
+    testWidgets('the three sparkles are round dots: one orange, two white',
+        (tester) async {
+      await tester.pumpWidget(wrap(parcel, disableAnimations: true));
+      await tester.pumpAndSettle();
+
+      final List<BoxDecoration> dots = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: inState(JTwinkle),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((DecoratedBox box) => box.decoration as BoxDecoration)
+          .toList();
+      expect(dots.length, 3);
+      // Round, not the 4-point star E1 draws for its ladder.
+      expect(dots.every((BoxDecoration d) => d.shape == BoxShape.circle), isTrue);
+      expect(dots.map((BoxDecoration d) => d.color).toList(), <Color>[
+        JeebMidnight.orange,
+        JeebMidnight.ink.withValues(alpha: 0.4),
+        JeebMidnight.ink.withValues(alpha: 0.3),
+      ]);
+      // Board diameters 5 / 6 / 5, in the illustration's own units.
+      final List<double> widths = tester
+          .widgetList<JTwinkle>(inState(JTwinkle))
+          .map((JTwinkle w) => tester.getSize(find.byWidget(w)).width)
+          .toList();
+      expect(widths, <double>[5, 6, 5]);
+    });
+
+    testWidgets('error danger-tints the glow and the mic', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState(
+            headline: 'Something went wrong',
+            variant: JeebEmptyStateVariant.parcel,
+            status: JeebEmptyStateStatus.error,
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final DecoratedBox glow =
+          tester.widget<DecoratedBox>(inState(DecoratedBox).first);
+      final RadialGradient gradient =
+          (glow.decoration as BoxDecoration).gradient! as RadialGradient;
+      expect(gradient.colors.first, JeebMidnight.danger.withValues(alpha: 0.22));
+      expect(gradient.stops, <double>[0, 0.7]);
+      expect(
+        layer(tester, 2),
+        paints
+          ..circle(style: PaintingStyle.stroke)
+          ..circle(radius: 17, color: JeebMidnight.danger),
+      );
+    });
+
+    testWidgets('a custom centre replaces the Ø34 mic, the box stays',
+        (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState(
+            headline: 'No orders yet',
+            variant: JeebEmptyStateVariant.parcel,
+            center: Placeholder(key: ValueKey<String>('parcel-centre')),
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey<String>('parcel-centre')), findsOneWidget);
+      expect(tester.getSize(find.byType(Placeholder)).width, closeTo(34, 0.01));
+      // Ring and box survive; only the mic layer is gone.
+      expect(layer(tester, 0), paints..circle(x: 135, y: 125, radius: 125));
+      expect(
+        layer(tester, 1),
+        paints..rrect(color: JeebMidnight.glassFillEmphasis),
+      );
+      expect(
+        layer(tester, 2),
+        isNot(paints..circle(radius: 17, color: JeebMidnight.orange)),
+      );
     });
   });
 

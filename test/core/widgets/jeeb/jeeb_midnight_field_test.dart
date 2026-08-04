@@ -433,6 +433,53 @@ void main() {
       expect(pixel(0.02, 0.39).r, closeTo(pixel(0.98, 0.39).r, 2 / 255));
     });
 
+    test('topStart carries the measured R14/R7/R21/E4 anchor', () {
+      expect(JeebFieldWashPlacement.topStart.fx, 0.12);
+      expect(JeebFieldWashPlacement.topStart.fy, -0.06);
+      expect(JeebFieldWashPlacement.topStart.alpha, 0.22);
+      // Board `480px 400px` are RADII on the 440 canvas.
+      expect(
+        JeebFieldWashPlacement.topStart.radiusFactor,
+        closeTo(480 / 440, 1e-9),
+      );
+      expect(JeebFieldWashPlacement.topStart.aspect, closeTo(400 / 480, 1e-9));
+      // The start-side mirror of the topEnd glow: above the top edge, not mid.
+      expect(JeebFieldWashPlacement.topStart.fy, JeebFieldGlowPlacement.topEnd.fy);
+      expect(
+        JeebFieldWashPlacement.topStart.alignment.resolve(TextDirection.ltr).x,
+        lessThan(0),
+      );
+      expect(
+        JeebFieldWashPlacement.topStart.alignment.resolve(TextDirection.rtl).x,
+        greaterThan(0),
+      );
+    });
+
+    testWidgets('topStart blooms over the START corner, not at mid-height', (
+      WidgetTester tester,
+    ) async {
+      await pumpField(tester, variant: JeebFieldVariant.content);
+      final Color Function(double, double) bare = await sampler(tester);
+
+      await pumpField(
+        tester,
+        variant: JeebFieldVariant.content,
+        washPlacement: JeebFieldWashPlacement.topStart,
+      );
+      final Color Function(double, double) lit = await sampler(tester);
+
+      // Periwinkle over navy lifts blue; every other anchor's corner must not.
+      double lift(double fx, double fy) => lit(fx, fy).b - bare(fx, fy).b;
+
+      expect(lift(0.05, 0.02), greaterThan(0.03));
+      // The centre sits ABOVE the canvas, so the lift is already falling off at
+      // the top edge instead of peaking inside it.
+      expect(lift(0.12, 0), greaterThan(lift(0.12, 0.10) * 1.35));
+      expect(lift(0.02, 0.39), closeTo(0, 0.005));
+      expect(lift(0.95, 0.02), closeTo(0, 0.005));
+      expect(lift(0.95, 0.99), closeTo(0, 0.005));
+    });
+
     testWidgets('a non-hero variant can opt in', (WidgetTester tester) async {
       await pumpField(tester, variant: JeebFieldVariant.content);
       expect(baseLayer(), paintsExactlyCountTimes(#drawRect, 2));

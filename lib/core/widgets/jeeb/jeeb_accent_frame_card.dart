@@ -2,9 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../../theme/jeeb_color_roles.dart';
 import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_shadows.dart';
 import 'jeeb_outlined_card.dart';
 import 'jeeb_surface_tone.dart';
+
+/// What sits *inside* the accent frame — the frame form's one measured variable
+/// (wave-C ruling 10). Every rung is an existing token; no new value is coined.
+///
+/// R21's in-motion row measures [accentTint]; R16/R18/R20 are the other frame
+/// consumers and are re-measured against this enum, so a tile that lands on the
+/// lit rung has [accentSelected] rather than inventing a fourth alpha.
+enum JeebAccentFrameFill {
+  /// [JeebOutlinedCard]'s rest glass, white 7%. Today's behaviour, and the
+  /// default — an accent frame does not imply an accent fill.
+  glass,
+
+  /// `accentTint`, orange 12% (the board's 10–12% cluster). R21's in-motion row.
+  accentTint,
+
+  /// `accentSelectedFill`, orange 20% — R9's lit rung. Ruled **too hot** for
+  /// R21; offered here only for a tile that actually measures it.
+  accentSelected,
+}
 
 /// The orange-framed card (redesign-2026-08 §5 #5) — the board's "this one is
 /// live" treatment.
@@ -15,6 +35,7 @@ import 'jeeb_surface_tone.dart';
 ///  * **Unnamed (frame)** — the card's own glass fill, `2px jeebRoles.accent`,
 ///    radius `JeebRadii.lg`, **no shadow**. 16's active-delivery card, 18's
 ///    at-door handoff panel, 20's Become-a-Jeeber row, 24's in-motion order row.
+///    [fill] swaps the glass rung for an accent tint where a tile measures one.
 ///  * **[JeebAccentFrameCard.filled]** — `jeebRoles.accent` fill plus
 ///    `JeebShadows.ctaOrange` (the ratified successor to the dead navy-tinted
 ///    `accentBanner`), padding `14/16`. Exactly one consumer: 13's arrival
@@ -40,6 +61,7 @@ class JeebAccentFrameCard extends StatelessWidget {
     this.radius = JeebRadii.lg,
     this.padding = defaultPadding,
     this.borderWidth = 2,
+    this.fill = JeebAccentFrameFill.glass,
     this.onTap,
     this.identifier,
     this.semanticLabel,
@@ -58,7 +80,8 @@ class JeebAccentFrameCard extends StatelessWidget {
     this.semanticLabel,
     this.semanticHint,
   })  : filled = true,
-        borderWidth = 0;
+        borderWidth = 0,
+        fill = JeebAccentFrameFill.glass;
 
   /// `13/16` — the frame form's padding (16 `tpl 1179`, 20 §3.4). 18 passes 16
   /// all round; 24 passes `14/16`.
@@ -82,6 +105,10 @@ class JeebAccentFrameCard extends StatelessWidget {
   /// Frame width (`2` — this is the one card whose border is not 1.5). Always 0
   /// for [JeebAccentFrameCard.filled].
   final double borderWidth;
+
+  /// Which fill sits inside the frame. Ignored by
+  /// [JeebAccentFrameCard.filled], which is a solid accent surface.
+  final JeebAccentFrameFill fill;
 
   /// Makes the whole card tappable (20's row, 24's order row).
   final VoidCallback? onTap;
@@ -107,7 +134,9 @@ class JeebAccentFrameCard extends StatelessWidget {
       // One card implementation. The frame form is literally the outlined card
       // with a different stroke, so it inherits the border-box padding
       // correction, the clip, the ink splash and the semantics contract.
-      return JeebOutlinedCard(
+      final ThemeData theme = Theme.of(context);
+      final ThemeData? tinted = _tintedTheme(theme);
+      final Widget card = JeebOutlinedCard(
         radius: radius,
         padding: padding,
         borderColor: context.jeebRoles.accent,
@@ -116,8 +145,11 @@ class JeebAccentFrameCard extends StatelessWidget {
         identifier: identifier,
         semanticLabel: semanticLabel,
         semanticHint: semanticHint,
-        child: child,
+        // The tint is scoped to the card's own decoration: the content reads
+        // the real theme back, so a nested kit widget still sees true glass.
+        child: tinted == null ? child : Theme(data: theme, child: child),
       );
+      return tinted == null ? card : Theme(data: tinted, child: card);
     }
 
     final JeebRoles roles = context.jeebRoles;
@@ -158,6 +190,28 @@ class JeebAccentFrameCard extends StatelessWidget {
     }
 
     return JeebSurfaceTone(tone: _filledTone(roles), child: surface);
+  }
+
+  /// [theme] with ONLY `glassFill` re-pointed at [fill]'s rung, or null when
+  /// [fill] is the default glass.
+  ///
+  /// A layered tint would composite over the white-7% glass instead of
+  /// replacing it (navy+orange12%+white7% is visibly greyer than the measured
+  /// navy+orange12%), and [JeebOutlinedCard] takes no fill override — so the
+  /// rung is swapped in the theme the card reads, not painted on top of it.
+  ThemeData? _tintedTheme(ThemeData theme) {
+    if (fill == JeebAccentFrameFill.glass) {
+      return null;
+    }
+    final JeebSemanticColors semantics =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
+    final Color tint = fill == JeebAccentFrameFill.accentTint
+        ? semantics.accentTint
+        : semantics.accentSelectedFill;
+    final List<ThemeExtension<dynamic>> extensions =
+        theme.extensions.values.toList()
+          ..add(semantics.copyWith(glassFill: tint));
+    return theme.copyWith(extensions: extensions);
   }
 
   /// The filled banner is a dark surface with light ink, so kit children inside

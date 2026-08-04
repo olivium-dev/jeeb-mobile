@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_accent_frame_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
@@ -105,6 +107,157 @@ void main() {
       );
       await tester.tap(find.text('body'));
       expect(taps, 1);
+    });
+  });
+
+  group('JeebAccentFrameCard frame fill (wave-C ruling 10)', () {
+    Color fillOf(WidgetTester tester) =>
+        remainderDecorationOf(tester, find.byType(JeebAccentFrameCard)).color!;
+
+    testWidgets('defaults to rest glass — a frame is not a fill',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapRemainder(const JeebAccentFrameCard(child: Text('body'))),
+      );
+
+      expect(
+        tester
+            .widget<JeebAccentFrameCard>(find.byType(JeebAccentFrameCard))
+            .fill,
+        JeebAccentFrameFill.glass,
+      );
+      expect(fillOf(tester), JeebMidnight.glassFill);
+    });
+
+    testWidgets('accentTint is the measured orange 12% (R21 in-motion row)',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapRemainder(
+          const JeebAccentFrameCard(
+            fill: JeebAccentFrameFill.accentTint,
+            child: Text('body'),
+          ),
+        ),
+      );
+
+      expect(fillOf(tester), JeebMidnight.accentTint);
+      // Still the outlined card, still the 2px accent stroke, still no lift —
+      // only the fill rung moved.
+      expect(find.byType(JeebOutlinedCard), findsOneWidget);
+      final BoxDecoration decoration =
+          remainderDecorationOf(tester, find.byType(JeebAccentFrameCard));
+      expect((decoration.border! as Border).top.color, accent);
+      expect((decoration.border! as Border).top.width, 2);
+      expect(decoration.boxShadow, isNull);
+      expect(
+        decoration.borderRadius,
+        BorderRadius.circular(JeebRadii.lg),
+      );
+    });
+
+    testWidgets('accentSelected offers R9\'s 20% rung without R9\'s glow',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapRemainder(
+          const JeebAccentFrameCard(
+            fill: JeebAccentFrameFill.accentSelected,
+            child: Text('body'),
+          ),
+        ),
+      );
+
+      expect(fillOf(tester), JeebMidnight.accentSelectedFill);
+      expect(
+        remainderDecorationOf(tester, find.byType(JeebAccentFrameCard))
+            .boxShadow,
+        isNull,
+        reason: 'the lit glow belongs to JeebCardState.accentSelected, not here',
+      );
+    });
+
+    testWidgets('the tint reaches the card and NOT its content',
+        (tester) async {
+      late Color inner;
+      await tester.pumpWidget(
+        wrapRemainder(
+          JeebAccentFrameCard(
+            fill: JeebAccentFrameFill.accentTint,
+            child: Builder(
+              builder: (BuildContext context) {
+                inner = Theme.of(context)
+                    .extension<JeebSemanticColors>()!
+                    .glassFill;
+                return const Text('body');
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(fillOf(tester), JeebMidnight.accentTint);
+      // A nested kit widget must still read the true glass ladder, or every
+      // card inside a tinted frame turns orange too.
+      expect(inner, JeebMidnight.glassFill);
+    });
+
+    testWidgets('a tinted frame keeps the rest tone and the padding correction',
+        (tester) async {
+      late JeebSurfaceToneData tone;
+      await tester.pumpWidget(
+        wrapRemainder(
+          JeebAccentFrameCard(
+            fill: JeebAccentFrameFill.accentTint,
+            child: RemainderToneProbe(onTone: (JeebSurfaceToneData t) => tone = t),
+          ),
+        ),
+      );
+
+      expect(tone.kind, JeebSurfaceKind.light);
+      expect(tone.titleInk, ink);
+      // 13/16 plus the 2px border-box stroke, exactly as the glass frame.
+      expect(
+        tester
+            .widget<Padding>(
+              find
+                  .descendant(
+                    of: find.byType(JeebOutlinedCard),
+                    matching: find.byType(Padding),
+                  )
+                  .first,
+            )
+            .padding
+            .resolve(TextDirection.ltr),
+        const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+      );
+    });
+
+    testWidgets('the filled banner ignores the rung', (tester) async {
+      await tester.pumpWidget(
+        wrapRemainder(const JeebAccentFrameCard.filled(child: Text('body'))),
+      );
+
+      expect(
+        tester
+            .widget<JeebAccentFrameCard>(find.byType(JeebAccentFrameCard))
+            .fill,
+        JeebAccentFrameFill.glass,
+      );
+      expect(fillOf(tester), accent);
+    });
+
+    testWidgets('a tinted frame survives a bare ThemeData.light() harness',
+        (tester) async {
+      await tester.pumpWidget(
+        wrapUnthemed(
+          const JeebAccentFrameCard(
+            fill: JeebAccentFrameFill.accentTint,
+            child: Text('frame'),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(fillOf(tester), JeebMidnight.accentTint);
     });
   });
 

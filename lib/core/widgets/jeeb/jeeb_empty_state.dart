@@ -8,8 +8,8 @@ import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 import 'jeeb_avatar.dart';
 
-/// The composed illustration a [JeebEmptyState] draws — E1 and E2/E3 of §2.7's
-/// canonical four, plus E1's three approved alternates.
+/// The composed illustration a [JeebEmptyState] draws — all four of §2.7's
+/// canonical tiles, plus E1's three approved alternates.
 enum JeebEmptyStateVariant {
   /// E1: mic on the route-dot ring, four medallions, waveform ears.
   e1,
@@ -22,6 +22,13 @@ enum JeebEmptyStateVariant {
   /// streetlamp. Distinct from [balcony], which draws a request bubble and a
   /// `jDash` route E3 does not (wave-B ruling 2).
   street,
+
+  /// E4: the open glass parcel box with the mic glowing inside — "nothing in
+  /// the box until you speak". Distinct from [e1], which keeps E4's exact glow
+  /// and sparkle timings but over-draws the waveform ears and two star dots,
+  /// and from [pocket], which has no orbit ring and adds a `jFloat` E4 does not
+  /// draw (wave-C ruling 9).
+  parcel,
 
   /// Sample A: the empty pocket, mic peeking out.
   pocket,
@@ -234,9 +241,10 @@ class JeebEmptyState extends StatelessWidget {
   /// Empty, loading or error.
   final JeebEmptyStateStatus status;
 
-  /// Replaces the centre disc of [JeebEmptyStateVariant.e1] (the mic) or
-  /// [JeebEmptyStateVariant.radar] (the broadcast core). Everything around it —
-  /// halo, rings, arcs, waveform — stays.
+  /// Replaces the centre disc of [JeebEmptyStateVariant.e1] (the mic),
+  /// [JeebEmptyStateVariant.radar] (the broadcast core) or
+  /// [JeebEmptyStateVariant.parcel] (the Ø34 mic inside the box). Everything
+  /// around it — halo, rings, arcs, waveform, box — stays.
   final Widget? center;
 
   /// The ring medallions. Null uses [medallionsFor]; extra entries past the
@@ -416,6 +424,9 @@ const Size _radarViewBox = Size(300, 300);
 /// E3's SVG viewBox (line 1817).
 const Size _streetViewBox = Size(300, 260);
 
+/// E4's illustration stack is a 270×250 div (board lines 1899–1917).
+const Size _parcelViewBox = Size(270, 250);
+
 /// The route-dot pattern of token sheet §8 — `1 9`, period 10, which divides
 /// `jDash`'s −40 travel exactly.
 const double _dotDash = 1;
@@ -481,6 +492,48 @@ const Duration _streetArcPeriod = Duration(milliseconds: 2200);
 const List<Duration> _streetArcDelays = <Duration>[
   Duration.zero,
   Duration(milliseconds: 450),
+];
+
+// ── E4 · parcel (board lines 1899–1917) ──
+
+const Offset _parcelCentre = Offset(135, 125);
+
+/// The 250px orbit ring — 1px white 7%, and it does NOT pulse (motion §E4).
+const double _parcelRingRadius = 125;
+
+/// The 170px centre glow, the tile's only breathing element.
+const double _parcelGlowRadius = 85;
+const double _parcelGlowAlpha = 0.22;
+const Duration _parcelGlowPeriod = Duration(milliseconds: 3200);
+
+/// Ø34 orange disc with a `0 0 0 6px` bloom, centred on the open box mouth.
+const Offset _parcelMicCentre = Offset(135, 130);
+const double _parcelMicRadius = 17;
+const double _parcelMicBloom = 6;
+const double _parcelMicBloomAlpha = 0.2;
+
+/// The board's 17px mic glyph, traced from its own 24-unit icon box.
+const double _parcelMicGlyph = 17;
+
+/// The three sparkles, board-space centre · radius · ink alpha (null = accent).
+const List<(Offset, double, double?)> _parcelSparkles =
+    <(Offset, double, double?)>[
+      (Offset(46.5, 46.5), 2.5, null),
+      (Offset(227, 73), 3, 0.4),
+      (Offset(203.5, 207.5), 2.5, 0.3),
+    ];
+
+/// The three-sparkle ladder E1 and E4 share verbatim — motion-notes
+/// cheat-sheet, "reuse one widget". Re-deriving it per tile is how they drift.
+const List<Duration> _sparkleLadderPeriods = <Duration>[
+  Duration(milliseconds: 2400),
+  Duration(milliseconds: 2800),
+  Duration(seconds: 3),
+];
+const List<Duration> _sparkleLadderDelays = <Duration>[
+  Duration.zero,
+  Duration(milliseconds: 700),
+  Duration(milliseconds: 1300),
 ];
 
 /// Inner-to-outer radius of the board's 4-point sparkle (3 / 11 diagonal).
@@ -561,6 +614,7 @@ class _Illustration extends StatelessWidget {
     JeebEmptyStateVariant.e1 => _e1ViewBox,
     JeebEmptyStateVariant.radar => _radarViewBox,
     JeebEmptyStateVariant.street => _streetViewBox,
+    JeebEmptyStateVariant.parcel => _parcelViewBox,
     _ => _sampleViewBox,
   };
 
@@ -568,6 +622,7 @@ class _Illustration extends StatelessWidget {
     JeebEmptyStateVariant.e1 => _e1Layers(),
     JeebEmptyStateVariant.radar => _radarLayers(),
     JeebEmptyStateVariant.street => _streetLayers(),
+    JeebEmptyStateVariant.parcel => _parcelLayers(),
     JeebEmptyStateVariant.pocket => _pocketLayers(),
     JeebEmptyStateVariant.balcony => _balconyLayers(),
     JeebEmptyStateVariant.beacon => _beaconLayers(),
@@ -623,21 +678,22 @@ class _Illustration extends StatelessWidget {
       center: const Offset(150, 37),
       radius: 11,
       color: ink.accentSoft,
-      duration: const Duration(milliseconds: 2400),
+      duration: _sparkleLadderPeriods[0],
+      delay: _sparkleLadderDelays[0],
     ),
     _Twinkle(
       center: const Offset(262, 148),
       radius: 8,
       color: ink.white(0.55),
-      duration: const Duration(milliseconds: 2800),
-      delay: const Duration(milliseconds: 700),
+      duration: _sparkleLadderPeriods[1],
+      delay: _sparkleLadderDelays[1],
     ),
     _Twinkle(
       center: const Offset(36, 153),
       radius: 7,
       color: ink.white(0.4),
-      duration: const Duration(seconds: 3),
-      delay: const Duration(milliseconds: 1300),
+      duration: _sparkleLadderPeriods[2],
+      delay: _sparkleLadderDelays[2],
     ),
     _Twinkle(
       center: const Offset(112, 52),
@@ -797,6 +853,73 @@ class _Illustration extends StatelessWidget {
         (Canvas canvas) => _paintStreetSpecks(canvas, ink),
       ),
     ),
+  ];
+
+  // E4 · lines 1899–1917. Animated: the 170px centre glow and E1's own
+  // three-sparkle ladder. STATIC: the 250px orbit ring, the box, lid and mic.
+  List<Widget> _parcelLayers() => <Widget>[
+    Positioned.fill(
+      child: _vector(
+        'parcel-ring',
+        ink,
+        (Canvas canvas) => _paintParcelRing(canvas, ink),
+      ),
+    ),
+    Positioned(
+      left: _parcelCentre.dx - _parcelGlowRadius,
+      top: _parcelCentre.dy - _parcelGlowRadius,
+      width: _parcelGlowRadius * 2,
+      height: _parcelGlowRadius * 2,
+      child: JBreathe(
+        duration: _parcelGlowPeriod,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: <Color>[
+                ink.accent.withValues(alpha: _parcelGlowAlpha),
+                ink.accent.withValues(alpha: 0),
+              ],
+              stops: const <double>[0, 0.7],
+            ),
+          ),
+        ),
+      ),
+    ),
+    Positioned.fill(
+      child: _vector(
+        'parcel-box',
+        ink,
+        (Canvas canvas) => _paintParcelBox(canvas, ink),
+      ),
+    ),
+    if (center == null)
+      Positioned.fill(
+        child: _vector(
+          'parcel-mic',
+          ink,
+          (Canvas canvas) => _paintParcelMic(canvas, ink),
+        ),
+      )
+    else
+      Positioned(
+        left: _parcelMicCentre.dx - _parcelMicRadius,
+        top: _parcelMicCentre.dy - _parcelMicRadius,
+        width: _parcelMicRadius * 2,
+        height: _parcelMicRadius * 2,
+        child: center!,
+      ),
+    for (int i = 0; i < _parcelSparkles.length; i++)
+      _Twinkle(
+        center: _parcelSparkles[i].$1,
+        radius: _parcelSparkles[i].$2,
+        color: _parcelSparkles[i].$3 == null
+            ? ink.accent
+            : ink.white(_parcelSparkles[i].$3!),
+        dot: true,
+        duration: _sparkleLadderPeriods[i],
+        delay: _sparkleLadderDelays[i],
+      ),
   ];
 
   // Sample A · lines 1933–1971. Animated: ground glow, floating mic, 4 twinkles.
@@ -1653,6 +1776,71 @@ void _paintStreetSpecks(Canvas canvas, _Ink ink) {
         ..close(),
       _fillPaint(ink.white(0.5)),
     );
+}
+
+// ── E4 · the open parcel ──
+
+void _paintParcelRing(Canvas canvas, _Ink ink) {
+  canvas.drawCircle(
+    _parcelCentre,
+    _parcelRingRadius,
+    _strokePaint(ink.white(0.07), 1, StrokeCap.butt),
+  );
+}
+
+/// The open glass box: a body, and a lid tipped -4° off it.
+void _paintParcelBox(Canvas canvas, _Ink ink) {
+  final RRect body = _rrect(70, 95, 130, 78, 14);
+  final RRect lid = _rrect(60, 77, 150, 26, 8);
+  canvas
+    ..drawRRect(body, _fillPaint(ink.semantic.glassFillEmphasis))
+    ..drawRRect(body, _strokePaint(ink.semantic.glassBorderVivid, 1))
+    ..save()
+    ..translate(135, 90)
+    ..rotate(-4 * math.pi / 180)
+    ..translate(-135, -90)
+    ..drawRRect(lid, _fillPaint(ink.white(0.16)))
+    ..drawRRect(lid, _strokePaint(ink.white(0.28), 1))
+    ..restore();
+}
+
+/// The mic glowing inside the box — the tile's whole story.
+void _paintParcelMic(Canvas canvas, _Ink ink) {
+  canvas
+    ..drawCircle(
+      _parcelMicCentre,
+      _parcelMicRadius + _parcelMicBloom / 2,
+      _strokePaint(
+        ink.accent.withValues(alpha: _parcelMicBloomAlpha),
+        _parcelMicBloom,
+        StrokeCap.butt,
+      ),
+    )
+    ..drawCircle(_parcelMicCentre, _parcelMicRadius, _fillPaint(ink.accent))
+    ..save()
+    ..translate(
+      _parcelMicCentre.dx - _parcelMicGlyph / 2,
+      _parcelMicCentre.dy - _parcelMicGlyph / 2,
+    )
+    ..scale(_parcelMicGlyph / 24)
+    ..drawRRect(_rrect(8.8, 2, 6.4, 12.5, 3.2), _fillPaint(ink.onAccent))
+    ..drawPath(
+      Path()
+        ..moveTo(5.5, 11.3)
+        ..arcToPoint(
+          const Offset(18.5, 11.3),
+          radius: const Radius.circular(6.5),
+          clockwise: false,
+        ),
+      _strokePaint(ink.onAccent, 1.8),
+    )
+    // The board's glyph has a stem and NO base bar, unlike E1's drawn mic.
+    ..drawLine(
+      const Offset(12, 18.6),
+      const Offset(12, 21.5),
+      _strokePaint(ink.onAccent, 1.8, StrokeCap.butt),
+    )
+    ..restore();
 }
 
 // ── Sample A · the empty pocket ──
