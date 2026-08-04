@@ -16,7 +16,10 @@
 @Tags(<String>['capture'])
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -66,6 +69,21 @@ void main() {
   // Without this the captures render every glyph as a solid block: the theme
   // NAMES Inter but the faces are never loaded, so copy cannot be compared.
   setUpAll(loadCatalogCaptureFonts);
+
+  // A state seeding a network image reaches flutter_cache_manager, which asks
+  // path_provider for a cache dir and throws MissingPluginException. Stubbing
+  // it fixes the avatar states; one receipt state then hits sqflite's factory
+  // check, which no channel mock can satisfy — see 02-STUDY-NOTES, owned by M4.
+  setUpAll(() {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final Directory dir = Directory.systemTemp.createTempSync('jeeb_capture');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (MethodCall call) async => dir.path,
+    );
+  });
 
   for (final CatalogEntry entry in kScreenCatalog) {
     for (int i = 0; i < entry.states.length; i++) {

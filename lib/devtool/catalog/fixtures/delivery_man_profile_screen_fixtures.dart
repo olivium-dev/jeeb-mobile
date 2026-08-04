@@ -25,8 +25,37 @@ abstract final class DeliveryManProfileScreenFixtures {
 
   /// **Catalog state 1** — the shipped Figma seed: Kamal Hajj, 4.3 over 113
   /// reviews, Lebanon, online, two lorem reviews on the page.
+  ///
+  /// Mirrors [DevDeliveryManProfileFixtures.sample] with the avatar URLs nulled:
+  /// the seed points at `i.pravatar.cc`, and a catalog state that reaches the
+  /// network throws MissingPluginException(path_provider) under `flutter test`.
   static const DeliveryManProfileViewData populated =
-      DevDeliveryManProfileFixtures.sample;
+      DeliveryManProfileViewData(
+    name: 'Kamal Hajj',
+    rating: 4.3,
+    reviewCount: 113,
+    location: 'Lebanon',
+    isAvailable: true,
+    avatarUrl: null,
+    reviews: <DeliveryReviewData>[
+      DeliveryReviewData(
+        id: 'r1',
+        reviewerName: 'Karl Assaf',
+        rating: 4,
+        body: _lorem,
+        daysAgo: 2,
+        helpfulCount: 24,
+      ),
+      DeliveryReviewData(
+        id: 'r2',
+        reviewerName: 'Karl Assaf',
+        rating: 4,
+        body: _lorem,
+        daysAgo: 2,
+        helpfulCount: 24,
+      ),
+    ],
+  );
 
   /// **Catalog state 2** — D59 cold start: fewer than
   /// [DeliveryManProfileViewData.coldStartThreshold] reviews, so the aggregate
