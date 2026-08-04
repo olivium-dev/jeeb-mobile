@@ -2,25 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../domain/notifications_repository.dart';
 import '../notifications_l10n.dart';
 
-/// Row radius/padding — the numbers screen 24 uses for an order row
-/// (`24-order-history.html` tpl 1427 / 1437). The inbox sits next to that list
-/// in the shell, so it reads as the same product.
-const double _rowRadius = 18;
+/// R21's own row box (`21-r21-order-history` tpl: `border-radius:20px;
+/// padding:14px 16px`) — 20 snaps to `JeebRadii.lg` under the §5 ±2 rule.
 const EdgeInsetsGeometry _rowPadding = EdgeInsetsDirectional.symmetric(
   horizontal: Spacing.medium,
   vertical: 14,
 );
 
-/// Ø9 — 24's live dot, reused as the unread mark. Deliberately the ONLY orange
-/// on this screen: an unread row is exactly the "do-it-now" moment the accent
-/// is rationed for, and the mark stays small enough that a full inbox never
-/// becomes an orange wall.
+/// Ø9 — R21's live dot, reused as the unread mark and the ONLY orange here.
+/// FLAT: R21 glows its in-motion row only, and an unread row is queued.
 const double _unreadDotSize = 9;
+
+/// A read row is R21's faded row, at R21's SHIPPED value so the two surfaces
+/// move together. TODO(midnight): inherits owner Q-006 — the blanket fade puts
+/// this row's `#8A93D8` meta run at 3.25:1 on `#0B1351`, under AA.
+const double _readOpacity = 0.65;
 
 /// A single inbox row for notifications-list (JM-057). Dumb widget
 /// (40_GUARDRAILS_ARCH §1 layer rules): data in via constructor, the tap out
@@ -32,12 +34,12 @@ const double _unreadDotSize = 9;
 /// an unread dot. The whole row is the tap target — on tap the screen marks the
 /// row read and dispatches the D84 deep-link.
 ///
-/// Redesign-2026-08: a re-skin onto the kit, not a rewrite. The hand-rolled
-/// `InkWell` + `Divider` list item became a [JeebOutlinedCard] (outline over
-/// shadow, r18, 14/16) carrying two bands in 24's rhythm — a meta line (glyph ·
-/// category · relative time · unread dot) over the payload headline and body.
-/// The relative time moved to the trailing edge of the meta line, which is
-/// where 24 puts a row's trailing value; nothing was added or removed.
+/// MIDNIGHT (M3-08): the board never drew this screen, so the row is derived
+/// from R21 (order history), its neighbour in the shell and the nearest drawn
+/// list surface. Carried over verbatim: the rest-glass rung (`glassFill` 7% +
+/// 1px `glassBorder`, `JeebRadii.lg`, 14/16 padding), the white `cardTitle` /
+/// periwinkle `bodySmall` ink split, the Ø9 accent state dot, and the faded
+/// treatment for the row that no longer wants anything. Zero motion, like R21.
 class NotificationRow extends StatelessWidget {
   const NotificationRow({
     super.key,
@@ -68,19 +70,20 @@ class NotificationRow extends StatelessWidget {
     final String body = item.body.isNotEmpty
         ? item.body
         : (isNewRequest ? copy.newRequestFallbackBody : '');
-    // Periwinkle meta ink — 24's date/status line.
+    // R21's meta run is measured `#8A93D8` — `onSurfaceVariant`, not the
+    // brighter `#B9C0F0` this row used to paint on its eyebrow.
     final TextStyle metaStyle = context.jeebText.bodySmall.copyWith(
-      color: scheme.onSecondaryContainer,
+      color: scheme.onSurfaceVariant,
     );
 
-    return JeebOutlinedCard(
+    final Widget card = JeebOutlinedCard(
       // FROZEN: `notif_row_<id>` re-homed onto the kit card, which emits one
       // `Semantics(identifier:, button:, container:, explicitChildNodes:)` node
       // — the same shape as the hand-rolled wrapper it replaces, so the nested
       // timestamp and unread-badge ids still surface.
       identifier: 'notif_row_${item.id}',
       onTap: onTap,
-      radius: _rowRadius,
+      radius: JeebRadii.lg,
       padding: _rowPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,9 +94,11 @@ class NotificationRow extends StatelessWidget {
               Icon(
                 _iconFor(item.kind),
                 size: Sizes.medium,
-                // The glyph carries read-state too, so the dot is a
-                // confirmation rather than the only signal.
-                color: unread ? scheme.primary : scheme.onSecondaryContainer,
+                // The glyph carries read-state too, so the dot confirms
+                // rather than being the only signal.
+                color: unread
+                    ? context.jeebRoles.accent
+                    : scheme.onSurfaceVariant,
               ),
               const SizedBox(width: Spacing.xSmall),
               Expanded(
@@ -135,16 +140,16 @@ class NotificationRow extends StatelessWidget {
             ],
           ),
           if (title.isNotEmpty) ...<Widget>[
-            const SizedBox(height: Spacing.xSmall),
+            // R21's own band gap (`margin-top:11px`) — the 4px scale's 12.
+            const SizedBox(height: Spacing.small),
             Text(
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
+              // R21's `#fff` 15/w700. Was `scheme.primary`, which under
+              // Midnight IS the accent — every row title rendered orange.
               style: context.jeebText.cardTitle.copyWith(
-                color: scheme.primary,
-                // Read rows step down one weight instead of changing size, so
-                // no row shifts height when it is marked read.
-                fontWeight: unread ? FontWeight.w700 : FontWeight.w600,
+                color: scheme.onSurface,
               ),
             ),
           ],
@@ -154,15 +159,19 @@ class NotificationRow extends StatelessWidget {
               body,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              // Ink, not the warm brown `onSurfaceVariant` this row used to
-              // paint: the palette reserves brown for outlines and dividers,
-              // and body copy is the near-navy ink (`_ds/readme.md` §Color).
-              style: context.jeebText.body.copyWith(color: scheme.onSurface),
+              // `inkSoft` #B9C0F0 (§3): the rung between R21's white title
+              // and its periwinkle meta run, AA-clear on all navies (§9).
+              style: context.jeebText.body.copyWith(
+                color: scheme.onSecondaryContainer,
+              ),
             ),
           ],
         ],
       ),
     );
+
+    if (unread) return card;
+    return Opacity(opacity: _readOpacity, child: card);
   }
 }
 

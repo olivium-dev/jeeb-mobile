@@ -115,6 +115,12 @@ Widget _harness(
     value: role,
     child: MaterialApp.router(
       routerConfig: router,
+      // MIDNIGHT: E4's illustration loops ∞ by design, so `pumpAndSettle`
+      // cannot settle on any empty/loading/error frame without reduce motion.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child ?? const SizedBox.shrink(),
+      ),
       // FM-1: injected, not pinned to 'en' — the Arabic RTL row test drives it.
       locale: locale,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -222,8 +228,8 @@ void main() {
   ) async {
     await pump(tester, _ScriptedRepository(const []));
     expect(find.bySemanticsIdentifier('notifications_root'), findsOneWidget);
-    // Empty is loaded + no rows — the OMDS empty illustration renders, no rows.
-    expect(find.byIcon(Icons.notifications_none_outlined), findsOneWidget);
+    // Empty is loaded + no rows — the E4 illustration renders, no rows.
+    expect(find.bySemanticsIdentifier('notifications_empty'), findsOneWidget);
     expect(find.bySemanticsIdentifier('notif_row_notif-001'), findsNothing);
   });
 
@@ -233,7 +239,11 @@ void main() {
       _ScriptedRepository(const [], fetchThrows: NotificationsFailure.network),
     );
     expect(find.bySemanticsIdentifier('notifications_root'), findsOneWidget);
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(find.bySemanticsIdentifier('notifications_error'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('notifications_retry_cta'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('unknown row: tapping marks read in place + clears its badge', (

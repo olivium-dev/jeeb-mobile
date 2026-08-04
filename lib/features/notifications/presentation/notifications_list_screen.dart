@@ -7,6 +7,9 @@ import '../../../core/di/injection_container.dart';
 import '../../../core/notifications/domain/notification_deep_link.dart';
 import '../../../core/notifications/domain/notification_message.dart';
 import '../../../core/role/role_cubit.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/notifications_list_cubit.dart';
 import '../application/notifications_list_state.dart';
@@ -50,12 +53,13 @@ import 'widgets/notification_row.dart';
 /// list+read mock-ready on :4010 — 42_GUARDRAILS_MOCK §4). [repository] is a
 /// constructor test seam (§5.4) — production leaves it null.
 ///
-/// Redesign-2026-08: a re-skin onto the Jeeb kit, not a rewrite — same route,
-/// same 4-state machine, same D84 dispatch, every identifier unmoved. There is
-/// no board render for this screen; the language is taken from its neighbour in
-/// the shell, screen 24 (order history): an in-body [JeebTopBar] that renders in
-/// EVERY state, a 24px gutter, and a list of outlined cards 12px apart instead
-/// of full-bleed rows separated by hairlines.
+/// MIDNIGHT (M3-08): a re-skin, not a rewrite — same route, same 4-state
+/// machine, same D84 dispatch, every frozen identifier unmoved. The board never
+/// drew this screen, so everything visual is DERIVED from R21 (order history),
+/// its neighbour in the shell and the nearest drawn list surface: an in-body
+/// [JeebTopBar] that renders in EVERY state, R21's 24px band gutter, rest-glass
+/// rows 12px apart, and the E4 `parcel` illustration for empty / loading /
+/// error — R21's own empty family.
 ///
 /// Semantics identifiers exposed (EXACT — 30_BACKLOG JM-057, 41_GUARDRAILS_TESTING):
 ///   `notifications_root`             — screen host container (bell nav target)
@@ -63,6 +67,9 @@ import 'widgets/notification_row.dart';
 ///   `notif_row_<id>`                 — per-notification row (dynamic), tap → D84
 ///   `notif_row_<id>_timestamp`       — per-row relative timestamp
 ///   `notif_row_<id>_unread_badge`    — per-row unread dot (accessibility)
+/// Added by M3-08 (not frozen, mirrors R21's own state-block naming):
+///   `notifications_loading` · `notifications_empty` · `notifications_error` ·
+///   `notifications_retry_cta`
 class NotificationsListScreen extends StatelessWidget {
   const NotificationsListScreen({super.key, this.repository});
 
@@ -102,75 +109,103 @@ class _NotificationsListView extends StatelessWidget {
       identifier: 'notifications_root',
       container: true,
       child: Scaffold(
-        // The header is an in-body row, not a Material app bar, so it renders
-        // in EVERY state (loading / failed / loaded) and carries the board's
-        // 24px gutter instead of a centred M3 title.
-        body: SafeArea(
-          child: Column(
-            children: [
-              JeebTopBar(
-                identifier: 'notifications_back',
-                title: copy.title,
-                leadingTooltip:
-                    MaterialLocalizations.of(context).backButtonTooltip,
-                // The bell reaches this screen via stack-REPLACING `goNamed(
-                // 'notifications')`, so there is usually nothing to pop. Pop
-                // when we can (pushed entry), else return to the shell — never
-                // pop the last page (which would leave an empty Navigator →
-                // black surface).
-                onLeadingPressed: () =>
-                    context.canPop() ? context.pop() : context.go('/'),
-              ),
-              Expanded(
-                child:
-                    BlocBuilder<NotificationsListCubit, NotificationsListState>(
-                  builder: (context, state) {
-                    switch (state.status) {
-                      case NotificationsListStatus.initial:
-                      case NotificationsListStatus.loading:
-                        return const OmdsLoadingState();
-                      case NotificationsListStatus.failed:
-                        return OmdsErrorState(
-                          message: _errorCopy(copy, state.error),
-                          retryLabel: copy.retry,
-                          onRetry: () =>
-                              context.read<NotificationsListCubit>().refresh(),
-                        );
-                      case NotificationsListStatus.loaded:
-                        return OmdsPullToRefresh(
-                          onRefresh: () =>
-                              context.read<NotificationsListCubit>().refresh(),
-                          child: !state.hasItems
-                              ? _EmptyBody(copy: copy)
-                              : _LoadedList(items: state.items, copy: copy),
-                        );
-                    }
-                  },
+        // R21 declares ONE radial: PERIWINKLE at 12% -6%, zero orange. There
+        // is no zero-glow lever on `content`, so the orange layer is nulled.
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowColor: Colors.transparent,
+          washPlacement: JeebFieldWashPlacement.topStart,
+          animateDecor: false,
+          // An in-body row, not a Material app bar: it renders in EVERY state
+          // and carries R21's 24px gutter instead of a centred M3 title.
+          child: SafeArea(
+            child: Column(
+              children: [
+                JeebTopBar(
+                  identifier: 'notifications_back',
+                  title: copy.title,
+                  leadingTooltip: MaterialLocalizations.of(
+                    context,
+                  ).backButtonTooltip,
+                  // The bell arrives via stack-REPLACING `goNamed`, so pop only
+                  // when we can — popping the last page leaves a black surface.
+                  onLeadingPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/'),
                 ),
-              ),
-            ],
+                Expanded(
+                  child:
+                      BlocBuilder<
+                        NotificationsListCubit,
+                        NotificationsListState
+                      >(
+                        builder: (context, state) {
+                          switch (state.status) {
+                            case NotificationsListStatus.initial:
+                            case NotificationsListStatus.loading:
+                              return _StateBlock(
+                                status: JeebEmptyStateStatus.loading,
+                                // TODO(midnight): l10n-queued —
+                                // notificationsLoadingHeadline.
+                                headline: copy.title,
+                                identifier: 'notifications_loading',
+                              );
+                            case NotificationsListStatus.failed:
+                              return _StateBlock(
+                                status: JeebEmptyStateStatus.error,
+                                // TODO(midnight): l10n-queued —
+                                // notificationsErrorTitle.
+                                headline: copy.loadError,
+                                body:
+                                    state.error == NotificationsFailure.network
+                                    ? copy.networkError
+                                    : null,
+                                identifier: 'notifications_error',
+                                action: JeebCtaButton.primary(
+                                  label: copy.retry,
+                                  identifier: 'notifications_retry_cta',
+                                  onTap: () => context
+                                      .read<NotificationsListCubit>()
+                                      .refresh(),
+                                ),
+                              );
+                            case NotificationsListStatus.loaded:
+                              return OmdsPullToRefresh(
+                                onRefresh: () => context
+                                    .read<NotificationsListCubit>()
+                                    .refresh(),
+                                child: !state.hasItems
+                                    ? _EmptyBody(copy: copy)
+                                    : _LoadedList(
+                                        items: state.items,
+                                        copy: copy,
+                                      ),
+                              );
+                          }
+                        },
+                      ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-
-  static String _errorCopy(NotificationsL10n copy, NotificationsFailure? f) {
-    switch (f) {
-      case NotificationsFailure.network:
-        return copy.networkError;
-      case NotificationsFailure.unauthorized:
-      case NotificationsFailure.unknown:
-      case null:
-        return copy.loadError;
-    }
-  }
 }
 
-/// Empty = `loaded` + an empty list (NOT a fifth status, §3). Wrapped in a
-/// scrollable so the pull-to-refresh still works on an empty inbox.
+/// Empty = `loaded` + an empty list (NOT a fifth status, §3), in a scrollable
+/// so the pull-to-refresh still works on an empty inbox.
+///
+/// E4 (`parcel`) is R21's own empty tile and the nearest subject: a list of
+/// things that happened, empty. Not E2's `radar` (which implies an outstanding
+/// broadcast this surface never has) and not E1 (a compose prompt). No CTA —
+/// nothing routes to "make a notification happen", and the E2 ruling is that an
+/// unmounted CTA beats a destination-less one.
 class _EmptyBody extends StatelessWidget {
   const _EmptyBody({required this.copy});
+
+  /// R21/E4: the illustration sits high, not centred in the residual band.
+  static const double topGap = Sizes.threeXLarge;
 
   final NotificationsL10n copy;
 
@@ -178,19 +213,52 @@ class _EmptyBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // R1: the residual space stays white and top-aligned — the same band
-      // 24's empty tab uses, not a viewport-fraction spacer.
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.xLarge,
-        vertical: Sizes.sixXLarge,
+      padding: const EdgeInsetsDirectional.only(
+        top: topGap,
+        bottom: Sizes.sixXLarge,
       ),
       children: [
-        OmdsEmptyState(
-          icon: Icons.notifications_none_outlined,
-          title: copy.emptyTitle,
-          subtitle: copy.emptyBody,
+        JeebEmptyState(
+          identifier: 'notifications_empty',
+          variant: JeebEmptyStateVariant.parcel,
+          headline: copy.emptyTitle,
+          body: copy.emptyBody,
         ),
       ],
+    );
+  }
+}
+
+/// The loading and error twins of [_EmptyBody] — same illustration, kit
+/// skeleton / danger tint, centred in the residual band (R21's `_StateBlock`).
+class _StateBlock extends StatelessWidget {
+  const _StateBlock({
+    required this.status,
+    required this.headline,
+    required this.identifier,
+    this.body,
+    this.action,
+  });
+
+  final JeebEmptyStateStatus status;
+  final String headline;
+  final String identifier;
+  final String? body;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: status,
+          variant: JeebEmptyStateVariant.parcel,
+          headline: headline,
+          body: body,
+          identifier: identifier,
+          action: action,
+        ),
+      ),
     );
   }
 }
@@ -212,8 +280,8 @@ class _LoadedList extends StatelessWidget {
         Spacing.xLarge,
       ),
       itemCount: items.length,
-      // R7/R12: the card outlines ARE the separation — a divider between two
-      // outlined cards draws a third line nobody asked for.
+      // R21 `gap:11px` on the 4px scale; the outlines ARE the separation — a
+      // divider between two outlined cards draws a third line nobody asked for.
       separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
       itemBuilder: (context, index) {
         final item = items[index];
@@ -285,14 +353,16 @@ class _LoadedList extends StatelessWidget {
           context.goNamed('shell');
           break;
         }
-        final offerTarget = deepLinkForMessage(NotificationMessage(
-          id: item.id,
-          category: NotificationCategory.newOffer,
-          title: item.title,
-          body: item.body,
-          receivedAt: DateTime.now(),
-          data: {'requestId': ref},
-        ));
+        final offerTarget = deepLinkForMessage(
+          NotificationMessage(
+            id: item.id,
+            category: NotificationCategory.newOffer,
+            title: item.title,
+            body: item.body,
+            receivedAt: DateTime.now(),
+            data: {'requestId': ref},
+          ),
+        );
         if (offerTarget != null) context.push(offerTarget);
         break;
 
