@@ -8,6 +8,7 @@ import 'package:jeeb_mobile/features/client_offers/application/client_offers_sta
 import 'package:jeeb_mobile/features/client_offers/data/dio_offers_repository.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/jeeber_vehicle.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offers_repository.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_select_chip.dart';
 import 'package:jeeb_mobile/features/client_offers/presentation/client_offers_screen.dart';
 import 'package:omds/omds.dart';
@@ -391,9 +392,10 @@ void main() {
       reason: 'the error state must be centered in the remaining scaffold body',
     );
 
+    // MIDNIGHT: the retry is the kit CTA, not a bare Material FilledButton.
     final retry = find.ancestor(
       of: find.text('Retry'),
-      matching: find.byWidgetPredicate((widget) => widget is FilledButton),
+      matching: find.byType(JeebCtaButton),
     );
     expect(
       tester.getSize(retry).height,
@@ -565,7 +567,7 @@ void main() {
       expect(find.byKey(const Key('offer-empty-state')), findsNothing);
       expect(find.byKey(const Key('offer-window-timer')), findsNothing);
       expect(find.text('Offer window expired'), findsNothing);
-      final accept = tester.widget<OmdsPrimaryButton>(
+      final accept = tester.widget<JeebCtaButton>(
         find.byKey(const Key('offer-card-accept-a7e85c0b-real-offer')),
       );
       expect(accept.isEnabled, isTrue);
@@ -603,7 +605,7 @@ void main() {
       expect(find.text('Offer window expired'), findsOneWidget);
       expect(
         tester
-            .widget<OmdsPrimaryButton>(
+            .widget<JeebCtaButton>(
               find.byKey(const Key('offer-card-accept-server-expired')),
             )
             .isEnabled,

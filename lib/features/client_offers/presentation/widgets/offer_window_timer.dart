@@ -3,6 +3,8 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/formatting/countdown_format.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_meter.dart';
@@ -87,6 +89,8 @@ class OfferWindowTimer extends StatelessWidget {
     return JeebInfoNote(
       key: const Key('offer-window-timer'),
       tone: tone,
+      // The board draws this strip as a full capsule, not a card corner.
+      radius: JeebRadii.pill,
       // The board's normal state leads with a bare orange dot; the two
       // attention states keep the timer glyph they were given in sprint-009,
       // because a coloured dot alone does not read as "this ran out".
@@ -96,7 +100,7 @@ class OfferWindowTimer extends StatelessWidget {
               size: JeebInfoNote.stripIconSize,
               color: foreground,
             )
-          : _WindowDot(color: roles.accent),
+          : OfferWindowDot(color: roles.accent),
       label: label,
       // Nothing left to measure once the window is gone.
       trailing: expired ? null : JeebMeter(value: progress),
@@ -105,9 +109,10 @@ class OfferWindowTimer extends StatelessWidget {
   }
 }
 
-/// The Ø8 accent dot the board draws at the head of the strip.
-class _WindowDot extends StatelessWidget {
-  const _WindowDot({required this.color});
+/// The Ø8 accent dot the board draws at the head of the strip — and again on
+/// the waiting state's "Window closes in …" chip, hence public.
+class OfferWindowDot extends StatelessWidget {
+  const OfferWindowDot({super.key, required this.color});
 
   final Color color;
 
@@ -116,7 +121,11 @@ class _WindowDot extends StatelessWidget {
     return SizedBox.square(
       dimension: Sizes.xSmall,
       child: DecoratedBox(
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: JeebShadows.glowDot,
+        ),
       ),
     );
   }

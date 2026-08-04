@@ -8,9 +8,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
-import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/client_offers/application/client_offers_cubit.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/jeeber_vehicle.dart';
 import 'package:jeeb_mobile/features/client_offers/domain/offer.dart';
@@ -310,8 +310,8 @@ void main() {
       await tester.pump();
 
       // Both cards start with an ENABLED Accept CTA.
-      OmdsPrimaryButton acceptButton(String id) => tester
-          .widget<OmdsPrimaryButton>(find.byKey(Key('offer-card-accept-$id')));
+      JeebCtaButton acceptButton(String id) => tester
+          .widget<JeebCtaButton>(find.byKey(Key('offer-card-accept-$id')));
       expect(acceptButton('a').isEnabled, isTrue);
       expect(acceptButton('b').isEnabled, isTrue);
 

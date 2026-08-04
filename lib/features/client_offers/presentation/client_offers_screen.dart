@@ -8,10 +8,13 @@ import '../../../core/formatting/friendly_reference.dart';
 import '../../../core/layout/bottom_inset.dart';
 import '../../../core/lifecycle/route_resume_refetch.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
-import '../../../core/widgets/motion/jeeb_lottie_mark.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../cancel_request/domain/cancel_request_repository.dart';
 import '../../cancel_request/presentation/cancel_request_sheet.dart';
@@ -25,6 +28,7 @@ import 'widgets/offer_accept_sheet.dart';
 import 'widgets/offer_card.dart';
 import 'widgets/offer_sort_bar.dart';
 import 'widgets/offer_window_timer.dart';
+import 'widgets/offers_waiting_state.dart';
 
 /// Signature for the optional cubit factory the screen exposes for tests.
 /// Production wiring leaves it `null` so the default ticker-driven cubit is
@@ -150,46 +154,52 @@ class _ClientOffersView extends StatelessWidget {
     // No `appBar:` — the redesign's header is an in-body JeebTopBar so the
     // title, the subtitle and the back circle scroll-lock together with the
     // fixed header block below them.
-    return Scaffold(
-      // offer_review_list_root — signature id for the offer-review-list route.
-      // It spans EVERY state (loading / failed / loaded), as it always has.
-      body: Semantics(
-        identifier: 'offer_review_list_root',
-        explicitChildNodes: true,
-        // `bottom: false` is load-bearing: consuming the bottom inset here
-        // would zero `context.scrollBodyBottomInset` and silently drop the
-        // Android nav-bar clearance under the docked footer.
-        child: SafeArea(
-          bottom: false,
-          child: BlocBuilder<ClientOffersCubit, ClientOffersState>(
-            builder: (context, state) {
-              return Column(
-                children: [
-                  JeebTopBar.back(
-                    title: l10n.offersScreenTitle,
-                    // The item title off the already-fetched request row. Null
-                    // renders one line — never a placeholder.
-                    // TODO(redesign-24): the board's subtitle also carries the
-                    // destination ("— Pharmacie du Musée"); `/v1/requests/:id`
-                    // carries no dropoff address, so it is omitted, not faked.
-                    subtitle: state.requestTitle,
-                    identifier: 'offer_review_back',
-                    // P2: this screen is a push-tap stack ROOT (`go`, not
-                    // `push`), so a bare `maybePop()` is a dead arrow on an
-                    // empty stack. Pop when we can (in-app Replies CTA entry),
-                    // else return to the shell.
-                    onLeadingPressed: () =>
-                        context.canPop() ? context.pop() : context.go('/'),
-                  ),
-                  Expanded(
-                    // One key, present in every state — the anchor the
-                    // centred-error assertion measures against.
-                    key: const Key('offer-review-content'),
-                    child: _body(context, state, l10n),
-                  ),
-                ],
-              );
-            },
+    return JeebMidnightField(
+      variant: JeebFieldVariant.content,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        // offer_review_list_root — signature id for the offer-review-list route.
+        // It spans EVERY state (loading / failed / loaded), as it always has.
+        body: Semantics(
+          identifier: 'offer_review_list_root',
+          explicitChildNodes: true,
+          // `bottom: false` is load-bearing: consuming the bottom inset here
+          // would zero `context.scrollBodyBottomInset` and silently drop the
+          // Android nav-bar clearance under the docked footer.
+          child: SafeArea(
+            bottom: false,
+            child: BlocBuilder<ClientOffersCubit, ClientOffersState>(
+              builder: (context, state) {
+                return Column(
+                  children: [
+                    JeebTopBar.back(
+                      // TODO(midnight): l10n-queued — the board titles this
+                      // screen "Offers" (`offersTitle`).
+                      title: l10n.offersScreenTitle,
+                      // The item title off the already-fetched request row. Null
+                      // renders one line — never a placeholder.
+                      // TODO(midnight): the board's subtitle also carries the
+                      // destination ("— Pharmacie du Musée"); `/v1/requests/:id`
+                      // carries no dropoff address — omitted, not faked.
+                      subtitle: state.requestTitle,
+                      identifier: 'offer_review_back',
+                      // P2: this screen is a push-tap stack ROOT (`go`, not
+                      // `push`), so a bare `maybePop()` is a dead arrow on an
+                      // empty stack. Pop when we can (in-app Replies CTA entry),
+                      // else return to the shell.
+                      onLeadingPressed: () =>
+                          context.canPop() ? context.pop() : context.go('/'),
+                    ),
+                    Expanded(
+                      // One key, present in every state — the anchor the
+                      // centred-error assertion measures against.
+                      key: const Key('offer-review-content'),
+                      child: _body(context, state, l10n),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -204,22 +214,31 @@ class _ClientOffersView extends StatelessWidget {
     switch (state.status) {
       case OffersScreenStatus.initial:
       case OffersScreenStatus.loading:
-        return const OmdsLoadingState();
+        // The waiting block's own skeleton, so loading → waiting does not
+        // swap one illustration for another.
+        return const _CenteredBlock(
+          child: OffersWaitingState(
+            blockKey: Key('offer-loading-state'),
+            status: JeebEmptyStateStatus.loading,
+          ),
+        );
       case OffersScreenStatus.failed:
-        return Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: Sizes.threeHundredLarge,
+        return _CenteredBlock(
+          maxWidth: Sizes.threeHundredLarge,
+          // TODO(midnight): l10n-queued — the board splits this into a title
+          // ("Couldn't load offers") over the failure line.
+          child: OffersWaitingState(
+            blockKey: const Key('offer-load-error'),
+            status: JeebEmptyStateStatus.error,
+            headline: offersFailureCopy(
+              l10n,
+              state.error,
+              phase: OffersErrorPhase.load,
             ),
-            child: OmdsErrorState(
-              key: const Key('offer-load-error'),
-              message: offersFailureCopy(
-                l10n,
-                state.error,
-                phase: OffersErrorPhase.load,
-              ),
-              retryLabel: l10n.offersRetryAction,
-              onRetry: () => context.read<ClientOffersCubit>().load(),
+            action: JeebCtaButton.primary(
+              label: l10n.offersRetryAction,
+              identifier: 'offer_review_retry_cta',
+              onTap: () => context.read<ClientOffersCubit>().load(),
             ),
           ),
         );
@@ -258,9 +277,6 @@ class _LoadedBody extends StatelessWidget {
   static const EdgeInsetsGeometry _gutter =
       EdgeInsetsDirectional.symmetric(horizontal: Spacing.xLarge);
 
-  /// Half of `broadcasting.json`'s 280×280 authored canvas (motion spec §4).
-  static const double _emptyMarkSize = 140;
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -280,8 +296,11 @@ class _LoadedBody extends StatelessWidget {
     return Column(
       children: [
         // ── Fixed header: strip, banners, sort bar. These used to scroll away
-        // with the list; the board keeps them pinned above it. ──────────────
-        if (state.windowExpiresAt != null || state.requestIsExpired)
+        // with the list; the board keeps them pinned above it. On the waiting
+        // state the board carries the countdown on the block's own chip, so the
+        // strip and the sort bar are list-only. ─────────────────────────────
+        if (state.hasOffers &&
+            (state.windowExpiresAt != null || state.requestIsExpired))
           Padding(
             padding: _gutter.add(
               const EdgeInsetsDirectional.only(top: Spacing.medium),
@@ -333,84 +352,72 @@ class _LoadedBody extends StatelessWidget {
               ),
             ),
           ),
-        Padding(
-          padding: _gutter.add(
-            const EdgeInsetsDirectional.only(top: Spacing.small),
+        if (state.hasOffers)
+          Padding(
+            padding: _gutter.add(
+              const EdgeInsetsDirectional.only(top: Spacing.small),
+            ),
+            child: OfferSortBar(mode: state.sortMode, onChanged: onSortChanged),
           ),
-          child: OfferSortBar(mode: state.sortMode, onChanged: onSortChanged),
-        ),
         // ── The list. Top-aligned in the remaining height: >3 offers scroll,
-        // fewer leave the rest of the screen white, which is the render (R1).
+        // fewer leave the rest of the field showing, which is the render.
         Expanded(
           child: OmdsPullToRefresh(
             onRefresh: onRefresh,
-            child: ListView(
-              key: const Key('offer-list'),
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                Spacing.xLarge,
-                // Clears the recommended card's −9px "Best value" overhang.
-                Spacing.small,
-                Spacing.xLarge,
-                Spacing.medium,
-              ),
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                if (!state.hasOffers)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      top: Spacing.xLarge,
+            child: state.hasOffers
+                ? ListView(
+                    key: const Key('offer-list'),
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      Spacing.xLarge,
+                      // Clears the lit card's −9px "Best value" overhang.
+                      Spacing.small,
+                      Spacing.xLarge,
+                      Spacing.medium,
                     ),
-                    child: OmdsEmptyState(
-                      key: const Key('offer-empty-state'),
-                      // motion (08-MOTION-SPEC §2.3): `broadcasting.json` IS
-                      // the board's "waiting for offers" empty state — the
-                      // spec names screen 11 with zero offers in as one of its
-                      // three homes. It only plays while the window is
-                      // genuinely live: on a closed or expired request nothing
-                      // is being broadcast any more, and a sonar loop there
-                      // would be a picture of an event that is not happening,
-                      // so the static hourglass stays. White surface as
-                      // authored; radial, so no RTL mirror.
-                      illustration: windowIsLive
-                          ? const JeebLottieMark(
-                              asset: 'assets/animations/broadcasting.json',
-                              width: _emptyMarkSize,
-                              height: _emptyMarkSize,
-                            )
-                          : null,
-                      icon: windowIsLive ? null : Icons.hourglass_top_outlined,
-                      title: l10n.offersEmptyTitle,
-                      subtitle: l10n.offersEmptyBody,
-                    ),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      ...state.offers.asMap().entries.map(
+                        (entry) => OfferCard(
+                          offer: entry.value,
+                          index: entry.key,
+                          // B-01: while ANY accept-confirm sheet is open (its
+                          // POST may be in flight), EVERY card's Accept CTA
+                          // disables so a second offer can't be accepted
+                          // concurrently (double-accept). The sheet owns the
+                          // in-flight spinner; the cards behind it just go inert
+                          // until the sheet closes (endAccept).
+                          isAccepting: false,
+                          acceptDisabled:
+                              acceptDisabled || acceptingOfferId != null,
+                          isBestValue: entry.value.id == bestValueOfferId,
+                          isFastest: entry.value.id == fastestOfferId,
+                          // Accept → JM-029 offer-accept-confirm sheet.
+                          onAccept: () => _openAcceptSheet(context, entry.value),
+                          // Name → jeeber-profile-reviews (JM-067).
+                          onTapName: () =>
+                              _openJeeberProfile(context, entry.value),
+                        ),
+                      ),
+                    ],
                   )
-                else
-                  ...state.offers.asMap().entries.map(
-                    (entry) => OfferCard(
-                      offer: entry.value,
-                      index: entry.key,
-                      // B-01: while ANY accept-confirm sheet is open (its POST
-                      // may be in flight), EVERY card's Accept CTA disables so a
-                      // second offer can't be accepted concurrently
-                      // (double-accept). The sheet owns the in-flight spinner;
-                      // the cards behind it just go inert until the sheet closes
-                      // (endAccept).
-                      isAccepting: false,
-                      acceptDisabled: acceptDisabled || acceptingOfferId != null,
-                      isBestValue: entry.value.id == bestValueOfferId,
-                      isFastest: entry.value.id == fastestOfferId,
-                      // Accept → JM-029 offer-accept-confirm sheet (not inline).
-                      onAccept: () => _openAcceptSheet(context, entry.value),
-                      // Name → jeeber-profile-reviews (JM-067).
-                      onTapName: () => _openJeeberProfile(context, entry.value),
-                    ),
+                : _WaitingBody(
+                    // The countdown chip only where there is a live window
+                    // left to count: a closed or expired request is not
+                    // broadcasting any more.
+                    windowRemaining:
+                        windowIsLive && state.windowExpiresAt != null
+                        ? state.windowRemaining
+                        : null,
                   ),
-              ],
-            ),
           ),
         ),
-        // ── Docked footer. Guard unchanged: absent on a terminal snapshot.
-        if (state.hasOffers && state.requestIsOpen)
-          _Footer(onCancel: () => _openCancelSheet(context)),
+        // ── Docked footer. The board draws the cancel exit on the waiting
+        // state too — only a terminal snapshot drops it.
+        if (state.requestIsOpen)
+          _Footer(
+            showOnlyOneNote: state.hasOffers,
+            onCancel: () => _openCancelSheet(context),
+          ),
       ],
     );
   }
@@ -486,9 +493,9 @@ class _LoadedBody extends StatelessWidget {
 enum OffersErrorPhase { load, accept }
 
 /// Single shared source of truth for offer-review failure copy (F9). Both the
-/// full-screen load error ([OmdsErrorState]) and the inline accept banner route
-/// through here so the five [OffersFailure] strings stay consistent; only the
-/// generic fallback diverges by [phase].
+/// full-screen load error ([OffersWaitingState]) and the inline accept banner
+/// route through here so the five [OffersFailure] strings stay consistent; only
+/// the generic fallback diverges by [phase].
 String offersFailureCopy(
   AppLocalizations l10n,
   OffersFailure? failure, {
@@ -517,18 +524,75 @@ String offersFailureCopy(
 }
 
 
+/// Vertically centred block for the states that own the whole body — the
+/// waiting skeleton and the load failure. Scrollable so 200% text and the pull
+/// gesture both still work.
+class _CenteredBlock extends StatelessWidget {
+  const _CenteredBlock({required this.child, this.maxWidth});
+
+  final Widget child;
+  final double? maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = maxWidth;
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.symmetric(
+                vertical: Spacing.xLarge,
+              ),
+              child: width == null
+                  ? child
+                  : ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: width),
+                      child: child,
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// E2 · the waiting-for-offers body, pull-to-refreshable like the list it
+/// replaces.
+class _WaitingBody extends StatelessWidget {
+  const _WaitingBody({this.windowRemaining});
+
+  final Duration? windowRemaining;
+
+  @override
+  Widget build(BuildContext context) => _CenteredBlock(
+    child: OffersWaitingState(
+      blockKey: const Key('offer-empty-state'),
+      windowRemaining: windowRemaining,
+    ),
+  );
+}
+
 /// The docked footer: the orange one-offer reminder over the Cancel request
 /// text CTA. Outside the scroll view, so the reminder is never scrolled past at
 /// the exact moment the customer is about to commit.
 class _Footer extends StatelessWidget {
-  const _Footer({required this.onCancel});
+  const _Footer({required this.onCancel, this.showOnlyOneNote = true});
 
   final VoidCallback onCancel;
+
+  /// The reminder only means something once there is an offer to accept.
+  final bool showOnlyOneNote;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).colorScheme;
+    final semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Padding(
       key: const Key('offer-review-footer'),
       padding: EdgeInsetsDirectional.fromSTEB(
@@ -543,21 +607,23 @@ class _Footer extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Semantics(
-            identifier: 'offer_review_only_one_note',
-            container: true,
-            child: Text(
-              l10n.chatOfferAcceptOnlyOne,
-              textAlign: TextAlign.center,
-              style: context.jeebText.bodySmall.copyWith(
-                fontWeight: FontWeight.w700,
-                // The screen's only orange text — §4.1 rations the accent to
-                // this line and the Best value badge.
-                color: context.jeebRoles.accent,
+          if (showOnlyOneNote) ...[
+            Semantics(
+              identifier: 'offer_review_only_one_note',
+              container: true,
+              child: Text(
+                l10n.chatOfferAcceptOnlyOne,
+                textAlign: TextAlign.center,
+                style: context.jeebText.bodySmall.copyWith(
+                  fontWeight: FontWeight.w700,
+                  // One of the screen's rationed orange runs — §4.1 keeps it to
+                  // this line, the Best value badge and the lit Accept.
+                  color: context.jeebRoles.accent,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: Spacing.small),
+            const SizedBox(height: Spacing.small),
+          ],
           // offer_review_cancel_cta → cancel-request-confirm sheet (JM-030).
           // `container: true` makes this an explicit, id-addressable child of
           // the `offer_review_list_root` node (which sets
@@ -572,11 +638,16 @@ class _Footer extends StatelessWidget {
             label: l10n.offerReviewCancelCta,
             onTap: onCancel,
             child: ExcludeSemantics(
-              child: OmdsPrimaryButton(
+              // TODO(midnight): l10n-queued — the board spells out the promise
+              // ("Cancel request — free before you accept").
+              child: JeebCtaButton(
                 key: const Key('offer-review-cancel-cta'),
-                text: l10n.offerReviewCancelCta,
-                variant: OmdsButtonVariant.text,
-                textColor: colors.onSurfaceVariant,
+                label: l10n.offerReviewCancelCta,
+                variant: JeebCtaVariant.text,
+                labelStyle: context.jeebText.bodySmall.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: semantics.inkSoft,
+                ),
                 onTap: onCancel,
               ),
             ),

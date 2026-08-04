@@ -54,9 +54,10 @@ void main() {
     // Indefinite spinner — pump once and assert, then settle nothing.
     await tester.pump();
 
-    expect(find.text('Accepting…'), findsOneWidget);
-    // OfferCard uses `OmdsButtonLoading` as the in-flight icon (OMDS sweep
-    expect(find.byType(OmdsButtonLoading), findsOneWidget);
+    // MIDNIGHT: the kit CTA swaps the whole label for the spinner, so the
+    // in-flight wording lives on the addressable semantics node.
+    expect(find.bySemanticsLabel('Accepting…'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
   testWidgets('OfferCard accept tap fires onAccept', (tester) async {
