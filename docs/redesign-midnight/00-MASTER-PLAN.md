@@ -310,7 +310,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M1-5 Pattern E metric fixes (rode in M1-1: list-row 11/14, size-class overrides deleted, 48dp hit-test nav) + tests → **kit RE-FROZEN** @2026-08-04. API additions this wave (all Fable-sanctioned): JeebCardState.accentSelected, JeebSurfaceToneData.accentSelected, JeebShadows.accentSelected, semantic fields glassBorderVivid/bubbleOutFill/bubbleOutBorder/accentSelectedFill, 3 new widgets. From here kit API changes need a fresh ruling.
 
 ### M2 Mapped surfaces (order = exposure)
-- [ ] M2-01 Shell / floating nav (`shell_screen.dart`)
+- [x] M2-01 Shell / floating nav — JeebPillNav wired, frozen ids re-homed, badge overlay, VIS-P1-2 inset preserved @2026-08-04
 - [ ] M2-02 R1+E1 Client home + empty
 - [ ] M2-03 R2 Voice recording (transcript band + halo + wave)
 - [ ] M2-04 R9 Request type + tier section (P0-3/4)

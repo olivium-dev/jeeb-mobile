@@ -1,13 +1,16 @@
-// redesign-2026-08 §5.1 ("Not shared"): the bottom bar is restyled IN PLACE —
-// 52×30 `surfaceContainerHigh` pill + navy glyph + 12/w700 label when selected,
-// 22px periwinkle glyph + 12/w600 when not, a `1px outlineVariant` top rule
-// instead of the old shadow, pad `12/8/26`.
+// MIDNIGHT M2-01: the shell's tab bar IS the frozen kit `JeebPillNav` — a
+// detached navy capsule floating over each tab's own field, orange spent only
+// on the active slot. This file locks the SHELL's half of that contract (slot
+// order, the frozen `shell_tab_*` identifiers, the floating framing, light
+// system chrome); the capsule's own metrics are locked by
+// test/core/widgets/jeeb/jeeb_pill_nav_test.dart.
 //
-// The board draws ONE 5-tab bar for both roles; the app's additive tab model
-// wins (plan §9-Q1), so this file locks the STYLE and the `shell_tab_*`
-// identifiers — never a unified role-agnostic tab list.
+// The app's additive tab model wins over the board's single 5-tab bar
+// (plan §9-Q1) — the tabs were mapped positionally onto R1's slots, never
+// unified into a role-agnostic list.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +22,10 @@ import 'package:jeeb_mobile/core/role/role_availability_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_cubit.dart';
 import 'package:jeeb_mobile/core/role/role_eligibility_cubit.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_pill_nav.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_repository.dart';
 import 'package:jeeb_mobile/features/earnings/domain/earnings_summary.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
@@ -66,7 +73,7 @@ Widget _harness(SharedPreferences prefs, Locale locale) => MultiBlocProvider(
         ),
       ],
       child: MaterialApp(
-        theme: AppTheme.light(),
+        theme: AppTheme.midnight(),
         locale: locale,
         supportedLocales: AppLocalizations.supportedLocales,
         localizationsDelegates: const [
@@ -79,26 +86,29 @@ Widget _harness(SharedPreferences prefs, Locale locale) => MultiBlocProvider(
       ),
     );
 
-/// The glyph box of a tab — the widget that carries the selected pill.
-Container _glyphBox(WidgetTester tester, String tabId) => tester.widget<Container>(
-      find
-          .descendant(
-            of: find.bySemanticsIdentifier('shell_tab_$tabId'),
-            matching: find.byType(Container),
-          )
-          .first,
-    );
+/// The five slot ids, in R1's visual order.
+const List<String> _kSlots = <String>[
+  'requests',
+  'delivery',
+  'dashboard',
+  'earnings',
+  'profile',
+];
 
-TextStyle _labelStyle(WidgetTester tester, String tabId) => tester
-    .widget<Text>(
-      find
-          .descendant(
-            of: find.bySemanticsIdentifier('shell_tab_$tabId'),
-            matching: find.byType(Text),
-          )
-          .first,
-    )
-    .style!;
+/// M0-4 ruling: Midnight primitives loop forever, so a shell test that mounts
+/// real tab bodies can only settle under reduce motion.
+void _reduceMotion(WidgetTester tester) {
+  tester.platformDispatcher.accessibilityFeaturesTestValue =
+      const FakeAccessibilityFeatures(disableAnimations: true);
+  addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+}
+
+/// Reduce motion settles on the first frame, so the clock still has to be
+/// advanced past the tab fixtures' own load delays.
+Future<void> _settle(WidgetTester tester) async {
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.pumpAndSettle();
+}
 
 void main() {
   setUp(() {
@@ -114,102 +124,146 @@ void main() {
 
   tearDown(() async => sl.reset());
 
-  testWidgets('the SELECTED tab wears a 52×30 surfaceContainerHigh pill and '
-      'no other tab does', (tester) async {
+  testWidgets('the bar IS JeebPillNav, carrying the five frozen shell_tab_ ids '
+      'in R1 order', (tester) async {
+    _reduceMotion(tester);
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs, const Locale('en')));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
-    final scheme = AppTheme.light().colorScheme;
-
-    // A plain client lands on Requests.
-    final selected = _glyphBox(tester, 'requests');
-    final decoration = selected.decoration! as BoxDecoration;
-    expect(decoration.color, scheme.surfaceContainerHigh);
+    final JeebPillNav nav = tester.widget<JeebPillNav>(
+      find.byType(JeebPillNav),
+    );
+    expect(nav.items.length, JeebPillNav.slotCount);
     expect(
-      decoration.borderRadius,
-      const BorderRadius.all(Radius.circular(14)),
+      nav.items.map((JeebPillNavItem i) => i.identifier),
+      _kSlots.map((String id) => 'shell_tab_$id'),
     );
-    final pillRect = tester.getRect(
-      find
-          .descendant(
-            of: find.bySemanticsIdentifier('shell_tab_requests'),
-            matching: find.byType(Container),
-          )
-          .first,
+    // Labels are the tile literals, wired through the existing l10n keys.
+    expect(
+      nav.items.map((JeebPillNavItem i) => i.label),
+      const <String>[
+        'Requests',
+        'Delivery',
+        'Dashboard',
+        'Earnings',
+        'Profile',
+      ],
     );
-    expect(pillRect.width, 52);
-    expect(pillRect.height, 30);
-
-    for (final id in ['delivery', 'dashboard', 'earnings', 'profile']) {
-      expect(_glyphBox(tester, id).decoration, isNull,
-          reason: 'only the selected tab is filled ($id was)');
-    }
+    // A plain client lands on Requests, so slot 0 wears the orange pill.
+    expect(nav.selectedIndex, 0);
   });
 
-  testWidgets('glyph + label ink: navy when selected, periwinkle otherwise, '
-      'at 12/w700 vs 12/w600', (tester) async {
+  testWidgets('the capsule is navy + glass hairline + floatNav shadow, and it '
+      'floats — no full-width bar band', (tester) async {
+    _reduceMotion(tester);
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs, const Locale('en')));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
-    final scheme = AppTheme.light().colorScheme;
+    final ThemeData theme = AppTheme.midnight();
+    final JeebSemanticColors semantics =
+        theme.extension<JeebSemanticColors>()!;
 
-    final selectedLabel = _labelStyle(tester, 'requests');
-    expect(selectedLabel.color, scheme.primary);
-    expect(selectedLabel.fontSize, 12);
-    expect(selectedLabel.fontWeight, FontWeight.w700);
-
-    final unselectedLabel = _labelStyle(tester, 'profile');
-    expect(unselectedLabel.color, scheme.onSecondaryContainer);
-    expect(unselectedLabel.fontSize, 12);
-    expect(unselectedLabel.fontWeight, FontWeight.w600);
-
-    // One filled glyph per tab at 22px — the board never swaps an outlined
-    // variant in; only the ink changes.
-    final glyphs = tester.widgetList<Icon>(
-      find.descendant(
-        of: find.bySemanticsIdentifier('shell_tab_delivery'),
-        matching: find.byType(Icon),
-      ),
-    );
-    expect(glyphs.first.size, 22);
-    expect(glyphs.first.icon, Icons.local_shipping);
-    expect(glyphs.first.color, scheme.onSecondaryContainer);
-  });
-
-  testWidgets('the bar is separated by a 1px outlineVariant rule, not a shadow',
-      (tester) async {
-    final prefs = await SharedPreferences.getInstance();
-    await tester.pumpWidget(_harness(prefs, const Locale('en')));
-    await tester.pumpAndSettle();
-
-    final scheme = AppTheme.light().colorScheme;
-    final decorations = tester
+    final BoxDecoration decoration = tester
         .widgetList<DecoratedBox>(
-          find.ancestor(
-            of: find.bySemanticsIdentifier('shell_tab_profile'),
+          find.descendant(
+            of: find.byType(JeebPillNav),
             matching: find.byType(DecoratedBox),
           ),
         )
-        .map((d) => d.decoration)
-        .whereType<BoxDecoration>();
-    final barDecoration =
-        decorations.firstWhere((d) => d.border != null && d.color != null);
+        .map((DecoratedBox d) => d.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((BoxDecoration d) => d.boxShadow != null);
 
-    expect(barDecoration.color, scheme.surface);
-    expect(barDecoration.boxShadow, isNull,
-        reason: 'outline over shadow — the pre-redesign top shadow is gone');
-    final top = (barDecoration.border! as Border).top;
-    expect(top.width, 1);
-    expect(top.color, scheme.outlineVariant);
+    expect(decoration.color, theme.colorScheme.surface);
+    expect(decoration.borderRadius, BorderRadius.circular(JeebRadii.pill));
+    expect((decoration.border! as Border).top.color, semantics.glassBorder);
+    expect(decoration.boxShadow, JeebShadows.floatNav);
+
+    // Detached: inset from both screen edges and lifted off the bottom.
+    final Size screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+    final Rect capsule = tester.getRect(
+      find.descendant(
+        of: find.byType(JeebPillNav),
+        matching: find.byType(ClipRRect),
+      ).first,
+    );
+    expect(capsule.left, 16);
+    expect(screen.width - capsule.right, 16);
+    expect(screen.height - capsule.bottom, greaterThanOrEqualTo(20));
   });
 
-  testWidgets('the bar mirrors in RTL: Requests moves to the END edge',
+  testWidgets('the shell paints no field of its own and the tab content runs '
+      'UNDER the floating nav', (tester) async {
+    _reduceMotion(tester);
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(_harness(prefs, const Locale('en')));
+    await _settle(tester);
+
+    final Scaffold shell = tester.widget<Scaffold>(
+      find
+          .ancestor(of: find.byType(JeebPillNav), matching: find.byType(Scaffold))
+          .first,
+    );
+    expect(shell.extendBody, isTrue,
+        reason: 'the nav floats OVER the tab body, it does not push it up');
+    // Never a light slab between tabs: the fallback under every tab's own
+    // Midnight field is the page navy, never a white scaffold.
+    expect(
+      shell.backgroundColor ?? AppTheme.midnight().scaffoldBackgroundColor,
+      AppTheme.midnight().scaffoldBackgroundColor,
+    );
+  });
+
+  testWidgets('every tab body still reserves the nav height (VIS-P1-2)',
       (tester) async {
+    _reduceMotion(tester);
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(_harness(prefs, const Locale('en')));
+    await _settle(tester);
+
+    final BuildContext tabContext = tester.element(
+      find.byType(IndexedStack),
+    );
+    final MediaQueryData mq = MediaQuery.of(tabContext);
+    final double navHeight = tester.getSize(find.byType(JeebPillNav)).height;
+
+    expect(mq.padding.bottom, greaterThanOrEqualTo(navHeight));
+    expect(mq.viewPadding.bottom, mq.padding.bottom,
+        reason: 'scrollBodyBottomInset reads viewPadding — it must clear too');
+  });
+
+  testWidgets('system chrome stays LIGHT over every tab', (tester) async {
+    _reduceMotion(tester);
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(_harness(prefs, const Locale('en')));
+    await _settle(tester);
+
+    for (final String id in _kSlots) {
+      await tester.tap(find.bySemanticsIdentifier('shell_tab_$id'));
+      await _settle(tester);
+
+      final Iterable<SystemUiOverlayStyle> styles = tester
+          .widgetList<AnnotatedRegion<SystemUiOverlayStyle>>(
+            find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+          )
+          .map((AnnotatedRegion<SystemUiOverlayStyle> r) => r.value);
+
+      expect(styles, isNotEmpty, reason: '$id declares no overlay style');
+      for (final SystemUiOverlayStyle style in styles) {
+        expect(style.statusBarIconBrightness, Brightness.light,
+            reason: '$id darkens the status glyphs over navy');
+      }
+    }
+  });
+
+  testWidgets('the nav mirrors in RTL: Requests moves to the END edge',
+      (tester) async {
+    _reduceMotion(tester);
     final prefs = await SharedPreferences.getInstance();
     await tester.pumpWidget(_harness(prefs, const Locale('ar')));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     final requests = tester.getRect(
       find.bySemanticsIdentifier('shell_tab_requests'),

@@ -1,7 +1,6 @@
-import 'dart:math' as math;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
@@ -9,7 +8,8 @@ import '../../core/dev_seam/dev_seam.dart';
 import '../../core/lifecycle/route_visibility.dart';
 import '../../core/notifications/application/badge_count_cubit.dart';
 import '../../core/role/role_availability_cubit.dart';
-import '../../core/theme/jeeb_text_styles.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/jeeb/jeeb_pill_nav.dart';
 import '../../l10n/app_localizations.dart';
 import '../customer_profile/domain/customer_profile_view_data.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
@@ -51,12 +51,10 @@ import 'widgets/shell_header_actions.dart';
 /// user manually taps a tab their choice sticks, so a late getMe resolution
 /// never yanks the page out from under them.
 ///
-/// The bottom bar is the redesign-2026-08 §5.1 bar: a `1px outlineVariant`
-/// rule (outline over shadow), a 52×30 `surfaceContainerHigh` pill behind the
-/// SELECTED glyph only, and per-tab stable Semantics ids (`shell_tab_*`) so QA
-/// can target tabs without matching localized labels. The board draws a single
-/// 5-tab bar for both roles; the app's own additive tab model wins (§9-Q1) —
-/// the bar was restyled in place, never unified.
+/// MIDNIGHT M2-01: the bar is the kit's [JeebPillNav] — a detached navy capsule
+/// FLOATING over each tab's own `JeebMidnightField` (the shell paints no field
+/// of its own). Slot order is R1's: Requests · Delivery · Dashboard · Earnings ·
+/// Profile, carrying the frozen `shell_tab_*` Semantics ids.
 class ShellScreen extends StatefulWidget {
   const ShellScreen({
     super.key,
@@ -113,50 +111,51 @@ class _ShellScreenState extends State<ShellScreen> {
     );
     final landingIndex = _landingIndex(tabs, isJeeber: showJeeberContent);
     final safeIndex = (_selectedIndex ?? landingIndex).clamp(0, tabs.length - 1);
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        // Reserve the persistent bottom-nav bar's height as bottom content
-        // inset for every tab (VIS-P1-2) so a tab's last scrollable row — e.g.
-        // Profile's Sign out / Rate the app — clears the bar instead of sitting
-        // clipped under it. Injected once here, not per-screen.
-        //
-        // b02 READ ECONOMICS — [RouteVisibilityScope]. `TabVisibility` answers
-        // "am I the selected tab", which is NOT the same as "can the user see
-        // me": pushing `/delivery/:id` or `/chat/:id` on top of the shell leaves
-        // every tab mounted and still selected, so their push-bus subscribers
-        // kept reading underneath the pushed route. That was seven of the ten
-        // wire reads one `delivery` push produced on the customer phone. ONE
-        // scope, mounted on the shell's own route, so every tab can AND
-        // route-visibility into its own gate.
-        child: RouteVisibilityScope(
-          child: _NavBarContentInset(
-            // The bar's real painted height, so a taller redesigned bar cannot
-            // start clipping the last row of a tab (VIS-P1-2). Read above the
-            // Scaffold, where the system bottom inset is still visible.
-            barHeight: _barHeight(MediaQuery.paddingOf(context).bottom),
-            child: IndexedStack(
-              index: safeIndex,
-              // Wrap each child in a TabVisibility so a tab body can react to
-              // (re)becoming the selected page even though IndexedStack keeps
-              // every child mounted. Used by ClientHomeScreen to silently
-              // re-pull on refocus. updateShouldNotify only fires for the tab
-              // whose visibility actually flips.
-              children: [
-                for (var i = 0; i < tabs.length; i++)
-                  TabVisibility(
-                    isVisible: i == safeIndex,
-                    child: tabs[i].page,
-                  ),
-              ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // White status glyphs over navy on EVERY tab, whatever a tab body does.
+      value: AppTheme.systemOverlayStyle,
+      child: Scaffold(
+        // The nav floats OVER the tab content, so the body runs full height and
+        // Scaffold grows its bottom inset by the nav's painted height.
+        extendBody: true,
+        body: SafeArea(
+          bottom: false,
+          // b02 READ ECONOMICS — [RouteVisibilityScope]. `TabVisibility` answers
+          // "am I the selected tab", which is NOT the same as "can the user see
+          // me": pushing `/delivery/:id` or `/chat/:id` on top of the shell leaves
+          // every tab mounted and still selected, so their push-bus subscribers
+          // kept reading underneath the pushed route. That was seven of the ten
+          // wire reads one `delivery` push produced on the customer phone. ONE
+          // scope, mounted on the shell's own route, so every tab can AND
+          // route-visibility into its own gate.
+          child: RouteVisibilityScope(
+            child: _NavBarContentInset(
+              child: IndexedStack(
+                index: safeIndex,
+                // Wrap each child in a TabVisibility so a tab body can react to
+                // (re)becoming the selected page even though IndexedStack keeps
+                // every child mounted. Used by ClientHomeScreen to silently
+                // re-pull on refocus. updateShouldNotify only fires for the tab
+                // whose visibility actually flips.
+                children: [
+                  for (var i = 0; i < tabs.length; i++)
+                    TabVisibility(
+                      isVisible: i == safeIndex,
+                      child: tabs[i].page,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-      bottomNavigationBar: _JeebBottomBar(
-        tabs: tabs,
-        selectedIndex: safeIndex,
-        onTap: (i) => setState(() => _selectedIndex = i),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: _FloatingTabNav(
+            tabs: tabs,
+            selectedIndex: safeIndex,
+            onSelected: (i) => setState(() => _selectedIndex = i),
+          ),
+        ),
       ),
     );
   }
@@ -266,33 +265,22 @@ class _ShellScreenState extends State<ShellScreen> {
   }
 }
 
-/// Re-seeds the bottom system inset for every tab body with the visual height
-/// of the persistent [_JeebBottomBar] ([barHeight]), so a tab's last scrollable
-/// row clears the bar rather than sitting clipped beneath it (VIS-P1-2).
-/// RTL-agnostic — a vertical inset only.
-///
-/// The outer [Scaffold] already consumes the real system bottom inset for the
-/// nav bar, so inside a tab body both `padding.bottom` and `viewPadding.bottom`
-/// collapse to `0` and each screen's own `SafeArea` / [BottomInsetX] reserves
-/// nothing above the bar. Re-adding the bar height to BOTH insets lets that
-/// same double-pad-safe machinery reserve it exactly once, whichever mechanism
-/// a given tab uses (a bottom `SafeArea`, `scrollBodyBottomInset`, or neither).
+/// `extendBody: true` already grew `padding.bottom` to the floating nav's
+/// painted height; this mirrors that into `viewPadding.bottom` so the tabs that
+/// reserve space via [BottomInsetX.scrollBodyBottomInset] clear the nav too
+/// (VIS-P1-2). No arithmetic of our own — Scaffold measured the real widget.
 class _NavBarContentInset extends StatelessWidget {
-  const _NavBarContentInset({required this.barHeight, required this.child});
+  const _NavBarContentInset({required this.child});
 
-  /// The painted height of [_JeebBottomBar] for the current system inset.
-  final double barHeight;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
+    if (mq.viewPadding.bottom >= mq.padding.bottom) return child;
     return MediaQuery(
       data: mq.copyWith(
-        padding: mq.padding.copyWith(bottom: mq.padding.bottom + barHeight),
-        viewPadding: mq.viewPadding.copyWith(
-          bottom: mq.viewPadding.bottom + barHeight,
-        ),
+        viewPadding: mq.viewPadding.copyWith(bottom: mq.padding.bottom),
       ),
       child: child,
     );
@@ -349,174 +337,111 @@ class _CustomerProfileTabBody extends StatelessWidget {
   }
 }
 
-// ── Bottom-bar geometry (redesign-2026-08 §5.1, "Not shared") ──────────────
-// Measured off `screens/04-client-home.png` @2x: top rule at y1732 (#E5E1E5),
-// pill y1758–1817 × x50–153 (52×30, r14), label cap-top y1834, frame bottom
-// y1912. OMDS has no bottom-nav primitive and the kit ships none, so these are
-// the bar's own tokens rather than a hand-rolled copy of a kit widget.
+// ── The floating pill nav (MIDNIGHT M2-01, R1 `tpl 108-130`) ───────────────
+// All geometry lives in the frozen kit widget; the shell only maps product
+// tabs onto its five slots and re-homes the G3 badge over the right one.
 
-/// `padding-top: 12` — rule → pill.
-const double _kBarTopPadding = Spacing.small;
-
-/// `padding-inline: 8`, with the five items sharing the rest equally.
-const double _kBarHorizontalPadding = Spacing.xSmall;
-
-/// `padding-bottom: 26` on the board, which draws no home indicator.
-const double _kBarBottomPadding = 26;
-
-/// Glyph box + gap + a 12px label line — the item's natural height, used only
-/// to size the content inset tab bodies must reserve ([_NavBarContentInset]).
-const double _kBarItemHeight = 52;
-
-/// The selected-tab pill: 52×30, `surfaceContainerHigh`, r14.
-const double _kTabPillWidth = 52;
-const double _kTabPillHeight = 30;
-const double _kTabPillRadius = 14;
-
-/// Every glyph is 22px, selected or not; the pill is what changes.
-const double _kTabGlyphSize = 22;
-
-/// Glyph box → label.
-const double _kTabGlyphLabelGap = Spacing.twoXSmall;
-
-/// The bar's bottom pad. The board's 26 is the entire gap because its frame has
-/// no gesture bar; on a real device the system inset takes over as soon as it
-/// needs more room than 26 already gave, so the bar never sits under the home
-/// indicator and never doubles the gap on a device that has none.
-double _barBottomPadding(double systemInset) =>
-    math.max(_kBarBottomPadding, systemInset + Spacing.xSmall);
-
-/// Total painted height of the bar, system inset included — what a tab body
-/// must reserve so its last row clears the bar (VIS-P1-2).
-double _barHeight(double systemInset) =>
-    _kBarTopPadding + _kBarItemHeight + _barBottomPadding(systemInset);
-
-class _JeebBottomBar extends StatelessWidget {
-  const _JeebBottomBar({
+/// Maps the shell's five [_Tab]s onto [JeebPillNav], keeping the frozen
+/// `shell_tab_<id>` identifiers and R1's slot order.
+class _FloatingTabNav extends StatelessWidget {
+  const _FloatingTabNav({
     required this.tabs,
     required this.selectedIndex,
-    required this.onTap,
+    required this.onSelected,
   });
 
   final List<_Tab> tabs;
   final int selectedIndex;
-  final void Function(int) onTap;
+  final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    // The device's own gesture bar / home indicator. `paddingOf` (not
-    // viewPadding) keeps the pre-redesign SafeArea behavior: the inset
-    // collapses while the keyboard covers it.
-    final double systemInset = MediaQuery.paddingOf(context).bottom;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        // Outline over shadow (§4/R): the board separates the bar with a 1px
-        // rule, not a lift. The old top shadow is gone deliberately.
-        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
-      ),
-      child: Padding(
-        padding: EdgeInsetsDirectional.only(
-          top: _kBarTopPadding,
-          start: _kBarHorizontalPadding,
-          end: _kBarHorizontalPadding,
-          bottom: _barBottomPadding(systemInset),
+    final Widget nav = JeebPillNav(
+      items: <JeebPillNavItem>[
+        for (final _Tab tab in tabs)
+          JeebPillNavItem(
+            icon: tab.icon,
+            label: tab.label,
+            identifier: 'shell_tab_${tab.id}',
+          ),
+      ],
+      selectedIndex: selectedIndex,
+      onSelected: onSelected,
+    );
+    final int badged = tabs.indexWhere((_Tab t) => t.badgeCount > 0);
+    if (badged < 0) return nav;
+    return Stack(
+      children: <Widget>[
+        nav,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: _TabBadgeOverlay(
+              tab: tabs[badged],
+              slot: badged,
+              slotCount: tabs.length,
+            ),
+          ),
         ),
-        child: Row(
-          // Equal columns, laid out start→end, so the bar mirrors in RTL for
-          // free (the board's item centers land on the same fifths).
-          children: [
-            for (var i = 0; i < tabs.length; i++)
-              Expanded(
-                child: _BarItem(
-                  tab: tabs[i],
-                  isSelected: i == selectedIndex,
-                  onTap: () => onTap(i),
-                ),
-              ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }
 
-class _BarItem extends StatelessWidget {
-  const _BarItem({
+/// G3 unseen-request count. The kit's slot takes an `IconData`, not a widget,
+/// so the badge is laid over the nav on the same 5-way split the kit uses.
+class _TabBadgeOverlay extends StatelessWidget {
+  const _TabBadgeOverlay({
     required this.tab,
-    required this.isSelected,
-    required this.onTap,
+    required this.slot,
+    required this.slotCount,
   });
 
   final _Tab tab;
-  final bool isSelected;
-  final VoidCallback onTap;
+  final int slot;
+  final int slotCount;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    // Navy when selected, periwinkle otherwise. `onSecondaryContainer` IS the
-    // periwinkle the spec calls `mutedText` (§4.1); the semantic token of that
-    // name is reserved for decoration, and a tab label is text — so glyph and
-    // label read the SAME role and can never drift apart in dark mode.
-    final Color ink = isSelected
-        ? colorScheme.primary
-        : colorScheme.onSecondaryContainer;
-    final Widget icon = Icon(tab.icon, size: _kTabGlyphSize, color: ink);
-    // The 52×30 footprint is constant, so every glyph sits on one line and only
-    // the selected one gains a pill.
-    final Widget glyph = Container(
-      width: _kTabPillWidth,
-      height: _kTabPillHeight,
-      alignment: Alignment.center,
-      decoration: isSelected
-          ? BoxDecoration(
-              color: colorScheme.surfaceContainerHigh,
-              borderRadius: const BorderRadius.all(
-                Radius.circular(_kTabPillRadius),
-              ),
-            )
-          : null,
-      // G3: M3 count badge (theme error/onError roles — OMDS ships no badge
-      // primitive) over the tab glyph when the tab has unseen items; plain
-      // glyph otherwise. It hugs the ICON, not the 52-wide pill, or it would
-      // float detached at the pill's far edge. Carries `shell_tab_<id>_badge`
-      // so QA can assert presence/absence without matching the count text.
-      child: tab.badgeCount > 0
-          ? Semantics(
-              identifier: 'shell_tab_${tab.id}_badge',
-              container: true,
-              child: Badge.count(count: tab.badgeCount, child: icon),
-            )
-          : icon,
-    );
-    return Semantics(
-      identifier: 'shell_tab_${tab.id}',
-      button: true,
-      selected: isSelected,
-      label: tab.label,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            glyph,
-            const SizedBox(height: _kTabGlyphLabelGap),
-            Text(
-              tab.label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              // 12/w700 selected, 12/w600 unselected — `bodySmall` ships the
-              // 12/w600 exactly, so only the selected weight is overridden.
-              style: context.jeebText.bodySmall.copyWith(
-                color: ink,
-                fontWeight: isSelected ? FontWeight.w700 : null,
-              ),
-            ),
-          ],
+    return Padding(
+      padding: JeebPillNav.defaultMargin.add(
+        const EdgeInsets.symmetric(
+          horizontal: JeebPillNav.horizontalPadding,
         ),
+      ),
+      child: Row(
+        children: <Widget>[
+          for (int i = 0; i < slotCount; i++)
+            Expanded(
+              child: i == slot
+                  ? Align(
+                      alignment: AlignmentDirectional.topCenter,
+                      child: Padding(
+                        // +1 clears the capsule's hairline border.
+                        padding: const EdgeInsets.only(
+                          top: JeebPillNav.slotVerticalPadding + 1,
+                        ),
+                        child: SizedBox(
+                          height: JeebPillNav.iconRowHeight,
+                          child: Center(
+                            child: Semantics(
+                              identifier: 'shell_tab_${tab.id}_badge',
+                              container: true,
+                              // Hugs the glyph box, not the 50-wide active
+                              // pill, so it can never float off detached.
+                              child: Badge.count(
+                                count: tab.badgeCount,
+                                child: const SizedBox.square(
+                                  dimension: JeebPillNav.iconSize,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+        ],
       ),
     );
   }
@@ -536,10 +461,8 @@ class _Tab {
   final String id;
   final String label;
 
-  /// ONE glyph per tab, filled in both states. The board never swaps an
-  /// outlined variant in — 04's selected Requests tray and 16's unselected one
-  /// are the same solid shape; only the ink (and the pill) change. The M3
-  /// outlined/filled dance was the pre-redesign convention.
+  /// ONE glyph per tab, filled in both states — R1 draws the same solid shape
+  /// selected or not; only the ink (and the orange pill) change.
   final IconData icon;
   final Widget page;
 
