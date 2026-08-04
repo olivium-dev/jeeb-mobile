@@ -322,12 +322,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M2-10 R14 Receipt confirm — money emphasis on the bundled w800 ramp, proof frame on glass, loading state added as a 4th catalog capture; JeebMoneyBreakdown treatment consumed but not the widget (it forbids a fee line on customer surfaces — §3 carry-in line corrected) @2026-08-04
 - [x] M2-11 R15 Mutual rating — stars amber + radial halo, chips re-gapped to the board's 3+2, router half of the counterpart-name carry-in shipped as `mutualRatingLocation()`; the 3 supplying call sites are routed to their owning rows (chat→M2-16, delivery_detail→M3-01, otp_handover parked, see §8 Q-016) @2026-08-04
 - [x] M2-12 R16+E3 Jeeber home + feed empty — 3 orange ink leaks killed (colorScheme.primary IS #D73B00 on Midnight), availability strip composites success when online, "Make of…" squeeze fixed via 1:2 flex, feed CTA moved to JeebCtaButton.accent; E3 shipped on `balcony` pending a `street` variant (§8 Q-015) @2026-08-04
-- [ ] M2-13 R17 Offer composer
-- [ ] M2-14 R18 Active delivery — Jeeber
-- [ ] M2-15 R19 Earnings
-- [ ] M2-16 R20 Order chat (container + thread; non-zero-diff assertion)
-- [ ] M2-17 R21+E4 Order history + empty
-- [ ] M2-18 R4 Wallet
+- [x] M2-13 R17 Offer composer — 3 ETA pills (picker sheet + Other pill deleted), middle pre-selected, money field lit with a real outer halo, CTA on accent; validation copy moved to reason codes; **parked AR@200% overflow FIXED** (JeebInfoNote trailing slot, 5px) @2026-08-04
+- [x] M2-14 R18 Active delivery — Jeeber — 4-segment bar stepper on the new JeebStepperDoneInk, handoff tiles + mark-delivered panel restyled; goods-cost pill left unwired per the tile (Q7); passed-bar ink delta escalated (§8 Q-023) @2026-08-04
+- [x] M2-15 R19 Earnings — third hero stat, success-wash field, money on the w800 ramp; **parked AR overflow FIXED** — and the brief named the wrong file: the red was earnings_dashboard_data_truth_test (1px, semantics node dropped below the fold), not the layout test @2026-08-04
+- [x] M2-16 R20 Order chat — **container non-zero (+56/-123)**, green banner demoted to a quiet timeline chip, no typing indicator, counterpart-name carry-in closed at the one site where the name is in scope; **parked 320x480@2.0 overflow FIXED** (composer, 52px) @2026-08-04
+- [x] M2-17 R21+E4 Order history + empty — rows/status chips/expired dimming per tile, E4 empty on the E1 variant pending a sanctioned `parcel` (§8 Q-025); date-filter sheet still light-theme → wave-C fixup @2026-08-04
+- [x] M2-18 R4 Wallet — hub restyled on the money tokens, balance hero + transaction rows, all 6 catalog states re-captured; wallet subtree stays M3 @2026-08-04
 - [ ] M2-19 R22 Settings
 - [ ] M2-20 R23 Become a Jeeber (KYC wizard)
 - [ ] M2-21 R5+W1-3 Onboarding + walkthrough slides

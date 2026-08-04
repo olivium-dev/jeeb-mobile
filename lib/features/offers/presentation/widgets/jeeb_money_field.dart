@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_stepper_pill.dart';
 
-/// The money input of the offer composer (redesign-2026-08 §4.2, screen 17
-/// `tpl 995-1000`): a `h64 / r16 / 2px navy` field holding a currency mark, the
-/// amount, and the `−1` / `+1` [JeebStepperPill] pair.
+/// The money input of the offer composer (MIDNIGHT R17 `tpl 995-1000`): a
+/// `h64 / lg / 2px ORANGE` glass field holding a currency mark, the amount, and
+/// the `−1` / `+1` [JeebStepperPill] pair.
+///
+/// MIDNIGHT: this is the tile's "lit element" — the 2px accent stroke plus
+/// [JeebShadows.glowRest] are the screen's first budgeted orange. The amount
+/// itself is **white ink**, not orange (measured `#FFFFFF` on the board): the
+/// stroke carries the emphasis, the digits stay readable.
 ///
 /// **Why this is not an `OmdsTextField`.** The board needs three things OMDS
 /// cannot express: a caller-set text style (the amount is w800, far above any
@@ -18,13 +25,12 @@ import '../../../../core/widgets/jeeb/jeeb_stepper_pill.dart';
 /// the three.
 ///
 /// **Where it should live.** Wave 1 §5 left `JeebMoneyField` "screen-17-local
-/// by assignment", so it sits in this feature directory for now. Two design
-/// values are therefore snapped instead of exact: `lib/features` may not write
-/// `fontSize:` literals (`tool/check_design_tokens.sh`), so the `$` mark uses
-/// `jeebText.price` (21/w800, board 24) and the amount uses `jeebText.h1` at
-/// w800 (24/w800, board 26). Wiring request WR-1 moves the file into
-/// `lib/core/widgets/jeeb/` where the exact sizes are legal; nothing else about
-/// the widget changes on that move.
+/// by assignment", so it sits in this feature directory for now. `lib/features`
+/// may not write `fontSize:` literals (`tool/check_design_tokens.sh`), so the
+/// `$` mark uses `jeebText.price` (22/w800, board 24) and the amount uses
+/// `jeebText.h1` at w800 (26/w800, board 26 — exact after the Midnight ramp
+/// re-cut). Wiring request WR-1 moves the file into `lib/core/widgets/jeeb/`;
+/// nothing else about the widget changes on that move.
 ///
 /// RTL: a plain `Row`, so the mark/amount/steppers mirror as a block, while the
 /// editable core is pinned to [TextDirection.ltr] so the digits and the decimal
@@ -51,8 +57,26 @@ class JeebMoneyField extends StatelessWidget {
   /// with the text scale instead of clipping at 200%.
   static const double minHeight = Sizes.sixXLarge;
 
-  /// `2px` navy stroke (`tpl 995`).
+  /// `2px` accent stroke (`tpl 995`).
   static const double borderWidth = 2;
+
+  /// Corner radius — board 16, which the Midnight ladder snaps to `lg`.
+  static const double radius = JeebRadii.lg;
+
+  /// [JeebShadows.glowRest] re-cut to `BlurStyle.outer`. The default style
+  /// paints the blur UNDER the box too, and a 7% glass fill hides none of it —
+  /// the tile's cool-navy field turned maroon. The halo belongs outside only.
+  static final List<BoxShadow> _outerGlow = JeebShadows.glowRest
+      .map(
+        (s) => BoxShadow(
+          color: s.color,
+          offset: s.offset,
+          blurRadius: s.blurRadius,
+          spreadRadius: s.spreadRadius,
+          blurStyle: BlurStyle.outer,
+        ),
+      )
+      .toList(growable: false);
 
   /// The decrement label — a real U+2212 MINUS SIGN, as the board draws it.
   static const String decrementLabel = '−1';
@@ -107,24 +131,32 @@ class JeebMoneyField extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final semantics = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.light();
+        JeebSemanticColors.midnight();
     final hasError = errorText != null;
 
     final markStyle =
         context.jeebText.price.copyWith(color: semantics.mutedText);
     final amountStyle = context.jeebText.h1.copyWith(
       fontWeight: FontWeight.w800,
-      color: scheme.primary,
+      color: scheme.onSurface,
     );
 
     final field = DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: OmdsBorderRadius.medium,
+        // Board `#212766` = glassFill composited over raised navy. Baked opaque
+        // rather than left translucent so the halo below cannot tint the fill.
+        color: Color.alphaBlend(
+          semantics.glassFill,
+          scheme.surfaceContainerHigh,
+        ),
+        borderRadius: BorderRadius.circular(radius),
         border: Border.all(
           color: hasError ? scheme.error : scheme.primary,
           width: borderWidth,
         ),
+        // The tile's orange halo around the lit field; an errored field is red
+        // and must not keep an orange glow.
+        boxShadow: hasError ? null : _outerGlow,
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: minHeight),
@@ -181,7 +213,6 @@ class JeebMoneyField extends StatelessWidget {
     TextStyle amountStyle,
     JeebSemanticColors semantics,
   ) {
-    final scheme = Theme.of(context).colorScheme;
     // The row mirrors, so the digits must hug the currency mark from whichever
     // side it lands on — while the run itself stays LTR.
     final alignment = Directionality.of(context) == TextDirection.rtl
@@ -197,7 +228,9 @@ class JeebMoneyField extends StatelessWidget {
         style: amountStyle,
         textDirection: TextDirection.ltr,
         textAlign: alignment,
-        cursorColor: scheme.primary,
+        // Theme ruling 4: the caret stays periwinkle app-wide; the tile draws
+        // no orange caret, and orange is spent on the stroke here.
+        cursorColor: semantics.mutedText,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textInputAction: TextInputAction.done,
         inputFormatters: inputFormatters,

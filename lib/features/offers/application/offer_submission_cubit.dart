@@ -39,6 +39,13 @@ class OfferFormState extends Equatable {
 
   final InsufficientBalanceInfo? insufficientBalance;
 
+  /// Reason code for [priceError]. The application layer has no `BuildContext`,
+  /// so it names the reason and the screen resolves the localized sentence.
+  static const String priceErrorRequired = 'price-required';
+
+  /// Reason code for [etaError].
+  static const String etaErrorRequired = 'eta-required';
+
   bool get isSubmitting => mode == OfferFormMode.submitting;
 
   OfferFormState copyWith({
@@ -124,12 +131,12 @@ class OfferFormCubit extends Cubit<OfferFormState> {
   }
 
   String? _validatePrice(double? price) {
-    if (price == null || price <= 0) return 'Price must be greater than 0';
+    if (price == null || price <= 0) return OfferFormState.priceErrorRequired;
     return null;
   }
 
   String? _validateEta(int? eta) {
-    if (eta == null || eta <= 0) return 'ETA must be greater than 0';
+    if (eta == null || eta <= 0) return OfferFormState.etaErrorRequired;
     return null;
   }
 
