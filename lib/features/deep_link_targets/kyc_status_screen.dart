@@ -42,8 +42,8 @@ class _KycStatusScreenState extends State<KycStatusScreen> {
                 medallions: kycStateMedallions,
                 center: const KycStateMark(),
                 identifier: 'deep_link_kyc_status_root',
-                semanticLabel:
-                    '${l10n.kycStatusTitle}. ${l10n.kycStatusPlaceholder}',
+                // No semanticLabel: it restated headline+body, so the container
+                // and its explicit children announced the copy twice.
                 headline: l10n.kycStatusTitle,
                 body: l10n.kycStatusPlaceholder,
               ),

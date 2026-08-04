@@ -43,12 +43,23 @@ void main() {
           greaterThan(1000),
           reason: 'population sanity: the lens must be reading a real tree',
         );
+        // Binary assets are undecodable BY NATURE and say nothing about the
+        // lens; the MIDNIGHT redesign added ~340 capture PNGs, which drifted
+        // the raw ratio past a quarter without the text corpus changing.
+        const binaryExt = <String>['.png', '.jpg', '.jpeg', '.webp', '.ttf',
+            '.otf', '.ttc', '.ico', '.jar', '.keystore', '.p12', '.zip'];
+        final skippedText = skipped
+            .where((f) => !binaryExt.any((e) => f.toLowerCase().endsWith(e)))
+            .toList();
+        final textTracked = MB1Source.trackedFiles()
+            .where((f) => !binaryExt.any((e) => f.toLowerCase().endsWith(e)))
+            .length;
         expect(
-          skipped.length,
-          lessThan(MB1Source.trackedFiles().length ~/ 4),
+          skippedText.length,
+          lessThan(textTracked ~/ 4),
           reason:
-              'if a quarter of the tree is undecodable the zero above is a '
-              'measurement of the skip list, not of the tree',
+              'if a quarter of the TEXT tree is undecodable the zero above is '
+              'a measurement of the skip list, not of the tree',
         );
       });
     }

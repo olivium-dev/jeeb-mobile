@@ -15,14 +15,47 @@ const Size _phoneFrame = Size(390, 844);
 const Size _compactFrame = Size(320, 568);
 const Size _notchedFrame = Size(393, 852);
 
-/// `OmdsEmptyStatePage.iconSize` default — a fixed logical size, not a scaled
-/// one.
-const double _iconSize = 100;
+/// `JeebEmptyState.defaultIllustrationSize` — a fixed logical size, not a
+/// scaled one — and the Ø58 centre slot the `KycStateMark` glyph fills.
+const double _illustrationSize = 300;
+const double _markSize = 58;
 
-/// The two sentences the screen hardcodes, as string literals rather than ARB
-/// lookups.
-const String _title = 'KYC Status coming soon';
-const String _subtitle = 'This screen is not yet available.';
+/// The two sentences the screen renders, as ARB lookups in both locales.
+const String _title = 'KYC status';
+const String _subtitle = 'Your verification status will appear here.';
+const String _titleAr = 'حالة التحقق';
+const String _subtitleAr = 'ستظهر حالة التحقق هنا.';
+
+/// What the M4 sweep added, and what every geometry claim below rests on.
+final Finder _scrollable = find.descendant(
+  of: find.byType(KycStatusScreen),
+  matching: find.byType(Scrollable),
+);
+
+/// The composed illustration block — the screen's only [FittedBox] — and the
+/// glyph the screen swaps into radar's broadcast core.
+final Finder _illustration = find
+    .descendant(
+      of: find.byType(KycStatusScreen),
+      matching: find.byType(FittedBox),
+    )
+    .first;
+final Finder _mark = find.byIcon(Icons.verified_user_outlined);
+
+/// How much taller than its window the composition is. Zero means it fits.
+double _absorbedByScrolling(WidgetTester tester) =>
+    tester.state<ScrollableState>(_scrollable).position.maxScrollExtent;
+
+/// Every label in [node]'s subtree, root first — one entry per semantics node,
+/// so a sentence carried at two levels shows up as two entries.
+List<String> _labelsUnder(SemanticsNode node) {
+  final List<String> labels = <String>[node.label];
+  node.visitChildren((SemanticsNode child) {
+    labels.addAll(_labelsUnder(child));
+    return true;
+  });
+  return labels;
+}
 
 void main() {
   setUpAll(loadPreviewArbs);
@@ -132,20 +165,18 @@ void main() {
       expect(await scale(kycStatusScreenNotchedLargeText), 20);
     });
 
-    testWidgets('the screen contains no scrollable of any kind', (
+    testWidgets('the screen body scrolls, and still brings its own Scaffold', (
       WidgetTester tester,
     ) async {
-      // The structural half of the clipping defect, and the half that does not
+      // The structural half of the clipping defect, and the half the M4 sweep
       await pumpPreview(tester, kycStatusScreenPhone);
 
+      expect(_scrollable, findsOneWidget);
       expect(
-        find.descendant(
-          of: find.byType(KycStatusScreen),
-          matching: find.byType(Scrollable),
-        ),
-        findsNothing,
+        tester.state<ScrollableState>(_scrollable).position.axis,
+        Axis.vertical,
       );
-      // The screen brings its own Scaffold (OmdsEmptyStatePage returns one), so
+      // The screen still brings its own Scaffold, so it is a whole screen and
       expect(
         find.descendant(
           of: find.byType(KycStatusScreen),
@@ -155,26 +186,29 @@ void main() {
       );
     });
 
-    testWidgets('the 100 pt icon does not follow the text scaler', (
-      WidgetTester tester,
-    ) async {
-      // The other font-independent half. `OmdsEmptyStatePage` passes a fixed
-      await pumpPreview(tester, kycStatusScreenPhone);
-      final Size atDefault =
-          tester.getSize(find.byIcon(Icons.construction_outlined));
+    testWidgets(
+      'the illustration and its centre mark are fixed sizes that do not follow '
+      'the text scaler',
+      (WidgetTester tester) async {
+        // The other font-independent half, and it did NOT change: the block
+        // still hands the illustration a raw logical width.
+        await pumpPreview(tester, kycStatusScreenPhone);
+        final Size artAtDefault = tester.getSize(_illustration);
+        final Size markAtDefault = tester.getSize(_mark);
 
-      await pumpPreview(tester, kycStatusScreenPhoneLargeText);
-      final Size atCeiling =
-          tester.getSize(find.byIcon(Icons.construction_outlined));
+        await pumpPreview(tester, kycStatusScreenPhoneLargeText);
 
-      expect(atDefault, const Size(_iconSize, _iconSize));
-      expect(
-        atCeiling,
-        atDefault,
-        reason: 'the icon is a fixed 100 pt: it claims the same share of a '
-            '568 pt display whether the user reads at 100% or at 200%',
-      );
-    });
+        expect(artAtDefault, const Size(_illustrationSize, _illustrationSize));
+        expect(markAtDefault, const Size(_markSize, _markSize));
+        expect(
+          tester.getSize(_illustration),
+          artAtDefault,
+          reason: 'the art claims the same 300 pt of an 844 pt display whether '
+              'the user reads at 100% or at 200%',
+        );
+        expect(tester.getSize(_mark), markAtDefault);
+      },
+    );
 
     testWidgets('on a 390 × 844 phone the whole composition fits', (
       WidgetTester tester,
@@ -223,9 +257,10 @@ void main() {
 
     for (final Locale locale in const <Locale>[Locale('en'), Locale('ar')]) {
       testWidgets(
-        'the smallest phone at 200% clips, in ${locale.languageCode}',
+        'the smallest phone at 200% scrolls instead of clipping, in '
+        '${locale.languageCode}',
         (WidgetTester tester) async {
-          // The state that breaks, and the reason `Compact · 200% text` is kept
+          // The state that used to break, and the reason `Compact · 200% text`
           await pumpPreview(
             tester,
             kycStatusScreenCompactLargeText,
@@ -234,21 +269,22 @@ void main() {
 
           // Pins WHICH window this preview simulates, the same job
           expect(find.text('Compact · 320 × 568 · 200% text'), findsOneWidget);
+          expect(tester.takeException(), isNull);
           expect(
-            tester.takeException().toString(),
-            contains('overflowed'),
-            reason: 'a Column(mainAxisSize: min) inside a Center, with a fixed '
-                '100 pt icon above two wrapping paragraphs, on a 320 × 568 '
-                'display at the 200% accessibility ceiling',
+            _absorbedByScrolling(tester),
+            greaterThan(0),
+            reason: 'the composition is still taller than a 320 × 568 display '
+                'at the 200% accessibility ceiling: the scroll view is what '
+                'keeps the bottom of it reachable',
           );
         },
       );
     }
 
-    testWidgets('the copy is hardcoded English, so Arabic renders English', (
+    testWidgets('the copy is localized, so Arabic renders Arabic', (
       WidgetTester tester,
     ) async {
-      // Both sentences are string literals in `build`, not `AppLocalizations`
+      // Both sentences are `AppLocalizations` lookups now, not string literals
       await pumpPreview(
         tester,
         kycStatusScreenPhone,
@@ -259,33 +295,38 @@ void main() {
         Directionality.of(tester.element(find.byType(KycStatusScreen))),
         TextDirection.rtl,
       );
-      expect(find.text(_title), findsOneWidget);
-      expect(find.text(_subtitle), findsOneWidget);
+      expect(find.text(_titleAr), findsOneWidget);
+      expect(find.text(_subtitleAr), findsOneWidget);
+      expect(find.text(_title), findsNothing);
+      expect(find.text(_subtitle), findsNothing);
     });
 
-    testWidgets('the Semantics wrapper announces the copy twice', (
+    testWidgets('the screen announces its copy once, not once per tree level', (
       WidgetTester tester,
     ) async {
-      // `Semantics(container: true, label: 'KYC Status coming soon. This screen
+      // STILL OPEN: `semanticLabel` restates the two sentences the block's own
+      // explicit child nodes already carry, so each is in the tree twice.
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpPreview(tester, kycStatusScreenPhone);
 
-      // One node covers the whole screen — the wrapper's label and both Texts
-      final SemanticsNode node = tester.getSemantics(find.text(_title));
-      final String label = node.label;
+      final List<String> labels = _labelsUnder(
+        tester.getSemantics(
+          find.bySemanticsIdentifier('deep_link_kyc_status_root'),
+        ),
+      );
 
       expect(
-        _occurrences(label, _title),
-        2,
-        reason: 'merged label was: $label',
+        labels.where((String label) => label.contains(_title)).length,
+        1,
+        reason: 'labels in the block subtree were: $labels',
       );
-      expect(_occurrences(label, _subtitle), 2);
+      expect(
+        labels.where((String label) => label.contains(_subtitle)).length,
+        1,
+      );
 
       handle.dispose();
     });
   });
 }
-
-int _occurrences(String haystack, String needle) =>
-    needle.isEmpty ? 0 : haystack.split(needle).length - 1;
