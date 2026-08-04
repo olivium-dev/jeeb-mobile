@@ -5,9 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/role/role_availability_cubit.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -17,16 +20,22 @@ import '../application/support_state.dart';
 import '../data/stub_support_repository.dart';
 import '../domain/support_repository.dart';
 
-/// Board gutter + block rhythm (redesign-2026-08 §4.3): 24px sides, 16px above
-/// the first block. The docked footer owns the bottom edge, so the scroll body
-/// only needs to clear it. Same constant shape the neighbouring dispute-status
-/// screen uses.
+/// Token sheet §5: the 24 screen gutter, 16 above the first block. The docked
+/// footer owns the bottom edge, so the scroll body only clears it.
 const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
   Spacing.medium,
   Spacing.xLarge,
   Spacing.large,
 );
+
+/// The empty-family subject for the two non-form phases. A submitted ticket is
+/// a wait on a human reply, and `radar` is the ratified waiting composite.
+const JeebEmptyStateVariant _kEmptyVariant = JeebEmptyStateVariant.radar;
+
+/// E2's three ring discs are jeebers coming into range; no jeeber is involved
+/// in a support ticket, and inventing three initials would be fabrication.
+const List<JeebEmptyMedallion> _kNoMedallions = <JeebEmptyMedallion>[];
 
 /// support-ticket / contact-us (JM-063, D76).
 ///
@@ -50,14 +59,20 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 /// falls back to the in-memory [StubSupportRepository] so the route still
 /// resolves to a rendered screen.
 ///
-/// redesign-2026-08 (no board render for this screen — the design LANGUAGE of
-/// its neighbour, screen 20, applied): a re-skin, not a rewrite. In-body
-/// [JeebTopBar] instead of the Material app bar, 24px gutters, the category
-/// picker as a [JeebSelectChip] group (fill-swap selection, not radios), the
-/// two free-text fields untouched (OMDS owns the input primitive),
-/// [JeebSectionLabel] band headers, and the dispute link + submit CTA docked in
-/// a [JeebCtaFooter] in their existing order. Same flow, same copy, same
-/// identifiers, same navigation.
+/// MIDNIGHT M3-30 — the board never drew this screen. Nearest tile is **R22
+/// settings**: the only board tile that draws a stacked *labelled control form*
+/// (uppercase periwinkle band headers over control groups, one lit frame, the
+/// dim-red edge at the bottom), and it sits on the same customer-profile chain
+/// this screen is reached from. The already-shipped R22 derivation for a field
+/// stack — M3-26 password-security — is followed rather than re-derived:
+/// `content` field with R22's single `topEnd` orange glow and NO periwinkle
+/// wash, transparent scaffold, in-body [JeebTopBar], [JeebSectionLabel] + 8
+/// over each group and 20 between bands, OMDS text fields left alone (the kit
+/// has no input primitive). R22 is board-still, so `animateDecor: false`.
+///
+/// The three non-form phases take the empty family (see [_kEmptyVariant]),
+/// which is how the sibling dispute form (M3-02 escalate) already discharges
+/// them. Same flow, same copy, same identifiers, same navigation.
 ///
 /// Semantics ids exposed (30_BACKLOG JM-063): `support_root`,
 /// `support_category`, `support_body`, `support_attach`, `support_order_link`,
@@ -120,34 +135,40 @@ class _SupportTicketView extends StatelessWidget {
       identifier: 'support_root',
       container: true,
       child: Scaffold(
-        // redesign-2026-08: the header is an in-body row (Ø40 back circle +
-        // title), not a Material app bar, so it renders identically in every
-        // phase (form / submitting / success / error) — the same shape screen
-        // 20 and the neighbouring dispute-status screen wear.
-        body: SafeArea(
-          child: Column(
-            children: [
-              JeebTopBar.back(
-                identifier: 'support_back',
-                title: l10n.supportTitle,
-              ),
-              Expanded(
-                child: BlocBuilder<SupportCubit, SupportState>(
-                  builder: (context, state) {
-                    switch (state.phase) {
-                      case SupportPhase.inputting:
-                        return _SupportForm(state: state);
-                      case SupportPhase.submitting:
-                        return const _SubmittingView();
-                      case SupportPhase.success:
-                        return const _ConfirmationView();
-                      case SupportPhase.error:
-                        return _ErrorView(failure: state.failure);
-                    }
-                  },
+        backgroundColor: Colors.transparent,
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          // R22's only radial (`480px 380px at 88% -6%`); it declares no
+          // periwinkle wash, and nothing on that tile animates.
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          animateDecor: false,
+          child: SafeArea(
+            child: Column(
+              children: [
+                // The header is an in-body row, not a Material app bar, so it
+                // renders identically in every phase.
+                JeebTopBar.back(
+                  identifier: 'support_back',
+                  title: l10n.supportTitle,
                 ),
-              ),
-            ],
+                Expanded(
+                  child: BlocBuilder<SupportCubit, SupportState>(
+                    builder: (context, state) {
+                      switch (state.phase) {
+                        case SupportPhase.inputting:
+                          return _SupportForm(state: state);
+                        case SupportPhase.submitting:
+                          return const _SubmittingView();
+                        case SupportPhase.success:
+                          return const _ConfirmationView();
+                        case SupportPhase.error:
+                          return _ErrorView(failure: state.failure);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -173,8 +194,7 @@ class _SupportForm extends StatelessWidget {
               children: [
                 Text(
                   l10n.supportBody,
-                  // Brown subtitle ink — the board's secondary voice. Periwinkle
-                  // is banned as body text on white (§4.1 contrast gate).
+                  // `onSurfaceVariant` IS the Midnight muted-ink role (#8A93D8).
                   style: context.jeebText.body.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
@@ -514,23 +534,17 @@ class _SubmittingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'support_submitting',
-      container: true,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const OmdsLoadingState(),
-            const SizedBox(height: Spacing.medium),
-            // l10n KEY REQUEST: `supportSubmitting` not in ARB — reuse escalate.
-            Text(
-              l10n.escalateSubmitting,
-              style: context.jeebText.body.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+    // `support_submitting` re-homed onto the kit block; the OMDS spinner it
+    // replaces defaulted to `colorScheme.primary`, i.e. orange under Midnight.
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.loading,
+          variant: _kEmptyVariant,
+          medallions: _kNoMedallions,
+          // l10n KEY REQUEST: `supportSubmitting` not in ARB — reuse escalate.
+          headline: l10n.escalateSubmitting,
+          identifier: 'support_submitting',
         ),
       ),
     );
@@ -554,67 +568,67 @@ class _ConfirmationView extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       child: Semantics(
-      identifier: 'support_success',
-      container: true,
-      explicitChildNodes: true,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Filled glyph (R10) in the brand navy — the confirmation mark is
-            // a settled fact, so it spends no orange.
-            Icon(
-              Icons.check_circle,
-              size: Sizes.sixXLarge,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(height: Spacing.large),
-            // l10n KEY REQUEST: `supportConfirmation*` not in ARB — reuse the
-            // escalate confirmation copy (same "we received it" semantics).
-            Text(
-              l10n.escalateConfirmationTitle,
-              style: context.jeebText.h1.copyWith(
-                color: theme.colorScheme.onSurface,
+        identifier: 'support_success',
+        container: true,
+        explicitChildNodes: true,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // A settled outcome takes the §2 success role, never `primary` —
+              // which IS #D73B00 under Midnight (R21's completed check).
+              Icon(
+                Icons.check_circle,
+                size: Sizes.sixXLarge,
+                color: context.jeebRoles.success,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: Spacing.small),
-            Text(
-              l10n.escalateConfirmationBody,
-              style: context.jeebText.body.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+              const SizedBox(height: Spacing.large),
+              // l10n KEY REQUEST: `supportConfirmation*` not in ARB — reuse the
+              // escalate confirmation copy (same "we received it" semantics).
+              Text(
+                l10n.escalateConfirmationTitle,
+                style: context.jeebText.h1.copyWith(
+                  color: theme.colorScheme.onSurface,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: Spacing.xLarge),
-            // JM-063 AC2 asserts `support_confirmation_back_cta`; the legacy id
-            // is `support_success_done_cta` — nest both. Pop if possible (so an
-            // entry pushed from the Profile tab returns to the shell Profile tab
-            // where `customer_profile_wallet_chip` shows), else go to profile.
-            Semantics(
-              identifier: 'support_confirmation_back_cta',
-              button: true,
-              container: true,
-              explicitChildNodes: true,
-              child: Semantics(
-                identifier: 'support_success_done_cta',
+              const SizedBox(height: Spacing.small),
+              Text(
+                l10n.escalateConfirmationBody,
+                style: context.jeebText.body.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: Spacing.xLarge),
+              // JM-063 AC2 asserts `support_confirmation_back_cta`; the legacy
+              // id is `support_success_done_cta` — nest both. Pop if possible
+              // (so an entry pushed from the Profile tab returns there), else
+              // go to profile.
+              Semantics(
+                identifier: 'support_confirmation_back_cta',
                 button: true,
                 container: true,
-                // Hugs its label: a full-width pill under a centred column
-                // reads as a docked footer that isn't there.
-                child: JeebCtaButton(
-                  label: l10n.escalateConfirmationDone,
-                  expand: false,
-                  onTap: () => context.canPop()
-                      ? context.pop()
-                      : context.goNamed('customer-profile'),
+                explicitChildNodes: true,
+                child: Semantics(
+                  identifier: 'support_success_done_cta',
+                  button: true,
+                  container: true,
+                  // `expand: false` is inert under loose width (the kit centres
+                  // inside its box); full width is what every sibling ships.
+                  child: JeebCtaButton(
+                    label: l10n.escalateConfirmationDone,
+                    expand: false,
+                    onTap: () => context.canPop()
+                        ? context.pop()
+                        : context.goNamed('customer-profile'),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -627,38 +641,29 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: 'support_error',
-      container: true,
-      explicitChildNodes: true,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.xLarge,
-          vertical: Spacing.large,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            // Message + icon only (no built-in retry); the retry CTA is a
-            // discrete, tightly-wrapped Semantics node below so Maestro can
-            // target it precisely.
-            OmdsErrorState(message: _message(l10n, failure)),
-            const SizedBox(height: Spacing.large),
-            Semantics(
-              identifier: 'support_retry_cta',
-              button: true,
-              container: true,
-              // retryLabel: no dedicated `supportRetryCta` ARB key yet
-              // (50_ROUTE_REQUESTS) — reuse the submit label for the action.
-              child: JeebCtaButton.outline(
-                label: l10n.supportSubmitCta,
-                leadingIcon: Icons.refresh,
-                // Hugs its label — see the confirmation CTA.
-                expand: false,
-                onTap: () => context.read<SupportCubit>().retryFromError(),
-              ),
+    // `support_error` re-homed onto the kit block, which draws the same
+    // illustration danger-tinted; the OMDS error slab it replaces is gone.
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: JeebEmptyStateStatus.error,
+          variant: _kEmptyVariant,
+          medallions: _kNoMedallions,
+          headline: _message(l10n, failure),
+          identifier: 'support_error',
+          action: Semantics(
+            identifier: 'support_retry_cta',
+            button: true,
+            container: true,
+            // retryLabel: no dedicated `supportRetryCta` ARB key yet
+            // (50_ROUTE_REQUESTS) — reuse the submit label for the action.
+            child: JeebCtaButton.outline(
+              label: l10n.supportSubmitCta,
+              leadingIcon: Icons.refresh,
+              expand: false,
+              onTap: () => context.read<SupportCubit>().retryFromError(),
             ),
-          ],
+          ),
         ),
       ),
     );

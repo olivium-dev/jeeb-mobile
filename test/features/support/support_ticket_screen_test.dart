@@ -51,6 +51,12 @@ Widget _host() {
   );
   return MaterialApp.router(
     routerConfig: router,
+    // MIDNIGHT: the phase views mount JeebEmptyState, whose illustration loops
+    // ∞ by design — without reduce motion `pumpAndSettle` can never settle.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child ?? const SizedBox.shrink(),
+    ),
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
       _delegate,

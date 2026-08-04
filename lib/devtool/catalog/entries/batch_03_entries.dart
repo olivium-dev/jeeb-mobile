@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../features/deep_link_targets/chat_detail_screen.dart';
 import '../../../features/deep_link_targets/delivery_detail_screen.dart';
 import '../../../features/deep_link_targets/kyc_status_screen.dart';
-import '../../../features/deep_link_targets/rating_prompt_screen.dart';
 import '../../../features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
 import '../../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
 import '../../../features/delivery_status/presentation/delivery_status_screen.dart';
@@ -21,13 +20,11 @@ import '../fixtures/delivery_status_screen_fixtures.dart';
 import '../fixtures/dispute_status_screen_fixtures.dart';
 import '../fixtures/earnings_dashboard_screen_fixtures.dart';
 import '../fixtures/kyc_status_screen_fixtures.dart';
-import '../fixtures/rating_prompt_screen_fixtures.dart';
 
 List<CatalogEntry> get batch03Entries => <CatalogEntry>[
       ..._chatDetailEntries,
       ..._deliveryDetailEntries,
       ..._kycStatusEntries,
-      ..._ratingPromptEntries,
       ..._deliveryManProfileEntries,
       ..._deliveryReceiptEntries,
       ..._deliveryStatusEntries,
@@ -152,30 +149,6 @@ final List<CatalogEntry> _kycStatusEntries = <CatalogEntry>[
   ),
 ];
 
-final List<CatalogEntry> _ratingPromptEntries = <CatalogEntry>[
-  CatalogEntry(
-    feature: 'deep_link_targets',
-    screen: 'RatingPromptScreen',
-    states: [
-      CatalogState(
-        'Placeholder',
-        (context) => const RatingPromptScreen(
-          deliveryId: RatingPromptScreenFixtures.deliveryId,
-        ),
-      ),
-      for (final RatingPromptScreenWindow window
-          in RatingPromptScreenWindows.all)
-        CatalogState(
-          window.label,
-          (context) => RatingPromptScreenPreviewHost(
-            window: window,
-            screen: RatingPromptScreen(deliveryId: window.deliveryId),
-          ),
-        ),
-    ],
-  ),
-];
-
 final List<CatalogEntry> _deliveryManProfileEntries = <CatalogEntry>[
   CatalogEntry(
     feature: 'delivery_man_profile',
@@ -294,6 +267,20 @@ final List<CatalogEntry> _disputeStatusEntries = <CatalogEntry>[
         'Resolved — refund issued (D2)',
         (context) => _disputeStatusScreen(
           DisputeStatusScreenFixtures.resolvedRefund,
+        ),
+      ),
+      // MIDNIGHT M3-32: the cold read and the empty evidence set had fixtures
+      // but no catalog state, so neither frame was ever captured.
+      CatalogState(
+        'Loading — cold read in flight',
+        (context) => _disputeStatusScreen(
+          DisputeStatusScreenFixtures.coldRead,
+        ),
+      ),
+      CatalogState(
+        'Open — no evidence attached',
+        (context) => _disputeStatusScreen(
+          DisputeStatusScreenFixtures.openNoEvidence,
         ),
       ),
       CatalogState(

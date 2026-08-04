@@ -102,6 +102,12 @@ Widget _harness(
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // The pre-load frames mount JeebEmptyState, whose radar loops by design, so
+    // pumpAndSettle can only settle under reduce motion (02-STUDY-NOTES).
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
   );
 }
 

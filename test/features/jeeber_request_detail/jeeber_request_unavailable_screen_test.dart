@@ -12,7 +12,7 @@ import '../../support/sync_app_localizations.dart';
 void main() {
   const requestId = 'req-dead-001';
 
-  // Reduce motion pins the E3 illustration's rest frame; without it the ∞ loop
+  // Reduce motion pins the E4 illustration's rest frame; without it the ∞ loop
   // never lets `pumpAndSettle` return.
   Widget harness({
     String id = requestId,
@@ -46,8 +46,9 @@ void main() {
       findsOneWidget,
     );
     // Localized copy from the ARBs (title + reference-bearing body).
-    expect(find.text('Request no longer available'), findsNWidgets(2),
-        reason: 'top bar + empty-state headline share the localized key');
+    expect(find.text('Request no longer available'), findsOneWidget,
+        reason: 'M3-39: the bar lost its title — the headline prints ONCE, in '
+            'the empty block, the way E4 draws it');
     expect(
       find.text('Request ${friendlyReference(requestId)} is no longer '
           'available.'),
@@ -76,11 +77,12 @@ void main() {
     await tester.pumpWidget(harness(locale: const Locale('ar')));
     await tester.pumpAndSettle();
 
-    expect(find.text('الطلب لم يعد متاحًا'), findsNWidgets(2));
+    expect(find.text('الطلب لم يعد متاحًا'), findsOneWidget);
     expect(find.text('تصفح الطلبات الأخرى'), findsOneWidget);
   });
 
-  // ── MIDNIGHT M3-06 · derived from R17 (the nearest tile) ────────────────────
+  // ── MIDNIGHT M3-39 · empty block derived from E4; field stays R17's, the
+  // anchor its own route twin measures ───────────────────────────────────────
 
   testWidgets('mounts the R17 field: content variant, orange glow top-start, '
       'no periwinkle wash, no motion', (tester) async {
@@ -98,17 +100,16 @@ void main() {
     expect(field.animateDecor, isFalse);
   });
 
-  testWidgets('the empty subject is E3 — the jeeber waiting on the street',
-      (tester) async {
+  // M3-39: the subject moved from E3 (a jeeber WAITING) to E4 at error status
+  // — E4's caption is "Empty ≠ dead", and this route is the dead case.
+  testWidgets('the empty subject is E4 at error status, the shared '
+      '"unavailable" treatment', (tester) async {
     await tester.pumpWidget(harness());
     await tester.pumpAndSettle();
 
-    expect(
-      tester
-          .widget<JeebEmptyState>(find.byType(JeebEmptyState))
-          .variant,
-      JeebEmptyStateVariant.street,
-    );
+    final state = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+    expect(state.variant, JeebEmptyStateVariant.parcel);
+    expect(state.status, JeebEmptyStateStatus.error);
   });
 
   testWidgets('a cold push tap on a raw UUID shows the short reference, not '

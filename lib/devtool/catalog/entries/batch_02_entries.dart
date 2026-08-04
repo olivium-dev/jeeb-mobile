@@ -15,6 +15,8 @@ import '../../../features/client_offers/domain/offers_repository.dart';
 import '../../../features/client_offers/presentation/client_offers_screen.dart';
 import '../../../features/client_offers/presentation/widgets/offer_accept_sheet.dart';
 import '../../../features/client_unreachable/presentation/client_unreachable_screen.dart';
+import '../../../core/diagnostics/diagnostics_screen.dart';
+import '../../../core/router/profile_unavailable_screen.dart';
 import '../../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../catalog_models.dart';
 import '../fixtures/cancellation_screen_fixtures.dart';
@@ -22,6 +24,7 @@ import '../fixtures/chat_screen_fixtures.dart';
 import '../fixtures/client_offers_screen_fixtures.dart';
 import '../fixtures/client_unreachable_screen_fixtures.dart';
 import '../fixtures/customer_profile_screen_fixtures.dart';
+import '../fixtures/diagnostics_screen_fixtures.dart';
 
 // Batch 02: cancel_request, cancellation, chat, client_offers, etc — uses LOCAL fakes, never hit live gateway.
 List<CatalogEntry> get batch02Entries => <CatalogEntry>[
@@ -33,6 +36,8 @@ List<CatalogEntry> get batch02Entries => <CatalogEntry>[
   _offerAcceptSheetEntry,
   _clientUnreachableScreenEntry,
   _customerProfileScreenEntry,
+  _profileUnavailableScreenEntry,
+  _diagnosticsScreenEntry,
 ];
 
 // Wrap sheets in Scaffold to match showModalBottomSheet presentation.
@@ -310,3 +315,61 @@ final CatalogEntry _customerProfileScreenEntry = CatalogEntry(
     ),
   ],
 );
+
+/// The release fallback both `/profile/*` routes build when no typed `extra`
+/// arrives. It had no catalog state, so its treatment was never captured.
+final CatalogEntry _profileUnavailableScreenEntry = CatalogEntry(
+  feature: 'core_router',
+  screen: 'ProfileUnavailableScreen',
+  states: [
+    CatalogState('Unavailable', (_) => const ProfileUnavailableScreen()),
+  ],
+);
+
+/// The dev-only diagnostics export (M3-38). It had no catalog state at all, so
+/// none of its four frames was capturable.
+final CatalogEntry _diagnosticsScreenEntry = CatalogEntry(
+  feature: 'core',
+  screen: 'DiagnosticsScreen',
+  states: [
+    CatalogState(
+      'Sessions — newest first',
+      (_) => _diagnostics(DiagnosticsScreenPreviewFixtures.listing),
+    ),
+    CatalogState(
+      'Empty — no session files',
+      (_) => _diagnostics(DiagnosticsScreenPreviewFixtures.empty),
+    ),
+    CatalogState(
+      'Loading — listing files',
+      (_) => _diagnostics(DiagnosticsScreenPreviewFixtures.stalled),
+    ),
+    CatalogState(
+      'Error — listing failed',
+      (_) => _diagnostics(DiagnosticsScreenPreviewFixtures.failing),
+    ),
+    CatalogState(
+      'Release-like build — diag disabled',
+      (_) => _diagnostics(
+        DiagnosticsScreenPreviewFixtures.listing,
+        enabled: false,
+      ),
+    ),
+  ],
+);
+
+/// Drives the `Diag.enabled` build gate and keeps every side-effecting seam
+/// (share sheet, clipboard) inert.
+Widget _diagnostics(
+  Future<List<DiagSessionFileInfo>> Function() loader, {
+  bool enabled = true,
+}) {
+  return DiagnosticsScreenEnabledScope(
+    enabled: enabled,
+    child: DiagnosticsScreen(
+      sessionsLoader: loader,
+      shareLauncher: DiagnosticsScreenPreviewFixtures.inertShare,
+      clipboardWriter: DiagnosticsScreenPreviewFixtures.inertClipboard,
+    ),
+  );
+}

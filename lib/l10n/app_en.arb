@@ -5361,5 +5361,34 @@
   "@kycRejectedReasonOtherFinal": {"description": "JM-043 kyc-rejected, KycRejectionReason.other. MUST NOT mention resubmitting: D52/D87 make this screen FINAL and kyc_rejected_resubmit_cta is asserted absent. kycRejectionReasonOther says 'and resubmit' because KycStatusView, which shares it, DOES offer resubmit."},
 
   "accountStatusLoadingHeadline": "Checking your account",
-  "@accountStatusLoadingHeadline": {"description": "M3-22 loading headline on the blocked-account screen. \"Checking\" not \"Loading\": the read resolves which blocked state the account is in, it does not fetch a list. Must not repeat the header band's own accountStatusTitle."}
+  "@accountStatusLoadingHeadline": {"description": "M3-22 loading headline on the blocked-account screen. \"Checking\" not \"Loading\": the read resolves which blocked state the account is in, it does not fetch a list. Must not repeat the header band's own accountStatusTitle."},
+
+  "profileEditLoadingHeadline": "Loading your profile",
+  "@profileEditLoadingHeadline": {"description": "M3-23 cold-read headline on settings > edit profile (profile_edit_loading). Member of the shipped \"Loading your …\" family; must not repeat the header band's own \"Edit profile\" title. Byte-identical to customerProfileLoadingHeadline on purpose — the ARB convention here is one key per surface."},
+  "liveSettingsLoadingHeadline": "Loading your settings",
+  "@liveSettingsLoadingHeadline": {"description": "M3-37 cold-read headline on live-settings (live_settings_loading) while GET /v1/users/me is in flight. Not settingsTitle: the in-body JeebTopBar already draws \"Settings\" at 20/w700 on the same frame."},
+
+  "notificationPrefsLoadingHeadline": "Loading your preferences",
+  "@notificationPrefsLoadingHeadline": {"description": "M3-24 cold-read headline on notification preferences. Distinct from notificationsLoadingHeadline, which names the notifications inbox — a different surface on the same noun."},
+  "notificationPrefsErrorTitle": "Couldn't load your preferences",
+  "@notificationPrefsErrorTitle": {"description": "M3-24 failed-cold-read headline on notification preferences; notificationPrefsLoadError stays the body under it. Distinct from notificationsErrorTitle, which names the inbox."},
+
+  "passwordStrengthError": "Choose a stronger password — at least 8 characters, with a letter and a number.",
+  "@passwordStrengthError": {"description": "M3-26 inline note at password_strength_error. Splits the weak verdict out of setpwValidationError, which named both faults and told the user neither. Copy MUST track ChangePasswordPolicy.isStrong (min 8, one letter, one digit)."},
+  "passwordMismatchError": "Those passwords don't match.",
+  "@passwordMismatchError": {"description": "M3-26 inline note at password_mismatch_error. Splits the mismatch verdict out of setpwValidationError. The policy returns one verdict, so at most one of the two notes renders."},
+
+  "savedAddressesLoadingHeadline": "Loading your addresses",
+  "@savedAddressesLoadingHeadline": {"description": "M3-28 cold-read headline on saved addresses (saved-locations-loading). Member of the \"Loading your …\" family; not savedAddressesTitle — the header-band rule bans repeating the title verbatim."},
+  "savedAddressesErrorHeadline": "Could not load saved locations",
+  "@savedAddressesErrorHeadline": {"description": "M3-28 error headline on saved addresses. The shipped savedLocationsError sentence split at its own full stop so the §2.7 error block gets a headline; savedAddressesErrorBody is the remainder. savedLocationsError itself stays — it is still the snackbar/chip-row string."},
+  "savedAddressesErrorBody": "Please try again.",
+  "@savedAddressesErrorBody": {"description": "M3-28 error body under savedAddressesErrorHeadline — the second half of the shipped savedLocationsError sentence. Nothing invented, nothing dropped."},
+  "addressFormLoadingHeadline": "Opening the address form",
+  "@addressFormLoadingHeadline": {"description": "M3-29 session-resolve gate on address-detail (address-form-loading). Names the act, not a fetch: on the add path there is no address yet, so \"Loading your address\" would be false. Same register as accountStatusLoadingHeadline."},
+
+  "disputeStatusLoading": "Checking this dispute",
+  "@disputeStatusLoading": {"description": "JM-065 dispute-status D30 cold-read headline — shown on the JeebEmptyState radar skeleton while GET /v1/disputes/:id is in flight."},
+  "disputeStatusEvidenceEmpty": "No evidence attached",
+  "@disputeStatusEvidenceEmpty": {"description": "JM-065 dispute-status D53 empty evidence summary — headline of the compact parcel JeebEmptyState drawn when the wire carries no reason, comment, photo, voice, chat snapshot or timeline. Distinct from escalateEvidenceEmpty, which reports a FAILED auto-attach on the escalate form."}
 }

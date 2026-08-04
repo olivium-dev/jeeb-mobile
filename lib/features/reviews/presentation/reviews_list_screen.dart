@@ -5,9 +5,13 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/theme/jeeb_radii.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_info_note.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_system_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -69,7 +73,15 @@ import 'widgets/review_row.dart';
 /// `TextStyle` now resolves through `context.jeebText`. All 11 identifiers are
 /// unmoved and the 4-state machine, pagination and D27 confirm flow are byte
 /// -for-byte the same behaviour.
-// ORPHAN (JEBV4-227, verified 2026-07-12): path-param route twin, zero callsites (query-param twin is live) — see docs/project-understanding/reconciliation/orphans.md
+///
+/// MIDNIGHT (M3-31): no board render. R15 (mutual rating) is the rating
+/// reference — amber stars, the outlined blind-reveal note — and R21 (order
+/// history) is the row/list rung: `content` field with the glow top-end and the
+/// periwinkle wash top-start, a 24 gutter, outlined cards on a 12 gap, and the
+/// `JeebEmptyState` family for loading / empty / error. Both routes below stay
+/// mounted; both resolve to this widget unchanged.
+// ORPHAN ruling 2026-08-04: KEEP + restyle, BOTH ROUTES — the query-param twin
+// is live (delivery_man_profile_screen.dart:137), the path-param one pins jm-068.
 class ReviewsListScreen extends StatelessWidget {
   const ReviewsListScreen({
     super.key,
@@ -125,10 +137,61 @@ class ReviewsListScreen extends StatelessWidget {
       future: (authTokenStore ?? AuthTokenStore()).userId,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(body: Center(child: OmdsLoadingState()));
+          // NOT `OmdsLoadingState` — it inks its ring `colorScheme.primary`,
+          // which under Midnight is `#D73B00`: orange spent on a session read.
+          return const _ReviewsScaffold(child: _LoadingBlock());
         }
         return _buildFor((snapshot.data ?? '').trim());
       },
+    );
+  }
+}
+
+/// The screen shell every state renders inside: `reviews_root`, the Midnight
+/// field, and the in-body top bar.
+///
+/// Field: `content` is §8's "wash + one quiet glow, no rings". The anchors are
+/// the pair M3 Tier-1 ratified for a screen derived off R21 — orange glow
+/// `topEnd`, periwinkle wash `topStart`, two distinct layers. R15 and R21 are
+/// both zero-motion tiles, so the decor is still.
+class _ReviewsScaffold extends StatelessWidget {
+  const _ReviewsScaffold({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = ReviewsL10n.of(context);
+    return Semantics(
+      identifier: 'reviews_root',
+      container: true,
+      explicitChildNodes: true,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.topEnd,
+          washPlacement: JeebFieldWashPlacement.topStart,
+          animateDecor: false,
+          // An in-body row, not a Material app bar, so the header renders in
+          // EVERY state — the wallet-hub idiom.
+          child: SafeArea(
+            child: Column(
+              children: [
+                JeebTopBar(
+                  // EDGE → jeeber-profile-reviews (JM-068); the frozen
+                  // `reviews_back` node, falling back to the shell root.
+                  identifier: 'reviews_back',
+                  title: copy.title,
+                  onLeadingPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/'),
+                ),
+                Expanded(child: child),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -139,35 +202,7 @@ class _ReviewsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final copy = ReviewsL10n.of(context);
-    return Semantics(
-      identifier: 'reviews_root',
-      container: true,
-      explicitChildNodes: true,
-      child: Scaffold(
-        // The board's header is an in-body row, not a Material app bar, so it
-        // renders in EVERY state (loading / failed / loaded) — the wallet-hub
-        // idiom. `identifier` lands on the kit's leading circle, which is the
-        // frozen `<screen>_back` contract (03-WAVE1-KIT §1.1).
-        body: SafeArea(
-          child: Column(
-            children: [
-              JeebTopBar(
-                // EDGE: reviews-list → jeeber-profile-reviews (back). The
-                // asserted `reviews_back` node is the leading affordance
-                // (21_NAV_PLAN §C, JM-068). pop() returns to the profile that
-                // pushed us; on a cold deep-link (no history) fall back to the
-                // shell root.
-                identifier: 'reviews_back',
-                title: copy.title,
-                onLeadingPressed: () =>
-                    context.canPop() ? context.pop() : context.go('/'),
-              ),
-              Expanded(child: _body(context, copy)),
-            ],
-          ),
-        ),
-      ),
-    );
+    return _ReviewsScaffold(child: _body(context, copy));
   }
 
   Widget _body(BuildContext context, ReviewsL10n copy) {
@@ -197,10 +232,11 @@ class _ReviewsView extends StatelessWidget {
         switch (state.status) {
           case ReviewsStatus.initial:
           case ReviewsStatus.loading:
-            return const _LoadingSkeletons();
+            return const _LoadingBlock();
           case ReviewsStatus.failed:
             return _ErrorBody(
-              message: _errorCopy(copy, state.error),
+              headline: copy.loadError,
+              detail: _errorDetail(copy, state.error),
               retryLabel: copy.retry,
               onRetry: () => context.read<ReviewsCubit>().refresh(),
             );
@@ -219,7 +255,9 @@ class _ReviewsView extends StatelessWidget {
     );
   }
 
-  static String _errorCopy(ReviewsL10n copy, ReviewsFailure? f) {
+  /// `loadError` is now the headline, so only the network case still has a
+  /// second line to add — the other failures would just repeat themselves.
+  static String? _errorDetail(ReviewsL10n copy, ReviewsFailure? f) {
     switch (f) {
       case ReviewsFailure.network:
         return copy.networkError;
@@ -227,7 +265,7 @@ class _ReviewsView extends StatelessWidget {
       case ReviewsFailure.unauthorized:
       case ReviewsFailure.unknown:
       case null:
-        return copy.loadError;
+        return null;
     }
   }
 }
@@ -241,76 +279,100 @@ const EdgeInsetsGeometry _kListPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
 );
 
-/// Cold-load failure (D30). Renders the error message in the asserted
-/// `reviews_error` node and the retry as a distinct `reviews_retry_cta` node (the
-/// D30 `<screen>_retry_cta` convention) — a custom layout (not `OmdsErrorState`)
-/// so a flow can assert the error AND tap the retry by id (the OMDS widget merges
-/// its internal retry button into one node). Mirrors JM-055.
-///
-/// redesign-2026-08: the 64px red glyph slab became the kit's error note — the
-/// soft `errorContainer` tint the migration's error family was added for — over
-/// a navy retry pill. Same two nodes, same behaviour.
-class _ErrorBody extends StatelessWidget {
-  const _ErrorBody({
-    required this.message,
-    required this.retryLabel,
-    required this.onRetry,
+/// The E4 illustration this screen's three non-list states share. R21 is the
+/// row rung, and `parcel` is R21's own ratified empty family (wave-C ruling 9)
+/// — "nothing in the box until you speak" reads the same for a jeeber with no
+/// completed deliveries behind them.
+const JeebEmptyStateVariant _kStateVariant = JeebEmptyStateVariant.parcel;
+
+/// Loading / empty / error all render one [JeebEmptyState] centred in the
+/// residual band — R21's `_StateBlock` shape, so the three states of this
+/// screen differ only by `status`.
+class _StateBlock extends StatelessWidget {
+  const _StateBlock({
+    required this.status,
+    required this.headline,
+    required this.identifier,
+    this.body,
+    this.action,
   });
 
-  final String message;
-  final String retryLabel;
-  final VoidCallback onRetry;
+  final JeebEmptyStateStatus status;
+  final String headline;
+  final String identifier;
+  final String? body;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.xLarge,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            JeebInfoNote.error(
-              identifier: 'reviews_error',
-              icon: Icons.error,
-              text: message,
-            ),
-            const SizedBox(height: Spacing.large),
-            JeebCtaButton.primary(
-              identifier: 'reviews_retry_cta',
-              label: retryLabel,
-              leadingIcon: Icons.refresh,
-              onTap: onRetry,
-            ),
-          ],
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: status,
+          variant: _kStateVariant,
+          headline: headline,
+          body: body,
+          identifier: identifier,
+          action: action,
         ),
       ),
     );
   }
 }
 
-/// First-load skeletons (D73 — never a bare spinner on a list, 42 §5.1). Hosts
-/// the asserted `reviews_loading` state node.
-///
-/// redesign-2026-08: the shimmers now sit in the same outlined cards the loaded
-/// rows use, so the list does not re-flow its own geometry when the page lands.
-class _LoadingSkeletons extends StatelessWidget {
-  const _LoadingSkeletons();
+/// Cold-load failure (D30). The message rides the asserted `reviews_error`
+/// node and the retry stays a distinct `reviews_retry_cta` node (the D30
+/// `<screen>_retry_cta` convention), so a flow can assert the error AND tap the
+/// retry by id. Mirrors JM-055.
+class _ErrorBody extends StatelessWidget {
+  const _ErrorBody({
+    required this.headline,
+    required this.detail,
+    required this.retryLabel,
+    required this.onRetry,
+  });
+
+  final String headline;
+  final String? detail;
+  final String retryLabel;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      identifier: 'reviews_loading',
-      container: true,
-      child: ListView.separated(
-        padding: _kListPadding,
-        itemCount: 6,
-        separatorBuilder: (_, _) => const SizedBox(height: Spacing.small),
-        itemBuilder: (_, _) => const JeebOutlinedCard(
-          child: OmdsListItemShimmer(hasTrailing: false),
-        ),
+    return _StateBlock(
+      status: JeebEmptyStateStatus.error,
+      headline: headline,
+      body: detail,
+      identifier: 'reviews_error',
+      action: JeebCtaButton.primary(
+        identifier: 'reviews_retry_cta',
+        label: retryLabel,
+        leadingIcon: Icons.refresh,
+        onTap: onRetry,
       ),
+    );
+  }
+}
+
+/// First-load (D73 — never a bare spinner on a list, 42 §5.1). Hosts the
+/// asserted `reviews_loading` state node.
+///
+/// The six shimmer cards are gone: `OmdsShimmer` falls back to
+/// `Colors.grey.shade300`/`shade100`, i.e. six light-palette slabs on the
+/// Midnight field (token sheet §10). The kit's breathing illustration skeleton
+/// is the ratified first-load frame on the nearest tile.
+class _LoadingBlock extends StatelessWidget {
+  const _LoadingBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = ReviewsL10n.of(context);
+    return _StateBlock(
+      status: JeebEmptyStateStatus.loading,
+      // TODO(midnight): l10n-queued `reviewsLoadingHeadline`; the screen title
+      // is the nearest existing key — see docs/redesign-midnight/l10n-queue.
+      headline: copy.title,
+      identifier: 'reviews_loading',
     );
   }
 }
@@ -330,15 +392,11 @@ class _EmptyBody extends StatelessWidget {
         horizontal: Spacing.xLarge,
       ),
       children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.18),
-        Semantics(
+        JeebEmptyState(
+          variant: _kStateVariant,
+          headline: copy.emptyTitle,
+          body: copy.emptyBody,
           identifier: 'reviews_empty',
-          container: true,
-          child: OmdsEmptyState(
-            icon: Icons.reviews_outlined,
-            title: copy.emptyTitle,
-            subtitle: copy.emptyBody,
-          ),
         ),
       ],
     );
@@ -370,9 +428,9 @@ class _AggregateHeader extends StatelessWidget {
             center: false,
           ),
           const SizedBox(height: Spacing.small),
-          // `.outlined` (brown 1.5px, periwinkle body) — byte-for-byte the
-          // treatment 15's blind-reveal note uses, so the two rating surfaces
-          // explain themselves the same way.
+          // `.outlined` (stroke-only glass, periwinkle body) — the same rung
+          // R15's blind-reveal note takes, so the two rating surfaces explain
+          // themselves the same way.
           JeebInfoNote.outlined(
             identifier: 'reviews_hidden_score_note',
             icon: Icons.auto_awesome,
@@ -383,9 +441,11 @@ class _AggregateHeader extends StatelessWidget {
     }
     return Row(
       children: [
-        // Navy, never `starRatingColor`: §4.1 rations the warm ink, and this
-        // aggregate is the same meta line `delivery_man_profile_header` draws.
-        Icon(Icons.star, size: Sizes.large, color: scheme.primary),
+        // DEFECT (pass-1 carry): the glyph AND the score both read
+        // `colorScheme.primary` under a comment claiming that ink was navy.
+        // Under Midnight `primary` IS `#D73B00` — two orange elements on a
+        // read-only aggregate. Amber is §3's ink for "stars/ratings".
+        const _AggregateStar(),
         const SizedBox(width: Spacing.xSmall),
         Expanded(
           child: Semantics(
@@ -393,11 +453,56 @@ class _AggregateHeader extends StatelessWidget {
             child: Text(
               copy.aggregate(state.averageScore!, state.reviewCount),
               style: context.jeebText.titleProminent
-                  .copyWith(color: scheme.primary),
+                  .copyWith(color: scheme.onSurface),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The screen's one hero rating mark, so it keeps R15's halo — a
+/// `RadialGradient`, never a `BoxShadow`, which paints nothing on this canvas.
+/// The inset is R15's own ratio (−10 on a Ø40 glyph) carried to this size.
+class _AggregateStar extends StatelessWidget {
+  const _AggregateStar();
+
+  static const double size = Sizes.large;
+  static const double haloInset = -size * 0.25;
+  static const double haloAlpha = 0.32;
+
+  @override
+  Widget build(BuildContext context) {
+    final JeebSemanticColors semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
+    return SizedBox.square(
+      dimension: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: <Widget>[
+          Positioned(
+            left: haloInset,
+            top: haloInset,
+            right: haloInset,
+            bottom: haloInset,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: <Color>[
+                    semantic.amber.withValues(alpha: haloAlpha),
+                    semantic.amber.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Icon(Icons.star, size: size, color: semantic.amber),
+        ],
+      ),
     );
   }
 }
@@ -528,7 +633,7 @@ class _Footer extends StatelessWidget {
             child: Text(
               copy.loadMoreError,
               style: context.jeebText.bodySmall.copyWith(
-                color: Theme.of(context).colorScheme.onSecondaryContainer,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -546,8 +651,62 @@ class _Footer extends StatelessWidget {
     return Semantics(
       identifier: 'reviews_load_more',
       container: true,
-      child: const JeebOutlinedCard(
-        child: OmdsListItemShimmer(hasTrailing: false),
+      child: const JeebOutlinedCard(child: _RowSkeleton()),
+    );
+  }
+}
+
+/// The next page on the wire, drawn as the row's own geometry in raised navy.
+/// Static and token-inked: `OmdsListItemShimmer` forwards no colours, so it
+/// paints `Colors.grey.shade300` bars on the field, and its shimmer never
+/// settles under `pumpAndSettle`.
+class _RowSkeleton extends StatelessWidget {
+  const _RowSkeleton();
+
+  static const double discSize = 42;
+  static const double titleBarWidth = 96;
+  static const double barHeight = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color ink = Theme.of(context).colorScheme.surfaceContainerHigh;
+    return Row(
+      children: <Widget>[
+        Container(
+          width: discSize,
+          height: discSize,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: ink),
+        ),
+        const SizedBox(width: Spacing.small),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _Bar(ink: ink, width: titleBarWidth),
+              const SizedBox(height: Spacing.xSmall),
+              _Bar(ink: ink),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  const _Bar({required this.ink, this.width});
+
+  final Color ink;
+  final double? width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: _RowSkeleton.barHeight,
+      decoration: BoxDecoration(
+        color: ink,
+        borderRadius: BorderRadius.circular(JeebRadii.sm),
       ),
     );
   }

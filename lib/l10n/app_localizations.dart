@@ -3021,4 +3021,32 @@ extension AppLocalizationsRestored on AppLocalizations {
   // MIDNIGHT M3-22 · account status
   String get accountStatusLoadingHeadline =>
       _get('accountStatusLoadingHeadline');
+
+  // MIDNIGHT M3-23/37 · profile edit + live settings
+  String get profileEditLoadingHeadline => _get('profileEditLoadingHeadline');
+  String get liveSettingsLoadingHeadline =>
+      _get('liveSettingsLoadingHeadline');
+
+  // MIDNIGHT M3-24 · notification preferences
+  String get notificationPrefsLoadingHeadline =>
+      _get('notificationPrefsLoadingHeadline');
+  String get notificationPrefsErrorTitle =>
+      _get('notificationPrefsErrorTitle');
+
+  // MIDNIGHT M3-26 · password security
+  String get passwordStrengthError => _get('passwordStrengthError');
+  String get passwordMismatchError => _get('passwordMismatchError');
+
+  // MIDNIGHT M3-28/29 · saved addresses + address detail form
+  String get savedAddressesLoadingHeadline =>
+      _get('savedAddressesLoadingHeadline');
+  String get savedAddressesErrorHeadline =>
+      _get('savedAddressesErrorHeadline');
+  String get savedAddressesErrorBody => _get('savedAddressesErrorBody');
+  String get addressFormLoadingHeadline => _get('addressFormLoadingHeadline');
+
+  // MIDNIGHT M3-32 · dispute status
+  String get disputeStatusLoading => _get('disputeStatusLoading');
+  String get disputeStatusEvidenceEmpty =>
+      _get('disputeStatusEvidenceEmpty');
 }

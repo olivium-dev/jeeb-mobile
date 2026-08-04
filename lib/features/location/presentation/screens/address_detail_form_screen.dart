@@ -147,7 +147,7 @@ class _SessionResolveGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final f = AddressFormL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     return JeebMidnightField(
       variant: JeebFieldVariant.content,
       glowPlacement: JeebFieldGlowPlacement.topEnd,
@@ -159,7 +159,7 @@ class _SessionResolveGate extends StatelessWidget {
           child: JeebEmptyState(
             variant: JeebEmptyStateVariant.radar,
             status: JeebEmptyStateStatus.loading,
-            headline: f.loadingHeadline,
+            headline: l10n.addressFormLoadingHeadline,
           ),
         ),
       ),

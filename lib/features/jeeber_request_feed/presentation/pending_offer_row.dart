@@ -21,14 +21,11 @@ import '../domain/submitted_offer.dart';
 /// rather than folding into the row.
 ///
 /// redesign-2026-08 (w5, from `wiring/w4-jeeber-pending-offers.md` R1): the
-/// bare strip became a [JeebOutlinedCard] — white fill, 1.5px
-/// `colorScheme.outline`, r16, **no shadow** (outline-over-shadow) — so the row
-/// no longer paints its own trailing `Divider`: the outline *is* the
-/// separation, and a hairline between two outlined cards draws a third line
-/// nobody asked for. Type comes from `context.jeebText` (`price` for the money,
-/// `caption` for its ETA qualifier); the status line is the board's
-/// [JeebSystemChip] instead of periwinkle italics on white (§4.1 forbids
-/// periwinkle body ink on white); Withdraw is a [JeebCtaButton] outline pill.
+/// bare strip became a [JeebOutlinedCard], so the row no longer paints its own
+/// trailing `Divider` — the card edge *is* the separation. Type comes from
+/// `context.jeebText` (`price` for the money, `caption` for its ETA qualifier);
+/// the status line is the board's [JeebSystemChip]; Withdraw is a
+/// [JeebCtaButton] outline pill.
 ///
 /// **The gutter lives here, not in the consumers.** Three surfaces mount this
 /// row — the standalone `/jeeber/pending-offers` route, the jeeber-home feed's
@@ -115,7 +112,9 @@ class _PriceEtaRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(child: _PriceText(index: index, offer: offer)),
+        Expanded(
+          child: _PriceText(index: index, offer: offer),
+        ),
         if (offer.etaMinutes != null) ...[
           const SizedBox(width: Spacing.small),
           _EtaText(index: index, etaMinutes: offer.etaMinutes!),
@@ -143,12 +142,11 @@ class _PriceText extends StatelessWidget {
       identifier: 'pending_offer_${index}_price',
       child: Text(
         formatted,
-        // `jeebText.price` is the ramp's declared "offer prices" style, and the
-        // ink is NAVY: what the jeeber quoted is the card's most-read number,
-        // but the accent stays rationed for a do-it-now moment, which a list of
-        // already-sent offers does not have. (It was `secondaryContainer` — a
-        // container fill used as text ink, i.e. periwinkle on white.)
-        style: context.jeebText.price.copyWith(color: theme.colorScheme.primary),
+        // MIDNIGHT M3-36: `primary` IS `#D73B00`, so the pass-1 "ink is NAVY"
+        // claim was an orange leak. R10 draws every offer price `onSurface`.
+        style: context.jeebText.price.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -224,8 +222,6 @@ class _AwaitingLabel extends StatelessWidget {
       identifier: 'pending_offer_awaiting_label',
       // A system state, not italic body copy: the same settled-fact chip the
       // outcome uses, so "waiting" and "answered" are one visual family.
-      // Periwinkle ink now sits on `surfaceContainerHigh` rather than on white
-      // (§4.1 — a contrast test asserts periwinkle is never body ink on white).
       child: JeebSystemChip.filled(
         // No dedicated "Awaiting customer decision" key exists yet (JM-047
         // owns it; ARB is integrator-owned, 50_ROUTE_REQUESTS). Reuse the
@@ -268,14 +264,21 @@ class _WithdrawAction extends StatelessWidget {
         // no destructive-fill affordance — 12's "Report no-show", the closest
         // destructive action on it, is a plain outline pill — and the error
         // family is reserved for actual error surfaces.
-        child: JeebCtaButton.outline(
-          key: Key('pending-offer-withdraw-$index'),
-          label: AppLocalizations.of(context).offerSubmissionWithdrawButton,
-          isLoading: isWithdrawing,
-          expand: false,
-          // Unchanged contract: the control stays tappable when a host omits
-          // the callback, exactly as `onWithdraw ?? () {}` did before.
-          onTap: onWithdraw ?? () {},
+        //
+        // MIDNIGHT M3-36: `expand: false` only drops the infinite width — the
+        // pill's inner `Center` still fills a loose slot (offer_accepted_banner
+        // :180). R10 draws a COMPACT end pill per row, so the intrinsic pass is
+        // what actually delivers the Align this row already asked for.
+        child: IntrinsicWidth(
+          child: JeebCtaButton.outline(
+            key: Key('pending-offer-withdraw-$index'),
+            label: AppLocalizations.of(context).offerSubmissionWithdrawButton,
+            isLoading: isWithdrawing,
+            expand: false,
+            // Unchanged contract: the control stays tappable when a host omits
+            // the callback, exactly as `onWithdraw ?? () {}` did before.
+            onTap: onWithdraw ?? () {},
+          ),
         ),
       ),
     );

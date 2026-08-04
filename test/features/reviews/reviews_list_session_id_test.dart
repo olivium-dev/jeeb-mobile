@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
@@ -47,6 +48,15 @@ class _CapturingReviewsRepository implements ReviewsRepository {
   Future<void> reportReview(String reviewId) async {}
 }
 
+/// MIDNIGHT: the empty frame now mounts `JeebEmptyState`, whose illustration
+/// loops ∞ by design — `pumpAndSettle` can never settle without reduce motion.
+Widget _reduceMotion(Widget child) => Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child,
+      ),
+    );
+
 void main() {
   testWidgets(
       'cold deep-link (no ?jeeberId=) resolves the REAL session id, '
@@ -55,9 +65,11 @@ void main() {
 
     await tester.pumpWidget(
       wrapForTest(
-        ReviewsListScreen(
-          repository: repo,
-          authTokenStore: _FakeTokenStore('jeeber-session-88'),
+        _reduceMotion(
+          ReviewsListScreen(
+            repository: repo,
+            authTokenStore: _FakeTokenStore('jeeber-session-88'),
+          ),
         ),
       ),
     );
@@ -73,10 +85,12 @@ void main() {
 
     await tester.pumpWidget(
       wrapForTest(
-        ReviewsListScreen(
-          jeeberId: 'jeeber-viewed-123',
-          repository: repo,
-          authTokenStore: _FakeTokenStore('jeeber-session-88'),
+        _reduceMotion(
+          ReviewsListScreen(
+            jeeberId: 'jeeber-viewed-123',
+            repository: repo,
+            authTokenStore: _FakeTokenStore('jeeber-session-88'),
+          ),
         ),
       ),
     );

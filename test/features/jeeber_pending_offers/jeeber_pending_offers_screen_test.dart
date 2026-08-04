@@ -43,7 +43,17 @@ void main() {
   Future<void> pump(WidgetTester tester, SubmittedOffersRepository repo) async {
     await tester.pumpWidget(
       wrapForTest(
-        JeeberPendingOffersScreen(repository: repo, jeeberId: 'user-jeeber-002'),
+        // MIDNIGHT M3-36: the state blocks are JeebEmptyState illustrations,
+        // which loop forever — reduce motion pins them so this can settle.
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: JeeberPendingOffersScreen(
+              repository: repo,
+              jeeberId: 'user-jeeber-002',
+            ),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -55,26 +65,38 @@ void main() {
       _ScriptedRepository(offers: [_offer('pending-offer-jeeber-001')]),
     );
 
-    expect(find.bySemanticsIdentifier('jeeber_pending_offers_root'),
-        findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('jeeber_pending_offers_root'),
+      findsOneWidget,
+    );
     expect(find.bySemanticsIdentifier('pending_offers_back'), findsOneWidget);
   });
 
-  testWidgets('AC1/AC2: row exposes price, eta, awaiting label + withdraw CTA',
-      (tester) async {
-    await pump(tester, _ScriptedRepository(offers: [_offer('o1')]));
+  testWidgets(
+    'AC1/AC2: row exposes price, eta, awaiting label + withdraw CTA',
+    (tester) async {
+      await pump(tester, _ScriptedRepository(offers: [_offer('o1')]));
 
-    expect(find.bySemanticsIdentifier('pending_offer_0'), findsOneWidget);
-    expect(find.bySemanticsIdentifier('pending_offer_0_price'), findsOneWidget);
-    expect(find.bySemanticsIdentifier('pending_offer_0_eta'), findsOneWidget);
-    expect(find.bySemanticsIdentifier('pending_offer_awaiting_label'),
-        findsOneWidget);
-    expect(find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'),
-        findsOneWidget);
-  });
+      expect(find.bySemanticsIdentifier('pending_offer_0'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('pending_offer_0_price'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('pending_offer_0_eta'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('pending_offer_awaiting_label'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('AC3: tapping withdraw removes the row (optimistic)',
-      (tester) async {
+  testWidgets('AC3: tapping withdraw removes the row (optimistic)', (
+    tester,
+  ) async {
     await pump(
       tester,
       _ScriptedRepository(offers: [_offer('o1'), _offer('o2')]),
@@ -83,7 +105,9 @@ void main() {
     expect(find.bySemanticsIdentifier('pending_offer_0'), findsOneWidget);
     expect(find.bySemanticsIdentifier('pending_offer_1'), findsOneWidget);
 
-    await tester.tap(find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'));
+    await tester.tap(
+      find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'),
+    );
     await tester.pump();
     await tester.pumpAndSettle();
 
@@ -92,14 +116,17 @@ void main() {
     expect(find.bySemanticsIdentifier('pending_offer_0'), findsOneWidget);
   });
 
-  testWidgets('withdraw failure keeps the row (busy cleared, no removal)',
-      (tester) async {
+  testWidgets('withdraw failure keeps the row (busy cleared, no removal)', (
+    tester,
+  ) async {
     await pump(
       tester,
       _ScriptedRepository(offers: [_offer('o1')], withdrawSucceeds: false),
     );
 
-    await tester.tap(find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'));
+    await tester.tap(
+      find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'),
+    );
     await tester.pump();
     await tester.pumpAndSettle();
 
@@ -107,48 +134,60 @@ void main() {
     expect(find.bySemanticsIdentifier('pending_offer_0'), findsOneWidget);
   });
 
-  testWidgets('empty list renders the empty-state under the root',
-      (tester) async {
+  testWidgets('empty list renders the empty-state under the root', (
+    tester,
+  ) async {
     await pump(tester, _ScriptedRepository(offers: const []));
 
-    expect(find.bySemanticsIdentifier('jeeber_pending_offers_root'),
-        findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('jeeber_pending_offers_root'),
+      findsOneWidget,
+    );
     expect(find.bySemanticsIdentifier('pending_offer_0'), findsNothing);
   });
 
-  testWidgets('cold-load failure renders an error-state with retry',
-      (tester) async {
+  testWidgets('cold-load failure renders an error-state with retry', (
+    tester,
+  ) async {
     await pump(tester, _ScriptedRepository(listThrows: true));
 
-    expect(find.bySemanticsIdentifier('jeeber_pending_offers_root'),
-        findsOneWidget);
-    // OmdsErrorState renders a FilledButton.icon retry control. The `.icon`
     expect(
-      find.byWidgetPredicate((w) => w is FilledButton),
+      find.bySemanticsIdentifier('jeeber_pending_offers_root'),
       findsOneWidget,
     );
-    expect(find.byIcon(Icons.refresh), findsOneWidget);
+    // Re-homed from the deleted OmdsErrorState chrome (FilledButton.icon +
+    // Icons.refresh) onto the kit pill's own identifier.
+    expect(
+      find.bySemanticsIdentifier('pending_offers_retry_cta'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('sprint-009: a TERMINAL offer shows the status badge and NO '
-      'withdraw CTA; a still-open offer keeps the awaiting label + withdraw',
-      (tester) async {
+      'withdraw CTA; a still-open offer keeps the awaiting label + withdraw', (
+    tester,
+  ) async {
     await pump(
       tester,
-      _ScriptedRepository(offers: [
-        const SubmittedOffer(
-          id: 'accepted-1',
-          requestId: 'r1',
-          price: 9,
-          currency: 'USD',
-          status: OfferStatus.accepted,
-        ),
-        _offer('open-1'), // default submitted
-      ]),
+      _ScriptedRepository(
+        offers: [
+          const SubmittedOffer(
+            id: 'accepted-1',
+            requestId: 'r1',
+            price: 9,
+            currency: 'USD',
+            status: OfferStatus.accepted,
+          ),
+          _offer('open-1'), // default submitted
+        ],
+      ),
     );
 
     // Row 0 (accepted) → outcome badge, no withdraw / awaiting.
-    expect(find.bySemanticsIdentifier('pending_offer_0_status'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('pending_offer_0_status'),
+      findsOneWidget,
+    );
     expect(
       find.bySemanticsIdentifier('pending_offer_0_withdraw_cta'),
       findsNothing,

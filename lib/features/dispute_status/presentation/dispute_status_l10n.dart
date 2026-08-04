@@ -122,6 +122,12 @@ class DisputeStatusL10n {
     }
   }
 
+  /// MIDNIGHT M3-32: headline of the inline empty evidence block.
+  /// TODO(midnight): l10n-queued `disputeStatusEvidenceEmpty` —
+  /// docs/redesign-midnight/l10n-queue/M3-32.md.
+  String get evidenceEmptyHeadline =>
+      _pick('No evidence attached', 'لا توجد أدلة مرفقة');
+
   String get evidenceReasonLabel => _pick('Reason', 'السبب');
   String get evidenceCommentLabel => _pick('Your note', 'ملاحظتك');
 
@@ -144,6 +150,13 @@ class DisputeStatusL10n {
       );
 
   // ── D30 error / loading copy. ──────────────────────────────────────────────
+
+  /// MIDNIGHT M3-32: headline of the cold-read `JeebEmptyState`.
+  /// TODO(midnight): l10n-queued `disputeStatusLoading` —
+  /// docs/redesign-midnight/l10n-queue/M3-32.md.
+  String get loadingHeadline =>
+      _pick('Checking this dispute', 'جارٍ التحقق من هذا النزاع');
+
   String get loadError =>
       _pick('Could not load this dispute.', 'تعذّر تحميل هذا النزاع.');
   String get notFoundError => _pick(

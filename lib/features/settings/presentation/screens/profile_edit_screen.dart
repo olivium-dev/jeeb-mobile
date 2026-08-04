@@ -276,9 +276,7 @@ class _ProfileEditLoading extends StatelessWidget {
       status: JeebEmptyStateStatus.loading,
       medallions: const <JeebEmptyMedallion>[],
       identifier: ProfileEditScreen.loadingIdentifier,
-      // TODO(midnight): l10n-queued profileEditLoadingHeadline — queue entry in
-      // docs/redesign-midnight/l10n-queue/M3-23-25-37.md.
-      headline: l10n.profileEditSubtitle,
+      headline: l10n.profileEditLoadingHeadline,
     );
   }
 }

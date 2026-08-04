@@ -33,9 +33,4 @@ class AddressFormL10n {
       _ar ? 'تم اختيار الموقع' : 'Location selected';
   String get pinMissing =>
       _ar ? 'اختر موقعًا على الخريطة' : 'Pick a location on the map';
-
-  /// MIDNIGHT M3-29 loading headline. TODO(midnight): l10n-queued — see
-  /// `docs/redesign-midnight/l10n-queue/M3-28-29.md`.
-  String get loadingHeadline =>
-      _ar ? 'جارٍ فتح نموذج العنوان' : 'Opening the address form';
 }

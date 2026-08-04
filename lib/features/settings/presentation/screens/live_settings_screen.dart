@@ -141,9 +141,7 @@ class _LiveSettingsLoading extends StatelessWidget {
       status: JeebEmptyStateStatus.loading,
       medallions: const <JeebEmptyMedallion>[],
       identifier: LiveSettingsScreen.loadingIdentifier,
-      // TODO(midnight): l10n-queued liveSettingsLoadingHeadline — queue entry
-      // in docs/redesign-midnight/l10n-queue/M3-23-25-37.md.
-      headline: l10n.settingsOpenSubtitle,
+      headline: l10n.liveSettingsLoadingHeadline,
     );
   }
 }

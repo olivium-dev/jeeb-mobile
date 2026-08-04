@@ -2016,5 +2016,22 @@
 
   "kycRejectedReasonOtherFinal": "البيانات المُرسلة لم تستوفِ متطلبات التوثيق لدينا.",
 
-  "accountStatusLoadingHeadline": "جارٍ التحقق من حسابك"
+  "accountStatusLoadingHeadline": "جارٍ التحقق من حسابك",
+
+  "profileEditLoadingHeadline": "جارٍ تحميل ملفك",
+  "liveSettingsLoadingHeadline": "جارٍ تحميل إعداداتك",
+
+  "notificationPrefsLoadingHeadline": "جارٍ تحميل تفضيلاتك",
+  "notificationPrefsErrorTitle": "تعذّر تحميل تفضيلاتك",
+
+  "passwordStrengthError": "اختر كلمة مرور أقوى — 8 أحرف على الأقل، مع حرف ورقم.",
+  "passwordMismatchError": "كلمتا المرور غير متطابقتين.",
+
+  "savedAddressesLoadingHeadline": "جارٍ تحميل عناوينك",
+  "savedAddressesErrorHeadline": "تعذّر تحميل المواقع المحفوظة",
+  "savedAddressesErrorBody": "حاول مرة أخرى.",
+  "addressFormLoadingHeadline": "جارٍ فتح نموذج العنوان",
+
+  "disputeStatusLoading": "جارٍ التحقق من هذا النزاع",
+  "disputeStatusEvidenceEmpty": "لا توجد أدلة مرفقة"
 }

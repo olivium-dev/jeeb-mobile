@@ -50,30 +50,6 @@ import 'cubit/saved_locations_state.dart';
 String _defaultBadgeLabel(Locale locale) =>
     locale.languageCode == 'ar' ? 'الافتراضي' : 'Default';
 
-/// State-family copy the ARB does not carry yet.
-/// TODO(midnight): l10n-queued — `docs/redesign-midnight/l10n-queue/M3-28-29.md`.
-class _SavedAddressesMidnightL10n {
-  const _SavedAddressesMidnightL10n._(this._ar);
-
-  factory _SavedAddressesMidnightL10n.of(BuildContext context) =>
-      _SavedAddressesMidnightL10n._(
-        Localizations.localeOf(context).languageCode == 'ar',
-      );
-
-  final bool _ar;
-
-  String get loadingHeadline =>
-      _ar ? 'جارٍ تحميل عناوينك' : 'Loading your addresses';
-
-  /// The shipped `savedLocationsError` sentence split at its own full stop, so
-  /// the error block gets a headline and a body without inventing copy.
-  String get errorHeadline => _ar
-      ? 'تعذّر تحميل المواقع المحفوظة'
-      : 'Could not load saved locations';
-
-  String get errorBody => _ar ? 'حاول مرة أخرى.' : 'Please try again.';
-}
-
 class SavedLocationsScreen extends StatelessWidget {
   const SavedLocationsScreen({super.key, this.repository});
 
@@ -810,7 +786,7 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final copy = _SavedAddressesMidnightL10n.of(context);
+    final l10n = AppLocalizations.of(context);
     return Center(
       key: const Key('saved-locations-loading'),
       child: SingleChildScrollView(
@@ -819,7 +795,7 @@ class _LoadingView extends StatelessWidget {
           medallions: _kStateMedallions,
           center: const _SavedAddressStateMark(),
           status: JeebEmptyStateStatus.loading,
-          headline: copy.loadingHeadline,
+          headline: l10n.savedAddressesLoadingHeadline,
         ),
       ),
     );
@@ -857,7 +833,6 @@ class _ErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final copy = _SavedAddressesMidnightL10n.of(context);
     // §2.7 error state (was `OmdsErrorState`). [onRetry] re-runs the real
     // saved-locations load — no fabricated data.
     return Center(
@@ -868,8 +843,8 @@ class _ErrorView extends StatelessWidget {
           medallions: _kStateMedallions,
           center: const _SavedAddressStateMark(),
           status: JeebEmptyStateStatus.error,
-          headline: copy.errorHeadline,
-          body: copy.errorBody,
+          headline: l10n.savedAddressesErrorHeadline,
+          body: l10n.savedAddressesErrorBody,
           action: Semantics(
             identifier: 'saved_address_error_retry_cta',
             button: true,

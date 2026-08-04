@@ -47,6 +47,12 @@ Widget previewCanvas(Widget Function() preview, Locale locale) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight kit illustrations loop forever by design, so a preview that
+    // mounts one can never `pumpAndSettle` without reduce motion.
+    builder: (BuildContext context, Widget? child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: jeebPreviewHost(preview()),
   );
 }

@@ -116,6 +116,14 @@ final CatalogEntry _pendingOffersEntry = CatalogEntry(
         repository: JeeberPendingOffersScreenFailingOffers(),
       ),
     ),
+    // Appended, not inserted: the capture filenames are index-keyed.
+    CatalogState(
+      'Loading — cold read in flight',
+      (_) => const JeeberPendingOffersScreen(
+        jeeberId: jeeberPendingOffersScreenJeeberId,
+        repository: JeeberPendingOffersScreenStalledOffers(),
+      ),
+    ),
   ],
 );
 

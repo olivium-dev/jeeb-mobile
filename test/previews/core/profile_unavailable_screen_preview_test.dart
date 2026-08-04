@@ -2,9 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/router/profile_unavailable_screen.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_top_bar.dart';
 import 'package:jeeb_mobile/devtool/catalog/fixtures/profile_unavailable_screen_fixtures.dart';
 
 import '../preview_test_harness.dart';
@@ -70,6 +71,18 @@ void main() {
       return tester.getRect(find.byType(ProfileUnavailableScreen));
     }
 
+    /// How far the screen's own viewport can travel — the preview host adds
+    /// two more, so the finder is scoped to the screen.
+    double scrollExtent(WidgetTester tester) => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byType(ProfileUnavailableScreen),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .position
+        .maxScrollExtent;
+
     testWidgets('each preview simulates its own window, not the 800 × 600 host',
         (WidgetTester tester) async {
       // If the fixture ever stopped pinning the MediaQuery/SizedBox, every
@@ -103,15 +116,22 @@ void main() {
       expect(await scale(profileUnavailableScreenLargeText), 20);
     });
 
-    testWidgets('the body never scrolls — there is no viewport inside it', (
-      WidgetTester tester,
-    ) async {
-      // The whole failure mode below rests on this: `Scaffold > Center >
+    // M3-41: the OMDS panel became `JeebEmptyState`, and the viewport that
+    // used to be missing is what closed the compact-200% clipping defect.
+    testWidgets('the body scrolls — the viewport is above the block, never '
+        'inside it', (WidgetTester tester) async {
       await pumpPreview(tester, profileUnavailableScreenPhone);
 
       expect(
         find.descendant(
           of: find.byType(ProfileUnavailableScreen),
+          matching: find.byType(Scrollable),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(JeebEmptyState),
           matching: find.byType(Scrollable),
         ),
         findsNothing,
@@ -120,82 +140,57 @@ void main() {
 
     testWidgets('at 100% the composition has room to spare on the smallest '
         'phone', (WidgetTester tester) async {
-      // The reference measurement, and the reason the 200% state went
+      // The reference measurement: if this slack ever drops near zero the
+      // screen has started scrolling at the DEFAULT text size.
       final Rect frame = await frameRect(tester, profileUnavailableScreenCompact);
-      final Rect appBar = tester.getRect(find.byType(AppBar));
-      final Rect content = tester.getRect(find.byType(OmdsErrorState));
+      final Rect bar = tester.getRect(find.byType(JeebTopBar));
+      final Rect content = tester.getRect(find.byType(JeebEmptyState));
 
-      expect(content.height, moreOrLessEquals(268, epsilon: 2));
       expect(
-        frame.bottom - appBar.bottom - content.height,
-        greaterThan(200),
-        reason: 'measured 244 pt of slack in a 512 pt body — if this ever drops '
-            'near zero the screen has started clipping at the DEFAULT text '
-            'size, which is a different and much worse defect',
+        frame.bottom - bar.bottom - content.height,
+        greaterThan(40),
+        reason: 'measured 68 pt — the drawn E4 box is much taller than the '
+            'OMDS glyph it replaced, so the slack shrank from 244; if it ever '
+            'vanishes the screen has started scrolling at the DEFAULT size',
       );
+      expect(scrollExtent(tester), 0, reason: 'nothing to scroll at 1.0x');
     });
 
-    testWidgets('at 200% on a 390 pt phone it still fits', (
+    // The measured defect, now fixed: the OMDS `Column(mainAxisSize: min)`
+    // overflowed by >100 pt here and cut the only sentence on the screen.
+    for (final (String label, Widget Function() preview) in <
+        (String, Widget Function())>[
+      ('390 pt', profileUnavailableScreenLargeText),
+      ('320 pt', profileUnavailableScreenCompactLargeText),
+    ]) {
+      testWidgets('at 200% on a $label phone it scrolls instead of clipping '
+          'the instruction', (WidgetTester tester) async {
+        final List<FlutterErrorDetails> caught =
+            await _pumpCatchingErrors(tester, preview);
+
+        expect(caught, isEmpty, reason: 'no RenderFlex overflow anywhere');
+        expect(scrollExtent(tester), greaterThan(0),
+            reason: 'the block outgrew the viewport and the viewport took it');
+        expect(find.textContaining('Please go back'), findsOneWidget,
+            reason: 'the only instruction on the screen is still built, and '
+                'now reachable');
+      });
+    }
+
+    testWidgets('the heading prints ONCE — the bar no longer restates it', (
       WidgetTester tester,
     ) async {
-      final Rect frame =
-          await frameRect(tester, profileUnavailableScreenLargeText);
-      final Rect content = tester.getRect(find.byType(OmdsErrorState));
-
-      expect(content.bottom, lessThan(frame.bottom));
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('at 200% on a 320 pt phone the instruction is clipped off the '
-        'bottom', (WidgetTester tester) async {
-      // The measured defect. `OmdsErrorState` is a `Column(mainAxisSize: min)`
-      final List<FlutterErrorDetails> caught = await _pumpCatchingErrors(
-        tester,
-        profileUnavailableScreenCompactLargeText,
-      );
-
-      expect(
-        caught.map((FlutterErrorDetails e) => e.exception.toString()),
-        contains(contains('RenderFlex overflowed')),
-        reason: 'if this stops overflowing the screen was fixed — replace this '
-            'test with the fits-everywhere assertion above',
-      );
-      expect(caught, hasLength(1), reason: 'one overflow, nothing else');
-
-      final Rect frame = tester.getRect(find.byType(ProfileUnavailableScreen));
-      final Finder message = find.textContaining('Please go back');
-      final Rect messageRect = tester.getRect(message);
-
-      // The heading is visible; the sentence that tells the user what to do
-      expect(messageRect.top, lessThan(frame.bottom));
-      expect(
-        messageRect.bottom,
-        greaterThan(frame.bottom),
-        reason: 'the only instruction on the screen must not be the part that '
-            'is cut',
-      );
-      expect(messageRect.bottom - frame.bottom, greaterThan(100));
-    });
-
-    testWidgets('the duplicated heading is what spends the missing space', (
-      WidgetTester tester,
-    ) async {
-      // [OMDSAppBar] paints `profileUnavailableTitle` and [OmdsErrorState]
       await pumpPreview(tester, profileUnavailableScreenPhone);
-      expect(find.text('Profile unavailable'), findsNWidgets(2));
 
-      // In the window that ran out of room, the restatement alone is 224 pt of
-      await _pumpCatchingErrors(
-        tester,
-        profileUnavailableScreenCompactLargeText,
-      );
-      final Rect inBody = tester.getRect(
+      expect(find.text('Profile unavailable'), findsOneWidget);
+      expect(
         find.descendant(
-          of: find.byType(OmdsErrorState),
+          of: find.byType(JeebEmptyState),
           matching: find.text('Profile unavailable'),
         ),
+        findsOneWidget,
       );
-      expect(inBody.height, greaterThan(200));
+      expect(tester.widget<JeebTopBar>(find.byType(JeebTopBar)).title, isNull);
     });
 
     testWidgets('the notched insets are handled at both ends', (
@@ -203,11 +198,14 @@ void main() {
     ) async {
       // The profile routes are bare top-level GoRoutes — no ShellRoute, no
       final Rect frame = await frameRect(tester, profileUnavailableScreenNotched);
-      final Rect appBar = tester.getRect(find.byType(AppBar));
-      final Rect content = tester.getRect(find.byType(OmdsErrorState));
+      final Rect bar = tester.getRect(find.byType(JeebTopBar));
+      final Rect content = tester.getRect(find.byType(JeebEmptyState));
 
-      // 56 pt of toolbar plus the 59 pt status bar.
-      expect(appBar.height, moreOrLessEquals(115, epsilon: 1));
+      expect(
+        bar.top,
+        greaterThanOrEqualTo(frame.top + 59),
+        reason: 'SafeArea clears the 59 pt status bar the window simulates',
+      );
       expect(
         frame.bottom - content.bottom,
         greaterThan(_notchedBottomInset),
@@ -262,18 +260,26 @@ void main() {
     testWidgets('and the arrow is the ONLY control on the screen', (
       WidgetTester tester,
     ) async {
-      // [OmdsErrorState] renders a retry button when — and only when — it is
+      // No destination exists for a "retry", so `JeebEmptyState.action` stays
+      // unmounted — a CTA with nowhere to go is worse than an absent one.
       await pumpPreview(tester, profileUnavailableScreenStackRoot);
 
-      final Finder inScreen = find.descendant(
-        of: find.byType(ProfileUnavailableScreen),
-        matching: find.byType(ButtonStyleButton),
-      );
-      expect(inScreen, findsNothing, reason: 'no retry, no CTA');
       expect(
         find.descendant(
           of: find.byType(ProfileUnavailableScreen),
-          matching: find.byType(IconButton),
+          matching: find.byType(ButtonStyleButton),
+        ),
+        findsNothing,
+        reason: 'no retry, no CTA',
+      );
+      expect(
+        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).action,
+        isNull,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(ProfileUnavailableScreen),
+          matching: find.byIcon(Icons.arrow_back),
         ),
         findsOneWidget,
       );
@@ -288,7 +294,7 @@ void main() {
         locale: const Locale('ar'),
       );
 
-      expect(find.text('الملف الشخصي غير متاح'), findsNWidgets(2));
+      expect(find.text('الملف الشخصي غير متاح'), findsOneWidget);
       expect(
         find.text(
           'تعذّر تحميل هذا الملف الشخصي. يُرجى العودة والمحاولة مرة أخرى.',
@@ -304,20 +310,18 @@ void main() {
       );
     });
 
-    testWidgets('the clipping is not an English-only problem', (
+    testWidgets('and the fix is not an English-only fix either', (
       WidgetTester tester,
     ) async {
-      // "It only breaks in English" is the usual first guess, and it is wrong:
+      // Arabic sets longer than English here, so it was the worse of the two
+      // overflows; it must clear the same bar.
       final List<FlutterErrorDetails> caught = await _pumpCatchingErrors(
         tester,
         profileUnavailableScreenCompactLargeText,
         locale: const Locale('ar'),
       );
 
-      expect(
-        caught.map((FlutterErrorDetails e) => e.exception.toString()),
-        contains(contains('RenderFlex overflowed')),
-      );
+      expect(caught, isEmpty);
     });
   });
 }

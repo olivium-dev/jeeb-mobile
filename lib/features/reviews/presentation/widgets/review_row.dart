@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -27,6 +28,16 @@ import '../reviews_l10n.dart';
 ///
 /// A dumb widget (40_GUARDRAILS_ARCH §1): data in via constructor, the report
 /// event out via [onReport] — it never reaches into `sl`/`context.go`.
+///
+/// MIDNIGHT (M3-31): the rung is R21's order-history row — identity band over a
+/// meta band inside one [JeebOutlinedCard], `cardTitle`/`onSurface` title and
+/// `bodySmall`/`onSurfaceVariant` meta, outlines-as-separation. The stars take
+/// R15's amber (token sheet §3 `amber`, "stars/ratings"); they were inked
+/// `colorScheme.primary` under a comment reading "the star stays NAVY", which
+/// was true in pass 1 and is FALSE under Midnight, where `primary` IS `#D73B00`
+/// — five orange glyphs plus an orange reviewer name per row, on a read-only
+/// list. The disc moves to [JeebAvatarFill.glass] (wave-B ruling 3): `primary`
+/// is opaque navy and vanishes on the field.
 class ReviewRow extends StatelessWidget {
   const ReviewRow({
     super.key,
@@ -61,7 +72,10 @@ class ReviewRow extends StatelessWidget {
                 // The avatar is decorative here: the name beside it is the
                 // attribution node, so a second spoken initial would just
                 // stutter. No identifier/label ⇒ JeebAvatar emits no node.
-                JeebAvatar(initial: review.reviewerFirstName),
+                JeebAvatar(
+                  initial: review.reviewerFirstName,
+                  fill: JeebAvatarFill.glass,
+                ),
                 const SizedBox(width: Spacing.small),
                 Expanded(
                   child: Column(
@@ -76,7 +90,7 @@ class ReviewRow extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: context.jeebText.cardTitle
-                              .copyWith(color: scheme.primary),
+                              .copyWith(color: scheme.onSurface),
                         ),
                       ),
                       const SizedBox(height: Spacing.twoXSmall),
@@ -85,10 +99,12 @@ class ReviewRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: Spacing.xSmall),
+                // R21 meta ink: `onSurfaceVariant` (#8A93D8) on a resting row —
+                // `onSecondaryContainer` (inkSoft) is reserved for the lit one.
                 Text(
                   copy.relativeTime(review.timestamp),
                   style: context.jeebText.bodySmall
-                      .copyWith(color: scheme.onSecondaryContainer),
+                      .copyWith(color: scheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -111,9 +127,8 @@ class ReviewRow extends StatelessWidget {
                     leadingIcon: Icons.flag,
                     iconSize: Sizes.medium,
                     iconSpacing: Spacing.xSmall,
-                    // The report link is a *secondary interactive word*
-                    // (R-ink): the bare-text variant's brown ink at the meta
-                    // size, not the 15.5px footer-CTA default.
+                    // A *secondary interactive word*: the `.text` variant inks
+                    // itself `onSurfaceVariant` (periwinkle, never brown now).
                     labelStyle: context.jeebText.bodySmall,
                     contentPadding: EdgeInsetsDirectional.zero,
                     onTap: onReport,
@@ -127,13 +142,11 @@ class ReviewRow extends StatelessWidget {
   }
 }
 
-/// The five-glyph score. The board draws the EMPTY star as a FILLED grey glyph
-/// (15 `tpl 873`, `--jeeb-surface-highest`), never `Icons.star_border`.
-///
-/// The star stays NAVY: §4.1 rations the one warm ink to the three surfaces
-/// where a specific person's rating drives a decision (11/12/15). This list is
-/// the drill-down of a meta line, and its parent — `delivery_man_profile_header`
-/// — already ratified navy for exactly this reason.
+/// The five-glyph score, R15's star treatment at R21's meta scale: `amber` fill
+/// and a FILLED white-22% glyph when empty (the board never draws a hollow
+/// star). No halo — R15's is measured on a Ø40 input glyph and would flood a
+/// 16dp readout; R21's own row star is a flat mark. Stars never twinkle
+/// (motion ruling 4).
 class _ReviewStars extends StatelessWidget {
   const _ReviewStars({required this.score});
 
@@ -141,7 +154,9 @@ class _ReviewStars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantic =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+            JeebSemanticColors.midnight();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
@@ -158,8 +173,8 @@ class _ReviewStars extends StatelessWidget {
                       : Icons.star,
               size: Sizes.medium,
               color: score >= position - 0.5
-                  ? scheme.primary
-                  : scheme.surfaceContainerHighest,
+                  ? semantic.amber
+                  : semantic.glassBorderVivid,
             ),
           ),
       ],

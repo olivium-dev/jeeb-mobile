@@ -376,14 +376,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M3-29 `address_detail_form_screen.dart` (493) — address detail form; Q-021 pin-discard left for the product ruling, not papered over @2026-08-04
 
 ### M3 — Tier 5 (edge/support)
-- [ ] M3-30 `support_ticket_screen.dart` (616) · [ ] M3-31 `reviews_list_screen.dart` (563) **ORPHAN — ruling**
-- [ ] M3-32 `dispute_status_screen.dart` (423) · [ ] M3-33 `display_name_setup_screen.dart` (276)
-- [ ] M3-34 `set_password_screen.dart` (244) · [ ] M3-35 `biometric_lock_screen.dart` (141)
-- [ ] M3-36 `jeeber_pending_offers_screen.dart` (175) **ORPHAN — ruling** · [x] M3-37 `live_settings_screen.dart` (228) **ORPHAN — ruling** — live settings — loading/error chrome ONLY so R22 is not restyled twice; LIVE DEFECT fixed: Retry called setState with a callback returning a Future, throwing a FlutterError on every tap in debug @2026-08-04
-- [ ] M3-38 `diagnostics_screen.dart` (353) **ORPHAN — ruling** · [ ] M3-39 `jeeber_request_unavailable_screen.dart` (62)
-- [ ] M3-40 `request_summary_unavailable_screen.dart` (29) · [ ] M3-41 `profile_unavailable_screen.dart` (30)
-- [ ] M3-42 `rating_prompt_screen.dart` (46) **ORPHAN — ruling** · [ ] M3-43 `location_picker_screen.dart` placeholder (36) **ORPHAN — deleted with M2-05**
-- [ ] M3-44 `dev_chat_preview_screen.dart` (148, debug-gated — style if kept) · [ ] M3-45 `voice_request_screen.dart` (28, shim — verify delegate covers it)
+- [x] M3-30 `support_ticket_screen.dart` (616) — support ticket derived from R22's stacked form (R20 explicitly rejected — this screen has no thread) @2026-08-04 · [x] M3-31 `reviews_list_screen.dart` (563) **ORPHAN — ruling** — reviews list, BOTH routes verified still resolving @2026-08-04
+- [x] M3-32 `dispute_status_screen.dart` (423) — dispute status — consumes the already-Midnight OrderTrackingStepper rather than hand-painting a bar row @2026-08-04 · [x] M3-33 `display_name_setup_screen.dart` (276) — display name setup derived from R6 @2026-08-04
+- [x] M3-34 `set_password_screen.dart` (244) — set password @2026-08-04 · [x] M3-35 `biometric_lock_screen.dart` (141) — biometric lock derived from R7 @2026-08-04
+- [x] M3-36 `jeeber_pending_offers_screen.dart` (175) **ORPHAN — ruling** — jeeber pending offers (KEEP ruling) — empty state is the common case @2026-08-04 · [x] M3-37 `live_settings_screen.dart` (228) **ORPHAN — ruling** — live settings — loading/error chrome ONLY so R22 is not restyled twice; LIVE DEFECT fixed: Retry called setState with a callback returning a Future, throwing a FlutterError on every tap in debug @2026-08-04
+- [x] M3-38 `diagnostics_screen.dart` (353) **ORPHAN — ruling** — diagnostics — lib/core/diagnostics carve-out; dev surface, no orange spend @2026-08-04 · [x] M3-39 `jeeber_request_unavailable_screen.dart` (62) — jeeber request unavailable @2026-08-04
+- [x] M3-40 `request_summary_unavailable_screen.dart` (29) — request summary unavailable @2026-08-04 · [x] M3-41 `profile_unavailable_screen.dart` (30) — profile unavailable — all three 'unavailable' placeholders now share ONE treatment instead of looking like three different apps @2026-08-04
+- [D] M3-42 `rating_prompt_screen.dart` **DELETED** — screen+previews+fixtures removed, route+redirect KEPT per the ratified ORPHAN ruling; evidence re-verified first @2026-08-04 · [ ] M3-43 `location_picker_screen.dart` placeholder (36) **ORPHAN — deleted with M2-05**
+- [x] M3-44 `dev_chat_preview_screen.dart` (148, debug-gated — style if kept) — dev chat preview (debug-gated) @2026-08-04 · [x] M3-45 `voice_request_screen.dart` (28, shim — verify delegate covers it) — voice request shim — verified pass-through, ZERO product diff by design + a delegation-contract guard @2026-08-04
 
 ### M4/M5 sweeps
 - [ ] M4-1 State inventory built (grep methodology §4) → appended here as sub-items

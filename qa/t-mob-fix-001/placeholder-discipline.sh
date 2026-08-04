@@ -7,7 +7,7 @@
 #   ./jeeb-code/jeeb-mobile/qa/t-mob-fix-001/placeholder-discipline.sh
 #
 # Exit codes:
-#   0  all 11 Type-A files match the template; all 11 Type-B files keep no-op shape
+#   0  all 10 Type-A files match the template; all 11 Type-B files keep no-op shape
 #   1  a Type-A file violates one or more discipline rules
 #   2  a Type-B file was widget-ified (banned by LEAD §2)
 #   3  a file in the allowlist is missing or was deleted
@@ -18,14 +18,15 @@ MOBILE_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
 ALLOW_FILE="$SCRIPT_DIR/placeholder-discipline-allow.txt"
 cd "$MOBILE_ROOT"
 
-# --- Refined Type-A list (11 files per LEAD comment 14747 §2 Risk §5) -------
-# These 11 files MUST match the OMDS placeholder template exactly.
+# --- Refined Type-A list (was 11 per LEAD comment 14747 §2 Risk §5) --------
+# These files MUST match the OMDS placeholder template exactly.
+# rating_prompt_screen.dart removed with the ratified M3-42 orphan deletion
+# (02-STUDY-NOTES §ORPHAN): the route keeps its redirect, the screen is gone.
 TYPE_A_FILES=(
   "lib/features/biometric_auth/presentation/biometric_lock_screen.dart"
   "lib/features/deep_link_targets/chat_detail_screen.dart"
   "lib/features/deep_link_targets/delivery_detail_screen.dart"
   "lib/features/deep_link_targets/kyc_status_screen.dart"
-  "lib/features/deep_link_targets/rating_prompt_screen.dart"
   "lib/features/jeeber_request_detail/presentation/jeeber_request_detail_screen.dart"
   "lib/features/location/presentation/screens/location_picker_screen.dart"
   "lib/features/settings/presentation/screens/notification_preferences_screen.dart"
@@ -225,7 +226,7 @@ echo "=========================================================="
 echo " PLACEHOLDER DISCIPLINE — T-MOB-FIX-001"
 echo "=========================================================="
 echo ""
-echo "== Type-A (11 files; OMDS placeholder template required) =="
+echo "== Type-A (${#TYPE_A_FILES[@]} files; OMDS placeholder template required) =="
 for f in "${TYPE_A_FILES[@]}"; do
   if check_type_a "$f"; then
     PASSES=$((PASSES+1))

@@ -2,10 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:omds/omds.dart';
-
 import 'package:jeeb_mobile/core/diagnostics/diag.dart';
 import 'package:jeeb_mobile/core/diagnostics/diagnostics_screen.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_list_row.dart';
 
 import '../preview_test_harness.dart';
 
@@ -41,7 +41,7 @@ void main() {
     const <String, Widget Function()>{
       'Sessions · newest first': diagnosticsScreenSessions,
       'Empty · no session files': diagnosticsScreenEmpty,
-      'Loader failed · degrades to empty': diagnosticsScreenLoadFailed,
+      'Loader failed · error frame': diagnosticsScreenLoadFailed,
       'Longest content · long name, deep path':
           diagnosticsScreenLongestContent,
       'Compact 320 pt · one session': diagnosticsScreenCompact,
@@ -53,8 +53,9 @@ void main() {
           '(current)',
       // The placeholder row that replaces the list when nothing was found.
       'Empty · no session files': 'No session files yet',
-      // NB: this string is also present in the empty state, because the two
-      'Loader failed · degrades to empty': 'Appears once a session file exists',
+      // MIDNIGHT M3-38: the thrown listing has its own frame now — this string
+      // exists in no other state.
+      'Loader failed · error frame': 'Could not read the session folder',
       // NOT the session title: on this state the export section alone is
       'Longest content · long name, deep path': _kSimulatorDiagDir,
       'Compact 320 pt · one session': '2026-06-30T07-14-52-000Z-jeeber.jsonl',
@@ -88,21 +89,26 @@ void main() {
     ) async {
       await pumpLoading(tester);
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      // The whole body is replaced while the listing runs: no export section,
+      // MIDNIGHT M3-38: the bare spinner is gone — the loading frame is the
+      // kit's breathing skeleton, and it names what is being awaited.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      final JeebEmptyState state =
+          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      expect(state.status, JeebEmptyStateStatus.loading);
+      expect(find.text('Reading session files…'), findsOneWidget);
+      // The whole body is still replaced while the listing runs.
       expect(find.byKey(const Key('diagnostics-session-list')), findsNothing);
       expect(find.byKey(const Key('diag-row-dir-path')), findsNothing);
       expect(find.byKey(const Key('diag-row-empty')), findsNothing);
-      // …and nothing names what is being awaited. `_load` flushes the
-      expect(find.byType(Text), findsOneWidget); // the app bar title only
       expect(find.text('Diagnostics'), findsOneWidget);
     });
   });
 
   // The pair this section exists for. `_enabledBody` reads
   group('DiagnosticsScreen previews · empty vs failed listing', () {
-    testWidgets('a THROWN listing renders the empty state, character for '
-        'character', (WidgetTester tester) async {
+    testWidgets('a THROWN listing no longer reads as "no files written yet"', (
+      WidgetTester tester,
+    ) async {
       await pumpPreview(tester, diagnosticsScreenEmpty);
       final Set<String> empty = _visibleText(tester);
 
@@ -112,20 +118,28 @@ void main() {
       final Set<String> failed = _visibleText(tester);
 
       expect(empty, isNotEmpty);
-      expect(failed, empty);
+      expect(failed, isNot(empty));
+      expect(empty, contains('No session files yet'));
+      expect(failed, contains('Could not read the session folder'));
     });
 
-    testWidgets('the failed listing offers no error and no retry', (
+    testWidgets('the failed listing names the failure and offers a retry', (
       WidgetTester tester,
     ) async {
       await pumpPreview(tester, diagnosticsScreenLoadFailed);
 
-      expect(find.byKey(const Key('diag-row-empty')), findsOneWidget);
+      expect(find.byKey(const Key('diag-listing-error')), findsOneWidget);
+      // The frames it used to be mistaken for.
+      expect(find.byKey(const Key('diag-row-empty')), findsNothing);
       expect(find.byKey(const Key('diag-session-row-0')), findsNothing);
-      expect(find.textContaining('Try again'), findsNothing);
+      expect(find.text('Try again'), findsOneWidget);
+      // Still no raw exception text on a user-facing surface.
       expect(find.textContaining('EACCES'), findsNothing);
-      // The one surviving affordance is the app bar action, which re-runs the
-      expect(find.byKey(const Key('diag-refresh')), findsOneWidget);
+      // …and the app bar action still re-runs the listing.
+      expect(
+        find.bySemanticsIdentifier(DiagnosticsScreen.refreshIdentifier),
+        findsOneWidget,
+      );
     });
   });
 
@@ -169,14 +183,14 @@ void main() {
 
       expect(
         tester
-            .widget<OmdsSettingsRow>(find.byKey(const Key('diag-row-dir-path')))
-            .enabled,
+            .widget<JeebListRow>(find.byKey(const Key('diag-row-dir-path')))
+            .isEnabled,
         isFalse,
       );
       expect(
         tester
-            .widget<OmdsSettingsRow>(find.byKey(const Key('diag-row-adb')))
-            .enabled,
+            .widget<JeebListRow>(find.byKey(const Key('diag-row-adb')))
+            .isEnabled,
         isFalse,
       );
       expect(find.text('No session directory yet'), findsOneWidget);
@@ -212,15 +226,19 @@ void main() {
       expect(find.textContaining('9.8 MB'), findsOneWidget);
     });
 
-    testWidgets('the release-like build shows the notice, no list — but keeps '
-        'the refresh action', (WidgetTester tester) async {
+    testWidgets('the release-like build shows the notice, no list, and no '
+        'refresh action', (WidgetTester tester) async {
       await pumpPreview(tester, diagnosticsScreenDisabled);
 
       expect(find.byKey(const Key('diag-disabled-message')), findsOneWidget);
       expect(find.byKey(const Key('diagnostics-session-list')), findsNothing);
       expect(find.byKey(const Key('diag-session-row-0')), findsNothing);
-      // The app bar action survives the gate: it is wired to `_refresh`, which
-      expect(find.byKey(const Key('diag-refresh')), findsOneWidget);
+      // MIDNIGHT M3-38: the action used to survive the gate and run a
+      // directory listing whose result no body would ever render.
+      expect(
+        find.bySemanticsIdentifier(DiagnosticsScreen.refreshIdentifier),
+        findsNothing,
+      );
     });
   });
 }

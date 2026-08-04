@@ -31,6 +31,10 @@ void main() {
     // settlement_screen/_detail_screen/settlement_status_pill removed with the
     // ratified M3-15/16 orphan deletion (02-STUDY-NOTES §ORPHAN, owner Q9).
     'lib/features/order_history/presentation/order_status_chip.dart',
+    // MIDNIGHT M3-31: the all-reviews list, added with the restyle that took
+    // `colorScheme.primary` off six per-row non-CTA elements and the aggregate.
+    'lib/features/reviews/presentation/reviews_list_screen.dart',
+    'lib/features/reviews/presentation/widgets/review_row.dart',
     // sign_up_screen.dart removed with the email/password funnel (JEBV4-199).
     'lib/features/prohibited_acknowledgment/presentation/prohibited_acknowledgment_dialog.dart',
     'lib/features/tier_selection/presentation/tier_selection_screen.dart',

@@ -16,7 +16,6 @@ import 'package:jeeb_mobile/core/router/app_router.dart';
 import 'package:jeeb_mobile/features/biometric_auth/application/biometric_lock_cubit.dart';
 import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_repository.dart';
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
-import 'package:jeeb_mobile/features/deep_link_targets/rating_prompt_screen.dart';
 import 'package:jeeb_mobile/features/rating/domain/entities/rating_status.dart';
 import 'package:jeeb_mobile/features/rating/domain/rating_repository.dart';
 import 'package:jeeb_mobile/features/rating/presentation/mutual_rating_screen.dart';
@@ -115,8 +114,8 @@ void main() {
     });
 
     testWidgets(
-      'navigating to /orders/D123/rate lands on MutualRatingScreen, '
-      'not the RatingPromptScreen "coming soon" placeholder',
+      'navigating to /orders/D123/rate lands on MutualRatingScreen and the '
+      'route’s own unreachable builder never renders',
       (tester) async {
         final built = await _buildRouter();
         built.router.go('/orders/D123/rate');
@@ -131,16 +130,13 @@ void main() {
           reason: 'The rating-prompt route must redirect to the real blind '
               'mutual-rating screen (T-MOB-020).',
         );
+        // Re-homed from the deleted RatingPromptScreen assertions (M3-42): the
+        // redirect is what this guards, so assert the resolved location.
         expect(
-          find.byType(RatingPromptScreen),
-          findsNothing,
-          reason: 'The frozen "coming soon" placeholder must no longer render '
-              'on the /orders/:id/rate path.',
-        );
-        expect(
-          find.text('Rating Prompt coming soon'),
-          findsNothing,
-          reason: 'The placeholder copy must not be reachable via /rate.',
+          built.router.routerDelegate.currentConfiguration.uri.toString(),
+          '/orders/D123/mutual-rate',
+          reason: 'The live rating-push deep link (/orders/:id/rate) must '
+              'resolve to mutual-rate, never rest on its own builder.',
         );
         expect(tester.takeException(), isNull);
       },

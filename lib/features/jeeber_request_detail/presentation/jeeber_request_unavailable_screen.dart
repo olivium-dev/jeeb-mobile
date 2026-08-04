@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
 import '../../../core/formatting/friendly_reference.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -13,8 +12,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/jeeber_request_unavailable_screen_fixtures.dart';
 
-/// The request-detail route's empty/error surface: a push tap landed on a
-/// request that is gone, and the only forward edge is back to the feed.
+/// The request-detail route's dead end: a push tap landed on a request that is
+/// gone, and the only forward edge is back to the feed.
 class JeeberRequestUnavailableScreen extends StatelessWidget {
   const JeeberRequestUnavailableScreen({
     super.key,
@@ -40,14 +39,29 @@ class JeeberRequestUnavailableScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // The leading circle resolves to the SAME edge the CTA already
-                // owns — this terminal screen has no pop-able parent.
+                // Title-less: the empty block's headline is the same string,
+                // and the leading circle resolves to the CTA's own edge.
                 JeebTopBar.back(
-                  title: l10n.requestUnavailableTitle,
                   identifier: 'jeeber_request_unavailable_back',
                   onLeadingPressed: onBack,
                 ),
-                Expanded(child: _UnavailableBody(requestId: requestId)),
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      child: JeebEmptyState(
+                        key: const Key('jeeber-request-unavailable-state'),
+                        variant: JeebEmptyStateVariant.parcel,
+                        status: JeebEmptyStateStatus.error,
+                        headline: l10n.requestUnavailableTitle,
+                        // sprint-009 §T5: never echo the raw route UUID at the
+                        // jeeber — the short ref the detail card renders.
+                        body: l10n.requestNoLongerAvailable(
+                          friendlyReference(requestId),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 JeebCtaFooter.single(
                   child: JeebCtaButton.primary(
                     key: const Key('jeeber-request-unavailable-back-cta'),
@@ -56,45 +70,6 @@ class JeeberRequestUnavailableScreen extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-/// The E3 scene, centred in the residual space the way every other
-/// [JeebEmptyState] in the jeeber surface is. Scrollable because the drawn
-/// illustration is taller than a compact viewport.
-class _UnavailableBody extends StatelessWidget {
-  const _UnavailableBody({required this.requestId});
-
-  final String requestId;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        padding: const EdgeInsetsDirectional.symmetric(
-          horizontal: Spacing.xLarge,
-          vertical: Spacing.large,
-        ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: (constraints.maxHeight - Spacing.large * 2)
-                .clamp(0.0, double.infinity),
-          ),
-          child: Center(
-            child: JeebEmptyState(
-              key: const Key('jeeber-request-unavailable-state'),
-              variant: JeebEmptyStateVariant.street,
-              headline: l10n.requestUnavailableTitle,
-              // sprint-009 §T5: never echo the raw route UUID at the jeeber —
-              // the same short ref the detail card renders.
-              body: l10n.requestNoLongerAvailable(
-                friendlyReference(requestId),
-              ),
             ),
           ),
         ),

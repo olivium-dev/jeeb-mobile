@@ -8,13 +8,6 @@ import '../../../l10n/app_localizations.dart';
 
 /// Graceful fallback rendered when `/request-summary` is reached without a
 /// `RequestDraft` (e.g. a cold deep-link).
-///
-/// MIDNIGHT: this is the route's EMPTY state, so it ships the `JeebEmptyState`
-/// family (master-plan §2.7) on the same `content` field the populated screen
-/// mounts — same flow, same copy, same guarded back. The frozen
-/// `request-summary-unavailable-state` Key and the three identifiers are
-/// re-homed onto the drawn block; the `JeebInfoNote` chrome that only existed to
-/// host them is gone.
 class RequestSummaryUnavailableScreen extends StatelessWidget {
   const RequestSummaryUnavailableScreen({super.key});
 
@@ -25,6 +18,7 @@ class RequestSummaryUnavailableScreen extends StatelessWidget {
       backgroundColor: Colors.transparent,
       body: JeebMidnightField(
         variant: JeebFieldVariant.content,
+        animateDecor: false,
         child: SafeArea(
           child: Semantics(
             identifier: 'request_summary_unavailable_root',
@@ -37,9 +31,8 @@ class RequestSummaryUnavailableScreen extends StatelessWidget {
                 // Title-less bar: the empty block's headline is the same
                 // string, and the board never prints a screen name twice.
                 const JeebTopBar.back(
-                  // Deliberately NOT `request_summary_back`: that id belongs to
-                  // the populated screen, and the two never coexist but do share
-                  // a route.
+                  // NOT `request_summary_back`: that id belongs to the
+                  // populated screen, which shares this route.
                   identifier: 'request_summary_unavailable_back',
                 ),
                 // Scrolls only so 200% text scale cannot overflow the fixed
@@ -56,7 +49,10 @@ class RequestSummaryUnavailableScreen extends StatelessWidget {
                       child: JeebEmptyState(
                         // FROZEN key — the pre-redesign hook for this state.
                         key: const Key('request-summary-unavailable-state'),
-                        variant: JeebEmptyStateVariant.pocket,
+                        variant: JeebEmptyStateVariant.parcel,
+                        status: JeebEmptyStateStatus.error,
+                        // TODO(midnight): l10n-queued requestSummaryUnavailable
+                        // Headline — this key is a screen NAME, not an absence.
                         headline: l10n.requestSummaryUnavailableTitle,
                         body: l10n.requestSummaryUnavailableBody,
                         identifier: 'request_summary_unavailable_note',

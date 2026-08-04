@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/diagnostics/diag.dart';
 import 'package:jeeb_mobile/core/diagnostics/diagnostics_screen.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 
 /// Widget tests for the dev-only Settings → Diagnostics export screen.
 /// Every side-effecting seam (file listing, share sheet, clipboard) is
@@ -36,7 +37,15 @@ void main() {
 
   tearDown(Diag.resetForTest);
 
+  // MIDNIGHT M3-38: the empty/loading/disabled frames are `JeebEmptyState`,
+  // whose illustrations loop forever by design — `pumpAndSettle` can only
+  // settle under reduce motion (02-STUDY-NOTES, wave-B regression attribution).
   Widget host({List<DiagSessionFileInfo>? files}) => MaterialApp(
+        theme: AppTheme.midnight(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
         home: DiagnosticsScreen(
           sessionsLoader: () async => files ?? sessions,
           shareLauncher: (file) async => shared.add(file),
@@ -131,6 +140,11 @@ void main() {
   testWidgets('refresh action re-queries the loader', (tester) async {
     var loads = 0;
     await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.midnight(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       home: DiagnosticsScreen(
         sessionsLoader: () async {
           loads++;
@@ -143,7 +157,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(loads, 1);
 
-    await tester.tap(find.byKey(const Key('diag-refresh')));
+    // Re-homed from `Key('diag-refresh')`: the top bar's action is a data
+    // class, so the id it can carry is the semantics one.
+    await tester.tap(
+      find.bySemanticsIdentifier(DiagnosticsScreen.refreshIdentifier),
+    );
     await tester.pumpAndSettle();
     expect(loads, 2);
   });

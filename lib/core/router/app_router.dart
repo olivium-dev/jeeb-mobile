@@ -33,7 +33,6 @@ import '../../features/delivery_man_profile/data/dev_delivery_man_profile_fixtur
 import '../../features/delivery_man_profile/domain/delivery_man_profile_view_data.dart';
 import '../../features/delivery_man_profile/presentation/delivery_man_profile_screen.dart';
 import '../../features/deep_link_targets/delivery_detail_screen.dart';
-import '../../features/deep_link_targets/rating_prompt_screen.dart';
 import '../../features/kyc/presentation/kyc_wizard_screen.dart';
 import '../../features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import '../../features/jeeber_onboarding_funding/presentation/onboarding_funding_screen.dart';
@@ -508,8 +507,8 @@ class AppRouter {
   ///   * screens that ALREADY self-wrap in [RootAwareBackScope]
   ///     (`delivery-detail`, `settings-addresses`, `jeeber-offer-submission`):
   ///     wrapping again is redundant and would shadow their tuned fallbacks.
-  ///   * `rating-prompt` (a redirect-only Type-A placeholder) and `dev-chat`
-  ///     (debug-only) — never a real user destination.
+  ///   * `rating-prompt` (redirect-only) and `dev-chat` (debug-only) — never a
+  ///     real user destination.
   @visibleForTesting
   static const Map<String, String> backFallbacks = {
     // ── set-password (JM-061 password-security; the email/password sign-in
@@ -914,14 +913,10 @@ class AppRouter {
         GoRoute(
           path: '/orders/:id/rate',
           name: 'rating-prompt',
-          // B-3: the `rating-prompt` placeholder is superseded by the real
-          // blind mutual-rating screen (T-MOB-020). Redirect this route — hit
-          // from the post-delivery "rate" notification deep link
-          // (notification_deep_link.dart) — to `/orders/:id/mutual-rate`,
-          // carrying the delivery id (and any `mode` query param) through. The
-          // [RatingPromptScreen] builder below is retained only as an
-          // unreachable fallback so the placeholder file stays under the
-          // Type-A discipline gate until T-MOB-RATING-001 formally lifts it.
+          // B-3: the live post-delivery "rate" push deep link
+          // (notification_deep_link.dart) lands here and is redirected to the
+          // real blind mutual-rating screen (T-MOB-020), carrying the delivery
+          // id and any `mode` query param through.
           redirect: (context, state) {
             final id = state.pathParameters['id'] ?? '';
             if (id.isEmpty) return null;
@@ -929,8 +924,9 @@ class AppRouter {
             final suffix = query.isEmpty ? '' : '?$query';
             return '/orders/$id/mutual-rate$suffix';
           },
-          builder: (context, state) =>
-              RatingPromptScreen(deliveryId: state.pathParameters['id'] ?? ''),
+          // Unreachable: `:id` cannot match an empty segment, so the redirect
+          // above always fires. Present only to satisfy GoRoute.
+          builder: (context, state) => const Scaffold(),
         ),
         GoRoute(
           path: '/chat/:id',
@@ -1494,8 +1490,8 @@ class AppRouter {
         ),
         // Feedback / rating screen (Figma 56614:20132). `mode=jeeber` flips the
         // audience so the delivery man rates the client; `name` seeds the
-        // ratee for capture. Distinct from the frozen `/orders/:id/rate`
-        // placeholder (RatingPromptScreen, Type-A CI gate).
+        // ratee for capture. Distinct from `/orders/:id/rate`, which redirects
+        // to `mutual-rating`.
         GoRoute(
           path: '/orders/:id/feedback',
           name: 'feedback',

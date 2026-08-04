@@ -266,7 +266,7 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
               liveRegion: true,
               child: JeebInfoNote.error(
                 icon: Icons.error_outline,
-                text: l10n.setpwValidationError,
+                text: l10n.passwordStrengthError,
               ),
             ),
           ],
@@ -277,7 +277,7 @@ class _PasswordSecurityViewState extends State<_PasswordSecurityView> {
               liveRegion: true,
               child: JeebInfoNote.error(
                 icon: Icons.error_outline,
-                text: l10n.setpwValidationError,
+                text: l10n.passwordMismatchError,
               ),
             ),
           ],
