@@ -47,8 +47,9 @@ enum JeebFieldWashPlacement {
   /// R1's own wash, measured: start edge at mid-height, dying by x ≈ 0.40.
   startMid(0.0, 0.39, 0.18, 0.667, 1.35),
 
-  /// The §8 anchor, drawn by other tiles.
-  bottomEnd(0.90, 1.0, 0.22, 1.0, _glowAspect),
+  /// The §8 anchor, drawn by other tiles. Its aspect is a literal, not the
+  /// glow's: the wash is per-tile (wave-B) and must not ride the glow re-cut.
+  bottomEnd(0.90, 1.0, 0.22, 1.0, 420 / 520),
 
   /// R14/R7/R21/E4's top-start bloom, board `480px 400px at 12% -6%` — the
   /// start-side mirror of the `topEnd` glow, above the top edge, not at mid.
@@ -103,7 +104,7 @@ class JeebMidnightField extends StatelessWidget {
 
   final JeebFieldGlowPlacement? glowPlacement;
 
-  /// Carries its own alpha; the variant only supplies the default.
+  /// Carries its own alpha; unset falls back to the one ratified glow alpha.
   final Color? glowColor;
 
   /// Turns the periwinkle wash on for any variant, not just `hero`.
@@ -180,11 +181,12 @@ class JeebMidnightField extends StatelessWidget {
   }
 }
 
-// §8 glow: CSS `radial-gradient(520px 420px …)` are RADII on the 440 board, so
-// rx = 520/440 = 1.18 × field width, ry/rx = 420/520, transparent at the 60%.
-const double _glowRadiusFactor = 1.18;
-const double _glowAspect = 420 / 520;
-const double _glowFade = 0.6;
+// §8 glow, re-censused over all 30 tiles at M6: rx mode+median 500, ry 420,
+// fade 58%, and ONE alpha .24 — the variant picks the layer set, never the ink.
+const double _glowRadiusFactor = 500 / 440;
+const double _glowAspect = 420 / 500;
+const double _glowFade = 0.58;
+const double _glowAlpha = 0.24;
 
 // Orbit rings, measured off R1: two concentric circles at (0.90, 0.05).
 const AlignmentDirectional _ringAnchor = AlignmentDirectional(0.80, -0.90);
@@ -297,11 +299,6 @@ class _FieldSpec {
         variant != JeebFieldVariant.map ||
         glowPlacement != null ||
         glowColor != null;
-    final double alpha = switch (variant) {
-      JeebFieldVariant.hero => 0.28,
-      JeebFieldVariant.sheet => 0.26,
-      JeebFieldVariant.content || JeebFieldVariant.map => 0.22,
-    };
     return _FieldSpec(
       base: switch (variant) {
         JeebFieldVariant.hero || JeebFieldVariant.content => _FieldBase.wash,
@@ -309,7 +306,7 @@ class _FieldSpec {
         JeebFieldVariant.sheet => _FieldBase.navy,
       },
       glow: glows
-          ? glowColor ?? JeebMidnight.orange.withValues(alpha: alpha)
+          ? glowColor ?? JeebMidnight.orange.withValues(alpha: _glowAlpha)
           : null,
       placement: glowPlacement ?? JeebFieldGlowPlacement.topEnd,
       wash: washPlacement ?? (hero ? JeebFieldWashPlacement.startMid : null),

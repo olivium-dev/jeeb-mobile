@@ -158,20 +158,21 @@ void main() {
       handle.dispose();
     });
 
-    test('the stroke role only clears non-text contrast in the light scheme',
-        () {
-      // The painter inks with `colorScheme.secondaryContainer` on the sheet's
-      final ColorScheme light = AppTheme.light().colorScheme;
+    test('the stroke role clears non-text contrast on the Midnight sheet', () {
+      // The painter inks with `colorScheme.onSurfaceVariant` on the sheet's
+      // `surface`. It used to ink `secondaryContainer`, which under Midnight is
+      // raised navy on card navy — 1.2:1, i.e. invisible line art.
+      const ColorScheme scheme = AppTheme.midnightScheme;
       expect(
-        _contrast(light.secondaryContainer, light.surface),
+        _contrast(scheme.onSurfaceVariant, scheme.surface),
         greaterThanOrEqualTo(3.0),
-        reason: 'brand navy on white — this is the rendering designers signed '
-            'off and it must not regress',
+        reason: 'WCAG 1.4.11 non-text contrast for the line art',
       );
-
-      // Dark measures 1.98:1 against 17.13:1 in light. `ColorScheme.fromSeed(
-      final ColorScheme dark = AppTheme.dark().colorScheme;
-      expect(_contrast(dark.secondaryContainer, dark.surface), greaterThan(1.0));
+      expect(
+        _contrast(scheme.secondaryContainer, scheme.surface),
+        lessThan(3.0),
+        reason: 'the role this painter must never go back to',
+      );
     });
   });
 }

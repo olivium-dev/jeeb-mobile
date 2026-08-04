@@ -65,7 +65,9 @@ void main() {
       // What this preview exists to review: the splash is NOT a bare frame — it
       expect(host.theme, isNotNull);
       expect(host.darkTheme, isNotNull);
-      expect(host.themeMode, ThemeMode.system);
+      // M0 pinned this dark: `system` is where a light-mode device flashed
+      // white on the first painted surface.
+      expect(host.themeMode, ThemeMode.dark);
       expect(host.localizationsDelegates, contains(AppLocalizations.delegate));
       expect(host.supportedLocales, AppLocalizations.supportedLocales);
     });
@@ -108,19 +110,19 @@ void main() {
       );
     });
 
-    testWidgets('the error host is built from a bare MaterialApp — no AppTheme',
-        (WidgetTester tester) async {
+    testWidgets('the error host is themed Midnight — a broken boot must not '
+        'render a stock Material white slab', (WidgetTester tester) async {
       await pumpPreview(tester, jeebBootstrapFailedOpaque);
 
       final ThemeData theme = Theme.of(
         tester.element(find.text(_errorLine(jeebBootstrapOpaqueError))),
       );
-      expect(
-        theme.colorScheme.primary,
-        isNot(AppTheme.light().colorScheme.primary),
-        reason: '_BootstrapErrorApp passes no `theme:`, so the one screen that '
-            'appears when the app is broken is stock Material, not Jeeb brand',
-      );
+      // M0 gave `_BootstrapErrorApp` a real theme; this used to assert the
+      // absence of one.
+      expect(theme.colorScheme.primary, AppTheme.midnight().colorScheme.primary);
+      expect(theme.colorScheme.brightness, Brightness.dark);
+      expect(theme.scaffoldBackgroundColor,
+          AppTheme.midnight().scaffoldBackgroundColor);
     });
 
     testWidgets('the error host stays LTR even with an Arabic payload', (

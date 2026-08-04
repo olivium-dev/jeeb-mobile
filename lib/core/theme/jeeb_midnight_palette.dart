@@ -61,4 +61,8 @@ class JeebMidnight {
   static const Color bubbleOutBorder = Color.fromRGBO(215, 59, 0, 0.45);
 
   static const Color divider = Color.fromRGBO(138, 147, 216, 0.12);
+
+  /// Page navy @70% — the ONE barrier ink behind dialogs, modal sheets and the
+  /// drawer scrim. Material's `black54` reads as a hole punched in the field.
+  static const Color scrim = Color.fromRGBO(7, 12, 51, 0.70);
 }

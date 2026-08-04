@@ -734,7 +734,7 @@ class _ChatBody extends StatelessWidget {
   /// catch-up read of the delivery row. See [OrderChatPinnedSummary].
   final VoidCallback? onSummaryAttentionRefresh;
 
-  /// Routes the pinned strip's white `Track` pill to live tracking. Null hides
+  /// Routes the pinned strip's glass `Track` pill to live tracking. Null hides
   /// the pill (no route wired, or no delivery id on the summary).
   final VoidCallback? onTrackSummary;
   final bool isOrderChat;

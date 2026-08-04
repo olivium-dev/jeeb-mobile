@@ -5,16 +5,21 @@ import '../../../../l10n/app_localizations.dart';
 
 import '../../../../core/previews/jeeb_preview.dart';
 
-/// Navy line-art illustration (parcel + clock + pin). CustomPainter stays crisp at any density,
+/// Periwinkle line-art (parcel + clock + pin) on the Midnight sheet. A
+/// CustomPainter so it stays crisp at any density, and it spends no orange.
 class DeliveryConfirmIllustration extends StatelessWidget {
   const DeliveryConfirmIllustration({super.key});
 
   static const double _aspectRatio = 271 / 150;
 
+  /// The one ink this art draws with. Public so a guard can read the role
+  /// rather than reach into the private painter.
+  static Color strokeOf(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurfaceVariant;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'confirm_delivery_illustration',
       label: l10n.confirmDeliveryActionIllustrationA11y,
@@ -22,9 +27,7 @@ class DeliveryConfirmIllustration extends StatelessWidget {
       child: AspectRatio(
         aspectRatio: _aspectRatio,
         child: CustomPaint(
-          painter: _ParcelClockPinPainter(
-            stroke: colorScheme.secondaryContainer,
-          ),
+          painter: _ParcelClockPinPainter(stroke: strokeOf(context)),
         ),
       ),
     );

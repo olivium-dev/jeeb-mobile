@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_scrim.dart';
 import '../../../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -8,14 +9,11 @@ import '../../../core/previews/jeeb_preview.dart';
 
 /// 409 email_collision: second method BLOCKED. Sheet explains account exists.
 Future<void> showSocialCollisionSheet(BuildContext context) {
-  final scrim = Theme.of(context).colorScheme.onSecondaryContainer.withValues(
-        alpha: UIConstants.opacityHigh,
-      );
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
-    barrierColor: scrim,
+    barrierColor: JeebScrim.barrier(context),
     shape: const RoundedRectangleBorder(
       borderRadius: OmdsBorderRadius.topXLarge,
     ),
@@ -35,25 +33,31 @@ class SocialCollisionSheet extends StatelessWidget {
       container: true,
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(Spacing.large),
+          padding: const EdgeInsetsDirectional.all(Spacing.large),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // A 409 BLOCKS the second method, so the glyph is the danger
+              // role — never the accent (`primary` IS #D73B00 under Midnight).
               Icon(
                 Icons.person_off_outlined,
-                size: Spacing.twoXLarge,
-                color: theme.colorScheme.primary,
+                size: Sizes.twoXLarge,
+                color: theme.colorScheme.error,
               ),
               const SizedBox(height: Spacing.medium),
               Text(
                 l10n.registrationSocialCollisionTitle,
-                style: theme.textTheme.titleLarge,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                ),
               ),
               const SizedBox(height: Spacing.small),
               Text(
                 l10n.registrationSocialCollisionBody,
-                style: theme.textTheme.bodyMedium,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: Spacing.large),
               SizedBox(

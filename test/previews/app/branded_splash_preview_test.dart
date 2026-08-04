@@ -264,32 +264,26 @@ void main() {
       );
     });
 
-    test('the tagline colour pair only survives in the light scheme', () {
-      // `_SplashTagline` inks with `colorScheme.onSecondary` on the
-      final ColorScheme light = AppTheme.light().colorScheme;
+    // L12, FIXED: the pair this test used to document as a defect is gone —
+    // `_SplashTagline` now inks `onSecondaryContainer`.
+    test('the tagline pair clears AA in the one Midnight scheme', () {
+      final ColorScheme scheme = AppTheme.midnight().colorScheme;
       expect(
-        _contrast(light.onSecondary, light.secondaryContainer),
-        greaterThanOrEqualTo(4.5),
-        reason: 'measured 17.13 : 1 — white on brand navy, the rendering '
-            'designers signed off, and it must not regress',
-      );
-
-      // Dark measures 1.40 : 1. `ColorScheme.fromSeed(_jeebNavy, dark)` puts
-      final ColorScheme dark = AppTheme.dark().colorScheme;
-      expect(_contrast(dark.onSecondary, dark.secondaryContainer),
-          greaterThan(1.0));
-      expect(
-        _contrast(dark.onSecondary, dark.secondaryContainer),
-        lessThan(3.0),
-        reason: 'documents the defect the AR RTL dark rendering shows; delete '
-            'this expectation when the pair is fixed',
-      );
-
-      // The M3-correct partner for the same fill measures 7.23 : 1, so the fix
-      expect(
-        _contrast(dark.onSecondaryContainer, dark.secondaryContainer),
+        _contrast(scheme.onSecondaryContainer, scheme.secondaryContainer),
         greaterThanOrEqualTo(4.5),
       );
+
+      // Discrimination: the reverted ink is what measured 1.17 : 1.
+      expect(
+        _contrast(scheme.onSecondary, scheme.secondaryContainer),
+        lessThan(1.5),
+      );
+
+      // Both factories are Midnight (§1), so neither can regress separately.
+      expect(AppTheme.light().colorScheme.onSecondaryContainer,
+          scheme.onSecondaryContainer);
+      expect(AppTheme.dark().colorScheme.onSecondaryContainer,
+          scheme.onSecondaryContainer);
     });
   });
 }

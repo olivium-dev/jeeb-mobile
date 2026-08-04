@@ -368,6 +368,9 @@ class _AvailableBody extends StatelessWidget {
     return BlocBuilder<RequestFeedCubit, RequestFeedState>(
       builder: (context, feedState) => feedState.requests.isEmpty
           ? OmdsPullToRefresh(
+              // Periwinkle, never the `colorScheme.primary` default: on
+              // Midnight that is the orange, and this is transient chrome.
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               onRefresh: () => context.read<RequestFeedCubit>().refresh(),
               child: _NoRequestsScope(
                 view: view,

@@ -6,12 +6,14 @@
 // one. Everything here reads the colour/variant/geometry off the widget.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
@@ -123,6 +125,32 @@ void main() {
           tester.widget<Scaffold>(find.byType(Scaffold).first);
       expect(scaffold.backgroundColor, Colors.transparent);
       expect(scaffold.appBar, isNull, reason: 'a gate offers no BACK');
+    });
+  });
+
+  // M6 L14: the screen used to set a raw `SystemUiOverlayStyle.light` with a
+  // transparent nav bar; raw `.light` carries a BLACK one.
+  group('M6 L14 system bands', () {
+    testWidgets('takes the ratified overlay style, not raw .light',
+        (tester) async {
+      final BiometricLockCubit cubit = biometricLockScreenLockedCubit();
+      addTearDown(cubit.close);
+      await tester.pumpWidget(_harness(cubit));
+      await tester.pump();
+
+      final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+        find.ancestor(
+          of: find.byType(JeebMidnightField),
+          matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+        ),
+      );
+      expect(region.value, AppTheme.systemOverlayStyle);
+      expect(region.value.systemNavigationBarColor, JeebMidnight.page);
+      expect(
+        region.value.systemNavigationBarColor,
+        isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
+      );
+      expect(region.value.statusBarIconBrightness, Brightness.light);
     });
   });
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
@@ -62,9 +63,9 @@ class _BiometricPromptScaffold extends StatelessWidget {
           identifier: 'biometric_prompt_root',
           container: true,
           child: AnnotatedRegion<SystemUiOverlayStyle>(
-            // The band bleeds under the status bar, so the system glyphs have
-            // to flip to their light variant (screen 02 does the same).
-            value: SystemUiOverlayStyle.light,
+            // The band bleeds under BOTH bands: raw `.light` paints the
+            // Android nav bar black instead of page navy.
+            value: AppTheme.systemOverlayStyle,
             child: Scaffold(body: _PromptColumn(state: state)),
           ),
         );

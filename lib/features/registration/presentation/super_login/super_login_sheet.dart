@@ -6,6 +6,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/session/session_cubit.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/super_login_service.dart';
 import 'super_login_cubit.dart';
@@ -18,13 +19,11 @@ Future<bool?> showSuperLoginSheet(
   String? initialUserId,
   String? initialPasscode,
 }) {
+  // No backgroundColor/shape override: `bottomSheetTheme` already carries the
+  // navy surface and the ratified sheet rung (26), which `topLarge` (20) is not.
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: OmdsBorderRadius.topLarge,
-    ),
     builder: (sheetContext) => _SuperLoginScope(
       cubit: cubit,
       session: session,
@@ -247,7 +246,7 @@ class _SheetDragHandle extends StatelessWidget {
         width: Sizes.fourXLarge,
         height: Spacing.xSmall,
         decoration: BoxDecoration(
-          color: colorScheme.onSurface.withValues(alpha: UIConstants.opacityLow),
+          color: colorScheme.onSurfaceVariant,
           borderRadius: OmdsBorderRadius.small,
         ),
       ),
@@ -268,14 +267,16 @@ class _SuperLoginHeader extends StatelessWidget {
         Text(
           l10n.superLoginTitle,
           key: const Key('superLogin.title'),
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: context.jeebText.h2.copyWith(
+            color: theme.colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: Spacing.xSmall),
         Text(
           l10n.superLoginSubtitle,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: context.jeebText.body.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -334,8 +335,9 @@ class _FieldLabel extends StatelessWidget {
       padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
       child: Text(
         text,
-        style: theme.textTheme.labelLarge
-            ?.copyWith(color: theme.colorScheme.onSurface),
+        style: context.jeebText.bodySmall.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
       ),
     );
   }

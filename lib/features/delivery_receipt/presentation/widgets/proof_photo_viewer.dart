@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_scrim.dart';
+
 /// Opens the full-screen proof-of-delivery viewer (JM-033) over the current
 /// route: the photo, pinch/pan-zoomable, on a scrim, with one close affordance.
 ///
@@ -18,9 +20,9 @@ Future<void> showProofPhotoViewer(
 }) {
   return showGeneralDialog<void>(
     context: context,
-    // Colors.black is banned by the token gate; the scheme's scrim is the
-    // semantic role for exactly this overlay.
-    barrierColor: Theme.of(context).colorScheme.scrim,
+    // Was the scrim role UNDILUTED — an opaque black slab, not a dim. One
+    // modal dim app-wide; a single lightbox does not earn a second rung.
+    barrierColor: JeebScrim.barrier(context),
     barrierDismissible: true,
     barrierLabel: closeLabel,
     pageBuilder: (_, _, _) =>

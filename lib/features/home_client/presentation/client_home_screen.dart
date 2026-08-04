@@ -8,6 +8,7 @@ import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_segmented_toggle.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../shell/tab_visibility.dart';
 import '../application/client_home_cubit.dart';
@@ -205,6 +206,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
           explicitChildNodes: true,
           child: JeebMidnightField(
             variant: JeebFieldVariant.hero,
+            // R1 declares .32; the ratified single .24 is the app default.
+            glowColor: context.jeebRoles.accent.withValues(alpha: 0.32),
             animateDecor: false,
             child: OmdsPullToRefresh(
               onRefresh: () => context.read<ClientHomeCubit>().refresh(),

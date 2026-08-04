@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/jeeb_color_roles.dart';
+import '../../core/theme/jeeb_radii.dart';
 import '../gateway/dev_gateway_client.dart';
 
 class ActionsPage extends StatefulWidget {
@@ -343,19 +345,21 @@ class _ActionsPageState extends State<ActionsPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
+                // A finished run reads success/danger, not brand: under
+                // Midnight `primary` is #D73B00 and framed every OK in orange.
                 border: Border.all(
                   color: _resultIsError
-                      ? Theme.of(context).colorScheme.error
-                      : Theme.of(context).colorScheme.primary,
+                      ? context.jeebRoles.error
+                      : context.jeebRoles.success,
                 ),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(JeebRadii.sm),
               ),
               child: Text(
                 _resultMessage!,
                 style: TextStyle(
                   color: _resultIsError
-                      ? Theme.of(context).colorScheme.error
-                      : null,
+                      ? context.jeebRoles.error
+                      : context.jeebRoles.success,
                 ),
               ),
             ),

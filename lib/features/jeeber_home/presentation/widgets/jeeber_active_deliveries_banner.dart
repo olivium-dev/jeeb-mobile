@@ -205,15 +205,17 @@ class _CardTitle extends StatelessWidget {
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+      // R16 draws this title white; the frame and the Ø38 disc are already this
+      // card's whole orange budget. Must match the shell-injected twin's ink.
       style: context.jeebText.body.copyWith(
         fontWeight: FontWeight.w700,
-        color: Theme.of(context).colorScheme.primary,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }
 }
 
-/// The navy pill at the card's end edge (the board's `Manage`). Its frozen
+/// The white select chip at the card's end edge (the board's `Manage`). Frozen
 /// identifier is what the jeeber flows tap, so it stays a distinct node inside
 /// the card.
 class _OpenChatPill extends StatelessWidget {

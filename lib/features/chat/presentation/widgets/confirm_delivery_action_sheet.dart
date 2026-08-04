@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_scrim.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'delivery_confirm_illustration.dart';
 
@@ -28,15 +32,11 @@ class ConfirmDeliveryActionSheet extends StatelessWidget {
     required DeliveryConfirmKind kind,
     required Future<void> Function() onConfirm,
   }) {
-    final scrim = Theme.of(context)
-        .colorScheme
-        .onSecondaryContainer
-        .withValues(alpha: UIConstants.opacityHigh);
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      barrierColor: scrim,
+      barrierColor: JeebScrim.barrier(context),
       shape: const RoundedRectangleBorder(
         borderRadius: OmdsBorderRadius.topXLarge,
       ),
@@ -166,7 +166,10 @@ class _SheetDragHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    // Inert chrome takes the .22 glass rung — never the accent (`primary` IS
+    // #D73B00 under Midnight). Same rung as the settings sign-out grabber.
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Center(
       child: Semantics(
         identifier: 'confirm_delivery_drag_handle',
@@ -175,7 +178,7 @@ class _SheetDragHandle extends StatelessWidget {
           width: Spacing.twoXLarge,
           height: Spacing.twoXSmall,
           decoration: BoxDecoration(
-            color: colorScheme.primary,
+            color: semantics.glassBorderVivid,
             borderRadius: OmdsBorderRadius.pill,
           ),
         ),
@@ -193,6 +196,8 @@ class _SheetTextBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Column(
       children: [
         Semantics(
@@ -201,9 +206,8 @@ class _SheetTextBlock extends StatelessWidget {
           child: Text(
             title,
             textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w800,
+            style: context.jeebText.h2.copyWith(
+              color: theme.colorScheme.onSurface,
             ),
           ),
         ),
@@ -213,9 +217,7 @@ class _SheetTextBlock extends StatelessWidget {
           child: Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: context.jeebText.body.copyWith(color: semantics.mutedText),
           ),
         ),
       ],
@@ -237,7 +239,6 @@ class _SheetConfirmCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final enabled = !isConfirming;
     return Semantics(
       identifier: 'confirm_delivery_confirm_button',
@@ -247,14 +248,11 @@ class _SheetConfirmCta extends StatelessWidget {
       label: label,
       onTap: enabled ? onConfirm : null,
       child: ExcludeSemantics(
-        child: OmdsLoadingButton(
+        child: JeebCtaButton.primary(
           key: const Key('confirm-delivery-confirm-button'),
-          text: label,
+          label: label,
           isLoading: isConfirming,
           onTap: onConfirm,
-          backgroundColor: colorScheme.secondaryContainer,
-          textColor: colorScheme.onPrimary,
-          borderRadius: OmdsBorderRadius.uiSmall,
         ),
       ),
     );
@@ -363,26 +361,29 @@ class _ConfirmDeliveryActionSheetChatBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    final JeebSemanticColors glass =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     return ColoredBox(
-      color: colors.surface,
+      color: theme.colorScheme.surfaceContainerLowest,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: <Widget>[
-            _bubble(colors, width: 210, incoming: true),
-            _bubble(colors, width: 150, incoming: false),
-            _bubble(colors, width: 240, incoming: true),
+            _bubble(glass, width: 210, incoming: true),
+            _bubble(glass, width: 150, incoming: false),
+            _bubble(glass, width: 240, incoming: true),
           ],
         ),
       ),
     );
   }
 
-  /// One placeholder bubble. [AlignmentDirectional] rather than [Alignment] so
-  /// the fake thread mirrors in the AR rendering like the real one does.
+  /// One placeholder bubble, painted with the SHIPPED bubble fills so the
+  /// backdrop cannot drift from `JeebChatBubble`. [AlignmentDirectional] rather
+  /// than [Alignment] so the fake thread mirrors in AR like the real one does.
   Widget _bubble(
-    ColorScheme colors, {
+    JeebSemanticColors glass, {
     required double width,
     required bool incoming,
   }) =>
@@ -395,9 +396,10 @@ class _ConfirmDeliveryActionSheetChatBackdrop extends StatelessWidget {
           width: width,
           height: 44,
           decoration: BoxDecoration(
-            color: incoming
-                ? colors.surfaceContainerHighest
-                : colors.secondaryContainer,
+            color: incoming ? glass.glassFill : glass.bubbleOutFill,
+            border: Border.all(
+              color: incoming ? glass.glassBorder : glass.bubbleOutBorder,
+            ),
             borderRadius: BorderRadius.circular(16),
           ),
         ),

@@ -7,6 +7,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/accessibility/accessibility.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_shadows.dart';
@@ -800,11 +801,13 @@ class _HandoverCodeRow extends StatelessWidget {
         // 200% overflows the strip without it.
         trailing: knownCode == null
             ? Flexible(
+                // The sanctioned orange text affordance (§4.1): a link into the
+                // at-door hand-off, not chrome — hence `accent`, spelled out.
                 child: Text(
                   l10n.trackingAtDoorCta,
                   key: const Key('tracking.codeRowValue'),
                   style: context.jeebText.cardTitle
-                      .copyWith(color: scheme.primary),
+                      .copyWith(color: context.jeebRoles.accent),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

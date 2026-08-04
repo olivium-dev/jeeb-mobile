@@ -7,6 +7,8 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/locale/locale_cubit.dart';
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/onboarding/onboarding_cubit.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/onboarding/presentation/onboarding_screen.dart';
@@ -106,8 +108,17 @@ void main() {
       reason: 'walkthrough status-bar icons must be light on the navy hero',
     );
     // statusBarBrightness is the iOS counterpart of the same intent: a DARK
-    // bar background expects light content (SystemUiOverlayStyle.light).
+    // bar background expects light content.
     expect(region.value.statusBarBrightness, Brightness.dark);
+
+    // M6 L14: this used to be a raw `.light` + copyWith. The one ratified
+    // style is what both bands take now.
+    expect(region.value, AppTheme.systemOverlayStyle);
+    expect(region.value.systemNavigationBarColor, JeebMidnight.page);
+    expect(
+      region.value.systemNavigationBarColor,
+      isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
+    );
   });
 
   testWidgets('slide copy + Skip flow through OMDS components (OMDS upgrade)',

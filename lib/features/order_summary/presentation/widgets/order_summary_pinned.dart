@@ -442,8 +442,10 @@ class _PriceBlock extends StatelessWidget {
                   textDirection: TextDirection.ltr,
                   child: Text(
                     '$amount $currency',
+                    // Read-only summary: the `price` ramp carries the emphasis,
+                    // the ink stays `onSurface` — accent is for acts, not recaps.
                     style: context.jeebText.price.copyWith(
-                      color: scheme.primary,
+                      color: scheme.onSurface,
                     ),
                   ),
                 ),

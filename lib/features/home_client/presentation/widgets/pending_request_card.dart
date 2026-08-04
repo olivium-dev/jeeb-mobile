@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../domain/client_home_request.dart';
 import 'active_request_card.dart' show ClientHomeTierBadge;
 
@@ -78,9 +80,8 @@ class _PendingHeader extends StatelessWidget {
         Expanded(
           child: Text(
             request.displayId ?? request.title,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w400,
+            style: context.jeebText.cardTitle.copyWith(
+              color: theme.colorScheme.onSurface,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -100,11 +101,12 @@ class _PendingSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Text(
       text,
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
+      style: context.jeebText.bodySmall.copyWith(
+        color: semantics.mutedText,
         letterSpacing: 0.4,
       ),
       maxLines: 2,

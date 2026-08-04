@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -136,7 +137,8 @@ class _OtpAtDoorCardMapBackdrop extends StatelessWidget {
         child: Icon(
           Icons.navigation_rounded,
           size: 48,
-          color: colors.primary,
+          // The courier disc really is accent on the live map.
+          color: context.jeebRoles.accent,
         ),
       ),
     );

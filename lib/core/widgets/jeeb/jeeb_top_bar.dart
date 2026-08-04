@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../accessibility/accessibility.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_shadows.dart';
 import '../../theme/jeeb_text_styles.dart';
@@ -92,6 +94,15 @@ class JeebTopBarAction {
 ///
 /// **04, 16 and 19 do not use this widget.** 04/16 use [JeebProfileHeader];
 /// 19 is a bare padded title (its own doc refuses a fourth leading mode).
+///
+/// ## It also owns the status-bar chrome (M6 L15)
+///
+/// Because this is a body row and not an `AppBar`, `appBarTheme.
+/// systemOverlayStyle` never reaches the ~44 screens that mount it — they were
+/// shipping whatever chrome the previous route left behind. The bar therefore
+/// publishes [AppTheme.systemOverlayStyle] itself through an unsized
+/// [AnnotatedRegion], so white status glyphs over navy come with the widget
+/// instead of with 44 call-site edits. See [overlayStyle].
 class JeebTopBar extends StatelessWidget {
   const JeebTopBar({
     super.key,
@@ -232,6 +243,9 @@ class JeebTopBar extends StatelessWidget {
   /// The 1px glass stroke every circle carries (token sheet §4).
   static const double glassBorderWidth = 1;
 
+  /// The chrome the bar publishes — the app's one ratified overlay style.
+  static const SystemUiOverlayStyle overlayStyle = AppTheme.systemOverlayStyle;
+
   /// How far the 48dp tap target overhangs the Ø40 circle on each side.
   ///
   /// The bar lifts every circle to [A11y.minTapTargetSize] and then subtracts
@@ -345,9 +359,15 @@ class JeebTopBar extends StatelessWidget {
         ..add(_actionCircle(context, trailing!));
     }
 
-    return Padding(
-      padding: _compensatedPadding(context),
-      child: Row(children: row),
+    // `sized: false` is load-bearing: the bar sits BELOW the status bar, and
+    // the sized form is only found when the query point lands inside its rect.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      sized: false,
+      child: Padding(
+        padding: _compensatedPadding(context),
+        child: Row(children: row),
+      ),
     );
   }
 

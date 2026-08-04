@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/session/session_cubit.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
 import 'super_login_picker.dart';
 import 'super_login_sheet.dart';
@@ -110,11 +111,13 @@ class _SuperLoginLink extends StatelessWidget {
           onTap: onTap,
           child: Text(
             l10n.superLoginTitle,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary
-                      .withValues(alpha: UIConstants.opacityMedium),
-                  decoration: TextDecoration.underline,
-                ),
+            // Periwinkle, not `primary`: under Midnight `primary` IS the
+            // orange, and a dev link is not a CTA (§2.2).
+            style: context.jeebText.bodySmall.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              decoration: TextDecoration.underline,
+              decorationColor: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
@@ -141,11 +144,13 @@ class _SuperLoginPlusLink extends StatelessWidget {
           onTap: onTap,
           child: Text(
             l10n.superLoginPlusTitle,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.primary
-                      .withValues(alpha: UIConstants.opacityMedium),
-                  decoration: TextDecoration.underline,
-                ),
+            // Periwinkle, not `primary`: under Midnight `primary` IS the
+            // orange, and a dev link is not a CTA (§2.2).
+            style: context.jeebText.bodySmall.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              decoration: TextDecoration.underline,
+              decorationColor: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
@@ -236,13 +241,13 @@ class _SuperLoginEntryPointsMinTargetSquare extends StatelessWidget {
       height: _superLoginEntryPointsMinTapTarget,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: Border.all(color: colorScheme.tertiary),
+          border: Border.all(color: colorScheme.error),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Center(
           child: Text(
             '48',
-            style: TextStyle(fontSize: 10, color: colorScheme.tertiary),
+            style: TextStyle(fontSize: 10, color: colorScheme.error),
           ),
         ),
       ),

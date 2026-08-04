@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_chat_bubble.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/delivery_chat_message.dart';
 import 'chat_bubble_timestamp.dart';
@@ -62,6 +67,10 @@ class OfferCardBubble extends StatelessWidget {
   }
 }
 
+/// In-bubble actions sit at the 48 dp a11y floor, not at the screen-CTA rungs:
+/// a h50/h56 pill inside a chat bubble is out of scale and grows the card.
+const double _kInBubbleCtaHeight = 48;
+
 class _OfferActions extends StatelessWidget {
   const _OfferActions({
     required this.payload,
@@ -79,18 +88,25 @@ class _OfferActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Wrap, not Row: at 320 pt the two pills do not fit on one line inside the
+    // bubble, and a clipped Accept is worse than a stacked pair. IntrinsicWidth
+    // because a kit CTA fills any BOUNDED width it is handed, and Wrap bounds.
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: Spacing.small,
+      runSpacing: Spacing.twoXSmall,
       children: [
-        if (onDecline != null) ...[
-          _DeclineButton(payload: payload, onDecline: onDecline!),
-          const SizedBox(width: Spacing.small),
-        ],
-        _AcceptButton(
-          payload: payload,
-          isAccepting: isAccepting,
-          acceptDisabled: acceptDisabled,
-          onAccept: onAccept,
+        if (onDecline != null)
+          IntrinsicWidth(
+            child: _DeclineButton(payload: payload, onDecline: onDecline!),
+          ),
+        IntrinsicWidth(
+          child: _AcceptButton(
+            payload: payload,
+            isAccepting: isAccepting,
+            acceptDisabled: acceptDisabled,
+            onAccept: onAccept,
+          ),
         ),
       ],
     );
@@ -119,14 +135,17 @@ class _AcceptButton extends StatelessWidget {
       label: '${l10n.chatOfferAccept}: ${payload.jeeberName}, '
           '${payload.fee} ${payload.currency}, '
           '${l10n.chatOfferEtaMinutes(payload.etaMinutes)}',
-      child: OmdsPrimaryButton(
+      // The one orange act on the card; the label swaps rather than collapsing
+      // to a spinner, because AC1 pins the "Accepting…" text.
+      child: JeebCtaButton.accent(
         key: Key('chat-offer-accept-${payload.offerId}'),
-        text: isAccepting ? l10n.chatOfferAccepting : l10n.chatOfferAccept,
+        label: isAccepting ? l10n.chatOfferAccepting : l10n.chatOfferAccept,
+        expand: false,
+        height: _kInBubbleCtaHeight,
         onTap: () {
           if (acceptDisabled || isAccepting) return;
           onAccept(payload.offerId);
         },
-        borderRadius: OmdsBorderRadius.pill,
       ),
     );
   }
@@ -148,12 +167,13 @@ class _DeclineButton extends StatelessWidget {
       identifier: 'chat_detail_decline_${payload.offerId}',
       button: true,
       label: '${l10n.chatOfferDecline}: ${payload.jeeberName}',
-      child: OmdsPrimaryButton(
+      child: JeebCtaButton(
         key: Key('chat-offer-decline-${payload.offerId}'),
-        text: l10n.chatOfferDecline,
+        label: l10n.chatOfferDecline,
+        variant: JeebCtaVariant.outline,
+        expand: false,
+        height: _kInBubbleCtaHeight,
         onTap: () => onDecline(payload.offerId),
-        borderRadius: OmdsBorderRadius.pill,
-        variant: OmdsButtonVariant.outlined,
       ),
     );
   }
@@ -166,13 +186,9 @@ class _OfferAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return OmdsProfileAvatar(
-      initial: payload.jeeberName.isEmpty ? 'J' : payload.jeeberName.characters.first,
-      profilePicUrl: payload.jeeberAvatarUrl,
-      size: Sizes.threeXLarge,
-      backgroundColor: colorScheme.surfaceContainer,
-      initialColor: colorScheme.primary,
+    return JeebAvatar.thread(
+      initial: payload.jeeberName.isEmpty ? 'J' : payload.jeeberName,
+      imageUrl: payload.jeeberAvatarUrl,
     );
   }
 }
@@ -185,17 +201,19 @@ class _OfferCardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final payload = message.offerPayload!;
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: const BorderRadiusDirectional.only(
-          topStart: Radius.circular(Spacing.twoXSmall),
-          topEnd: Radius.circular(Spacing.small),
-          bottomStart: Radius.circular(Spacing.small),
-          bottomEnd: Radius.circular(Spacing.small),
+        // The offer card IS an incoming bubble: same rest-glass rung and same
+        // tail corner as every other counterpart message on the thread.
+        color: JeebChatBubble.fillOf(context, JeebChatBubbleSide.incoming),
+        border: Border.all(
+          color: JeebChatBubble.borderInkOf(
+            context,
+            JeebChatBubbleSide.incoming,
+          ),
         ),
+        borderRadius: JeebChatBubble.radiusOf(JeebChatBubbleSide.incoming),
       ),
       padding: const EdgeInsets.all(Spacing.medium),
       child: Column(
@@ -225,15 +243,16 @@ class _OfferHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final l10n = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
           child: Text(
             payload.jeeberName,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
+            style: context.jeebText.cardTitle.copyWith(
+              color: theme.colorScheme.onSurface,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -246,7 +265,8 @@ class _OfferHeader extends StatelessWidget {
               child: OmdsStarRatingDisplay(
                 averageRating: payload.rating,
                 starSize: Sizes.medium,
-                activeColor: theme.colorScheme.tertiary,
+                // §3: stars are amber, deliberately off the accent budget.
+                activeColor: semantics.amber,
                 showRatingValue: false,
                 showReviewCount: false,
               ),
@@ -264,16 +284,13 @@ class _OfferNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final note = payload.note.isNotEmpty
         ? payload.note
         : AppLocalizations.of(context)
             .chatOfferEtaMinutes(payload.etaMinutes);
     return Text(
       note,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        color: theme.colorScheme.onSurface,
-      ),
+      style: JeebChatBubble.bodyStyleOf(context, JeebChatBubbleSide.incoming),
     );
   }
 }

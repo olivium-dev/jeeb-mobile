@@ -37,7 +37,9 @@ class _BubbleButton extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Material(
       key: const Key('obs-overlay-bubble'),
-      color: colorScheme.primaryContainer,
+      // A bare FAB is periwinkle (M0-2 ruling 3). `primaryContainer` is the
+      // deep-burnt orange step, which no board tile draws and a dev disc.
+      color: colorScheme.secondary,
       shape: const CircleBorder(),
       elevation: UIConstants.elevationMedium,
       child: InkWell(
@@ -66,7 +68,7 @@ class _BubbleIcon extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Icon(Icons.data_object, color: colorScheme.onPrimaryContainer),
+          Icon(Icons.data_object, color: colorScheme.onSecondary),
           if (controller.recording)
             Positioned(
               right: -Spacing.twoXSmall,
@@ -332,10 +334,12 @@ class _ObsOverlayBubbleFakePrimaryCta extends StatelessWidget {
         height: Sizes.fourXLarge,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: colors.primary,
+          // Periwinkle: a bare primary act is `secondary` under Midnight
+          // (M0-2 ruling 3). `primary` here drew an orange the app never does.
+          color: colors.secondary,
           borderRadius: const BorderRadius.all(Radius.circular(Spacing.small)),
         ),
-        child: Text('Place order', style: TextStyle(color: colors.onPrimary)),
+        child: Text('Place order', style: TextStyle(color: colors.onSecondary)),
       ),
     );
   }

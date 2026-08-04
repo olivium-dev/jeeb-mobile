@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -64,11 +65,9 @@ class BiometricLockScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // The field bleeds under both system bands, so the glyphs paint light.
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: Colors.transparent,
-        systemNavigationBarColor: Colors.transparent,
-      ),
+      // The field bleeds under both bands; raw `.light` paints the Android
+      // nav bar black, and a transparent one leaves the OS scrim on top.
+      value: AppTheme.systemOverlayStyle,
       child: Semantics(
         identifier: 'biometric_unlock_prompt',
         container: true,

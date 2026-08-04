@@ -77,7 +77,7 @@ void main() {
     },
   );
 
-  // The broadcasting feed is the one designed state that cannot render
+  // The broadcasting feed: two offer cards plus the accept-only-one footer.
   group('DevChatPreviewScreen previews · Client · broadcasting offers', () {
     Future<void> pumpBroadcasting(
       WidgetTester tester, {
@@ -89,13 +89,12 @@ void main() {
         locale: locale,
       );
 
-      for (final FlutterErrorDetails details in caught) {
-        expect(
-          details.exception.toString(),
-          contains('overflowed'),
-          reason: 'only the documented offer-card overflow is tolerated here',
-        );
-      }
+      // The offer card's action pair used to overflow this frame; it now wraps
+      // instead, so ZERO render errors is the contract, not "only overflows".
+      expect(
+        caught.map((FlutterErrorDetails d) => d.exception.toString()).toList(),
+        isEmpty,
+      );
       // Nothing may reach the binding either — an error raised outside the
       expect(tester.takeException(), isNull);
     }
@@ -113,14 +112,23 @@ void main() {
     ) async {
       await pumpBroadcasting(tester);
 
-      // Only the broadcasting selector seeds offer cards, and only Kamal's
+      // Rana's card is the last one before the composer, so it is the one the
+      // thread's scroll-to-bottom leaves on screen.
+      expect(
+        find.byKey(const Key('chat-offer-card-offer-rana')),
+        findsOneWidget,
+      );
+
+      // Kamal's sits above the fold — reachable, not absent. (Before the cards
+      // wrapped their actions they overflowed, which kept both in one frame.)
+      await tester.dragUntilVisible(
+        find.byKey(const Key('chat-offer-card-offer-kamal')),
+        find.byKey(ChatScreen.messageListKey),
+        const Offset(0, 80),
+      );
       expect(find.text(_kKamalOfferNote), findsOneWidget);
       expect(
         find.byKey(const Key('chat-offer-card-offer-kamal')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('chat-offer-card-offer-rana')),
         findsOneWidget,
       );
     });

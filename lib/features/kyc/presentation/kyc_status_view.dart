@@ -309,7 +309,7 @@ class _StatusScaffold extends StatelessWidget {
                 title,
                 key: titleKey,
                 textAlign: TextAlign.center,
-                style: jeebText.h1.copyWith(color: theme.colorScheme.primary),
+                style: jeebText.h1.copyWith(color: theme.colorScheme.onSurface),
               ),
               const SizedBox(height: Spacing.small),
               Text(
@@ -427,18 +427,20 @@ class _PendingContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    final roles = context.jeebRoles;
     return _StatusScaffold(
       titleKey: KycStatusView.pendingTitleKey,
       icon: Icons.hourglass_top_rounded,
-      iconColor: colorScheme.primary,
-      iconTint: colorScheme.surfaceContainerHigh,
+      // A review in progress is neutral-informational, never accent: `info`'s
+      // container is `surfaceContainerHigh` by value, so only the ink moves.
+      iconColor: roles.onInfoContainer,
+      iconTint: roles.infoContainer,
       title: l10n.kycStatusPendingTitle,
       body: l10n.kycStatusPendingBody,
       extra: _PendingNotes(isExpired: isExpired),
       // Order is contract, not taste (FM5-F11-W3/W4): once the automatic
       // poller has expired, re-checking is the do-it-now action and takes the
-      // promoted navy pill above top-up; before that it sits below it.
+      // promoted periwinkle pill above top-up; before that it sits below it.
       actions: [
         if (isExpired)
           _CheckAgainCta(
@@ -498,8 +500,8 @@ class _AutoCheckStoppedNote extends StatelessWidget {
   }
 }
 
-/// "Check again" — a navy pill once the automatic poller has expired (the
-/// do-it-now moment), the outline treatment while it is still running.
+/// "Check again" — the periwinkle `primary` pill once the automatic poller has
+/// expired (the do-it-now moment), the glass outline while it is still running.
 class _CheckAgainCta extends StatelessWidget {
   const _CheckAgainCta({
     required this.isChecking,
@@ -713,12 +715,12 @@ class _ApprovedBodyState extends State<_ApprovedBody> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+    final roles = context.jeebRoles;
     return _StatusScaffold(
       titleKey: KycStatusView.approvedTitleKey,
       icon: Icons.verified_rounded,
-      iconColor: theme.colorScheme.primary,
-      iconTint: theme.colorScheme.surfaceContainerHigh,
+      iconColor: roles.onSuccessContainer,
+      iconTint: roles.successContainer,
       // The shared terminal mark (08-MOTION-SPEC §2.5): an approval must feel
       // identical to a delivered order and a landed top-up. One-shot.
       mark: const KycApprovedMark(),

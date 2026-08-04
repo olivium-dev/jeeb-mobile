@@ -716,7 +716,8 @@ class _AcceptedAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Figma 56560:1523 pins a content-hugging navy pill to the END of the
+    final scheme = Theme.of(context).colorScheme;
+    // Figma 56560:1523 pins a content-hugging periwinkle pill to the END of the
     // accepted-card action row ("Order picked" / "Heading to drop off").
     // `OmdsLoadingButton` is an `AnimatedContainer` with `width: width ??
     // double.infinity`, so with no explicit width it expands to fill the
@@ -734,6 +735,10 @@ class _AcceptedAction extends StatelessWidget {
           text: _label(AppLocalizations.of(context)),
           isLoading: isBusy,
           borderRadius: OmdsBorderRadius.pill,
+          // Unset, OMDS fills from `colorScheme.primary` — orange under
+          // Midnight, and R5 already spends this screen's one fill on the CTA.
+          backgroundColor: scheme.secondary,
+          textColor: scheme.onSecondary,
           onTap: onTap ?? () {},
         ),
       ),

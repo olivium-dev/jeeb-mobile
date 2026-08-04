@@ -51,11 +51,16 @@ enum JeebChipRole {
 /// ratified Midnight active treatment (STUDY E1). Unselected: `glassFill`,
 /// `1px glassBorder`, ink per [JeebChipRole]. Radius is always a full pill.
 ///
-/// **Height stays under 48dp on purpose.** 11's `client_offers_screen_test`
-/// asserts the visual capsule is smaller than its tap target, so this widget
-/// never applies a minimum height — wrap it in `MinTapTarget` (or a
-/// `ConstrainedBox(minHeight: 48)`) at the call site, exactly as 09/11/16
-/// already do.
+/// **Height stays under 48dp on purpose, and that is already conformant.**
+/// The binding target rule is WCAG 2.2 **SC 2.5.8 (AA) — 24×24 CSS px**; 48dp
+/// is Material *guidance* and 44×44 is SC 2.5.5, which is **AAA**. The M6 audit
+/// measured every role in this table against 24×24 and found 37–71% headroom,
+/// so no call site is required to wrap a chip. 09/11/16 wrap theirs by choice
+/// and 11's `client_offers_screen_test` pins that the visual capsule stays
+/// smaller than the target it is wrapped in — neither is a conformance
+/// obligation, and the board-faithful 33dp tag row on 15 stays unwrapped
+/// (wave-B standing ruling). Wrap in `MinTapTarget` only where the tile's own
+/// rhythm survives it.
 ///
 /// **Semantics.** A node is added only when [identifier] or [semanticLabel] is
 /// given. `onTap` alone adds nothing, because the dominant call-site idiom is

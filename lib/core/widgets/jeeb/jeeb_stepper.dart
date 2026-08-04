@@ -151,6 +151,14 @@ class JeebStepper extends StatelessWidget {
 
   /// [JeebStepperDoneInk.washed] — board `rgba(255,255,255,.35)`, R18 `tpl
   /// 1085-1087`.
+  ///
+  /// **Why the hex lives here and not in the palette.** Wave-C ruling 11 kept
+  /// 35% deliberately OFF the 7/10/14 glass ladder, so there is no rung to read
+  /// and no semantic role it belongs to; `JeebMidnight` is documented as
+  /// internal to `lib/core/theme/`, so a const added there would be unreachable
+  /// from the kit without inventing a `JeebSemanticColors` field for one
+  /// stepper ink. The value is ratified — it is the *gate* that needs telling.
+  // TOKEN-EXEMPT(raw-hex): ratified stepper ink, wave-C ruling 11 — not a rung.
   static const Color washedInk = Color(0x59FFFFFF);
 
   // ── Pulse ────────────────────────────────────────────────────────────────

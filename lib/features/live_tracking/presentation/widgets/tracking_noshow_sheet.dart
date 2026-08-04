@@ -1,11 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../../../core/previews/jeeb_preview.dart';
 
+/// The sheet's gutter — the 24 band, with the 8 lead the drag-handle-less
+/// sheets use.
+const EdgeInsetsGeometry _kNoShowBand = EdgeInsetsDirectional.fromSTEB(
+  Spacing.xLarge,
+  Spacing.small,
+  Spacing.xLarge,
+  Spacing.xLarge,
+);
+
+/// MIDNIGHT: this sheet never had a pass — it was still a bare Material sheet
+/// over the theme's `titleLarge`/`bodyMedium` ramp and three `OmdsPrimaryButton`
+/// pills. It now mounts the `sheet` field and the kit CTA ladder; the three
+/// frozen semantics ids and every string are unchanged.
 class TrackingNoShowSheet extends StatelessWidget {
   const TrackingNoShowSheet({
     super.key,
@@ -26,11 +44,8 @@ class TrackingNoShowSheet extends StatelessWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(Spacing.large),
-        ),
-      ),
+      // Shape/background/scrim come from `bottomSheetTheme`; the old local
+      // `Spacing.large` (24) override was off the radii ladder entirely.
       builder: (sheetContext) => TrackingNoShowSheet(
         onReassign: () {
           Navigator.of(sheetContext).pop();
@@ -49,57 +64,67 @@ class TrackingNoShowSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Semantics(
       identifier: 'tracking_noshow_sheet',
       container: true,
       explicitChildNodes: true,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(Spacing.large),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                l10n.trackingNoShowTitle,
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: Spacing.small),
-              Text(
-                l10n.trackingNoShowBody,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: Spacing.large),
-              Semantics(
-                identifier: 'tracking_noshow_reassign_cta',
-                button: true,
-                child: OmdsPrimaryButton(
-                  text: l10n.trackingNoShowReassignCta,
-                  onTap: onReassign,
+      child: JeebMidnightField(
+        variant: JeebFieldVariant.sheet,
+        animateDecor: false,
+        child: SafeArea(
+          child: Padding(
+            padding: _kNoShowBand,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l10n.trackingNoShowTitle,
+                  style: context.jeebText.h2
+                      .copyWith(color: theme.colorScheme.onSurface),
                 ),
-              ),
-              const SizedBox(height: Spacing.small),
-              Semantics(
-                identifier: 'tracking_noshow_rebroadcast_cta',
-                button: true,
-                child: OmdsPrimaryButton(
-                  text: l10n.trackingNoShowRebroadcastCta,
-                  variant: OmdsButtonVariant.outlined,
-                  onTap: onRebroadcast,
+                const SizedBox(height: Spacing.small),
+                Text(
+                  l10n.trackingNoShowBody,
+                  style: context.jeebText.body
+                      .copyWith(color: semantics.mutedText),
                 ),
-              ),
-              const SizedBox(height: Spacing.small),
-              Semantics(
-                identifier: 'tracking_noshow_keep_cta',
-                button: true,
-                child: OmdsPrimaryButton(
-                  text: l10n.trackingNoShowKeepCta,
-                  variant: OmdsButtonVariant.text,
-                  onTap: onKeepWaiting,
+                const SizedBox(height: Spacing.large),
+                // Descending emphasis, unchanged in order and copy — only the
+                // ladder is now the kit's, so no orange is spent on a recovery.
+                Semantics(
+                  identifier: 'tracking_noshow_reassign_cta',
+                  button: true,
+                  child: JeebCtaButton.primary(
+                    label: l10n.trackingNoShowReassignCta,
+                    onTap: onReassign,
+                    expand: true,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: Spacing.small),
+                Semantics(
+                  identifier: 'tracking_noshow_rebroadcast_cta',
+                  button: true,
+                  child: JeebCtaButton.outline(
+                    label: l10n.trackingNoShowRebroadcastCta,
+                    onTap: onRebroadcast,
+                    expand: true,
+                  ),
+                ),
+                const SizedBox(height: Spacing.small),
+                Semantics(
+                  identifier: 'tracking_noshow_keep_cta',
+                  button: true,
+                  child: JeebCtaButton.text(
+                    label: l10n.trackingNoShowKeepCta,
+                    onTap: onKeepWaiting,
+                    expand: true,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -238,7 +263,8 @@ class _TrackingNoShowSheetMapBackdrop extends StatelessWidget {
                   width: Spacing.xLarge,
                   height: Spacing.xLarge,
                   decoration: BoxDecoration(
-                    color: colors.primary,
+                    // The courier disc really is accent on the live map.
+                    color: context.jeebRoles.accent,
                     shape: BoxShape.circle,
                   ),
                 ),

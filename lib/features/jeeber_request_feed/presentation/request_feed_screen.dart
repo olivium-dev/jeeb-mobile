@@ -241,6 +241,9 @@ class _FeedListOrEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OmdsPullToRefresh(
+      // Unset, the indicator inks from `colorScheme.primary` — orange under
+      // Midnight. A refresh spinner is chrome, not a do-it-now moment.
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
       onRefresh: () => context.read<RequestFeedCubit>().refresh(),
       child: state.requests.isEmpty
           ? _EmptyFeed(l10n: l10n)

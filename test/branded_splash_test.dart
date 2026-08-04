@@ -1,13 +1,24 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/app/branded_splash.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+
+/// WCAG relative-contrast ratio between two opaque colours.
+double _contrast(Color a, Color b) {
+  final double hi = math.max(a.computeLuminance(), b.computeLuminance());
+  final double lo = math.min(a.computeLuminance(), b.computeLuminance());
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
@@ -116,14 +127,20 @@ void main() {
       reason: 'splash must draw the brand wordmark asset, not a different drawable',
     );
 
-    final navy = AppTheme.light().colorScheme.secondaryContainer;
-    final box = tester.widget<ColoredBox>(
+    // L12/3b: the splash mounts the ratified §8 field, not a flat slab.
+    final field = tester.widget<JeebMidnightField>(
       find.descendant(
         of: find.byType(BrandedSplash),
-        matching: find.byType(ColoredBox),
+        matching: find.byType(JeebMidnightField),
       ),
     );
-    expect(box.color, navy, reason: 'splash background must be the brand navy');
+    expect(field.variant, JeebFieldVariant.content);
+    expect(field.animateDecor, isFalse);
+    expect(
+      field.glowColor,
+      Colors.transparent,
+      reason: 'the splash has no tile, so it spends no orange budget',
+    );
   });
 
   testWidgets('exposes Semantics identifiers for QA targeting',
@@ -140,19 +157,54 @@ void main() {
     }
   });
 
-  testWidgets('uses the secondary-container color role for the background',
+  // L12: the tagline used to ink `onSecondary` (page navy) on a
+  // `secondaryContainer` slab — 1.17 : 1, effectively invisible.
+  testWidgets('the tagline ink clears AA against every navy the field paints',
       (tester) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
 
-    final navy = AppTheme.light().colorScheme.secondaryContainer;
-    final box = tester.widget<ColoredBox>(
+    final ink = tester
+        .widget<Text>(find.text('Delivery App'))
+        .style!
+        .color!;
+    final scheme = AppTheme.midnight().colorScheme;
+    expect(ink, scheme.onSecondaryContainer);
+
+    for (final navy in const <Color>[
+      JeebMidnight.page,
+      JeebMidnight.surface,
+      JeebMidnight.surfaceHigh,
+    ]) {
+      expect(
+        _contrast(ink, navy),
+        greaterThanOrEqualTo(4.5),
+        reason: 'tagline must read on every stop of the §8 base wash',
+      );
+    }
+
+    // Discrimination: the reverted value fails the same assertion.
+    expect(_contrast(scheme.onSecondary, JeebMidnight.surfaceHigh),
+        lessThan(1.5));
+  });
+
+  testWidgets('both system bands take the Midnight overlay, not raw .light',
+      (tester) async {
+    await tester.pumpWidget(_harness());
+    await tester.pump();
+
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
       find.descendant(
         of: find.byType(BrandedSplash),
-        matching: find.byType(ColoredBox),
+        matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
       ),
     );
-    expect(box.color, navy);
+    expect(region.value, AppTheme.systemOverlayStyle);
+    expect(region.value.systemNavigationBarColor, JeebMidnight.page);
+    expect(
+      region.value.systemNavigationBarColor,
+      isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
+    );
   });
 
   testWidgets('mirrors to RTL and shows the Arabic tagline in ar locale',

@@ -34,9 +34,11 @@ class ShellHeaderActions extends StatelessWidget {
           label: l10n.shellWalletChipLabel,
           child: IconButton(
             tooltip: l10n.shellWalletChipLabel,
+            // R1: both header glyphs are WHITE. `primary` IS #D73B00 under
+            // Midnight, so this wallet chip was the header's only orange.
             icon: Icon(
               Icons.account_balance_wallet_outlined,
-              color: colorScheme.primary,
+              color: colorScheme.onSurface,
             ),
             onPressed: () {
               final isJeeber =

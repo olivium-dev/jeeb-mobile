@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
@@ -545,6 +548,29 @@ void main() {
     // The bilingual tagline under it leads with Arabic in the `ar` locale.
     expect(find.text('جيب، مشوارك أسهل · Your errand, made easier'),
         findsOneWidget);
+  });
+
+  // M6 L14: the screen shipped a raw `SystemUiOverlayStyle.light`, whose
+  // `systemNavigationBarColor` is BLACK — the field bleeds under both bands.
+  testWidgets('both system bands take the ratified Midnight overlay',
+      (tester) async {
+    await tester.pumpWidget(wrapForTest(
+      RegistrationScreen(cubit: makeCubit()),
+    ));
+    await tester.pump();
+
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.descendant(
+        of: find.byType(RegistrationScreen),
+        matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+      ),
+    );
+    expect(region.value, AppTheme.systemOverlayStyle);
+    expect(region.value.systemNavigationBarColor, JeebMidnight.page);
+    expect(
+      region.value.systemNavigationBarColor,
+      isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
+    );
   });
 
   // The "Super user login plus" picker→sheet placement tests moved with the

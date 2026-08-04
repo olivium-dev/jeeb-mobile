@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/network/auth_token_store.dart';
 import '../../../../core/session/session_cubit.dart';
+import '../../../../core/theme/jeeb_scrim.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/dio_account_session_terminator.dart';
@@ -48,15 +49,11 @@ class LogoutDeleteConfirmSheet extends StatefulWidget {
   }) {
     final rootContext = context;
     final session = rootContext.read<SessionCubit?>();
-    final scrim = Theme.of(context)
-        .colorScheme
-        .onSecondaryContainer
-        .withValues(alpha: UIConstants.opacityHigh);
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      barrierColor: scrim,
+      barrierColor: JeebScrim.barrier(context),
       shape: const RoundedRectangleBorder(
         borderRadius: OmdsBorderRadius.topXLarge,
       ),

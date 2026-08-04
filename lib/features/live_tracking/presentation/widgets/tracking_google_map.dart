@@ -25,6 +25,9 @@ import '../../domain/delivery_tracking_info.dart';
 /// is an orange scooter disc (`12-live-tracking.html` tpl 756-760). Both are
 /// painted from THEME values passed into the otherwise-pure builders — no colour
 /// literal lives in this file.
+/// The L10 cover that holds until the dark style lands on the first mount.
+const Key trackingMapStyleCoverKey = Key('tracking-map-style-cover');
+
 class TrackingGoogleMap extends StatefulWidget {
   const TrackingGoogleMap({super.key, required this.info});
 
@@ -62,13 +65,20 @@ class _TrackingGoogleMapState extends State<TrackingGoogleMap> {
   /// default map.
   String? _mapStyle = JeebMapStyle.cached;
 
+  /// L10 — the cache only covers the SECOND mount. On the first one the style
+  /// is still on the wire, so a Midnight cover holds until the read settles.
+  bool _styleSettled = JeebMapStyle.cached != null;
+
   @override
   void initState() {
     super.initState();
-    if (_mapStyle == null) {
+    if (!_styleSettled) {
       JeebMapStyle.load().then((String? style) {
-        if (!mounted || style == null) return;
-        setState(() => _mapStyle = style);
+        if (!mounted) return;
+        setState(() {
+          if (style != null) _mapStyle = style;
+          _styleSettled = true;
+        });
       });
     }
   }
@@ -170,22 +180,36 @@ class _TrackingGoogleMapState extends State<TrackingGoogleMap> {
 
   @override
   Widget build(BuildContext context) {
-    return GoogleMap(
-      initialCameraPosition: trackingCamera(widget.info),
-      style: _mapStyle,
-      onMapCreated: (controller) => _map = controller,
-      markers: {
-        ...trackingMarkers(widget.info, courierIcon: _courierIcon),
-        ...trackingDestinationMarkers(widget.info),
-      },
-      polylines: trackingPolylines(
-        widget.info,
-        routeColor: Theme.of(context).colorScheme.primary,
-      ),
-      myLocationButtonEnabled: false,
-      zoomControlsEnabled: false,
-      mapToolbarEnabled: false,
-      liteModeEnabled: false,
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        GoogleMap(
+          initialCameraPosition: trackingCamera(widget.info),
+          style: _mapStyle,
+          onMapCreated: (controller) => _map = controller,
+          markers: {
+            ...trackingMarkers(widget.info, courierIcon: _courierIcon),
+            ...trackingDestinationMarkers(widget.info),
+          },
+          polylines: trackingPolylines(
+            widget.info,
+            routeColor: Theme.of(context).colorScheme.primary,
+          ),
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          mapToolbarEnabled: false,
+          liteModeEnabled: false,
+        ),
+        if (!_styleSettled)
+          Positioned.fill(
+            key: trackingMapStyleCoverKey,
+            child: IgnorePointer(
+              child: ColoredBox(
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

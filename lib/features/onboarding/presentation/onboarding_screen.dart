@@ -9,6 +9,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/locale/locale_cubit.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
@@ -125,12 +126,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // Every band of this screen is navy, so the status bar must paint LIGHT
     // icons; the nav bar sits on the frosted sheet, which is navy too.
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: Colors.transparent,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarDividerColor: Colors.transparent,
-        systemNavigationBarIconBrightness: Brightness.light,
-      ),
+      value: AppTheme.systemOverlayStyle,
       child: Semantics(
         identifier: 'onboarding_root',
         container: true,
@@ -209,7 +205,7 @@ const double _kSheetMaxHeightFactor = 0.62;
 
 /// R5/W1's `radial-gradient(… rgba(215,59,0,.3) …)`. §8 bands the HERO glow at
 /// .26–.30, so the tile's own figure needs no clamp; .28 is the ratified rung.
-const double _kAccentGlowAlpha = 0.28;
+const double _kAccentGlowAlpha = 0.30;
 
 /// W2's `rgba(119,127,192,.28)`, clamped to the ratified .18–.22 wash band.
 const double _kWashAlpha = 0.22;

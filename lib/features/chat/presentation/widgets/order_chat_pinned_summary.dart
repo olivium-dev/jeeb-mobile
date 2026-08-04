@@ -4,6 +4,8 @@ import 'package:omds/omds.dart';
 import '../../../../core/accessibility/accessibility.dart';
 import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
+import '../../../../core/theme/jeeb_radii.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_navy_surface_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
@@ -12,20 +14,8 @@ import '../../domain/order_chat_summary.dart';
 import 'auto_direction_text.dart';
 import 'chat_header_expansion_store.dart';
 
-// WHY EVERY INK ON THIS STRIP IS `onPrimary`.
-//
-// The redesign brief prescribed a two-ink hierarchy on the navy card — facts
-/// in `onPrimary`, qualifiers in `onSecondaryContainer` (measured 4.59:1). That
-// measurement is LIGHT-ONLY. In the dark theme `colorScheme.primary` inverts
-// to a pale periwinkle card, and `onSecondaryContainer` on it measures
-// 1.32:1 — invisible. No role in the scheme is both visibly muted and >= AA
-// on `primary` in BOTH themes (checked: every `on*`/container role), and the
-// tone's own `mutedInk` is a .7 alpha, which the alpha guard in
-// `chat_header_contrast_test` correctly refuses.
-//
-// So the hierarchy here is carried by TYPE SIZE and WEIGHT — facts at
-// `bodySmall` w700, qualifiers at `caption` regular — and never by colour or
-// opacity. Both themes then measure 17.1:1 and 7.7:1.
+// Every ink on this navy strip is `onPrimary` (white) and hierarchy is carried
+// by TYPE SIZE and WEIGHT, never by colour or alpha (the strip's alpha guard).
 
 /// P3: collapsed line budget for the initial-requirement row. Two lines keeps
 /// the pinned strip short enough that the message list is never pushed off
@@ -98,7 +88,7 @@ const int _kRequestDescriptionCollapsedLines = 2;
 ///
 /// The tonal-elevation shell above is now the board's INSET NAVY CARD
 /// ([JeebNavySurfaceCard], r12, `stripShadow`): one line reading
-/// `● reference · status · price` with a white `Track` pill on the end edge.
+/// `● reference · status · price` with a glass `Track` pill on the end edge.
 /// The M3 argument that produced the previous shell has not been reversed —
 /// it is satisfied differently. There is still exactly ONE accent (the Ø8
 /// orange dot, and it is a dot, never a fill), still no alpha-faded foreground
@@ -146,7 +136,7 @@ class OrderChatPinnedSummary extends StatefulWidget {
   /// Null (Jeeber leg, bare tests, fixture hosts) → expanding just expands.
   final VoidCallback? onSummaryAttentionRefresh;
 
-  /// Routes to live tracking. Null hides the white `Track` pill entirely —
+  /// Routes to live tracking. Null hides the glass `Track` pill entirely —
   /// never a dead end, the same G5 rule that gates `offer_accepted_track_cta`.
   /// The pill is additionally suppressed when the summary carries no delivery
   /// id, because there would be nothing to track.
@@ -540,7 +530,7 @@ class _Separator extends StatelessWidget {
       ExcludeSemantics(child: Text('·', style: style));
 }
 
-/// The white `Track` pill (screen-local by kit design — the kit has no
+/// The glass `Track` pill (screen-local by kit design — the kit has no
 /// on-navy unselected chip, deliberately).
 ///
 /// Rendered only when a live-tracking route AND a delivery id both exist, so
@@ -553,6 +543,8 @@ class _TrackPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final glass = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'order_chat_track_cta',
@@ -567,8 +559,9 @@ class _TrackPill extends StatelessWidget {
               vertical: Spacing.twoXSmall,
             ),
             decoration: BoxDecoration(
-              color: colors.onPrimary,
-              borderRadius: OmdsBorderRadius.pill,
+              color: glass.glassFillEmphasis,
+              border: Border.all(color: glass.glassBorder),
+              borderRadius: BorderRadius.circular(JeebRadii.pill),
             ),
             child: Text(
               l10n.orderSummaryTrack,
@@ -576,7 +569,7 @@ class _TrackPill extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: context.jeebText.caption.copyWith(
                 fontWeight: FontWeight.w700,
-                color: colors.primary,
+                color: colors.onPrimary,
               ),
             ),
           ),

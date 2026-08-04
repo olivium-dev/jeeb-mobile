@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/features/live_tracking/presentation/widgets/tracking_noshow_sheet.dart';
 
 import '../preview_test_harness.dart';
@@ -15,8 +16,15 @@ const List<String> _semanticsIds = <String>[
   'tracking_noshow_keep_cta',
 ];
 
-/// The pill height every `OmdsPrimaryButton` in this sheet is fixed to.
-const double _kPillHeight = 48;
+/// The kit CTA ladder this sheet now draws: `primary` h56, `outline` h50, and
+/// `text` with no pill of its own. Was one flat OMDS 48 before the Midnight pass.
+const Map<String, double> _kPillHeight = <String, double>{
+  'Choose another offer': 56,
+  'Send request again': 50,
+};
+
+/// The bottom-most CTA — a bare label, so it is measured by its own text box.
+const String _kTertiaryCta = 'Keep waiting';
 
 void main() {
   setUpAll(loadPreviewArbs);
@@ -62,28 +70,41 @@ void main() {
     ) async {
       await pumpPreview(tester, trackingNoShowSheetNarrowPhone);
 
-      // OmdsPrimaryButton fixes its height at 48 pt and centres the label
-      for (final String label in const <String>[
-        'Choose another offer',
-        'Send request again',
-        'Keep waiting',
-      ]) {
+      // JeebCtaButton fixes each variant's height and centres the label in it.
+      _kPillHeight.forEach((String label, double expected) {
         final Finder pill = find.ancestor(
           of: find.text(label),
-          matching: find.byType(AnimatedContainer),
+          matching: find.byType(JeebCtaButton),
         );
         expect(pill, findsOneWidget, reason: 'no pill found for "$label"');
         expect(
           tester.getSize(pill).height,
-          _kPillHeight,
+          expected,
           reason: '"$label" must not be allowed to change the pill height',
         );
         expect(
           tester.getSize(find.text(label)).height,
-          lessThanOrEqualTo(_kPillHeight),
+          lessThanOrEqualTo(expected),
           reason: 'a label taller than its pill is a clipped label',
         );
-      }
+      });
+    });
+
+    testWidgets('the CTA ladder descends and spends no accent', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, trackingNoShowSheetDefault);
+
+      final List<JeebCtaVariant> variants = tester
+          .widgetList<JeebCtaButton>(find.byType(JeebCtaButton))
+          .map((JeebCtaButton b) => b.variant)
+          .toList();
+      // A recovery sheet is never the screen's budgeted orange act.
+      expect(variants, <JeebCtaVariant>[
+        JeebCtaVariant.primary,
+        JeebCtaVariant.outline,
+        JeebCtaVariant.text,
+      ]);
     });
 
     testWidgets('the gesture-bar state really reserves the bottom inset', (
@@ -94,8 +115,8 @@ void main() {
         final Rect sheet = tester.getRect(find.byType(TrackingNoShowSheet));
         final Rect pill = tester.getRect(
           find.ancestor(
-            of: find.text('Keep waiting'),
-            matching: find.byType(AnimatedContainer),
+            of: find.text(_kTertiaryCta),
+            matching: find.byType(JeebCtaButton),
           ),
         );
         return sheet.bottom - pill.bottom;

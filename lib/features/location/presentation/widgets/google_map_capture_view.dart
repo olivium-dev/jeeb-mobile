@@ -20,6 +20,9 @@ import 'map_capture_controller.dart';
 /// This is the only place that touches `google_maps_flutter` types — the
 /// screen, launcher, cubit, and tests stay on the domain [LocationPoint], which
 /// keeps `MapPickerLauncher` plugin-free and the Fakes the unit-test seam.
+/// Marks the L10 cover so a test can assert the map is never shown unstyled.
+const Key mapStyleCoverKey = Key('capture-map-style-cover');
+
 class GoogleMapCaptureView extends StatefulWidget {
   const GoogleMapCaptureView({
     super.key,
@@ -64,15 +67,22 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
   /// default map.
   String? _mapStyle = JeebMapStyle.cached;
 
+  /// L10 — the cache only covers the SECOND mount. On the first one the style
+  /// is still on the wire, so a Midnight cover holds until the read settles.
+  bool _styleSettled = JeebMapStyle.cached != null;
+
   LocationPoint get _initial => widget.controller.center;
 
   @override
   void initState() {
     super.initState();
-    if (_mapStyle == null) {
+    if (!_styleSettled) {
       JeebMapStyle.load().then((String? style) {
-        if (!mounted || style == null) return;
-        setState(() => _mapStyle = style);
+        if (!mounted) return;
+        setState(() {
+          if (style != null) _mapStyle = style;
+          _styleSettled = true;
+        });
       });
     }
   }
@@ -119,6 +129,15 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
         ),
+        if (!_styleSettled)
+          Positioned.fill(
+            key: mapStyleCoverKey,
+            child: IgnorePointer(
+              child: ColoredBox(
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
+              ),
+            ),
+          ),
         if (widget.gateway != null)
           _CentreOnMeButton(
             onPressed: _centreOnMe,

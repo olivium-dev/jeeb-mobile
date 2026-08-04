@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_bubble_timestamp.dart';
 
 import '../preview_test_harness.dart';
@@ -112,36 +113,61 @@ void main() {
       expect(find.text('١٢:٣٤'), findsNothing);
     });
 
-    test('the default ink is unreadable on the sender bubble, both themes', () {
-      for (final ThemeData theme in <ThemeData>[
-        AppTheme.light(),
-        AppTheme.dark(),
-      ]) {
-        final ColorScheme scheme = theme.colorScheme;
-        final Color defaultInk = Color.alphaBlend(
-          scheme.onSurfaceVariant.withValues(alpha: UIConstants.opacityHigh),
-          scheme.primary,
-        );
-        final Color callerInk = Color.alphaBlend(
-          scheme.onPrimary.withValues(alpha: UIConstants.opacityHigh),
-          scheme.primary,
-        );
+    testWidgets(
+        'the sender stand-in paints the SHIPPED outgoing bubble, not a '
+        'solid accent slab', (WidgetTester tester) async {
+      await pumpPreview(tester, chatBubbleTimestampSenderBubble);
 
-        // What `chatBubbleTimestampDefaultInkOnBubble` shows: a surface role
-        expect(
-          _contrast(defaultInk, scheme.primary),
-          lessThan(3.0),
-          reason: 'If this now passes 3:1 the widget default has become safe '
-              'on a filled bubble and the "default colour" preview + this '
-              'guard can go.',
-        );
-        // What `chat_message_bubble.dart:574` passes instead, and why the app
-        expect(
-          _contrast(callerInk, scheme.primary),
-          greaterThan(4.5),
-          reason: 'The caller-supplied ink must clear AA for 11pt text.',
-        );
-      }
+      final BoxDecoration decoration = tester
+          .widget<Container>(
+            find
+                .ancestor(
+                  of: find.byType(ChatBubbleTimestamp),
+                  matching: find.byType(Container),
+                )
+                .last,
+          )
+          .decoration! as BoxDecoration;
+      final JeebSemanticColors tokens = JeebSemanticColors.midnight();
+
+      // The preview used to draw `colorScheme.primary` — a solid #D73B00 slab
+      // the shipped bubble has never been. Reverting to it fails both rows.
+      expect(decoration.color, tokens.bubbleOutFill);
+      expect(decoration.color, isNot(AppTheme.midnightScheme.primary));
+      expect(
+        (decoration.border! as Border).top.color,
+        tokens.bubbleOutBorder,
+      );
+    });
+
+    test('the caller ink out-reads the widget default on that bubble', () {
+      // Both inks are measured on the bubble as it actually composites over the
+      // thread surface, not on a slab of `primary` that is never drawn.
+      const ColorScheme scheme = AppTheme.midnightScheme;
+      final Color bubble = Color.alphaBlend(
+        JeebSemanticColors.midnight().bubbleOutFill,
+        scheme.surface,
+      );
+      final Color defaultInk = Color.alphaBlend(
+        scheme.onSurfaceVariant.withValues(alpha: UIConstants.opacityHigh),
+        bubble,
+      );
+      final Color callerInk = Color.alphaBlend(
+        scheme.onPrimary.withValues(alpha: UIConstants.opacityHigh),
+        bubble,
+      );
+
+      expect(
+        _contrast(callerInk, bubble),
+        greaterThan(_contrast(defaultInk, bubble)),
+        reason: 'the "default colour" preview exists to show the weaker ink; '
+            'if these ever tie, that preview no longer demonstrates anything.',
+      );
+      expect(
+        _contrast(callerInk, bubble),
+        greaterThan(4.5),
+        reason: 'The caller-supplied ink must clear AA for 11pt text.',
+      );
     });
   });
 }

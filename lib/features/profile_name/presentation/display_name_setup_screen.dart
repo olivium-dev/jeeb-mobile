@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/session/profile_refresh_signals.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
@@ -154,10 +155,10 @@ class _DisplayNameSetupScreenState extends State<DisplayNameSetupScreen> {
       identifier: 'profile_name_root',
       container: true,
       explicitChildNodes: true,
-      // R6: the field bleeds under the status bar, so the system glyphs flip
-      // to their light variant.
+      // R6: the field bleeds under BOTH bands; raw `.light` paints the
+      // Android nav bar black instead of page navy.
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: AppTheme.systemOverlayStyle,
         child: Scaffold(
           backgroundColor: Colors.transparent,
           // R6's field, carried across unchanged: one orange radial top-end,

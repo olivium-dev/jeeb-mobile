@@ -9,6 +9,7 @@ import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/session/profile_refresh_signals.dart';
 import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../profile_name/data/dio_display_name_repository.dart';
 import '../../../profile_name/domain/display_name_repository.dart';
@@ -116,6 +117,8 @@ class _SettingsView extends StatelessWidget {
       builder: (context, state) {
         return JeebMidnightField(
           variant: JeebFieldVariant.content,
+          // R22 declares .20 against the ratified single .24.
+          glowColor: context.jeebRoles.accent.withValues(alpha: 0.20),
           glowPlacement: JeebFieldGlowPlacement.topEnd,
           child: Scaffold(
             backgroundColor: Colors.transparent,

@@ -239,6 +239,9 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
       child: isOffline
           ? scrollView
           : OmdsPullToRefresh(
+              // Periwinkle, never the `colorScheme.primary` default: on
+              // Midnight that is the orange, and this is transient chrome.
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               onRefresh: () => context.read<RequestFeedCubit>().refresh(),
               child: scrollView,
             ),
@@ -507,18 +510,28 @@ class _FeedSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(
         horizontal: Spacing.xLarge,
       ),
       child: Semantics(
         identifier: 'jeeber_feed_search_field',
-        child: OmdsSearchBar(
-          key: JeeberFeedTabView.searchBarKey,
-          controller: controller,
-          focusNode: focusNode,
-          hintText: AppLocalizations.of(context).jeeberFeedSearchHint,
-          onChanged: onChanged,
+        // `OmdsSearchBar` hardcodes its focus ring to `colorScheme.primary` in
+        // the decoration, so app_theme's periwinkle `focusedBorder` never lands.
+        child: Theme(
+          data: theme.copyWith(
+            colorScheme: theme.colorScheme.copyWith(
+              primary: theme.colorScheme.secondary,
+            ),
+          ),
+          child: OmdsSearchBar(
+            key: JeeberFeedTabView.searchBarKey,
+            controller: controller,
+            focusNode: focusNode,
+            hintText: AppLocalizations.of(context).jeeberFeedSearchHint,
+            onChanged: onChanged,
+          ),
         ),
       ),
     );
@@ -889,6 +902,7 @@ class _PendingOffersList extends StatelessWidget {
             child: BlocBuilder<SubmittedOffersCubit, SubmittedOffersState>(
               bloc: cubit,
               builder: (context, state) => OmdsPullToRefresh(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 onRefresh: cubit.load,
                 child: _pendingBody(context, state),
               ),

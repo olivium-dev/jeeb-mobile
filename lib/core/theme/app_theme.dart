@@ -102,6 +102,58 @@ class AppTheme {
       ...base.extensions.values,
     ].cast<ThemeExtension<dynamic>>();
 
+    // ONE frosted box, no box-in-a-box. Replaces the OMDS white-field theme.
+    // Hoisted so `dropdownMenuTheme` can hand the same field to `DropdownMenu`.
+    final InputDecorationThemeData inputTheme = InputDecorationThemeData(
+      filled: true,
+      fillColor: JeebMidnight.glassFill,
+      hintStyle: JeebTextStyles.midnight()
+          .body
+          .copyWith(color: JeebMidnight.inkMuted),
+      labelStyle: JeebTextStyles.midnight()
+          .bodySmall
+          .copyWith(color: JeebMidnight.inkMuted),
+      floatingLabelStyle: JeebTextStyles.midnight()
+          .bodySmall
+          .copyWith(color: JeebMidnight.inkSoft),
+      helperStyle: JeebTextStyles.midnight()
+          .caption
+          .copyWith(color: JeebMidnight.inkMuted),
+      errorStyle: JeebTextStyles.midnight()
+          .caption
+          .copyWith(color: JeebMidnight.dangerSoft),
+      counterStyle: JeebTextStyles.midnight()
+          .caption
+          .copyWith(color: JeebMidnight.inkMuted),
+      prefixIconColor: JeebMidnight.inkMuted,
+      suffixIconColor: JeebMidnight.inkMuted,
+      iconColor: JeebMidnight.inkMuted,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: _inputBorder(JeebMidnight.glassBorder),
+      enabledBorder: _inputBorder(JeebMidnight.glassBorder),
+      disabledBorder: _inputBorder(const Color(0x0FFFFFFF)),
+      focusedBorder: _inputBorder(JeebMidnight.inkMuted, width: 1.5),
+      errorBorder: _inputBorder(JeebMidnight.danger, width: 1.5),
+      focusedErrorBorder: _inputBorder(JeebMidnight.danger, width: 2),
+    );
+
+    // Highest slab so a menu separates from the card underneath. Shared by
+    // `menuTheme` and `dropdownMenuTheme` so the two menu families agree.
+    final MenuStyle menuStyle = MenuStyle(
+      backgroundColor: const WidgetStatePropertyAll<Color>(
+        JeebMidnight.surfaceHighest,
+      ),
+      surfaceTintColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
+      shadowColor: const WidgetStatePropertyAll<Color>(Color(0xFF000000)),
+      elevation: const WidgetStatePropertyAll<double>(8),
+      shape: WidgetStatePropertyAll<OutlinedBorder>(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rMd),
+          side: const BorderSide(color: JeebMidnight.glassBorder),
+        ),
+      ),
+    );
+
     return base.copyWith(
       // Fallback only — screens mount `JeebMidnightField` (M0-3). OMDS would
       // default this to the card navy, one step too light.
@@ -111,6 +163,11 @@ class AppTheme {
       dividerColor: JeebMidnight.divider,
       shadowColor: const Color(0xFF000000),
       hintColor: JeebMidnight.inkMuted,
+
+      // Unset, a bare `Icon` inherits Material's pure white; §1 makes
+      // `onSurface` the ink. `primaryIconTheme` draws ON orange, so it stays white.
+      iconTheme: const IconThemeData(color: JeebMidnight.ink),
+      primaryIconTheme: IconThemeData(color: scheme.onPrimary),
       disabledColor: const Color(0x61FFFFFF),
       unselectedWidgetColor: JeebMidnight.inkMuted,
 
@@ -185,7 +242,7 @@ class AppTheme {
         shadowColor: const Color(0xFF000000),
         elevation: 0,
         iconColor: JeebMidnight.inkMuted,
-        barrierColor: const Color(0xB3070C33),
+        barrierColor: JeebMidnight.scrim,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_rSheet),
           side: const BorderSide(color: JeebMidnight.glassBorder),
@@ -203,6 +260,8 @@ class AppTheme {
         shadowColor: Color(0xFF000000),
         elevation: 0,
         modalElevation: 0,
+        // Unset, every modal sheet fell through to Material's `black54`.
+        modalBarrierColor: JeebMidnight.scrim,
         dragHandleColor: JeebMidnight.inkMuted,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(_rSheet)),
@@ -256,7 +315,6 @@ class AppTheme {
             .copyWith(color: JeebMidnight.ink),
       ),
 
-      // Highest slab so a menu separates from the card underneath.
       popupMenuTheme: PopupMenuThemeData(
         color: JeebMidnight.surfaceHighest,
         surfaceTintColor: Colors.transparent,
@@ -269,23 +327,14 @@ class AppTheme {
           side: const BorderSide(color: JeebMidnight.glassBorder),
         ),
       ),
-      menuTheme: MenuThemeData(
-        style: MenuStyle(
-          backgroundColor: const WidgetStatePropertyAll<Color>(
-            JeebMidnight.surfaceHighest,
-          ),
-          surfaceTintColor: const WidgetStatePropertyAll<Color>(
-            Colors.transparent,
-          ),
-          shadowColor: const WidgetStatePropertyAll<Color>(Color(0xFF000000)),
-          elevation: const WidgetStatePropertyAll<double>(8),
-          shape: WidgetStatePropertyAll<OutlinedBorder>(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(_rMd),
-              side: const BorderSide(color: JeebMidnight.glassBorder),
-            ),
-          ),
-        ),
+      menuTheme: MenuThemeData(style: menuStyle),
+      // Unset, `DropdownMenu` draws a BARE `OutlineInputBorder` field and its
+      // own menu slab — neither the frosted field nor the popup navy.
+      dropdownMenuTheme: DropdownMenuThemeData(
+        inputDecorationTheme: inputTheme,
+        menuStyle: menuStyle,
+        textStyle:
+            JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
       ),
 
       // Frosted capsules, never an orange fill.
@@ -307,40 +356,7 @@ class AppTheme {
         shape: const StadiumBorder(),
       ),
 
-      // ONE frosted box, no box-in-a-box. Replaces the OMDS white-field theme.
-      inputDecorationTheme: InputDecorationThemeData(
-        filled: true,
-        fillColor: JeebMidnight.glassFill,
-        hintStyle: JeebTextStyles.midnight()
-            .body
-            .copyWith(color: JeebMidnight.inkMuted),
-        labelStyle: JeebTextStyles.midnight()
-            .bodySmall
-            .copyWith(color: JeebMidnight.inkMuted),
-        floatingLabelStyle: JeebTextStyles.midnight()
-            .bodySmall
-            .copyWith(color: JeebMidnight.inkSoft),
-        helperStyle: JeebTextStyles.midnight()
-            .caption
-            .copyWith(color: JeebMidnight.inkMuted),
-        errorStyle: JeebTextStyles.midnight()
-            .caption
-            .copyWith(color: JeebMidnight.dangerSoft),
-        counterStyle: JeebTextStyles.midnight()
-            .caption
-            .copyWith(color: JeebMidnight.inkMuted),
-        prefixIconColor: JeebMidnight.inkMuted,
-        suffixIconColor: JeebMidnight.inkMuted,
-        iconColor: JeebMidnight.inkMuted,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: _inputBorder(JeebMidnight.glassBorder),
-        enabledBorder: _inputBorder(JeebMidnight.glassBorder),
-        disabledBorder: _inputBorder(const Color(0x0FFFFFFF)),
-        focusedBorder: _inputBorder(JeebMidnight.inkMuted, width: 1.5),
-        errorBorder: _inputBorder(JeebMidnight.danger, width: 1.5),
-        focusedErrorBorder: _inputBorder(JeebMidnight.danger, width: 2),
-      ),
+      inputDecorationTheme: inputTheme,
       // Periwinkle, not orange: a caret is not brand state (§2.2).
       textSelectionTheme: const TextSelectionThemeData(
         cursorColor: JeebMidnight.inkMuted,
@@ -504,11 +520,31 @@ class AppTheme {
               ? JeebMidnight.inkMuted
               : Colors.transparent;
         }),
-        todayForegroundColor:
-            const WidgetStatePropertyAll<Color>(JeebMidnight.inkSoft),
+        // Both background slots were unset and fell through to `primary` —
+        // Material drew today's disc and the selected year ORANGE.
+        todayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.inkMuted
+              : Colors.transparent;
+        }),
+        todayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.page
+              : JeebMidnight.inkSoft;
+        }),
         todayBorder: const BorderSide(color: JeebMidnight.inkMuted),
-        yearForegroundColor:
-            const WidgetStatePropertyAll<Color>(JeebMidnight.ink),
+        yearBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? JeebMidnight.inkMuted
+              : Colors.transparent;
+        }),
+        yearForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return JeebMidnight.page;
+          if (states.contains(WidgetState.disabled)) {
+            return const Color(0x61FFFFFF);
+          }
+          return JeebMidnight.ink;
+        }),
         rangeSelectionBackgroundColor: JeebMidnight.surfaceHigh,
         dividerColor: JeebMidnight.divider,
         shape: RoundedRectangleBorder(
@@ -543,6 +579,154 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(_rSheet),
         ),
+      ),
+
+      // The route slab behind a push. Unset it is `colorScheme.surface`, the
+      // CARD navy — one rung too light against the field's page navy.
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          // Spread first: iOS/macOS keep the Cupertino slide, which paints no
+          // slab at all, so only the three colour-bearing builders are re-cut.
+          ...const PageTransitionsTheme().builders,
+          TargetPlatform.android: const PredictiveBackPageTransitionsBuilder(
+            fallbackColor: JeebMidnight.page,
+          ),
+          TargetPlatform.windows: const ZoomPageTransitionsBuilder(
+            backgroundColor: JeebMidnight.page,
+          ),
+          TargetPlatform.linux: const ZoomPageTransitionsBuilder(
+            backgroundColor: JeebMidnight.page,
+          ),
+        },
+      ),
+
+      // ── Theme ruling 5's deferred list, closed here (M6). All nine defaulted
+      // to a navy we never draw (`surfaceContainerLow`) or leaked `primary`.
+      drawerTheme: const DrawerThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        scrimColor: JeebMidnight.scrim,
+        elevation: 0,
+      ),
+      navigationDrawerTheme: NavigationDrawerThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        indicatorColor: JeebMidnight.glassFillPressed,
+        labelTextStyle: WidgetStatePropertyAll<TextStyle>(
+          JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+        ),
+        iconTheme: const WidgetStatePropertyAll<IconThemeData>(
+          IconThemeData(color: JeebMidnight.inkMuted),
+        ),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: JeebMidnight.surface,
+        elevation: 0,
+        indicatorColor: Colors.transparent,
+        selectedIconTheme: const IconThemeData(color: JeebMidnight.orange),
+        unselectedIconTheme: const IconThemeData(color: JeebMidnight.inkMuted),
+        selectedLabelTextStyle: JeebTextStyles.midnight()
+            .label
+            .copyWith(color: JeebMidnight.orange),
+        unselectedLabelTextStyle: JeebTextStyles.midnight()
+            .label
+            .copyWith(color: JeebMidnight.inkMuted),
+      ),
+      bannerTheme: MaterialBannerThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        dividerColor: JeebMidnight.divider,
+        contentTextStyle:
+            JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+      ),
+      searchBarTheme: SearchBarThemeData(
+        backgroundColor: const WidgetStatePropertyAll<Color>(
+          JeebMidnight.glassFill,
+        ),
+        surfaceTintColor: const WidgetStatePropertyAll<Color>(
+          Colors.transparent,
+        ),
+        shadowColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
+        overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14FFFFFF)),
+        elevation: const WidgetStatePropertyAll<double>(0),
+        side: const WidgetStatePropertyAll<BorderSide>(
+          BorderSide(color: JeebMidnight.glassBorder),
+        ),
+        shape: const WidgetStatePropertyAll<OutlinedBorder>(StadiumBorder()),
+        textStyle: WidgetStatePropertyAll<TextStyle>(
+          JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+        ),
+        hintStyle: WidgetStatePropertyAll<TextStyle>(
+          JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.inkMuted),
+        ),
+      ),
+      searchViewTheme: SearchViewThemeData(
+        backgroundColor: JeebMidnight.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        dividerColor: JeebMidnight.divider,
+        side: const BorderSide(color: JeebMidnight.glassBorder),
+        headerTextStyle:
+            JeebTextStyles.midnight().body.copyWith(color: JeebMidnight.ink),
+        headerHintStyle: JeebTextStyles.midnight()
+            .body
+            .copyWith(color: JeebMidnight.inkMuted),
+      ),
+      // M1 ruling 3: the segmented active state is a WHITE fill with navy ink.
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.selected)
+                ? scheme.onPrimary
+                : JeebMidnight.glassFill;
+          }),
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.selected)
+                ? JeebMidnight.surface
+                : JeebMidnight.inkSoft;
+          }),
+          overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14FFFFFF)),
+          side: const WidgetStatePropertyAll<BorderSide>(
+            BorderSide(color: JeebMidnight.glassBorder),
+          ),
+          textStyle: WidgetStatePropertyAll<TextStyle>(
+            JeebTextStyles.midnight().bodySmall,
+          ),
+          shape: const WidgetStatePropertyAll<OutlinedBorder>(StadiumBorder()),
+        ),
+      ),
+      // Material inks the EXPANDED chevron `primary` — orange under Midnight.
+      expansionTileTheme: const ExpansionTileThemeData(
+        backgroundColor: Colors.transparent,
+        collapsedBackgroundColor: Colors.transparent,
+        iconColor: JeebMidnight.inkSoft,
+        collapsedIconColor: JeebMidnight.inkMuted,
+        textColor: JeebMidnight.ink,
+        collapsedTextColor: JeebMidnight.ink,
+      ),
+      // Default thumb is `outline` @80% — white 11% and invisible on navy.
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.dragged)
+              ? JeebMidnight.inkMuted
+              : JeebMidnight.glassBorderVivid;
+        }),
+        trackColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
+        trackBorderColor: const WidgetStatePropertyAll<Color>(
+          Colors.transparent,
+        ),
+        thickness: const WidgetStatePropertyAll<double>(4),
+        radius: const Radius.circular(_rSm),
+      ),
+      badgeTheme: BadgeThemeData(
+        backgroundColor: JeebMidnight.danger,
+        textColor: JeebMidnight.page,
+        textStyle: JeebTextStyles.midnight().label,
       ),
 
       extensions: extensions,

@@ -21,7 +21,7 @@ import '../data/request_feed_models.dart';
 /// pill is [JeebTierChip] (one treatment for every tier, so the eye reads
 /// *which* tier rather than a colour-coded severity that does not exist), the
 /// location captions are [JeebSectionLabel]s, and both buttons are
-/// [JeebCtaButton] pills. Accept is the navy pill, decline the outline —
+/// [JeebCtaButton] pills. Accept is the periwinkle pill, decline the outline —
 /// **no orange**: the board rations the accent to one do-it-now moment per
 /// screen, and a list of cards has no such single moment.
 ///
@@ -255,11 +255,12 @@ class _LocationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+    // Two pins per row, two rows per card: `primary` here spent the accent four
+    // times over. Muted, like every other glyph on this card.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: Sizes.large, color: scheme.primary),
+        Icon(icon, size: Sizes.large, color: _mutedInk(context)),
         const SizedBox(width: Spacing.small),
         Expanded(child: _LocationText(label: label, value: value)),
       ],
@@ -355,8 +356,8 @@ class _DistanceBadge extends StatelessWidget {
   }
 }
 
-/// The money figure. Navy, not orange: what the jeeber earns is the card's
-/// most-read number, but the accent is reserved for the do-it-now moment.
+/// The money figure — the card's most-read number, so it takes `onSurface`,
+/// the bright ink R10 gives every offer price. The accent stays a CTA.
 class _EarningsBadge extends StatelessWidget {
   const _EarningsBadge({required this.label});
 
@@ -364,7 +365,7 @@ class _EarningsBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color ink = Theme.of(context).colorScheme.primary;
+    final Color ink = Theme.of(context).colorScheme.onSurface;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

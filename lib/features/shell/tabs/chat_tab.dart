@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/directional_icons.dart';
 import '../../../l10n/app_localizations.dart';
 
@@ -74,6 +76,10 @@ class _ChatTabState extends State<ChatTab> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     if (_loading) {
       return const Center(child: OmdsLoadingState());
     }
@@ -106,11 +112,13 @@ class _ChatTabState extends State<ChatTab> {
             ),
             child: Row(
               children: [
+                // Raised-navy disc with a periwinkle glyph — a list marker is
+                // not the tile's orange act.
                 CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  backgroundColor: colorScheme.surfaceContainerHigh,
                   child: Icon(
                     Icons.local_shipping_outlined,
-                    color: Theme.of(context).colorScheme.onPrimary,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(width: Spacing.medium),
@@ -120,17 +128,22 @@ class _ChatTabState extends State<ChatTab> {
                     children: [
                       Text(
                         conv.title,
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: context.jeebText.cardTitle
+                            .copyWith(color: colorScheme.onSurface),
                       ),
                       const SizedBox(height: Spacing.twoXSmall),
                       Text(
                         conv.status,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: context.jeebText.bodySmall
+                            .copyWith(color: semantics.mutedText),
                       ),
                     ],
                   ),
                 ),
-                Icon(DirectionalIcons.disclosure(context)),
+                Icon(
+                  DirectionalIcons.disclosure(context),
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ],
             ),
           ),

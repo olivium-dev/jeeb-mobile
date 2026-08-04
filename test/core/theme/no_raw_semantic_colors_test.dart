@@ -78,4 +78,117 @@ void main() {
       });
     }
   });
+
+  // ── MIDNIGHT M6: the app-wide raw-hex gate, with NAMED exemptions ────────
+  //
+  // The allowlist above only guards the files it lists. This group is the
+  // complement: EVERY `Color(0x…)` under `lib/` outside `lib/core/theme/` must
+  // belong to a declared exemption, so a new literal anywhere else fails here
+  // rather than waiting for someone to add its file to `migratedFiles`.
+  //
+  // Fable's M6 ruling: the gate asserts "≤5 hex outside theme, all in
+  // social_sign_in_button.dart" — NOT a plain zero. Those five are third-party
+  // identity brand marks (#4285F4 Google, #1877F2 Facebook, white ×3) required
+  // by Apple App Store review item 4.0 and the Google Identity branding
+  // guidelines; the file carries the rationale and JEEB-57. They are not
+  // themeable and re-pointing them would breach both platforms' review rules.
+  group('raw hex outside lib/core/theme is exempt-only', () {
+    /// path → the exact number of `Color(0x…)` literals sanctioned there.
+    ///
+    /// The gate is one-directional: a file may drop BELOW its declared count
+    /// (someone removed a literal — good), never above, and a file that is not
+    /// a key here may have none at all. So the ledger can only tighten.
+    const exemptions = <String, int>{
+      // Fable's named M6 exemption. Brand-locked, permanent (JEEB-57).
+      'lib/features/auth/social/social_sign_in_button.dart': 5,
+      // `JeebStepper.washedInk` — white 35%, deliberately OFF the 7/10/14
+      // glass ladder (wave-C ruling 11). Owned by the M6 core-kit lane, which
+      // is re-homing it into the palette; declared so this gate does not go
+      // red on another lane's in-flight work, and it may drop to zero.
+      'lib/core/widgets/jeeb/jeeb_stepper.dart': 1,
+    };
+
+    /// Excluded from the scan, not exempted: these ARE the token layer.
+    bool isTokenLayer(String path) =>
+        path.startsWith('lib/core/theme/');
+
+    final hexLiteral = RegExp(r'Color\(0x');
+
+    late final Map<String, int> found;
+
+    setUpAll(() {
+      found = <String, int>{};
+      for (final entity in Directory('lib').listSync(recursive: true)) {
+        if (entity is! File || !entity.path.endsWith('.dart')) continue;
+        final path = entity.path;
+        if (isTokenLayer(path)) continue;
+        final count =
+            hexLiteral.allMatches(entity.readAsStringSync()).length;
+        if (count > 0) found[path] = count;
+      }
+    });
+
+    test('every raw-hex file is a declared exemption', () {
+      final undeclared = found.keys
+          .where((path) => !exemptions.containsKey(path))
+          .toList()
+        ..sort();
+      expect(
+        undeclared,
+        isEmpty,
+        reason: 'raw Color(0x…) literals outside lib/core/theme/ in files with '
+            'no declared exemption: $undeclared. Resolve them through a token '
+            '(JeebMidnight / JeebSemanticColors / JeebColorRoles / '
+            'ColorScheme). If a literal is genuinely brand-locked, it needs a '
+            'Fable ruling and an entry in `exemptions` above — not a silent '
+            'addition.',
+      );
+    });
+
+    test('no exemption exceeds its declared count', () {
+      for (final entry in found.entries) {
+        final declared = exemptions[entry.key];
+        if (declared == null) continue;
+        expect(
+          entry.value,
+          lessThanOrEqualTo(declared),
+          reason: '${entry.key} now has ${entry.value} raw hex literals but is '
+              'only exempt for $declared. New literals in an exempt file are '
+              'still regressions.',
+        );
+      }
+    });
+
+    test('the social brand marks are exactly the 5 Fable sanctioned', () {
+      const path = 'lib/features/auth/social/social_sign_in_button.dart';
+      expect(
+        found[path],
+        5,
+        reason: 'The M6 gate is "≤5 hex outside theme, all in '
+            'social_sign_in_button.dart". A different count means either a new '
+            'literal crept in or the brand marks were "fixed" — re-read the '
+            'EXEMPT block in that file and JEEB-57 before changing this.',
+      );
+      // Pins WHICH hexes, so swapping Google blue for an arbitrary value
+      // cannot pass a count-only check.
+      final source = File(path).readAsStringSync();
+      for (final brand in const <String>[
+        '0xFF4285F4', // Google Blue 500
+        '0xFF1877F2', // Facebook Brand Blue
+        '0xFFFFFFFF', // glyph foregrounds (Google / Facebook / Apple)
+      ]) {
+        expect(source, contains(brand),
+            reason: '$brand is brand-required and must not be re-pointed.');
+      }
+    });
+
+    test('the exemption ledger names no file that is already clean-by-path',
+        () {
+      for (final path in exemptions.keys) {
+        expect(isTokenLayer(path), isFalse,
+            reason: '$path is already excluded as the token layer; listing it '
+                'as an exemption is dead ledger.');
+      }
+    });
+  });
 }

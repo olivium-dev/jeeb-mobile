@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_cubit.dart';
 import 'package:jeeb_mobile/features/voice_request/cubit/voice_recording_state.dart';
@@ -130,9 +131,11 @@ void main() {
         await tester.pump();
 
         final seekBar = tester.widget<OmdsSeekBar>(find.byType(OmdsSeekBar));
-        final background = Theme.of(
-          tester.element(find.byType(OmdsSeekBar)),
-        ).colorScheme.surface;
+        // Relational, not literal: `wrapForTest` themes with `ThemeData.light()`,
+        // so a Midnight hex read here would measure the harness, not the app.
+        final scheme =
+            Theme.of(tester.element(find.byType(OmdsSeekBar))).colorScheme;
+        final background = scheme.surface;
         expect(
           _contrastRatio(seekBar.activeColor!, background),
           greaterThanOrEqualTo(3),
@@ -144,6 +147,23 @@ void main() {
         expect(seekBar.onChangeEnd, isNotNull);
         expect(seekBar.thumbColor, seekBar.activeColor);
         expect(seekBar.thumbRadius, greaterThanOrEqualTo(5));
+
+        // A scrub track is chrome on a review surface, so it spends no accent —
+        // and played/buffered/unplayed must be three DISTINCT rungs.
+        expect(seekBar.activeColor, scheme.onSurface);
+        expect(seekBar.bufferedColor, JeebMidnight.inkSoft);
+        expect(seekBar.inactiveColor, scheme.onSurfaceVariant);
+        expect(seekBar.bufferedColor, isNot(seekBar.activeColor));
+        expect(seekBar.inactiveColor, isNot(seekBar.activeColor));
+        for (final Color? rung in <Color?>[
+          seekBar.activeColor,
+          seekBar.bufferedColor,
+          seekBar.inactiveColor,
+          seekBar.thumbColor,
+        ]) {
+          expect(rung, isNot(scheme.primary));
+          expect(rung, isNot(JeebMidnight.orange));
+        }
 
         final slider = find.descendant(
           of: find.byType(OmdsSeekBar),

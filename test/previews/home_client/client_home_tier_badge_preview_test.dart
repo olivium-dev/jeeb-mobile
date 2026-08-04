@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_tier_colors.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/widgets/active_request_card.dart';
 
@@ -110,11 +111,17 @@ void main() {
         3,
       );
 
-      // Unknown resolves no token and lands on `colorScheme.tertiary` — a
+      // Unknown resolves no token and falls back to MUTED ink. Under Midnight
+      // `tertiary` is the accent alias, so the old fallback painted an unknown
+      // tier the loudest orange on the row.
       await pumpPreview(tester, clientHomeTierBadgeUnknown);
       expect(
         _badgeText(tester).style?.color,
-        AppTheme.light().colorScheme.tertiary,
+        JeebSemanticColors.midnight().mutedText,
+      );
+      expect(
+        _badgeText(tester).style?.color,
+        isNot(AppTheme.midnightScheme.tertiary),
       );
     });
 
@@ -149,10 +156,13 @@ void main() {
       );
 
       // Both pending headers pass `CrossAxisAlignment.start` instead, which
+      // Threshold is 2.0, not 4.0: the Midnight titles moved from the 22 pt
+      // Material `titleLarge` to the 15.5 pt `cardTitle` rung, so the same
+      // start-vs-centre gap now measures ~3.5 pt instead of ~6.
       expect((pendingBadge.top - pendingTitle.top).abs(), lessThan(1.0));
       expect(
         pendingTitle.center.dy - pendingBadge.center.dy,
-        greaterThan(4.0),
+        greaterThan(2.0),
         reason: 'if this ever reaches ~0 the pending headers were switched to '
             'centre alignment and the two hosts finally agree',
       );

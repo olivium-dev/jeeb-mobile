@@ -11,6 +11,7 @@ import '../../../core/dev_seam/social_auth_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/onboarding/onboarding_cubit.dart';
 import '../../../core/session/session_cubit.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_semantic_colors.dart';
@@ -294,9 +295,9 @@ class _RegistrationViewState extends State<_RegistrationView> {
           identifier: 'registration_root',
           container: true,
           child: AnnotatedRegion<SystemUiOverlayStyle>(
-            // The field bleeds under the status bar, so the system glyphs have
-            // to flip to their light variant.
-            value: SystemUiOverlayStyle.light,
+            // The field bleeds under BOTH bands: raw `.light` paints the
+            // Android nav bar black instead of page navy.
+            value: AppTheme.systemOverlayStyle,
             child: Scaffold(
               backgroundColor: Colors.transparent,
               // MIDNIGHT R6: the welcome run sits straight on the field (the
@@ -304,6 +305,9 @@ class _RegistrationViewState extends State<_RegistrationView> {
               // top END — measured on the tile, not the periwinkle wash.
               body: JeebMidnightField(
                 variant: JeebFieldVariant.content,
+                // R6 declares .28 against the ratified single .24.
+                glowColor:
+                    context.jeebRoles.accent.withValues(alpha: 0.28),
                 glowPlacement: JeebFieldGlowPlacement.topEnd,
                 animateDecor: false,
                 // `column → content → flex:1 → docked note` (plan R1). The

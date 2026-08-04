@@ -19,7 +19,7 @@ import '../domain/active_delivery_summary.dart';
 ///
 /// The board pins the just-won delivery directly above the feed as ONE
 /// orange-framed row: a Ø38 accent disc, `Active: {order} → {dropoff}`, the
-/// status underneath, and a single navy `Manage` pill. That replaces two
+/// status underneath, and a single periwinkle `Manage` pill. That replaces two
 /// stacked ~180dp icon buttons under a section heading — the largest visual
 /// delta above the fold on this screen, and the reason a jeeber's own live job
 /// used to bury the requests they are supposed to be bidding on.
@@ -173,20 +173,24 @@ class _ActiveDeliveriesSummaryRow extends StatelessWidget {
             l10n.jeeberActiveDeliveriesTitle,
             maxLines: _kActiveDeliveriesSummaryTitleMaxLines,
             overflow: TextOverflow.ellipsis,
+            // `onSurface` is the heading ink app-wide; the card below already
+            // spends this band's orange on its frame and disc.
             style: context.jeebText.cardTitle.copyWith(
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
         const SizedBox(width: Spacing.small),
         Semantics(
           identifier: 'jeeber_active_deliveries_view_all',
-          child: OmdsPrimaryButton(
-            variant: OmdsButtonVariant.text,
-            text: expanded
+          // `OmdsPrimaryButton.text` inks label AND icon from
+          // `colorScheme.primary`, which under Midnight IS the orange.
+          child: JeebCtaButton.text(
+            label: expanded
                 ? l10n.jeeberActiveDeliveriesShowLess
                 : l10n.jeeberActiveDeliveriesViewAll(totalCount),
-            icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+            leadingIcon: expanded ? Icons.expand_less : Icons.expand_more,
+            expand: false,
             onTap: onToggle,
           ),
         ),
@@ -196,7 +200,7 @@ class _ActiveDeliveriesSummaryRow extends StatelessWidget {
 }
 
 /// The board's pinned job (tpl 915–922): a 2px accent frame, the Ø38 scooter
-/// disc, one title line, one status line, one navy pill.
+/// disc, one title line, one status line, one periwinkle pill.
 class _ActiveDeliveryCard extends StatelessWidget {
   const _ActiveDeliveryCard({
     required this.delivery,
@@ -308,9 +312,11 @@ class _CardTitle extends StatelessWidget {
           : '$head $arrow $destination',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+      // R16 draws this title white; the frame and the Ø38 disc are already this
+      // card's whole orange budget. The `??` fallback twin carries the same ink.
       style: context.jeebText.body.copyWith(
         fontWeight: FontWeight.w700,
-        color: Theme.of(context).colorScheme.primary,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }
@@ -364,7 +370,7 @@ class _StatusLine extends StatelessWidget {
   }
 }
 
-/// The navy pill at the card's end edge (the board's `Manage`). Its frozen
+/// The periwinkle pill at the card's end edge (the board's `Manage`). Its frozen
 /// identifier is what the jeeber flows tap, so it stays a distinct node inside
 /// the card.
 ///

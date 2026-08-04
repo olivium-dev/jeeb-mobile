@@ -78,6 +78,12 @@ typedef _Frame = ({
   BorderRadiusGeometry? radius,
 });
 
+/// The `Active: … → …` line, whichever twin drew it.
+Color _titleInk(WidgetTester tester) => tester
+    .widget<Text>(find.textContaining('Pharmacy run'))
+    .style!
+    .color!;
+
 Widget _host(Widget child) => MaterialApp(
   theme: AppTheme.midnight(),
   locale: const Locale('en'),
@@ -252,4 +258,99 @@ void main() {
       expect(shell.surface, JeebMidnight.accentTint);
     },
   );
+
+  // MIDNIGHT M6: the `Active: … → …` line was inked `colorScheme.primary`,
+  // which under Midnight IS `#D73B00` — a third orange on a card whose budget
+  // the frame and the Ø38 disc already spend. R16 draws it white.
+  group('the card title reads onSurface, not the accent', () {
+    testWidgets('shell-injected banner', (tester) async {
+      await tester.binding.setSurfaceSize(surface);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final cubit = await _pumpShellBanner(tester);
+      expect(_titleInk(tester), JeebMidnight.ink);
+      expect(_titleInk(tester), isNot(JeebMidnight.orange));
+
+      await cubit.close();
+    });
+
+    testWidgets('`??` fallback twin', (tester) async {
+      await tester.binding.setSurfaceSize(surface);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await _pumpFallbackBanner(tester);
+      expect(_titleInk(tester), JeebMidnight.ink);
+      expect(_titleInk(tester), isNot(JeebMidnight.orange));
+    });
+
+    testWidgets('both twins agree (a one-sided re-ink fails here)', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(surface);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final cubit = await _pumpShellBanner(tester);
+      final shell = _titleInk(tester);
+      await cubit.close();
+
+      await _pumpFallbackBanner(tester);
+      expect(_titleInk(tester), shell);
+    });
+  });
+
+  // The disclosure row only exists at 2+ deliveries, so it never renders beside
+  // the card whose orange it was duplicating.
+  testWidgets('the disclosure summary title reads onSurface', (tester) async {
+    await tester.binding.setSurfaceSize(surface);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final cubit = ActiveDeliveriesCubit(
+      repository: const _StaticActiveRepo(<ActiveDeliverySummary>[
+        _delivery,
+        ActiveDeliverySummary(
+          id: 'd1',
+          status: JeeberDeliveryStatus.picked,
+          conversationId: 'conv-1',
+          title: 'Grocery run',
+        ),
+      ]),
+    )..start();
+    addTearDown(cubit.close);
+    await tester.pumpWidget(
+      _host(
+        BlocProvider<ActiveDeliveriesCubit>.value(
+          value: cubit,
+          child: ActiveDeliveriesBanner(
+            onOpenChat: (_) {},
+            onManageDelivery: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final l10n = await SyncAppLocalizationsDelegate().load(const Locale('en'));
+    final ink = tester
+        .widget<Text>(find.text(l10n.jeeberActiveDeliveriesTitle))
+        .style!
+        .color!;
+
+    expect(ink, JeebMidnight.ink);
+    expect(ink, isNot(JeebMidnight.orange));
+
+    // The row's disclosure control. `OmdsPrimaryButton.text` inked BOTH its
+    // label and its chevron from `colorScheme.primary` — a leak no
+    // `.primary` grep of this repo can see, because the reference is in OMDS.
+    final viewAll = tester
+        .widget<Text>(find.text(l10n.jeeberActiveDeliveriesViewAll(2)))
+        .style!
+        .color!;
+    expect(viewAll, JeebMidnight.inkMuted);
+    expect(viewAll, isNot(JeebMidnight.orange));
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.expand_more)).color,
+      isNot(JeebMidnight.orange),
+    );
+  });
 }

@@ -5,6 +5,9 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/notifications/application/push_refresh_signals.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_scrim.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../l10n/app_localizations.dart';
 import '../application/cancel_request_cubit.dart';
 import '../application/cancel_request_state.dart';
@@ -49,14 +52,11 @@ class CancelRequestSheet extends StatelessWidget {
     CancelRequestRepository? repository,
   }) {
     final rootContext = context;
-    final scrim = Theme.of(context).colorScheme.onSecondaryContainer.withValues(
-      alpha: UIConstants.opacityHigh,
-    );
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      barrierColor: scrim,
+      barrierColor: JeebScrim.barrier(context),
       shape: const RoundedRectangleBorder(
         borderRadius: OmdsBorderRadius.topXLarge,
       ),
@@ -137,10 +137,12 @@ class _CancelRequestView extends StatelessWidget {
                 children: [
                   const _SheetDragHandle(),
                   const SizedBox(height: Spacing.large),
+                  // Cancelling before an offer is FREE (D69), so this asks a
+                  // question — the info role, never the rationed accent.
                   Icon(
                     Icons.help_outline,
                     size: Sizes.sixXLarge,
-                    color: theme.colorScheme.primary,
+                    color: context.jeebRoles.info,
                   ),
                   const SizedBox(height: Spacing.medium),
                   Text(
@@ -209,13 +211,22 @@ class _CancelRequestView extends StatelessWidget {
                     enabled: !inFlight,
                     label: l10n.deliveryCancelDialogDismiss,
                     onTap: inFlight ? null : onKept,
+                    // `OmdsPrimaryButton.outlined` inks BOTH its 1.5px border
+                    // and its label from `colorScheme.primary` — #D73B00 here.
                     child: ExcludeSemantics(
-                      child: OmdsPrimaryButton(
-                        key: const Key('cancel-request-keep-cta'),
-                        text: l10n.deliveryCancelDialogDismiss,
-                        variant: OmdsButtonVariant.outlined,
-                        isEnabled: !inFlight,
-                        onTap: () => onKept?.call(),
+                      child: Theme(
+                        data: theme.copyWith(
+                          colorScheme: theme.colorScheme.copyWith(
+                            primary: theme.colorScheme.secondary,
+                          ),
+                        ),
+                        child: OmdsPrimaryButton(
+                          key: const Key('cancel-request-keep-cta'),
+                          text: l10n.deliveryCancelDialogDismiss,
+                          variant: OmdsButtonVariant.outlined,
+                          isEnabled: !inFlight,
+                          onTap: () => onKept?.call(),
+                        ),
                       ),
                     ),
                   ),
@@ -234,13 +245,16 @@ class _SheetDragHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    // Shared drag-handle treatment: inert chrome takes the .22 glass rung.
+    // Matches the sign-out grabber and the chat confirm sheet.
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Center(
       child: Container(
         width: Spacing.twoXLarge,
         height: Spacing.twoXSmall,
         decoration: BoxDecoration(
-          color: colorScheme.primary,
+          color: semantics.glassBorderVivid,
           borderRadius: OmdsBorderRadius.pill,
         ),
       ),

@@ -44,11 +44,20 @@ class LocationSearchBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        OmdsSearchBar(
-          controller: controller,
-          hintText: hintText,
-          onChanged: onChanged,
-          onClear: () => onChanged(''),
+        // `OmdsSearchBar` hardcodes its focus ring to `colorScheme.primary` in
+        // the decoration, so app_theme's periwinkle `focusedBorder` never lands.
+        Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: Theme.of(context).colorScheme.secondary,
+                ),
+          ),
+          child: OmdsSearchBar(
+            controller: controller,
+            hintText: hintText,
+            onChanged: onChanged,
+            onClear: () => onChanged(''),
+          ),
         ),
         if (isSearching)
           Padding(

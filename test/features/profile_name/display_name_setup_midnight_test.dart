@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_text_styles.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
@@ -108,7 +109,7 @@ void main() {
       expect(fieldHeight, viewport);
     });
 
-    testWidgets('status-bar glyphs flip light — the field bleeds under them',
+    testWidgets('both system bands take the Midnight overlay, not raw .light',
         (tester) async {
       await tester.pumpWidget(_host());
       await tester.pumpAndSettle();
@@ -119,7 +120,14 @@ void main() {
           matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
         ),
       );
-      expect(region.value, SystemUiOverlayStyle.light);
+      expect(region.value, AppTheme.systemOverlayStyle);
+      // L14: raw `.light` carries a BLACK nav bar. This is what discriminates.
+      expect(region.value.systemNavigationBarColor, JeebMidnight.page);
+      expect(
+        region.value.systemNavigationBarColor,
+        isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
+      );
+      expect(region.value.statusBarIconBrightness, Brightness.light);
     });
   });
 

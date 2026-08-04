@@ -51,7 +51,7 @@ void main() {
       await pumpPreview(tester, pushBannerHostIdle);
 
       // The host wraps the whole app, so "idle" must mean invisible: no card,
-      expect(find.byType(Card), findsNothing);
+      expect(find.byKey(pushBannerCardKey), findsNothing);
       expect(find.byIcon(Icons.close), findsNothing);
       expect(find.text('Idle, no banner'), findsOneWidget);
     });
@@ -61,7 +61,7 @@ void main() {
     ) async {
       await pumpPreview(tester, pushBannerHostDelivery);
 
-      expect(find.byType(Card), findsOneWidget);
+      expect(find.byKey(pushBannerCardKey), findsOneWidget);
       expect(find.byIcon(Icons.close), findsOneWidget);
       expect(find.text('Order #42'), findsOneWidget);
     });
@@ -97,7 +97,7 @@ void main() {
       await pumpPreview(tester, pushBannerHostUnderStatusBar);
 
       // `Positioned(top: MediaQuery.padding.top + 8)` already clears the status
-      final double cardTop = tester.getRect(find.byType(Card)).top;
+      final double cardTop = tester.getRect(find.byKey(pushBannerCardKey)).top;
 
       expect(
         cardTop,

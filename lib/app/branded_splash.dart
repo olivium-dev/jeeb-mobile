@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:omds/omds.dart';
 
+import '../core/theme/app_theme.dart';
+import '../core/theme/jeeb_text_styles.dart';
+import '../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -15,17 +18,18 @@ class BrandedSplash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: Colors.transparent,
-      ),
+      value: AppTheme.systemOverlayStyle,
       child: Semantics(
         identifier: '_splash_screen',
         container: true,
-        child: ColoredBox(
-          color: colorScheme.secondaryContainer,
-          child: const SafeArea(child: _SplashBody()),
+        // §8 base wash, no orange: the splash has no tile, so it spends no
+        // accent budget and runs still — it is the first frame of a cold start.
+        child: const JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowColor: Colors.transparent,
+          animateDecor: false,
+          child: SafeArea(child: _SplashBody()),
         ),
       ),
     );
@@ -84,9 +88,9 @@ class _SplashTagline extends StatelessWidget {
       child: Text(
         l10n.splashTagline,
         textAlign: TextAlign.center,
-        style: theme.textTheme.titleMedium?.copyWith(
-          color: theme.colorScheme.onSecondary,
-          fontWeight: FontWeight.w700,
+        // `onSecondary` is page navy — on the field it measured 1.17:1.
+        style: context.jeebText.titleProminent.copyWith(
+          color: theme.colorScheme.onSecondaryContainer,
         ),
       ),
     );

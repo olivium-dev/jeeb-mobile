@@ -126,7 +126,9 @@ void main() {
   });
 
   group('M3-05 · money emphasis', () {
-    testWidgets('the price run is the 22/w800 accent token',
+    // The ramp carries the emphasis; the ink does NOT. A read-only recap spends
+    // no accent (M3 ruling: `primary` on a non-CTA is a defect signature).
+    testWidgets('the price run is the 22/w800 token in onSurface ink',
         (WidgetTester tester) async {
       await tester.pumpWidget(_harness(_Repo(summary: _kSummary)));
       await tester.pump();
@@ -140,7 +142,8 @@ void main() {
       expect(price.style!.fontSize, 22);
       expect(price.style!.fontWeight, FontWeight.w800);
       expect(price.style!.letterSpacing, -0.5);
-      expect(price.style!.color, JeebMidnight.orange);
+      expect(price.style!.color, JeebMidnight.ink);
+      expect(price.style!.color, isNot(JeebMidnight.orange));
     });
 
     testWidgets('the item value sits a rung BELOW the price, at R12\'s 14.5/700',

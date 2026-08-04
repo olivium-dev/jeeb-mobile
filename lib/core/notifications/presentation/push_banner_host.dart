@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
+import '../../theme/jeeb_shadows.dart';
+import '../../theme/jeeb_text_styles.dart';
 import '../application/push_notification_handler.dart';
 import '../domain/notification_message.dart';
 
@@ -9,6 +13,13 @@ import '../domain/notification_message.dart';
 import '../application/badge_count_cubit.dart';
 import '../data/push_transport.dart';
 import '../../previews/jeeb_preview.dart';
+
+/// Finder anchor for the floating banner surface.
+///
+/// Re-homed from `find.byType(Card)` when the M6 class-3b restyle dropped
+/// Material `Card` — the tests were pinning the widget type, which was never
+/// the contract.
+const Key pushBannerCardKey = Key('push_banner_card');
 
 class PushBannerHost extends StatefulWidget {
   const PushBannerHost({
@@ -91,6 +102,17 @@ class _PushBannerHostState extends State<PushBannerHost> {
   }
 }
 
+/// The floating push banner (M6 class-3b restyle).
+///
+/// **Opaque raised navy, not glass.** Every other floating Midnight surface is
+/// glass, but this one lands over *arbitrary* content — including R3/R11's live
+/// map — and a white-10% fill would put the title on whatever happened to be
+/// underneath. STUDY kit ruling 4 ("solid where the surface underneath is not
+/// ours") supplies the treatment: `surfaceContainerHigh` fill, 1px `glassBorder`
+/// hairline, [JeebRadii.lg], [JeebShadows.floatNav] to lift it off the page.
+///
+/// The category glyph is **periwinkle, not orange**: it labels the push, it
+/// does not act, and M0-2 ruling 3 rations orange to acts.
 class _BannerCard extends StatelessWidget {
   const _BannerCard({
     super.key,
@@ -99,56 +121,78 @@ class _BannerCard extends StatelessWidget {
     required this.onDismiss,
   });
 
+  /// Board-ladder gutter: 14 leading/vertical, 6 trailing so the Ø48 dismiss
+  /// target's own padding completes the run.
+  static const EdgeInsetsGeometry _padding =
+      EdgeInsetsDirectional.fromSTEB(14, 14, 6, 14);
+
   final NotificationMessage message;
   final VoidCallback onTap;
   final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Card(
-      color: colorScheme.surfaceContainerHigh,
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(12, 12, 8, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(_iconForCategory(message.category),
-                  color: colorScheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      message.title.isEmpty ? 'Notification' : message.title,
-                      style: theme.textTheme.titleSmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (message.body.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final JeebSemanticColors semantics = _semantics(context);
+    final JeebTextStyles text = context.jeebText;
+
+    return DecoratedBox(
+      key: pushBannerCardKey,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(JeebRadii.lg),
+        border: Border.all(color: semantics.glassBorder),
+        boxShadow: JeebShadows.floatNav,
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(JeebRadii.lg),
+          child: Padding(
+            padding: _padding,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  _iconForCategory(message.category),
+                  size: 19,
+                  color: colorScheme.secondary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        message.body,
-                        style: theme.textTheme.bodySmall,
-                        maxLines: 2,
+                        message.title.isEmpty ? 'Notification' : message.title,
+                        style: text.cardTitle.copyWith(
+                          color: colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (message.body.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          message.body,
+                          style: text.bodySmall.copyWith(
+                            color: semantics.mutedText,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: onDismiss,
-              ),
-            ],
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  color: semantics.mutedText,
+                  onPressed: onDismiss,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -180,6 +224,12 @@ class _BannerCard extends StatelessWidget {
     }
   }
 }
+
+/// Read defensively: harnesses that theme with a bare `ThemeData` must not
+/// crash on a missing extension.
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 

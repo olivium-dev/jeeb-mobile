@@ -5,6 +5,7 @@ import 'package:omds/omds.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import 'dart:ui' as ui show TextDirection;
+import '../../../../core/widgets/jeeb/jeeb_chat_bubble.dart';
 import '../../../../core/previews/jeeb_preview.dart';
 
 /// Locale-aware "HH:mm" timestamp in chat bubble meta row via DateFormat.Hm.
@@ -58,8 +59,11 @@ const Size _chatBubbleTimestampMatrixBox = Size(390, 300);
 const double _chatBubbleTimestampBubbleWidth = 260;
 
 /// A stand-in for the chat bubble the timestamp always lives inside.
-/// [filled] picks the sender's `primary` bubble over the grey offer card;
+/// [filled] picks the sender's OUTGOING bubble over the incoming offer card;
 /// [caption] labels a state whose whole point is that nothing renders.
+///
+/// Both fills are read off [JeebChatBubble] rather than restated, so the
+/// stand-in can never again misrepresent the bubble that actually ships.
 class _ChatBubbleTimestampBubble extends StatelessWidget {
   const _ChatBubbleTimestampBubble({required this.child, this.filled = false, this.caption});
 
@@ -70,7 +74,9 @@ class _ChatBubbleTimestampBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
+    final JeebChatBubbleSide side = filled
+        ? JeebChatBubbleSide.outgoing
+        : JeebChatBubbleSide.incoming;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -79,9 +85,11 @@ class _ChatBubbleTimestampBubble extends StatelessWidget {
             width: _chatBubbleTimestampBubbleWidth,
             padding: const EdgeInsets.all(Spacing.small),
             decoration: BoxDecoration(
-              color:
-                  filled ? scheme.primary : scheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(Spacing.small),
+              color: JeebChatBubble.fillOf(context, side),
+              border: Border.all(
+                color: JeebChatBubble.borderInkOf(context, side),
+              ),
+              borderRadius: JeebChatBubble.radiusOf(side),
             ),
             child: child,
           ),
@@ -138,14 +146,13 @@ Widget _chatBubbleTimestampSenderFooter({
       caption: caption,
       child: Builder(
         builder: (BuildContext context) {
-          final ColorScheme scheme = Theme.of(context).colorScheme;
-          final Color ink =
-              scheme.onPrimary.withValues(alpha: UIConstants.opacityHigh);
+          const JeebChatBubbleSide side = JeebChatBubbleSide.outgoing;
+          final Color ink = JeebChatBubble.metaInkOf(context, side);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(body, style: TextStyle(color: scheme.onPrimary)),
+              Text(body, style: JeebChatBubble.bodyStyleOf(context, side)),
               const SizedBox(height: Spacing.twoXSmall),
               Directionality(
                 textDirection: ui.TextDirection.ltr,
@@ -174,8 +181,8 @@ Widget _chatBubbleTimestampSenderFooter({
 Widget chatBubbleTimestampOfferFooter() =>
     _chatBubbleTimestampOfferFooter(sentAt: DateTime(2026, 6, 1, 12, 34));
 
-/// The other production caller, done correctly: the sender's navy bubble with
-/// the caller's `color:` override.
+/// The other production caller, done correctly: the sender's orange-tinted
+/// outgoing bubble with the caller's `color:` override.
 @JeebPreview(group: 'chat', name: 'Sender bubble · caller colour', size: _chatBubbleTimestampBubbleBox)
 Widget chatBubbleTimestampSenderBubble() => _chatBubbleTimestampSenderFooter(
       body: 'The blue box, please',

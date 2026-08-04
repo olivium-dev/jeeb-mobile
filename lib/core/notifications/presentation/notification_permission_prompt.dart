@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:omds/omds.dart';
 
+import '../../theme/jeeb_radii.dart';
+import '../../theme/jeeb_semantic_colors.dart';
+import '../../theme/jeeb_shadows.dart';
+import '../../theme/jeeb_text_styles.dart';
+import '../../widgets/jeeb/jeeb_cta_button.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
 import '../../previews/jeeb_preview.dart';
 
+/// The notification priming card (M6 class-3b restyle).
+///
+/// It shares [PushBannerHost]'s overlay slot, so it takes the same surface:
+/// **opaque raised navy** rather than glass, because the content underneath is
+/// arbitrary. Actions follow M0-2 ruling 3 — the affirmative act is the
+/// periwinkle [JeebCtaVariant.primary] pill, never orange; orange is rationed
+/// to the acts a board tile actually draws.
 class NotificationPermissionPrompt extends StatelessWidget {
   const NotificationPermissionPrompt({
     super.key,
@@ -32,18 +43,20 @@ class NotificationPermissionPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Semantics(
       identifier: 'notification_permission_prompt',
       container: true,
       explicitChildNodes: true,
-      child: Material(
-        color: colorScheme.surfaceContainerHigh,
-        elevation: UIConstants.elevationLarge,
-        borderRadius: OmdsBorderRadius.uiMedium,
-        clipBehavior: Clip.antiAlias,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(JeebRadii.lg),
+          border: Border.all(color: _semantics(context).glassBorder),
+          boxShadow: JeebShadows.floatNav,
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(Spacing.medium),
+          padding: const EdgeInsets.all(16),
           child: _PromptBody(
             title: title,
             body: body,
@@ -82,9 +95,14 @@ class _PromptBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _PromptHeader(title: title),
-        const SizedBox(height: Spacing.xSmall),
-        Text(body, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: Spacing.medium),
+        const SizedBox(height: 8),
+        Text(
+          body,
+          style: context.jeebText.body.copyWith(
+            color: _semantics(context).mutedText,
+          ),
+        ),
+        const SizedBox(height: 16),
         _PromptActions(
           enableLabel: enableLabel,
           dismissLabel: dismissLabel,
@@ -103,16 +121,23 @@ class _PromptHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(Icons.notifications_active_outlined, color: colorScheme.primary),
-        const SizedBox(width: Spacing.small),
+        // Periwinkle, not `primary`: under Midnight `primary` IS #D73B00, and
+        // a card's header glyph labels, it does not act (M0-2 ruling 3).
+        Icon(
+          Icons.notifications_active_outlined,
+          size: 19,
+          color: colorScheme.secondary,
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             title,
             key: const Key('notif_perm_title'),
-            style: Theme.of(context).textTheme.titleMedium,
+            style: context.jeebText.titleProminent
+                .copyWith(color: colorScheme.onSurface),
           ),
         ),
       ],
@@ -141,20 +166,20 @@ class _PromptActions extends StatelessWidget {
         Semantics(
           identifier: 'notif_perm_dismiss',
           button: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.text(
             key: const Key('notif_perm_dismiss'),
-            text: dismissLabel,
-            variant: OmdsButtonVariant.text,
+            label: dismissLabel,
             onTap: onDismiss,
           ),
         ),
-        const SizedBox(width: Spacing.xSmall),
+        const SizedBox(width: 8),
         Semantics(
           identifier: 'notif_perm_enable',
           button: true,
-          child: OmdsPrimaryButton(
+          child: JeebCtaButton.primary(
             key: const Key('notif_perm_enable'),
-            text: enableLabel,
+            label: enableLabel,
+            expand: false,
             onTap: onEnable,
           ),
         ),
@@ -162,6 +187,12 @@ class _PromptActions extends StatelessWidget {
     );
   }
 }
+
+/// Read defensively: harnesses that theme with a bare `ThemeData` must not
+/// crash on a missing extension.
+JeebSemanticColors _semantics(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 

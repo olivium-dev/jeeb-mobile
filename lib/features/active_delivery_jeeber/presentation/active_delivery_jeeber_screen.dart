@@ -38,9 +38,9 @@ const double _kInlineQuickActionsMinWidth = 320;
 const EdgeInsetsGeometry _kDropOffCardPadding =
     EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium, vertical: 14);
 
-/// R18's own bottom glow: `rgba(215,59,0,.24)` measured under the pill row —
-/// one notch above the `content` variant's .22.
-const double _kFieldGlowAlpha = 0.24;
+/// R18's own bottom glow, re-read in the M6 census: `rgba(215,59,0,.26)` under
+/// the pill row — one notch above the ratified single glow alpha .24.
+const double _kFieldGlowAlpha = 0.26;
 
 /// Jeeber active-delivery / mark-delivered screen (T-MOB-031, JM-051).
 ///

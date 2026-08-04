@@ -6,6 +6,10 @@ import 'package:omds/omds.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/formatting/friendly_reference.dart';
 import '../../../../core/formatting/money_format.dart';
+import '../../../../core/theme/jeeb_scrim.dart';
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/offer_accept_cubit.dart';
 import '../../application/offer_accept_state.dart';
@@ -54,14 +58,11 @@ class OfferAcceptSheet extends StatelessWidget {
     OffersRepository? repository,
   }) {
     final rootContext = context;
-    final scrim = Theme.of(context).colorScheme.onSecondaryContainer.withValues(
-      alpha: UIConstants.opacityHigh,
-    );
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      barrierColor: scrim,
+      barrierColor: JeebScrim.barrier(context),
       enableDrag: false,
       shape: const RoundedRectangleBorder(
         borderRadius: OmdsBorderRadius.topXLarge,
@@ -121,6 +122,8 @@ class _OfferAcceptView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     final feeFormatted = MoneyFormat.format(
       offer.fee,
       currency: offer.currency,
@@ -160,9 +163,8 @@ class _OfferAcceptView extends StatelessWidget {
                       child: Text(
                         l10n.offerAcceptTitle(jeeberDisplayName),
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.titleMedium?.copyWith(
+                        style: context.jeebText.titleProminent.copyWith(
                           color: theme.colorScheme.onSurface,
-                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -172,9 +174,10 @@ class _OfferAcceptView extends StatelessWidget {
                       child: Text(
                         l10n.offersCardFee(feeFormatted, offer.currency),
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w700,
+                        // Money is white w800, the same rung `offer_card`
+                        // draws — the orange is spent on the act, not the fact.
+                        style: context.jeebText.price.copyWith(
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                     ),
@@ -184,8 +187,8 @@ class _OfferAcceptView extends StatelessWidget {
                       child: Text(
                         l10n.chatOfferAcceptOnlyOne,
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        style: context.jeebText.body.copyWith(
+                          color: semantics.mutedText,
                         ),
                       ),
                     ),
@@ -231,18 +234,17 @@ class _OfferAcceptView extends StatelessWidget {
                       onTap: state.isSubmitting
                           ? null
                           : () => context.read<OfferAcceptCubit>().confirm(),
+                      // The accent fill is board-legitimate here: this sheet
+                      // exists only to perform the one orange act.
                       child: ExcludeSemantics(
-                        child: OmdsLoadingButton(
+                        child: JeebCtaButton.accent(
                           key: const Key('offer-accept-confirm-cta'),
-                          text: state.isSubmitting
+                          label: state.isSubmitting
                               ? l10n.chatOfferAccepting
                               : l10n.chatOfferAccept,
                           isLoading: state.isSubmitting,
                           onTap: () =>
                               context.read<OfferAcceptCubit>().confirm(),
-                          backgroundColor: theme.colorScheme.primary,
-                          textColor: theme.colorScheme.onPrimary,
-                          borderRadius: OmdsBorderRadius.uiSmall,
                         ),
                       ),
                     ),
@@ -254,10 +256,10 @@ class _OfferAcceptView extends StatelessWidget {
                       label: l10n.actionCancel,
                       onTap: state.isSubmitting ? null : onCancelled,
                       child: ExcludeSemantics(
-                        child: OmdsPrimaryButton(
+                        child: JeebCtaButton(
                           key: const Key('offer-accept-cancel-cta'),
-                          text: l10n.actionCancel,
-                          variant: OmdsButtonVariant.outlined,
+                          label: l10n.actionCancel,
+                          variant: JeebCtaVariant.outline,
                           isEnabled: !state.isSubmitting,
                           onTap: () => onCancelled?.call(),
                         ),
@@ -295,13 +297,16 @@ class _SheetDragHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    // Inert chrome takes the .22 glass rung, never the accent — the shared
+    // grabber decision (settings sign-out sheet, confirm-delivery sheet).
+    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     return Center(
       child: Container(
         width: Spacing.twoXLarge,
         height: Spacing.twoXSmall,
         decoration: BoxDecoration(
-          color: colorScheme.primary,
+          color: semantics.glassBorderVivid,
           borderRadius: OmdsBorderRadius.pill,
         ),
       ),

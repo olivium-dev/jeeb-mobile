@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/theme/jeeb_color_roles.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
@@ -167,7 +169,7 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
         return Column(
           children: [
             Expanded(
-              // R1: the residual space below the note stays plain white — the
+              // R1: the residual space below the note stays bare field — the
               // content is top-aligned and never grows to fill it.
               child: SingleChildScrollView(
                 padding: const EdgeInsetsDirectional.fromSTEB(
@@ -238,9 +240,11 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
 }
 
 /// The goods-cost money input, drawn to the board's money-field treatment
-/// (screen 17 `tpl 995`): `min-h 64 / r16 / 2px navy` over a
-/// `surfaceContainerHigh` fill, with the amount in a w800 navy run. A failure
-/// swaps the stroke to `colorScheme.error` and hangs the message beneath.
+/// (screen 17 `tpl 995`): `min-h 64 / r16 / 2px ACCENT` over a
+/// `surfaceContainerHigh` fill, with the amount in a w800 `onSurface` run —
+/// [JeebMoneyField]'s ratified split, where the stroke is the screen's one
+/// budgeted orange and the digits stay ink so they read. A failure swaps the
+/// stroke to `colorScheme.error` and hangs the message beneath.
 ///
 /// **Why not `OmdsTextField`.** The board needs a caller-set text style (the
 /// amount is w800, far above any input style OMDS ships), `textDirection` on
@@ -257,7 +261,8 @@ class _CostFieldAndSubmitState extends State<_CostFieldAndSubmit> {
 ///
 /// Design values are snapped, not exact: `lib/features` may not write
 /// `fontSize:` literals (`tool/check_design_tokens.sh`), so the amount uses
-/// `jeebText.h1` at w800 (24/w800) against the board's 26/w800.
+/// `jeebText.h1` at w800 — 26/w800 against the board's 26/w800, exact after
+/// the Midnight ramp re-cut.
 ///
 /// RTL: a plain box, so it mirrors as a block, while the editable core is
 /// pinned to [TextDirection.ltr] so the digits and the decimal point never
@@ -274,7 +279,7 @@ class _AmountField extends StatelessWidget {
   /// grows with the text scale instead of clipping at 200%.
   static const double minHeight = Sizes.sixXLarge;
 
-  /// The board's `2px` navy stroke.
+  /// The board's `2px` accent stroke (`tpl 995`) — the lit-field treatment.
   static const double borderWidth = 2;
 
   final TextEditingController controller;
@@ -299,7 +304,7 @@ class _AmountField extends StatelessWidget {
         color: scheme.surfaceContainerHigh,
         borderRadius: OmdsBorderRadius.medium,
         border: Border.all(
-          color: message != null ? scheme.error : scheme.primary,
+          color: message != null ? scheme.error : context.jeebRoles.accent,
           width: borderWidth,
         ),
       ),
@@ -334,7 +339,10 @@ class _AmountField extends StatelessWidget {
   }
 
   Widget _editableCore(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
     // The box mirrors, so the digits must hug the leading edge from whichever
     // side it lands on — while the run itself stays LTR.
     final alignment = Directionality.of(context) == TextDirection.rtl
@@ -350,11 +358,13 @@ class _AmountField extends StatelessWidget {
         onChanged: onChanged,
         style: context.jeebText.h1.copyWith(
           fontWeight: FontWeight.w800,
-          color: scheme.primary,
+          color: scheme.onSurface,
         ),
         textDirection: TextDirection.ltr,
         textAlign: alignment,
-        cursorColor: scheme.primary,
+        // Theme ruling 4: the caret stays periwinkle app-wide; orange is spent
+        // on the stroke here, exactly as `JeebMoneyField` spends it.
+        cursorColor: semantics.mutedText,
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
           isDense: true,

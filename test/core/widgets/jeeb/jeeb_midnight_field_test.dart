@@ -18,6 +18,10 @@ import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 const Key _fieldKey = Key('field');
 const Size _fieldSize = Size(360, 560);
 
+/// The ratified fade stop (§8, M6 census). Mirrored here because the widget
+/// keeps it private and three tests solve the ramp back out of the pixels.
+const double _glowFade = 0.58;
+
 void main() {
   Future<void> pumpField(
     WidgetTester tester, {
@@ -369,7 +373,7 @@ void main() {
       expect(glowed.r, lessThan(glowed.g));
     });
 
-    testWidgets('the glow ellipse is the board\'s 520×420 radii', (
+    testWidgets('the glow is 500×420 at α .24, dying at the 58% stop', (
       WidgetTester tester,
     ) async {
       // Centre-anchored so the whole ellipse is measurable on-canvas, and
@@ -389,29 +393,107 @@ void main() {
       );
       final Color Function(double, double) bare = await sampler(tester);
 
-      const double centreY = 0.38;
-      double delta(double fy) => lit(0.5, fy).r - bare(0.5, fy).r;
-      final double peak = delta(centreY);
-      expect(peak, greaterThan(0.1));
+      final double cx = 0.5 * _fieldSize.width;
+      final double cy = 0.38 * _fieldSize.height;
 
-      // CSS `radial-gradient(520px 420px …)` are RADII on the 440 board frame,
-      // so rx = 520/440 of the width; the ramp is linear to nothing at the 60%
-      // stop, which puts half-peak at exactly 0.3 × ry.
-      final double rx = _fieldSize.width * 520 / 440;
-      final double ry = rx * 420 / 520;
-
-      double halfMax = 1;
-      for (double fy = centreY; fy <= 1; fy += 0.001) {
-        if (delta(fy) <= peak / 2) {
-          halfMax = fy;
-          break;
-        }
+      // src-over inverted: (lit − bare) = a × (orange − bare), so this reads the
+      // gradient's own alpha back out of the frame, base wash cancelled.
+      double alphaAt(double x, double y) {
+        final double fx = x / (_fieldSize.width - 1);
+        final double fy = y / (_fieldSize.height - 1);
+        return (lit(fx, fy).r - bare(fx, fy).r) /
+            (JeebMidnight.orange.r - bare(fx, fy).r);
       }
+
+      // The ramp is LINEAR from a0 at the anchor to nothing at the fade stop,
+      // so a least-squares line over one axis returns (a0, fade × radius) —
+      // sub-pixel, unlike a half-max scan, and it separates the two constants.
+      ({double a0, double reach}) fit(
+        double Function(double) sample,
+        double from,
+        double to,
+      ) {
+        double sd = 0, sa = 0, sdd = 0, sda = 0;
+        int n = 0;
+        for (double d = from; d <= to; d += 2) {
+          final double a = sample(d);
+          sd += d;
+          sa += a;
+          sdd += d * d;
+          sda += d * a;
+          n++;
+        }
+        final double m = (n * sda - sd * sa) / (n * sdd - sd * sd);
+        final double b = (sa - m * sd) / n;
+        return (a0: b, reach: -b / m);
+      }
+
+      // Along +x the ramp reaches fade × rx; along +y, fade × ry.
+      final ({double a0, double reach}) alongX =
+          fit((double d) => alphaAt(cx + d, cy), 0, 170);
+      final ({double a0, double reach}) alongY =
+          fit((double d) => alphaAt(cx, cy + d), 0, 170);
+
+      final double fadeRx = _glowFade * (500 / 440) * _fieldSize.width;
       expect(
-        (halfMax - centreY) * _fieldSize.height,
-        closeTo(0.3 * ry, 7),
-        reason: 'the shipped 1.35× factor lands 15px past this',
+        alongX.reach,
+        closeTo(fadeRx, 3),
+        reason: 'rx 500/440 × W to the 58% stop; the shipped 1.18 × .60 '
+            'reaches 127px and 1.35 reaches 146px',
       );
+      expect(
+        alongY.reach / alongX.reach,
+        closeTo(420 / 500, 0.012),
+        reason: 'ry/rx — the old 420/520 aspect reads 0.808 here',
+      );
+      // …and the ONE alpha, off the same fit: no variant switch feeds it.
+      expect(alongX.a0, closeTo(0.24, 0.008));
+      expect(alongY.a0, closeTo(0.24, 0.008));
+    });
+
+    testWidgets('every variant draws the SAME glow alpha', (
+      WidgetTester tester,
+    ) async {
+      // The variant picks the LAYER SET; alpha stopped riding on it at M6.
+      // Un-compositing per variant cancels the three different bases beneath.
+      final Map<JeebFieldVariant, double> alpha = <JeebFieldVariant, double>{};
+      for (final JeebFieldVariant variant in <JeebFieldVariant>[
+        JeebFieldVariant.hero,
+        JeebFieldVariant.content,
+        JeebFieldVariant.sheet,
+      ]) {
+        // Anchored on-canvas so the sampled pixel IS the gradient's peak.
+        await pumpField(
+          tester,
+          variant: variant,
+          glowPlacement: JeebFieldGlowPlacement.centerUpper,
+          showRings: false,
+          showTwinkles: false,
+        );
+        final Color Function(double, double) lit = await sampler(tester);
+
+        await pumpField(
+          tester,
+          variant: variant,
+          glowPlacement: JeebFieldGlowPlacement.centerUpper,
+          showRings: false,
+          showTwinkles: false,
+          glowColor: const Color(0x00D73B00),
+        );
+        final Color Function(double, double) bare = await sampler(tester);
+
+        alpha[variant] =
+            (lit(0.5, 0.38).r - bare(0.5, 0.38).r) /
+            (JeebMidnight.orange.r - bare(0.5, 0.38).r);
+      }
+
+      for (final MapEntry<JeebFieldVariant, double> e in alpha.entries) {
+        expect(
+          e.value,
+          closeTo(0.24, 0.01),
+          reason: '${e.key} — hero shipped .28 and sheet .26 before M6',
+        );
+      }
     });
 
     testWidgets('topStart\'s ORANGE falloff resolves the anchor itself', (
@@ -443,11 +525,11 @@ void main() {
             (JeebMidnight.orange.r - bare(fx, fy).r);
       }
 
-      final double rx = _fieldSize.width * 520 / 440;
-      const double squash = 420 / 520;
-      // Linear to nothing at the 60% stop, so down the anchor column
+      final double rx = _fieldSize.width * 500 / 440;
+      const double squash = 420 / 500;
+      // Linear to nothing at the 58% stop, so down the anchor column
       // alpha(y) = a0 × (1 − (y − cy) / ramp) — a straight line in y.
-      final double ramp = squash * 0.6 * rx;
+      final double ramp = squash * _glowFade * rx;
       final double anchorX = 0.12 * _fieldSize.width;
 
       double columnAlpha(double y) {
@@ -485,7 +567,7 @@ void main() {
       final double a0 = -m * ramp;
       final double cy = -ramp - b / m;
 
-      expect(a0, closeTo(0.22, 0.01), reason: 'content variant glow alpha');
+      expect(a0, closeTo(0.24, 0.01), reason: 'the one ratified glow alpha');
       expect(cy, lessThan(0), reason: 'the anchor sits ABOVE the canvas');
       expect(
         cy / _fieldSize.height,
@@ -501,7 +583,7 @@ void main() {
         double sx = 0, sq = 0, sxx = 0, sxq = 0;
         int p = 0;
         for (double x = 110; x <= 220; x += 5) {
-          final double d = 0.6 * rx * (1 - alphaAt(x, y) / a0);
+          final double d = _glowFade * rx * (1 - alphaAt(x, y) / a0);
           final double q = d * d - x * x;
           sx += x;
           sq += q;

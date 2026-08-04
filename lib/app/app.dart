@@ -52,6 +52,7 @@ import '../core/session/session_cubit.dart';
 import '../core/session/session_gate.dart';
 import '../core/session/session_state.dart';
 import '../core/theme/app_theme.dart';
+import '../core/theme/jeeb_midnight_palette.dart';
 import '../core/theme/jeeb_omds_tokens.dart';
 import '../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../features/biometric_auth/data/dev_biometric_gateway.dart';
@@ -70,6 +71,13 @@ import '../l10n/app_localizations.dart';
 /// happens in `initState`. The push-notification chain (transport, handler,
 /// dispatcher) is wired in `addPostFrameCallback` so first paint is never
 /// blocked on FCM/APNs initialization.
+/// The single frame `MaterialApp.router` paints while the empty-stack recovery
+/// below runs. Page navy: an empty frame reveals the white native iOS window.
+const Widget kEmptyStackFrame = ColoredBox(
+  color: JeebMidnight.page,
+  child: SizedBox.expand(),
+);
+
 class JeebApp extends StatefulWidget {
   const JeebApp({
     super.key,
@@ -282,9 +290,9 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
 
   /// Re-entrancy guard for the empty-stack recovery below: a stack-REPLACING
   /// AppBar back that pops go_router's lone page empties the Navigator, so
-  /// `MaterialApp.router` hands its `builder` a NULL child. Rather than render
-  /// the resulting blank/black surface (`SizedBox.shrink()` — unrecoverable
-  /// without a cold restart), we bounce back to `/` on the next frame. Guarded
+  /// `MaterialApp.router` hands its `builder` a NULL child. Rather than sit on
+  /// the resulting dataless navy frame (unrecoverable without a cold restart),
+  /// we bounce back to `/` on the next frame. Guarded
   /// so the recovery `go('/')` is scheduled once, not every rebuild while the
   /// null-child frame is on screen.
   bool _recoveringEmptyStack = false;
@@ -646,7 +654,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                       _recoveringEmptyStack = false;
                     });
                   }
-                  return const SizedBox.shrink();
+                  return kEmptyStackFrame;
                 }
                 _recoveringEmptyStack = false;
                 final content = child;

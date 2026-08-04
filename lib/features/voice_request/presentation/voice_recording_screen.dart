@@ -396,6 +396,7 @@ class _PlaybackPreview extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final cubit = context.read<VoiceRecordingCubit>();
     final colorScheme = Theme.of(context).colorScheme;
+    final semantics = _semanticColors(context);
     final clip = state.clip;
     final total = clip?.duration ?? Duration.zero;
     final position = state.playbackPosition;
@@ -432,10 +433,13 @@ class _PlaybackPreview extends StatelessWidget {
                 position: position,
                 bufferedPosition: Duration.zero,
                 onChangeEnd: cubit.seekPlayback,
-                activeColor: colorScheme.primary,
-                bufferedColor: colorScheme.primary,
+                // A scrub track is chrome, not live state, so it spends no
+                // accent; three ink rungs keep played/buffered/unplayed apart
+                // while every one of them clears 3:1 on the navy.
+                activeColor: colorScheme.onSurface,
+                bufferedColor: semantics.inkSoft,
                 inactiveColor: colorScheme.onSurfaceVariant,
-                thumbColor: colorScheme.primary,
+                thumbColor: colorScheme.onSurface,
                 thumbRadius: 8,
                 trackHeight: 4,
               ),
@@ -712,7 +716,7 @@ double _elapsedFraction(VoiceRecordingState state) =>
 const double _kStateIllustrationSize = 208;
 
 /// Token sheet §8's hero glow step. See the field call site.
-const double _kFloorGlowAlpha = 0.30;
+const double _kFloorGlowAlpha = 0.40;
 
 JeebSemanticColors _semanticColors(BuildContext context) =>
     Theme.of(context).extension<JeebSemanticColors>() ??

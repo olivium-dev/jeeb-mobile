@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/theme/jeeb_tier_colors.dart';
+import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
+import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/client_home_request.dart';
 
@@ -113,15 +117,7 @@ class _ActiveOrderAvatar extends StatelessWidget {
   final String initial;
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return OmdsProfileAvatar(
-      initial: initial,
-      size: Sizes.threeXLarge,
-      backgroundColor: colorScheme.surfaceContainerHigh,
-      initialColor: colorScheme.primary,
-    );
-  }
+  Widget build(BuildContext context) => JeebAvatar.thread(initial: initial);
 }
 
 class _ActiveOrderBody extends StatelessWidget {
@@ -184,9 +180,8 @@ class _ActiveOrderHeader extends StatelessWidget {
         Flexible(
           child: Text(
             title,
-            style: theme.textTheme.titleLarge?.copyWith(
+            style: context.jeebText.cardTitle.copyWith(
               color: theme.colorScheme.onSurface,
-              fontWeight: FontWeight.w400,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -209,12 +204,15 @@ class ClientHomeTierBadge extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final tokens = theme.extension<JeebTierColors>();
-    final color = _colorFor(tokens) ?? theme.colorScheme.tertiary;
+    final semantics = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    // An UNKNOWN tier is not the accent — it falls back to muted ink, the same
+    // "no fact on file" convention as `JeebAvatarFill.dormant`.
+    final color = _colorFor(tokens) ?? semantics.mutedText;
     final label = _labelFor(l10n);
     return Text(
       label,
-      style: theme.textTheme.labelSmall?.copyWith(
-        fontWeight: FontWeight.w600,
+      style: context.jeebText.label.copyWith(
         color: color,
         letterSpacing: 0.5,
       ),
@@ -267,7 +265,7 @@ class _ActiveOrderDestination extends StatelessWidget {
     final theme = Theme.of(context);
     return Text(
       label,
-      style: theme.textTheme.labelSmall?.copyWith(
+      style: context.jeebText.caption.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.4,
       ),
@@ -284,14 +282,13 @@ class _ActiveOrderProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    // No ink override: `progressIndicatorTheme` already paints the bar
+    // periwinkle over a `glassBorder` track. An override here spent orange.
     return ClipRRect(
       borderRadius: OmdsBorderRadius.twoXSmall,
       child: LinearProgressIndicator(
         value: _progressFor(progressStep),
         minHeight: Sizes.twoXSmall,
-        backgroundColor: colorScheme.outlineVariant,
-        valueColor: AlwaysStoppedAnimation<Color>(colorScheme.tertiary),
       ),
     );
   }
@@ -329,8 +326,7 @@ class _ProgressStepLabel extends StatelessWidget {
     final theme = Theme.of(context);
     return Text(
       text,
-      style: theme.textTheme.labelSmall?.copyWith(
-        fontWeight: FontWeight.w500,
+      style: context.jeebText.caption.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
         letterSpacing: 0.5,
       ),
@@ -351,7 +347,6 @@ class _ActiveOrderActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final onOpenChat = this.onOpenChat;
     final onTrack = this.onTrack;
     return Padding(
@@ -363,12 +358,12 @@ class _ActiveOrderActions extends StatelessWidget {
             Semantics(
               identifier: 'orders_open_chat_button_$requestId',
               button: true,
-              child: OMDSOutlinedButton(
+              child: JeebCtaButton(
                 key: Key('active-open-chat-$requestId'),
-                text: AppLocalizations.of(context).orderSummaryOpenChat,
+                label: AppLocalizations.of(context).orderSummaryOpenChat,
+                variant: JeebCtaVariant.outline,
+                expand: false,
                 onTap: onOpenChat,
-                backgroundColor: theme.colorScheme.surfaceContainerHigh,
-                textColor: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(width: Spacing.small),
@@ -389,15 +384,17 @@ class _TrackOrderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Periwinkle, not accent: navigating to tracking is not the tile's orange
+    // act, and `OmdsPrimaryButton`'s bare default IS `colorScheme.primary`.
     return IntrinsicWidth(
       child: Semantics(
         identifier: 'orders_track_order_button_$requestId',
         button: true,
-        child: OmdsPrimaryButton(
+        child: JeebCtaButton.primary(
           key: Key('active-track-order-$requestId'),
-          text: AppLocalizations.of(context).homeTrackOrderCta,
+          label: AppLocalizations.of(context).homeTrackOrderCta,
+          expand: false,
           onTap: onTap,
-          borderRadius: OmdsBorderRadius.pill,
         ),
       ),
     );
@@ -565,9 +562,8 @@ class _ClientHomeTierBadgeActiveHeader extends StatelessWidget {
         Flexible(
           child: Text(
             title,
-            style: theme.textTheme.titleLarge?.copyWith(
+            style: context.jeebText.cardTitle.copyWith(
               color: theme.colorScheme.onSurface,
-              fontWeight: FontWeight.w400,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -601,9 +597,8 @@ class _ClientHomeTierBadgePendingHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: theme.textTheme.titleLarge?.copyWith(
+            style: context.jeebText.cardTitle.copyWith(
               color: theme.colorScheme.onSurface,
-              fontWeight: FontWeight.w400,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

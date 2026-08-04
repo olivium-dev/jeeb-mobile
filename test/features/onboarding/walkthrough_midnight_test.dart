@@ -78,7 +78,8 @@ void main() {
       expect(f.glowPlacement, JeebFieldGlowPlacement.centerUpper);
       expect(f.variant, JeebFieldVariant.content);
       final scheme = AppTheme.midnight().colorScheme;
-      expect(f.glowColor, scheme.primary.withValues(alpha: 0.28));
+      // M6 glow survey: W1's board alpha is .30, above the ratified single .24.
+      expect(f.glowColor, scheme.primary.withValues(alpha: 0.30));
       // The tiles draw their own rings inside the art.
       expect(f.showRings, isFalse);
       expect(f.showTwinkles, isFalse);
