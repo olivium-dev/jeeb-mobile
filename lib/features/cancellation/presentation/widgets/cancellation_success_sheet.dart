@@ -12,15 +12,18 @@ import '../../domain/cancellation_result.dart';
 /// scroll-safe body layout. Using Flutter's `showModalBottomSheet` directly
 /// with a custom child that uses OMDS design tokens exclusively.
 ///
-/// redesign-2026-08: same sheet, Jeeb ink — the 24px sheet corner the board
-/// specifies, a filled confirmation glyph (R10: no `_outlined` variants), the
-/// `h2` headline token and the kit's navy CTA pill.
+/// MIDNIGHT · M3-04 — the sheet inherits `bottomSheetTheme` (navy surface, the
+/// ratified sheet corner) and carries R21's cancelled-status glyph, which is
+/// quiet periwinkle: the act is done, not celebrated.
 class CancellationSuccessSheet extends StatelessWidget {
   const CancellationSuccessSheet({
     super.key,
     required this.result,
     required this.onDone,
   });
+
+  /// Board glyph size for a sheet's confirmation mark.
+  static const double glyphSize = 56;
 
   final CancellationResult result;
   final VoidCallback onDone;
@@ -30,15 +33,11 @@ class CancellationSuccessSheet extends StatelessWidget {
     required CancellationResult result,
     required VoidCallback onDone,
   }) {
+    // No `shape:` override — the Midnight `bottomSheetTheme` owns the corner
+    // and the surface, so a per-screen radius cannot drift from the ladder.
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        // 24 — the board's sheet corner (Spacing.large is that value).
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(Spacing.large),
-        ),
-      ),
       builder: (_) => CancellationSuccessSheet(
         result: result,
         onDone: onDone,
@@ -51,7 +50,7 @@ class CancellationSuccessSheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsetsDirectional.all(Spacing.large),
+        padding: const EdgeInsetsDirectional.all(Spacing.xLarge),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -59,7 +58,7 @@ class CancellationSuccessSheet extends StatelessWidget {
             const _SuccessIcon(),
             const SizedBox(height: Spacing.medium),
             _SuccessTitle(text: l10n.cancellationSuccess),
-            const SizedBox(height: Spacing.large),
+            const SizedBox(height: Spacing.xLarge),
             Semantics(
               identifier: 'cancellation_sheet_done_cta',
               container: true,
@@ -82,10 +81,10 @@ class _SuccessIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Icon(
-      // Filled glyph (R10) — the outline variants are off this board.
-      Icons.check_circle,
-      size: 56,
-      color: Theme.of(context).colorScheme.primary,
+      // R21's cancelled-row glyph, filled (R10 draws no `_outlined` variants).
+      Icons.cancel,
+      size: CancellationSuccessSheet.glyphSize,
+      color: Theme.of(context).colorScheme.onSecondaryContainer,
     );
   }
 }
@@ -100,7 +99,9 @@ class _SuccessTitle extends StatelessWidget {
     return Text(
       text,
       textAlign: TextAlign.center,
-      style: context.jeebText.h2,
+      style: context.jeebText.h2.copyWith(
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
     );
   }
 }
