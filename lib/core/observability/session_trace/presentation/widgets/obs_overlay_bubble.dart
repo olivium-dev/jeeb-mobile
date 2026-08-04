@@ -244,7 +244,7 @@ class _ObsOverlayBubbleFakeScreen extends StatelessWidget {
             ],
           ),
         ),
-        ?bottom,
+        if (bottom case final Widget b) b,
       ],
     );
   }

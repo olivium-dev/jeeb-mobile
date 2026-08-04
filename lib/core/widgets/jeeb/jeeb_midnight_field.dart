@@ -175,7 +175,7 @@ class JeebMidnightField extends StatelessWidget {
                     ),
             ),
           ),
-        ?child,
+        if (child case final Widget c) c,
       ],
     );
   }

@@ -68,7 +68,7 @@ class CurrentLocationStatusCard extends StatelessWidget {
           onTap: onSelect,
           subtitle: _inCardDetail(l10n),
         ),
-        ?detail,
+        if (detail case final Widget d) d,
       ],
     );
   }

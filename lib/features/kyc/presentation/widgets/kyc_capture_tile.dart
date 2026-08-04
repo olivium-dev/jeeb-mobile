@@ -155,7 +155,7 @@ class KycCaptureTile extends StatelessWidget {
                     color: colorScheme.onSurface,
                   ),
                 ),
-                ?subLine,
+                if (subLine case final Widget s) s,
               ],
             ),
           ),

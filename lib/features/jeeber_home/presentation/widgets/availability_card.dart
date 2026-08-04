@@ -141,7 +141,9 @@ class _StripRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _StatusTitle(view: view),
-              ?_subtitle(context),
+              // Hoisted: `?_subtitle(context)` crashes CI's analyzer (its
+              // use_build_context_synchronously has no NullAwareElement visit).
+              if (_subtitle(context) case final Widget sub) sub,
             ],
           ),
         ),

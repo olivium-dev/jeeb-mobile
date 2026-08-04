@@ -132,7 +132,7 @@ class OrderSummaryPinned extends StatelessWidget {
               text: l10n.cashLabel,
             ),
             // ── CTAs (each hidden when its callback is null) ────────────────
-            ?footer,
+            if (footer case final Widget f) f,
           ],
         ),
       ),
