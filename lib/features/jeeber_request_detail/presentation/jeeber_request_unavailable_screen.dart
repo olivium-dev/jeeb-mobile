@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/formatting/friendly_reference.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 
@@ -10,6 +13,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../../core/previews/jeeb_preview.dart';
 import '../../../devtool/catalog/fixtures/jeeber_request_unavailable_screen_fixtures.dart';
 
+/// The request-detail route's empty/error surface: a push tap landed on a
+/// request that is gone, and the only forward edge is back to the feed.
 class JeeberRequestUnavailableScreen extends StatelessWidget {
   const JeeberRequestUnavailableScreen({
     super.key,
@@ -24,52 +29,80 @@ class JeeberRequestUnavailableScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      body: SafeArea(
-        child: Semantics(
-          identifier: 'jeeber_request_unavailable',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // The leading circle resolves to the SAME edge the CTA already
-              // owns (back to the feed) — this terminal screen never had a
-              // pop-able parent to return to.
-              JeebTopBar.back(
-                title: l10n.requestUnavailableTitle,
-                identifier: 'jeeber_request_unavailable_back',
-                onLeadingPressed: onBack,
-              ),
-              // R1: top-aligned, not vertically centred — the residual space
-              // below the message is deliberate emptiness.
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsetsDirectional.fromSTEB(
-                    Spacing.xLarge,
-                    Spacing.large,
-                    Spacing.xLarge,
-                    Spacing.xLarge,
-                  ),
-                  child: OmdsEmptyState(
-                    key: const Key('jeeber-request-unavailable-state'),
-                    icon: Icons.inbox_outlined,
-                    title: l10n.requestUnavailableTitle,
-                    subtitle: l10n.requestNoLongerAvailable(requestId),
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+        animateDecor: false,
+        child: SafeArea(
+          child: Semantics(
+            identifier: 'jeeber_request_unavailable',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // The leading circle resolves to the SAME edge the CTA already
+                // owns — this terminal screen has no pop-able parent.
+                JeebTopBar.back(
+                  title: l10n.requestUnavailableTitle,
+                  identifier: 'jeeber_request_unavailable_back',
+                  onLeadingPressed: onBack,
+                ),
+                Expanded(child: _UnavailableBody(requestId: requestId)),
+                JeebCtaFooter.single(
+                  child: JeebCtaButton.primary(
+                    key: const Key('jeeber-request-unavailable-back-cta'),
+                    label: l10n.requestUnavailableBrowseCta,
+                    onTap: onBack,
                   ),
                 ),
-              ),
-              JeebCtaFooter.single(
-                child: JeebCtaButton.primary(
-                  key: const Key('jeeber-request-unavailable-back-cta'),
-                  label: l10n.requestUnavailableBrowseCta,
-                  onTap: onBack,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 }
+/// The E3 scene, centred in the residual space the way every other
+/// [JeebEmptyState] in the jeeber surface is. Scrollable because the drawn
+/// illustration is taller than a compact viewport.
+class _UnavailableBody extends StatelessWidget {
+  const _UnavailableBody({required this.requestId});
+
+  final String requestId;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: Spacing.xLarge,
+          vertical: Spacing.large,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: (constraints.maxHeight - Spacing.large * 2)
+                .clamp(0.0, double.infinity),
+          ),
+          child: Center(
+            child: JeebEmptyState(
+              key: const Key('jeeber-request-unavailable-state'),
+              variant: JeebEmptyStateVariant.street,
+              headline: l10n.requestUnavailableTitle,
+              // sprint-009 §T5: never echo the raw route UUID at the jeeber —
+              // the same short ref the detail card renders.
+              body: l10n.requestNoLongerAvailable(
+                friendlyReference(requestId),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ============================== JEEB PREVIEWS ==============================
 // DEV-ONLY, NOT SHIPPED. Everything below this banner exists for
 

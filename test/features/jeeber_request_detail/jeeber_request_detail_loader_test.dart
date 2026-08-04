@@ -16,21 +16,29 @@ void main() {
   const requestId = 'e30b7f2e-7914-402d-8dd3-e699e6775eae';
   const recovered = FeedRequest(id: requestId, shortLabel: 'Souq Waqif pickup');
 
+  // MIDNIGHT: the unavailable fallback draws `JeebEmptyState`, whose E3
+  // illustration loops ∞ by design — reduce motion pins its rest frame so
+  // `pumpAndSettle` can settle (02-STUDY-NOTES, wave-B regression ruling).
   Widget loader({
     required FeedRequest? initial,
     required Future<FeedRequest?> Function() fetch,
     Future<String?> Function()? fetchAcceptedDeliveryId,
     ValueChanged<String>? onAcceptedRedirect,
   }) => wrapForTest(
-    JeeberRequestDetailLoader(
-      requestId: requestId,
-      initial: initial,
-      fetch: fetch,
-      fetchAcceptedDeliveryId: fetchAcceptedDeliveryId,
-      onAcceptedRedirect: onAcceptedRedirect,
-      reportService: const ProhibitedItemReportService(),
-      onDeclined: (_) {},
-      onBack: () {},
+    Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: JeeberRequestDetailLoader(
+          requestId: requestId,
+          initial: initial,
+          fetch: fetch,
+          fetchAcceptedDeliveryId: fetchAcceptedDeliveryId,
+          onAcceptedRedirect: onAcceptedRedirect,
+          reportService: const ProhibitedItemReportService(),
+          onDeclined: (_) {},
+          onBack: () {},
+        ),
+      ),
     ),
   );
 

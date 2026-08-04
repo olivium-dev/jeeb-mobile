@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
@@ -155,10 +156,10 @@ class _JeeberRequestDetailLoaderState extends State<JeeberRequestDetailLoader> {
   }
 }
 
-/// Loading scaffold shown while the push-tap request is fetched by id. Mirrors
-/// the detail screen's header so the transition to the resolved detail (or the
-/// unavailable fallback) does not jump — which is why it moved to the same
-/// in-body [JeebTopBar] when the detail screen did (redesign-2026-08).
+/// Loading scaffold shown while the push-tap request is fetched by id.
+///
+/// Carries the detail screen's own field and header verbatim so the swap to
+/// the resolved detail (or the unavailable fallback) does not jump.
 class JeeberRequestDetailLoadingView extends StatelessWidget {
   const JeeberRequestDetailLoadingView({super.key, required this.requestId});
 
@@ -168,18 +169,24 @@ class JeeberRequestDetailLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      body: SafeArea(
-        child: Semantics(
-          identifier: 'jeeber-request-detail-loading',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              JeebTopBar.back(
-                title: l10n.jeeberRequestDetailTitle,
-                identifier: 'jeeber_request_detail_back',
-              ),
-              const Expanded(child: Center(child: OmdsLoadingState())),
-            ],
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+        animateDecor: false,
+        child: SafeArea(
+          child: Semantics(
+            identifier: 'jeeber-request-detail-loading',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                JeebTopBar.back(
+                  title: l10n.jeeberRequestDetailTitle,
+                  identifier: 'jeeber_request_detail_back',
+                ),
+                const Expanded(child: Center(child: OmdsLoadingState())),
+              ],
+            ),
           ),
         ),
       ),

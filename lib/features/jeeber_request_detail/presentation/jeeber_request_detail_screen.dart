@@ -3,9 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/formatting/friendly_reference.dart';
+import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../core/widgets/jeeb/jeeb_list_row.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -13,19 +15,11 @@ import '../../../l10n/app_localizations.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
 import '../domain/services/prohibited_item_report_service.dart';
 
-/// T-mobile-013 / T-MOB-FIX-001: Jeeber request-detail hub.
+/// Jeeber request-detail hub (T-mobile-013 / T-MOB-FIX-001) — the only in-app
+/// entry to the offer composer (`/jeeber/requests/:id/offer`).
 ///
-/// Reached from the dashboard feed-row tap (in-app `extra` payload) and from a
-/// matching push-notification deep link. This is the ONLY in-app entry to the
-/// offer-composition form (`/jeeber/requests/:id/offer`), so it owns the
-/// "Make offer" CTA. The route already wires the offer form's `onSubmitted`
-/// to `/chat`, so this screen only has to launch it.
-///
-/// redesign-2026-08: no render was drawn for this screen, so the language is
-/// borrowed from its journey neighbour 17 (offer composer) — in-body
-/// [JeebTopBar] over a top-aligned column at 24px gutters, one outlined card,
-/// a real empty spacer, and a docked [JeebCtaFooter]. Structure, copy and
-/// navigation are unchanged.
+/// MIDNIGHT M3-06: no tile was drawn. Page shape, field and CTA rung derive
+/// from R17 (offer composer); the card's ink ranking from R16's feed card.
 class JeeberRequestDetailScreen extends StatefulWidget {
   const JeeberRequestDetailScreen({
     super.key,
@@ -48,23 +42,30 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Back stays pop-GUARDED (the kit's default is
-            // `Navigator.maybePop`), matching the OMDSAppBar it replaces: a
-            // cold push-tap has nothing to pop and must not blank the surface.
-            JeebTopBar.back(
-              title: l10n.jeeberRequestDetailTitle,
-              identifier: 'jeeber_request_detail_back',
-            ),
-            Expanded(child: _RequestSummary(request: widget.request)),
-            _ActionBar(
-              onMakeOffer: _openOfferForm,
-              onDecline: () => widget.onDeclined(widget.request.id),
-            ),
-          ],
+      backgroundColor: Colors.transparent,
+      body: JeebMidnightField(
+        variant: JeebFieldVariant.content,
+        // R17's measured anchor: orange glow start-side, off-canvas. R17
+        // declares no periwinkle wash, so none is passed.
+        glowPlacement: JeebFieldGlowPlacement.topStart,
+        animateDecor: false,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Pop-GUARDED: a cold push-tap has nothing to pop and must not
+              // blank the surface.
+              JeebTopBar.back(
+                title: l10n.jeeberRequestDetailTitle,
+                identifier: 'jeeber_request_detail_back',
+              ),
+              Expanded(child: _RequestSummary(request: widget.request)),
+              _ActionBar(
+                onMakeOffer: _openOfferForm,
+                onDecline: () => widget.onDeclined(widget.request.id),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -78,13 +79,8 @@ class _JeeberRequestDetailScreenState extends State<JeeberRequestDetailScreen> {
   }
 }
 
-/// Summary of the [FeedRequest] payload: an uppercase [JeebSectionLabel] over
-/// one grouped [JeebOutlinedCard] of detail rows. Surfaces the request content
-/// (G1: `description` — what the customer actually asked for, rendered first
-/// and in full), the pickup point, and the request reference. Richer
-/// dropoff/fee/distance rows slot in here unchanged once the detail route is
-/// upgraded to carry the full `DeliveryRequest` payload (a contract change,
-/// out of scope here).
+/// Section label over one grouped card. The card ends where its content ends —
+/// the residual space below stays field, uncentred and unpadded (R17).
 class _RequestSummary extends StatelessWidget {
   const _RequestSummary({required this.request});
 
@@ -94,8 +90,6 @@ class _RequestSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return SingleChildScrollView(
-      // R1: the card ends where its content ends — the residual space below
-      // stays white rather than being padded out or centred.
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,
         Spacing.large,
@@ -114,16 +108,12 @@ class _RequestSummary extends StatelessWidget {
   }
 }
 
-/// The genuinely-present fields of the [FeedRequest], one [JeebListRow] each
-/// inside a grouped card (the card draws the inset dividers).
+/// The genuinely-present [FeedRequest] fields, one row each inside the grouped
+/// card. G1 (sprint-009 P0): the client's own text leads, full length.
 ///
-/// G1 (sprint-009 P0): the customer's own "What do you need?" text leads the
-/// card — it is the content the jeeber is agreeing to buy/deliver, so it
-/// renders FIRST, full-length (no truncation), above pickup and reference.
-///
-/// R4 ink ranking: the value is the fact (navy w700, the row title) and the
-/// field name is its qualifier (periwinkle, the row subtitle beneath) — the
-/// same shape the redesigned settings and wallet groups use.
+/// R16 ranking: the request content is the card headline (`cardTitle` w700 on
+/// `onSurface`), the field name its muted qualifier. No glyph column — neither
+/// R16's request card nor R17's money card draws one.
 class _RequestSummaryCard extends StatelessWidget {
   const _RequestSummaryCard({required this.request});
 
@@ -133,9 +123,8 @@ class _RequestSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final description = request.description?.trim();
-    // TODO(redesign-24): needs gateway tier / fee / distance / dropoff on the
-    // feed DTO before this card can carry 17's tier chip and money band —
-    // FeedRequest holds only id + shortLabel + description. Omitted, not faked.
+    // TODO(midnight): omitted — R16's card also carries a tier chip, an age and
+    // `{distance} · {neighbourhood}`; FeedRequest carries none of the three.
     return JeebOutlinedCard.grouped(
       key: const Key('jeeber-request-detail-summary'),
       children: [
@@ -143,21 +132,18 @@ class _RequestSummaryCard extends StatelessWidget {
           Semantics(
             identifier: 'jeeber_request_detail_description',
             child: JeebListRow(
-              // R10: filled, single-colour glyphs — no outline variants.
-              icon: Icons.shopping_bag,
               title: description,
+              titleStyle: context.jeebText.cardTitle,
               subtitle: l10n.jeeberRequestDetailSectionDescription,
               showChevron: false,
             ),
           ),
         JeebListRow(
-          icon: Icons.place,
           title: request.shortLabel,
           subtitle: l10n.jeeberRequestDetailSectionPickup,
           showChevron: false,
         ),
         JeebListRow(
-          icon: Icons.confirmation_number,
           title: friendlyReference(request.id),
           subtitle: l10n.jeeberRequestDetailReference,
           showChevron: false,
@@ -167,10 +153,12 @@ class _RequestSummaryCard extends StatelessWidget {
   }
 }
 
-/// Docked action footer: primary "Make offer" (the offer-form entry) over an
-/// outlined "Decline". Each CTA carries a Semantics identifier for Maestro QA —
-/// now emitted by the kit button itself rather than an outer wrapper, so the
-/// values are unchanged and there is no nested button node.
+/// Docked footer: the orange make-offer act over a text-rank decline.
+///
+/// Both neighbours draw THIS act orange (R16's freshest offer pill, R17's h58
+/// docked pill), and the label is R16's — this button opens the composer.
+/// Declining is the secondary WORD, not a second pill (R4/R16 ruling; the
+/// `below` slot is the board's 10-style line under the docked pill).
 class _ActionBar extends StatelessWidget {
   const _ActionBar({required this.onMakeOffer, required this.onDecline});
 
@@ -181,13 +169,14 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return JeebCtaFooter.single(
-      below: JeebCtaButton.outline(
+      below: JeebCtaButton.text(
         label: l10n.jeeberRequestDetailDeclineButton,
         onTap: onDecline,
         identifier: 'jeeber-request-detail-decline',
       ),
-      child: JeebCtaButton.primary(
-        label: l10n.offerSubmissionTitle,
+      child: JeebCtaButton.accent(
+        label: l10n.jeeberFeedMakeOfferAction,
+        height: JeebCtaButton.primaryHeightTall,
         onTap: onMakeOffer,
         identifier: 'jeeber-request-detail-make-offer',
       ),
