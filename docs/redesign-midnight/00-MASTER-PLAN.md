@@ -352,7 +352,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done (add `@commit-sha date`) �
 - [x] M3-02 `escalate/presentation/escalate_screen.dart` (739) — escalate funnel on the content field; destructive ink on onErrorContainer per the R22 ruling, all states through JeebEmptyState @2026-08-04
 - [x] M3-03 `no_offer_timeout/presentation/no_offer_timeout_screen.dart` (567) — no-offer timeout derived from E2 — adopts JeebEmptyStateVariant.radar, the variant built for exactly this waiting/failure subject @2026-08-04
 - [x] M3-04 `cancellation/presentation/cancellation_screen.dart` (317) — cancellation on the content field; picked-row and destructive-CTA gaps reported rather than worked around (see Q-041) — the kit has no danger CTA rung and re-implementing accentSelected locally is the workaround wave-A deleted @2026-08-04
-- [ ] M3-05 `order_summary/presentation/order_summary_screen.dart` (152)
+- [x] M3-05 `order_summary/presentation/order_summary_screen.dart` (152) — order summary carried over from the shipped R12 pattern rather than re-derived; money on the w800 ramp @2026-08-04
 - [ ] M3-06 `jeeber_request_detail/…/jeeber_request_detail_screen.dart` (258)
 - [ ] M3-07 `customer_profile/presentation/customer_profile_screen.dart` (193)
 - [ ] M3-08 `notifications/presentation/notifications_list_screen.dart` (326)

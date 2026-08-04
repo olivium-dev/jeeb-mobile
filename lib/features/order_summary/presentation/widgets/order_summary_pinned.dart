@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar.dart';
@@ -12,11 +13,13 @@ import '../../../../core/widgets/jeeb/jeeb_tier_chip.dart';
 import '../../domain/order_summary.dart';
 import '../order_summary_l10n.dart';
 
-/// Ticket radius. 20, not the kit's default 16: this is the same "one outlined
-/// ticket, dividers between the rows that have data" object screen 10 draws
-/// (`10-request-summary.html` tpl 575), and the two screens sit next to each
-/// other in the customer journey.
-const double _ticketRadius = 20;
+/// Ticket radius — R12's own slab (`JeebRadii.xl`, board `border-radius:22px`).
+/// The shipped 20 was off the §5 ladder; the two screens are the same object.
+const double _ticketRadius = JeebRadii.xl;
+
+/// R12's `_kTicketTopGap`: board `margin:22px` above the ticket, less the top
+/// bar's 4dp tap overhang.
+const double _ticketTopGap = 18;
 
 /// JM-031 — the pinned order-summary header WIDGET (CTO-D3 primary rendering).
 ///
@@ -79,7 +82,14 @@ class OrderSummaryPinned extends StatelessWidget {
     // tighter 16 it has always had.
     final double gutter = dense ? Spacing.medium : Spacing.xLarge;
     final String? item = summary.itemSummary?.trim();
-    final Widget? footer = _footer(context, l10n);
+    final Widget? footer = ctaFooter(
+      context,
+      onOpenChat: onOpenChat,
+      onTrack: onTrack,
+      padding: EdgeInsetsDirectional.only(
+        top: dense ? Spacing.small : Spacing.large,
+      ),
+    );
 
     return Semantics(
       identifier: 'order_summary_pinned',
@@ -88,7 +98,7 @@ class OrderSummaryPinned extends StatelessWidget {
       child: Padding(
         padding: EdgeInsetsDirectional.fromSTEB(
           gutter,
-          dense ? Spacing.small : Spacing.medium,
+          dense ? Spacing.small : _ticketTopGap,
           gutter,
           0,
         ),
@@ -98,6 +108,9 @@ class OrderSummaryPinned extends StatelessWidget {
           children: <Widget>[
             JeebOutlinedCard.grouped(
               radius: _ticketRadius,
+              // R12's slab stroke: board `rgba(255,255,255,.15)` snaps to the
+              // §4 strong rung, not rest glass's 12%.
+              borderColor: _semanticsOf(context).glassBorderStrong,
               children: <Widget>[
                 _JeeberBlock(summary: summary),
                 _TierEtaBlock(summary: summary),
@@ -111,8 +124,8 @@ class OrderSummaryPinned extends StatelessWidget {
               ],
             ),
             SizedBox(height: dense ? Spacing.small : Spacing.medium),
-            // ── Pay-cash-on-delivery reminder (D11). The trust line under the
-            //    ticket, exactly where 10 puts "Free to cancel any time…".
+            // D11 trust line. R12 puts its reassurance under the docked CTA;
+            // this one is tied to the price, so it stays under the ticket.
             JeebInfoNote.muted(
               identifier: 'order_summary_cash_label',
               icon: Icons.payments,
@@ -126,34 +139,44 @@ class OrderSummaryPinned extends StatelessWidget {
     );
   }
 
-  /// The CTA pair, the surviving one, or nothing at all. Both pills are 56 tall
-  /// so the split row's two variants (outline defaults to 50) share a baseline.
-  Widget? _footer(BuildContext context, OrderSummaryL10n l10n) {
-    final VoidCallback? openChat = onOpenChat;
-    final VoidCallback? track = onTrack;
-    if (openChat == null && track == null) return null;
+  /// The CTA pair, the surviving one, or nothing at all. Both pills are 58 —
+  /// R12's docked height — so the two variants share one baseline.
+  ///
+  /// ONE implementation, two placements (the R5/W1 precedent): the standalone
+  /// screen docks it under the scroll area the way R12 docks `Broadcast`, and
+  /// the injected/dense form keeps it inline under the ticket. `Track` is the
+  /// accent pill — R12's caption calls the forward act "the lone solid-orange
+  /// act", so the orange budget is spent once and `Open chat` stays glass.
+  static Widget? ctaFooter(
+    BuildContext context, {
+    required VoidCallback? onOpenChat,
+    required VoidCallback? onTrack,
+    required EdgeInsetsGeometry padding,
+  }) {
+    if (onOpenChat == null && onTrack == null) return null;
+    final OrderSummaryL10n l10n = OrderSummaryL10n.of(context);
 
-    final EdgeInsetsGeometry padding = EdgeInsetsDirectional.only(
-      top: dense ? Spacing.small : Spacing.large,
-    );
-
-    final Widget? chatCta = openChat == null
+    final Widget? chatCta = onOpenChat == null
         ? null
         : Semantics(
             identifier: 'order_summary_open_chat',
             button: true,
             child: JeebCtaButton.outline(
               label: l10n.openChat,
-              height: JeebCtaButton.primaryHeight,
-              onTap: openChat,
+              height: JeebCtaButton.primaryHeightTall,
+              onTap: onOpenChat,
             ),
           );
-    final Widget? trackCta = track == null
+    final Widget? trackCta = onTrack == null
         ? null
         : Semantics(
             identifier: 'order_summary_track',
             button: true,
-            child: JeebCtaButton(label: l10n.track, onTap: track),
+            child: JeebCtaButton.accent(
+              label: l10n.track,
+              height: JeebCtaButton.primaryHeightTall,
+              onTap: onTrack,
+            ),
           );
 
     if (chatCta != null && trackCta != null) {
@@ -225,7 +248,9 @@ class _JeeberBlock extends StatelessWidget {
                       averageRating: summary.jeeberRating!,
                       totalReviews: summary.jeeberRatingCount,
                       starSize: Sizes.medium,
-                      reviewsLabelBuilder: (count) => '($count)',
+                      // OMDS already wraps the label in parentheses; the old
+                      // '($count)' shipped a doubled "((214))".
+                      reviewsLabelBuilder: (count) => '$count',
                     ),
                   ),
                 ],
@@ -360,7 +385,10 @@ class _ItemBlock extends StatelessWidget {
               value,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: context.jeebText.cardTitle.copyWith(
+              // R12 sets the value under a muted qualifier at 14/w700: `body`
+              // is the nearest rung, `cardTitle` (15.5) overshoots it.
+              style: context.jeebText.body.copyWith(
+                fontWeight: FontWeight.w700,
                 color: scheme.onSurface,
               ),
             ),
@@ -428,9 +456,9 @@ class _PriceBlock extends StatelessWidget {
   }
 }
 
-/// Read defensively: `ThemeData.light()` harnesses carry no [JeebSemanticColors]
-/// extension.
-Color _mutedInk(BuildContext context) =>
-    (Theme.of(context).extension<JeebSemanticColors>() ??
-            JeebSemanticColors.light())
-        .mutedText;
+/// Read defensively: a harness that themes without the extension must not crash.
+JeebSemanticColors _semanticsOf(BuildContext context) =>
+    Theme.of(context).extension<JeebSemanticColors>() ??
+    JeebSemanticColors.midnight();
+
+Color _mutedInk(BuildContext context) => _semanticsOf(context).mutedText;

@@ -40,7 +40,16 @@ class OrderSummaryL10n {
 
   String get itemLabel => _pick('Item', 'الطلب');
 
+  /// TODO(midnight): l10n-queued — `orderSummaryErrorTitle`; this two-sentence
+  /// blob repeats "try again" over the network body.
   String get errorGeneric => _l10n.requestSummaryErrorGeneric;
+
+  /// TODO(midnight): l10n-queued — `orderSummaryNotFoundTitle`.
+  String get notFoundTitle => _l10n.receiptErrorNotFound;
+
+  String get errorNetworkBody => _l10n.orderHistoryErrorNetwork;
+
+  String get errorServerBody => _l10n.orderHistoryErrorServer;
 
   String get retryLabel => _l10n.trackingGpsLostRetry;
 

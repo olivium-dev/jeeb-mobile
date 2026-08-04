@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
+import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
+import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../application/order_summary_cubit.dart';
 import '../application/order_summary_state.dart';
@@ -58,101 +62,166 @@ class OrderSummaryScreen extends StatelessWidget {
   }
 }
 
+/// MIDNIGHT (M3-05). No tile was ever drawn for this screen; it is derived from
+/// R12 `Review & send`, the ticket screen it sits next to in the same journey.
 class _OrderSummaryView extends StatelessWidget {
   const _OrderSummaryView();
 
   @override
   Widget build(BuildContext context) {
     final l10n = OrderSummaryL10n.of(context);
-    return Semantics(
-      identifier: 'order_summary_root',
-      container: true,
-      child: Scaffold(
-        // redesign-2026-08: the OMDS app bar is gone — the board draws the
-        // title as an in-body row beside a tonal Ø40 back circle (10 `tpl 570`).
-        body: SafeArea(
-          child: Column(
-            children: [
-              JeebTopBar.back(
-                title: l10n.title,
-                identifier: 'order_summary_back',
-                // Mirrors `backFallbacks['order-summary'] = '/'`; the route is
-                // already wrapped, so no RootAwareBackScope here. Without the
-                // fallback the circle would dead-end on a deep-link cold start,
-                // which is exactly how this route is reached (JM-056).
-                onLeadingPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/');
-                  }
-                },
-              ),
-              Expanded(
-                child: BlocBuilder<OrderSummaryCubit, OrderSummaryState>(
-                  builder: (context, state) {
-                    switch (state.status) {
-                      case OrderSummaryStatus.initial:
-                      case OrderSummaryStatus.loading:
-                        return const Center(child: OmdsLoadingState());
-                      case OrderSummaryStatus.failed:
-                        return Center(
-                          child: OmdsErrorState(
-                            message: l10n.errorGeneric,
-                            retryLabel: l10n.retryLabel,
-                            onRetry: () =>
-                                context.read<OrderSummaryCubit>().refresh(),
-                          ),
-                        );
-                      case OrderSummaryStatus.loaded:
-                        return _Loaded(summary: state.summary!);
-                    }
-                  },
+    return BlocBuilder<OrderSummaryCubit, OrderSummaryState>(
+      builder: (context, state) {
+        final OrderSummary? summary =
+            state.status == OrderSummaryStatus.loaded ? state.summary : null;
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          // R12 draws no radial of its own past the top-end bloom, so the
+          // content field keeps its default glow and stays still (§Motion 1).
+          body: JeebMidnightField(
+            variant: JeebFieldVariant.content,
+            animateDecor: false,
+            child: SafeArea(
+              child: Semantics(
+                identifier: 'order_summary_root',
+                // Both flags or this node swallows every nested identifier.
+                container: true,
+                explicitChildNodes: true,
+                child: Column(
+                  children: [
+                    JeebTopBar.back(
+                      title: l10n.title,
+                      identifier: 'order_summary_back',
+                      // Mirrors `backFallbacks['order-summary'] = '/'`; the
+                      // route is already wrapped, so no RootAwareBackScope.
+                      onLeadingPressed: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go('/');
+                        }
+                      },
+                    ),
+                    Expanded(child: _body(context, l10n, state)),
+                    if (summary != null) ?_footer(context, summary),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        );
+      },
+    );
+  }
+
+  Widget _body(
+    BuildContext context,
+    OrderSummaryL10n l10n,
+    OrderSummaryState state,
+  ) {
+    switch (state.status) {
+      case OrderSummaryStatus.initial:
+      case OrderSummaryStatus.loading:
+        return _StateBlock(
+          status: JeebEmptyStateStatus.loading,
+          headline: l10n.title,
+          identifier: 'order_summary_loading',
+        );
+      case OrderSummaryStatus.failed:
+        return _failure(context, l10n, state.error);
+      case OrderSummaryStatus.loaded:
+        final OrderSummary? summary = state.summary;
+        if (summary == null) return _notFound(l10n);
+        return SingleChildScrollView(
+          // The ticket owns the 24 gutter and R12's 18 top gap; the docked
+          // footer owns the bottom.
+          child: OrderSummaryPinned(summary: summary),
+        );
+    }
+  }
+
+  /// A 404 is an ABSENCE, not a fault: it takes the empty rung of the family,
+  /// and no Retry, because refetching a deleted order cannot succeed.
+  Widget _notFound(OrderSummaryL10n l10n) => _StateBlock(
+        status: JeebEmptyStateStatus.empty,
+        headline: l10n.notFoundTitle,
+        identifier: 'order_summary_empty',
+      );
+
+  Widget _failure(
+    BuildContext context,
+    OrderSummaryL10n l10n,
+    OrderSummaryFailure? failure,
+  ) {
+    if (failure == OrderSummaryFailure.notFound) return _notFound(l10n);
+    return _StateBlock(
+      status: JeebEmptyStateStatus.error,
+      headline: l10n.errorGeneric,
+      body: failure == OrderSummaryFailure.network
+          ? l10n.errorNetworkBody
+          : l10n.errorServerBody,
+      identifier: 'order_summary_error',
+      action: JeebCtaButton.primary(
+        label: l10n.retryLabel,
+        identifier: 'order_summary_retry_cta',
+        onTap: () => context.read<OrderSummaryCubit>().refresh(),
       ),
     );
   }
+
+  /// R12 docks its act below the scroll area so it stays reachable at every
+  /// text scale; the ids are the frozen ones, re-homed onto the docked pills.
+  Widget? _footer(BuildContext context, OrderSummary summary) =>
+      OrderSummaryPinned.ctaFooter(
+        context,
+        padding: JeebCtaFooter.docked,
+        onOpenChat: () => context.pushNamed(
+          'chat-detail',
+          pathParameters: {
+            'id': summary.conversationId.isNotEmpty
+                ? summary.conversationId
+                : (summary.requestId.isNotEmpty
+                    ? summary.requestId
+                    : summary.deliveryId),
+          },
+        ),
+        onTrack: () => context.pushNamed(
+          'live-tracking',
+          pathParameters: {'id': summary.deliveryId},
+        ),
+      );
 }
 
-class _Loaded extends StatelessWidget {
-  const _Loaded({required this.summary});
+/// The empty / loading / error rungs of the §2.7 family, on E4's parcel: the
+/// subject of this screen IS an order, and E4 is the tile that draws one.
+class _StateBlock extends StatelessWidget {
+  const _StateBlock({
+    required this.status,
+    required this.headline,
+    required this.identifier,
+    this.body,
+    this.action,
+  });
 
-  final OrderSummary summary;
+  final JeebEmptyStateStatus status;
+  final String headline;
+  final String identifier;
+  final String? body;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      // The pinned widget owns the 24px board gutter and its own top inset, so
-      // the list contributes only the docked-footer bottom rhythm (10 `tpl 622`).
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        0,
-        0,
-        0,
-        Spacing.twoXLarge,
-      ),
-      children: [
-        OrderSummaryPinned(
-          summary: summary,
-          onOpenChat: () => context.pushNamed(
-            'chat-detail',
-            pathParameters: {
-              'id': summary.conversationId.isNotEmpty
-                  ? summary.conversationId
-                  : (summary.requestId.isNotEmpty
-                      ? summary.requestId
-                      : summary.deliveryId),
-            },
-          ),
-          onTrack: () => context.pushNamed(
-            'live-tracking',
-            pathParameters: {'id': summary.deliveryId},
-          ),
+    return Center(
+      child: SingleChildScrollView(
+        child: JeebEmptyState(
+          status: status,
+          variant: JeebEmptyStateVariant.parcel,
+          headline: headline,
+          body: body,
+          identifier: identifier,
+          action: action,
         ),
-      ],
+      ),
     );
   }
 }
