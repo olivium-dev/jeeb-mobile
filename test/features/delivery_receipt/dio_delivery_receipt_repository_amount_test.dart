@@ -137,6 +137,133 @@ void main() {
     });
   });
 
+  group('fetchReceipt proof evidence mapping', () {
+    test(
+      'proofPhotoUrl maps through when it is a supported network URL',
+      () async {
+        adapter.deliveryBody = {
+          'id': _deliveryId,
+          'status': 'Done',
+          'proofPhotoUrl': ' https://cdn.jeeb.app/proof/$_deliveryId.jpg ',
+        };
+
+        final receipt = await repo.fetchReceipt(_deliveryId);
+
+        expect(
+          receipt.proofPhotoUrl,
+          'https://cdn.jeeb.app/proof/$_deliveryId.jpg',
+        );
+        expect(receipt.hasProofPhoto, isTrue);
+      },
+    );
+
+    test('evidenceUrl maps through when proofPhotoUrl is absent', () async {
+      adapter.deliveryBody = {
+        'id': _deliveryId,
+        'status': 'Done',
+        'evidenceUrl': 'https://cdn.jeeb.app/proof/$_deliveryId.jpg',
+      };
+
+      final receipt = await repo.fetchReceipt(_deliveryId);
+
+      expect(
+        receipt.proofPhotoUrl,
+        'https://cdn.jeeb.app/proof/$_deliveryId.jpg',
+      );
+      expect(receipt.hasProofPhoto, isTrue);
+    });
+
+    test('proof object_ref maps through without fabricating a URL', () async {
+      adapter.deliveryBody = {
+        'id': _deliveryId,
+        'status': 'Done',
+        'proofPhotoUrl': 'cdn://obj/proof_of_delivery/$_deliveryId.jpg',
+      };
+
+      final receipt = await repo.fetchReceipt(_deliveryId);
+
+      expect(
+        receipt.proofPhotoUrl,
+        'cdn://obj/proof_of_delivery/$_deliveryId.jpg',
+      );
+      expect(receipt.proofPhotoNetworkUrl, isNull);
+      expect(
+        receipt.proofPhotoObjectRef,
+        'cdn://obj/proof_of_delivery/$_deliveryId.jpg',
+      );
+      expect(receipt.hasProofPhoto, isTrue);
+    });
+
+    test('blank proofPhotoUrl falls back to valid evidenceUrl', () async {
+      adapter.deliveryBody = {
+        'id': _deliveryId,
+        'status': 'Done',
+        'proofPhotoUrl': '   ',
+        'evidenceUrl': 'https://cdn.jeeb.app/proof/$_deliveryId.jpg',
+      };
+
+      final receipt = await repo.fetchReceipt(_deliveryId);
+
+      expect(
+        receipt.proofPhotoUrl,
+        'https://cdn.jeeb.app/proof/$_deliveryId.jpg',
+      );
+      expect(receipt.proofPhotoNetworkUrl, receipt.proofPhotoUrl);
+    });
+
+    test('malformed proofPhotoUrl falls back to valid cdn object_ref', () async {
+      adapter.deliveryBody = {
+        'id': _deliveryId,
+        'status': 'Done',
+        'proofPhotoUrl': 'not a url',
+        'evidenceUrl': 'cdn://obj/proof_of_delivery/$_deliveryId.jpg',
+      };
+
+      final receipt = await repo.fetchReceipt(_deliveryId);
+
+      expect(
+        receipt.proofPhotoUrl,
+        'cdn://obj/proof_of_delivery/$_deliveryId.jpg',
+      );
+      expect(receipt.proofPhotoNetworkUrl, isNull);
+      expect(
+        receipt.proofPhotoObjectRef,
+        'cdn://obj/proof_of_delivery/$_deliveryId.jpg',
+      );
+    });
+
+    test('absent, blank, malformed, unsupported, and non-string proof evidence '
+        'maps to null', () async {
+      for (final body in <Map<String, Object?>>[
+        {'id': _deliveryId, 'status': 'Done'},
+        {'id': _deliveryId, 'status': 'Done', 'proofPhotoUrl': '   '},
+        {'id': _deliveryId, 'status': 'Done', 'proofPhotoUrl': 'not a url'},
+        {
+          'id': _deliveryId,
+          'status': 'Done',
+          'proofPhotoUrl': 'chat_attachment/$_deliveryId.jpg',
+        },
+        {
+          'id': _deliveryId,
+          'status': 'Done',
+          'proofPhotoUrl': 'cdn://obj/chat_attachment/$_deliveryId.jpg',
+        },
+        {
+          'id': _deliveryId,
+          'status': 'Done',
+          'proofPhotoUrl': 'ftp://cdn.jeeb.app/proof/$_deliveryId.jpg',
+        },
+        {'id': _deliveryId, 'status': 'Done', 'proofPhotoUrl': <String>[]},
+      ]) {
+        adapter.deliveryBody = body;
+
+        final receipt = await repo.fetchReceipt(_deliveryId);
+
+        expect(receipt.proofPhotoUrl, isNull, reason: '$body');
+        expect(receipt.hasProofPhoto, isFalse, reason: '$body');
+      }
+    });
+  });
 }
 
 class _StubAdapter implements HttpClientAdapter {

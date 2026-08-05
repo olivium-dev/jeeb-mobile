@@ -4911,6 +4911,8 @@
   "@receiptCashNote": {"description": "JM-033 sub-line under the cash statement — reinforces cash-only, no in-app payment (D11)."},
   "receiptProofBadge": "Proof of delivery",
   "@receiptProofBadge": {"description": "JM-033 overlay badge on the proof photo. No timestamp — gateway has no proof-capture time (redesign data gap)."},
+  "receiptProofUnavailable": "Proof unavailable",
+  "@receiptProofUnavailable": {"description": "JM-033 visible and a11y unavailable state when proof evidence is absent, unsupported, malformed, or fails to load."},
   "receiptProofZoomCta": "Tap to zoom",
   "@receiptProofZoomCta": {"description": "JM-033 zoom pill on the proof photo (receipt_proof_zoom_cta) — opens the full-screen viewer."},
   "receiptProofViewerCloseLabel": "Close",

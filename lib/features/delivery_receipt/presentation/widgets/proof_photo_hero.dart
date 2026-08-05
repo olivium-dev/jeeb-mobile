@@ -1,8 +1,10 @@
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../features/kyc/domain/cdn_asset_gateway.dart';
 import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
@@ -20,28 +22,41 @@ import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 /// Presentation-only — every string and the zoom callback arrive by
 /// constructor. The frame keeps its geometry in both states so the layout does
 /// not jump between a receipt with a photo and one without: when
-/// [proofPhotoUrl] is null the same box renders a neutral placeholder glyph and
-/// the zoom pill is not built at all (there is nothing to zoom).
+/// [proofPhotoUrl] is null the same box renders an explicit unavailable state
+/// and the zoom pill is not built at all (there is nothing to zoom).
 ///
 /// Semantics: `receipt_proof_photo` wraps the image **and** the placeholder —
 /// Maestro `jm-033` asserts it on the seeded journey, so the identifier must
 /// exist in both states. `receipt_proof_zoom_cta` exists only when there is a
 /// photo.
-class ProofPhotoHero extends StatelessWidget {
+class ProofPhotoHero extends StatefulWidget {
   const ProofPhotoHero({
     super.key,
     required this.proofPhotoUrl,
+    required this.proofPhotoObjectRef,
+    required this.cdnAssetGateway,
     required this.photoSemanticLabel,
+    required this.unavailableText,
     required this.badgeText,
     required this.zoomCtaText,
     this.onZoom,
+    this.onZoomBytes,
   });
 
   /// URL of the proof photo, or null when the gateway surfaced none.
   final String? proofPhotoUrl;
 
+  /// Authenticated CDN object_ref, or null when evidence is URL/absent.
+  final String? proofPhotoObjectRef;
+
+  /// Existing authenticated CDN gateway used to resolve [proofPhotoObjectRef].
+  final CdnAssetGateway? cdnAssetGateway;
+
   /// a11y label on the photo / placeholder (`receipt_proof_photo`).
   final String photoSemanticLabel;
+
+  /// Copy shown and announced when proof evidence cannot be rendered.
+  final String unavailableText;
 
   /// Overlay badge copy — `receiptProofBadge`, or `receiptProofBadgeAt` once a
   /// capture time is on the wire. The `· ` separator lives inside that string.
@@ -54,6 +69,9 @@ class ProofPhotoHero extends StatelessWidget {
   /// makes the whole-hero gesture inert.
   final VoidCallback? onZoom;
 
+  /// Opens the full-screen viewer for resolved object_ref bytes.
+  final ValueChanged<Uint8List>? onZoomBytes;
+
   /// Board height of the hero frame (`tpl 834`). A one-screen dimension, so it
   /// is named here rather than promoted to a shared spacing token.
   static const double _kProofHeroHeight = 230;
@@ -63,20 +81,84 @@ class ProofPhotoHero extends StatelessWidget {
   static const double _kTagScrimAlpha = 0.45;
 
   @override
+  State<ProofPhotoHero> createState() => _ProofPhotoHeroState();
+}
+
+class _ProofPhotoHeroState extends State<ProofPhotoHero> {
+  bool _loadFailed = false;
+  Future<Uint8List>? _assetFuture;
+  Uint8List? _resolvedBytes;
+
+  @override
+  void didUpdateWidget(ProofPhotoHero oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.proofPhotoUrl != widget.proofPhotoUrl ||
+        oldWidget.proofPhotoObjectRef != widget.proofPhotoObjectRef ||
+        oldWidget.cdnAssetGateway != widget.cdnAssetGateway) {
+      _loadFailed = false;
+      _assetFuture = null;
+      _resolvedBytes = null;
+    }
+  }
+
+  Widget _errorWidget(BuildContext context, String url, Object error) {
+    _markLoadFailed(url: url);
+    return _ProofPhotoUnavailable(label: widget.unavailableText);
+  }
+
+  Widget _memoryErrorWidget(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+  ) {
+    _markLoadFailed();
+    return _ProofPhotoUnavailable(label: widget.unavailableText);
+  }
+
+  void _markLoadFailed({String? url}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final staleUrl = url != null && widget.proofPhotoUrl != url;
+      if (mounted && !_loadFailed && !staleUrl) {
+        setState(() => _loadFailed = true);
+      }
+    });
+  }
+
+  Future<Uint8List> _ensureAssetFuture(String objectRef) {
+    return _assetFuture ??= widget.cdnAssetGateway!.fetchAsset(objectRef);
+  }
+
+  VoidCallback? _heroTap(String? url, bool showUnavailable) {
+    if (showUnavailable) return null;
+    final bytes = _resolvedBytes;
+    if (bytes != null) {
+      final onZoomBytes = widget.onZoomBytes;
+      return onZoomBytes == null ? null : () => onZoomBytes(bytes);
+    }
+    if (url != null) return widget.onZoom;
+    return null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
     final JeebSemanticColors glass =
         theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
-    final String? url = proofPhotoUrl;
+    final String? url = widget.proofPhotoUrl;
+    final String? objectRef = widget.proofPhotoObjectRef;
+    final bool hasResolvableObjectRef =
+        objectRef != null && widget.cdnAssetGateway != null;
+    final bool showUnavailable =
+        _loadFailed || (url == null && !hasResolvableObjectRef);
 
     return Semantics(
       container: true,
       explicitChildNodes: true,
       child: GestureDetector(
-        onTap: onZoom,
+        onTap: _heroTap(url, showUnavailable),
         child: SizedBox(
-          height: _kProofHeroHeight,
+          height: ProofPhotoHero._kProofHeroHeight,
           width: double.infinity,
           child: Stack(
             children: <Widget>[
@@ -87,21 +169,21 @@ class ProofPhotoHero extends StatelessWidget {
                     children: <Widget>[
                       // The glass ground: what a portrait photo letterboxes
                       // against, and the placeholder's own surface.
-                      Positioned.fill(child: ColoredBox(color: glass.glassFill)),
+                      Positioned.fill(
+                        child: ColoredBox(color: glass.glassFill),
+                      ),
                       Positioned.fill(
                         child: Semantics(
                           identifier: 'receipt_proof_photo',
-                          image: true,
-                          label: photoSemanticLabel,
-                          child: url == null
-                              ? Center(
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    size: Sizes.twoXLarge,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                )
-                              : OmdsCachedImage(url: url, fit: BoxFit.cover),
+                          image: !showUnavailable,
+                          label: showUnavailable
+                              ? widget.unavailableText
+                              : widget.photoSemanticLabel,
+                          child: _proofContent(
+                            url: url,
+                            objectRef: objectRef,
+                            showUnavailable: showUnavailable,
+                          ),
                         ),
                       ),
                     ],
@@ -124,24 +206,29 @@ class ProofPhotoHero extends StatelessWidget {
                 start: Spacing.small,
                 top: Spacing.small,
                 child: _Pill(
-                  fill: colorScheme.scrim.withValues(alpha: _kTagScrimAlpha),
+                  fill: colorScheme.scrim.withValues(
+                    alpha: ProofPhotoHero._kTagScrimAlpha,
+                  ),
                   blurSigma: JeebGlassCapsule.softBlur,
                   child: Text(
-                    badgeText,
-                    style: context.jeebText.caption
-                        .copyWith(color: colorScheme.onSurface),
+                    widget.badgeText,
+                    style: context.jeebText.caption.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                 ),
               ),
-              if (url != null)
+              if (!showUnavailable &&
+                  (url != null || _resolvedBytes != null) &&
+                  (widget.onZoom != null || widget.onZoomBytes != null))
                 PositionedDirectional(
                   end: Spacing.small,
                   bottom: Spacing.small,
                   child: Semantics(
                     identifier: 'receipt_proof_zoom_cta',
                     button: true,
-                    label: zoomCtaText,
-                    onTap: onZoom,
+                    label: widget.zoomCtaText,
+                    onTap: _heroTap(url, showUnavailable),
                     // Same idiom as the two CTAs: the identifier lives on one
                     // explicit node and the inked pill contributes none.
                     child: ExcludeSemantics(
@@ -149,11 +236,12 @@ class ProofPhotoHero extends StatelessWidget {
                         fill: glass.glassFillPressed,
                         borderColor: glass.glassBorderVivid,
                         shadow: JeebShadows.overlay,
-                        onTap: onZoom,
+                        onTap: _heroTap(url, showUnavailable),
                         child: Text(
-                          zoomCtaText,
-                          style: context.jeebText.caption
-                              .copyWith(color: colorScheme.onSurface),
+                          widget.zoomCtaText,
+                          style: context.jeebText.caption.copyWith(
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                       ),
                     ),
@@ -162,6 +250,89 @@ class ProofPhotoHero extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _proofContent({
+    required String? url,
+    required String? objectRef,
+    required bool showUnavailable,
+  }) {
+    if (showUnavailable) {
+      return _ProofPhotoUnavailable(label: widget.unavailableText);
+    }
+    if (url != null) {
+      return OmdsCachedImage(
+        url: url,
+        fit: BoxFit.cover,
+        errorWidget: _errorWidget,
+      );
+    }
+    return FutureBuilder<Uint8List>(
+      future: _ensureAssetFuture(objectRef!),
+      builder: (context, snapshot) {
+        final bytes = snapshot.data;
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasError) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_loadFailed) {
+              setState(() => _loadFailed = true);
+            }
+          });
+          return _ProofPhotoUnavailable(label: widget.unavailableText);
+        }
+        if (bytes != null && bytes.isNotEmpty) {
+          if (!identical(_resolvedBytes, bytes)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && widget.proofPhotoObjectRef == objectRef) {
+                setState(() => _resolvedBytes = bytes);
+              }
+            });
+          }
+          return Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: _memoryErrorWidget,
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.done) {
+          _markLoadFailed();
+          return _ProofPhotoUnavailable(label: widget.unavailableText);
+        }
+        return const SizedBox.expand();
+      },
+    );
+  }
+}
+
+class _ProofPhotoUnavailable extends StatelessWidget {
+  const _ProofPhotoUnavailable({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.receipt_long_outlined,
+            size: Sizes.twoXLarge,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: Spacing.xSmall),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: context.jeebText.caption.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

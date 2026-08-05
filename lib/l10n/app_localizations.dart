@@ -2661,6 +2661,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get receiptProofBadge => _get('receiptProofBadge');
   String receiptProofBadgeAt(String time) =>
       _get('receiptProofBadgeAt').replaceFirst('{time}', time);
+  String get receiptProofUnavailable => _get('receiptProofUnavailable');
   String get receiptProofZoomCta => _get('receiptProofZoomCta');
   String get receiptProofViewerCloseLabel =>
       _get('receiptProofViewerCloseLabel');
