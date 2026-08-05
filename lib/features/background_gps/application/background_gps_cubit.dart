@@ -16,11 +16,11 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
     required LocationUploader uploader,
     BackgroundGpsConfig config = const BackgroundGpsConfig(),
     DateTime Function() clock = _systemClock,
-  })  : _gateway = gateway,
-        _uploader = uploader,
-        _config = config,
-        _clock = clock,
-        super(const BackgroundGpsState());
+  }) : _gateway = gateway,
+       _uploader = uploader,
+       _config = config,
+       _clock = clock,
+       super(const BackgroundGpsState());
 
   final GeocaptureGateway _gateway;
   final LocationUploader _uploader;
@@ -29,60 +29,112 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
 
   StreamSubscription<GpsSample>? _subscription;
   Future<void>? _inFlightUpload;
+  Future<void>? _inFlightStart;
+  String? _startingDeliveryId;
+  int _startGeneration = 0;
 
   static DateTime _systemClock() => DateTime.now();
 
-  Future<void> start(String deliveryId) async {
+  Future<void> start(String deliveryId) {
     if (state.phase == BackgroundGpsPhase.tracking &&
         state.deliveryId == deliveryId) {
-      return;
+      return Future<void>.value();
     }
-    await _teardown();
-    _emitPhase(BackgroundGpsState(
-      phase: BackgroundGpsPhase.requestingPermission,
-      permission: state.permission,
-      deliveryId: deliveryId,
-    ));
+    final generation = _startGeneration;
+    final inFlight = _inFlightStart;
+    if (inFlight != null) {
+      if (_startingDeliveryId == deliveryId) return inFlight;
+      return inFlight.then((_) {
+        if (!_isCurrentStart(generation)) return Future<void>.value();
+        return start(deliveryId);
+      });
+    }
 
-    final permission = await _resolvePermission();
-    if (permission != LocationPermission.always) {
-      _emitPhase(state.copyWith(
-        phase: BackgroundGpsPhase.permissionDenied,
-        permission: permission,
-      ));
+    _startingDeliveryId = deliveryId;
+    late final Future<void> guarded;
+    guarded = _start(deliveryId, generation).whenComplete(() {
+      if (!identical(_inFlightStart, guarded)) return;
+      _inFlightStart = null;
+      _startingDeliveryId = null;
+    });
+    _inFlightStart = guarded;
+    return guarded;
+  }
+
+  Future<void> _start(String deliveryId, int generation) async {
+    await _teardown();
+    if (!_isCurrentStart(generation)) return;
+    _emitPhase(
+      BackgroundGpsState(
+        phase: BackgroundGpsPhase.requestingPermission,
+        permission: state.permission,
+        deliveryId: deliveryId,
+      ),
+    );
+
+    final permission = await _resolvePermission(generation);
+    if (permission == null || !_isCurrentStart(generation)) return;
+    if (!_canTrackWith(permission)) {
+      _emitPhase(
+        state.copyWith(
+          phase: BackgroundGpsPhase.permissionDenied,
+          permission: permission,
+        ),
+      );
       return;
     }
 
     _subscription = _gateway.samples().listen(
-          _onSample,
-          onError: (_) => _onStreamError(),
-          cancelOnError: false,
-        );
-    _emitPhase(state.copyWith(
-      phase: BackgroundGpsPhase.tracking,
-      permission: permission,
-      consecutiveFailures: 0,
-      lastSkipReason: null,
-    ));
+      _onSample,
+      onError: (_) => _onStreamError(),
+      cancelOnError: false,
+    );
+    _emitPhase(
+      state.copyWith(
+        phase: BackgroundGpsPhase.tracking,
+        permission: permission,
+        consecutiveFailures: 0,
+        lastSkipReason: null,
+      ),
+    );
   }
 
-  Future<LocationPermission> _resolvePermission() async {
+  Future<LocationPermission?> _resolvePermission(int generation) async {
     var permission = await _gateway.currentPermission();
-    if (permission == LocationPermission.always) return permission;
+    if (!_isCurrentStart(generation)) return null;
+    if (_canTrackWith(permission)) return permission;
     if (permission == LocationPermission.deniedForever) return permission;
 
     if (permission == LocationPermission.notDetermined ||
         permission == LocationPermission.denied) {
       permission = await _gateway.requestWhileInUsePermission();
+      if (!_isCurrentStart(generation)) return null;
     }
+    if (_canTrackWith(permission)) return permission;
     if (permission != LocationPermission.whileInUse) return permission;
 
-    return _gateway.requestAlwaysPermission();
+    permission = await _gateway.requestAlwaysPermission();
+    return _isCurrentStart(generation) ? permission : null;
   }
 
+  bool _isCurrentStart(int generation) =>
+      !isClosed && generation == _startGeneration;
+
+  bool _canTrackWith(LocationPermission permission) =>
+      permission == LocationPermission.always ||
+      (permission == LocationPermission.whileInUse &&
+          _gateway.supportsBackgroundTrackingWithWhileInUse);
+
   Future<void> stop() async {
+    _invalidatePendingStarts();
     await _teardown();
     _emitPhase(BackgroundGpsState(permission: state.permission));
+  }
+
+  void _invalidatePendingStarts() {
+    _startGeneration += 1;
+    _inFlightStart = null;
+    _startingDeliveryId = null;
   }
 
   Future<void> retryPermission() async {
@@ -97,10 +149,12 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
     if (state.phase != BackgroundGpsPhase.tracking) return;
 
     if (sample.accuracyMeters > _config.maxAccuracyMeters) {
-      emit(state.copyWith(
-        lastSkipReason: GpsSampleSkipReason.accuracyTooLow,
-        discardedCount: state.discardedCount + 1,
-      ));
+      emit(
+        state.copyWith(
+          lastSkipReason: GpsSampleSkipReason.accuracyTooLow,
+          discardedCount: state.discardedCount + 1,
+        ),
+      );
       return;
     }
 
@@ -110,20 +164,24 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
         : _config.activeInterval;
     final last = state.lastUploadAt;
     if (last != null && sample.capturedAt.difference(last) < interval) {
-      emit(state.copyWith(
-        stationary: stationary,
-        lastSkipReason: GpsSampleSkipReason.throttled,
-        discardedCount: state.discardedCount + 1,
-      ));
+      emit(
+        state.copyWith(
+          stationary: stationary,
+          lastSkipReason: GpsSampleSkipReason.throttled,
+          discardedCount: state.discardedCount + 1,
+        ),
+      );
       return;
     }
 
     if (_inFlightUpload != null) {
-      emit(state.copyWith(
-        stationary: stationary,
-        lastSkipReason: GpsSampleSkipReason.throttled,
-        discardedCount: state.discardedCount + 1,
-      ));
+      emit(
+        state.copyWith(
+          stationary: stationary,
+          lastSkipReason: GpsSampleSkipReason.throttled,
+          discardedCount: state.discardedCount + 1,
+        ),
+      );
       return;
     }
 
@@ -144,22 +202,26 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
 
     switch (outcome) {
       case LocationUploadOutcome.accepted:
-        emit(state.copyWith(
-          stationary: stationary,
-          lastUploaded: sample,
-          lastUploadAt: _clock(),
-          lastSkipReason: null,
-          consecutiveFailures: 0,
-          uploadedCount: state.uploadedCount + 1,
-        ));
+        emit(
+          state.copyWith(
+            stationary: stationary,
+            lastUploaded: sample,
+            lastUploadAt: _clock(),
+            lastSkipReason: null,
+            consecutiveFailures: 0,
+            uploadedCount: state.uploadedCount + 1,
+          ),
+        );
       case LocationUploadOutcome.transientFailure:
         _onUploadFailure(stationary);
       case LocationUploadOutcome.permanentFailure:
         await _teardown();
-        _emitPhase(state.copyWith(
-          phase: BackgroundGpsPhase.error,
-          stationary: stationary,
-        ));
+        _emitPhase(
+          state.copyWith(
+            phase: BackgroundGpsPhase.error,
+            stationary: stationary,
+          ),
+        );
     }
   }
 
@@ -167,17 +229,16 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
     final next = state.consecutiveFailures + 1;
     if (next >= _config.maxConsecutiveUploadFailures) {
       _teardown();
-      _emitPhase(state.copyWith(
-        phase: BackgroundGpsPhase.error,
-        stationary: stationary,
-        consecutiveFailures: next,
-      ));
+      _emitPhase(
+        state.copyWith(
+          phase: BackgroundGpsPhase.error,
+          stationary: stationary,
+          consecutiveFailures: next,
+        ),
+      );
       return;
     }
-    emit(state.copyWith(
-      stationary: stationary,
-      consecutiveFailures: next,
-    ));
+    emit(state.copyWith(stationary: stationary, consecutiveFailures: next));
   }
 
   void _onStreamError() {
@@ -202,8 +263,9 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
         'permission': next.permission.name,
         'deliveryId': next.deliveryId,
         'needsSystemSettings': next.needsSystemSettings,
-        'why': 'ACCESS_BACKGROUND_LOCATION not granted — no fix will be '
-            'uploaded and the customer live-tracking map stays empty',
+        'why':
+            'Location permission is insufficient for the configured '
+            'background capture mode',
       });
     } else if (next.phase == BackgroundGpsPhase.error) {
       Diag.event('bg_gps_upload_failure', <String, Object?>{
@@ -222,6 +284,7 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
 
   @override
   Future<void> close() async {
+    _invalidatePendingStarts();
     await _teardown();
     return super.close();
   }

@@ -13,8 +13,10 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
   GeolocatorGeocaptureGateway({
     geo.LocationSettings? locationSettings,
     TargetPlatform? platform,
-  }) : _locationSettings =
-            locationSettings ?? defaultSettings(platform ?? defaultTargetPlatform);
+  }) : _platform = platform ?? defaultTargetPlatform,
+       _locationSettings =
+           locationSettings ??
+           defaultSettings(platform ?? defaultTargetPlatform);
 
   /// Minimum distance in metres before OS emits new fix; stationary courier produces nothing.
   static const distanceFilterMeters = 10;
@@ -51,6 +53,15 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
   static const _notificationChannelName = 'Live delivery location';
 
   final geo.LocationSettings _locationSettings;
+  final TargetPlatform _platform;
+
+  @override
+  bool get supportsBackgroundTrackingWithWhileInUse {
+    final settings = _locationSettings;
+    return _platform == TargetPlatform.android &&
+        settings is geo.AndroidSettings &&
+        settings.foregroundNotificationConfig != null;
+  }
 
   @visibleForTesting
   geo.LocationSettings get locationSettings => _locationSettings;
@@ -85,12 +96,13 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
       onCancel: () => _subscription?.cancel(),
     );
     _controller = controller;
-    _subscription = geo.Geolocator.getPositionStream(
-      locationSettings: _locationSettings,
-    ).listen(
-      (position) => controller.add(_toSample(position)),
-      onError: controller.addError,
-    );
+    _subscription =
+        geo.Geolocator.getPositionStream(
+          locationSettings: _locationSettings,
+        ).listen(
+          (position) => controller.add(_toSample(position)),
+          onError: controller.addError,
+        );
     return controller.stream;
   }
 

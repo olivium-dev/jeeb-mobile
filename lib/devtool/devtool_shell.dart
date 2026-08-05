@@ -11,18 +11,44 @@ import '../core/theme/app_theme.dart';
 import 'actions/actions_page.dart';
 import 'catalog/catalog_screen.dart';
 import 'dev_settings_page.dart';
+import 'location_simulation/location_simulator_page.dart';
 import 'users/scenario_users_page.dart';
 import '../features/registration/presentation/super_login/super_login_sheet.dart';
 import 'super_login/full_roster_login.dart';
 import '../l10n/app_localizations.dart';
 
 enum DevToolSection {
-  superLogin('Super Login', 'Log in as any user (moved out of the app)', Icons.login),
-  screenCatalog('Screen Catalog', 'Every screen + its mocked UI states', Icons.grid_view),
-  actions('Actions', 'Pick a user → initiate offer, message, accept…', Icons.bolt),
+  superLogin(
+    'Super Login',
+    'Log in as any user (moved out of the app)',
+    Icons.login,
+  ),
+  screenCatalog(
+    'Screen Catalog',
+    'Every screen + its mocked UI states',
+    Icons.grid_view,
+  ),
+  actions(
+    'Actions',
+    'Pick a user → initiate offer, message, accept…',
+    Icons.bolt,
+  ),
+  locationSimulator(
+    'Location Simulator',
+    'Move an assigned Jeeber through a delivery route',
+    Icons.route,
+  ),
   serverUrl('Server URL', 'Point the app at a different backend', Icons.dns),
-  clearData('Clear Local Data', 'Factory-reset this device', Icons.delete_sweep),
-  users('Scenario Users', 'Create users in a specific scenario', Icons.person_add);
+  clearData(
+    'Clear Local Data',
+    'Factory-reset this device',
+    Icons.delete_sweep,
+  ),
+  users(
+    'Scenario Users',
+    'Create users in a specific scenario',
+    Icons.person_add,
+  );
 
   const DevToolSection(this.title, this.subtitle, this.icon);
   final String title;
@@ -88,10 +114,7 @@ class DevToolShell extends StatelessWidget {
     // Defensive: this shell must only ever run inside a dev-tool-enabled build.
     assertDevToolOnly('DevToolShell');
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Jeeber Dev Tool'),
-        centerTitle: false,
-      ),
+      appBar: AppBar(title: const Text('Jeeber Dev Tool'), centerTitle: false),
       body: Column(
         children: [
           const _GestureLoggingSwitch(),
@@ -121,13 +144,13 @@ class DevToolShell extends StatelessWidget {
   void _openSection(BuildContext context, DevToolSection section) {
     switch (section) {
       case DevToolSection.superLogin:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const SuperLoginPage()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const SuperLoginPage()));
       case DevToolSection.serverUrl:
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const ServerUrlPage()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const ServerUrlPage()));
       case DevToolSection.clearData:
         showClearLocalDataDialog(context);
       case DevToolSection.screenCatalog:
@@ -135,8 +158,14 @@ class DevToolShell extends StatelessWidget {
           MaterialPageRoute<void>(builder: (_) => const CatalogMenuScreen()),
         );
       case DevToolSection.actions:
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const ActionsPage()));
+      case DevToolSection.locationSimulator:
         Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const ActionsPage()),
+          MaterialPageRoute<void>(
+            builder: (_) => const LocationSimulatorPage(),
+          ),
         );
       case DevToolSection.users:
         Navigator.of(context).push(
@@ -207,7 +236,9 @@ class SuperLoginPage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.people_alt),
             title: const Text('Super Login Plus'),
-            subtitle: const Text('Pick from ALL live users (search) — instant login'),
+            subtitle: const Text(
+              'Pick from ALL live users (search) — instant login',
+            ),
             onTap: () => _superLoginPlus(context),
           ),
         ],

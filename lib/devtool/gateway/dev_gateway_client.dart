@@ -16,26 +16,69 @@ class DevGatewayClient {
   final String serviceAuthHeaderName;
 
   static const String _usersPath = '/dev/data/users';
+  static const String _superLoginRosterPath = '/api/User/super-login/users';
   static const String _seedUserPath = '/dev/seed/user';
   static const String _mintPath = '/auth/tokens';
 
   static const String _conversationsPath = '/v1/conversations';
 
-  Future<List<DevUser>> listUsers() async {
-    try {
-      final response = await _dio.get<Map<String, dynamic>>(_usersPath);
-      final data = response.data ?? const <String, dynamic>{};
-      final rawUsers = data['users'];
-      if (rawUsers is! List) {
-        return const <DevUser>[];
-      }
-      return rawUsers
-          .whereType<Map<String, dynamic>>()
-          .map(DevUser.fromJson)
-          .toList(growable: false);
-    } on DioException catch (e) {
-      throw DevGatewayException.fromDio(e, action: 'list dev users');
+  Future<List<DevUser>> listUsers({int skip = 0, int limit = 100}) async {
+    if (skip < 0) {
+      throw ArgumentError.value(skip, 'skip', 'Must not be negative.');
     }
+    if (limit < 1 || limit > 100) {
+      throw ArgumentError.value(limit, 'limit', 'Must be within 1..100.');
+    }
+    DioException? rosterError;
+    DioException? directoryError;
+    List<DevUser>? roster;
+    List<DevUser>? directory;
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _superLoginRosterPath,
+      );
+      roster = _parseUsers(response.data);
+    } on DioException catch (error) {
+      rosterError = error;
+    }
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        _usersPath,
+        queryParameters: <String, dynamic>{'skip': skip, 'limit': limit},
+      );
+      directory = _parseUsers(response.data);
+    } on DioException catch (error) {
+      directoryError = error;
+    }
+
+    if (roster == null && directory == null) {
+      throw DevGatewayException.fromDio(
+        rosterError ?? directoryError!,
+        action: 'list the super-login user roster',
+      );
+    }
+
+    final directoryById = <String, DevUser>{
+      for (final user in directory ?? const <DevUser>[])
+        if (user.id.isNotEmpty) user.id: user,
+    };
+    final merged = <DevUser>[];
+    for (final user in roster ?? const <DevUser>[]) {
+      if (user.id.isEmpty) continue;
+      merged.add(user.mergeDirectory(directoryById.remove(user.id)));
+    }
+    merged.addAll(directoryById.values);
+    return List<DevUser>.unmodifiable(merged);
+  }
+
+  static List<DevUser> _parseUsers(Map<String, dynamic>? data) {
+    final rawUsers = data?['users'];
+    if (rawUsers is! List) return const <DevUser>[];
+    return rawUsers
+        .whereType<Map<String, dynamic>>()
+        .map(DevUser.fromJson)
+        .where((user) => user.id.isNotEmpty)
+        .toList(growable: false);
   }
 
   Future<DevUser> seedUser({
@@ -71,8 +114,9 @@ class DevGatewayClient {
     final headers = <String, dynamic>{
       if (serviceAuthKey.isNotEmpty) serviceAuthHeaderName: serviceAuthKey,
     };
-    final nonEmptyRoles =
-        roles?.where((r) => r.trim().isNotEmpty).toList(growable: false);
+    final nonEmptyRoles = roles
+        ?.where((r) => r.trim().isNotEmpty)
+        .toList(growable: false);
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         _mintPath,
@@ -221,6 +265,7 @@ class DevUser {
     required this.username,
     required this.status,
     this.role,
+    this.roles = const <String>[],
     this.email,
     this.phone,
     this.displayName,
@@ -229,12 +274,15 @@ class DevUser {
   factory DevUser.fromJson(Map<String, dynamic> json) {
     return DevUser(
       id: (json['userId'] as String?) ?? (json['id'] as String?) ?? '',
-      username: (json['username'] as String?) ?? '',
+      username:
+          (json['username'] as String?) ?? (json['name'] as String?) ?? '',
       status: (json['status'] as String?) ?? 'unknown',
-      role: json['role'] as String?,
+      role: _roleFromJson(json),
+      roles: _rolesFromJson(json),
       email: json['email'] as String?,
       phone: json['phone'] as String?,
-      displayName: json['displayName'] as String?,
+      displayName:
+          (json['displayName'] as String?) ?? (json['name'] as String?),
     );
   }
 
@@ -245,13 +293,59 @@ class DevUser {
   final String status;
 
   final String? role;
+  final List<String> roles;
 
   final String? email;
 
-/// E.164 phone echoed on seed; null on the list view.
+  /// E.164 phone echoed on seed; null on the list view.
   final String? phone;
 
   final String? displayName;
+
+  bool get isJeeber => roles.any(_isJeeberRole);
+
+  String? get roleForOfferInitiation {
+    for (final availableRole in roles) {
+      if (_isJeeberRole(availableRole)) return availableRole;
+    }
+    return role != null && _isJeeberRole(role!) ? role : null;
+  }
+
+  DevUser mergeDirectory(DevUser? directory) {
+    if (directory == null) return this;
+    return DevUser(
+      id: id,
+      username: username.isNotEmpty ? username : directory.username,
+      status: directory.status,
+      role: role,
+      roles: roles,
+      email: directory.email ?? email,
+      phone: directory.phone ?? phone,
+      displayName: displayName ?? directory.displayName,
+    );
+  }
+
+  static String? _roleFromJson(Map<String, dynamic> json) {
+    final role = json['active_role'] ?? json['role'];
+    if (role is String && role.trim().isNotEmpty) return role.trim();
+    return null;
+  }
+
+  static List<String> _rolesFromJson(Map<String, dynamic> json) {
+    final roles = json['roles'] ?? json['available_roles'];
+    if (roles is! List) return const <String>[];
+    return List<String>.unmodifiable(
+      roles
+          .whereType<String>()
+          .map((role) => role.trim())
+          .where((role) => role.isNotEmpty),
+    );
+  }
+
+  static bool _isJeeberRole(String value) {
+    final normalized = value.trim().toLowerCase();
+    return normalized == 'driver' || normalized == 'jeeber';
+  }
 }
 
 class DevGatewayException implements Exception {
@@ -266,7 +360,8 @@ class DevGatewayException implements Exception {
     final String message;
     switch (status) {
       case 404:
-        message = notFoundMessage ??
+        message =
+            notFoundMessage ??
             'Could not $action: the gateway dev endpoints are disabled '
                 '(404). Enable Features:DevEndpoints on the target gateway.';
       case 410:

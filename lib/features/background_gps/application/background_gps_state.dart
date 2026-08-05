@@ -77,10 +77,12 @@ class BackgroundGpsState extends Equatable {
   bool get isBlockedOnPermission =>
       phase == BackgroundGpsPhase.permissionDenied;
 
-  /// True when re-prompting in-app is pointless; jeeber must use OS settings (deniedForever or whileInUse upgrade).
+  /// True when a blocked uploader cannot recover from an in-app foreground
+  /// permission prompt and must send the jeeber to OS settings.
   bool get needsSystemSettings =>
-      permission == LocationPermission.deniedForever ||
-      permission == LocationPermission.whileInUse;
+      phase == BackgroundGpsPhase.permissionDenied &&
+      (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.whileInUse);
 
   BackgroundGpsState copyWith({
     BackgroundGpsPhase? phase,
@@ -118,17 +120,17 @@ class BackgroundGpsState extends Equatable {
 
   @override
   List<Object?> get props => [
-        phase,
-        permission,
-        deliveryId,
-        lastUploaded,
-        lastUploadAt,
-        lastSkipReason,
-        stationary,
-        consecutiveFailures,
-        uploadedCount,
-        discardedCount,
-      ];
+    phase,
+    permission,
+    deliveryId,
+    lastUploaded,
+    lastUploadAt,
+    lastSkipReason,
+    stationary,
+    consecutiveFailures,
+    uploadedCount,
+    discardedCount,
+  ];
 }
 
 const Object _sentinel = Object();

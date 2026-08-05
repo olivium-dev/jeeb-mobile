@@ -18,6 +18,16 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+// Keep the Maps credential out of source control. Local Android builds read it
+// from the gitignored local.properties; CI can inject it as an environment
+// variable or an explicit Gradle property.
+def mapsApiKey = (
+    project.hasProperty('MAPS_API_KEY')
+        ? project.property('MAPS_API_KEY')
+        : localProperties.getProperty('MAPS_API_KEY', System.getenv('MAPS_API_KEY') ?: '')
+).toString().trim()
+def mapsApiKeyIsValid = mapsApiKey ==~ /^AIza[0-9A-Za-z_-]{30,}$/
+
 // Release signing material — read from android/key.properties (gitignored; see
 // android/.gitignore). Absent on machines without the release keystore, in
 // which case the release build falls back to debug signing (below).
@@ -64,10 +74,10 @@ android {
         // Android Maps SDK key injected via the ${MAPS_API_KEY} manifest
         // placeholder (see the google_maps_flutter note in pubspec.yaml and the
         // com.google.android.geo.API_KEY meta-data in AndroidManifest.xml).
-        // Sourced from the gitignored android/local.properties so the key is
-        // never committed. `+=` preserves Flutter's ${applicationName}
-        // placeholder. Empty string when unprovisioned (keyless placeholder map).
-        manifestPlaceholders += [MAPS_API_KEY: localProperties.getProperty('MAPS_API_KEY', '')]
+        // `+=` preserves Flutter's ${applicationName} placeholder. The
+        // verifyMapsApiKey dependency below stops manifest processing before
+        // this sentinel can ever reach an APK.
+        manifestPlaceholders += [MAPS_API_KEY: mapsApiKey ?: 'MISSING_MAPS_API_KEY']
     }
 
     // ─── Flavor Configuration ────────────────────────────────────────────────
@@ -126,6 +136,25 @@ android {
 
 flutter {
     source '../..'
+}
+
+def verifyMapsApiKey = tasks.register('verifyMapsApiKey') {
+    group = 'verification'
+    description = 'Fails Android app builds when the Google Maps SDK key is missing or malformed.'
+    doLast {
+        if (!mapsApiKeyIsValid) {
+            throw new GradleException(
+                'Missing or malformed MAPS_API_KEY. Add it to the gitignored ' +
+                'android/local.properties or inject MAPS_API_KEY in CI.'
+            )
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name.startsWith('process') && task.name.endsWith('MainManifest')) {
+        task.dependsOn(verifyMapsApiKey)
+    }
 }
 
 dependencies {

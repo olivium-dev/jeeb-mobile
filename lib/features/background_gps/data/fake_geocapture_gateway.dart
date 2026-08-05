@@ -9,12 +9,16 @@ class FakeGeocaptureGateway implements GeocaptureGateway {
     List<LocationPermission>? permissionScript,
     LocationPermission initialPermission = LocationPermission.always,
     this.settingsOpenResult = true,
-  })  : _permissionScript = List<LocationPermission>.from(
-          permissionScript ?? <LocationPermission>[],
-        ),
-        _lastPermission = initialPermission;
+    this.supportsBackgroundTrackingWithWhileInUse = false,
+  }) : _permissionScript = List<LocationPermission>.from(
+         permissionScript ?? <LocationPermission>[],
+       ),
+       _lastPermission = initialPermission;
 
   final bool settingsOpenResult;
+
+  @override
+  final bool supportsBackgroundTrackingWithWhileInUse;
 
   final List<LocationPermission> _permissionScript;
   LocationPermission _lastPermission;
