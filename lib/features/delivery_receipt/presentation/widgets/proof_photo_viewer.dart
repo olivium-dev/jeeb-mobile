@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
@@ -15,9 +17,12 @@ import '../../../../core/theme/jeeb_scrim.dart';
 /// completes when the dialog is dismissed and carries no result.
 Future<void> showProofPhotoViewer(
   BuildContext context, {
-  required String url,
+  String? url,
+  Uint8List? bytes,
   required String closeLabel,
+  String unavailableText = 'Proof unavailable',
 }) {
+  assert(url != null || bytes != null);
   return showGeneralDialog<void>(
     context: context,
     // Was the scrim role UNDILUTED — an opaque black slab, not a dim. One
@@ -25,16 +30,27 @@ Future<void> showProofPhotoViewer(
     barrierColor: JeebScrim.barrier(context),
     barrierDismissible: true,
     barrierLabel: closeLabel,
-    pageBuilder: (_, _, _) =>
-        _ProofPhotoViewer(url: url, closeLabel: closeLabel),
+    pageBuilder: (_, _, _) => _ProofPhotoViewer(
+      url: url,
+      bytes: bytes,
+      closeLabel: closeLabel,
+      unavailableText: unavailableText,
+    ),
   );
 }
 
 class _ProofPhotoViewer extends StatelessWidget {
-  const _ProofPhotoViewer({required this.url, required this.closeLabel});
+  const _ProofPhotoViewer({
+    required this.url,
+    required this.bytes,
+    required this.closeLabel,
+    required this.unavailableText,
+  });
 
-  final String url;
+  final String? url;
+  final Uint8List? bytes;
   final String closeLabel;
+  final String unavailableText;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +65,21 @@ class _ProofPhotoViewer extends StatelessWidget {
               minScale: 1,
               maxScale: 4,
               child: Center(
-                child: OmdsCachedImage(url: url, fit: BoxFit.contain),
+                child: bytes != null
+                    ? Image.memory(
+                        bytes!,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, _, _) =>
+                            _ProofPhotoViewerUnavailable(label: unavailableText),
+                      )
+                    : OmdsCachedImage(
+                        url: url!,
+                        fit: BoxFit.contain,
+                        errorWidget: (_, _, _) => _ProofPhotoViewerUnavailable(
+                          label: unavailableText,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -82,6 +112,27 @@ class _ProofPhotoViewer extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProofPhotoViewerUnavailable extends StatelessWidget {
+  const _ProofPhotoViewerUnavailable({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: Center(
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
       ),
     );
   }

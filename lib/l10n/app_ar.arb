@@ -1789,6 +1789,7 @@
   "otpResendFailed": "تعذّر إرسال الرسالة النصية. حاول مرة أخرى.",
   "receiptCashNote": "عند الباب. هذا كل شيء — لا بطاقة ولا رسوم.",
   "receiptProofBadge": "إثبات التسليم",
+  "receiptProofUnavailable": "إثبات التسليم غير متاح",
   "receiptProofZoomCta": "اضغط للتكبير",
   "receiptProofViewerCloseLabel": "إغلاق",
   "mutualRatingHeadlineNamed": "كيف كان {name}؟",

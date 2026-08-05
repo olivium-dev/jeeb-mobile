@@ -1,7 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_empty_state.dart';
@@ -11,6 +14,7 @@ import 'package:jeeb_mobile/features/delivery_receipt/data/fake_delivery_receipt
 import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/domain/delivery_receipt_repository.dart';
 import 'package:jeeb_mobile/features/delivery_receipt/presentation/delivery_receipt_screen.dart';
+import 'package:jeeb_mobile/features/kyc/domain/cdn_asset_gateway.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/sync_app_localizations.dart';
@@ -45,11 +49,20 @@ DeliveryReceipt _receipt({
 DeliveryReceiptRepository _pending() =>
     const DeliveryReceiptScreenPendingRepository();
 
+final Uint8List _pngBytes = Uint8List.fromList(<int>[
+  137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
+  0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196,
+  137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0,
+  0, 5, 0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78,
+  68, 174, 66, 96, 130,
+]);
+
 Widget _harness(
   DeliveryReceipt receipt, {
   Locale locale = const Locale('en'),
   double textScale = 1.0,
   DeliveryReceiptRepository? repository,
+  CdnAssetGateway? cdnAssetGateway,
 }) {
   final GoRouter router = GoRouter(
     initialLocation: '/orders/d-1/receipt',
@@ -61,6 +74,7 @@ Widget _harness(
               deliveryId: state.pathParameters['id']!,
               repository:
                   repository ?? FakeDeliveryReceiptRepository(receipt: receipt),
+              cdnAssetGateway: cdnAssetGateway,
             ),
       ),
       GoRoute(
@@ -101,6 +115,18 @@ Future<void> _pumpLoaded(WidgetTester tester, Widget harness) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
 }
+
+Future<void> _pumpProofResolution(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump();
+}
+
+Finder _memoryImageIn(Finder root) => find.descendant(
+      of: root,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Image && widget.image is MemoryImage,
+      ),
+    );
 
 void main() {
   group('DeliveryReceiptScreen — R14 field', () {
@@ -228,6 +254,150 @@ void main() {
       await _pumpLoaded(tester, _harness(_receipt(proofPhotoUrl: null)));
 
       expect(find.bySemanticsIdentifier('receipt_proof_photo'), findsOneWidget);
+      expect(find.text('Proof unavailable'), findsOneWidget);
+      expect(find.byIcon(Icons.image_not_supported), findsNothing);
+      expect(find.byType(OmdsCachedImage), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('receipt_proof_zoom_cta'),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+      'unsupported proof evidence renders unavailable, not a network image',
+      (tester) async {
+        await _pumpLoaded(
+          tester,
+          _harness(_receipt(proofPhotoUrl: 'ftp://cdn.jeeb.app/proof/d-1.jpg')),
+        );
+
+        expect(
+          find.bySemanticsIdentifier('receipt_proof_photo'),
+          findsOneWidget,
+        );
+        expect(find.byType(OmdsCachedImage), findsNothing);
+        expect(find.text('Proof unavailable'), findsOneWidget);
+        expect(find.byIcon(Icons.image_not_supported), findsNothing);
+        expect(
+          find.bySemanticsIdentifier('receipt_proof_zoom_cta'),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets('network load failure uses the custom unavailable state', (
+      tester,
+    ) async {
+      await _pumpLoaded(tester, _harness(_receipt()));
+
+      final imageFinder = find.byType(OmdsCachedImage);
+      expect(imageFinder, findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('receipt_proof_zoom_cta'),
+        findsOneWidget,
+      );
+
+      final image = tester.widget<OmdsCachedImage>(imageFinder);
+      expect(image.errorWidget, isNotNull);
+      image.errorWidget!(
+        tester.element(imageFinder),
+        image.url,
+        Exception('simulated load failure'),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.bySemanticsIdentifier('receipt_proof_photo'), findsOneWidget);
+      expect(find.text('Proof unavailable'), findsOneWidget);
+      expect(find.byIcon(Icons.image_not_supported), findsNothing);
+      expect(find.byType(OmdsCachedImage), findsNothing);
+      expect(find.bySemanticsIdentifier('receipt_proof_zoom_cta'), findsNothing);
+    });
+
+    testWidgets('object_ref fetches CDN bytes and renders memory image in hero '
+        'and viewer', (tester) async {
+      final cdn = _RecordingCdnGateway(bytes: _pngBytes);
+      await _pumpLoaded(
+        tester,
+        _harness(
+          _receipt(proofPhotoUrl: 'cdn://obj/proof_of_delivery/d-1.png'),
+          cdnAssetGateway: cdn,
+        ),
+      );
+      await _pumpProofResolution(tester);
+
+      expect(cdn.fetchRefs, <String>['cdn://obj/proof_of_delivery/d-1.png']);
+      expect(find.byType(OmdsCachedImage), findsNothing);
+      expect(
+        _memoryImageIn(find.bySemanticsIdentifier('receipt_proof_photo')),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('receipt_proof_zoom_cta'), findsOneWidget);
+
+      await tester.tap(find.bySemanticsIdentifier('receipt_proof_zoom_cta'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final viewer = find.bySemanticsIdentifier('receipt_proof_viewer_root');
+      expect(viewer, findsOneWidget);
+      expect(_memoryImageIn(viewer), findsOneWidget);
+      expect(cdn.fetchRefs, <String>['cdn://obj/proof_of_delivery/d-1.png']);
+    });
+
+    testWidgets('absent proof does not fetch CDN bytes', (tester) async {
+      final cdn = _RecordingCdnGateway(bytes: _pngBytes);
+      await _pumpLoaded(
+        tester,
+        _harness(_receipt(proofPhotoUrl: null), cdnAssetGateway: cdn),
+      );
+      await _pumpProofResolution(tester);
+
+      expect(cdn.fetchRefs, isEmpty);
+      expect(find.text('Proof unavailable'), findsOneWidget);
+      expect(find.byType(OmdsCachedImage), findsNothing);
+      expect(find.bySemanticsIdentifier('receipt_proof_zoom_cta'), findsNothing);
+    });
+
+    testWidgets('object_ref fetch failure renders unavailable without zoom', (
+      tester,
+    ) async {
+      final cdn = _RecordingCdnGateway(bytes: _pngBytes, failFetch: true);
+      await _pumpLoaded(
+        tester,
+        _harness(
+          _receipt(proofPhotoUrl: 'cdn://obj/proof_of_delivery/d-1.png'),
+          cdnAssetGateway: cdn,
+        ),
+      );
+      await _pumpProofResolution(tester);
+
+      expect(cdn.fetchRefs, <String>['cdn://obj/proof_of_delivery/d-1.png']);
+      expect(find.text('Proof unavailable'), findsOneWidget);
+      expect(find.byIcon(Icons.image_not_supported), findsNothing);
+      expect(find.byType(OmdsCachedImage), findsNothing);
+      expect(find.bySemanticsIdentifier('receipt_proof_zoom_cta'), findsNothing);
+    });
+
+    testWidgets('object_ref corrupt bytes decode failure renders unavailable', (
+      tester,
+    ) async {
+      final cdn = _RecordingCdnGateway(
+        bytes: Uint8List.fromList(const <int>[1, 2, 3]),
+      );
+      await _pumpLoaded(
+        tester,
+        _harness(
+          _receipt(proofPhotoUrl: 'cdn://obj/proof_of_delivery/d-1.png'),
+          cdnAssetGateway: cdn,
+        ),
+      );
+      await _pumpProofResolution(tester);
+      await tester.pump();
+
+      expect(cdn.fetchRefs, <String>['cdn://obj/proof_of_delivery/d-1.png']);
+      expect(find.text('Proof unavailable'), findsOneWidget);
+      expect(find.byIcon(Icons.image_not_supported), findsNothing);
+      expect(find.byType(OmdsCachedImage), findsNothing);
       expect(find.bySemanticsIdentifier('receipt_proof_zoom_cta'), findsNothing);
     });
 
@@ -322,4 +492,27 @@ void main() {
       expect(find.text('Retry'), findsOneWidget);
     });
   });
+}
+
+class _RecordingCdnGateway implements CdnAssetGateway {
+  _RecordingCdnGateway({required this.bytes, this.failFetch = false});
+
+  final Uint8List bytes;
+  final bool failFetch;
+  final List<String> fetchRefs = <String>[];
+
+  @override
+  Future<Uint8List> fetchAsset(String objectRef) async {
+    fetchRefs.add(objectRef);
+    if (failFetch) throw const CdnFetchException('simulated failure');
+    return bytes;
+  }
+
+  @override
+  Future<String> uploadAsset({
+    required CdnUploadSlot slot,
+    required Uint8List bytes,
+    String contentType = 'image/jpeg',
+  }) async =>
+      'proof_of_delivery/uploaded.png';
 }

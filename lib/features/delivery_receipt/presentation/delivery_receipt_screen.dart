@@ -18,6 +18,7 @@ import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../application/delivery_receipt_cubit.dart';
 import '../application/delivery_receipt_state.dart';
 import '../data/dio_delivery_receipt_repository.dart';
@@ -69,6 +70,7 @@ class DeliveryReceiptScreen extends StatelessWidget {
     super.key,
     required this.deliveryId,
     this.repository,
+    this.cdnAssetGateway,
   });
 
   final String deliveryId;
@@ -76,6 +78,8 @@ class DeliveryReceiptScreen extends StatelessWidget {
   /// Optional repository override. Production leaves this null (resolves DI /
   /// constructs the Dio impl); widget tests inject a scripted instance.
   final DeliveryReceiptRepository? repository;
+
+  final CdnAssetGateway? cdnAssetGateway;
 
   DeliveryReceiptRepository _resolveRepository() {
     final explicit = repository;
@@ -95,21 +99,31 @@ class DeliveryReceiptScreen extends StatelessWidget {
     return FakeDeliveryReceiptRepository();
   }
 
+  CdnAssetGateway? _resolveCdnAssetGateway() {
+    final explicit = cdnAssetGateway;
+    if (explicit != null) return explicit;
+    if (sl.isRegistered<CdnAssetGateway>()) return sl<CdnAssetGateway>();
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = _resolveRepository();
+    final cdn = _resolveCdnAssetGateway();
     return BlocProvider<DeliveryReceiptCubit>(
       create: (_) => DeliveryReceiptCubit(
         repository: repo,
         deliveryId: deliveryId,
       )..load(),
-      child: const _DeliveryReceiptView(),
+      child: _DeliveryReceiptView(cdnAssetGateway: cdn),
     );
   }
 }
 
 class _DeliveryReceiptView extends StatefulWidget {
-  const _DeliveryReceiptView();
+  const _DeliveryReceiptView({required this.cdnAssetGateway});
+
+  final CdnAssetGateway? cdnAssetGateway;
 
   @override
   State<_DeliveryReceiptView> createState() => _DeliveryReceiptViewState();
@@ -227,7 +241,11 @@ class _DeliveryReceiptViewState extends State<_DeliveryReceiptView> {
                                 context.read<DeliveryReceiptCubit>().refresh(),
                           );
                         }
-                        return _LoadedBody(receipt: receipt, state: state);
+                        return _LoadedBody(
+                          receipt: receipt,
+                          state: state,
+                          cdnAssetGateway: widget.cdnAssetGateway,
+                        );
                     }
                   },
                 ),
@@ -304,16 +322,23 @@ class _ReceiptStateBlock extends StatelessWidget {
 }
 
 class _LoadedBody extends StatelessWidget {
-  const _LoadedBody({required this.receipt, required this.state});
+  const _LoadedBody({
+    required this.receipt,
+    required this.state,
+    required this.cdnAssetGateway,
+  });
 
   final DeliveryReceipt receipt;
   final DeliveryReceiptState state;
+  final CdnAssetGateway? cdnAssetGateway;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final confirming = state.isConfirming;
+    final proofPhotoUrl = receipt.proofPhotoNetworkUrl;
+    final proofPhotoObjectRef = receipt.proofPhotoObjectRef;
 
     // ONE scroll view holding the whole column, footer included: at default
     // text scale the `Spacer` eats the slack and the CTAs read as docked; at
@@ -344,22 +369,32 @@ class _LoadedBody extends StatelessWidget {
                 const SizedBox(height: Spacing.xLarge),
                 // receipt_proof_photo (+ receipt_proof_zoom_cta) — the
                 // proof-of-delivery photo the Jeeber uploaded (D3). Degrades
-                // to a neutral placeholder, without a zoom pill, when absent.
+                // to the explicit unavailable state when it cannot render.
                 ProofPhotoHero(
-                  proofPhotoUrl: receipt.proofPhotoUrl,
+                  proofPhotoUrl: proofPhotoUrl,
+                  proofPhotoObjectRef: proofPhotoObjectRef,
+                  cdnAssetGateway: cdnAssetGateway,
                   photoSemanticLabel: l10n.receiptProofPhotoLabel,
+                  unavailableText: l10n.receiptProofUnavailable,
                   // TODO(midnight): omitted, not faked — the tile reads
                   // "Proof of delivery · 9:38"; swap to receiptProofBadgeAt
                   // when a gateway field carries the capture time.
                   badgeText: l10n.receiptProofBadge,
                   zoomCtaText: l10n.receiptProofZoomCta,
-                  onZoom: receipt.hasProofPhoto
+                  onZoom: proofPhotoUrl != null
                       ? () => showProofPhotoViewer(
                             context,
-                            url: receipt.proofPhotoUrl!,
+                            url: proofPhotoUrl,
                             closeLabel: l10n.receiptProofViewerCloseLabel,
+                            unavailableText: l10n.receiptProofUnavailable,
                           )
                       : null,
+                  onZoomBytes: (bytes) => showProofPhotoViewer(
+                    context,
+                    bytes: bytes,
+                    closeLabel: l10n.receiptProofViewerCloseLabel,
+                    unavailableText: l10n.receiptProofUnavailable,
+                  ),
                 ),
                 const SizedBox(height: Spacing.medium),
                 _CashStatement(receipt: receipt),

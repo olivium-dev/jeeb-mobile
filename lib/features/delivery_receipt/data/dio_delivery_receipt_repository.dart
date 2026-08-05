@@ -60,9 +60,8 @@ class DioDeliveryReceiptRepository implements DeliveryReceiptRepository {
         DeliveryReceiptFailure.unknown,
       );
     }
-    final rawProof = (data['proofPhotoUrl'] ?? data['evidenceUrl']) as String?;
-    final proof =
-        (rawProof != null && rawProof.trim().isNotEmpty) ? rawProof : null;
+    final proof = DeliveryReceipt.normalizeProofEvidence(data['proofPhotoUrl']) ??
+        DeliveryReceipt.normalizeProofEvidence(data['evidenceUrl']);
     final rawJeeberId = (data['jeeberId'] ?? data['jeeber_id']) as String?;
     final jeeberId = (rawJeeberId != null && rawJeeberId.trim().isNotEmpty)
         ? rawJeeberId
