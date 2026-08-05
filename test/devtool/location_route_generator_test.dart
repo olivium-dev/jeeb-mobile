@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/devtool/location_simulation/location_route_generator.dart';
@@ -110,10 +112,42 @@ void main() {
             .any((point) => point.coordinate != endpoint),
         isTrue,
       );
-      expect(route.totalDistanceMeters, greaterThan(200));
+      expect(route.totalDistanceMeters, greaterThan(700));
       expect(
         route.points.last.distanceFromStartMeters,
         route.totalDistanceMeters,
+      );
+    });
+
+    test('nearby endpoints still produce visibly distinct movement', () {
+      final start = LocationCoordinate(
+        latitude: 52.3994952,
+        longitude: 5.2751205,
+      );
+      final end = LocationCoordinate(latitude: 52.3995, longitude: 5.2751);
+
+      final route = generator.generate(
+        start: start,
+        end: end,
+        stepCount: 31,
+        startsAt: DateTime.utc(2026, 8, 5, 14),
+        interval: const Duration(seconds: 2),
+      );
+
+      expect(LocationRouteGenerator.shouldUseSyntheticLoop(start, end), isTrue);
+      expect(route.points.first.coordinate, start);
+      expect(route.points.last.coordinate, end);
+      expect(route.totalDistanceMeters, greaterThan(700));
+      expect(
+        route.points
+            .map(
+              (point) => LocationRouteGenerator.haversineDistanceMeters(
+                start,
+                point.coordinate,
+              ),
+            )
+            .reduce(math.max),
+        greaterThan(200),
       );
     });
 
