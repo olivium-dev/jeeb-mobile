@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 import '../../../core/layout/bottom_inset.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_segmented_toggle.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
@@ -15,10 +16,12 @@ import '../application/client_home_cubit.dart';
 import '../application/client_home_state.dart';
 import '../domain/client_home_request.dart';
 import 'tabs/in_progress_tab.dart';
+import 'tabs/offer_status_requests_tab.dart';
 import 'tabs/pending_requests_tab.dart';
 import 'tabs/replies_tab.dart';
 import 'widgets/client_home_greeting.dart';
 import 'widgets/client_home_request_hero.dart';
+import 'widgets/offer_status_info_sheet.dart';
 
 /// Client home screen — MIDNIGHT R1 (`01-r1-client-home.png`) and its E1 empty
 /// (`27-e1-empty-no-requests.png`), on the hero `JeebMidnightField`.
@@ -74,6 +77,7 @@ class ClientHomeScreen extends StatefulWidget {
 class _ClientHomeScreenState extends State<ClientHomeScreen>
     with WidgetsBindingObserver {
   late ClientHomeTab _selectedTab = widget.initialTab;
+  ClientOfferStatus? _selectedOfferStatus;
 
   /// Whether the app is in the foreground. The 10s home poll must NOT keep
   /// firing while the app is backgrounded (F3 — offers polling storm): a hidden
@@ -209,20 +213,34 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
             // R1 declares .32; the ratified single .24 is the app default.
             glowColor: context.jeebRoles.accent.withValues(alpha: 0.32),
             animateDecor: false,
-            child: OmdsPullToRefresh(
-              onRefresh: () => context.read<ClientHomeCubit>().refresh(),
-              child: _ClientHomeBody(
-                state: state,
-                selectedTab: _selectedTab,
-                onTabSelected: (tab) {
-                  setState(() {
-                    _tabResolved = true;
-                    _selectedTab = tab;
-                  });
-                },
-                onCreateRequest: widget.onCreateRequest,
-                onTrack: widget.onTrack,
-              ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                OmdsPullToRefresh(
+                  onRefresh: () => context.read<ClientHomeCubit>().refresh(),
+                  child: _ClientHomeBody(
+                    state: state,
+                    selectedTab: _selectedTab,
+                    selectedOfferStatus: _selectedOfferStatus,
+                    onTabSelected: (tab) {
+                      setState(() {
+                        _tabResolved = true;
+                        _selectedTab = tab;
+                        _selectedOfferStatus = null;
+                      });
+                    },
+                    onOfferStatusSelected: (status) {
+                      setState(() {
+                        _tabResolved = true;
+                        _selectedOfferStatus = status;
+                      });
+                    },
+                    onCreateRequest: widget.onCreateRequest,
+                    onTrack: widget.onTrack,
+                  ),
+                ),
+                const _HeaderActionsGlassBackdrop(),
+              ],
             ),
           ),
         );
@@ -235,14 +253,18 @@ class _ClientHomeBody extends StatelessWidget {
   const _ClientHomeBody({
     required this.state,
     required this.selectedTab,
+    required this.selectedOfferStatus,
     required this.onTabSelected,
+    required this.onOfferStatusSelected,
     required this.onCreateRequest,
     required this.onTrack,
   });
 
   final ClientHomeState state;
   final ClientHomeTab selectedTab;
+  final ClientOfferStatus? selectedOfferStatus;
   final ValueChanged<ClientHomeTab> onTabSelected;
+  final ValueChanged<ClientOfferStatus> onOfferStatusSelected;
   final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onTrack;
 
@@ -261,7 +283,9 @@ class _ClientHomeBody extends StatelessWidget {
         return _ReadyLayout(
           state: state,
           selectedTab: selectedTab,
+          selectedOfferStatus: selectedOfferStatus,
           onTabSelected: onTabSelected,
+          onOfferStatusSelected: onOfferStatusSelected,
           onCreateRequest: onCreateRequest,
           onTrack: onTrack,
         );
@@ -273,6 +297,39 @@ class _ClientHomeBody extends StatelessWidget {
 const EdgeInsetsGeometry _kGutter = EdgeInsetsDirectional.symmetric(
   horizontal: Spacing.xLarge,
 );
+
+/// Gives the shell's fixed wallet/bell actions a glass resting surface so
+/// scrolled card text cannot compete with their glyphs. The translucent blur
+/// preserves the hero field and the greeting remains at its original position.
+class _HeaderActionsGlassBackdrop extends StatelessWidget {
+  const _HeaderActionsGlassBackdrop();
+
+  static const double _width = kMinInteractiveDimension * 2;
+  static const double _height = kMinInteractiveDimension;
+
+  @override
+  Widget build(BuildContext context) {
+    return const PositionedDirectional(
+      top: 0,
+      end: Spacing.xSmall,
+      child: IgnorePointer(
+        child: SafeArea(
+          child: SizedBox(
+            width: _width,
+            height: _height,
+            child: JeebGlassCapsule(
+              key: Key('client-home-header-actions-glass-backdrop'),
+              padding: EdgeInsets.zero,
+              blurSigma: JeebGlassCapsule.softBlur,
+              shadow: JeebGlassCapsule.noShadow,
+              child: SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _LoadingLayout extends StatelessWidget {
   const _LoadingLayout({required this.onCreateRequest});
@@ -357,20 +414,25 @@ class _ReadyLayout extends StatelessWidget {
   const _ReadyLayout({
     required this.state,
     required this.selectedTab,
+    required this.selectedOfferStatus,
     required this.onTabSelected,
+    required this.onOfferStatusSelected,
     required this.onCreateRequest,
     required this.onTrack,
   });
 
   final ClientHomeState state;
   final ClientHomeTab selectedTab;
+  final ClientOfferStatus? selectedOfferStatus;
   final ValueChanged<ClientHomeTab> onTabSelected;
+  final ValueChanged<ClientOfferStatus> onOfferStatusSelected;
   final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onTrack;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
+      key: const Key('client-home-ready-list'),
       physics: const AlwaysScrollableScrollPhysics(),
       // Keep the design's twoXLarge breathing room AND reserve the system
       // nav-bar inset so the last order card clears the soft buttons / bottom
@@ -385,13 +447,19 @@ class _ReadyLayout extends StatelessWidget {
   /// True on the pending tab with nothing pending — E1's own composition, and
   /// the only state that re-homes the empty CTA identifier.
   bool get _pendingEmpty =>
-      selectedTab == ClientHomeTab.pendingRequests && state.pending.isEmpty;
+      selectedOfferStatus == null &&
+      selectedTab == ClientHomeTab.pendingRequests &&
+      state.pending.isEmpty;
 
   /// Either tab showing its empty block: the prompt moves into that block, so
   /// the capsule follows it to the bottom the way the E1 tile draws.
   bool get _emptyComposition =>
       _pendingEmpty ||
-      (selectedTab == ClientHomeTab.replies && state.replies.isEmpty);
+      (selectedOfferStatus != null
+          ? !state.offerStatusRequests.any(
+              (request) => request.offerStatuses.contains(selectedOfferStatus),
+            )
+          : selectedTab == ClientHomeTab.replies && state.replies.isEmpty);
 
   List<Widget> _scrollChildren() {
     final bool empty = _emptyComposition;
@@ -412,10 +480,17 @@ class _ReadyLayout extends StatelessWidget {
       ),
       const SizedBox(height: Spacing.medium),
       if (!empty) ...<Widget>[capsule, const SizedBox(height: Spacing.large)],
-      _ClientHomeTabBar(selectedTab: selectedTab, onSelected: onTabSelected),
+      _ClientHomeTabBar(
+        selectedTab: selectedTab,
+        selectedOfferStatus: selectedOfferStatus,
+        onSelected: onTabSelected,
+        onOfferStatusSelected: onOfferStatusSelected,
+      ),
       const SizedBox(height: Spacing.medium),
       _ReadyContent(
+        state: state,
         selectedTab: selectedTab,
+        selectedOfferStatus: selectedOfferStatus,
         onCreateRequest: onCreateRequest,
         onTrack: onTrack,
       ),
@@ -426,17 +501,28 @@ class _ReadyLayout extends StatelessWidget {
 
 class _ReadyContent extends StatelessWidget {
   const _ReadyContent({
+    required this.state,
     required this.selectedTab,
+    required this.selectedOfferStatus,
     required this.onCreateRequest,
     required this.onTrack,
   });
 
+  final ClientHomeState state;
   final ClientHomeTab selectedTab;
+  final ClientOfferStatus? selectedOfferStatus;
   final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onTrack;
 
   @override
   Widget build(BuildContext context) {
+    final offerStatus = selectedOfferStatus;
+    if (offerStatus != null) {
+      return OfferStatusRequestsTab(
+        status: offerStatus,
+        requests: state.offerStatusRequests,
+      );
+    }
     switch (selectedTab) {
       case ClientHomeTab.inProgress:
         return InProgressTab(onTrack: onTrack);
@@ -471,11 +557,15 @@ class _ReadyContent extends StatelessWidget {
   }
 }
 
-/// E1's segmented Pending/Replies control (study-notes ruling 3): the active
-/// segment is a WHITE fill with navy ink, the other stays glass. The board
-/// draws no count badge on either, so none is rendered.
+/// Requests filters: Pending and Replies switch their lists; More opens the
+/// complete offer-status picker and filters the same request data.
 class _ClientHomeTabBar extends StatelessWidget {
-  const _ClientHomeTabBar({required this.selectedTab, required this.onSelected});
+  const _ClientHomeTabBar({
+    required this.selectedTab,
+    required this.selectedOfferStatus,
+    required this.onSelected,
+    required this.onOfferStatusSelected,
+  });
 
   /// JEBV4-298 (E24/Q-086): the Requests tab is the ON-HOLD surface only. The
   /// accepted-onward In-Progress surface lives on the Delivery tab.
@@ -485,7 +575,9 @@ class _ClientHomeTabBar extends StatelessWidget {
   ];
 
   final ClientHomeTab selectedTab;
+  final ClientOfferStatus? selectedOfferStatus;
   final ValueChanged<ClientHomeTab> onSelected;
+  final ValueChanged<ClientOfferStatus> onOfferStatusSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -493,48 +585,83 @@ class _ClientHomeTabBar extends StatelessWidget {
     final labels = <String>[l10n.homeTabPending, l10n.homeTabReplies];
     return Padding(
       padding: _kGutter,
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: Stack(
-          children: <Widget>[
-            // E1 draws no enclosing track: two free pills that hug their
-            // labels at the start edge (wave-A trackless placement).
-            JeebSegmentedToggle(
-              placement: JeebSegmentedPlacement.trackless,
-              segments: <JeebSegment>[
-                for (var i = 0; i < _tabs.length; i++)
-                  JeebSegment(
-                    label: labels[i],
-                    key: Key('client-home-tab-${_tabs[i].name}'),
-                    identifier: 'orders_filter_${_tabs[i].name}',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: SizedBox(
+              key: const Key('client-home-filter-row'),
+              width: constraints.maxWidth,
+              child: Stack(
+                children: <Widget>[
+                  // No enclosing track: three free pills that hug their labels
+                  // until a localized selected status needs to ellipsize.
+                  JeebSegmentedToggle(
+                    placement: JeebSegmentedPlacement.trackless,
+                    segmentPadding: selectedOfferStatus == null
+                        ? null
+                        : const EdgeInsetsDirectional.symmetric(
+                            vertical: 10,
+                            horizontal: 8,
+                          ),
+                    segments: <JeebSegment>[
+                      for (var i = 0; i < _tabs.length; i++)
+                        JeebSegment(
+                          label: labels[i],
+                          key: Key('client-home-tab-${_tabs[i].name}'),
+                          identifier: 'orders_filter_${_tabs[i].name}',
+                        ),
+                      JeebSegment(
+                        label: selectedOfferStatus == null
+                            ? l10n.homeTabMore
+                            : offerStatusTitle(l10n, selectedOfferStatus!),
+                        key: const Key('client-home-tab-more'),
+                        identifier: 'orders_filter_more',
+                        flex: selectedOfferStatus == null ? 1 : 2,
+                      ),
+                    ],
+                    selectedIndex: selectedOfferStatus == null
+                        ? _tabs.indexOf(selectedTab)
+                        : _tabs.length,
+                    onChanged: (index) async {
+                      if (index == _tabs.length) {
+                        final status = await OfferStatusInfoSheet.show(
+                          context,
+                          selectedStatus: selectedOfferStatus,
+                        );
+                        if (status != null) onOfferStatusSelected(status);
+                        return;
+                      }
+                      onSelected(_tabs[index]);
+                    },
                   ),
-              ],
-              selectedIndex: _tabs.indexOf(selectedTab),
-              onChanged: (index) => onSelected(_tabs[index]),
-            ),
-            // JM-023 / JM-027's coined `orders_home_replies_tab`: a second id
-            // for the same target, laid over the Replies half so QA still taps
-            // real bounds (the kit segment carries only one identifier).
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: FractionallySizedBox(
-                    widthFactor: 0.5,
-                    heightFactor: 1,
-                    child: Semantics(
-                      identifier: 'orders_home_replies_tab',
-                      button: true,
-                      label: l10n.homeTabReplies,
-                      onTap: () => onSelected(ClientHomeTab.replies),
-                      child: const SizedBox.expand(),
+                  // JM-023 / JM-027's coined `orders_home_replies_tab`: a
+                  // second id for the same target, laid over the Replies third
+                  // so QA still taps real bounds (the kit segment carries only
+                  // one identifier).
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: FractionallySizedBox(
+                          widthFactor: 1 / 3,
+                          heightFactor: 1,
+                          child: Semantics(
+                            identifier: 'orders_home_replies_tab',
+                            button: true,
+                            label: l10n.homeTabReplies,
+                            onTap: () => onSelected(ClientHomeTab.replies),
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

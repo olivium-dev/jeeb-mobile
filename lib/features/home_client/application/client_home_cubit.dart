@@ -88,6 +88,7 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
           pending: snapshot.pending,
           replies: snapshot.replies,
           recentDeliveries: snapshot.recentDeliveries.take(1).toList(),
+          offerStatusRequests: snapshot.offerStatusRequests,
         ),
       );
     } catch (_) {

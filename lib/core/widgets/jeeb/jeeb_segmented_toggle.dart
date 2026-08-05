@@ -4,8 +4,9 @@ import '../../theme/jeeb_radii.dart';
 import '../../theme/jeeb_semantic_colors.dart';
 import '../../theme/jeeb_text_styles.dart';
 
-const BorderRadius _pillRadius =
-    BorderRadius.all(Radius.circular(JeebRadii.pill));
+const BorderRadius _pillRadius = BorderRadius.all(
+  Radius.circular(JeebRadii.pill),
+);
 
 /// Gap between segments (`5` — R5 language toggle).
 const double _segmentGap = 5;
@@ -34,6 +35,7 @@ class JeebSegment {
     this.key,
     this.identifier,
     this.semanticLabel,
+    this.flex = 1,
   });
 
   /// Visible, already-localized label (`English`, `العربية`).
@@ -47,6 +49,9 @@ class JeebSegment {
 
   /// Accessibility label when [label] is not enough. Defaults to [label].
   final String? semanticLabel;
+
+  /// Relative width when the toggle must share constrained horizontal space.
+  final int flex;
 }
 
 /// The two-up pill switch (redesign-2026-08 §5 #19).
@@ -135,7 +140,8 @@ class JeebSegmentedToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final JeebSemanticColors semantics = _semantics(context);
     final bool trackless = placement == JeebSegmentedPlacement.trackless;
-    final EdgeInsetsGeometry resolvedSegmentPadding = segmentPadding ??
+    final EdgeInsetsGeometry resolvedSegmentPadding =
+        segmentPadding ??
         (trackless ? tracklessSegmentPadding : defaultSegmentPadding);
 
     final Row row = Row(
@@ -146,9 +152,15 @@ class JeebSegmentedToggle extends StatelessWidget {
             SizedBox(width: trackless ? tracklessGap : _segmentGap),
           // Tracked segments are `flex:1`; E1's free pills hug their labels.
           if (trackless)
-            Flexible(child: _segmentAt(index, resolvedSegmentPadding))
+            Flexible(
+              flex: segments[index].flex,
+              child: _segmentAt(index, resolvedSegmentPadding),
+            )
           else
-            Expanded(child: _segmentAt(index, resolvedSegmentPadding)),
+            Expanded(
+              flex: segments[index].flex,
+              child: _segmentAt(index, resolvedSegmentPadding),
+            ),
         ],
       ],
     );
@@ -187,13 +199,13 @@ class JeebSegmentedToggle extends StatelessWidget {
   }
 
   Widget _segmentAt(int index, EdgeInsetsGeometry resolvedPadding) => _Segment(
-        segment: segments[index],
-        selected: index == selectedIndex,
-        padding: resolvedPadding,
-        borderWidth: borderWidth,
-        trackless: placement == JeebSegmentedPlacement.trackless,
-        onTap: () => onChanged(index),
-      );
+    segment: segments[index],
+    selected: index == selectedIndex,
+    padding: resolvedPadding,
+    borderWidth: borderWidth,
+    trackless: placement == JeebSegmentedPlacement.trackless,
+    onTap: () => onChanged(index),
+  );
 }
 
 class _Segment extends StatelessWidget {
@@ -229,10 +241,7 @@ class _Segment extends StatelessWidget {
             : (trackless ? semantics.glassFill : Colors.transparent),
         borderRadius: _pillRadius,
         border: glassPill
-            ? Border.all(
-                color: semantics.glassBorderStrong,
-                width: borderWidth,
-              )
+            ? Border.all(color: semantics.glassBorderStrong, width: borderWidth)
             : null,
       ),
       child: Material(

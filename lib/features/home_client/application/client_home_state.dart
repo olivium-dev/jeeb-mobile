@@ -15,6 +15,7 @@ class ClientHomeState extends Equatable {
     this.pending = const [],
     this.replies = const [],
     this.recentDeliveries = const [],
+    this.offerStatusRequests = const [],
   });
 
   final ClientHomeStatus status;
@@ -28,6 +29,7 @@ class ClientHomeState extends Equatable {
   final List<ClientHomeRequest> replies;
 
   final List<RecentDeliverySummary> recentDeliveries;
+  final List<ClientHomeRequest> offerStatusRequests;
 
   List<ClientHomeRequest> get activeRequests => inProgress;
 
@@ -55,6 +57,7 @@ class ClientHomeState extends Equatable {
     List<ClientHomeRequest>? pending,
     List<ClientHomeRequest>? replies,
     List<RecentDeliverySummary>? recentDeliveries,
+    List<ClientHomeRequest>? offerStatusRequests,
   }) {
     return ClientHomeState(
       status: status ?? this.status,
@@ -65,18 +68,20 @@ class ClientHomeState extends Equatable {
       pending: pending ?? this.pending,
       replies: replies ?? this.replies,
       recentDeliveries: recentDeliveries ?? this.recentDeliveries,
+      offerStatusRequests: offerStatusRequests ?? this.offerStatusRequests,
     );
   }
 
   @override
   List<Object?> get props => [
-        status,
-        greetingName,
-        inProgress,
-        pending,
-        replies,
-        recentDeliveries,
-      ];
+    status,
+    greetingName,
+    inProgress,
+    pending,
+    replies,
+    recentDeliveries,
+    offerStatusRequests,
+  ];
 }
 
 const Object _sentinel = Object();

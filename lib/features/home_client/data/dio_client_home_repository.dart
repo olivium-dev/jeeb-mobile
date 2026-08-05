@@ -30,10 +30,10 @@ import '../domain/recent_delivery_summary.dart';
 /// request. Discovery was effectively PUSH-ONLY: if the FCM offer push didn't
 /// land in-window, the offer stayed invisible. We now make discovery
 /// DETERMINISTIC: for each non-accepted request we authoritatively resolve the
-/// live offer count via `GET /v1/offers?requestId=<id>` and bucket on that
-/// (taking `max(payloadCount, liveCount)` so a denormalised count still counts).
-/// The probe is best-effort + concurrent + capped: any failure degrades to the
-/// payload count and never breaks the home load.
+/// live offer count via `GET /v1/offers?requestId=<id>` and bucket on that. Until
+/// a successful probe exists, a positive denormalised payload count remains a
+/// best-effort fallback. Probes are concurrent + capped, and a failure never
+/// breaks the home load.
 ///
 /// S007-P1B: before this fix the accepted order fell through every bucket — it
 /// is absent from `/deliveries?stage=active` (no shipment yet) and, with
@@ -49,7 +49,7 @@ import '../domain/recent_delivery_summary.dart';
 /// service-prefixed counterparts automatically.
 class DioClientHomeRepository implements ClientHomeRepository {
   DioClientHomeRepository(Dio dio, {SingleFlightGet? coalescer})
-      : _coalescer = coalescer ?? SingleFlightGet(dio);
+    : _coalescer = coalescer ?? SingleFlightGet(dio);
 
   /// In-flight GET dedupe (F3), promoted to the shared network layer (FIX-A):
   /// collapses accidental duplicate same-cycle reads (same path + query) onto a
@@ -59,6 +59,21 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// own. Entries self-evict on completion, so it is a single-flight coalescer,
   /// never a stale cache.
   final SingleFlightGet _coalescer;
+
+  /// Last successful authoritative offer summary per request. The role=client
+  /// endpoint does not carry offer lifecycle data, so a rotating bounded probe
+  /// window fills and refreshes this cache across loads. Entries are pruned as
+  /// soon as their request leaves the candidate set.
+  final Map<String, _OfferProbe> _offerProbeCache = <String, _OfferProbe>{};
+
+  /// Fair round-robin queue of active candidate ids. Keeping identity rather
+  /// than a list index prevents request reordering from starving older rows.
+  final List<String> _offerProbeQueue = <String>[];
+
+  /// Snapshot-level single flight. Besides avoiding duplicate home reads, this
+  /// serializes access to the rotating probe queue and makes the offer worker
+  /// width a repository-wide concurrency bound even when callers overlap.
+  Future<ClientHomeSnapshot>? _snapshotInFlight;
 
   // D5 contract: GET /deliveries?stage=<stage>&limit=<n>
   static const _activeDeliveriesPath = '/deliveries';
@@ -71,9 +86,9 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// and `DioWaitingRepository.fetchOfferCount` use.
   static const _offersPath = '/v1/offers';
 
-  /// Upper bound on per-request offer probes per home load, to cap the fan-out
-  /// (a customer realistically has a handful of open requests). Beyond this we
-  /// fall back to the payload's denormalised `offersCount`.
+  /// Upper bound on per-request offer probes per home load. A fair rotating
+  /// window and [_offerProbeCache] ensure rows beyond this bound are eventually
+  /// covered without increasing the per-load network budget.
   static const int _maxOfferProbes = 10;
 
   /// Max offer probes in flight at once (F3). The old code fired up to
@@ -124,7 +139,19 @@ class DioClientHomeRepository implements ClientHomeRepository {
       (status is String ? status : '').toLowerCase().replaceAll('_', '');
 
   @override
-  Future<ClientHomeSnapshot> loadSnapshot() async {
+  Future<ClientHomeSnapshot> loadSnapshot() {
+    final inFlight = _snapshotInFlight;
+    if (inFlight != null) return inFlight;
+
+    late final Future<ClientHomeSnapshot> next;
+    next = _loadSnapshot().whenComplete(() {
+      if (identical(_snapshotInFlight, next)) _snapshotInFlight = null;
+    });
+    _snapshotInFlight = next;
+    return next;
+  }
+
+  Future<ClientHomeSnapshot> _loadSnapshot() async {
     // F3 (offers-polling storm): a 429 on ANY of the home reads must NOT fail
     // the load — each sub-fetch already degrades to empty/partial data. We only
     // RECORD that a throttle happened (and its Retry-After) so the cubit can
@@ -179,8 +206,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     final inProgress = <ClientHomeRequest>[
       ...activeShipments,
       ...buckets.accepted.where(
-        (a) =>
-            !shipmentIds.contains(a.id) && !coveredRequestIds.contains(a.id),
+        (a) => !shipmentIds.contains(a.id) && !coveredRequestIds.contains(a.id),
       ),
     ];
 
@@ -198,11 +224,22 @@ class DioClientHomeRepository implements ClientHomeRepository {
       inProgress.add(request);
     }
 
+    final offerStatusRequests = <String, ClientHomeRequest>{
+      for (final request in buckets.offerStatusRequests) request.id: request,
+      for (final request in inProgress)
+        request.id: request.offerStatuses.isNotEmpty
+            ? request
+            : request.copyWith(
+                offerStatuses: const {ClientOfferStatus.accepted},
+              ),
+    }.values.toList(growable: false);
+
     return ClientHomeSnapshot(
       inProgress: inProgress,
       pending: buckets.pending,
       replies: buckets.replies,
       recentDeliveries: recentDeliveries,
+      offerStatusRequests: offerStatusRequests,
       // F3: surface (never throw) the throttle so the cubit degrades gracefully.
       rateLimited: rateLimit.rateLimited,
       retryAfter: rateLimit.retryAfter,
@@ -226,15 +263,12 @@ class DioClientHomeRepository implements ClientHomeRepository {
     _RateLimitTracker rateLimit,
   ) async {
     try {
-      final response = await _get(
-        _requestsPath,
-        const {
-          'status': 'active',
-          'role': 'client',
-          'page': 1,
-          'pageSize': 50,
-        },
-      );
+      final response = await _get(_requestsPath, const {
+        'status': 'active',
+        'role': 'client',
+        'page': 1,
+        'pageSize': 50,
+      });
       final rawItems = _items(response.data);
       final items = <ClientHomeRequest>[];
       for (final raw in rawItems) {
@@ -256,10 +290,10 @@ class DioClientHomeRepository implements ClientHomeRepository {
     _RateLimitTracker rateLimit,
   ) async {
     try {
-      final response = await _get(
-        _activeDeliveriesPath,
-        const {'stage': 'active', 'limit': 50},
-      );
+      final response = await _get(_activeDeliveriesPath, const {
+        'stage': 'active',
+        'limit': 50,
+      });
       final rawItems = _items(response.data, fallbackKey: 'shipments');
       final items = <ClientHomeRequest>[];
       for (final raw in rawItems) {
@@ -285,10 +319,11 @@ class DioClientHomeRepository implements ClientHomeRepository {
     _RateLimitTracker rateLimit,
   ) async {
     try {
-      final response = await _get(
-        _requestsPath,
-        const {'role': 'client', 'page': 1, 'pageSize': 50},
-      );
+      final response = await _get(_requestsPath, const {
+        'role': 'client',
+        'page': 1,
+        'pageSize': 50,
+      });
       return _items(response.data);
     } on DioException catch (e) {
       rateLimit.record(e);
@@ -314,6 +349,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   ) async {
     try {
       final accepted = <ClientHomeRequest>[];
+      final offerStatusRequests = <ClientHomeRequest>[];
       final candidates = <Map<String, dynamic>>[];
       for (final raw in rawItems) {
         if (raw is! Map<String, dynamic>) continue;
@@ -323,6 +359,15 @@ class DioClientHomeRepository implements ClientHomeRepository {
         // from the auction buckets entirely so a dead request never re-surfaces
         // as Pending/Replies.
         if (_terminalRequestStatuses.contains(normalized)) {
+          final inferred = _inferredOfferStatus(normalized);
+          if (inferred != null) {
+            final request = _parseRequest(
+              raw,
+              status: ClientRequestStatus.cancelled,
+              offerStatuses: {inferred},
+            );
+            if (request != null) offerStatusRequests.add(request);
+          }
           continue;
         }
         // Accepted (offer accepted, no shipment yet) OR already in-flight →
@@ -332,14 +377,22 @@ class DioClientHomeRepository implements ClientHomeRepository {
           final request = _parseRequest(
             raw,
             status: ClientRequestStatus.accepted,
+            offerStatuses: const {ClientOfferStatus.accepted},
           );
-          if (request != null) accepted.add(request);
+          if (request != null) {
+            accepted.add(request);
+            offerStatusRequests.add(request);
+          }
         } else if (_inFlightRequestStatuses.contains(normalized)) {
           final request = _parseRequest(
             raw,
             status: _mapDeliveryStatus(rawStatus as String?),
+            offerStatuses: const {ClientOfferStatus.accepted},
           );
-          if (request != null) accepted.add(request);
+          if (request != null) {
+            accepted.add(request);
+            offerStatusRequests.add(request);
+          }
         } else {
           candidates.add(raw);
         }
@@ -356,9 +409,17 @@ class DioClientHomeRepository implements ClientHomeRepository {
         final raw = candidates[i];
         final payloadCount = (raw['offersCount'] as num?)?.toInt() ?? 0;
         final probe = offerProbes[i];
-        final offerCount = probe.count > payloadCount
+        final offerCount = probe != null && probe.count > payloadCount
             ? probe.count
             : payloadCount;
+
+        // A zero/absent denormalised count is not proof that a request has no
+        // offers. Until this row's rotating probe succeeds (or a previous
+        // successful result exists in the cache), its auction bucket is
+        // unresolved. Omitting it is preferable to the old false Pending claim;
+        // the fair window will cover it on a later load.
+        if (probe == null && offerCount == 0) continue;
+
         final isReply = offerCount > 0;
         final request = _parseRequest(
           raw,
@@ -366,19 +427,21 @@ class DioClientHomeRepository implements ClientHomeRepository {
               ? ClientRequestStatus.offersReceived
               : ClientRequestStatus.searching,
           offerCountOverride: offerCount,
-          // Null on payload-count rows by construction: they are never probed,
-          // so there is no offer list to take a minimum over. The card falls
-          // back to the plain count rather than inventing a floor.
-          lowestOfferFee: probe.minFee,
-          offerCurrency: probe.currency,
+          lowestOfferFee: probe?.minFee,
+          offerCurrency: probe?.currency,
+          offerStatuses: probe?.statuses ?? const <ClientOfferStatus>{},
         );
         if (request == null) continue;
         (isReply ? replies : pending).add(request);
+        if (request.offerStatuses.isNotEmpty) {
+          offerStatusRequests.add(request);
+        }
       }
       return _ClientRequestBuckets(
         accepted: accepted,
         pending: pending,
         replies: replies,
+        offerStatusRequests: offerStatusRequests,
       );
     } on DioException {
       return const _ClientRequestBuckets.empty();
@@ -387,62 +450,70 @@ class DioClientHomeRepository implements ClientHomeRepository {
     }
   }
 
-  /// Live offer summary per candidate request, aligned by index. Probes are
-  /// COALESCED (F3): only rows whose bucket is still unknown are probed, at most
-  /// [_maxOfferProbes] of them, drained through a bounded worker pool of width
-  /// [_probeConcurrency] with a per-cycle memo so a duplicate request id shares
-  /// one GET. Each probe is best-effort — a failure leaves the payload's
-  /// denormalised count in place, so a degraded/erroring offers endpoint never
-  /// breaks the home load.
-  Future<List<_OfferProbe>> _resolveOfferCounts(
+  /// Live offer summary per candidate request, aligned by index. Each load
+  /// probes a fair rotating window of at most [_maxOfferProbes] distinct request
+  /// ids through a worker pool of width [_probeConcurrency]. Successful results
+  /// are cached, so non-selected rows retain their last authoritative lifecycle
+  /// while the window advances. With the role list capped at 50 rows, every
+  /// candidate is covered within at most five loads without increasing the
+  /// existing ten-call/two-concurrent per-load bound.
+  Future<List<_OfferProbe?>> _resolveOfferCounts(
     List<Map<String, dynamic>> candidates,
     _RateLimitTracker rateLimit,
   ) async {
-    final counts = List<_OfferProbe>.generate(
-      candidates.length,
-      (i) => (
-        count: (candidates[i]['offersCount'] as num?)?.toInt() ?? 0,
-        minFee: null,
-        currency: null,
-      ),
-      growable: false,
-    );
-
-    // Skip rows we already know are Replies: a payload count > 0 buckets the row
-    // into Replies regardless of the probe (the probe can only raise the count),
-    // so probing it is a wasted GET. Cap the remaining fan-out.
-    final jobs = <int>[];
-    for (var i = 0;
-        i < candidates.length && jobs.length < _maxOfferProbes;
-        i++) {
+    final candidateIds = <String>[];
+    final indicesById = <String, List<int>>{};
+    for (var i = 0; i < candidates.length; i++) {
       final id = candidates[i]['id'] as String?;
       if (id == null || id.isEmpty) continue;
-      if (counts[i].count > 0) continue;
-      jobs.add(i);
+      final indices = indicesById.putIfAbsent(id, () {
+        candidateIds.add(id);
+        return <int>[];
+      });
+      indices.add(i);
     }
-    if (jobs.isEmpty) return counts;
 
-    // Per-cycle memo: distinct request ids only ever hit `/v1/offers` once.
-    final memo = <String, _OfferProbe?>{};
+    final activeIds = candidateIds.toSet();
+    _offerProbeCache.removeWhere((id, _) => !activeIds.contains(id));
+    _offerProbeQueue.removeWhere((id) => !activeIds.contains(id));
+    final queuedIds = _offerProbeQueue.toSet();
+    for (final id in candidateIds) {
+      if (queuedIds.add(id)) _offerProbeQueue.add(id);
+    }
+
+    final counts = List<_OfferProbe?>.generate(candidates.length, (i) {
+      final id = candidates[i]['id'] as String?;
+      return id == null ? null : _offerProbeCache[id];
+    }, growable: false);
+
+    if (candidateIds.isEmpty) {
+      _offerProbeQueue.clear();
+      return counts;
+    }
+
+    final jobCount = _offerProbeQueue.length < _maxOfferProbes
+        ? _offerProbeQueue.length
+        : _maxOfferProbes;
+    final jobs = _offerProbeQueue.take(jobCount).toList(growable: false);
+    _offerProbeQueue
+      ..removeRange(0, jobCount)
+      ..addAll(jobs);
+
     var next = 0;
 
     Future<void> drain() async {
       while (true) {
         if (next >= jobs.length) return;
-        final index = jobs[next++];
-        final id = candidates[index]['id'] as String;
-        final _OfferProbe? live;
-        if (memo.containsKey(id)) {
-          live = memo[id];
-        } else {
-          live = await _fetchLiveOfferCount(id, rateLimit);
-          memo[id] = live;
-        }
-        // Only ever RAISE the count — a failed/empty probe must not tear down a
-        // known reply. The fee floor rides the same guard: it is only ever read
-        // off a probe that actually found offers.
-        if (live != null && live.count > counts[index].count) {
-          counts[index] = live;
+        final id = jobs[next++];
+        final live = await _fetchLiveOfferCount(id, rateLimit);
+
+        // A failed refresh keeps the last successful result. A successful empty
+        // result is authoritative and is cached just like a non-empty result.
+        if (live != null) {
+          _offerProbeCache[id] = live;
+          for (final index in indicesById[id]!) {
+            counts[index] = live;
+          }
         }
       }
     }
@@ -458,19 +529,16 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// `GET /v1/offers?requestId`, and take the lowest quoted fee over the SAME
   /// parsed items (the Replies card's "from $8" floor — no second request).
   /// Returns `null` (NOT a zero record) on any failure so the caller keeps the
-  /// payload's count rather than wrongly zeroing it — the enrichment must never
-  /// tear down an already-known reply. The broad catch is intentional: this is
-  /// a best-effort signal on the home critical path and must not surface as an
-  /// error or crash the load.
+  /// last successful cache entry, or falls back to a positive payload count when
+  /// no authoritative result exists yet. The broad catch is intentional: this
+  /// is a best-effort signal on the home critical path and must not surface as
+  /// an error or crash the load.
   Future<_OfferProbe?> _fetchLiveOfferCount(
     String requestId,
     _RateLimitTracker rateLimit,
   ) async {
     try {
-      final response = await _get(
-        _offersPath,
-        {'requestId': requestId},
-      );
+      final response = await _get(_offersPath, {'requestId': requestId});
       final data = response.data;
       final List<dynamic> items;
       if (data is List) {
@@ -483,10 +551,25 @@ class DioClientHomeRepository implements ClientHomeRepository {
       } else {
         return null;
       }
-      final live = items.whereType<Map<String, dynamic>>().where((o) {
-        final status = o['status'] as String?;
-        return status == null || _liveOfferStatuses.contains(status);
-      }).toList(growable: false);
+      final offers = items.whereType<Map<String, dynamic>>().toList(
+        growable: false,
+      );
+      final statuses = <ClientOfferStatus>{};
+      final live = offers
+          .where((o) {
+            final rawStatus = o['status'];
+            final status = ClientOfferStatus.parse(rawStatus);
+            if (status != null) statuses.add(status);
+            final normalized = rawStatus is String
+                ? rawStatus.trim().toLowerCase()
+                : null;
+            if (normalized == null || normalized.isEmpty) {
+              statuses.add(ClientOfferStatus.pending);
+              return true;
+            }
+            return _liveOfferStatuses.contains(normalized);
+          })
+          .toList(growable: false);
       // Offer floor over the same rows. Only the plain `fee` number is read —
       // `client_offers`' richer amount/price money-map parsing is deliberately
       // NOT replicated here; a fee-less offer simply does not participate, so
@@ -501,7 +584,12 @@ class DioClientHomeRepository implements ClientHomeRepository {
           currency = offer['currency'] as String?;
         }
       }
-      return (count: live.length, minFee: minFee, currency: currency);
+      return (
+        count: live.length,
+        minFee: minFee,
+        currency: currency,
+        statuses: Set<ClientOfferStatus>.unmodifiable(statuses),
+      );
     } on DioException catch (e) {
       // A throttled probe degrades to the payload count (null) — but RECORD the
       // 429 so the home load reports `rateLimited` and the cubit backs off
@@ -646,6 +734,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     int? offerCountOverride,
     double? lowestOfferFee,
     String? offerCurrency,
+    Set<ClientOfferStatus> offerStatuses = const <ClientOfferStatus>{},
   }) {
     final id = json['id'] as String?;
     if (id == null) return null;
@@ -684,12 +773,22 @@ class DioClientHomeRepository implements ClientHomeRepository {
       createdAt: ServerTime.parse(
         json['createdAt'] as String? ?? json['created_at'] as String?,
       ),
-      hasNewOffers: (json['hasNewOffers'] as bool?) ??
+      hasNewOffers:
+          (json['hasNewOffers'] as bool?) ??
           (json['has_new_offers'] as bool?) ??
           false,
       lowestOfferFee: lowestOfferFee,
       offerCurrency: offerCurrency,
+      offerStatuses: offerStatuses,
     );
+  }
+
+  static ClientOfferStatus? _inferredOfferStatus(String requestStatus) {
+    return switch (requestStatus) {
+      'expired' => ClientOfferStatus.expired,
+      'delivered' || 'done' || 'rated' => ClientOfferStatus.accepted,
+      _ => null,
+    };
   }
 
   static RecentDeliverySummary? _parseRecentDelivery(
@@ -785,7 +884,12 @@ class DioClientHomeRepository implements ClientHomeRepository {
 /// request has, and the lowest fee among them (with its currency) for the
 /// Replies card's "from $X" floor. Both money fields are null when no offer
 /// carried a `fee` — the floor is optional by design, never fabricated.
-typedef _OfferProbe = ({int count, double? minFee, String? currency});
+typedef _OfferProbe = ({
+  int count,
+  double? minFee,
+  String? currency,
+  Set<ClientOfferStatus> statuses,
+});
 
 /// The three client-request buckets partitioned from a single
 /// `GET /requests?role=client` call (S007-P1B).
@@ -794,16 +898,19 @@ class _ClientRequestBuckets {
     required this.accepted,
     required this.pending,
     required this.replies,
+    required this.offerStatusRequests,
   });
 
   const _ClientRequestBuckets.empty()
     : accepted = const [],
       pending = const [],
-      replies = const [];
+      replies = const [],
+      offerStatusRequests = const [];
 
   final List<ClientHomeRequest> accepted;
   final List<ClientHomeRequest> pending;
   final List<ClientHomeRequest> replies;
+  final List<ClientHomeRequest> offerStatusRequests;
 }
 
 /// Accumulates whether ANY read in a single [DioClientHomeRepository.loadSnapshot]

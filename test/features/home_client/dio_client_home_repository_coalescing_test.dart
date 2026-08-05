@@ -3,13 +3,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/home_client/data/dio_client_home_repository.dart';
-import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockDio extends Mock implements Dio {}
 
-Response<dynamic> _resp(String path, Object? data) =>
-    Response<dynamic>(data: data, requestOptions: RequestOptions(path: path));
+Response<dynamic> _resp(String path, Object? data) => Response<dynamic>(
+  data: data,
+  requestOptions: RequestOptions(path: path),
+);
 
 void main() {
   late _MockDio dio;
@@ -23,9 +24,12 @@ void main() {
   });
 
   void stub({required List<dynamic> requests}) {
-    when(() => dio.get<dynamic>(any(),
-            queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((invocation) async {
+    when(
+      () => dio.get<dynamic>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer((invocation) async {
       final path = invocation.positionalArguments.first as String;
       final query =
           invocation.namedArguments[#queryParameters] as Map<String, dynamic>?;
@@ -39,48 +43,61 @@ void main() {
     });
   }
 
-  test(
-      'the role=client list is fetched ONCE per load — the recent-deliveries '
+  test('the role=client list is fetched ONCE per load — the recent-deliveries '
       'strip reuses it instead of issuing a second GET /requests', () async {
-    stub(requests: [
-      {'id': 'r-1', 'status': 'pending', 'title': 'Grocery run'},
-    ]);
+    stub(
+      requests: [
+        {'id': 'r-1', 'status': 'pending', 'title': 'Grocery run'},
+      ],
+    );
 
     await repo.loadSnapshot();
 
     // Capture every /requests query. Exactly one is the plain role=client read
-    final requestCalls = verify(() => dio.get<dynamic>(
-          '/requests',
-          queryParameters: captureAny(named: 'queryParameters'),
-        )).captured.whereType<Map<String, dynamic>>();
+    final requestCalls = verify(
+      () => dio.get<dynamic>(
+        '/requests',
+        queryParameters: captureAny(named: 'queryParameters'),
+      ),
+    ).captured.whereType<Map<String, dynamic>>();
 
     final roleOnlyCalls = requestCalls
         .where((qp) => qp['role'] == 'client' && qp['status'] == null)
         .toList();
-    expect(roleOnlyCalls, hasLength(1),
-        reason: 'role=client must be read exactly once, then shared');
+    expect(
+      roleOnlyCalls,
+      hasLength(1),
+      reason: 'role=client must be read exactly once, then shared',
+    );
   });
 
-  test(
-      'a candidate whose payload already reports an offer is NOT probed '
-      '(skip-known reply — saves a GET /v1/offers)', () async {
-    stub(requests: [
-      // payload already carries offersCount > 0 → known reply.
-      {'id': 'r-known', 'status': 'pending', 'offersCount': 2, 'title': 'Known'},
-      // payload has no offer indicator → must be probed.
-      {'id': 'r-unknown', 'status': 'pending', 'title': 'Unknown'},
-    ]);
+  test('candidate probes stay bounded to one GET per request id even when the '
+      'payload already reports an offer', () async {
+    stub(
+      requests: [
+        // payload already carries offersCount > 0 → known reply.
+        {
+          'id': 'r-known',
+          'status': 'pending',
+          'offersCount': 2,
+          'title': 'Known',
+        },
+        // payload has no offer indicator → must be probed.
+        {'id': 'r-unknown', 'status': 'pending', 'title': 'Unknown'},
+      ],
+    );
 
     final snapshot = await repo.loadSnapshot();
 
     expect(offerRequestIds, contains('r-unknown'));
-    expect(offerRequestIds, isNot(contains('r-known')),
-        reason: 'a payload-known reply must not trigger a probe');
+    expect(offerRequestIds, contains('r-known'));
+    expect(offerRequestIds.where((id) => id == 'r-known'), hasLength(1));
 
-    // The known-reply row still surfaces in Replies with its payload count.
+    // The probe enriches lifecycle data without erasing a positive count from
+    // the request service, whose denormalised value remains a reply signal.
     final known = snapshot.replies.where((r) => r.id == 'r-known');
     expect(known, hasLength(1));
-    expect(known.single.status, ClientRequestStatus.offersReceived);
     expect(known.single.offerCount, 2);
+    expect(snapshot.pending.where((r) => r.id == 'r-known'), isEmpty);
   });
 }

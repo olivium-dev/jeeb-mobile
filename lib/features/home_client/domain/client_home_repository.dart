@@ -7,6 +7,7 @@ class ClientHomeSnapshot {
     this.pending = const [],
     this.replies = const [],
     this.recentDeliveries = const [],
+    this.offerStatusRequests = const [],
     this.rateLimited = false,
     this.retryAfter,
     List<ClientHomeRequest>? activeRequests,
@@ -16,6 +17,7 @@ class ClientHomeSnapshot {
   final List<ClientHomeRequest> pending;
   final List<ClientHomeRequest> replies;
   final List<RecentDeliverySummary> recentDeliveries;
+  final List<ClientHomeRequest> offerStatusRequests;
 
   final bool rateLimited;
 

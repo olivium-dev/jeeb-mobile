@@ -31,11 +31,43 @@ enum ClientRequestStatus {
   cancelled,
 }
 
+/// Every offer lifecycle status exposed by the customer offers API.
+enum ClientOfferStatus {
+  pending,
+  submitted,
+  edited,
+  accepted,
+  withdrawn,
+  expired,
+  superseded;
+
+  static ClientOfferStatus? parse(Object? raw) {
+    final value = raw is String ? raw.trim().toLowerCase() : '';
+    return switch (value) {
+      'pending' => ClientOfferStatus.pending,
+      'submitted' => ClientOfferStatus.submitted,
+      'edited' => ClientOfferStatus.edited,
+      'accepted' => ClientOfferStatus.accepted,
+      'withdrawn' => ClientOfferStatus.withdrawn,
+      'expired' => ClientOfferStatus.expired,
+      'rejected' => ClientOfferStatus.superseded,
+      'superseded' => ClientOfferStatus.superseded,
+      _ => null,
+    };
+  }
+}
+
 /// Tier badge the card renders — the five-tier lexicon the redesign board
 /// draws (⚡ Flash / 🚀 Express / 🟦 Standard / 🤝 On-the-Way / 🌿 Eco).
 /// `unknown` renders nothing so the screen never crashes when the backend
 /// introduces a new tier mid-deploy.
-enum ClientRequestTier { flash, express, standard, onTheWay, eco, unknown;
+enum ClientRequestTier {
+  flash,
+  express,
+  standard,
+  onTheWay,
+  eco,
+  unknown;
 
   static ClientRequestTier parse(String? raw) {
     switch (raw) {
@@ -90,6 +122,7 @@ class ClientHomeRequest extends Equatable {
     this.hasNewOffers = false,
     this.lowestOfferFee,
     this.offerCurrency,
+    this.offerStatuses = const <ClientOfferStatus>{},
   });
 
   /// Server-side identifier; also used as the deep-link key.
@@ -135,8 +168,8 @@ class ClientHomeRequest extends Equatable {
   /// no distinct parent id).
   String get chatThreadId =>
       (chatCorrelationId != null && chatCorrelationId!.isNotEmpty)
-          ? chatCorrelationId!
-          : id;
+      ? chatCorrelationId!
+      : id;
 
   /// Human-readable order id (e.g. `ORD-23748`) used in the chat header /
   /// Replies card title. Falls back to [id] when the server omits it.
@@ -223,16 +256,17 @@ class ClientHomeRequest extends Equatable {
   /// on the Replies card. Computed from the SAME `/v1/offers` probe payload the
   /// offer count is derived from, so it costs zero extra network.
   ///
-  /// NULL is the honest default and is common by construction: a row bucketed
-  /// into Replies by its payload `offersCount` is never probed (the probe-skip
-  /// in `_resolveOfferCounts`), and an offer that carries no `fee` contributes
-  /// nothing to the minimum. The card then renders the plain offers count.
+  /// NULL is the honest default when the probe is capped or fails, or when no
+  /// offer carries a `fee`. The card then renders the plain offers count.
   final double? lowestOfferFee;
 
   /// ISO currency of [lowestOfferFee], as the offer row reported it. Null when
   /// there is no floor or the offer omitted a currency (callers default to
   /// USD, which is what the gateway treats a blank code as).
   final String? offerCurrency;
+
+  /// All lifecycle statuses observed across this request's offers.
+  final Set<ClientOfferStatus> offerStatuses;
 
   ClientHomeRequest copyWith({
     String? id,
@@ -255,6 +289,7 @@ class ClientHomeRequest extends Equatable {
     bool? hasNewOffers,
     Object? lowestOfferFee = _sentinel,
     Object? offerCurrency = _sentinel,
+    Set<ClientOfferStatus>? offerStatuses,
   }) {
     return ClientHomeRequest(
       id: id ?? this.id,
@@ -299,32 +334,34 @@ class ClientHomeRequest extends Equatable {
       offerCurrency: identical(offerCurrency, _sentinel)
           ? this.offerCurrency
           : offerCurrency as String?,
+      offerStatuses: offerStatuses ?? this.offerStatuses,
     );
   }
 
   @override
   List<Object?> get props => [
-        id,
-        displayId,
-        title,
-        destinationLabel,
-        itemsSummary,
-        status,
-        tier,
-        progressStep,
-        etaMinutes,
-        jeeberName,
-        offerCount,
-        offerAvatarUrls,
-        conversationId,
-        ttlSeconds,
-        deliveryId,
-        chatCorrelationId,
-        createdAt,
-        hasNewOffers,
-        lowestOfferFee,
-        offerCurrency,
-      ];
+    id,
+    displayId,
+    title,
+    destinationLabel,
+    itemsSummary,
+    status,
+    tier,
+    progressStep,
+    etaMinutes,
+    jeeberName,
+    offerCount,
+    offerAvatarUrls,
+    conversationId,
+    ttlSeconds,
+    deliveryId,
+    chatCorrelationId,
+    createdAt,
+    hasNewOffers,
+    lowestOfferFee,
+    offerCurrency,
+    offerStatuses,
+  ];
 }
 
 const Object _sentinel = Object();
