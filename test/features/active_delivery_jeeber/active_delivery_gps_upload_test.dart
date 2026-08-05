@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/lifecycle/app_lifecycle_gate.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/application/active_delivery_cubit.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery.dart';
@@ -13,6 +14,7 @@ import 'package:jeeb_mobile/features/background_gps/application/background_gps_s
 import 'package:jeeb_mobile/features/background_gps/data/fake_geocapture_gateway.dart';
 import 'package:jeeb_mobile/features/background_gps/data/in_memory_location_uploader.dart';
 import 'package:jeeb_mobile/features/background_gps/domain/gps_sample.dart';
+import 'package:jeeb_mobile/features/background_gps/domain/location_permission.dart';
 
 const _deliveryId = 'DLV-770001';
 const _dropOff = DropOffAddress(label: 'Verdun', lat: 33.88, lng: 35.49);
@@ -20,21 +22,16 @@ const _dropOff = DropOffAddress(label: 'Verdun', lat: 33.88, lng: 35.49);
 JeeberDelivery _delivery(
   JeeberDeliveryStatus status, {
   String id = _deliveryId,
-}) =>
-    JeeberDelivery(
-      id: id,
-      status: status,
-      dropOff: _dropOff,
-    );
+}) => JeeberDelivery(id: id, status: status, dropOff: _dropOff);
 
 GpsSample _sample({double accuracy = 12}) => GpsSample(
-      latitude: 33.9,
-      longitude: 35.51,
-      accuracyMeters: accuracy,
-      speedMps: 6,
-      headingDegrees: 90,
-      capturedAt: DateTime.utc(2026, 7, 14, 10, 0, 0),
-    );
+  latitude: 33.9,
+  longitude: 35.51,
+  accuracyMeters: accuracy,
+  speedMps: 6,
+  headingDegrees: 90,
+  capturedAt: DateTime.utc(2026, 7, 14, 10, 0, 0),
+);
 
 /// Minimal repository stub: hands back a delivery at a fixed status and echoes
 /// transition targets (so markDelivered walks InTransit → AtDoor → Done).
@@ -54,26 +51,26 @@ class _FakeRepo implements ActiveDeliveryRepository {
     required JeeberDeliveryStatus from,
     required JeeberDeliveryStatus to,
     String? evidenceUrl,
-  }) async =>
-      to;
+  }) async => to;
 
   @override
   Future<JeeberDeliveryStatus> verifyDoorOtp({
     required String deliveryId,
     required String code,
-  }) async =>
-      JeeberDeliveryStatus.done;
+  }) async => JeeberDeliveryStatus.done;
 
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
     required Uint8List bytes,
     String contentType = 'image/jpeg',
-  }) async =>
-      'object-ref';
+  }) async => 'object-ref';
 }
 
 void main() {
+  setUp(AppLifecycleGate.debugReset);
+  tearDown(AppLifecycleGate.debugReset);
+
   group('JEBV4-269 active-delivery GPS upload wiring', () {
     late FakeGeocaptureGateway gateway;
     late InMemoryLocationUploader uploader;
@@ -137,6 +134,43 @@ void main() {
       await cubit.close();
     });
 
+    test(
+      'defers an Android whileInUse service start until the app resumes',
+      () async {
+        final gate = ManualAppLifecycleGate(isForeground: false);
+        AppLifecycleGate.install(gate);
+        gateway = FakeGeocaptureGateway(
+          initialPermission: LocationPermission.whileInUse,
+          supportsBackgroundTrackingWithWhileInUse: true,
+        );
+        uploader = InMemoryLocationUploader();
+        gps = BackgroundGpsCubit(gateway: gateway, uploader: uploader);
+        final cubit = ActiveDeliveryCubit(
+          repository: _FakeRepo(JeeberDeliveryStatus.inTransit),
+          deliveryId: _deliveryId,
+          gpsUploader: gps,
+          refreshSignals: const Stream<void>.empty(),
+        );
+
+        await cubit.loadDelivery();
+        await pumpEventQueue();
+        expect(gps.state.phase, BackgroundGpsPhase.idle);
+        expect(gateway.permissionCalls, isEmpty);
+
+        gate.setForeground(true);
+        await cubit.refresh();
+        await pumpEventQueue();
+
+        expect(gps.state.phase, BackgroundGpsPhase.tracking);
+        expect(gps.state.permission, LocationPermission.whileInUse);
+        expect(gateway.permissionCalls, ['current']);
+
+        await cubit.close();
+        await gps.close();
+        await gateway.dispose();
+      },
+    );
+
     test('stops the uploader when the delivery is marked delivered', () async {
       final cubit = buildCubit(JeeberDeliveryStatus.inTransit);
       await cubit.loadDelivery();
@@ -190,30 +224,32 @@ void main() {
       await gps.close();
     });
 
-    test('stops the uploader on close once the delivery has LEFT InTransit',
-        () async {
-      final cubit = buildCubit(JeeberDeliveryStatus.inTransit);
-      await cubit.loadDelivery();
-      await pumpEventQueue();
-      expect(gps.state.phase, BackgroundGpsPhase.tracking);
-      final teardownsWhileTracking = gateway.stopCount;
+    test(
+      'stops the uploader on close once the delivery has LEFT InTransit',
+      () async {
+        final cubit = buildCubit(JeeberDeliveryStatus.inTransit);
+        await cubit.loadDelivery();
+        await pumpEventQueue();
+        expect(gps.state.phase, BackgroundGpsPhase.tracking);
+        final teardownsWhileTracking = gateway.stopCount;
 
-      // Delivery completes, then the screen tears down.
-      await cubit.markDelivered();
-      await pumpEventQueue();
-      await cubit.close();
-      await pumpEventQueue();
+        // Delivery completes, then the screen tears down.
+        await cubit.markDelivered();
+        await pumpEventQueue();
+        await cubit.close();
+        await pumpEventQueue();
 
-      // Battery + privacy: the en-route window closed, so the stream is down.
-      expect(gps.state.phase, BackgroundGpsPhase.idle);
-      expect(gateway.stopCount, greaterThan(teardownsWhileTracking));
+        // Battery + privacy: the en-route window closed, so the stream is down.
+        expect(gps.state.phase, BackgroundGpsPhase.idle);
+        expect(gateway.stopCount, greaterThan(teardownsWhileTracking));
 
-      await gateway.emit(_sample());
-      await pumpEventQueue();
-      expect(uploader.calls, isEmpty);
+        await gateway.emit(_sample());
+        await pumpEventQueue();
+        expect(uploader.calls, isEmpty);
 
-      await gps.close();
-    });
+        await gps.close();
+      },
+    );
 
     test('a second delivery screen does not stop a sibling delivery that is '
         'still en route', () async {

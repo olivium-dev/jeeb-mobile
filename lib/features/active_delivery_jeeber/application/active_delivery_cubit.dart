@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/lifecycle/app_lifecycle_gate.dart';
 import '../../background_gps/application/background_gps_cubit.dart';
 import '../../background_gps/application/background_gps_state.dart';
 import '../../photo_attachment/data/stub_photo_picker_service.dart';
@@ -118,21 +119,21 @@ class ActiveDeliveryState extends Equatable {
 
   @override
   List<Object?> get props => [
-        mode,
-        delivery,
-        transitionError,
-        transitionErrorKind,
-        errorMessage,
-        proofPhotoStatus,
-        proofPhotoBytes,
-        note,
-        delivered,
-        otpRequired,
-        isVerifyingOtp,
-        otpError,
-        gpsPhase,
-        gpsNeedsSystemSettings,
-      ];
+    mode,
+    delivery,
+    transitionError,
+    transitionErrorKind,
+    errorMessage,
+    proofPhotoStatus,
+    proofPhotoBytes,
+    note,
+    delivered,
+    otpRequired,
+    isVerifyingOtp,
+    otpError,
+    gpsPhase,
+    gpsNeedsSystemSettings,
+  ];
 }
 
 class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
@@ -143,12 +144,12 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     PhotoCompressor compressor = const HalvingPhotoCompressor(),
     Stream<void>? refreshSignals,
     BackgroundGpsCubit? gpsUploader,
-  })  : _repository = repository,
-        _photoPicker = photoPicker ?? StubPhotoPickerService(),
-        _compressor = compressor,
-        _refreshSignals = refreshSignals,
-        _gpsUploader = gpsUploader,
-        super(const ActiveDeliveryState()) {
+  }) : _repository = repository,
+       _photoPicker = photoPicker ?? StubPhotoPickerService(),
+       _compressor = compressor,
+       _refreshSignals = refreshSignals,
+       _gpsUploader = gpsUploader,
+       super(const ActiveDeliveryState()) {
     _armGpsMirror();
   }
 
@@ -182,10 +183,12 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
 
   void _mirrorGpsState(BackgroundGpsState gpsState) {
     if (isClosed) return;
-    emit(state.copyWith(
-      gpsPhase: gpsState.phase,
-      gpsNeedsSystemSettings: gpsState.needsSystemSettings,
-    ));
+    emit(
+      state.copyWith(
+        gpsPhase: gpsState.phase,
+        gpsNeedsSystemSettings: gpsState.needsSystemSettings,
+      ),
+    );
   }
 
   Future<void> retryGpsPermission() async {
@@ -200,20 +203,24 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     emit(state.copyWith(mode: ActiveDeliveryMode.loading, clearError: true));
     try {
       final delivery = await _repository.fetchDelivery(deliveryId);
-      emit(state.copyWith(
-        mode: ActiveDeliveryMode.ready,
-        delivery: delivery,
-        proofPhotoStatus: delivery.hasProofPhoto
-            ? ProofPhotoStatus.captured
-            : ProofPhotoStatus.none,
-      ));
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.ready,
+          delivery: delivery,
+          proofPhotoStatus: delivery.hasProofPhoto
+              ? ProofPhotoStatus.captured
+              : ProofPhotoStatus.none,
+        ),
+      );
       _armPoll();
       _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
-      emit(state.copyWith(
-        mode: ActiveDeliveryMode.error,
-        errorMessage: _mapLoadError(e),
-      ));
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.error,
+          errorMessage: _mapLoadError(e),
+        ),
+      );
     }
   }
 
@@ -257,13 +264,15 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       final merged = (fresh.proofPhotoUrl == null && localProof != null)
           ? fresh.withProofPhoto(localProof)
           : fresh;
-      emit(state.copyWith(
-        mode: ActiveDeliveryMode.ready,
-        delivery: merged,
-        otpRequired: otpWindow && merged.status.isTerminal ? false : null,
-        isVerifyingOtp: otpWindow && merged.status.isTerminal ? false : null,
-        delivered: merged.status.isSuccessfulTerminal ? true : null,
-      ));
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.ready,
+          delivery: merged,
+          otpRequired: otpWindow && merged.status.isTerminal ? false : null,
+          isVerifyingOtp: otpWindow && merged.status.isTerminal ? false : null,
+          delivered: merged.status.isSuccessfulTerminal ? true : null,
+        ),
+      );
       if (merged.status.isPollTerminal) {
         _retireRefreshSubscription();
       }
@@ -278,7 +287,12 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     if (gps == null) return;
     final enRoute = state.delivery?.status == JeeberDeliveryStatus.inTransit;
     if (enRoute) {
-      unawaited(gps.start(deliveryId));
+      // Android's while-in-use grant can back a location foreground service,
+      // but the service must be started while an activity is visible. A push
+      // received in the background is picked up by the existing resume refresh.
+      if (AppLifecycleGate.instance.isForeground) {
+        unawaited(gps.start(deliveryId));
+      }
     } else if (_uploaderIsDrivingThisDelivery(gps)) {
       unawaited(gps.stop());
     }
@@ -319,11 +333,13 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     if (state.isTransitioning) return;
 
     final optimistic = _withStatus(current, nextStatus);
-    emit(state.copyWith(
-      mode: ActiveDeliveryMode.transitioning,
-      delivery: optimistic,
-      clearTransitionError: true,
-    ));
+    emit(
+      state.copyWith(
+        mode: ActiveDeliveryMode.transitioning,
+        delivery: optimistic,
+        clearTransitionError: true,
+      ),
+    );
 
     try {
       final confirmed = await _repository.transition(
@@ -333,18 +349,22 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       );
       _logTransition(current.status, confirmed);
       final confirmedDelivery = _withStatus(current, confirmed);
-      emit(state.copyWith(
-        mode: ActiveDeliveryMode.ready,
-        delivery: confirmedDelivery,
-      ));
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.ready,
+          delivery: confirmedDelivery,
+        ),
+      );
       _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
-      emit(state.copyWith(
-        mode: ActiveDeliveryMode.ready,
-        delivery: current,
-        transitionError: _mapTransitionError(e),
-        transitionErrorKind: e.failure,
-      ));
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.ready,
+          delivery: current,
+          transitionError: _mapTransitionError(e),
+          transitionErrorKind: e.failure,
+        ),
+      );
     }
   }
 
@@ -364,34 +384,42 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       return;
     }
 
-    emit(state.copyWith(
-      proofPhotoStatus: ProofPhotoStatus.uploading,
-      proofPhotoBytes: bytes,
-      clearTransitionError: true,
-    ));
+    emit(
+      state.copyWith(
+        proofPhotoStatus: ProofPhotoStatus.uploading,
+        proofPhotoBytes: bytes,
+        clearTransitionError: true,
+      ),
+    );
     try {
       final url = await _repository.uploadProofPhoto(
         deliveryId: deliveryId,
         bytes: bytes,
       );
-      emit(state.copyWith(
-        delivery: current.withProofPhoto(url),
-        proofPhotoStatus: ProofPhotoStatus.captured,
-      ));
+      emit(
+        state.copyWith(
+          delivery: current.withProofPhoto(url),
+          proofPhotoStatus: ProofPhotoStatus.captured,
+        ),
+      );
     } on ActiveDeliveryException catch (e) {
-      emit(state.copyWith(
-        proofPhotoStatus: ProofPhotoStatus.failed,
-        transitionError: _mapTransitionError(e),
-        transitionErrorKind: e.failure,
-      ));
+      emit(
+        state.copyWith(
+          proofPhotoStatus: ProofPhotoStatus.failed,
+          transitionError: _mapTransitionError(e),
+          transitionErrorKind: e.failure,
+        ),
+      );
     }
   }
 
   void setNote(String value) {
     final trimmed = value.trim();
-    emit(trimmed.isEmpty
-        ? state.copyWith(clearNote: true)
-        : state.copyWith(note: trimmed));
+    emit(
+      trimmed.isEmpty
+          ? state.copyWith(clearNote: true)
+          : state.copyWith(note: trimmed),
+    );
   }
 
   Future<void> markDelivered() async {
@@ -401,21 +429,25 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
     if (original.status.isTerminal) return;
 
     if (original.status == JeeberDeliveryStatus.atDoor) {
-      emit(state.copyWith(
-        mode: ActiveDeliveryMode.ready,
-        otpRequired: true,
-        clearTransitionError: true,
-        clearOtpError: true,
-      ));
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.ready,
+          otpRequired: true,
+          clearTransitionError: true,
+          clearOtpError: true,
+        ),
+      );
       _syncGpsUpload();
       return;
     }
 
-    emit(state.copyWith(
-      mode: ActiveDeliveryMode.transitioning,
-      delivery: _withStatus(original, JeeberDeliveryStatus.atDoor),
-      clearTransitionError: true,
-    ));
+    emit(
+      state.copyWith(
+        mode: ActiveDeliveryMode.transitioning,
+        delivery: _withStatus(original, JeeberDeliveryStatus.atDoor),
+        clearTransitionError: true,
+      ),
+    );
 
     var from = original.status;
     var lastConfirmed = original.status;
@@ -436,33 +468,39 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
         if (confirmed != to) break;
       }
       final atDoor = from == JeeberDeliveryStatus.atDoor;
-      emit(state.copyWith(
-        mode: ActiveDeliveryMode.ready,
-        delivery: _withStatus(original, from),
-        otpRequired: atDoor,
-        delivered: from == JeeberDeliveryStatus.done,
-        clearOtpError: true,
-      ));
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _withStatus(original, from),
+          otpRequired: atDoor,
+          delivered: from == JeeberDeliveryStatus.done,
+          clearOtpError: true,
+        ),
+      );
       _schedulePoll();
       _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
       if (e.failure == ActiveDeliveryFailure.otpRequired) {
-        emit(state.copyWith(
-          mode: ActiveDeliveryMode.ready,
-          delivery: _withStatus(original, lastConfirmed),
-          otpRequired: true,
-          clearTransitionError: true,
-          clearOtpError: true,
-        ));
+        emit(
+          state.copyWith(
+            mode: ActiveDeliveryMode.ready,
+            delivery: _withStatus(original, lastConfirmed),
+            otpRequired: true,
+            clearTransitionError: true,
+            clearOtpError: true,
+          ),
+        );
         _syncGpsUpload();
         return;
       }
-      emit(state.copyWith(
-        mode: ActiveDeliveryMode.ready,
-        delivery: _withStatus(original, lastConfirmed),
-        transitionError: _mapTransitionError(e),
-        transitionErrorKind: e.failure,
-      ));
+      emit(
+        state.copyWith(
+          mode: ActiveDeliveryMode.ready,
+          delivery: _withStatus(original, lastConfirmed),
+          transitionError: _mapTransitionError(e),
+          transitionErrorKind: e.failure,
+        ),
+      );
     }
   }
 
@@ -483,20 +521,19 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
       );
       _logTransition(JeeberDeliveryStatus.atDoor, status);
       final done = status == JeeberDeliveryStatus.done;
-      emit(state.copyWith(
-        isVerifyingOtp: false,
-        delivery: _withStatus(current, status),
-        otpRequired: !done,
-        delivered: done,
-        clearOtpError: true,
-      ));
+      emit(
+        state.copyWith(
+          isVerifyingOtp: false,
+          delivery: _withStatus(current, status),
+          otpRequired: !done,
+          delivered: done,
+          clearOtpError: true,
+        ),
+      );
       _schedulePoll();
       _syncGpsUpload();
     } on ActiveDeliveryException catch (e) {
-      emit(state.copyWith(
-        isVerifyingOtp: false,
-        otpError: _mapOtpError(e),
-      ));
+      emit(state.copyWith(isVerifyingOtp: false, otpError: _mapOtpError(e)));
     }
   }
 
@@ -588,6 +625,8 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
   // ignore: avoid_print
   void _logTransition(JeeberDeliveryStatus from, JeeberDeliveryStatus to) {
     // ignore: avoid_print
-    print('[delivery.status_transition] from=${from.apiValue} to=${to.apiValue}');
+    print(
+      '[delivery.status_transition] from=${from.apiValue} to=${to.apiValue}',
+    );
   }
 }

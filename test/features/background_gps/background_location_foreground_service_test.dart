@@ -9,8 +9,9 @@ import 'package:jeeb_mobile/features/background_gps/data/geolocator_geocapture_g
 void main() {
   group('P1 jeeber GPS keeps streaming while the app is backgrounded', () {
     test('Android settings start a foreground service', () {
-      final settings =
-          GeolocatorGeocaptureGateway.defaultSettings(TargetPlatform.android);
+      final settings = GeolocatorGeocaptureGateway.defaultSettings(
+        TargetPlatform.android,
+      );
 
       // A bare LocationSettings cannot carry a foreground service at all, so
       expect(settings, isA<geo.AndroidSettings>());
@@ -20,7 +21,8 @@ void main() {
       expect(
         config,
         isNotNull,
-        reason: 'Without this the stream is throttled the moment the jeeber '
+        reason:
+            'Without this the stream is throttled the moment the jeeber '
             'leaves the app and live tracking dies silently.',
       );
 
@@ -47,21 +49,41 @@ void main() {
 
     test('non-Android platforms keep the plain settings', () {
       // iOS gets continuous background delivery from UIBackgroundModes +
-      final settings =
-          GeolocatorGeocaptureGateway.defaultSettings(TargetPlatform.iOS);
+      final settings = GeolocatorGeocaptureGateway.defaultSettings(
+        TargetPlatform.iOS,
+      );
       expect(settings, isNot(isA<geo.AndroidSettings>()));
     });
 
     test('the production constructor adopts the platform default', () {
       // Proves the wiring, not just the helper: the gateway the DI container
-      final gateway =
-          GeolocatorGeocaptureGateway(platform: TargetPlatform.android);
+      final gateway = GeolocatorGeocaptureGateway(
+        platform: TargetPlatform.android,
+      );
       expect(gateway.locationSettings, isA<geo.AndroidSettings>());
       expect(
         (gateway.locationSettings as geo.AndroidSettings)
             .foregroundNotificationConfig,
         isNotNull,
       );
+      expect(gateway.supportsBackgroundTrackingWithWhileInUse, isTrue);
     });
+
+    test(
+      'whileInUse support is limited to Android foreground-service streams',
+      () {
+        final androidWithoutService = GeolocatorGeocaptureGateway(
+          platform: TargetPlatform.android,
+          locationSettings: const geo.LocationSettings(),
+        );
+        final ios = GeolocatorGeocaptureGateway(platform: TargetPlatform.iOS);
+
+        expect(
+          androidWithoutService.supportsBackgroundTrackingWithWhileInUse,
+          isFalse,
+        );
+        expect(ios.supportsBackgroundTrackingWithWhileInUse, isFalse);
+      },
+    );
   });
 }

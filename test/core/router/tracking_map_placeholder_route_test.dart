@@ -140,34 +140,41 @@ void main() {
     final screen = tester.widget<LiveTrackingScreen>(
       find.byType(LiveTrackingScreen),
     );
-    expect(screen.useLiveMap, isTrue,
-        reason: 'the route now opts into the live map (key provisioned, '
-            'billing enabled)');
+    expect(
+      screen.useLiveMap,
+      isTrue,
+      reason:
+          'the route now opts into the live map (key provisioned, '
+          'billing enabled)',
+    );
     // The live map platform view is actually in the tree on the route (the
     expect(find.byType(TrackingGoogleMap), findsOneWidget);
   });
 
-  test('safety invariant: a true default useLiveMap REQUIRES '
-      'com.google.android.geo.API_KEY in the AndroidManifest '
-      '(a live map must never be keyless)', () {
-    final defaultUseLiveMap =
-        const LiveTrackingScreen(deliveryId: 'x').useLiveMap;
+  test('safety invariant: live Maps requires a validated build-time key', () {
+    final defaultUseLiveMap = const LiveTrackingScreen(
+      deliveryId: 'x',
+    ).useLiveMap;
 
-    final manifest =
-        File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
-    final manifestHasGeoKey =
-        manifest.contains('com.google.android.geo.API_KEY');
+    final manifest = File(
+      'android/app/src/main/AndroidManifest.xml',
+    ).readAsStringSync();
+    final buildGradle = File('android/app/build.gradle').readAsStringSync();
 
-    // The default is now ON.
-    expect(defaultUseLiveMap, isTrue,
-        reason: 'Maps is enabled — the tracking surface renders the live map');
-    // A true default is only safe WITH the key present (invariant:
+    expect(defaultUseLiveMap, isTrue);
+    expect(manifest, contains('android:name="com.google.android.geo.API_KEY"'));
+    expect(manifest, contains(r'android:value="${MAPS_API_KEY}"'));
     expect(
-      defaultUseLiveMap == false || manifestHasGeoKey,
-      isTrue,
-      reason: 'A live map with no geo API key is a native FATAL. With '
-          'useLiveMap defaulting to true, the manifest MUST carry '
-          'com.google.android.geo.API_KEY.',
+      buildGradle,
+      contains("tasks.register('verifyMapsApiKey')"),
+      reason: 'a metadata placeholder alone still permits a blank native map',
+    );
+    expect(buildGradle, contains('mapsApiKey ==~'));
+    expect(buildGradle, contains("'MISSING_MAPS_API_KEY'"));
+    expect(
+      buildGradle,
+      contains("task.dependsOn(verifyMapsApiKey)"),
+      reason: 'manifest processing must be blocked by key validation',
     );
   });
 }

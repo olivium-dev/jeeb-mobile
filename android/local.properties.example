@@ -1,0 +1,3 @@
+# Merge this entry into android/local.properties; never commit the real value.
+# CI may provide the same name as an environment variable instead.
+MAPS_API_KEY=YOUR_GOOGLE_MAPS_ANDROID_KEY
