@@ -236,7 +236,10 @@ class LocationSimulationController extends ChangeNotifier {
         startsAt: _clock(),
         interval: _tickInterval,
       );
-      final usesLoop = delivery.pickupLocation == delivery.dropoffLocation;
+      final usesLoop = LocationRouteGenerator.shouldUseSyntheticLoop(
+        delivery.pickupLocation,
+        delivery.dropoffLocation,
+      );
       _emit(
         _state.copyWith(
           phase: LocationSimulationPhase.moving,
@@ -246,7 +249,9 @@ class LocationSimulationController extends ChangeNotifier {
           acceptedUpdates: 0,
           rejectedUpdates: 0,
           message: usesLoop
-              ? 'Pickup and drop-off match; sending an explicit synthetic loop.'
+              ? 'Pickup and drop-off are under '
+                    '${LocationRouteGenerator.minimumVisibleTripMeters.round()} m '
+                    'apart; sending a visible synthetic loop.'
               : 'Sending simulated locations...',
         ),
       );

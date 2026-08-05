@@ -6,6 +6,13 @@ class LocationRouteGenerator {
   const LocationRouteGenerator();
 
   static const double _earthRadiusMeters = 6371008.8;
+  static const double minimumVisibleTripMeters = 100;
+  static const double _syntheticLoopRadiusMeters = 120;
+
+  static bool shouldUseSyntheticLoop(
+    LocationCoordinate start,
+    LocationCoordinate end,
+  ) => haversineDistanceMeters(start, end) < minimumVisibleTripMeters;
 
   LocationSimulationRoute generate({
     required LocationCoordinate start,
@@ -36,13 +43,13 @@ class LocationRouteGenerator {
     final utcStart = startsAt.toUtc();
     final intervalSeconds =
         interval.inMicroseconds / Duration.microsecondsPerSecond;
-    final sameEndpoints = start == end;
+    final useSyntheticLoop = shouldUseSyntheticLoop(start, end);
     final coordinates = List<LocationCoordinate>.generate(stepCount, (index) {
       if (index == 0) return start;
       if (index == stepCount - 1) return end;
       final fraction = index / (stepCount - 1);
-      return sameEndpoints
-          ? _loopCoordinate(start, fraction)
+      return useSyntheticLoop
+          ? _loopCoordinate(start, end, fraction)
           : _interpolate(start, end, fraction);
     }, growable: false);
     final points = <LocationRoutePoint>[];
@@ -127,17 +134,20 @@ class LocationRouteGenerator {
   }
 
   static LocationCoordinate _loopCoordinate(
-    LocationCoordinate origin,
+    LocationCoordinate start,
+    LocationCoordinate end,
     double fraction,
   ) {
-    const radiusMeters = 40.0;
+    final base = _interpolate(start, end, fraction);
     final angle = -math.pi / 2 + 2 * math.pi * fraction;
-    final northMeters = radiusMeters + radiusMeters * math.sin(angle);
-    final eastMeters = radiusMeters * math.cos(angle);
-    final latitude = origin.latitude + northMeters / 111320;
-    final longitudeScale = 111320 * math.cos(_toRadians(origin.latitude));
+    final northMeters =
+        _syntheticLoopRadiusMeters +
+        _syntheticLoopRadiusMeters * math.sin(angle);
+    final eastMeters = _syntheticLoopRadiusMeters * math.cos(angle);
+    final latitude = base.latitude + northMeters / 111320;
+    final longitudeScale = 111320 * math.cos(_toRadians(base.latitude));
     final longitude =
-        origin.longitude +
+        base.longitude +
         (longitudeScale.abs() < 0.001 ? 0 : eastMeters / longitudeScale);
     return LocationCoordinate(latitude: latitude, longitude: longitude);
   }
