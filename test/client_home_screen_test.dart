@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
+import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
@@ -57,7 +58,14 @@ Widget _harness({
   VoidCallback? onCreateRequest,
   Locale locale = const Locale('en'),
   ClientHomeTab initialTab = ClientHomeTab.inProgress,
+  bool shellHeaderOverlay = false,
 }) {
+  final screen = ClientHomeScreen(
+    initialTab: initialTab,
+    onOpenRequest: onOpenRequest,
+    onTrack: onTrack,
+    onCreateRequest: onCreateRequest,
+  );
   return MaterialApp(
     theme: AppTheme.light(),
     locale: locale,
@@ -80,15 +88,39 @@ Widget _harness({
           repository: repo,
           greetingNameProvider: () => greetingName,
         ),
-        child: ClientHomeScreen(
-          initialTab: initialTab,
-          onOpenRequest: onOpenRequest,
-          onTrack: onTrack,
-          onCreateRequest: onCreateRequest,
-        ),
+        child: shellHeaderOverlay
+            ? _ShellHeaderOverlayHost(child: screen)
+            : screen,
       ),
     ),
   );
+}
+
+class _ShellHeaderOverlayHost extends StatelessWidget {
+  const _ShellHeaderOverlayHost({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(child: child),
+        const PositionedDirectional(
+          top: 0,
+          end: Spacing.xSmall,
+          child: SafeArea(
+            child: SizedBox(
+              key: Key('test-shell-header-actions-overlay'),
+              width: kMinInteractiveDimension * 2,
+              height: kMinInteractiveDimension,
+              child: ColoredBox(color: Colors.transparent),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Snapshot covering all three My Orders tabs, mirroring the Figma mock data
@@ -131,6 +163,82 @@ ClientHomeRepository _threeTabRepo() {
           offerAvatarUrls: ['', '', ''],
           conversationId: 'conv-rep-1',
         ),
+      ],
+      offerStatusRequests: [
+        ClientHomeRequest(
+          id: 'status-1',
+          title: 'Status-filtered request',
+          displayId: 'ORD-STATUS',
+          destinationLabel: 'Hamra',
+          itemsSummary: 'Documents for delivery',
+          status: ClientRequestStatus.searching,
+          offerStatuses: {
+            ClientOfferStatus.pending,
+            ClientOfferStatus.submitted,
+            ClientOfferStatus.edited,
+            ClientOfferStatus.accepted,
+            ClientOfferStatus.withdrawn,
+            ClientOfferStatus.expired,
+            ClientOfferStatus.superseded,
+          },
+        ),
+      ],
+    ),
+    latency: Duration.zero,
+  );
+}
+
+ClientHomeRepository _expiredStatusRepo() {
+  return InMemoryClientHomeRepository.fromSnapshot(
+    const ClientHomeSnapshot(
+      offerStatusRequests: [
+        ClientHomeRequest(
+          id: 'expired-short',
+          title: 'Short',
+          displayId: 'ORD-1',
+          destinationLabel: 'A',
+          itemsSummary: 'Milk',
+          status: ClientRequestStatus.searching,
+          offerStatuses: {ClientOfferStatus.expired},
+        ),
+        ClientHomeRequest(
+          id: 'expired-medium',
+          title: 'Medium expired request',
+          displayId: 'ORD-22222',
+          destinationLabel: 'Hamra',
+          itemsSummary: 'Documents and groceries',
+          status: ClientRequestStatus.searching,
+          offerStatuses: {ClientOfferStatus.expired},
+        ),
+        ClientHomeRequest(
+          id: 'expired-long',
+          title: 'Very long expired request title',
+          displayId: 'ORD-333333333',
+          destinationLabel: 'Ashrafieh to Hamra',
+          itemsSummary: 'One large parcel and several fragile items',
+          status: ClientRequestStatus.searching,
+          offerStatuses: {ClientOfferStatus.expired},
+        ),
+      ],
+    ),
+    latency: Duration.zero,
+  );
+}
+
+ClientHomeRepository _deepExpiredStatusRepo() {
+  return InMemoryClientHomeRepository.fromSnapshot(
+    ClientHomeSnapshot(
+      offerStatusRequests: [
+        for (var i = 0; i < 18; i++)
+          ClientHomeRequest(
+            id: 'deep-expired-$i',
+            title: 'Expired request $i',
+            displayId: 'ORD-DEEP-$i',
+            destinationLabel: 'Hamra',
+            itemsSummary: 'Documents, groceries and a parcel for stop $i',
+            status: ClientRequestStatus.searching,
+            offerStatuses: const {ClientOfferStatus.expired},
+          ),
       ],
     ),
     latency: Duration.zero,
@@ -191,10 +299,7 @@ void main() {
             'null host callback is the defect this guards',
       );
       // And the mic itself is its own, newly coined target.
-      expect(
-        find.bySemanticsIdentifier('client_home_mic_cta'),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsIdentifier('client_home_mic_cta'), findsOneWidget);
       expect(
         find.bySemanticsIdentifier('orders_filter_pendingRequests'),
         findsOneWidget,
@@ -203,6 +308,7 @@ void main() {
         find.bySemanticsIdentifier('orders_filter_replies'),
         findsOneWidget,
       );
+      expect(find.bySemanticsIdentifier('orders_filter_more'), findsOneWidget);
       expect(
         find.bySemanticsIdentifier('_request_empty_state_root'),
         findsOneWidget,
@@ -228,6 +334,7 @@ void main() {
 
       expect(find.text('Pending'), findsOneWidget);
       expect(find.text('Replies'), findsOneWidget);
+      expect(find.text('More'), findsOneWidget);
       expect(find.text('What do you need?'), findsOneWidget);
       expect(
         find.text(
@@ -343,11 +450,11 @@ void main() {
       // target them by id (recon KNOWN DEBT #1 — no localized-text taps).
       expect(
         tester.getSemantics(find.byKey(const Key('active-request-card-r-1'))),
-        containsSemantics(identifier: 'orders_active_card_r-1'),
+        isSemantics(identifier: 'orders_active_card_r-1'),
       );
       expect(
         tester.getSemantics(find.byKey(const Key('active-track-order-r-1'))),
-        containsSemantics(
+        isSemantics(
           identifier: 'orders_track_order_button_r-1',
           isButton: true,
         ),
@@ -481,8 +588,7 @@ void main() {
     );
 
     testWidgets(
-      'filter chips carry stable Semantics identifiers — Pending + Replies '
-      'only (JEBV4-298: In-Progress relocated to Delivery tab)',
+      'filter chips carry stable Semantics identifiers — Pending, Replies, More',
       (tester) async {
         await tester.pumpWidget(
           _harness(
@@ -505,6 +611,10 @@ void main() {
         );
         expect(
           find.bySemanticsIdentifier('orders_filter_replies'),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsIdentifier('orders_filter_more'),
           findsOneWidget,
         );
         // JM-027's coined alias, re-homed off the kit segment (which carries
@@ -552,7 +662,7 @@ void main() {
           find.byKey(const Key('client-home-tab-inProgress')),
           findsNothing,
         );
-        // Only the two on-hold chips are present.
+        // The two list filters and their More overflow filter are present.
         expect(
           find.byKey(const Key('client-home-tab-pendingRequests')),
           findsOneWidget,
@@ -561,12 +671,330 @@ void main() {
           find.byKey(const Key('client-home-tab-replies')),
           findsOneWidget,
         );
+        expect(find.byKey(const Key('client-home-tab-more')), findsOneWidget);
         // Default landing surface is the Pending list, NOT an active-request card.
         expect(
           find.byKey(const Key('pending-requests-tab-list')),
           findsOneWidget,
         );
         expect(find.byKey(const Key('active-request-card-ip-1')), findsNothing);
+      },
+    );
+
+    testWidgets('More filter opens the complete offer-status guide', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          repo: _threeTabRepo(),
+          initialTab: ClientHomeTab.pendingRequests,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('client-home-tab-more')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('offer_status_info_sheet'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Choose a status to filter your requests.'),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('offer-status-sheet-intro')),
+          matching: find.byType(SingleChildScrollView),
+        ),
+        findsOneWidget,
+        reason:
+            'the intro belongs to the sheet scroll content, so scrolling cannot '
+            'leave a clipped orphan under a fixed intro copy',
+      );
+      for (final status in <String>[
+        'Pending',
+        'Submitted',
+        'Edited',
+        'Accepted',
+        'Withdrawn',
+        'Expired',
+        'Not selected',
+      ]) {
+        expect(find.text(status), findsWidgets);
+      }
+      expect(
+        find.text(
+          'Another offer was accepted, so this offer was not selected.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Superseded'), findsNothing);
+      expect(find.text('A newer version replaced this offer.'), findsNothing);
+
+      final withdrawn = find.bySemanticsIdentifier(
+        'offer_status_filter_withdrawn',
+      );
+      await tester.ensureVisible(withdrawn);
+      await tester.pumpAndSettle();
+      await tester.tap(withdrawn);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('offer_status_info_sheet'),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsIdentifier('offer_status_request_status-1'),
+        findsOneWidget,
+      );
+      expect(find.text('Withdrawn'), findsWidgets);
+      expect(find.text('More'), findsNothing);
+      expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
+
+      await tester.tap(
+        find.byKey(const Key('client-home-tab-pendingRequests')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('pending-requests-tab-list')),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('offer_status_request_status-1'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('populated status lists reserve bottom navigation clearance', (
+      tester,
+    ) async {
+      const navInset = 48.0;
+      final dpr = tester.view.devicePixelRatio;
+      tester.view.viewPadding = FakeViewPadding(bottom: navInset * dpr);
+      tester.view.padding = FakeViewPadding(bottom: navInset * dpr);
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        _harness(
+          repo: _threeTabRepo(),
+          initialTab: ClientHomeTab.pendingRequests,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('client-home-tab-more')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.bySemanticsIdentifier('offer_status_filter_expired'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.bySemanticsIdentifier('offer_status_filter_expired'),
+      );
+      await tester.pumpAndSettle();
+
+      final list = tester.widget<ListView>(
+        find.byKey(const Key('client-home-ready-list')),
+      );
+      expect(
+        list.padding?.resolve(TextDirection.ltr).bottom,
+        Spacing.twoXLarge + navInset,
+      );
+    });
+
+    testWidgets('expired status cards stretch to consistent list width', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _harness(
+          repo: _expiredStatusRepo(),
+          initialTab: ClientHomeTab.pendingRequests,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('client-home-tab-more')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.bySemanticsIdentifier('offer_status_filter_expired'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.bySemanticsIdentifier('offer_status_filter_expired'),
+      );
+      await tester.pumpAndSettle();
+
+      final widths = [
+        for (final id in ['expired-short', 'expired-medium', 'expired-long'])
+          tester
+              .getSize(find.bySemanticsIdentifier('offer_status_request_$id'))
+              .width,
+      ];
+      expect(widths.toSet(), hasLength(1));
+    });
+
+    testWidgets(
+      'deep-scrolled status text is separated from wallet/bell by glass',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(384, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          _harness(
+            repo: _deepExpiredStatusRepo(),
+            initialTab: ClientHomeTab.pendingRequests,
+            shellHeaderOverlay: true,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('client-home-tab-more')));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(
+          find.bySemanticsIdentifier('offer_status_filter_expired'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.bySemanticsIdentifier('offer_status_filter_expired'),
+        );
+        await tester.pumpAndSettle();
+
+        final list = find.byKey(const Key('client-home-ready-list'));
+        final overlay = find.byKey(
+          const Key('test-shell-header-actions-overlay'),
+        );
+        final backdrop = find.byKey(
+          const Key('client-home-header-actions-glass-backdrop'),
+        );
+
+        Rect? intersectingCard;
+        for (
+          var attempt = 0;
+          attempt < 8 && intersectingCard == null;
+          attempt++
+        ) {
+          await tester.drag(list, const Offset(0, -220));
+          await tester.pumpAndSettle();
+          final overlayRect = tester.getRect(overlay);
+          for (var i = 0; i < 18; i++) {
+            final cardFinder = find.bySemanticsIdentifier(
+              'offer_status_request_deep-expired-$i',
+            );
+            if (cardFinder.evaluate().isEmpty) continue;
+            final cardRect = tester.getRect(cardFinder);
+            if (cardRect.overlaps(overlayRect)) {
+              intersectingCard = cardRect;
+              break;
+            }
+          }
+        }
+
+        expect(
+          intersectingCard,
+          isNotNull,
+          reason:
+              'the test must reproduce a deep scroll where a populated card '
+              'would enter the shell header-actions footprint',
+        );
+        final overlayRect = tester.getRect(overlay);
+        final backdropRect = tester.getRect(backdrop);
+        expect(backdropRect.left, overlayRect.left);
+        expect(backdropRect.top, overlayRect.top);
+        expect(backdropRect.right, overlayRect.right);
+        expect(backdropRect.bottom, overlayRect.bottom);
+
+        final glass = tester.widget<JeebGlassCapsule>(backdrop);
+        expect(glass.blurSigma, JeebGlassCapsule.softBlur);
+        expect(glass.shadow, JeebGlassCapsule.noShadow);
+        final glassDecorations = tester
+            .widgetList<DecoratedBox>(
+              find.descendant(
+                of: backdrop,
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .map((widget) => widget.decoration)
+            .whereType<BoxDecoration>();
+        expect(
+          glassDecorations.any(
+            (decoration) => decoration.color != null && decoration.color!.a < 1,
+          ),
+          isTrue,
+          reason: 'the action backdrop must remain translucent',
+        );
+        expect(
+          find.descendant(of: backdrop, matching: find.byType(BackdropFilter)),
+          findsOneWidget,
+          reason:
+              'the action surface must blur competing card text while keeping '
+              'the hero decoration visible through translucent glass',
+        );
+        expect(
+          find.descendant(of: backdrop, matching: find.byType(ColoredBox)),
+          findsNothing,
+          reason: 'a flat opaque rectangle must not cover the hero field',
+        );
+      },
+    );
+
+    testWidgets(
+      'selected Not selected label stays inside S24 chip row in Arabic',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(384, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          _harness(
+            repo: _threeTabRepo(),
+            locale: const Locale('ar'),
+            initialTab: ClientHomeTab.pendingRequests,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('client-home-tab-more')));
+        await tester.pumpAndSettle();
+        expect(find.text('غير مختار'), findsOneWidget);
+        expect(
+          find.text('تم قبول عرض آخر، لذلك لم يتم اختيار هذا العرض.'),
+          findsOneWidget,
+        );
+        expect(find.text('مُستبدل'), findsNothing);
+        await tester.ensureVisible(
+          find.bySemanticsIdentifier('offer_status_filter_superseded'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.bySemanticsIdentifier('offer_status_filter_superseded'),
+        );
+        await tester.pumpAndSettle();
+
+        final rowRect = tester.getRect(
+          find.byKey(const Key('client-home-filter-row')),
+        );
+        final selectedRect = tester.getRect(
+          find.byKey(const Key('client-home-tab-more')),
+        );
+        final selectedLabel = find.descendant(
+          of: find.byKey(const Key('client-home-tab-more')),
+          matching: find.text('غير مختار'),
+        );
+        final labelWidget = tester.widget<Text>(selectedLabel);
+        final naturalLabel = TextPainter(
+          text: TextSpan(text: labelWidget.data, style: labelWidget.style),
+          textDirection: TextDirection.rtl,
+          maxLines: 1,
+        )..layout();
+        expect(selectedRect.left, greaterThanOrEqualTo(rowRect.left));
+        expect(selectedRect.right, lessThanOrEqualTo(rowRect.right));
+        expect(
+          tester.getSize(selectedLabel).width,
+          greaterThanOrEqualTo(naturalLabel.width),
+          reason: 'the selected status must render in full, without ellipsis',
+        );
+        expect(tester.takeException(), isNull);
       },
     );
 
@@ -745,8 +1173,7 @@ void main() {
       expect(heroFinder, findsOneWidget);
       final context = tester.element(heroFinder);
       final accent = context.jeebRoles.accent;
-      final glass =
-          Theme.of(context).extension<JeebSemanticColors>()!;
+      final glass = Theme.of(context).extension<JeebSemanticColors>()!;
 
       expect(
         find.descendant(

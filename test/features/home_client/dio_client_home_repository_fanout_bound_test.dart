@@ -33,8 +33,8 @@ void main() {
       ];
 
   test(
-      'a customer with many active requests never bursts the /v1/offers '
-      'fan-out — at most K probes are ever in flight at once', () async {
+      'overlapping snapshots share one bounded /v1/offers fan-out — at most K '
+      'probes are ever in flight at once', () async {
     const requestCount = 8; // well above the K=2 bound
     var inFlight = 0;
     var peakInFlight = 0;
@@ -61,6 +61,13 @@ void main() {
     });
 
     final future = repo.loadSnapshot();
+    final overlapping = repo.loadSnapshot();
+
+    expect(
+      identical(future, overlapping),
+      isTrue,
+      reason: 'concurrent callers must share the repository-level snapshot',
+    );
 
     // Let the bounded pool spin up its workers and saturate.
     for (var i = 0; i < 20; i++) {
@@ -76,12 +83,12 @@ void main() {
     expect(peakInFlight, greaterThan(0), reason: 'probes must actually run');
 
     release.complete();
-    await future; // drains cleanly
+    await Future.wait([future, overlapping]); // drains cleanly
   });
 
   test(
       'a 429 on the offer probes degrades gracefully — loadSnapshot does NOT '
-      'throw, still returns the requests, and flags rateLimited + Retry-After',
+      'throw or misclassify requests, and flags rateLimited + Retry-After',
       () async {
     when(() => dio.get<dynamic>(any(),
             queryParameters: any(named: 'queryParameters')))
@@ -114,8 +121,8 @@ void main() {
         reason: 'a throttled probe must surface as rateLimited, never thrown');
     expect(snapshot.retryAfter, const Duration(seconds: 30),
         reason: 'the advertised Retry-After must be parsed and surfaced');
-    // The requests still came back (they degrade to Pending on the null probe).
-    expect(snapshot.pending, hasLength(3),
-        reason: 'partial data must survive a 429 — the load is best-effort');
+    expect(snapshot.pending, isEmpty,
+        reason: 'a failed authoritative read must not fabricate Pending rows');
+    expect(snapshot.replies, isEmpty);
   });
 }

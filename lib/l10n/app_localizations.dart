@@ -2883,6 +2883,34 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get pendingTabBroadcastingLabel => _get('pendingTabBroadcastingLabel');
   String get homeTabPending => _get('homeTabPending');
   String get homeRepliesViewOffersCta => _get('homeRepliesViewOffersCta');
+  String get homeTabMore => _get('homeTabMore');
+  String get offerStatusSheetTitle => _get('offerStatusSheetTitle');
+  String get offerStatusSheetIntro => _get('offerStatusSheetIntro');
+  String get offerStatusGroupActive => _get('offerStatusGroupActive');
+  String get offerStatusGroupClosed => _get('offerStatusGroupClosed');
+  String get offerStatusPendingTitle => _get('offerStatusPendingTitle');
+  String get offerStatusPendingDescription =>
+      _get('offerStatusPendingDescription');
+  String get offerStatusSubmittedTitle => _get('offerStatusSubmittedTitle');
+  String get offerStatusSubmittedDescription =>
+      _get('offerStatusSubmittedDescription');
+  String get offerStatusEditedTitle => _get('offerStatusEditedTitle');
+  String get offerStatusEditedDescription =>
+      _get('offerStatusEditedDescription');
+  String get offerStatusAcceptedTitle => _get('offerStatusAcceptedTitle');
+  String get offerStatusAcceptedDescription =>
+      _get('offerStatusAcceptedDescription');
+  String get offerStatusWithdrawnTitle => _get('offerStatusWithdrawnTitle');
+  String get offerStatusWithdrawnDescription =>
+      _get('offerStatusWithdrawnDescription');
+  String get offerStatusExpiredTitle => _get('offerStatusExpiredTitle');
+  String get offerStatusExpiredDescription =>
+      _get('offerStatusExpiredDescription');
+  String get offerStatusNotSelectedTitle => _get('offerStatusNotSelectedTitle');
+  String get offerStatusNotSelectedDescription =>
+      _get('offerStatusNotSelectedDescription');
+  String get offerStatusFilterEmptyTitle => _get('offerStatusFilterEmptyTitle');
+  String get offerStatusFilterEmptyBody => _get('offerStatusFilterEmptyBody');
 
   // MIDNIGHT R2 · voice recording
   String get voiceRecordingLiveTranscriptLabel =>

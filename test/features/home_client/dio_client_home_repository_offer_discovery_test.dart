@@ -6,8 +6,10 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockDio extends Mock implements Dio {}
 
-Response<dynamic> _resp(String path, Object? data) =>
-    Response<dynamic>(data: data, requestOptions: RequestOptions(path: path));
+Response<dynamic> _resp(String path, Object? data) => Response<dynamic>(
+  data: data,
+  requestOptions: RequestOptions(path: path),
+);
 
 void main() {
   late _MockDio dio;
@@ -25,9 +27,12 @@ void main() {
     required List<dynamic> requests,
     required Map<String, List<Map<String, dynamic>>?> offersByRequestId,
   }) {
-    when(() => dio.get<dynamic>(any(),
-            queryParameters: any(named: 'queryParameters')))
-        .thenAnswer((invocation) async {
+    when(
+      () => dio.get<dynamic>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenAnswer((invocation) async {
       final path = invocation.positionalArguments.first as String;
       final query =
           invocation.namedArguments[#queryParameters] as Map<String, dynamic>?;
@@ -52,8 +57,7 @@ void main() {
     });
   }
 
-  test(
-      'offer-bearing request surfaces in Replies via GET /v1/offers?requestId '
+  test('offer-bearing request surfaces in Replies via GET /v1/offers?requestId '
       'EVEN WHEN the role=client payload has NO offer indicator', () async {
     stub(
       requests: [
@@ -91,42 +95,162 @@ void main() {
     expect(snapshot.replies, isEmpty);
   });
 
-  test('withdrawn offers do NOT flip a request into Replies', () async {
-    stub(
-      requests: [
-        {'id': 'req-C', 'status': 'pending', 'title': 'Stale bid'},
-      ],
-      offersByRequestId: {
-        'req-C': [
-          {'id': 'off-x', 'jeeberId': 'jb-1', 'status': 'withdrawn'},
+  test(
+    'withdrawn lifecycle is retained without erasing a positive payload count',
+    () async {
+      stub(
+        requests: [
+          {
+            'id': 'req-C',
+            'status': 'pending',
+            'title': 'Stale bid',
+            'offersCount': 4,
+          },
         ],
-      },
-    );
+        offersByRequestId: {
+          'req-C': [
+            {'id': 'off-x', 'jeeberId': 'jb-1', 'status': 'withdrawn'},
+          ],
+        },
+      );
 
-    final snapshot = await repo.loadSnapshot();
+      final snapshot = await repo.loadSnapshot();
 
-    expect(snapshot.replies, isEmpty);
-    expect(snapshot.pending.map((r) => r.id), contains('req-C'));
-  });
+      expect(snapshot.replies.map((r) => r.id), contains('req-C'));
+      expect(snapshot.pending, isEmpty);
+      expect(
+        snapshot.offerStatusRequests.single.offerStatuses,
+        contains(ClientOfferStatus.withdrawn),
+      );
+    },
+  );
 
-  test('a 500 from the offers-read degrades to the payload count (no throw)',
-      () async {
-    stub(
-      requests: [
-        {'id': 'req-D', 'status': 'pending', 'title': 'Resilience'},
-      ],
-      offersByRequestId: {'req-D': null},
-    );
+  test(
+    'rejected wire status is retained as superseded for More filtering',
+    () async {
+      stub(
+        requests: [
+          {'id': 'req-rejected', 'status': 'pending', 'title': 'Rejected bid'},
+        ],
+        offersByRequestId: {
+          'req-rejected': [
+            {'id': 'offer-rejected', 'status': 'rejected'},
+          ],
+        },
+      );
 
-    final snapshot = await repo.loadSnapshot();
+      final snapshot = await repo.loadSnapshot();
 
-    expect(snapshot.pending.map((r) => r.id), contains('req-D'));
-    expect(snapshot.replies, isEmpty);
-  });
+      expect(snapshot.offerStatusRequests.single.offerStatuses, {
+        ClientOfferStatus.superseded,
+      });
+    },
+  );
+
+  test(
+    'all backend offer lifecycle statuses are retained distinctly for filtering',
+    () async {
+      stub(
+        requests: [
+          {'id': 'req-all', 'status': 'pending', 'title': 'All statuses'},
+        ],
+        offersByRequestId: {
+          'req-all': [
+            for (final status in const [
+              'pending',
+              'submitted',
+              'edited',
+              'accepted',
+              'withdrawn',
+              'expired',
+              'rejected',
+            ])
+              {'id': 'offer-$status', 'status': status},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      expect(
+        snapshot.offerStatusRequests.single.offerStatuses,
+        ClientOfferStatus.values.toSet(),
+      );
+    },
+  );
+
+  test(
+    'a failed unresolved probe never fabricates a Pending classification',
+    () async {
+      stub(
+        requests: [
+          {'id': 'req-D', 'status': 'pending', 'title': 'Resilience'},
+        ],
+        offersByRequestId: {'req-D': null},
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      expect(snapshot.pending, isEmpty);
+      expect(snapshot.replies, isEmpty);
+      expect(snapshot.offerStatusRequests, isEmpty);
+    },
+  );
+
+  test(
+    'rotating ten-probe window reaches later requests without false Pending rows',
+    () async {
+      final requests = <Map<String, dynamic>>[
+        for (var i = 0; i < 12; i++)
+          {'id': 'req-$i', 'status': 'pending', 'title': 'Request $i'},
+      ];
+      stub(
+        requests: requests,
+        offersByRequestId: {
+          for (var i = 0; i < 11; i++) 'req-$i': <Map<String, dynamic>>[],
+          'req-11': [
+            {'id': 'offer-late', 'status': 'submitted'},
+          ],
+        },
+      );
+
+      final first = await repo.loadSnapshot();
+
+      expect(offerRequestIds, hasLength(10));
+      expect(offerRequestIds, isNot(contains('req-10')));
+      expect(offerRequestIds, isNot(contains('req-11')));
+      expect(
+        first.pending.map((request) => request.id),
+        isNot(contains('req-10')),
+      );
+      expect(
+        first.pending.map((request) => request.id),
+        isNot(contains('req-11')),
+      );
+      expect(
+        first.replies.map((request) => request.id),
+        isNot(contains('req-11')),
+      );
+
+      final second = await repo.loadSnapshot();
+      final secondWindow = offerRequestIds.skip(10).toList(growable: false);
+
+      expect(secondWindow, hasLength(10));
+      expect(secondWindow, containsAll(<String>['req-10', 'req-11']));
+      expect(second.pending.map((request) => request.id), contains('req-10'));
+      expect(second.replies.map((request) => request.id), contains('req-11'));
+      expect(
+        second.offerStatusRequests
+            .singleWhere((request) => request.id == 'req-11')
+            .offerStatuses,
+        {ClientOfferStatus.submitted},
+      );
+    },
+  );
 
   // The Replies card's "N offers · from $X" floor. It is computed over the
   // SAME probe payload the count comes from — zero extra network — and it is
-  // absent by construction wherever the probe is skipped.
+  // absent when the probe fails, is capped, or has no fee-bearing offer.
   group('offer floor (redesign-2026-08 screen 04)', () {
     test('probed row carries the lowest fee and its currency', () async {
       stub(
@@ -150,51 +274,63 @@ void main() {
       expect(reply.offerCurrency, 'USD');
     });
 
-    test('fee-less offers are ignored by the floor, not counted as zero',
-        () async {
-      stub(
-        requests: [
-          {'id': 'req-G', 'status': 'pending', 'title': 'Pharmacy'},
-        ],
-        offersByRequestId: {
-          'req-G': [
-            {'id': 'o1', 'status': 'pending'},
-            {'id': 'o2', 'status': 'pending', 'fee': 9, 'currency': 'LBP'},
+    test(
+      'fee-less offers are ignored by the floor, not counted as zero',
+      () async {
+        stub(
+          requests: [
+            {'id': 'req-G', 'status': 'pending', 'title': 'Pharmacy'},
           ],
-        },
-      );
-
-      final snapshot = await repo.loadSnapshot();
-
-      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-G');
-      expect(reply.offerCount, 2, reason: 'both offers are live');
-      expect(reply.lowestOfferFee, 9, reason: 'the fee-less offer contributes nothing');
-      expect(reply.offerCurrency, 'LBP');
-    });
-
-    test('a row bucketed by its payload count gets NO floor (never probed)',
-        () async {
-      stub(
-        requests: [
-          {
-            'id': 'req-H',
-            'status': 'pending',
-            'title': 'Declared reply',
-            'offersCount': 4,
+          offersByRequestId: {
+            'req-G': [
+              {'id': 'o1', 'status': 'pending'},
+              {'id': 'o2', 'status': 'pending', 'fee': 9, 'currency': 'LBP'},
+            ],
           },
-        ],
-        offersByRequestId: const {},
-      );
+        );
 
-      final snapshot = await repo.loadSnapshot();
+        final snapshot = await repo.loadSnapshot();
 
-      expect(offerRequestIds, isEmpty,
-          reason: 'the probe-skip must survive — a declared reply is not probed');
-      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-H');
-      expect(reply.offerCount, 4);
-      expect(reply.lowestOfferFee, isNull);
-      expect(reply.offerCurrency, isNull);
-    });
+        final reply = snapshot.replies.singleWhere((r) => r.id == 'req-G');
+        expect(reply.offerCount, 2, reason: 'both offers are live');
+        expect(
+          reply.lowestOfferFee,
+          9,
+          reason: 'the fee-less offer contributes nothing',
+        );
+        expect(reply.offerCurrency, 'LBP');
+      },
+    );
+
+    test(
+      'a probe enriches a payload-count reply with fee and lifecycle status',
+      () async {
+        stub(
+          requests: [
+            {
+              'id': 'req-H',
+              'status': 'pending',
+              'title': 'Declared reply',
+              'offersCount': 4,
+            },
+          ],
+          offersByRequestId: {
+            'req-H': [
+              {'id': 'o1', 'status': 'edited', 'fee': 7, 'currency': 'USD'},
+            ],
+          },
+        );
+
+        final snapshot = await repo.loadSnapshot();
+
+        expect(offerRequestIds, contains('req-H'));
+        final reply = snapshot.replies.singleWhere((r) => r.id == 'req-H');
+        expect(reply.offerCount, 4);
+        expect(reply.lowestOfferFee, 7);
+        expect(reply.offerCurrency, 'USD');
+        expect(reply.offerStatuses, contains(ClientOfferStatus.edited));
+      },
+    );
 
     test('offers with no fee at all leave the floor null', () async {
       stub(
@@ -216,24 +352,33 @@ void main() {
     });
   });
 
-  test('accepted requests are NOT probed for offers (stay In Progress)',
-      () async {
-    stub(
-      requests: [
-        {
-          'id': 'req-acc',
-          'status': 'accepted',
-          'conversationId': 'conv-1',
-          'title': 'Already accepted',
-        },
-      ],
-      offersByRequestId: const {},
-    );
+  test(
+    'accepted requests are NOT probed for offers (stay In Progress)',
+    () async {
+      stub(
+        requests: [
+          {
+            'id': 'req-acc',
+            'status': 'accepted',
+            'conversationId': 'conv-1',
+            'title': 'Already accepted',
+          },
+        ],
+        offersByRequestId: const {},
+      );
 
-    final snapshot = await repo.loadSnapshot();
+      final snapshot = await repo.loadSnapshot();
 
-    expect(offerRequestIds, isEmpty,
-        reason: 'accepted rows must not trigger an offers probe');
-    expect(snapshot.inProgress.map((r) => r.id), contains('req-acc'));
-  });
+      expect(
+        offerRequestIds,
+        isEmpty,
+        reason: 'accepted rows must not trigger an offers probe',
+      );
+      expect(snapshot.inProgress.map((r) => r.id), contains('req-acc'));
+      expect(
+        snapshot.offerStatusRequests.single.offerStatuses,
+        contains(ClientOfferStatus.accepted),
+      );
+    },
+  );
 }
