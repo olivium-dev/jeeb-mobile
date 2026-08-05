@@ -9,6 +9,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/diagnostics/diag.dart';
+import 'package:jeeb_mobile/core/lifecycle/app_resume_signals.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/application/active_delivery_cubit.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/active_delivery_repository.dart';
 import 'package:jeeb_mobile/features/active_delivery_jeeber/domain/jeeber_delivery.dart';
@@ -31,13 +32,13 @@ const _dropOff = DropOffAddress(label: 'Verdun', lat: 33.88, lng: 35.49);
 /// A fix the accuracy filter REJECTS (default `maxAccuracyMeters` is 50), so it
 /// changes cubit state without changing the phase.
 GpsSample _lowAccuracySample() => GpsSample(
-      latitude: 33.9,
-      longitude: 35.51,
-      accuracyMeters: 400,
-      speedMps: 6,
-      headingDegrees: 90,
-      capturedAt: DateTime.utc(2026, 7, 31, 10),
-    );
+  latitude: 33.9,
+  longitude: 35.51,
+  accuracyMeters: 400,
+  speedMps: 6,
+  headingDegrees: 90,
+  capturedAt: DateTime.utc(2026, 7, 31, 10),
+);
 
 BackgroundGpsCubit _cubit(FakeGeocaptureGateway gateway) {
   final cubit = BackgroundGpsCubit(
@@ -64,23 +65,20 @@ class _InertRepo implements ActiveDeliveryRepository {
     required JeeberDeliveryStatus from,
     required JeeberDeliveryStatus to,
     String? evidenceUrl,
-  }) async =>
-      to;
+  }) async => to;
 
   @override
   Future<JeeberDeliveryStatus> verifyDoorOtp({
     required String deliveryId,
     required String code,
-  }) async =>
-      JeeberDeliveryStatus.done;
+  }) async => JeeberDeliveryStatus.done;
 
   @override
   Future<String> uploadProofPhoto({
     required String deliveryId,
     required Uint8List bytes,
     String contentType = 'image/jpeg',
-  }) async =>
-      'object-ref';
+  }) async => 'object-ref';
 }
 
 Widget _host(ActiveDeliveryCubit cubit, {Locale locale = const Locale('en')}) =>
@@ -106,38 +104,47 @@ ActiveDeliveryCubit _screenCubit({BackgroundGpsCubit? gps}) =>
       deliveryId: _deliveryId,
       refreshSignals: const Stream<void>.empty(),
       gpsUploader: gps,
-    )..emit(const ActiveDeliveryState(
+    )..emit(
+      const ActiveDeliveryState(
         mode: ActiveDeliveryMode.ready,
         delivery: JeeberDelivery(
           id: _deliveryId,
           status: JeeberDeliveryStatus.inTransit,
           dropOff: _dropOff,
         ),
-      ));
+      ),
+    );
 
 void main() {
-  group('§1 manifest — the CAUSE', () {
-    final manifest =
-        File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+  setUp(() async => AppResumeSignals.debugReset());
+  tearDown(() async => AppResumeSignals.debugReset());
+
+  group('§1 manifest — declared location capabilities', () {
+    final manifest = File(
+      'android/app/src/main/AndroidManifest.xml',
+    ).readAsStringSync();
 
     test('ACCESS_BACKGROUND_LOCATION is declared', () {
       expect(
         manifest.contains('android.permission.ACCESS_BACKGROUND_LOCATION'),
         isTrue,
-        reason: 'geolocator gates BOTH checkPermission() and '
-            'requestPermission() on hasPermissionInManifest(...BACKGROUND...). '
-            'Without this line `always` is UNREACHABLE on API >= 29, '
-            'BackgroundGpsCubit parks on every delivery, and the customer '
-            'live-tracking map never receives a single fix.',
+        reason:
+            'Keep the all-time upgrade path available for situations '
+            'where a location foreground service cannot be started while '
+            'the app is visible.',
       );
     });
 
     test('the foreground permissions it escalates FROM are still declared', () {
       // getLocationPermissionsFromManifest (PermissionManager.java:209-219)
-      expect(manifest.contains('android.permission.ACCESS_FINE_LOCATION'),
-          isTrue);
-      expect(manifest.contains('android.permission.ACCESS_COARSE_LOCATION'),
-          isTrue);
+      expect(
+        manifest.contains('android.permission.ACCESS_FINE_LOCATION'),
+        isTrue,
+      );
+      expect(
+        manifest.contains('android.permission.ACCESS_COARSE_LOCATION'),
+        isTrue,
+      );
     });
 
     // P1, 2026-08-01. `always` makes the permission REACHABLE; it does not keep
@@ -151,7 +158,8 @@ void main() {
       expect(
         manifest.contains('android.permission.FOREGROUND_SERVICE_LOCATION'),
         isTrue,
-        reason: 'This app targets SDK 34, where a `location`-typed foreground '
+        reason:
+            'This app targets SDK 34, where a `location`-typed foreground '
             'service ALSO needs the typed permission — without it '
             'startForeground() throws SecurityException and the uploader dies '
             'the instant the jeeber backgrounds the app.',
@@ -159,27 +167,65 @@ void main() {
     });
   });
 
-  group('§2 runtime flow — Android 10+ incremental escalation', () {
-    test('a cold start asks for FOREGROUND first, then background — never '
-        'both in one request', () async {
-      // Android 11+ IGNORES a combined foreground+background request and
+  group('§2 runtime flow — permission capability semantics', () {
+    test('Android foreground service accepts an existing whileInUse grant '
+        'without requesting always', () async {
       final gateway = FakeGeocaptureGateway(
-        permissionScript: <LocationPermission>[
-          LocationPermission.notDetermined, // currentPermission
-          LocationPermission.whileInUse, // after the FOREGROUND request
-          LocationPermission.always, // after the BACKGROUND escalation
-        ],
+        initialPermission: LocationPermission.whileInUse,
+        supportsBackgroundTrackingWithWhileInUse: true,
       );
       final cubit = _cubit(gateway);
 
       await cubit.start(_deliveryId);
 
-      expect(gateway.permissionCalls, ['current', 'whileInUse', 'always']);
-      expect(gateway.whileInUseRequestCount, 1);
-      expect(gateway.alwaysRequestCount, 1);
+      expect(gateway.permissionCalls, ['current']);
+      expect(gateway.alwaysRequestCount, 0);
       expect(cubit.state.phase, BackgroundGpsPhase.tracking);
-      expect(cubit.state.permission, LocationPermission.always);
+      expect(cubit.state.permission, LocationPermission.whileInUse);
+      expect(cubit.state.needsSystemSettings, isFalse);
     });
+
+    test(
+      'Android starts after the foreground prompt returns whileInUse',
+      () async {
+        final gateway = FakeGeocaptureGateway(
+          permissionScript: <LocationPermission>[
+            LocationPermission.notDetermined,
+            LocationPermission.whileInUse,
+          ],
+          supportsBackgroundTrackingWithWhileInUse: true,
+        );
+        final cubit = _cubit(gateway);
+
+        await cubit.start(_deliveryId);
+
+        expect(gateway.permissionCalls, ['current', 'whileInUse']);
+        expect(gateway.alwaysRequestCount, 0);
+        expect(cubit.state.phase, BackgroundGpsPhase.tracking);
+      },
+    );
+
+    test(
+      'a gateway that requires always escalates foreground then background',
+      () async {
+        final gateway = FakeGeocaptureGateway(
+          permissionScript: <LocationPermission>[
+            LocationPermission.notDetermined, // currentPermission
+            LocationPermission.whileInUse, // after the FOREGROUND request
+            LocationPermission.always, // after the BACKGROUND escalation
+          ],
+        );
+        final cubit = _cubit(gateway);
+
+        await cubit.start(_deliveryId);
+
+        expect(gateway.permissionCalls, ['current', 'whileInUse', 'always']);
+        expect(gateway.whileInUseRequestCount, 1);
+        expect(gateway.alwaysRequestCount, 1);
+        expect(cubit.state.phase, BackgroundGpsPhase.tracking);
+        expect(cubit.state.permission, LocationPermission.always);
+      },
+    );
 
     test('an app that already holds whileInUse skips straight to the '
         'background escalation', () async {
@@ -194,8 +240,11 @@ void main() {
       await cubit.start(_deliveryId);
 
       expect(gateway.permissionCalls, ['current', 'always']);
-      expect(gateway.whileInUseRequestCount, 0,
-          reason: 're-asking for a permission already held is user-hostile');
+      expect(
+        gateway.whileInUseRequestCount,
+        0,
+        reason: 're-asking for a permission already held is user-hostile',
+      );
       expect(cubit.state.phase, BackgroundGpsPhase.tracking);
     });
 
@@ -226,8 +275,11 @@ void main() {
 
       expect(cubit.state.phase, BackgroundGpsPhase.permissionDenied);
       expect(cubit.state.permission, LocationPermission.whileInUse);
-      expect(cubit.state.needsSystemSettings, isTrue,
-          reason: 'only the OS settings page exposes "Allow all the time"');
+      expect(
+        cubit.state.needsSystemSettings,
+        isTrue,
+        reason: 'only the OS settings page exposes "Allow all the time"',
+      );
     });
 
     test('PERMANENTLY-DENIED PATH: deniedForever raises NO prompt — the OS '
@@ -239,51 +291,86 @@ void main() {
 
       await cubit.start(_deliveryId);
 
-      expect(gateway.requestCount, 0,
-          reason: 'a request from deniedForever is a silent no-op; firing one '
-              'anyway re-creates the original silent-failure defect');
+      expect(
+        gateway.requestCount,
+        0,
+        reason:
+            'a request from deniedForever is a silent no-op; firing one '
+            'anyway re-creates the original silent-failure defect',
+      );
       expect(cubit.state.phase, BackgroundGpsPhase.permissionDenied);
       expect(cubit.state.needsSystemSettings, isTrue);
     });
 
-    test('plain denial parks without pretending, and stays retryable',
-        () async {
-      final gateway = FakeGeocaptureGateway(
-        permissionScript: <LocationPermission>[
-          LocationPermission.denied,
-          LocationPermission.denied,
-        ],
-      );
-      final cubit = _cubit(gateway);
+    test(
+      'plain denial parks without pretending, and stays retryable',
+      () async {
+        final gateway = FakeGeocaptureGateway(
+          permissionScript: <LocationPermission>[
+            LocationPermission.denied,
+            LocationPermission.denied,
+          ],
+        );
+        final cubit = _cubit(gateway);
 
-      await cubit.start(_deliveryId);
+        await cubit.start(_deliveryId);
 
-      expect(gateway.whileInUseRequestCount, 1);
-      expect(cubit.state.phase, BackgroundGpsPhase.permissionDenied);
-      expect(cubit.state.needsSystemSettings, isFalse,
-          reason: 'a plain denial can still be recovered by an in-app prompt');
-    });
+        expect(gateway.whileInUseRequestCount, 1);
+        expect(cubit.state.phase, BackgroundGpsPhase.permissionDenied);
+        expect(
+          cubit.state.needsSystemSettings,
+          isFalse,
+          reason: 'a plain denial can still be recovered by an in-app prompt',
+        );
+      },
+    );
 
-    test('retryPermission re-walks the escalation and recovers to tracking',
-        () async {
-      final gateway = FakeGeocaptureGateway(
-        permissionScript: <LocationPermission>[
-          LocationPermission.whileInUse, // current
-          LocationPermission.whileInUse, // 1st attempt: user did not upgrade
-          LocationPermission.whileInUse, // current, on the retry
-          LocationPermission.always, // …and this time they did
-        ],
-      );
-      final cubit = _cubit(gateway);
-      await cubit.start(_deliveryId);
-      expect(cubit.state.phase, BackgroundGpsPhase.permissionDenied);
+    test(
+      'retryPermission re-walks the escalation and recovers to tracking',
+      () async {
+        final gateway = FakeGeocaptureGateway(
+          permissionScript: <LocationPermission>[
+            LocationPermission.whileInUse, // current
+            LocationPermission.whileInUse, // 1st attempt: user did not upgrade
+            LocationPermission.whileInUse, // current, on the retry
+            LocationPermission.always, // …and this time they did
+          ],
+        );
+        final cubit = _cubit(gateway);
+        await cubit.start(_deliveryId);
+        expect(cubit.state.phase, BackgroundGpsPhase.permissionDenied);
 
-      // The jeeber went to settings and chose "Allow all the time".
-      await cubit.retryPermission();
+        // The jeeber went to settings and chose "Allow all the time".
+        await cubit.retryPermission();
 
-      expect(cubit.state.phase, BackgroundGpsPhase.tracking);
-      expect(cubit.state.permission, LocationPermission.always);
-    });
+        expect(cubit.state.phase, BackgroundGpsPhase.tracking);
+        expect(cubit.state.permission, LocationPermission.always);
+      },
+    );
+
+    test(
+      'retry after settings accepts Android whileInUse and starts tracking',
+      () async {
+        final gateway = FakeGeocaptureGateway(
+          permissionScript: <LocationPermission>[
+            LocationPermission.denied,
+            LocationPermission.denied,
+            LocationPermission.whileInUse,
+          ],
+          supportsBackgroundTrackingWithWhileInUse: true,
+        );
+        final cubit = _cubit(gateway);
+        await cubit.start(_deliveryId);
+        expect(cubit.state.phase, BackgroundGpsPhase.permissionDenied);
+
+        await cubit.retryPermission();
+
+        expect(gateway.permissionCalls, ['current', 'whileInUse', 'current']);
+        expect(gateway.alwaysRequestCount, 0);
+        expect(cubit.state.phase, BackgroundGpsPhase.tracking);
+        expect(cubit.state.permission, LocationPermission.whileInUse);
+      },
+    );
 
     test('openSystemSettings reaches the gateway', () async {
       final gateway = FakeGeocaptureGateway();
@@ -306,8 +393,11 @@ void main() {
 
     List<Map<String, Object?>> events(String name) => lines
         .where((l) => l.startsWith(Diag.prefix))
-        .map((l) => jsonDecode(l.substring(Diag.prefix.length + 1))
-            as Map<String, Object?>)
+        .map(
+          (l) =>
+              jsonDecode(l.substring(Diag.prefix.length + 1))
+                  as Map<String, Object?>,
+        )
         .where((r) => r['name'] == name)
         .toList();
 
@@ -347,9 +437,9 @@ void main() {
 
       await cubit.start(_deliveryId);
 
-      final parkedOrTracking = events('bg_gps_phase')
-          .map((r) => (r['data']! as Map<String, Object?>)['phase'])
-          .toList();
+      final parkedOrTracking = events(
+        'bg_gps_phase',
+      ).map((r) => (r['data']! as Map<String, Object?>)['phase']).toList();
       expect(parkedOrTracking, contains('tracking'));
       expect(events('bg_gps_permission_failure'), isEmpty);
 
@@ -357,38 +447,82 @@ void main() {
       expect(parkedOrTracking, isNot(contains('permissionDenied')));
     });
 
-    test('per-fix skip/throttle churn does NOT emit phase breadcrumbs',
-        () async {
-      final gateway = FakeGeocaptureGateway(
-        initialPermission: LocationPermission.always,
-      );
-      final cubit = _cubit(gateway);
-      await cubit.start(_deliveryId);
-      final before = events('bg_gps_phase').length;
+    test(
+      'per-fix skip/throttle churn does NOT emit phase breadcrumbs',
+      () async {
+        final gateway = FakeGeocaptureGateway(
+          initialPermission: LocationPermission.always,
+        );
+        final cubit = _cubit(gateway);
+        await cubit.start(_deliveryId);
+        final before = events('bg_gps_phase').length;
 
-      // Accuracy-rejected fixes change state but not phase.
-      await gateway.emit(_lowAccuracySample());
-      await gateway.emit(_lowAccuracySample());
+        // Accuracy-rejected fixes change state but not phase.
+        await gateway.emit(_lowAccuracySample());
+        await gateway.emit(_lowAccuracySample());
 
-      expect(events('bg_gps_phase').length, before,
-          reason: 'a phase line must mean something actually moved, or the '
-              'stream floods and stops being readable');
-    });
+        expect(
+          events('bg_gps_phase').length,
+          before,
+          reason:
+              'a phase line must mean something actually moved, or the '
+              'stream floods and stops being readable',
+        );
+      },
+    );
   });
 
   group('§4 banner — the failure is LOUD to the jeeber', () {
+    testWidgets(
+      'resume retries a blocked Android grant and clears the banner',
+      (tester) async {
+        final gateway = FakeGeocaptureGateway(
+          permissionScript: <LocationPermission>[
+            LocationPermission.denied,
+            LocationPermission.denied,
+            LocationPermission.whileInUse,
+          ],
+          supportsBackgroundTrackingWithWhileInUse: true,
+        );
+        final gps = BackgroundGpsCubit(
+          gateway: gateway,
+          uploader: InMemoryLocationUploader(),
+        );
+        final cubit = _screenCubit(gps: gps);
+        await tester.runAsync(() => gps.start(_deliveryId));
+        await tester.pumpWidget(_host(cubit));
+        await tester.pumpAndSettle();
+        expect(find.byKey(GpsPermissionBanner.bannerKey), findsOneWidget);
+
+        AppResumeSignals.instance.debugEmit();
+        await tester.pumpAndSettle();
+
+        expect(gps.state.phase, BackgroundGpsPhase.tracking);
+        expect(gps.state.permission, LocationPermission.whileInUse);
+        expect(find.byKey(GpsPermissionBanner.bannerKey), findsNothing);
+        expect(gateway.permissionCalls, ['current', 'whileInUse', 'current']);
+        await tester.runAsync(cubit.close);
+        await tester.runAsync(gateway.dispose);
+      },
+    );
+
     testWidgets('a parked uploader raises the banner on the Active Delivery '
         'screen', (tester) async {
       final cubit = _screenCubit();
       await tester.pumpWidget(_host(cubit));
       await tester.pumpAndSettle();
-      expect(find.byKey(GpsPermissionBanner.bannerKey), findsNothing,
-          reason: 'no banner while nothing is wrong');
+      expect(
+        find.byKey(GpsPermissionBanner.bannerKey),
+        findsNothing,
+        reason: 'no banner while nothing is wrong',
+      );
 
-      cubit.emit(cubit.state.copyWith(
-        gpsPhase: BackgroundGpsPhase.permissionDenied,
-        gpsNeedsSystemSettings: true,
-      ));
+      cubit.emit(
+        cubit.state.copyWith(
+          gpsPhase: BackgroundGpsPhase.permissionDenied,
+          gpsNeedsSystemSettings: true,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byKey(GpsPermissionBanner.bannerKey), findsOneWidget);
@@ -403,9 +537,9 @@ void main() {
       await tester.pumpWidget(_host(cubit));
       await tester.pumpAndSettle();
 
-      cubit.emit(cubit.state.copyWith(
-        gpsPhase: BackgroundGpsPhase.permissionDenied,
-      ));
+      cubit.emit(
+        cubit.state.copyWith(gpsPhase: BackgroundGpsPhase.permissionDenied),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Allow location'), findsOneWidget);
@@ -413,8 +547,9 @@ void main() {
       await cubit.close();
     });
 
-    testWidgets('the CTA reaches the uploader — tapping it opens settings',
-        (tester) async {
+    testWidgets('the CTA reaches the uploader — tapping it opens settings', (
+      tester,
+    ) async {
       final gateway = FakeGeocaptureGateway(
         initialPermission: LocationPermission.deniedForever,
       );
@@ -429,8 +564,11 @@ void main() {
       // The uploader parks on its OWN — nothing here forces the state, so this
       await tester.runAsync(() => gps.start(_deliveryId));
       await tester.pumpAndSettle();
-      expect(find.byKey(GpsPermissionBanner.bannerKey), findsOneWidget,
-          reason: 'the MIRROR must carry the park through to the screen');
+      expect(
+        find.byKey(GpsPermissionBanner.bannerKey),
+        findsOneWidget,
+        reason: 'the MIRROR must carry the park through to the screen',
+      );
 
       await tester.tap(find.text('Open settings'));
       await tester.pumpAndSettle();
@@ -440,16 +578,19 @@ void main() {
       await tester.runAsync(gateway.dispose);
     });
 
-    testWidgets('the banner is localized (ar) — no English leaks through',
-        (tester) async {
+    testWidgets('the banner is localized (ar) — no English leaks through', (
+      tester,
+    ) async {
       final cubit = _screenCubit();
       await tester.pumpWidget(_host(cubit, locale: const Locale('ar')));
       await tester.pumpAndSettle();
 
-      cubit.emit(cubit.state.copyWith(
-        gpsPhase: BackgroundGpsPhase.permissionDenied,
-        gpsNeedsSystemSettings: true,
-      ));
+      cubit.emit(
+        cubit.state.copyWith(
+          gpsPhase: BackgroundGpsPhase.permissionDenied,
+          gpsNeedsSystemSettings: true,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('التتبّع المباشر متوقّف'), findsOneWidget);

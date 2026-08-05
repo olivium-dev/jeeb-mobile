@@ -5,7 +5,9 @@ import '../../core/theme/jeeb_radii.dart';
 import '../gateway/dev_gateway_client.dart';
 
 class ActionsPage extends StatefulWidget {
-  const ActionsPage({super.key});
+  const ActionsPage({super.key, this.client});
+
+  final DevGatewayClient? client;
 
   @override
   State<ActionsPage> createState() => _ActionsPageState();
@@ -15,14 +17,14 @@ enum _ActionKind { initiateOffer, acceptOffer, sendMessage }
 
 extension on _ActionKind {
   String get label => switch (this) {
-        _ActionKind.initiateOffer => 'Initiate offer',
-        _ActionKind.acceptOffer => 'Accept offer',
-        _ActionKind.sendMessage => 'Send message',
-      };
+    _ActionKind.initiateOffer => 'Initiate offer',
+    _ActionKind.acceptOffer => 'Accept offer',
+    _ActionKind.sendMessage => 'Send message',
+  };
 }
 
 class _ActionsPageState extends State<ActionsPage> {
-  final DevGatewayClient _client = DevGatewayClient();
+  late final DevGatewayClient _client;
 
   bool _loadingUsers = true;
   String? _loadError;
@@ -35,9 +37,12 @@ class _ActionsPageState extends State<ActionsPage> {
   bool _resultIsError = false;
 
   final TextEditingController _requestIdController = TextEditingController();
-  final TextEditingController _feeController =
-      TextEditingController(text: '5.0');
-  final TextEditingController _etaController = TextEditingController(text: '10');
+  final TextEditingController _feeController = TextEditingController(
+    text: '5.0',
+  );
+  final TextEditingController _etaController = TextEditingController(
+    text: '10',
+  );
   final TextEditingController _noteController = TextEditingController();
 
   final TextEditingController _offerIdController = TextEditingController();
@@ -49,6 +54,7 @@ class _ActionsPageState extends State<ActionsPage> {
   @override
   void initState() {
     super.initState();
+    _client = widget.client ?? DevGatewayClient();
     _loadUsers();
   }
 
@@ -116,7 +122,7 @@ class _ActionsPageState extends State<ActionsPage> {
           }
           await _client.initiateOffer(
             asUserId: user.id,
-            asRole: user.role,
+            asRole: user.roleForOfferInitiation ?? user.role,
             requestId: requestId,
             fee: fee,
             etaMinutes: eta,
@@ -238,8 +244,9 @@ class _ActionsPageState extends State<ActionsPage> {
             const SizedBox(height: 8),
             TextField(
               controller: _feeController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 labelText: 'Fee',
                 border: OutlineInputBorder(),
@@ -279,7 +286,8 @@ class _ActionsPageState extends State<ActionsPage> {
               controller: _chatRequestIdController,
               decoration: const InputDecoration(
                 labelText: 'Request ID',
-                helperText: 'The conversation is resolved from this '
+                helperText:
+                    'The conversation is resolved from this '
                     '(correlation key == request id).',
                 border: OutlineInputBorder(),
               ),
@@ -305,7 +313,10 @@ class _ActionsPageState extends State<ActionsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Act as a seeded user', style: Theme.of(context).textTheme.labelMedium),
+          Text(
+            'Act as a seeded user',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
           const SizedBox(height: 8),
           _buildUserPicker(),
           const SizedBox(height: 24),
