@@ -81,22 +81,21 @@ class DisputeStatusScreenRecordingRepository
 /// Public because the render test pins it in two places at once — see the note
 const String kDisputeStatusScreenLongNote =
     'The back-office reviewed the delivery timeline, the attached chat '
-    'snapshot and all five photos, and issued a partial refund covering the '
-    'damaged contents. The remaining amount covers the completed delivery leg '
-    'and is not refundable under the cancellation policy.';
+    'snapshot and all five photos, then corrected the reported delivery issue. '
+    'The case remains visible here with the full status history for reference.';
 
 /// The designed states, named once for both dev surfaces.
 /// Every member is a getter so that each read hands out a fresh state — the
 abstract final class DisputeStatusScreenFixtures {
-  /// CATALOG · "Open — under review". The reference reading: a dispute under
+  /// CATALOG · "Pending". The reference reading: a dispute under
   /// review with a full D53 evidence set behind it.
-  static DisputeStatusScreenDesignedState get openUnderReview =>
+  static DisputeStatusScreenDesignedState get pendingReview =>
       const DisputeStatusScreenDesignedState(
         disputeId: 'dsp-1',
         repository: DisputeStatusScreenCannedRepository(
           DisputeStatus(
             id: 'dsp-1',
-            state: DisputeState.open,
+            state: DisputeState.pending,
             orderRef: 'ORD-4821',
             createdAt: '2026-07-01T10:00:00Z',
             evidence: DisputeEvidenceSummary(
@@ -111,19 +110,15 @@ abstract final class DisputeStatusScreenFixtures {
         ),
       );
 
-  /// CATALOG · "Resolved — refund issued (D2)". The happy terminal outcome,
-  /// with an amount AND a currency — the only fixture here that has both.
-  static DisputeStatusScreenDesignedState get resolvedRefund =>
+  /// CATALOG · "Fixed". A case that support marked as corrected.
+  static DisputeStatusScreenDesignedState get fixed =>
       const DisputeStatusScreenDesignedState(
         disputeId: 'dsp-2',
         repository: DisputeStatusScreenCannedRepository(
           DisputeStatus(
             id: 'dsp-2',
-            state: DisputeState.resolved,
-            outcome: DisputeOutcome.refund,
-            resolution: 'refund',
-            refundAmount: 35,
-            currency: 'USD',
+            state: DisputeState.fixed,
+            note: 'The reported delivery issue was corrected.',
             orderRef: 'ORD-4790',
             createdAt: '2026-06-28T09:00:00Z',
             resolvedAt: '2026-06-29T14:00:00Z',
@@ -145,17 +140,14 @@ abstract final class DisputeStatusScreenFixtures {
         repository: EmptyDisputeStatusRepository(),
       );
 
-  /// The other resolved outcome (D2): a penalty, and no amount on the wire.
-  /// `refundAmount == null` is the ordinary case for a penalty — the money
-  static DisputeStatusScreenDesignedState get resolvedPenalty =>
+  /// A fixed case with a detailed back-office note.
+  static DisputeStatusScreenDesignedState get fixedWithNote =>
       const DisputeStatusScreenDesignedState(
         disputeId: 'dsp-8',
         repository: DisputeStatusScreenCannedRepository(
           DisputeStatus(
             id: 'dsp-8',
-            state: DisputeState.resolved,
-            outcome: DisputeOutcome.penalty,
-            resolution: 'penalty',
+            state: DisputeState.fixed,
             note: 'Reviewed against the courier GPS trail.',
             orderRef: 'ORD-4855',
             conversationRef: 'conv-8',
@@ -169,15 +161,15 @@ abstract final class DisputeStatusScreenFixtures {
         ),
       );
 
-  /// The EMPTY state: an open dispute whose evidence summary has nothing in it.
+  /// The EMPTY state: a pending dispute with no evidence summary items.
   /// Reachable in production whenever the wire carries no `reason`, `comment`,
-  static DisputeStatusScreenDesignedState get openNoEvidence =>
+  static DisputeStatusScreenDesignedState get pendingNoEvidence =>
       const DisputeStatusScreenDesignedState(
         disputeId: 'dsp-6',
         repository: DisputeStatusScreenCannedRepository(
           DisputeStatus(
             id: 'dsp-6',
-            state: DisputeState.open,
+            state: DisputeState.pending,
             orderRef: 'ORD-4877',
             createdAt: '2026-07-30T08:15:00Z',
           ),
@@ -219,7 +211,6 @@ abstract final class DisputeStatusScreenFixtures {
           DisputeStatus(
             id: 'dsp-7',
             state: DisputeState.unknown,
-            resolution: 'escalated',
             orderRef: 'ORD-4901',
             createdAt: '2026-07-28T16:40:00Z',
             evidence: DisputeEvidenceSummary(
@@ -236,9 +227,7 @@ abstract final class DisputeStatusScreenFixtures {
       DisputeStatusScreenRecordingRepository(
     const DisputeStatus(
       id: 'dsp-9',
-      state: DisputeState.resolved,
-      outcome: DisputeOutcome.dismissed,
-      resolution: 'dismissed',
+      state: DisputeState.closed,
       orderRef: 'ORD-4930',
     ),
   );
@@ -259,10 +248,7 @@ abstract final class DisputeStatusScreenFixtures {
         repository: DisputeStatusScreenCannedRepository(
           DisputeStatus(
             id: 'dsp-2f8c1d94-7b6a-4e05-9c3f-0a1b2c3d4e5f',
-            state: DisputeState.resolved,
-            outcome: DisputeOutcome.refund,
-            resolution: 'partial_refund',
-            refundAmount: 1234.5,
+            state: DisputeState.fixed,
             note: kDisputeStatusScreenLongNote,
             orderRef: 'REQ-2f8c1d94-7b6a-4e05-9c3f-0a1b2c3d4e5f',
             conversationRef: 'conv-2f8c1d94-7b6a-4e05-9c3f-0a1b2c3d4e5f',

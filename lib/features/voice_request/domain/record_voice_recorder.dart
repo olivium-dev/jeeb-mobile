@@ -28,10 +28,10 @@ class RecordVoiceRecorder implements VoiceRecorder {
       sampleRate: 44100,
       numChannels: 1,
     ),
-  })  : _recorder = recorder ?? AudioRecorder(),
-        _tempDirResolver = tempDirResolver,
-        _bytesReader = bytesReader,
-        _config = config;
+  }) : _recorder = recorder ?? AudioRecorder(),
+       _tempDirResolver = tempDirResolver,
+       _bytesReader = bytesReader,
+       _config = config;
 
   final AudioRecorder _recorder;
   final TempDirResolver _tempDirResolver;
@@ -39,36 +39,47 @@ class RecordVoiceRecorder implements VoiceRecorder {
   final RecordConfig _config;
 
   String? _activePath;
+  final Set<String> _ownedPaths = <String>{};
 
   @override
   Future<void> start() async {
     final bool granted = await _hasPermission();
     if (!granted) {
-      throw const VoiceRecorderException(
-        VoiceRecorderFailure.permissionDenied,
-      );
+      throw const VoiceRecorderException(VoiceRecorderFailure.permissionDenied);
     }
     final String path = await _resolvePath();
+    _ownedPaths.add(path);
     try {
       await _recorder.start(_config, path: path);
       _activePath = path;
     } catch (error, stackTrace) {
       _activePath = null;
+      await _deleteOwnedPath(path);
       throw _wrap(error, stackTrace);
     }
   }
 
   @override
   Future<VoiceClip> stop({required Duration recordedDuration}) async {
+    final String? activePath = _activePath;
     final String? path = await _stopRecorder();
-    final String resolved = path ?? _activePath ?? '';
+    final String resolved = path ?? activePath ?? '';
     _activePath = null;
     if (resolved.isEmpty) {
       throw const VoiceRecorderException(VoiceRecorderFailure.unknown);
     }
-    final Uint8List bytes = await _readBytes(resolved);
+    if (activePath != null && resolved != activePath) {
+      await _deleteOwnedPath(activePath);
+    }
+    final Uint8List bytes;
+    try {
+      bytes = await _readBytes(resolved);
+    } on VoiceRecorderException {
+      await _deleteOwnedPath(resolved);
+      rethrow;
+    }
     if (bytes.isEmpty) {
-      await _deleteQuietly(resolved);
+      await _deleteOwnedPath(resolved);
       throw const VoiceRecorderException(VoiceRecorderFailure.unknown);
     }
     return VoiceClip(
@@ -84,12 +95,17 @@ class RecordVoiceRecorder implements VoiceRecorder {
     _activePath = null;
     try {
       await _recorder.cancel();
-    } catch (_) {
-
-    }
+    } catch (_) {}
     if (path != null) {
-      await _deleteQuietly(path);
+      await _deleteOwnedPath(path);
     }
+  }
+
+  @override
+  Future<void> deleteOwnedClip(VoiceClip clip) async {
+    final path = clip.sourcePath;
+    if (path == null || path.isEmpty) return;
+    await _deleteOwnedPath(path);
   }
 
   Future<bool> _hasPermission() async {
@@ -102,7 +118,8 @@ class RecordVoiceRecorder implements VoiceRecorder {
 
   Future<String> _resolvePath() async {
     final Directory dir = await _tempDirResolver();
-    final String name = 'voice-request-'
+    final String name =
+        'voice-request-'
         '${DateTime.now().millisecondsSinceEpoch}.m4a';
     return '${dir.path}${Platform.pathSeparator}$name';
   }
@@ -129,9 +146,12 @@ class RecordVoiceRecorder implements VoiceRecorder {
       if (file.existsSync()) {
         await file.delete();
       }
-    } catch (_) {
+    } catch (_) {}
+  }
 
-    }
+  Future<void> _deleteOwnedPath(String path) async {
+    if (!_ownedPaths.remove(path)) return;
+    await _deleteQuietly(path);
   }
 
   VoiceRecorderException _wrap(Object error, StackTrace stackTrace) {

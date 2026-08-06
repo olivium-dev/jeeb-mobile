@@ -392,6 +392,26 @@ class _LoadedList extends StatelessWidget {
         context.goNamed('shell');
         break;
 
+      case NotificationKind.dispute:
+        if (ref != null) {
+          context.pushNamed(
+            'dispute-status',
+            pathParameters: <String, String>{'id': ref},
+          );
+        }
+        break;
+
+      case NotificationKind.support:
+        if (ref == null) {
+          context.pushNamed('support-ticket');
+        } else {
+          context.pushNamed(
+            'support-ticket-detail',
+            pathParameters: <String, String>{'id': ref},
+          );
+        }
+        break;
+
       // G3: new_request → the request screen. CONSUME the push-tap resolver
       // (deepLinkForMessage, fix/push-tap-routing) rather than re-mapping the
       // route here, so the inbox row and the push tap can never diverge —

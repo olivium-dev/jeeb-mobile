@@ -219,6 +219,10 @@ class _BannerCard extends StatelessWidget {
         return Icons.local_offer_outlined;
       case NotificationCategory.requestExpired:
         return Icons.timer_off_outlined;
+      case NotificationCategory.dispute:
+        return Icons.report_problem_outlined;
+      case NotificationCategory.support:
+        return Icons.support_agent;
       case NotificationCategory.other:
         return Icons.notifications_outlined;
     }

@@ -108,6 +108,23 @@ Widget _harness(
         builder: (_, s) =>
             _stub('offer_review_list_root_${s.pathParameters['id']}'),
       ),
+      GoRoute(
+        path: '/disputes/:id',
+        name: 'dispute-status',
+        builder: (_, s) =>
+            _stub('dispute_status_root_${s.pathParameters['id']}'),
+      ),
+      GoRoute(
+        path: '/support',
+        name: 'support-ticket',
+        builder: (_, _) => _stub('support_root'),
+      ),
+      GoRoute(
+        path: '/support/tickets/:id',
+        name: 'support-ticket-detail',
+        builder: (_, s) =>
+            _stub('support_thread_root_${s.pathParameters['id']}'),
+      ),
     ],
   );
   // P2/F5: the screen reads the LIVE role (`context.read<RoleCubit>()`) to
@@ -164,6 +181,42 @@ void main() {
     expect(find.bySemanticsIdentifier('notif_row_notif-001'), findsOneWidget);
     expect(find.bySemanticsIdentifier('notif_row_notif-005'), findsOneWidget);
     expect(find.byType(OmdsPullToRefresh), findsOneWidget);
+  });
+
+  testWidgets('dispute notification opens the status timeline', (tester) async {
+    await pump(
+      tester,
+      _ScriptedRepository(<NotificationItem>[
+        _item('dispute-1', NotificationKind.dispute, ref: 'dsp-1'),
+      ]),
+    );
+
+    await tester.tap(find.bySemanticsIdentifier('notif_row_dispute-1'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.bySemanticsIdentifier('dispute_status_root_dsp-1'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('support notification opens the ticket conversation', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      _ScriptedRepository(<NotificationItem>[
+        _item('support-1', NotificationKind.support, ref: 'ticket-1'),
+      ]),
+    );
+
+    await tester.tap(find.bySemanticsIdentifier('notif_row_support-1'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.bySemanticsIdentifier('support_thread_root_ticket-1'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -291,8 +344,12 @@ void main() {
 
     // C10a (P2/F4): before P2 the inbox row went to `shell` while the push tap
     testWidgets('offer (ref) → offer-review list (P2/F4)', (tester) async {
-      await tapKind(tester, NotificationKind.offer,
-          ref: 'req-1', expectRootId: 'offer_review_list_root_req-1');
+      await tapKind(
+        tester,
+        NotificationKind.offer,
+        ref: 'req-1',
+        expectRootId: 'offer_review_list_root_req-1',
+      );
     });
 
     // No `ref` → the shell, never a fabricated destination. This is also b01's
@@ -319,10 +376,13 @@ void main() {
     // C10c (P2/F5): the FIX-REQUESTS 403 fix on the inbox surface — a CLIENT
     testWidgets('new_request (ref) as a CLIENT → shell, never the jeeber '
         'request screen (F5)', (tester) async {
-      await tapKind(tester, NotificationKind.newRequest,
-          ref: 'req-1',
-          role: UserRole.client,
-          expectRootId: 'shell_root');
+      await tapKind(
+        tester,
+        NotificationKind.newRequest,
+        ref: 'req-1',
+        role: UserRole.client,
+        expectRootId: 'shell_root',
+      );
       expect(
         find.bySemanticsIdentifier('jeeber_request_root_req-1'),
         findsNothing,
@@ -330,13 +390,18 @@ void main() {
     });
 
     // C10d: fence — the guard must not over-refuse a real jeeber.
-    testWidgets('new_request (ref) as a JEEBER → jeeber request screen (fence)',
-        (tester) async {
-      await tapKind(tester, NotificationKind.newRequest,
+    testWidgets(
+      'new_request (ref) as a JEEBER → jeeber request screen (fence)',
+      (tester) async {
+        await tapKind(
+          tester,
+          NotificationKind.newRequest,
           ref: 'req-1',
           role: UserRole.jeeber,
-          expectRootId: 'jeeber_request_root_req-1');
-    });
+          expectRootId: 'jeeber_request_root_req-1',
+        );
+      },
+    );
 
     testWidgets('low_balance → wallet-hub', (tester) async {
       await tapKind(

@@ -57,35 +57,36 @@ class _Repo implements EscalateRepository {
   }
 }
 
-/// Evidence that resolves to nothing — the degraded auto-attach.
-class _EmptyEvidenceRepo extends _Repo {
-  const _EmptyEvidenceRepo();
+class _EvidenceProbeRepo extends _Repo {
+  int fetches = 0;
 
   @override
-  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async =>
-      EscalateEvidence.empty;
+  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async {
+    fetches++;
+    return super.fetchEvidence(deliveryId: deliveryId);
+  }
 }
 
 Widget _harness(EscalateCubit cubit) => MaterialApp(
-      theme: AppTheme.midnight(),
-      locale: const Locale('en'),
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: const <LocalizationsDelegate<Object?>>[
-        SyncAppLocalizationsDelegate(),
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4).
-      builder: (BuildContext context, Widget? child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(disableAnimations: true),
-        child: child!,
-      ),
-      home: BlocProvider<EscalateCubit>.value(
-        value: cubit,
-        child: const EscalateScreen(),
-      ),
-    );
+  theme: AppTheme.midnight(),
+  locale: const Locale('en'),
+  supportedLocales: AppLocalizations.supportedLocales,
+  localizationsDelegates: const <LocalizationsDelegate<Object?>>[
+    SyncAppLocalizationsDelegate(),
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4).
+  builder: (BuildContext context, Widget? child) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: true),
+    child: child!,
+  ),
+  home: BlocProvider<EscalateCubit>.value(
+    value: cubit,
+    child: const EscalateScreen(),
+  ),
+);
 
 EscalateCubit _cubit([EscalateRepository repo = const _Repo()]) =>
     EscalateCubit(repository: repo, deliveryId: 'dlv-1');
@@ -113,12 +114,14 @@ void main() {
     return tester.element(find.byType(EscalateScreen));
   }
 
-  testWidgets('mounts the content field: centre-upper glow, no wash, still',
-      (WidgetTester tester) async {
+  testWidgets('mounts the content field: centre-upper glow, no wash, still', (
+    WidgetTester tester,
+  ) async {
     await pump(tester, _cubit());
 
-    final JeebMidnightField field =
-        tester.widget<JeebMidnightField>(find.byType(JeebMidnightField));
+    final JeebMidnightField field = tester.widget<JeebMidnightField>(
+      find.byType(JeebMidnightField),
+    );
     expect(field.variant, JeebFieldVariant.content);
     expect(field.glowPlacement, JeebFieldGlowPlacement.centerUpper);
     // R13 declares no periwinkle wash; painting one would mirror the layers.
@@ -126,11 +129,13 @@ void main() {
     expect(field.animateDecor, isFalse);
   });
 
-  testWidgets('the selected reason row is R9 lit: orange-20 fill, 2px accent',
-      (WidgetTester tester) async {
+  testWidgets('the selected reason row is R9 lit: orange-20 fill, 2px accent', (
+    WidgetTester tester,
+  ) async {
     final BuildContext context = await pump(tester, _cubit());
-    final JeebSemanticColors semantics =
-        Theme.of(context).extension<JeebSemanticColors>()!;
+    final JeebSemanticColors semantics = Theme.of(
+      context,
+    ).extension<JeebSemanticColors>()!;
 
     await tester.tap(find.text('Damaged item'));
     await tester.pumpAndSettle();
@@ -149,11 +154,13 @@ void main() {
     expect(rest.boxShadow, anyOf(isNull, isEmpty));
   });
 
-  testWidgets('the rest radio ring is the glassBorderVivid rung',
-      (WidgetTester tester) async {
+  testWidgets('the rest radio ring is the glassBorderVivid rung', (
+    WidgetTester tester,
+  ) async {
     final BuildContext context = await pump(tester, _cubit());
-    final JeebSemanticColors semantics =
-        Theme.of(context).extension<JeebSemanticColors>()!;
+    final JeebSemanticColors semantics = Theme.of(
+      context,
+    ).extension<JeebSemanticColors>()!;
     final ColorScheme scheme = Theme.of(context).colorScheme;
 
     final Icon ring = tester.widget<Icon>(
@@ -169,8 +176,9 @@ void main() {
     expect(ring.color, isNot(scheme.outline));
   });
 
-  testWidgets('the discard action is danger-SOFT, never full-strength error',
-      (WidgetTester tester) async {
+  testWidgets('the discard action is danger-SOFT, never full-strength error', (
+    WidgetTester tester,
+  ) async {
     final EscalateCubit cubit = _cubit();
     final BuildContext context = await pump(tester, cubit);
     final ColorScheme scheme = Theme.of(context).colorScheme;
@@ -183,18 +191,23 @@ void main() {
     expect(discard.style!.color, isNot(scheme.error));
   });
 
-  testWidgets('the support escape link is the sanctioned orange text link',
-      (WidgetTester tester) async {
+  testWidgets('the support escape link is the sanctioned orange text link', (
+    WidgetTester tester,
+  ) async {
     final BuildContext context = await pump(tester, _cubit());
 
     final Text link = tester.widget<Text>(find.text('Contact support'));
     expect(link.style!.color, context.jeebRoles.accent);
     // Not the periwinkle `text` variant it shipped as.
-    expect(link.style!.color, isNot(Theme.of(context).colorScheme.onSurfaceVariant));
+    expect(
+      link.style!.color,
+      isNot(Theme.of(context).colorScheme.onSurfaceVariant),
+    );
   });
 
-  testWidgets('the photo chip close glyph reads on the white selected slab',
-      (WidgetTester tester) async {
+  testWidgets('the photo chip close glyph reads on the white selected slab', (
+    WidgetTester tester,
+  ) async {
     final EscalateCubit cubit = _cubit();
     final BuildContext context = await pump(tester, cubit);
     final ColorScheme scheme = Theme.of(context).colorScheme;
@@ -208,26 +221,25 @@ void main() {
     expect(close.color, isNot(scheme.onPrimary));
   });
 
-  testWidgets('degraded evidence draws the parcel empty, not phantom rows',
-      (WidgetTester tester) async {
-    await pump(tester, _cubit(const _EmptyEvidenceRepo()));
+  testWidgets('does not request or render a client evidence preview', (
+    WidgetTester tester,
+  ) async {
+    final repository = _EvidenceProbeRepo();
+    await pump(tester, _cubit(repository));
 
-    final JeebEmptyState empty = tester.widget<JeebEmptyState>(
-      find.descendant(
-        of: find.bySemanticsIdentifier('dispute_evidence_timeline'),
-        matching: find.byType(JeebEmptyState),
-      ),
+    expect(repository.fetches, 0);
+    expect(
+      find.bySemanticsIdentifier('dispute_evidence_timeline'),
+      findsNothing,
     );
-    expect(empty.status, JeebEmptyStateStatus.empty);
-    expect(empty.variant, JeebEmptyStateVariant.parcel);
-    expect(empty.compact, isTrue);
-    // The blueprint id survives with nothing to list.
-    expect(find.bySemanticsIdentifier('dispute_evidence_chat'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('dispute_evidence_chat'), findsNothing);
     expect(find.text('Live tracking'), findsNothing);
+    expect(find.bySemanticsIdentifier('dispute_submit_cta'), findsOneWidget);
   });
 
-  testWidgets('submitting is the loading empty family, not an OMDS spinner',
-      (WidgetTester tester) async {
+  testWidgets('submitting is the loading empty family, not an OMDS spinner', (
+    WidgetTester tester,
+  ) async {
     final EscalateCubit stalled = _cubit(const _Repo(stall: true));
     await pump(tester, stalled);
     stalled.setReason(EscalateReason.damaged);
@@ -236,17 +248,20 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final JeebEmptyState loading =
-        tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+    final JeebEmptyState loading = tester.widget<JeebEmptyState>(
+      find.byType(JeebEmptyState),
+    );
     expect(find.bySemanticsIdentifier('dispute_submitting'), findsOneWidget);
     expect(loading.status, JeebEmptyStateStatus.loading);
     expect(loading.variant, JeebEmptyStateVariant.parcel);
   });
 
-  testWidgets('error is the error empty family and keeps a way out',
-      (WidgetTester tester) async {
-    final EscalateCubit failing =
-        _cubit(const _Repo(failWith: EscalateErrorKind.server));
+  testWidgets('error is the error empty family and keeps a way out', (
+    WidgetTester tester,
+  ) async {
+    final EscalateCubit failing = _cubit(
+      const _Repo(failWith: EscalateErrorKind.server),
+    );
     await pump(tester, failing);
     failing.setReason(EscalateReason.damaged);
     await failing.submit();

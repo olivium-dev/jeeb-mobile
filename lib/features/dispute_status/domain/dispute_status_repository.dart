@@ -1,15 +1,13 @@
-enum DisputeState { open, resolved, unknown }
+enum DisputeState {
+  pending,
+  fixed,
+  closed,
 
-enum DisputeOutcome {
-  refund,
-
-  penalty,
-
-  dismissed,
-
-  other,
-
-  none,
+  /// Backward-compatible fixture aliases. Gateway responses are normalized to
+  /// the three canonical values above.
+  open,
+  resolved,
+  unknown,
 }
 
 class DisputeEvidenceSummary {
@@ -21,6 +19,9 @@ class DisputeEvidenceSummary {
     this.hasChatSnapshot = false,
     this.chatMessageCount,
     this.timelineCount = 0,
+    this.completeness = EvidenceCompleteness.none,
+    this.attachments = const <DisputeEvidenceAttachment>[],
+    this.missingSources = const <String>[],
   });
 
   static const DisputeEvidenceSummary empty = DisputeEvidenceSummary();
@@ -38,6 +39,14 @@ class DisputeEvidenceSummary {
   final int? chatMessageCount;
 
   final int timelineCount;
+  final EvidenceCompleteness completeness;
+  final List<DisputeEvidenceAttachment> attachments;
+  final List<String> missingSources;
+
+  bool get isPartial =>
+      completeness == EvidenceCompleteness.partial ||
+      missingSources.isNotEmpty ||
+      attachments.any((item) => item.status == EvidenceAttachmentStatus.failed);
 
   bool get hasAny =>
       (reason != null && reason!.isNotEmpty) ||
@@ -45,36 +54,57 @@ class DisputeEvidenceSummary {
       photoCount > 0 ||
       hasVoice ||
       hasChatSnapshot ||
-      timelineCount > 0;
+      timelineCount > 0 ||
+      attachments.isNotEmpty ||
+      isPartial;
+}
+
+enum EvidenceCompleteness { complete, partial, none, unknown }
+
+enum EvidenceAttachmentStatus { uploaded, failed, pending, unknown }
+
+class DisputeEvidenceAttachment {
+  const DisputeEvidenceAttachment({
+    required this.id,
+    required this.kind,
+    required this.status,
+    this.fileName,
+    this.objectRef,
+  });
+
+  final String id;
+  final String kind;
+  final EvidenceAttachmentStatus status;
+  final String? fileName;
+  final String? objectRef;
+}
+
+class DisputeStatusHistoryEntry {
+  const DisputeStatusHistoryEntry({required this.status, this.at, this.note});
+
+  final DisputeState status;
+  final String? at;
+  final String? note;
 }
 
 class DisputeStatus {
   const DisputeStatus({
     required this.id,
     required this.state,
-    this.outcome = DisputeOutcome.none,
-    this.resolution,
     this.note,
-    this.refundAmount,
-    this.currency,
     this.orderRef,
     this.conversationRef,
     this.createdAt,
     this.resolvedAt,
     this.evidence = DisputeEvidenceSummary.empty,
+    this.statusHistory = const <DisputeStatusHistoryEntry>[],
+    this.version,
   });
 
   final String id;
   final DisputeState state;
 
-  final DisputeOutcome outcome;
-
-  final String? resolution;
-
   final String? note;
-
-  final double? refundAmount;
-  final String? currency;
 
   final String? orderRef;
 
@@ -84,8 +114,18 @@ class DisputeStatus {
   final String? resolvedAt;
 
   final DisputeEvidenceSummary evidence;
+  final List<DisputeStatusHistoryEntry> statusHistory;
+  final int? version;
 
-  bool get isResolved => state == DisputeState.resolved;
+  DisputeState get canonicalState => switch (state) {
+    DisputeState.open => DisputeState.pending,
+    DisputeState.resolved => DisputeState.fixed,
+    _ => state,
+  };
+
+  bool get isResolved =>
+      canonicalState == DisputeState.fixed ||
+      canonicalState == DisputeState.closed;
 
   String? get chatRef {
     final c = conversationRef;

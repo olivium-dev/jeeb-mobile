@@ -56,16 +56,15 @@ class _PendingRepository implements DisputeStatusRepository {
   Future<DisputeStatus> fetchDispute(String disputeId) => _held.future;
 }
 
-const DisputeStatus _openDispute = DisputeStatus(
+const DisputeStatus _pendingDispute = DisputeStatus(
   id: 'dsp-1',
-  state: DisputeState.open,
+  state: DisputeState.pending,
   orderRef: 'ORD-1',
 );
 
-const DisputeStatus _resolvedDispute = DisputeStatus(
+const DisputeStatus _closedDispute = DisputeStatus(
   id: 'dsp-2',
-  state: DisputeState.resolved,
-  outcome: DisputeOutcome.refund,
+  state: DisputeState.closed,
   orderRef: 'ORD-2',
 );
 
@@ -122,9 +121,10 @@ void main() {
   );
 
   group('field — derived from R13', () {
-    testWidgets('content variant, glow centreUpper, no wash, decor still',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
+    testWidgets('content variant, glow centreUpper, no wash, decor still', (
+      tester,
+    ) async {
+      await pump(tester, const _CannedRepository(_pendingDispute));
 
       final f = field(tester);
       // R13's only radial: `520px 440px at 50% 42%`, no rings, no twinkles.
@@ -136,9 +136,10 @@ void main() {
       expect(f.animateDecor, isFalse);
     });
 
-    testWidgets('the field is not covered by an opaque scaffold',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
+    testWidgets('the field is not covered by an opaque scaffold', (
+      tester,
+    ) async {
+      await pump(tester, const _CannedRepository(_pendingDispute));
 
       final scaffold = tester.widget<Scaffold>(
         find.descendant(
@@ -149,9 +150,10 @@ void main() {
       expect(scaffold.backgroundColor, Colors.transparent);
     });
 
-    testWidgets('the header is the in-body bar, never a Material app bar',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
+    testWidgets('the header is the in-body bar, never a Material app bar', (
+      tester,
+    ) async {
+      await pump(tester, const _CannedRepository(_pendingDispute));
 
       expect(find.byType(JeebTopBar), findsOneWidget);
       expect(find.byType(AppBar), findsNothing);
@@ -160,30 +162,32 @@ void main() {
   });
 
   group('lifecycle band — derived from R3', () {
-    testWidgets('is the kit BAR form with the accent fill-through',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
+    testWidgets('is the kit BAR form with the accent fill-through', (
+      tester,
+    ) async {
+      await pump(tester, const _CannedRepository(_pendingDispute));
 
       final stepper = tester.widget<JeebStepper>(find.byType(JeebStepper));
       // R3 draws bars; the node form belongs to no Midnight tile.
       expect(stepper.stepCount, 3);
       expect(stepper.labels, isEmpty);
       expect(stepper.doneInk, JeebStepperDoneInk.accent);
-      // Open rests on "under review"; resolved advances to the last step.
-      expect(stepper.currentIndex, 1);
+      expect(stepper.currentIndex, 0);
     });
 
-    testWidgets('a resolved dispute advances the band to the last step',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_resolvedDispute));
+    testWidgets('a closed dispute advances the band to the last step', (
+      tester,
+    ) async {
+      await pump(tester, const _CannedRepository(_closedDispute));
 
       final stepper = tester.widget<JeebStepper>(find.byType(JeebStepper));
       expect(stepper.currentIndex, 2);
     });
 
-    testWidgets('all three frozen step identifiers stay addressable',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
+    testWidgets('all three frozen step identifiers stay addressable', (
+      tester,
+    ) async {
+      await pump(tester, const _CannedRepository(_pendingDispute));
 
       for (final id in const <String>[
         'dispute_status_stepper',
@@ -195,23 +199,24 @@ void main() {
       }
     });
 
-    testWidgets('the active label is accent w800, the others muted 10.5',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
+    testWidgets('the active label is accent w800, the others muted 10.5', (
+      tester,
+    ) async {
+      await pump(tester, const _CannedRepository(_pendingDispute));
 
       final context = tester.element(find.byType(JeebStepper));
       final scheme = Theme.of(context).colorScheme;
       final accent = context.jeebRoles.accent;
 
-      final active = stepLabel(tester, 'dispute_status_step_review');
+      final active = stepLabel(tester, 'dispute_status_step_pending');
       expect(active.style?.color, accent);
       expect(active.style?.fontWeight, FontWeight.w800);
       // Board `font-size:10.5px` — the `label` rung, not `caption` (11.5).
       expect(active.style?.fontSize, 10.5);
 
       for (final id in const <String>[
-        'dispute_status_step_submitted',
-        'dispute_status_step_resolved',
+        'dispute_status_step_fixed',
+        'dispute_status_step_closed',
       ]) {
         final other = stepLabel(tester, id);
         expect(other.style?.color, scheme.onSurfaceVariant, reason: id);
@@ -222,8 +227,9 @@ void main() {
   });
 
   group('pre-load frames — the empty family', () {
-    testWidgets('loading is the radar skeleton, discs dropped, no spinner',
-        (tester) async {
+    testWidgets('loading is the radar skeleton, discs dropped, no spinner', (
+      tester,
+    ) async {
       await tester.pumpWidget(_harness(_PendingRepository()));
       await tester.pumpAndSettle();
 
@@ -239,7 +245,9 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('error is the same illustration, danger-tinted', (tester) async {
+    testWidgets('error is the same illustration, danger-tinted', (
+      tester,
+    ) async {
       await pump(tester, const _FailingRepository());
 
       final state = emptyState(tester);
@@ -268,8 +276,9 @@ void main() {
   });
 
   group('empty evidence block', () {
-    testWidgets('an attached set draws the grouped card, not the empty block',
-        (tester) async {
+    testWidgets('an attached set draws the grouped card, not the empty block', (
+      tester,
+    ) async {
       await pump(
         tester,
         const _CannedRepository(
@@ -281,34 +290,42 @@ void main() {
         ),
       );
 
-      expect(find.bySemanticsIdentifier('dispute_status_evidence_summary'),
-          findsOneWidget);
-      expect(find.bySemanticsIdentifier('dispute_status_evidence_empty'),
-          findsNothing);
-    });
-
-    testWidgets('an empty set draws E4 inline, never a heading over dead space',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
-
-      final empty = tester.widget<JeebEmptyState>(
-        find.byType(JeebEmptyState),
+      expect(
+        find.bySemanticsIdentifier('dispute_status_evidence_summary'),
+        findsOneWidget,
       );
-      // Wave-C ruling 9: parcel IS "nothing in the box".
-      expect(empty.variant, JeebEmptyStateVariant.parcel);
-      expect(empty.status, JeebEmptyStateStatus.empty);
-      // Inline block inside the scroll list, not a screen-owning illustration.
-      expect(empty.compact, isTrue);
-      expect(empty.identifier, 'dispute_status_evidence_empty');
-      // The frozen summary id still renders around it.
-      expect(find.bySemanticsIdentifier('dispute_status_evidence_summary'),
-          findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('dispute_status_evidence_empty'),
+        findsNothing,
+      );
     });
+
+    testWidgets(
+      'an empty set draws E4 inline, never a heading over dead space',
+      (tester) async {
+        await pump(tester, const _CannedRepository(_pendingDispute));
+
+        final empty = tester.widget<JeebEmptyState>(
+          find.byType(JeebEmptyState),
+        );
+        // Wave-C ruling 9: parcel IS "nothing in the box".
+        expect(empty.variant, JeebEmptyStateVariant.parcel);
+        expect(empty.status, JeebEmptyStateStatus.empty);
+        // Inline block inside the scroll list, not a screen-owning illustration.
+        expect(empty.compact, isTrue);
+        expect(empty.identifier, 'dispute_status_evidence_empty');
+        // The frozen summary id still renders around it.
+        expect(
+          find.bySemanticsIdentifier('dispute_status_evidence_summary'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('orange budget', () {
     testWidgets('the docked support act stays periwinkle', (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
+      await pump(tester, const _CannedRepository(_pendingDispute));
 
       final support = tester.widget<JeebCtaButton>(
         find.descendant(
@@ -321,9 +338,10 @@ void main() {
       expect(support.variant, JeebCtaVariant.primary);
     });
 
-    testWidgets('the band is the ONLY orange ink on the loaded frame',
-        (tester) async {
-      await pump(tester, const _CannedRepository(_openDispute));
+    testWidgets('the band is the ONLY orange ink on the loaded frame', (
+      tester,
+    ) async {
+      await pump(tester, const _CannedRepository(_pendingDispute));
 
       final context = tester.element(find.byType(JeebTopBar));
       final scheme = Theme.of(context).colorScheme;
@@ -340,10 +358,7 @@ void main() {
           )
           .toSet();
       // R3's active label is the one sanctioned accent run.
-      expect(
-        band.where((t) => t.style?.color == scheme.primary),
-        hasLength(1),
-      );
+      expect(band.where((t) => t.style?.color == scheme.primary), hasLength(1));
       for (final text in tester.widgetList<Text>(find.byType(Text))) {
         if (band.contains(text)) continue;
         expect(text.style?.color, isNot(scheme.primary), reason: text.data);

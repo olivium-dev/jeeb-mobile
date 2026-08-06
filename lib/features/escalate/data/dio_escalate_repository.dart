@@ -2,92 +2,37 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
-import '../../../core/network/mock_gateway_client.dart';
+import '../../../core/idempotency/operation_id.dart';
+import '../../case_evidence/data/dio_case_evidence_uploader.dart';
+import '../../case_evidence/domain/case_evidence.dart';
 import '../domain/escalate_repository.dart';
 
-class DioEscalateRepository implements EscalateRepository {
-  const DioEscalateRepository(this._dio, {bool? originGateway})
-      : originGateway = originGateway ?? !MockGatewayClient.useMockPrefixes;
+class DioEscalateRepository
+    implements EscalateRepository, EscalateV2Repository {
+  DioEscalateRepository(
+    this._dio, {
+    bool? originGateway,
+    CaseEvidenceUploader? evidenceUploader,
+  }) : _evidenceUploader =
+           evidenceUploader ??
+           DioCaseEvidenceUploader(
+             _dio,
+             slot: CaseEvidenceSlot.disputeEvidence,
+           );
 
   final Dio _dio;
 
-  final bool originGateway;
+  final CaseEvidenceUploader _evidenceUploader;
+  final Map<String, UploadedCaseAttachment> _uploaded =
+      <String, UploadedCaseAttachment>{};
+  final Map<String, Future<UploadedCaseAttachment>> _uploadsInFlight =
+      <String, Future<UploadedCaseAttachment>>{};
 
   @override
-  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async {
-    final snapshot = await _fetchChatSnapshot(deliveryId);
-    final timeline = await _fetchTimeline(deliveryId);
-    return EscalateEvidence(
-      chatSnapshotUrl: snapshot?.url,
-      chatMessageCount: snapshot?.messageCount,
-      timeline: timeline,
-    );
-  }
-
-  Future<_ChatSnapshot?> _fetchChatSnapshot(String deliveryId) async {
-    try {
-      final conv = await _dio.get<Map<String, dynamic>>(
-        '/v1/conversations',
-        queryParameters: <String, Object?>{'correlationKey': deliveryId},
-      );
-      final conversationId = conv.data?['id'] as String? ??
-          conv.data?['conversationId'] as String?;
-      if (conversationId == null || conversationId.isEmpty) return null;
-      final snap = await _dio.get<Map<String, dynamic>>(
-        '/v1/chat/jeeb/conversations/$conversationId/snapshot',
-      );
-      final url = snap.data?['snapshotUrl'] as String? ??
-          snap.data?['url'] as String?;
-      final count = snap.data?['messageCount'];
-      return _ChatSnapshot(
-        url: (url ?? '').isEmpty ? null : url,
-        messageCount: count is num ? count.toInt() : null,
-      );
-    } on DioException {
-      return null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<List<EscalateTimelineEntry>> _fetchTimeline(String deliveryId) async {
-    try {
-      final res = await _dio.get<Map<String, dynamic>>(
-        originGateway
-            ? '/v1/deliveries/$deliveryId'
-            : '/v1/delivery/$deliveryId',
-      );
-      final data = res.data ?? const <String, dynamic>{};
-      final history = data['statusHistory'] ?? data['timeline'];
-      if (history is List) {
-        return history
-            .whereType<Map>()
-            .map(
-              (e) => EscalateTimelineEntry(
-                status: e['status'] as String? ?? e['to'] as String? ?? '',
-                at: e['at'] as String? ??
-                    e['ts'] as String? ??
-                    e['updatedAt'] as String?,
-              ),
-            )
-            .where((e) => e.status.isNotEmpty)
-            .toList(growable: false);
-      }
-      final status = data['status'] as String?;
-      if (status == null || status.isEmpty) {
-        return const <EscalateTimelineEntry>[];
-      }
-      return <EscalateTimelineEntry>[
-        EscalateTimelineEntry(
-          status: status,
-          at: data['updatedAt'] as String? ?? data['updated_at'] as String?,
-        ),
-      ];
-    } on DioException {
-      return const <EscalateTimelineEntry>[];
-    } catch (_) {
-      return const <EscalateTimelineEntry>[];
-    }
+  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) {
+    // Canonical evidence is captured by the gateway when the dispute is
+    // created. Mobile has no evidence-preview endpoint and performs no fanout.
+    return Future<EscalateEvidence>.value(EscalateEvidence.empty);
   }
 
   @override
@@ -98,24 +43,136 @@ class DioEscalateRepository implements EscalateRepository {
     List<String> photoPaths = const [],
     String? voicePath,
     EscalateEvidence evidence = EscalateEvidence.empty,
+  }) {
+    final operationId = newOperationId();
+    final attachments = <UploadedCaseAttachment>[
+      for (final path in photoPaths.take(5))
+        UploadedCaseAttachment(
+          localId: path,
+          objectRef: path,
+          fileName: path.split('/').last,
+          contentType: 'image/jpeg',
+          kind: CaseAttachmentKind.photo,
+        ),
+      if (voicePath != null && voicePath.isNotEmpty)
+        UploadedCaseAttachment(
+          localId: 'voice',
+          objectRef: voicePath,
+          fileName: voicePath.split('/').last,
+          contentType: 'audio/mp4',
+          kind: CaseAttachmentKind.voice,
+        ),
+    ];
+    return _postReport(
+      operationId: operationId,
+      deliveryId: deliveryId,
+      reason: reason,
+      comment: comment,
+      attachments: attachments,
+    );
+  }
+
+  @override
+  Future<EscalateResult> submitReport(
+    EscalateSubmission submission, {
+    CaseAttachmentProgressCallback? onProgress,
+  }) async {
+    final uploaded = <UploadedCaseAttachment>[];
+    for (final attachment in submission.attachments) {
+      final cacheKey = '${submission.operationId}:${attachment.localId}';
+      final cached = _uploaded[cacheKey];
+      if (cached != null) {
+        uploaded.add(cached);
+        onProgress?.call(
+          CaseAttachmentProgress(
+            localId: attachment.localId,
+            state: CaseAttachmentUploadState.uploaded,
+            objectRef: cached.objectRef,
+          ),
+        );
+        continue;
+      }
+      try {
+        final inFlight = _uploadsInFlight[cacheKey];
+        if (inFlight != null) {
+          final item = await inFlight;
+          uploaded.add(item);
+          onProgress?.call(
+            CaseAttachmentProgress(
+              localId: attachment.localId,
+              state: CaseAttachmentUploadState.uploaded,
+              objectRef: item.objectRef,
+            ),
+          );
+          continue;
+        }
+        final upload = _evidenceUploader
+            .upload(
+              attachment: attachment,
+              operationId: submission.operationId,
+              onProgress: onProgress,
+            )
+            .then((item) {
+              _uploaded[cacheKey] = item;
+              return item;
+            });
+        _uploadsInFlight[cacheKey] = upload;
+        final item = await upload;
+        uploaded.add(item);
+      } on CaseEvidenceUploadException catch (error) {
+        onProgress?.call(
+          CaseAttachmentProgress(
+            localId: attachment.localId,
+            state: CaseAttachmentUploadState.failed,
+            message: error.message,
+          ),
+        );
+        throw EscalateException(
+          error.offline
+              ? EscalateErrorKind.network
+              : EscalateErrorKind.evidenceUpload,
+          error,
+        );
+      } finally {
+        _uploadsInFlight.remove(cacheKey);
+      }
+    }
+    return _postReport(
+      operationId: submission.operationId,
+      deliveryId: submission.deliveryId,
+      reason: submission.reason,
+      comment: submission.comment,
+      attachments: uploaded,
+    );
+  }
+
+  Future<EscalateResult> _postReport({
+    required String operationId,
+    required String deliveryId,
+    required EscalateReason reason,
+    required String? comment,
+    required List<UploadedCaseAttachment> attachments,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
-        '/v1/disputes',
+        '/v1/deliveries/$deliveryId/escalate',
         data: _disputeBody(
+          operationId: operationId,
           deliveryId: deliveryId,
           reason: reason,
           comment: comment,
-          photoPaths: photoPaths,
-          voicePath: voicePath,
-          evidence: evidence,
+          attachments: attachments,
         ),
         options: Options(
-          headers: <String, Object?>{'Idempotency-Key': 'dispute-$deliveryId'},
+          headers: <String, Object?>{'Idempotency-Key': operationId},
         ),
       );
       return EscalateResult.fromJson(response.data ?? const {});
     } on DioException catch (e) {
+      final existingId = _existingDisputeId(e.response?.data);
+      if (e.response?.statusCode == 409 && existingId != null) {
+        return EscalateResult(caseId: existingId, status: 'pending');
+      }
       throw EscalateException(_mapDioError(e), e);
     } on IOException catch (e) {
       throw EscalateException(EscalateErrorKind.network, e);
@@ -123,42 +180,50 @@ class DioEscalateRepository implements EscalateRepository {
   }
 
   Map<String, Object?> _disputeBody({
+    required String operationId,
     required String deliveryId,
     required EscalateReason reason,
     required String? comment,
-    required List<String> photoPaths,
-    required String? voicePath,
-    required EscalateEvidence evidence,
+    required List<UploadedCaseAttachment> attachments,
   }) {
-    final photos = photoPaths
+    final photos = attachments
+        .where((item) => item.kind == CaseAttachmentKind.photo)
+        .map((item) => item.objectRef)
         .take(5)
-        .map((p) => File(p).uri.pathSegments.isEmpty
-            ? p
-            : File(p).uri.pathSegments.last)
+        .toList(growable: false);
+    final voices = attachments
+        .where((item) => item.kind == CaseAttachmentKind.voice)
         .toList(growable: false);
     return <String, Object?>{
+      'operationId': operationId,
       'deliveryId': deliveryId,
       'requestId': deliveryId,
       'reason': _reasonParam(reason),
       if (comment != null && comment.isNotEmpty) 'comment': comment,
       'photos': photos,
-      if (voicePath != null && voicePath.isNotEmpty)
-        'voiceUrl': File(voicePath).uri.pathSegments.isEmpty
-            ? voicePath
-            : File(voicePath).uri.pathSegments.last,
-      'evidence': <String, Object?>{
-        if (evidence.hasChatSnapshot) 'chatSnapshotUrl': evidence.chatSnapshotUrl,
-        if (evidence.chatMessageCount != null)
-          'chatMessageCount': evidence.chatMessageCount,
-        if (evidence.hasTimeline)
-          'timeline': evidence.timeline
-              .map((e) => <String, Object?>{
-                    'status': e.status,
-                    if (e.at != null) 'at': e.at,
-                  })
-              .toList(growable: false),
-      },
+      if (voices.isNotEmpty) 'voiceUrl': voices.first.objectRef,
+      if (photos.isNotEmpty) 'attachments': photos,
     };
+  }
+
+  String? _existingDisputeId(Object? body) {
+    if (body is! Map) return null;
+    for (final key in const <String>[
+      'existingCaseId',
+      'existingDisputeId',
+      'disputeId',
+      'caseId',
+      'id',
+    ]) {
+      final value = body[key];
+      if (value is String && value.trim().isNotEmpty) return value.trim();
+    }
+    final nested = _existingDisputeId(body['extensions'] ?? body['data']);
+    if (nested != null) return nested;
+    final detail = body['detail'];
+    if (detail is! String) return null;
+    final match = RegExp(r'Existing case id:\s*([^\s.]+)').firstMatch(detail);
+    return match?.group(1);
   }
 
   EscalateErrorKind _mapDioError(DioException e) {
@@ -199,10 +264,4 @@ class DioEscalateRepository implements EscalateRepository {
         return 'other';
     }
   }
-}
-
-class _ChatSnapshot {
-  const _ChatSnapshot({this.url, this.messageCount});
-  final String? url;
-  final int? messageCount;
 }

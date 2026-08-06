@@ -36,20 +36,22 @@ Future<void> persistNewRequestPush(RemoteMessage message) async {
       (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
     );
     hoistNestedRoutingFields(data);
-    if (NotificationCategory.fromData(data) != NotificationCategory.newRequest) {
+    if (NotificationCategory.fromData(data) !=
+        NotificationCategory.newRequest) {
       return;
     }
     final prefs = await SharedPreferences.getInstance();
     final inbox = SharedPrefsLocalPushInbox(prefs: prefs);
-    await inbox.append(LocalPushRecord(
-      id: message.messageId ??
-          'fcm-${DateTime.now().microsecondsSinceEpoch}',
-      type: kNewRequestPushType,
-      title: message.notification?.title ?? data['title'] ?? '',
-      body: message.notification?.body ?? data['body'] ?? '',
-      ts: (message.sentTime ?? DateTime.now()).toUtc().toIso8601String(),
-      ref: data['requestId'] ?? data['request_id'],
-    ));
+    await inbox.append(
+      LocalPushRecord(
+        id: message.messageId ?? 'fcm-${DateTime.now().microsecondsSinceEpoch}',
+        type: kNewRequestPushType,
+        title: message.notification?.title ?? data['title'] ?? '',
+        body: message.notification?.body ?? data['body'] ?? '',
+        ts: (message.sentTime ?? DateTime.now()).toUtc().toIso8601String(),
+        ref: data['requestId'] ?? data['request_id'],
+      ),
+    );
   } catch (error) {
     if (kDebugMode) {
       debugPrint('[push] persistNewRequestPush failed: $error');
@@ -57,23 +59,24 @@ Future<void> persistNewRequestPush(RemoteMessage message) async {
   }
 }
 
-const AndroidNotificationChannel jeebDefaultChannel = AndroidNotificationChannel(
-  'jeeb_default',
-  'Jeeb Notifications',
-  description: 'Delivery updates, chat, KYC, ratings, and account alerts.',
-  importance: Importance.high,
-);
+const AndroidNotificationChannel jeebDefaultChannel =
+    AndroidNotificationChannel(
+      'jeeb_default',
+      'Jeeb Notifications',
+      description: 'Delivery updates, chat, KYC, ratings, and account alerts.',
+      importance: Importance.high,
+    );
 
 class FirebaseMessagingTransport implements PushTransport {
   FirebaseMessagingTransport({
     FirebaseMessaging? messaging,
     FlutterLocalNotificationsPlugin? localNotifications,
     Set<String> Function()? openChatThreadIds,
-  })  : _messaging = messaging ?? FirebaseMessaging.instance,
-        _localNotifications =
-            localNotifications ?? FlutterLocalNotificationsPlugin(),
-        _openChatThreadIds =
-            openChatThreadIds ?? (() => ActiveChatThread.instance.openIds);
+  }) : _messaging = messaging ?? FirebaseMessaging.instance,
+       _localNotifications =
+           localNotifications ?? FlutterLocalNotificationsPlugin(),
+       _openChatThreadIds =
+           openChatThreadIds ?? (() => ActiveChatThread.instance.openIds);
 
   final FirebaseMessaging _messaging;
   final FlutterLocalNotificationsPlugin _localNotifications;
@@ -102,8 +105,10 @@ class FirebaseMessagingTransport implements PushTransport {
       onDidReceiveNotificationResponse: _onLocalNotificationTap,
     );
 
-    final androidImpl = _localNotifications.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidImpl = _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await androidImpl?.createNotificationChannel(jeebDefaultChannel);
 
     await _messaging.setForegroundNotificationPresentationOptions(
@@ -229,13 +234,14 @@ class FirebaseMessagingTransport implements PushTransport {
     );
     hoistNestedRoutingFields(data);
     if (kDebugMode) {
-      debugPrint('[push] rx keys=${data.keys.toList()} '
-          'hasNotif=${message.notification != null} '
-          'cat=${NotificationCategory.fromData(data).name}');
+      debugPrint(
+        '[push] rx keys=${data.keys.toList()} '
+        'hasNotif=${message.notification != null} '
+        'cat=${NotificationCategory.fromData(data).name}',
+      );
     }
     return NotificationMessage(
-      id: message.messageId ??
-          'fcm-${DateTime.now().microsecondsSinceEpoch}',
+      id: message.messageId ?? 'fcm-${DateTime.now().microsecondsSinceEpoch}',
       category: NotificationCategory.fromData(data),
       title: message.notification?.title ?? data['title'] ?? '',
       body: message.notification?.body ?? data['body'] ?? '',
@@ -255,6 +261,13 @@ const List<String> kNestedRoutingKeys = <String>[
   'request_id',
   'delivery_id',
   'order_id',
+  'caseId',
+  'case_id',
+  'disputeId',
+  'dispute_id',
+  'ticketId',
+  'ticket_id',
+  'support_ticket_id',
 ];
 
 void hoistNestedRoutingFields(Map<String, String> data) {

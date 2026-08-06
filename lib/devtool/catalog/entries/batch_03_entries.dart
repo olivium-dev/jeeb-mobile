@@ -258,15 +258,15 @@ final List<CatalogEntry> _disputeStatusEntries = <CatalogEntry>[
     screen: 'DisputeStatusScreen',
     states: [
       CatalogState(
-        'Open — under review',
+        'Pending — under review',
         (context) => _disputeStatusScreen(
-          DisputeStatusScreenFixtures.openUnderReview,
+          DisputeStatusScreenFixtures.pendingReview,
         ),
       ),
       CatalogState(
-        'Resolved — refund issued (D2)',
+        'Fixed — issue corrected',
         (context) => _disputeStatusScreen(
-          DisputeStatusScreenFixtures.resolvedRefund,
+          DisputeStatusScreenFixtures.fixed,
         ),
       ),
       // MIDNIGHT M3-32: the cold read and the empty evidence set had fixtures
@@ -278,9 +278,9 @@ final List<CatalogEntry> _disputeStatusEntries = <CatalogEntry>[
         ),
       ),
       CatalogState(
-        'Open — no evidence attached',
+        'Pending — no evidence attached',
         (context) => _disputeStatusScreen(
-          DisputeStatusScreenFixtures.openNoEvidence,
+          DisputeStatusScreenFixtures.pendingNoEvidence,
         ),
       ),
       CatalogState(

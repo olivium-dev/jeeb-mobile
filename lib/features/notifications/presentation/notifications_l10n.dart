@@ -26,9 +26,9 @@ class NotificationsL10n {
   String get errorTitle => _l10n.notificationsErrorTitle;
 
   String get networkError => _pick(
-        'No connection. Check your network and try again.',
-        'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
-      );
+    'No connection. Check your network and try again.',
+    'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
+  );
   String get retry => _pick('Retry', 'إعادة المحاولة');
 
   String categoryLabel(NotificationKind kind) {
@@ -59,6 +59,10 @@ class NotificationsL10n {
         return _pick('Confirm receipt', 'تأكيد الاستلام');
       case NotificationKind.marketing:
         return _pick('Jeeb', 'جيب');
+      case NotificationKind.dispute:
+        return _pick('Dispute', 'نزاع');
+      case NotificationKind.support:
+        return _pick('Support', 'الدعم');
       case NotificationKind.unknown:
         return _pick('Notification', 'إشعار');
     }
@@ -69,9 +73,9 @@ class NotificationsL10n {
   String get newRequestFallbackTitle =>
       _pick('New request nearby', 'طلب جديد بالقرب منك');
   String get newRequestFallbackBody => _pick(
-        'A customer is looking for a jeeber. Tap to view.',
-        'أحد الزبائن يبحث عن جيب. اضغط لعرض الطلب.',
-      );
+    'A customer is looking for a jeeber. Tap to view.',
+    'أحد الزبائن يبحث عن جيب. اضغط لعرض الطلب.',
+  );
 
   String relativeTime(String timestamp, {DateTime? now}) {
     var ts = DateTime.tryParse(timestamp);

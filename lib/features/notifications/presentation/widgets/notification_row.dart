@@ -207,6 +207,10 @@ IconData _iconFor(NotificationKind kind) {
       return Icons.inventory_2_outlined;
     case NotificationKind.marketing:
       return Icons.campaign_outlined;
+    case NotificationKind.dispute:
+      return Icons.report_problem_outlined;
+    case NotificationKind.support:
+      return Icons.support_agent;
     case NotificationKind.unknown:
       return Icons.notifications_none_outlined;
   }

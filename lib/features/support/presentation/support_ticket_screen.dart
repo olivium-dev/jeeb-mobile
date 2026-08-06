@@ -15,6 +15,9 @@ import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../case_evidence/domain/case_evidence.dart';
+import '../../photo_attachment/data/image_picker_photo_picker_service.dart';
+import '../../photo_attachment/domain/photo_picker_service.dart';
 import '../application/support_cubit.dart';
 import '../application/support_state.dart';
 import '../data/stub_support_repository.dart';
@@ -43,7 +46,7 @@ const List<JeebEmptyMedallion> _kNoMedallions = <JeebEmptyMedallion>[];
 /// (JM-035), account-status (JM-066), dispute-status (JM-065), and kyc-rejected
 /// appeal (JM-043). Carries `support_category` + `support_body` +
 /// `support_attach` + optional `support_order_link`; `support_submit_cta`
-/// submits a ticket through the S1 support-service (POST /v1/support/tickets,
+/// submits a ticket through the gateway support contract (POST /v1/support/tickets,
 /// DI-bound `SupportRepository`), then shows a confirmation and routes to
 /// customer-profile. `support_dispute_link` routes to dispute-open-evidence
 /// (the existing `/orders/:id/escalate`, JM-060).
@@ -80,7 +83,7 @@ const List<JeebEmptyMedallion> _kNoMedallions = <JeebEmptyMedallion>[];
 /// `support_submitting`, `support_success`, `support_error`,
 /// `support_retry_cta`.
 class SupportTicketScreen extends StatelessWidget {
-  const SupportTicketScreen({super.key, this.cubit});
+  const SupportTicketScreen({super.key, this.cubit, this.photoPicker});
 
   /// DT-04 catalog / test seam: an already-constructed, already-driven cubit
   /// (e.g. one whose `submit()` has settled into `success`/`error` so the
@@ -88,6 +91,7 @@ class SupportTicketScreen extends StatelessWidget {
   /// preserves the existing behavior — the screen builds its own from the
   /// resolved [SupportRepository].
   final SupportCubit? cubit;
+  final PhotoPickerService? photoPicker;
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +99,7 @@ class SupportTicketScreen extends StatelessWidget {
     if (providedCubit != null) {
       return BlocProvider<SupportCubit>.value(
         value: providedCubit,
-        child: const _SupportTicketView(),
+        child: _SupportTicketView(photoPicker: photoPicker),
       );
     }
     // Optional inbound order/dispute ref via GoRouter `extra` (dispute-status
@@ -104,10 +108,9 @@ class SupportTicketScreen extends StatelessWidget {
     // plain-Navigator catalog preview) never throws `GoError` here — it just
     // renders with no seeded ref, same as any other entry point.
     final route = ModalRoute.of(context);
-    final extra =
-        route != null && route.settings is Page<Object?>
-            ? GoRouterState.of(context).extra
-            : null;
+    final extra = route != null && route.settings is Page<Object?>
+        ? GoRouterState.of(context).extra
+        : null;
     final initialOrderRef = extra is String && extra.trim().isNotEmpty
         ? extra.trim()
         : null;
@@ -116,17 +119,16 @@ class SupportTicketScreen extends StatelessWidget {
         ? sl<SupportRepository>()
         : const StubSupportRepository();
     return BlocProvider<SupportCubit>(
-      create: (_) => SupportCubit(
-        repository,
-        initialOrderRef: initialOrderRef,
-      ),
-      child: const _SupportTicketView(),
+      create: (_) => SupportCubit(repository, initialOrderRef: initialOrderRef),
+      child: _SupportTicketView(photoPicker: photoPicker),
     );
   }
 }
 
 class _SupportTicketView extends StatelessWidget {
-  const _SupportTicketView();
+  const _SupportTicketView({required this.photoPicker});
+
+  final PhotoPickerService? photoPicker;
 
   @override
   Widget build(BuildContext context) {
@@ -156,13 +158,16 @@ class _SupportTicketView extends StatelessWidget {
                     builder: (context, state) {
                       switch (state.phase) {
                         case SupportPhase.inputting:
-                          return _SupportForm(state: state);
+                          return _SupportForm(
+                            state: state,
+                            photoPicker: photoPicker,
+                          );
                         case SupportPhase.submitting:
-                          return const _SubmittingView();
+                          return _SubmittingView(state: state);
                         case SupportPhase.success:
-                          return const _ConfirmationView();
+                          return _ConfirmationView(ticketId: state.ticketId);
                         case SupportPhase.error:
-                          return _ErrorView(failure: state.failure);
+                          return _ErrorView(state: state);
                       }
                     },
                   ),
@@ -177,8 +182,9 @@ class _SupportTicketView extends StatelessWidget {
 }
 
 class _SupportForm extends StatelessWidget {
-  const _SupportForm({required this.state});
+  const _SupportForm({required this.state, required this.photoPicker});
   final SupportState state;
+  final PhotoPickerService? photoPicker;
 
   @override
   Widget build(BuildContext context) {
@@ -202,11 +208,14 @@ class _SupportForm extends StatelessWidget {
                 const SizedBox(height: Spacing.large),
                 _CategoryField(selected: state.category),
                 const SizedBox(height: Spacing.large),
-                const _BodyField(),
+                _BodyField(body: state.body),
                 const SizedBox(height: Spacing.large),
                 _OrderLinkField(orderRef: state.orderRef),
                 const SizedBox(height: Spacing.large),
-                _AttachSection(paths: state.attachmentPaths),
+                _AttachSection(
+                  paths: state.attachmentPaths,
+                  photoPicker: photoPicker,
+                ),
               ],
             ),
           ),
@@ -286,8 +295,9 @@ class _CategoryField extends StatelessWidget {
     final isJeeber = roles?.contains('jeeber') ?? false;
     if (isJeeber) return SupportCategory.values;
     return SupportCategory.values
-        .where((c) =>
-            c != SupportCategory.payment && c != SupportCategory.kycAppeal)
+        .where(
+          (c) => c != SupportCategory.payment && c != SupportCategory.kycAppeal,
+        )
         .toList(growable: false);
   }
 }
@@ -341,8 +351,35 @@ class _CategoryTile extends StatelessWidget {
 
 /// `support_body` — the free-text problem description (required, S1 rejects an
 /// empty body with 400 → guarded by `canSubmit`).
-class _BodyField extends StatelessWidget {
-  const _BodyField();
+class _BodyField extends StatefulWidget {
+  const _BodyField({required this.body});
+
+  final String body;
+
+  @override
+  State<_BodyField> createState() => _BodyFieldState();
+}
+
+class _BodyFieldState extends State<_BodyField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.body,
+  );
+
+  @override
+  void didUpdateWidget(covariant _BodyField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_controller.text == widget.body) return;
+    _controller.value = TextEditingValue(
+      text: widget.body,
+      selection: TextSelection.collapsed(offset: widget.body.length),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -358,6 +395,7 @@ class _BodyField extends StatelessWidget {
       // theme, so it stays — swapping it would be churn, not migration
       // (same call the redesigned profile-edit screen makes).
       child: OmdsTextField(
+        controller: _controller,
         labelText: l10n.escalateCommentLabel,
         maxLines: 5,
         minLines: 3,
@@ -381,8 +419,20 @@ class _OrderLinkField extends StatefulWidget {
 }
 
 class _OrderLinkFieldState extends State<_OrderLinkField> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.orderRef ?? '');
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.orderRef ?? '',
+  );
+
+  @override
+  void didUpdateWidget(covariant _OrderLinkField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final value = widget.orderRef ?? '';
+    if (_controller.text == value) return;
+    _controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
 
   @override
   void dispose() {
@@ -410,12 +460,11 @@ class _OrderLinkFieldState extends State<_OrderLinkField> {
   }
 }
 
-/// `support_attach` — optional evidence attachments (≤5). The actual picker is
-/// device-native; like EscalateScreen it records a placeholder path so the form
-/// behaviour + cap are testable until image_picker is wired (follow-up).
+/// `support_attach` — optional device-native evidence attachments (≤5).
 class _AttachSection extends StatelessWidget {
-  const _AttachSection({required this.paths});
+  const _AttachSection({required this.paths, required this.photoPicker});
   final List<String> paths;
+  final PhotoPickerService? photoPicker;
 
   @override
   Widget build(BuildContext context) {
@@ -434,8 +483,8 @@ class _AttachSection extends StatelessWidget {
             children: paths.indexed
                 .map(
                   (e) => Semantics(
-                    // Positional id — the attachment path is a device-native
-                    // placeholder with no stable backend id (precedent:
+                    // Positional id — the local draft has no gateway id yet
+                    // (precedent:
                     // diag_session_row_$index). Tap removes the attachment.
                     identifier: 'support_attach_item_${e.$1}',
                     container: true,
@@ -470,13 +519,26 @@ class _AttachSection extends StatelessWidget {
     );
   }
 
-  /// EXEMPT: image picker is device-native; in release this binds to the
-  /// image_picker package (matches EscalateScreen's `_fakePickPhoto`). Records
-  /// a deterministic placeholder path so the attach cap/flow is testable now.
-  void _pickAttachment(BuildContext context) {
-    context.read<SupportCubit>().addAttachment(
-          'support_attach_${DateTime.now().millisecondsSinceEpoch}.jpg',
-        );
+  /// The opaque local id keys progress until the gateway returns an object ref.
+  Future<void> _pickAttachment(BuildContext context) async {
+    final cubit = context.read<SupportCubit>();
+    final picker = photoPicker ?? ImagePickerPhotoPickerService();
+    try {
+      final photo = await picker.pickFromGallery();
+      if (!context.mounted || cubit.isClosed) return;
+      final id = 'support_attach_${DateTime.now().microsecondsSinceEpoch}.jpg';
+      cubit.addAttachment(id, bytes: photo.bytes);
+    } on PhotoPickException catch (error) {
+      if (!context.mounted || error.failure == PhotoPickFailure.cancelled) {
+        return;
+      }
+      final message = error.failure == PhotoPickFailure.permissionDenied
+          ? AppLocalizations.of(context).voiceRecordingErrorPermission
+          : AppLocalizations.of(context).escalateErrorServer;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 }
 
@@ -529,22 +591,35 @@ class _SubmitButton extends StatelessWidget {
 }
 
 class _SubmittingView extends StatelessWidget {
-  const _SubmittingView();
+  const _SubmittingView({required this.state});
+
+  final SupportState state;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // `support_submitting` re-homed onto the kit block; the OMDS spinner it
     // replaces defaulted to `colorScheme.primary`, i.e. orange under Midnight.
-    return Center(
+    return Semantics(
+      identifier: 'support_submitting',
+      container: true,
+      liveRegion: true,
       child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: JeebEmptyStateStatus.loading,
-          variant: _kEmptyVariant,
-          medallions: _kNoMedallions,
-          // l10n KEY REQUEST: `supportSubmitting` not in ARB — reuse escalate.
-          headline: l10n.escalateSubmitting,
-          identifier: 'support_submitting',
+        padding: _kBodyPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            JeebEmptyState(
+              status: JeebEmptyStateStatus.loading,
+              variant: _kEmptyVariant,
+              medallions: _kNoMedallions,
+              headline: l10n.escalateSubmitting,
+            ),
+            if (state.uploads.isNotEmpty) ...[
+              const SizedBox(height: Spacing.large),
+              _SupportUploadList(state: state),
+            ],
+          ],
         ),
       ),
     );
@@ -555,7 +630,9 @@ class _SubmittingView extends StatelessWidget {
 /// primary CTA routes to customer-profile, replacing the support route so back
 /// does not return to the submitted form.
 class _ConfirmationView extends StatelessWidget {
-  const _ConfirmationView();
+  const _ConfirmationView({required this.ticketId});
+
+  final String? ticketId;
 
   @override
   Widget build(BuildContext context) {
@@ -602,6 +679,24 @@ class _ConfirmationView extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: Spacing.xLarge),
+              if (ticketId != null && ticketId!.isNotEmpty) ...[
+                Semantics(
+                  identifier: 'support_view_thread_cta',
+                  button: true,
+                  child: JeebCtaButton(
+                    label: _supportCopy(
+                      context,
+                      'View support conversation',
+                      'عرض محادثة الدعم',
+                    ),
+                    onTap: () => context.goNamed(
+                      'support-ticket-detail',
+                      pathParameters: <String, String>{'id': ticketId!},
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Spacing.small),
+              ],
               // JM-063 AC2 asserts `support_confirmation_back_cta`; the legacy
               // id is `support_success_done_cta` — nest both. Pop if possible
               // (so an entry pushed from the Profile tab returns there), else
@@ -635,33 +730,43 @@ class _ConfirmationView extends StatelessWidget {
 }
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.failure});
-  final SupportFailure? failure;
+  const _ErrorView({required this.state});
+  final SupportState state;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     // `support_error` re-homed onto the kit block, which draws the same
     // illustration danger-tinted; the OMDS error slab it replaces is gone.
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: JeebEmptyStateStatus.error,
-          variant: _kEmptyVariant,
-          medallions: _kNoMedallions,
-          headline: _message(l10n, failure),
-          identifier: 'support_error',
-          action: Semantics(
-            identifier: 'support_retry_cta',
-            button: true,
-            container: true,
-            // retryLabel: no dedicated `supportRetryCta` ARB key yet
-            // (50_ROUTE_REQUESTS) — reuse the submit label for the action.
-            child: JeebCtaButton.outline(
-              label: l10n.supportSubmitCta,
-              leadingIcon: Icons.refresh,
-              expand: false,
-              onTap: () => context.read<SupportCubit>().retryFromError(),
+    return Semantics(
+      liveRegion: true,
+      child: Center(
+        child: SingleChildScrollView(
+          child: JeebEmptyState(
+            status: JeebEmptyStateStatus.error,
+            variant: _kEmptyVariant,
+            medallions: _kNoMedallions,
+            headline: _message(context, l10n, state.failure),
+            body: state.hasUploadFailures
+                ? _supportCopy(
+                    context,
+                    'An attachment did not upload. Retry uses the same operation and will not create another ticket.',
+                    'تعذر رفع أحد المرفقات. تستخدم إعادة المحاولة العملية نفسها ولن تنشئ تذكرة أخرى.',
+                  )
+                : null,
+            identifier: 'support_error',
+            action: Semantics(
+              identifier: 'support_retry_cta',
+              button: true,
+              container: true,
+              // retryLabel: no dedicated `supportRetryCta` ARB key yet
+              // (50_ROUTE_REQUESTS) — reuse the submit label for the action.
+              child: JeebCtaButton.outline(
+                label: l10n.supportSubmitCta,
+                leadingIcon: Icons.refresh,
+                expand: false,
+                onTap: () => context.read<SupportCubit>().retryFromError(),
+              ),
             ),
           ),
         ),
@@ -669,12 +774,29 @@ class _ErrorView extends StatelessWidget {
     );
   }
 
-  String _message(AppLocalizations l10n, SupportFailure? f) {
+  String _message(
+    BuildContext context,
+    AppLocalizations l10n,
+    SupportFailure? f,
+  ) {
     // Reuse the escalate error copy until dedicated `supportError*` keys land
     // (50_ROUTE_REQUESTS l10n request). Maestro asserts on `support_error`.
     switch (f) {
       case SupportFailure.network:
         return l10n.escalateErrorNetwork;
+      case SupportFailure.upload:
+        return _supportCopy(
+          context,
+          'Some attachments could not be uploaded.',
+          'تعذر رفع بعض المرفقات.',
+        );
+      case SupportFailure.conflict:
+        return _supportCopy(
+          context,
+          'This ticket changed. Refresh it before trying again.',
+          'تم تحديث هذه التذكرة. حدّثها قبل المحاولة مرة أخرى.',
+        );
+      case SupportFailure.notFound:
       case SupportFailure.unauthorized:
       case SupportFailure.unknown:
       case null:
@@ -682,3 +804,69 @@ class _ErrorView extends StatelessWidget {
     }
   }
 }
+
+class _SupportUploadList extends StatelessWidget {
+  const _SupportUploadList({required this.state});
+
+  final SupportState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'support_upload_progress',
+      container: true,
+      explicitChildNodes: true,
+      child: Column(
+        children: state.attachmentPaths.indexed
+            .map((entry) {
+              final progress = state.uploads[entry.$2];
+              if (progress == null) return const SizedBox.shrink();
+              final failed = progress.state == CaseAttachmentUploadState.failed;
+              final complete =
+                  progress.state == CaseAttachmentUploadState.uploaded;
+              final percent = (progress.fraction * 100).round();
+              return Semantics(
+                identifier: 'support_upload_${entry.$1}',
+                liveRegion: true,
+                label:
+                    '${_supportCopy(context, 'Attachment', 'المرفق')} '
+                    '${entry.$1 + 1}, ${failed ? _supportCopy(context, 'failed', 'فشل') : '$percent%'}',
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    bottom: Spacing.small,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        failed
+                            ? Icons.error_outline
+                            : complete
+                            ? Icons.check_circle_outline
+                            : Icons.upload_file,
+                        size: 20,
+                      ),
+                      const SizedBox(width: Spacing.small),
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: complete
+                              ? 1
+                              : (progress.totalBytes > 0
+                                    ? progress.fraction
+                                    : null),
+                        ),
+                      ),
+                      const SizedBox(width: Spacing.small),
+                      Text(failed ? '!' : '$percent%'),
+                    ],
+                  ),
+                ),
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+}
+
+String _supportCopy(BuildContext context, String en, String ar) =>
+    Localizations.localeOf(context).languageCode == 'ar' ? ar : en;

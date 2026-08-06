@@ -37,8 +37,8 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 /// transaction-detail dispute link, or a notification.
 ///
 /// Renders the 4-state machine (40_GUARDRAILS_ARCH §3): loading / failed /
-/// loaded. Loaded shows `dispute_status_state` (Open / Resolved), the typed
-/// outcome note when resolved (refund / penalty, D2), and a read-only evidence
+/// loaded. Loaded shows `dispute_status_state` (Pending / Fixed / Closed), a
+/// read-only resolution note, status history, and a read-only evidence
 /// summary (reason / comment / photos / voice / chat snapshot / timeline, D53).
 /// `dispute_status_support` → support-ticket (D76); `dispute_status_back` →
 /// order-chat (the originating thread when the dispute carries a ref, else a
@@ -47,7 +47,7 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 /// redesign-2026-08: re-skinned onto the Jeeb kit — [JeebTopBar] in-body
 /// header, the lifecycle as a [JeebStepper] (the neighbouring live-tracking
 /// screen's signature band), the state as a role-coloured [JeebInfoNote], the
-/// outcome and evidence as [JeebSectionLabel] + [JeebOutlinedCard] blocks, and
+/// resolution and evidence as [JeebSectionLabel] + [JeebOutlinedCard] blocks, and
 /// the two edges docked in a [JeebCtaFooter]. Same flow, same copy, same
 /// identifiers.
 ///
@@ -61,7 +61,7 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 /// R3's band is the kit's BAR form with [JeebStepperDoneInk.accent]; the three
 /// pre-load frames are the [JeebEmptyState] family.
 ///
-/// Reads the LIVE compliment-service via `sl<DisputeStatusRepository>()`
+/// Reads the live gateway dispute contract via `sl<DisputeStatusRepository>()`
 /// (DioDisputeStatusRepository; `GET /v1/disputes/:disputeId` mock-ready on
 /// :4010 — 42_GUARDRAILS_MOCK §4). [repository] is a constructor test seam
 /// (40_GUARDRAILS_ARCH §5.4) — production leaves it null; an unconfigured GetIt
@@ -70,8 +70,8 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 ///
 /// Semantics identifiers exposed (EXACT — 30_BACKLOG JM-065, 41_GUARDRAILS_TESTING):
 ///   `dispute_status_root`       — screen host container
-///   `dispute_status_state`      — Open / Resolved indicator
-///   `dispute_status_outcome`    — resolved outcome note (refund / penalty, D2)
+///   `dispute_status_state`      — Pending / Fixed / Closed indicator
+///   `dispute_status_outcome`    — read-only resolution note
 ///   `dispute_status_evidence`   — auto-attached evidence summary (D53)
 ///   `dispute_status_support`    — → support-ticket (D76)
 ///   `dispute_status_back`       — → order-chat
@@ -178,7 +178,10 @@ class _DisputeStatusView extends StatelessWidget {
     final dispute = context.read<DisputeStatusCubit>().state.dispute;
     final ref = dispute?.chatRef;
     if (ref != null) {
-      context.goNamed('chat-detail', pathParameters: <String, String>{'id': ref});
+      context.goNamed(
+        'chat-detail',
+        pathParameters: <String, String>{'id': ref},
+      );
       return;
     }
     if (context.canPop()) {
@@ -199,14 +202,17 @@ class _LoadingBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          variant: JeebEmptyStateVariant.radar,
-          status: JeebEmptyStateStatus.loading,
-          medallions: const <JeebEmptyMedallion>[],
-          identifier: 'dispute_status_loading',
-          headline: copy.loadingHeadline,
+    return Semantics(
+      liveRegion: true,
+      child: Center(
+        child: SingleChildScrollView(
+          child: JeebEmptyState(
+            variant: JeebEmptyStateVariant.radar,
+            status: JeebEmptyStateStatus.loading,
+            medallions: const <JeebEmptyMedallion>[],
+            identifier: 'dispute_status_loading',
+            headline: copy.loadingHeadline,
+          ),
         ),
       ),
     );
@@ -224,25 +230,28 @@ class _ErrorBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        child: JeebEmptyState(
-          variant: JeebEmptyStateVariant.radar,
-          status: JeebEmptyStateStatus.error,
-          medallions: const <JeebEmptyMedallion>[],
-          identifier: 'dispute_status_error',
-          headline: _message(copy, failure),
-          action: Semantics(
-            identifier: 'dispute_status_retry_cta',
-            button: true,
-            container: true,
-            child: JeebCtaButton.outline(
-              label: copy.retry,
-              leadingIcon: Icons.refresh,
-              // R13's glass pill runs the full content box; the pass-1
-              // `expand: false` never hugged (see the kit note in the report).
-              expand: true,
-              onTap: () => context.read<DisputeStatusCubit>().refresh(),
+    return Semantics(
+      liveRegion: true,
+      child: Center(
+        child: SingleChildScrollView(
+          child: JeebEmptyState(
+            variant: JeebEmptyStateVariant.radar,
+            status: JeebEmptyStateStatus.error,
+            medallions: const <JeebEmptyMedallion>[],
+            identifier: 'dispute_status_error',
+            headline: _message(copy, failure),
+            action: Semantics(
+              identifier: 'dispute_status_retry_cta',
+              button: true,
+              container: true,
+              child: JeebCtaButton.outline(
+                label: copy.retry,
+                leadingIcon: Icons.refresh,
+                // R13's glass pill runs the full content box; the pass-1
+                // `expand: false` never hugged (see the kit note in the report).
+                expand: true,
+                onTap: () => context.read<DisputeStatusCubit>().refresh(),
+              ),
             ),
           ),
         ),
@@ -282,16 +291,15 @@ class _LoadedBody extends StatelessWidget {
               const SizedBox(height: Spacing.large),
               _StateCard(copy: copy, dispute: dispute),
               const SizedBox(height: Spacing.large),
-              // JM-065 AC1: the outcome note ALWAYS renders — a resolved dispute
-              // shows the refund/penalty outcome (D2); an OPEN dispute shows the
-              // pending outcome (the flow asserts `dispute_status_outcome_note`
-              // on the open dispute it seeds). Coined id
-              // `dispute_status_outcome_note`.
-              _OutcomeCard(copy: copy, dispute: dispute),
+              _ResolutionCard(copy: copy, dispute: dispute),
               const SizedBox(height: Spacing.large),
               // JM-065 AC1: the evidence summary ALWAYS renders (D53). Coined id
               // `dispute_status_evidence_summary`.
               _EvidenceCard(copy: copy, evidence: dispute.evidence),
+              if (dispute.statusHistory.isNotEmpty) ...[
+                const SizedBox(height: Spacing.large),
+                _HistoryCard(copy: copy, entries: dispute.statusHistory),
+              ],
             ],
           ),
         ),
@@ -317,10 +325,8 @@ class _LoadedBody extends StatelessWidget {
             // support screen reads a String `extra`).
             child: JeebCtaButton(
               label: copy.supportCta,
-              onTap: () => context.goNamed(
-                'support-ticket',
-                extra: dispute.orderRef,
-              ),
+              onTap: () =>
+                  context.goNamed('support-ticket', extra: dispute.orderRef),
             ),
           ),
         ),
@@ -333,11 +339,8 @@ class _LoadedBody extends StatelessWidget {
 /// `space-between` label row, which is what makes this screen read as its
 /// live-tracking neighbour.
 ///
-/// Three steps, all derived from data the dispute already carries: it exists,
-/// so it was **submitted**; `isResolved` decides whether review is still the
-/// active step. Nothing here claims a stage the API does not report — an
-/// `unknown` state rests on "under review", exactly as the state label already
-/// does.
+/// Canonical customer-visible lifecycle. Only an administrator can move a case
+/// to closed; this screen intentionally exposes no mutation control.
 class _StatusStepper extends StatelessWidget {
   const _StatusStepper({required this.copy, required this.dispute});
 
@@ -348,18 +351,23 @@ class _StatusStepper extends StatelessWidget {
   static const double labelGap = Spacing.xSmall;
 
   static const List<String> _stepIds = <String>[
-    'dispute_status_step_submitted',
-    'dispute_status_step_review',
-    'dispute_status_step_resolved',
+    'dispute_status_step_pending',
+    'dispute_status_step_fixed',
+    'dispute_status_step_closed',
   ];
 
   @override
   Widget build(BuildContext context) {
-    final currentIndex = dispute.isResolved ? 2 : 1;
+    final currentIndex = switch (dispute.canonicalState) {
+      DisputeState.pending => 0,
+      DisputeState.fixed => 1,
+      DisputeState.closed => 2,
+      _ => 0,
+    };
     final labels = <String>[
-      copy.stepSubmittedLabel,
-      copy.stepUnderReviewLabel,
-      copy.resolvedLabel,
+      copy.pendingLabel,
+      copy.fixedLabel,
+      copy.closedLabel,
     ];
     return Semantics(
       identifier: 'dispute_status_stepper',
@@ -407,30 +415,41 @@ class _StepLabelRow extends StatelessWidget {
         for (var index = 0; index < labels.length; index++)
           Flexible(
             child: Semantics(
-              identifier: _StatusStepper._stepIds[index],
-              value: labels[index],
-              selected: index == currentIndex,
+              identifier: _legacyStepIds[index],
               container: true,
-              child: Text(
-                labels[index],
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: index == currentIndex
-                    ? base.copyWith(
-                        color: accent,
-                        fontWeight: FontWeight.w800,
-                      )
-                    : base.copyWith(color: scheme.onSurfaceVariant),
+              explicitChildNodes: true,
+              child: Semantics(
+                identifier: _StatusStepper._stepIds[index],
+                value: labels[index],
+                selected: index == currentIndex,
+                container: true,
+                child: Text(
+                  labels[index],
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: index == currentIndex
+                      ? base.copyWith(
+                          color: accent,
+                          fontWeight: FontWeight.w800,
+                        )
+                      : base.copyWith(color: scheme.onSurfaceVariant),
+                ),
               ),
             ),
           ),
       ],
     );
   }
+
+  static const List<String> _legacyStepIds = <String>[
+    'dispute_status_step_submitted',
+    'dispute_status_step_review',
+    'dispute_status_step_resolved',
+  ];
 }
 
-/// `dispute_status_state` — the Open / Resolved indicator (JM-065 AC), as the
+/// `dispute_status_state` — the canonical lifecycle indicator, as the
 /// board's strip note. A tone + glyph + label keyed off the dispute lifecycle.
 class _StateCard extends StatelessWidget {
   const _StateCard({required this.copy, required this.dispute});
@@ -440,29 +459,34 @@ class _StateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolved = dispute.isResolved;
-    // Semantic roles: resolved = success, open = warning (attention pending).
-    // The kit's success/warning tones keep their role colours on every surface
-    // — here the state IS the message, so it never re-tones to a quiet grey.
+    final state = dispute.canonicalState;
     return Semantics(
       identifier: 'dispute_status_state',
       container: true,
-      child: resolved
-          ? JeebInfoNote.success(
-              icon: Icons.check_circle,
-              text: copy.resolvedLabel,
-            )
-          : JeebInfoNote.warning(
-              icon: Icons.hourglass_top,
-              text: copy.openLabel,
-            ),
+      child: switch (state) {
+        DisputeState.pending => JeebInfoNote.warning(
+          icon: Icons.hourglass_top,
+          text: copy.pendingLabel,
+        ),
+        DisputeState.fixed => JeebInfoNote.success(
+          icon: Icons.build_circle_outlined,
+          text: copy.fixedLabel,
+        ),
+        DisputeState.closed => JeebInfoNote.muted(
+          icon: Icons.lock_outline,
+          text: copy.closedLabel,
+        ),
+        _ => JeebInfoNote.muted(
+          icon: Icons.help_outline,
+          text: copy.statusLabel(DisputeState.unknown),
+        ),
+      },
     );
   }
 }
 
-/// `dispute_status_outcome` — the resolved outcome note (refund / penalty, D2).
-class _OutcomeCard extends StatelessWidget {
-  const _OutcomeCard({required this.copy, required this.dispute});
+class _ResolutionCard extends StatelessWidget {
+  const _ResolutionCard({required this.copy, required this.dispute});
 
   final DisputeStatusL10n copy;
   final DisputeStatus dispute;
@@ -471,29 +495,25 @@ class _OutcomeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final text = context.jeebText;
-    final amount = _formattedAmount(dispute);
-    final resolved = dispute.isResolved;
     final note = dispute.note;
     return Semantics(
-      identifier: 'dispute_status_outcome_note',
+      identifier: 'dispute_status_outcome',
       container: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          JeebSectionLabel(copy.outcomeHeading),
+          JeebSectionLabel(copy.resolutionHeading),
           const SizedBox(height: Spacing.small),
           JeebOutlinedCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  // Resolved → the refund/penalty outcome line (D2); open → the
-                  // pending-outcome body (the dispute is still under review).
-                  resolved
-                      ? copy.outcomeLine(dispute.outcome, amount: amount)
-                      : copy.openBody,
-                  style: text.body.copyWith(color: scheme.onSurface),
-                ),
+                Text(switch (dispute.canonicalState) {
+                  DisputeState.pending => copy.openBody,
+                  DisputeState.fixed => copy.fixedBody,
+                  DisputeState.closed => copy.closedBody,
+                  _ => copy.loadError,
+                }, style: text.body.copyWith(color: scheme.onSurface)),
                 if (note != null && note.isNotEmpty) ...[
                   const SizedBox(height: Spacing.xSmall),
                   Text(
@@ -509,14 +529,6 @@ class _OutcomeCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String? _formattedAmount(DisputeStatus d) {
-    final a = d.refundAmount;
-    if (a == null) return null;
-    final currency = d.currency;
-    final value = a.toStringAsFixed(2);
-    return currency == null ? value : '$value $currency';
   }
 }
 
@@ -565,6 +577,15 @@ class _EvidenceCard extends StatelessWidget {
     if (evidence.timelineCount > 0) {
       addRow(Icons.timeline, copy.timelineLabel(evidence.timelineCount));
     }
+    for (final attachment in evidence.attachments) {
+      if (attachment.status == EvidenceAttachmentStatus.failed) {
+        addRow(
+          Icons.error_outline,
+          attachment.fileName ?? copy.evidenceUploadFailed,
+          subtitle: copy.evidenceUploadFailed,
+        );
+      }
+    }
 
     return Semantics(
       identifier: 'dispute_status_evidence_summary',
@@ -574,6 +595,14 @@ class _EvidenceCard extends StatelessWidget {
         children: [
           JeebSectionLabel(copy.evidenceHeading),
           const SizedBox(height: Spacing.small),
+          if (evidence.isPartial) ...[
+            JeebInfoNote.warning(
+              identifier: 'dispute_status_evidence_partial',
+              icon: Icons.sync_problem,
+              text: copy.evidencePartial,
+            ),
+            const SizedBox(height: Spacing.small),
+          ],
           // Still no CARD for an empty set (an outlined box with nothing in it
           // implies evidence we do not have) — E4's inline form instead.
           if (rows.isEmpty)
@@ -590,4 +619,55 @@ class _EvidenceCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({required this.copy, required this.entries});
+
+  final DisputeStatusL10n copy;
+  final List<DisputeStatusHistoryEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'dispute_status_history',
+      container: true,
+      explicitChildNodes: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          JeebSectionLabel(copy.historyHeading),
+          const SizedBox(height: Spacing.small),
+          JeebOutlinedCard.grouped(
+            children: entries.reversed
+                .map((entry) {
+                  return JeebListRow(
+                    icon: switch (entry.status.canonical) {
+                      DisputeState.pending => Icons.hourglass_top,
+                      DisputeState.fixed => Icons.build_circle_outlined,
+                      DisputeState.closed => Icons.lock_outline,
+                      _ => Icons.help_outline,
+                    },
+                    title: copy.statusLabel(entry.status),
+                    subtitle: <String?>[entry.note, entry.at]
+                        .whereType<String>()
+                        .where((value) => value.isNotEmpty)
+                        .join(' - '),
+                    showChevron: false,
+                  );
+                })
+                .toList(growable: false),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+extension on DisputeState {
+  DisputeState get canonical => switch (this) {
+    DisputeState.open => DisputeState.pending,
+    DisputeState.resolved => DisputeState.fixed,
+    _ => this,
+  };
 }

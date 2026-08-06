@@ -1,51 +1,63 @@
 import 'notifications_repository.dart';
 
 NotificationKind notificationKindFromWireType(String? wireType) {
-  var type = wireType?.trim();
+  var type = wireType?.trim().toLowerCase();
   if (type == null || type.isEmpty) return NotificationKind.unknown;
 
-  if (type.toLowerCase().startsWith('jeeb.')) {
+  if (type.startsWith('jeeb.')) {
     type = type.substring('jeeb.'.length).trim();
   }
+  if (type.startsWith('dispute.')) return NotificationKind.dispute;
+  if (type.startsWith('support.')) return NotificationKind.support;
 
   switch (type) {
     case 'offer':
     case 'offer_received':
       return NotificationKind.offer;
     case 'offer_accepted':
-    case 'offerAccepted':
+    case 'offeraccepted':
       return NotificationKind.offerAccepted;
     case 'status':
     case 'order_status':
       return NotificationKind.status;
     case 'low_balance':
-    case 'lowBalance':
+    case 'lowbalance':
       return NotificationKind.lowBalance;
     case 'fee_won':
-    case 'feeWon':
+    case 'feewon':
       return NotificationKind.feeWon;
     case 'refund_penalty':
-    case 'refundPenalty':
+    case 'refundpenalty':
       return NotificationKind.refundPenalty;
     case 'topup':
       return NotificationKind.topup;
     case 'kyc_approved':
-    case 'kycApproved':
+    case 'kycapproved':
       return NotificationKind.kycApproved;
     case 'kyc_rejected':
-    case 'kycRejected':
+    case 'kycrejected':
       return NotificationKind.kycRejected;
     case 'request_expired':
-    case 'requestExpired':
+    case 'requestexpired':
       return NotificationKind.requestExpired;
     case 'new_request':
-    case 'newRequest':
+    case 'newrequest':
       return NotificationKind.newRequest;
     case 'confirm_receipt':
-    case 'confirmReceipt':
+    case 'confirmreceipt':
       return NotificationKind.confirmReceipt;
     case 'marketing':
       return NotificationKind.marketing;
+    case 'dispute':
+    case 'dispute_update':
+    case 'dispute_updated':
+    case 'dispute_resolved':
+      return NotificationKind.dispute;
+    case 'support':
+    case 'support_reply':
+    case 'support_update':
+    case 'support_ticket_update':
+      return NotificationKind.support;
     default:
       return NotificationKind.unknown;
   }

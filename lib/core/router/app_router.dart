@@ -50,6 +50,7 @@ import '../../features/notifications/presentation/notifications_list_screen.dart
 import '../../features/password_security/presentation/password_security_screen.dart';
 import '../../features/reviews/presentation/reviews_list_screen.dart';
 import '../../features/support/presentation/support_ticket_screen.dart';
+import '../../features/support/presentation/support_ticket_detail_screen.dart';
 import '../../features/escalate/application/escalate_cubit.dart';
 import '../../features/escalate/domain/escalate_repository.dart';
 import '../../features/escalate/presentation/escalate_screen.dart';
@@ -1738,8 +1739,22 @@ class AppRouter {
           name: 'support-ticket',
           builder: (context, state) => const SupportTicketScreen(),
         ),
-        // JM-065 dispute-status — Open/Resolved + outcome (D2). Disputes
-        // GET-by-id LIVE on :4010 → real Dio in DI.
+        GoRoute(
+          path: '/support/tickets/:id',
+          name: 'support-ticket-detail',
+          builder: (context, state) => SupportTicketDetailScreen(
+            ticketId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+        // Backward-compatible short form used by early support notifications.
+        GoRoute(
+          path: '/support/:id',
+          name: 'support-ticket-detail-legacy',
+          redirect: (_, state) =>
+              '/support/tickets/${state.pathParameters['id'] ?? ''}',
+        ),
+        // JM-065 dispute-status — read-only Pending/Fixed/Closed lifecycle.
+        // Disputes GET-by-id is gateway-backed through the registered Dio.
         GoRoute(
           path: '/disputes/:id',
           name: 'dispute-status',

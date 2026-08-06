@@ -7,58 +7,73 @@ class DisputeStatusCubit extends Cubit<DisputeStatusState> {
   DisputeStatusCubit({
     required DisputeStatusRepository repository,
     required this.disputeId,
-  })  : _repository = repository,
-        super(const DisputeStatusState());
+  }) : _repository = repository,
+       super(const DisputeStatusState());
 
   final DisputeStatusRepository _repository;
 
   final String disputeId;
+  int _generation = 0;
 
   Future<void> load() async {
-    if (state.status != DisputeStatusViewStatus.initial) return;
+    if (isClosed || state.status != DisputeStatusViewStatus.initial) return;
     if (disputeId.trim().isEmpty) {
-      emit(state.copyWith(
-        status: DisputeStatusViewStatus.failed,
-        error: DisputeStatusFailure.notFound,
-      ));
+      emit(
+        state.copyWith(
+          status: DisputeStatusViewStatus.failed,
+          error: DisputeStatusFailure.notFound,
+        ),
+      );
       return;
     }
-    emit(state.copyWith(
-      status: DisputeStatusViewStatus.loading,
-      clearError: true,
-    ));
-    await _fetch();
+    final generation = ++_generation;
+    emit(
+      state.copyWith(status: DisputeStatusViewStatus.loading, clearError: true),
+    );
+    await _fetch(generation);
   }
 
   Future<void> refresh() async {
-    if (disputeId.trim().isEmpty) return;
+    if (isClosed || disputeId.trim().isEmpty) return;
+    final generation = ++_generation;
     if (state.status == DisputeStatusViewStatus.failed) {
-      emit(state.copyWith(
-        status: DisputeStatusViewStatus.loading,
-        clearError: true,
-      ));
+      emit(
+        state.copyWith(
+          status: DisputeStatusViewStatus.loading,
+          clearError: true,
+        ),
+      );
     }
-    await _fetch();
+    await _fetch(generation);
   }
 
-  Future<void> _fetch() async {
+  Future<void> _fetch(int generation) async {
     try {
       final dispute = await _repository.fetchDispute(disputeId);
-      emit(state.copyWith(
-        status: DisputeStatusViewStatus.loaded,
-        dispute: dispute,
-        clearError: true,
-      ));
+      if (isClosed || generation != _generation) return;
+      emit(
+        state.copyWith(
+          status: DisputeStatusViewStatus.loaded,
+          dispute: dispute,
+          clearError: true,
+        ),
+      );
     } on DisputeStatusRepositoryException catch (e) {
-      emit(state.copyWith(
-        status: DisputeStatusViewStatus.failed,
-        error: e.failure,
-      ));
+      if (isClosed || generation != _generation) return;
+      emit(
+        state.copyWith(
+          status: DisputeStatusViewStatus.failed,
+          error: e.failure,
+        ),
+      );
     } catch (_) {
-      emit(state.copyWith(
-        status: DisputeStatusViewStatus.failed,
-        error: DisputeStatusFailure.unknown,
-      ));
+      if (isClosed || generation != _generation) return;
+      emit(
+        state.copyWith(
+          status: DisputeStatusViewStatus.failed,
+          error: DisputeStatusFailure.unknown,
+        ),
+      );
     }
   }
 }

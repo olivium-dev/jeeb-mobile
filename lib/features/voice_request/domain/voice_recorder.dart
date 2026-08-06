@@ -17,14 +17,14 @@ abstract class VoiceRecorder {
   Future<VoiceClip> stop({required Duration recordedDuration});
 
   Future<void> cancel();
+
+  /// Deletes a completed clip only when this recorder owns its source file.
+  Future<void> deleteOwnedClip(VoiceClip clip);
 }
 
 class FakeVoiceRecorder implements VoiceRecorder {
-  FakeVoiceRecorder({
-    Uint8List? payload,
-    this.startFailure,
-    this.stopFailure,
-  }) : _payload = payload ?? Uint8List.fromList(List.filled(2048, 0x55));
+  FakeVoiceRecorder({Uint8List? payload, this.startFailure, this.stopFailure})
+    : _payload = payload ?? Uint8List.fromList(List.filled(2048, 0x55));
 
   final VoiceRecorderFailure? startFailure;
 
@@ -57,4 +57,7 @@ class FakeVoiceRecorder implements VoiceRecorder {
   Future<void> cancel() async {
     _recording = false;
   }
+
+  @override
+  Future<void> deleteOwnedClip(VoiceClip clip) async {}
 }

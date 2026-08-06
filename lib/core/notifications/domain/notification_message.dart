@@ -15,10 +15,22 @@ enum NotificationCategory {
   offerAccepted,
 
   offerLost,
+  dispute,
+  support,
   other;
 
   static NotificationCategory fromKey(String? key) {
-    switch (key) {
+    var normalized = key?.trim().toLowerCase();
+    if (normalized?.startsWith('jeeb.') ?? false) {
+      normalized = normalized!.substring('jeeb.'.length).trim();
+    }
+    if (normalized?.startsWith('dispute.') ?? false) {
+      return NotificationCategory.dispute;
+    }
+    if (normalized?.startsWith('support.') ?? false) {
+      return NotificationCategory.support;
+    }
+    switch (normalized) {
       case 'delivery':
       case 'accept':
         return NotificationCategory.delivery;
@@ -38,9 +50,21 @@ enum NotificationCategory {
       case 'try_expand_tier':
         return NotificationCategory.requestExpired;
       case 'offer_accepted':
+      case 'offeraccepted':
         return NotificationCategory.offerAccepted;
       case 'offer_lost':
+      case 'offerlost':
         return NotificationCategory.offerLost;
+      case 'dispute':
+      case 'dispute_update':
+      case 'dispute_updated':
+      case 'dispute_resolved':
+        return NotificationCategory.dispute;
+      case 'support':
+      case 'support_reply':
+      case 'support_update':
+      case 'support_ticket_update':
+        return NotificationCategory.support;
       default:
         return NotificationCategory.other;
     }

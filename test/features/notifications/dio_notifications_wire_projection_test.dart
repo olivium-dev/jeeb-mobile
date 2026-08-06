@@ -85,4 +85,21 @@ void main() {
       }
     },
   );
+
+  test(
+    'projects dispute and support ids from nested notification data',
+    () async {
+      final dispute = await _parseSingle('''
+      {"items":[{"id":"n1","type":"jeeb.dispute.updated","data":{"caseId":"dsp-1"}}]}
+    ''');
+      expect(dispute.kind, NotificationKind.dispute);
+      expect(dispute.ref, 'dsp-1');
+
+      final support = await _parseSingle('''
+      {"items":[{"id":"n2","type":"jeeb.support.replied","data":{"caseId":"ticket-1"}}]}
+    ''');
+      expect(support.kind, NotificationKind.support);
+      expect(support.ref, 'ticket-1');
+    },
+  );
 }

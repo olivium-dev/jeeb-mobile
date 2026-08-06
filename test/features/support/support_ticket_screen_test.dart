@@ -88,16 +88,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('resolves with NO DI registered (nav-honesty fallback)',
-      (tester) async {
+  testWidgets('resolves with NO DI registered (nav-honesty fallback)', (
+    tester,
+  ) async {
     // The route-resolution pin builds the router with no GetIt setup; the
     await pumpScreen(tester);
     expect(find.byType(SupportTicketScreen), findsOneWidget);
     expect(find.bySemanticsIdentifier('support_root'), findsOneWidget);
   });
 
-  testWidgets('exposes the JM-063 Semantics identifier contract',
-      (tester) async {
+  testWidgets('exposes the JM-063 Semantics identifier contract', (
+    tester,
+  ) async {
     register();
     await pumpScreen(tester);
 
@@ -137,8 +139,9 @@ void main() {
     expect(find.text('customer-profile-host'), findsOneWidget);
   });
 
-  testWidgets('dispute link routes to dispute-open-evidence (escalate)',
-      (tester) async {
+  testWidgets('dispute link routes to dispute-open-evidence (escalate)', (
+    tester,
+  ) async {
     register();
     await pumpScreen(tester);
 
@@ -150,8 +153,9 @@ void main() {
     expect(find.text('escalate-_'), findsOneWidget);
   });
 
-  testWidgets('failed submit shows error + retry returns to the form',
-      (tester) async {
+  testWidgets('failed submit shows error + retry returns to the form', (
+    tester,
+  ) async {
     register(failWith: SupportFailure.network);
     await pumpScreen(tester);
 
@@ -176,5 +180,12 @@ void main() {
 
     // Back on the form (root + submit visible again).
     expect(find.bySemanticsIdentifier('support_submit_cta'), findsOneWidget);
+    final bodyField = tester.widget<EditableText>(
+      find.descendant(
+        of: find.bySemanticsIdentifier('support_body'),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(bodyField.controller.text, 'charge issue');
   });
 }

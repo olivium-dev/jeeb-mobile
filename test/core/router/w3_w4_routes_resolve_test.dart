@@ -23,6 +23,7 @@ import 'package:jeeb_mobile/features/notifications/presentation/notifications_li
 import 'package:jeeb_mobile/features/password_security/presentation/password_security_screen.dart';
 import 'package:jeeb_mobile/features/reviews/presentation/reviews_list_screen.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
+import 'package:jeeb_mobile/features/support/presentation/support_ticket_detail_screen.dart';
 import 'package:jeeb_mobile/features/support/presentation/support_ticket_screen.dart';
 import 'package:jeeb_mobile/features/wallet/presentation/transaction_detail_screen.dart';
 import 'package:jeeb_mobile/features/wallet/presentation/wallet_activity_list_screen.dart';
@@ -161,6 +162,27 @@ void main() {
       expect(find.byType(SupportTicketScreen), findsOneWidget);
     });
 
+    testWidgets('/support/tickets/:id → SupportTicketDetailScreen',
+        (tester) async {
+      await pump(tester);
+      built.router.goNamed(
+        'support-ticket-detail',
+        pathParameters: <String, String>{'id': 'ticket-1'},
+      );
+      await tester.pumpAndSettle();
+      expect(location(), '/support/tickets/ticket-1');
+      expect(find.byType(SupportTicketDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('/support/:id remains a redirect-compatible notification link',
+        (tester) async {
+      await pump(tester);
+      built.router.go('/support/ticket-legacy');
+      await tester.pumpAndSettle();
+      expect(location(), '/support/tickets/ticket-legacy');
+      expect(find.byType(SupportTicketDetailScreen), findsOneWidget);
+    });
+
     testWidgets('/disputes/:id → DisputeStatusScreen', (tester) async {
       await pump(tester);
       built.router.goNamed('dispute-status',
@@ -207,6 +229,13 @@ void main() {
     );
     expect(built.router.namedLocation('notifications'), '/notifications');
     expect(built.router.namedLocation('support-ticket'), '/support');
+    expect(
+      built.router.namedLocation(
+        'support-ticket-detail',
+        pathParameters: <String, String>{'id': 's1'},
+      ),
+      '/support/tickets/s1',
+    );
     expect(
       built.router.namedLocation('dispute-status',
           pathParameters: <String, String>{'id': 'd1'}),

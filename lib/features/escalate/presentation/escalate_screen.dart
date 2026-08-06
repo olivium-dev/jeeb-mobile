@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -16,8 +18,10 @@ import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../photo_attachment/data/stub_photo_picker_service.dart';
+import '../../photo_attachment/data/image_picker_photo_picker_service.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
+import '../../case_evidence/domain/case_evidence.dart';
+import '../../voice_request/domain/record_voice_recorder.dart';
 import '../../voice_request/domain/voice_clip.dart';
 import '../../voice_request/domain/voice_recorder.dart';
 import '../application/escalate_cubit.dart';
@@ -29,15 +33,14 @@ import '../domain/escalate_repository.dart';
 /// Extends the original T-MOB-022 escalate surface into the blueprint dispute
 /// flow (20_GAP_MAP reconciliation note 8 — the dead `dispute_screen.dart` is
 /// retired). Exposes the blueprint identifiers: `dispute_reason`,
-/// `dispute_photos` (real picker, ≤5), `dispute_voice` (D53), the auto-attached
-/// chat + GPS/status timeline (D53), `dispute_submit_cta` (→ `dispute-status`,
+/// `dispute_photos` (real picker, ≤5), `dispute_voice` (D53),
+/// `dispute_submit_cta` (→ `dispute-status`,
 /// JM-065), `dispute_support_link` (→ `support-ticket`, D76), `dispute_back`
-/// (→ `order-chat`). POSTs `POST /v1/disputes` (D19/D2/D53/D54/D76).
+/// (→ `order-chat`). Reports through the delivery escalation gateway route.
 ///
 /// The cubit is provided by the route (`/orders/:id/escalate`); the platform
 /// photo/voice collaborators are owned by THIS (presentation) layer and
-/// injectable for tests — they default to the codebase's stub/fake seams
-/// (image_picker real binding is the cross-codebase D1m/T-mobile-040 follow-up).
+/// injectable for tests and default to the app's platform-backed implementations.
 ///
 /// MIDNIGHT M3-02 — **the board never drew this screen.** Its language is
 /// derived from **R13 OTP handover**, the tile that draws the door into it
@@ -48,18 +51,12 @@ import '../domain/escalate_repository.dart';
 /// `onErrorContainer`, never full-strength `error`. Same phases, same block
 /// order, same edges, all 11 identifiers unmoved.
 class EscalateScreen extends StatefulWidget {
-  const EscalateScreen({
-    super.key,
-    this.photoPicker,
-    this.voiceRecorder,
-  });
+  const EscalateScreen({super.key, this.photoPicker, this.voiceRecorder});
 
-  /// Photo capture seam (defaults to [StubPhotoPickerService]). The real
-  /// `image_picker` binding lands with the camera-plugin task (not yet a
-  /// pubspec dependency — see 50_ROUTE_REQUESTS GAP).
+  /// Photo capture seam (defaults to [ImagePickerPhotoPickerService]).
   final PhotoPickerService? photoPicker;
 
-  /// Voice capture seam (defaults to [FakeVoiceRecorder]).
+  /// Voice capture seam (defaults to [RecordVoiceRecorder]).
   final VoiceRecorder? voiceRecorder;
 
   @override
@@ -68,37 +65,31 @@ class EscalateScreen extends StatefulWidget {
 
 class _EscalateScreenState extends State<EscalateScreen> {
   late final PhotoPickerService _photoPicker =
-      widget.photoPicker ?? StubPhotoPickerService();
+      widget.photoPicker ?? ImagePickerPhotoPickerService();
   late final VoiceRecorder _voiceRecorder =
-      widget.voiceRecorder ?? FakeVoiceRecorder();
+      widget.voiceRecorder ?? RecordVoiceRecorder();
 
   bool _recording = false;
+  VoiceClip? _capturedVoiceClip;
   int _photoSeq = 0;
   String? _photoError;
-
-  @override
-  void initState() {
-    super.initState();
-    // Auto-attach evidence (D53) on cold entry. Never blocks the screen.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<EscalateCubit>().loadEvidence();
-    });
-  }
 
   Future<void> _pickPhoto() async {
     final cubit = context.read<EscalateCubit>();
     if (!cubit.state.canAddPhoto) return;
     // Capture locale-derived copy BEFORE the await (no BuildContext across gaps).
-    final permissionCopy =
-        AppLocalizations.of(context).voiceRecordingErrorPermission;
+    final permissionCopy = AppLocalizations.of(
+      context,
+    ).voiceRecordingErrorPermission;
     try {
       // Real picker contract: a RawPhoto with bytes. We persist a stable
       // per-pick path token the dispute body carries (the real binding writes
       // the captured file; the stub round-trips a synthetic name).
-      await _photoPicker.pickFromGallery();
+      final photo = await _photoPicker.pickFromGallery();
+      if (!mounted || cubit.isClosed) return;
       _photoSeq += 1;
-      cubit.addPhoto('dispute_photo_$_photoSeq.jpg');
-      if (mounted) setState(() => _photoError = null);
+      cubit.addPhoto('dispute_photo_$_photoSeq.jpg', bytes: photo.bytes);
+      setState(() => _photoError = null);
     } on PhotoPickException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -113,17 +104,26 @@ class _EscalateScreenState extends State<EscalateScreen> {
     final cubit = context.read<EscalateCubit>();
     if (cubit.state.hasVoice) {
       // Tapping a captured clip clears it (re-record).
+      await _deleteCapturedVoice();
+      if (!mounted || cubit.isClosed) return;
       cubit.clearVoice();
       return;
     }
     // Capture locale-derived copy BEFORE the await (no BuildContext across gaps).
-    final permissionCopy =
-        AppLocalizations.of(context).voiceRecordingErrorPermission;
+    final permissionCopy = AppLocalizations.of(
+      context,
+    ).voiceRecordingErrorPermission;
     if (_recording) {
       // Stop and capture.
       try {
-        final VoiceClip clip =
-            await _voiceRecorder.stop(recordedDuration: Duration.zero);
+        final VoiceClip clip = await _voiceRecorder.stop(
+          recordedDuration: Duration.zero,
+        );
+        if (!mounted || cubit.isClosed) {
+          await _voiceRecorder.deleteOwnedClip(clip);
+          return;
+        }
+        _capturedVoiceClip = clip;
         cubit.setVoice(clip.sourcePath ?? 'dispute_voice.m4a');
       } on VoiceRecorderException {
         await _voiceRecorder.cancel();
@@ -135,7 +135,11 @@ class _EscalateScreenState extends State<EscalateScreen> {
     // Start recording.
     try {
       await _voiceRecorder.start();
-      if (mounted) setState(() => _recording = true);
+      if (!mounted || cubit.isClosed) {
+        await _voiceRecorder.cancel();
+        return;
+      }
+      setState(() => _recording = true);
     } on VoiceRecorderException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -145,6 +149,19 @@ class _EscalateScreenState extends State<EscalateScreen> {
             : null;
       });
     }
+  }
+
+  Future<void> _deleteCapturedVoice() async {
+    final clip = _capturedVoiceClip;
+    _capturedVoiceClip = null;
+    if (clip != null) await _voiceRecorder.deleteOwnedClip(clip);
+  }
+
+  @override
+  void dispose() {
+    if (_recording) unawaited(_voiceRecorder.cancel());
+    unawaited(_deleteCapturedVoice());
+    super.dispose();
   }
 
   @override
@@ -177,12 +194,14 @@ class _EscalateScreenState extends State<EscalateScreen> {
                   child: BlocConsumer<EscalateCubit, EscalateState>(
                     listenWhen: (p, n) =>
                         p.phase != n.phase && n.phase == EscalatePhase.success,
-                    listener: (context, state) {
+                    listener: (context, state) async {
                       // EDGE (JM-060 AC): on a successful open, route to
                       // dispute-status (JM-065). 21_NAV_PLAN §C. Replace so back
                       // doesn't re-open the form.
                       final id = state.caseId ?? '';
                       if (id.isEmpty) return;
+                      await _deleteCapturedVoice();
+                      if (!context.mounted) return;
                       context.goNamed(
                         'dispute-status',
                         pathParameters: <String, String>{'id': id},
@@ -200,9 +219,9 @@ class _EscalateScreenState extends State<EscalateScreen> {
                             onToggleVoice: _toggleVoice,
                           );
                         case EscalatePhase.submitting:
-                          return const _SubmittingView();
+                          return _SubmittingView(state: state);
                         case EscalatePhase.error:
-                          return _ErrorView(errorKind: state.errorKind);
+                          return _ErrorView(state: state);
                       }
                     },
                   ),
@@ -287,13 +306,8 @@ class _InputForm extends StatelessWidget {
                   onToggle: onToggleVoice,
                 ),
                 const SizedBox(height: _kBlockGap),
-                const _CommentField(),
+                _CommentField(comment: state.comment),
                 const SizedBox(height: _kBlockGap),
-                _EvidenceSection(
-                  evidence: state.evidence,
-                  loaded: state.evidenceLoaded,
-                ),
-                const SizedBox(height: Spacing.xSmall),
                 const _SupportLink(),
               ],
             ),
@@ -339,7 +353,8 @@ class _ReasonTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final semantics = Theme.of(context).extension<JeebSemanticColors>() ??
+    final semantics =
+        Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     return Semantics(
       identifier: 'dispute_reason_${reason.name}',
@@ -368,8 +383,9 @@ class _ReasonTile extends StatelessWidget {
             Expanded(
               child: Text(
                 _reasonLabel(l10n, reason),
-                style: context.jeebText.cardTitle
-                    .copyWith(color: scheme.onSurface),
+                style: context.jeebText.cardTitle.copyWith(
+                  color: scheme.onSurface,
+                ),
               ),
             ),
           ],
@@ -542,7 +558,10 @@ class _VoiceSection extends StatelessWidget {
 /// The captured clip: a glass row (R13's grammar) whose only action is
 /// destructive, so its label carries R22's danger-SOFT `onErrorContainer`.
 class _CapturedVoiceRow extends StatelessWidget {
-  const _CapturedVoiceRow({required this.discardLabel, required this.onDiscard});
+  const _CapturedVoiceRow({
+    required this.discardLabel,
+    required this.onDiscard,
+  });
   final String discardLabel;
   final VoidCallback onDiscard;
 
@@ -559,8 +578,9 @@ class _CapturedVoiceRow extends StatelessWidget {
           Expanded(
             child: Text(
               l10n.voiceRequestRecorded,
-              style:
-                  context.jeebText.cardTitle.copyWith(color: scheme.onSurface),
+              style: context.jeebText.cardTitle.copyWith(
+                color: scheme.onSurface,
+              ),
             ),
           ),
           Text(
@@ -576,8 +596,35 @@ class _CapturedVoiceRow extends StatelessWidget {
   }
 }
 
-class _CommentField extends StatelessWidget {
-  const _CommentField();
+class _CommentField extends StatefulWidget {
+  const _CommentField({required this.comment});
+
+  final String comment;
+
+  @override
+  State<_CommentField> createState() => _CommentFieldState();
+}
+
+class _CommentFieldState extends State<_CommentField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.comment,
+  );
+
+  @override
+  void didUpdateWidget(covariant _CommentField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_controller.text == widget.comment) return;
+    _controller.value = TextEditingValue(
+      text: widget.comment,
+      selection: TextSelection.collapsed(offset: widget.comment.length),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -587,114 +634,11 @@ class _CommentField extends StatelessWidget {
       // The kit has no input primitive; OmdsTextField reads the Midnight
       // `inputDecorationTheme` (glass fill, glass border, periwinkle caret).
       child: OmdsTextField(
+        controller: _controller,
         labelText: l10n.escalateCommentLabel,
         maxLines: 4,
         maxLength: 1000,
         onChanged: (v) => context.read<EscalateCubit>().setComment(v),
-      ),
-    );
-  }
-}
-
-/// Auto-attached evidence (D53): the immutable chat snapshot + the GPS/status
-/// timeline. Read-only — the customer cannot edit it; it travels with the
-/// dispute so the back office sees the same context.
-class _EvidenceSection extends StatelessWidget {
-  const _EvidenceSection({required this.evidence, required this.loaded});
-  final EscalateEvidence evidence;
-  final bool loaded;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      identifier: 'dispute_evidence_timeline',
-      child: JeebOutlinedCard(child: _body(context)),
-    );
-  }
-
-  Widget _body(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    if (!loaded) {
-      return _EvidenceLine(
-        icon: Icons.hourglass_top,
-        label: l10n.escalateEvidenceLoading,
-      );
-    }
-    if (evidence.isEmpty) {
-      // The fetch degraded: nothing was attached, so nothing is listed. The
-      // blueprint's chat id stays addressable on a zero-size node.
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            identifier: 'dispute_evidence_chat',
-            child: const SizedBox.shrink(),
-          ),
-          JeebEmptyState.compact(
-            variant: _kEmptyVariant,
-            headline: l10n.escalateEvidenceEmpty,
-          ),
-        ],
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Semantics(
-          identifier: 'dispute_evidence_chat',
-          child: evidence.hasChatSnapshot
-              ? _EvidenceLine(
-                  icon: Icons.chat_bubble,
-                  label: '${l10n.chatTitle} (${evidence.chatMessageCount ?? 0})',
-                )
-              : const SizedBox.shrink(),
-        ),
-        for (final e in evidence.timeline)
-          _EvidenceLine(icon: Icons.place, label: _stepLabel(l10n, e.status)),
-      ],
-    );
-  }
-
-  String _stepLabel(AppLocalizations l10n, String status) {
-    switch (status) {
-      case 'Ordered':
-        return l10n.trackingStepOrdered;
-      case 'Picked':
-        return l10n.trackingStepPicked;
-      case 'InTransit':
-        return l10n.trackingStepInTransit;
-      case 'AtDoor':
-      case 'Done':
-        return l10n.trackingStepCompleted;
-      default:
-        return status;
-    }
-  }
-}
-
-/// One attached-evidence line: glyph + subtitle ink, both periwinkle.
-class _EvidenceLine extends StatelessWidget {
-  const _EvidenceLine({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: scheme.onSurfaceVariant),
-          const SizedBox(width: Spacing.xSmall),
-          Expanded(
-            child: Text(
-              label,
-              style: context.jeebText.bodySmall
-                  .copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -771,18 +715,38 @@ void _leave(BuildContext context) =>
     context.canPop() ? context.pop() : context.goNamed('shell');
 
 class _SubmittingView extends StatelessWidget {
-  const _SubmittingView();
+  const _SubmittingView({required this.state});
+
+  final EscalateState state;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Center(
+    return Semantics(
+      identifier: 'dispute_submitting',
+      container: true,
+      liveRegion: true,
       child: SingleChildScrollView(
-        child: JeebEmptyState(
-          status: JeebEmptyStateStatus.loading,
-          variant: _kEmptyVariant,
-          headline: l10n.escalateSubmitting,
-          identifier: 'dispute_submitting',
+        padding: _kBodyPadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            JeebEmptyState.compact(
+              status: JeebEmptyStateStatus.loading,
+              variant: _kEmptyVariant,
+              headline: l10n.escalateSubmitting,
+            ),
+            if (state.uploads.isNotEmpty) ...[
+              const SizedBox(height: Spacing.large),
+              _UploadProgressList(
+                uploads: state.uploads,
+                order: <String>[
+                  ...state.photoPaths,
+                  if (state.hasVoice) 'voice',
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -790,21 +754,29 @@ class _SubmittingView extends StatelessWidget {
 }
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.errorKind});
-  final EscalateErrorKind? errorKind;
+  const _ErrorView({required this.state});
+  final EscalateState state;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final alreadyOpen = errorKind == EscalateErrorKind.alreadyOpen;
+    final alreadyOpen = state.errorKind == EscalateErrorKind.alreadyOpen;
     return Semantics(
       identifier: 'dispute_error',
+      liveRegion: true,
       child: Center(
         child: SingleChildScrollView(
           child: JeebEmptyState(
             status: JeebEmptyStateStatus.error,
             variant: _kEmptyVariant,
-            headline: _errorMessage(l10n, errorKind),
+            headline: _errorMessage(context, l10n, state.errorKind),
+            body: state.hasUploadFailures
+                ? _localCopy(
+                    context,
+                    'One or more attachments did not upload. Retry keeps the same report operation and will not create a duplicate.',
+                    'تعذر رفع مرفق واحد أو أكثر. تحافظ إعادة المحاولة على نفس عملية البلاغ ولن تنشئ نسخة مكررة.',
+                  )
+                : null,
             // An already-open dispute cannot be retried, and a dead end is
             // worse than the wrong verb: it gets the way out instead.
             action: alreadyOpen
@@ -814,8 +786,7 @@ class _ErrorView extends StatelessWidget {
                   )
                 : JeebCtaButton.primary(
                     label: l10n.escalateRetryCta,
-                    onTap: () =>
-                        context.read<EscalateCubit>().retryFromError(),
+                    onTap: () => context.read<EscalateCubit>().retryFromError(),
                   ),
           ),
         ),
@@ -823,10 +794,20 @@ class _ErrorView extends StatelessWidget {
     );
   }
 
-  String _errorMessage(AppLocalizations l10n, EscalateErrorKind? kind) {
+  String _errorMessage(
+    BuildContext context,
+    AppLocalizations l10n,
+    EscalateErrorKind? kind,
+  ) {
     switch (kind) {
       case EscalateErrorKind.network:
         return l10n.escalateErrorNetwork;
+      case EscalateErrorKind.evidenceUpload:
+        return _localCopy(
+          context,
+          'Some evidence could not be uploaded.',
+          'تعذر رفع بعض الأدلة.',
+        );
       case EscalateErrorKind.alreadyOpen:
         return l10n.escalateErrorAlreadyOpen;
       default:
@@ -834,3 +815,89 @@ class _ErrorView extends StatelessWidget {
     }
   }
 }
+
+class _UploadProgressList extends StatelessWidget {
+  const _UploadProgressList({required this.uploads, required this.order});
+
+  final Map<String, CaseAttachmentProgress> uploads;
+  final List<String> order;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var index = 0; index < order.length; index++) {
+      final progress = uploads[order[index]];
+      if (progress == null) continue;
+      final isVoice = order[index] == 'voice';
+      final label = isVoice
+          ? _localCopy(context, 'Voice note', 'ملاحظة صوتية')
+          : _localCopy(context, 'Photo ${index + 1}', 'الصورة ${index + 1}');
+      rows.add(_UploadProgressRow(label: label, progress: progress));
+    }
+    return Semantics(
+      identifier: 'dispute_upload_progress',
+      container: true,
+      explicitChildNodes: true,
+      child: JeebOutlinedCard.grouped(children: rows),
+    );
+  }
+}
+
+class _UploadProgressRow extends StatelessWidget {
+  const _UploadProgressRow({required this.label, required this.progress});
+
+  final String label;
+  final CaseAttachmentProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (progress.fraction * 100).round();
+    final failed = progress.state == CaseAttachmentUploadState.failed;
+    final uploaded = progress.state == CaseAttachmentUploadState.uploaded;
+    final status = failed
+        ? _localCopy(context, 'Upload failed', 'فشل الرفع')
+        : uploaded
+        ? _localCopy(context, 'Uploaded', 'تم الرفع')
+        : '$percent%';
+    return Semantics(
+      identifier: 'dispute_upload_${progress.localId}',
+      label: '$label, $status',
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.symmetric(vertical: Spacing.small),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  failed
+                      ? Icons.error_outline
+                      : uploaded
+                      ? Icons.check_circle_outline
+                      : Icons.upload_file,
+                  size: 20,
+                  color: failed
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: Spacing.small),
+                Expanded(child: Text(label, style: context.jeebText.cardTitle)),
+                Text(status, style: context.jeebText.bodySmall),
+              ],
+            ),
+            if (!failed && !uploaded) ...[
+              const SizedBox(height: Spacing.xSmall),
+              LinearProgressIndicator(
+                value: progress.totalBytes > 0 ? progress.fraction : null,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _localCopy(BuildContext context, String en, String ar) =>
+    Localizations.localeOf(context).languageCode == 'ar' ? ar : en;
