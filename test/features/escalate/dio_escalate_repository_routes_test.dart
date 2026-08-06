@@ -1,4 +1,4 @@
-// BUG-8 (sprint-008 run-7) regression guard — escalate timeline delivery read
+// Gateway evidence is captured server-side during dispute creation.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -20,44 +20,14 @@ void main() {
       ..httpClientAdapter = adapter;
   });
 
-  DioEscalateRepository originRepo() =>
-      DioEscalateRepository(dio, originGateway: true);
-  DioEscalateRepository mockRepo() =>
-      DioEscalateRepository(dio, originGateway: false);
+  test('evidence preview performs no client-side gateway fanout', () async {
+    final evidence = await DioEscalateRepository(
+      dio,
+    ).fetchEvidence(deliveryId: _deliveryId);
 
-  test('origin: timeline reads the PLURAL GET /v1/deliveries/{id} — NOT the '
-      'singular that 404s on the live gateway (BUG-8)', () async {
-    await originRepo().fetchEvidence(deliveryId: _deliveryId);
-
-    expect(adapter.getPaths, contains('/v1/deliveries/$_deliveryId'));
-    expect(adapter.getPaths, isNot(contains('/v1/delivery/$_deliveryId')));
-  });
-
-  test('mock: timeline keeps the singular alias when originGateway:false',
-      () async {
-    await mockRepo().fetchEvidence(deliveryId: _deliveryId);
-
-    expect(adapter.getPaths, contains('/v1/delivery/$_deliveryId'));
-    expect(adapter.getPaths, isNot(contains('/v1/deliveries/$_deliveryId')));
-  });
-
-  test('chat snapshot resolves the conversation via the canonical '
-      'GET /v1/conversations?correlationKey — NOT the nonexistent by-request '
-      'route that 404s (Lane C / PR-C3)', () async {
-    await originRepo().fetchEvidence(deliveryId: _deliveryId);
-
-    expect(adapter.getPaths, contains('/v1/conversations'),
-        reason: 'conversation resolve must use the correlation-key route');
-    expect(
-      adapter.getPaths.any((p) => p.contains('/conversations/by-request/')),
-      isFalse,
-      reason: 'the by-request route does not exist on the live gateway',
-    );
-    // The correlation key is the request id (== the customer deliveryId).
-    final convCalls =
-        adapter.getQueries.where((q) => q.containsKey('correlationKey'));
-    expect(convCalls, isNotEmpty);
-    expect(convCalls.first['correlationKey'], _deliveryId);
+    expect(evidence.isEmpty, isTrue);
+    expect(adapter.getPaths, isEmpty);
+    expect(adapter.getQueries, isEmpty);
   });
 }
 

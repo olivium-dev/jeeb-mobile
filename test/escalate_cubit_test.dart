@@ -1,5 +1,7 @@
 // Tests for EscalateCubit (JM-060 dispute-open-evidence; ex T-MOB-022).
 
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -8,7 +10,11 @@ import 'package:jeeb_mobile/features/escalate/application/escalate_state.dart';
 import 'package:jeeb_mobile/features/escalate/domain/escalate_repository.dart';
 
 class _FakeEscalateRepo implements EscalateRepository {
-  const _FakeEscalateRepo({this.failWith, this.evidence, this.evidenceThrows = false});
+  const _FakeEscalateRepo({
+    this.failWith,
+    this.evidence,
+    this.evidenceThrows = false,
+  });
 
   final EscalateErrorKind? failWith;
   final EscalateEvidence? evidence;
@@ -73,7 +79,9 @@ void main() {
       'emits error with network kind on network failure',
       build: () {
         final c = EscalateCubit(
-          repository: const _FakeEscalateRepo(failWith: EscalateErrorKind.network),
+          repository: const _FakeEscalateRepo(
+            failWith: EscalateErrorKind.network,
+          ),
           deliveryId: 'dlv-1',
         );
         c.setReason(EscalateReason.fraud);
@@ -114,6 +122,21 @@ void main() {
         ),
       ],
     );
+
+    test('ignores reentrant submit and does not emit after close', () async {
+      final repository = _PendingEscalateRepo();
+      final cubit = EscalateCubit(repository: repository, deliveryId: 'dlv-1')
+        ..setReason(EscalateReason.damaged);
+
+      final first = cubit.submit();
+      final second = cubit.submit();
+      expect(repository.calls, 1);
+      await cubit.close();
+      repository.complete();
+      await Future.wait(<Future<void>>[first, second]);
+
+      expect(repository.calls, 1);
+    });
   });
 
   group('EscalateCubit — retryFromError', () {
@@ -121,7 +144,9 @@ void main() {
       'restores inputting phase',
       build: () {
         final c = EscalateCubit(
-          repository: const _FakeEscalateRepo(failWith: EscalateErrorKind.server),
+          repository: const _FakeEscalateRepo(
+            failWith: EscalateErrorKind.server,
+          ),
           deliveryId: 'dlv-1',
         );
         c.setReason(EscalateReason.other);
@@ -234,4 +259,33 @@ void main() {
       ],
     );
   });
+}
+
+class _PendingEscalateRepo implements EscalateRepository {
+  final Completer<EscalateResult> _result = Completer<EscalateResult>();
+  int calls = 0;
+
+  void complete() {
+    _result.complete(
+      const EscalateResult(caseId: 'dispute-1', status: 'pending'),
+    );
+  }
+
+  @override
+  Future<EscalateEvidence> fetchEvidence({required String deliveryId}) async {
+    return EscalateEvidence.empty;
+  }
+
+  @override
+  Future<EscalateResult> submitEscalation({
+    required String deliveryId,
+    required EscalateReason reason,
+    String? comment,
+    List<String> photoPaths = const <String>[],
+    String? voicePath,
+    EscalateEvidence evidence = EscalateEvidence.empty,
+  }) {
+    calls++;
+    return _result.future;
+  }
 }

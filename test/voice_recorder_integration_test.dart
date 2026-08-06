@@ -208,6 +208,46 @@ void main() {
       },
     );
 
+    test('deleteOwnedClip deletes a completed recorder-owned file', () async {
+      when(() => platform.hasPermission()).thenAnswer((_) async => true);
+      when(
+        () => platform.start(any(), path: any(named: 'path')),
+      ).thenAnswer((_) async {});
+      final recorder = build();
+
+      await recorder.start();
+      final startedPath =
+          verify(
+                () => platform.start(any(), path: captureAny(named: 'path')),
+              ).captured.single
+              as String;
+      await File(startedPath).writeAsBytes(Uint8List.fromList([1, 2, 3]));
+      when(() => platform.stop()).thenAnswer((_) async => startedPath);
+
+      final clip = await recorder.stop(recordedDuration: Duration.zero);
+      expect(File(startedPath).existsSync(), isTrue);
+
+      await recorder.deleteOwnedClip(clip);
+
+      expect(File(startedPath).existsSync(), isFalse);
+    });
+
+    test('deleteOwnedClip never deletes an unowned external file', () async {
+      final external = File('${tempDir.path}/user-selected.m4a');
+      await external.writeAsBytes(Uint8List.fromList([4, 5, 6]));
+      final recorder = build();
+
+      await recorder.deleteOwnedClip(
+        VoiceClip(
+          bytes: Uint8List.fromList([4, 5, 6]),
+          duration: Duration.zero,
+          sourcePath: external.path,
+        ),
+      );
+
+      expect(external.existsSync(), isTrue);
+    });
+
     test(
       'maps a permission-flavoured plugin error onto permissionDenied',
       () async {

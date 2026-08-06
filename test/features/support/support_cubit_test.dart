@@ -1,5 +1,7 @@
 // Unit tests for SupportCubit (JM-063).
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/features/support/application/support_cubit.dart';
@@ -83,8 +85,11 @@ void main() {
       expect(cubit.state.ticketId, 'ticket-001');
       expect(repo.lastDraft, isNotNull);
       expect(repo.lastDraft!.category, SupportCategory.dispute);
-      expect(repo.lastDraft!.body, 'driver never arrived',
-          reason: 'body is trimmed');
+      expect(
+        repo.lastDraft!.body,
+        'driver never arrived',
+        reason: 'body is trimmed',
+      );
       expect(repo.lastDraft!.orderRef, 'ORD-7');
       expect(repo.lastDraft!.attachmentPaths, <String>['evidence.jpg']);
       cubit.close();
@@ -99,23 +104,61 @@ void main() {
       cubit.close();
     });
 
-    test('typed failure → error phase, then retry returns to inputting',
-        () async {
-      final cubit = SupportCubit(_RecordingRepo(failWith: SupportFailure.network));
-      cubit.setCategory(SupportCategory.payment);
-      cubit.setBody('charge issue');
+    test(
+      'typed failure → error phase, then retry returns to inputting',
+      () async {
+        final cubit = SupportCubit(
+          _RecordingRepo(failWith: SupportFailure.network),
+        );
+        cubit.setCategory(SupportCategory.payment);
+        cubit.setBody('charge issue');
 
-      await cubit.submit();
-      expect(cubit.state.phase, SupportPhase.error);
-      expect(cubit.state.failure, SupportFailure.network);
+        await cubit.submit();
+        expect(cubit.state.phase, SupportPhase.error);
+        expect(cubit.state.failure, SupportFailure.network);
 
-      cubit.retryFromError();
-      expect(cubit.state.phase, SupportPhase.inputting);
-      expect(cubit.state.failure, isNull);
-      // The form fields survive the retry.
-      expect(cubit.state.category, SupportCategory.payment);
-      expect(cubit.state.body, 'charge issue');
-      cubit.close();
-    });
+        cubit.retryFromError();
+        expect(cubit.state.phase, SupportPhase.inputting);
+        expect(cubit.state.failure, isNull);
+        // The form fields survive the retry.
+        expect(cubit.state.category, SupportCategory.payment);
+        expect(cubit.state.body, 'charge issue');
+        cubit.close();
+      },
+    );
+
+    test(
+      'submit ignores reentrant taps and does not emit after close',
+      () async {
+        final repo = _PendingRepo();
+        final cubit = SupportCubit(repo);
+        cubit.setCategory(SupportCategory.account);
+        cubit.setBody('Please help.');
+
+        final first = cubit.submit();
+        final second = cubit.submit();
+        expect(repo.calls, 1);
+        await cubit.close();
+        repo.complete();
+        await Future.wait(<Future<void>>[first, second]);
+
+        expect(repo.calls, 1);
+      },
+    );
   });
+}
+
+class _PendingRepo implements SupportRepository {
+  final Completer<SupportTicket> _result = Completer<SupportTicket>();
+  int calls = 0;
+
+  void complete() {
+    _result.complete(const SupportTicket(id: 'ticket-1', status: 'pending'));
+  }
+
+  @override
+  Future<SupportTicket> submitTicket(SupportTicketDraft draft) {
+    calls++;
+    return _result.future;
+  }
 }

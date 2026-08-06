@@ -1,5 +1,7 @@
 // Unit tests for DisputeStatusCubit (JM-065). Proves the 4-state machine:
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/dispute_status/application/dispute_status_cubit.dart';
 import 'package:jeeb_mobile/features/dispute_status/application/dispute_status_state.dart';
@@ -69,8 +71,9 @@ void main() {
   });
 
   test('typed failure surfaces as failed + the typed error', () async {
-    final repo =
-        _ScriptedRepository(fetchThrows: DisputeStatusFailure.notFound);
+    final repo = _ScriptedRepository(
+      fetchThrows: DisputeStatusFailure.notFound,
+    );
     final cubit = DisputeStatusCubit(repository: repo, disputeId: 'dsp-1');
 
     await cubit.load();
@@ -81,8 +84,7 @@ void main() {
   });
 
   test('refresh recovers from a failed cold load', () async {
-    final repo =
-        _ScriptedRepository(fetchThrows: DisputeStatusFailure.network);
+    final repo = _ScriptedRepository(fetchThrows: DisputeStatusFailure.network);
     final cubit = DisputeStatusCubit(repository: repo, disputeId: 'dsp-1');
 
     await cubit.load();
@@ -97,4 +99,30 @@ void main() {
     expect(cubit.state.error, isNull);
     await cubit.close();
   });
+
+  test('a completed fetch does not emit after the cubit closes', () async {
+    final repo = _PendingRepository();
+    final cubit = DisputeStatusCubit(repository: repo, disputeId: 'dsp-1');
+
+    final load = cubit.load();
+    expect(repo.calls, 1);
+    await cubit.close();
+    repo.complete(_dispute('dsp-1'));
+    await load;
+
+    expect(repo.calls, 1);
+  });
+}
+
+class _PendingRepository implements DisputeStatusRepository {
+  final Completer<DisputeStatus> _result = Completer<DisputeStatus>();
+  int calls = 0;
+
+  void complete(DisputeStatus dispute) => _result.complete(dispute);
+
+  @override
+  Future<DisputeStatus> fetchDispute(String disputeId) {
+    calls++;
+    return _result.future;
+  }
 }

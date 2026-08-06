@@ -32,7 +32,7 @@ void main() {
     when(() => mockDio.get<Map<String, dynamic>>(any())).thenThrow(e);
   }
 
-  test('parses an open dispute + its auto-attached evidence (D53)', () async {
+  test('normalizes a legacy open dispute to pending', () async {
     stubGet({
       'id': 'dsp-1',
       'status': 'open',
@@ -55,8 +55,7 @@ void main() {
     final d = await repo.fetchDispute('dsp-1');
 
     expect(d.id, 'dsp-1');
-    expect(d.state, DisputeState.open);
-    expect(d.outcome, DisputeOutcome.none);
+    expect(d.state, DisputeState.pending);
     expect(d.orderRef, 'req-9');
     expect(d.evidence.reason, 'damaged');
     expect(d.evidence.comment, 'box was crushed');
@@ -68,37 +67,92 @@ void main() {
     expect(d.evidence.hasAny, isTrue);
   });
 
-  test('derives a refund outcome from the resolution string (D2)', () async {
+  test('normalizes a legacy resolved dispute to fixed', () async {
     stubGet({
       'id': 'dsp-1',
       'status': 'resolved',
       'resolution': 'refund',
-      'refundAmount': 12.5,
-      'currency': 'USD',
       'note': 'approved by ops',
     });
 
     final d = await repo.fetchDispute('dsp-1');
 
-    expect(d.state, DisputeState.resolved);
+    expect(d.state, DisputeState.fixed);
     expect(d.isResolved, isTrue);
-    expect(d.outcome, DisputeOutcome.refund);
-    expect(d.refundAmount, 12.5);
-    expect(d.currency, 'USD');
     expect(d.note, 'approved by ops');
   });
 
-  test('derives a penalty outcome (D2)', () async {
-    stubGet({'id': 'dsp-1', 'status': 'closed', 'resolution': 'penalty'});
+  test('parses closed as a distinct admin-owned terminal state', () async {
+    stubGet({'id': 'dsp-1', 'status': 'closed', 'note': 'review complete'});
     final d = await repo.fetchDispute('dsp-1');
-    expect(d.state, DisputeState.resolved);
-    expect(d.outcome, DisputeOutcome.penalty);
+    expect(d.state, DisputeState.closed);
+    expect(d.note, 'review complete');
   });
 
-  test('resolved with no resolution string → other outcome', () async {
-    stubGet({'id': 'dsp-1', 'status': 'resolved'});
+  test('parses CaseDetailResponseV2 evidence and audit timeline', () async {
+    stubGet({
+      'id': 'dsp-1',
+      'status': 'fixed',
+      'version': 4,
+      'photos': ['disputes/box.jpg'],
+      'voiceUrl': 'disputes/note.m4a',
+      'attachments': ['disputes/box.jpg', 'disputes/note.m4a'],
+      'evidence': [
+        {
+          'source': 'chat_snapshot',
+          'status': 'partial',
+          'count': 8,
+          'marker': 'truncated_max_messages',
+          'payload': {'conversationId': 'conversation-1'},
+        },
+        {
+          'source': 'delivery_history',
+          'status': 'complete',
+          'count': 2,
+          'payload': {
+            'statusHistory': [
+              {'status': 'picked'},
+              {'status': 'done'},
+            ],
+          },
+        },
+        {
+          'source': 'gps_pings',
+          'status': 'unavailable',
+          'marker': 'route_unavailable',
+          'count': 0,
+        },
+      ],
+      'timeline': [
+        {
+          'eventId': 'event-1',
+          'eventType': 'case.created',
+          'createdAt': '2026-08-05T09:00:00Z',
+          'data': <String, Object?>{},
+        },
+        {
+          'eventId': 'event-2',
+          'eventType': 'case.status_changed',
+          'createdAt': '2026-08-05T10:00:00Z',
+          'data': {'to': 'fixed', 'note': 'Issue corrected'},
+        },
+      ],
+    });
     final d = await repo.fetchDispute('dsp-1');
-    expect(d.outcome, DisputeOutcome.other);
+    expect(d.state, DisputeState.fixed);
+    expect(d.version, 4);
+    expect(d.conversationRef, 'conversation-1');
+    expect(d.evidence.isPartial, isTrue);
+    expect(d.evidence.missingSources, ['chat_snapshot', 'gps_pings']);
+    expect(d.evidence.chatMessageCount, 8);
+    expect(d.evidence.timelineCount, 2);
+    expect(d.evidence.photoCount, 1);
+    expect(d.evidence.hasVoice, isTrue);
+    expect(d.evidence.attachments, hasLength(2));
+    expect(d.evidence.attachments.first.objectRef, 'disputes/box.jpg');
+    expect(d.statusHistory, hasLength(2));
+    expect(d.statusHistory.last.status, DisputeState.fixed);
+    expect(d.statusHistory.last.note, 'Issue corrected');
   });
 
   test('falls back to the path id when the body omits id', () async {
@@ -109,58 +163,70 @@ void main() {
   });
 
   test('404 → notFound failure', () async {
-    stubThrow(DioException(
-      requestOptions: RequestOptions(path: ''),
-      response: Response<dynamic>(
+    stubThrow(
+      DioException(
         requestOptions: RequestOptions(path: ''),
-        statusCode: 404,
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 404,
+        ),
+        type: DioExceptionType.badResponse,
       ),
-      type: DioExceptionType.badResponse,
-    ));
+    );
 
     expect(
       () => repo.fetchDispute('missing'),
-      throwsA(isA<DisputeStatusRepositoryException>().having(
-        (e) => e.failure,
-        'failure',
-        DisputeStatusFailure.notFound,
-      )),
+      throwsA(
+        isA<DisputeStatusRepositoryException>().having(
+          (e) => e.failure,
+          'failure',
+          DisputeStatusFailure.notFound,
+        ),
+      ),
     );
   });
 
   test('connection timeout → network failure', () async {
-    stubThrow(DioException(
-      requestOptions: RequestOptions(path: ''),
-      type: DioExceptionType.connectionTimeout,
-    ));
+    stubThrow(
+      DioException(
+        requestOptions: RequestOptions(path: ''),
+        type: DioExceptionType.connectionTimeout,
+      ),
+    );
 
     expect(
       () => repo.fetchDispute('dsp-1'),
-      throwsA(isA<DisputeStatusRepositoryException>().having(
-        (e) => e.failure,
-        'failure',
-        DisputeStatusFailure.network,
-      )),
+      throwsA(
+        isA<DisputeStatusRepositoryException>().having(
+          (e) => e.failure,
+          'failure',
+          DisputeStatusFailure.network,
+        ),
+      ),
     );
   });
 
   test('401 → unauthorized failure', () async {
-    stubThrow(DioException(
-      requestOptions: RequestOptions(path: ''),
-      response: Response<dynamic>(
+    stubThrow(
+      DioException(
         requestOptions: RequestOptions(path: ''),
-        statusCode: 401,
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 401,
+        ),
+        type: DioExceptionType.badResponse,
       ),
-      type: DioExceptionType.badResponse,
-    ));
+    );
 
     expect(
       () => repo.fetchDispute('dsp-1'),
-      throwsA(isA<DisputeStatusRepositoryException>().having(
-        (e) => e.failure,
-        'failure',
-        DisputeStatusFailure.unauthorized,
-      )),
+      throwsA(
+        isA<DisputeStatusRepositoryException>().having(
+          (e) => e.failure,
+          'failure',
+          DisputeStatusFailure.unauthorized,
+        ),
+      ),
     );
   });
 }

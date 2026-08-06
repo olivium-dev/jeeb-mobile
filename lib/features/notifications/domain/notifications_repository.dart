@@ -13,6 +13,8 @@ enum NotificationKind {
   marketing,
 
   newRequest,
+  dispute,
+  support,
   unknown,
 }
 

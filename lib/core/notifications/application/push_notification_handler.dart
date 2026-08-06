@@ -250,6 +250,8 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       case NotificationCategory.kyc:
       case NotificationCategory.rating:
       case NotificationCategory.settings:
+      case NotificationCategory.dispute:
+      case NotificationCategory.support:
       case NotificationCategory.other:
         return _everyTopic;
     }

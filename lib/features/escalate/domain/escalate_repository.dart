@@ -1,20 +1,27 @@
+import '../../case_evidence/domain/case_evidence.dart';
+
 class EscalateEvidence {
   const EscalateEvidence({
     this.chatSnapshotUrl,
     this.chatMessageCount,
     this.timeline = const <EscalateTimelineEntry>[],
+    this.missingSources = const <String>[],
   });
 
-/// CDN URL of the immutable conversation snapshot (D53). Null when the originating order has no conversation (or the fetch degraded gracefully).
+  /// CDN URL of the immutable conversation snapshot (D53). Null when the originating order has no conversation (or the fetch degraded gracefully).
   final String? chatSnapshotUrl;
 
   final int? chatMessageCount;
 
   final List<EscalateTimelineEntry> timeline;
 
+  /// Gateway evidence sources that could not be read at draft time.
+  final List<String> missingSources;
+
   bool get hasChatSnapshot => (chatSnapshotUrl ?? '').isNotEmpty;
   bool get hasTimeline => timeline.isNotEmpty;
   bool get isEmpty => !hasChatSnapshot && !hasTimeline;
+  bool get isPartial => missingSources.isNotEmpty;
 
   static const EscalateEvidence empty = EscalateEvidence();
 }
@@ -40,24 +47,57 @@ abstract class EscalateRepository {
   });
 }
 
+abstract class EscalateV2Repository {
+  Future<EscalateResult> submitReport(
+    EscalateSubmission submission, {
+    CaseAttachmentProgressCallback? onProgress,
+  });
+}
+
+class EscalateSubmission {
+  const EscalateSubmission({
+    required this.operationId,
+    required this.deliveryId,
+    required this.reason,
+    required this.evidence,
+    this.comment,
+    this.attachments = const <CaseAttachmentDraft>[],
+  });
+
+  final String operationId;
+  final String deliveryId;
+  final EscalateReason reason;
+  final String? comment;
+  final List<CaseAttachmentDraft> attachments;
+  final EscalateEvidence evidence;
+}
+
 enum EscalateReason { damaged, wrongItem, noShow, fraud, abuse, other }
 
 class EscalateResult {
-  const EscalateResult({required this.caseId, required this.status});
+  const EscalateResult({
+    required this.caseId,
+    required this.status,
+    this.version,
+  });
 
   factory EscalateResult.fromJson(Map<String, dynamic> json) {
     return EscalateResult(
-      caseId: json['id'] as String? ??
+      caseId:
+          json['id'] as String? ??
           json['disputeId'] as String? ??
           json['caseId'] as String? ??
           json['case_id'] as String? ??
           '',
-      status: json['status'] as String? ?? 'open',
+      status:
+          json['status'] as String? ?? json['state'] as String? ?? 'pending',
+      version: json['version'] is num ? (json['version'] as num).toInt() : null,
     );
   }
 
   final String caseId;
   final String status;
+  final int? version;
 }
 
 class EscalateException implements Exception {
@@ -71,4 +111,10 @@ class EscalateException implements Exception {
       'EscalateException(${kind.name}${cause == null ? '' : ', $cause'})';
 }
 
-enum EscalateErrorKind { network, server, alreadyOpen, notFound }
+enum EscalateErrorKind {
+  network,
+  server,
+  evidenceUpload,
+  alreadyOpen,
+  notFound,
+}

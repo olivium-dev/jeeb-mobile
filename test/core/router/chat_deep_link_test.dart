@@ -50,6 +50,19 @@ void main() {
       );
     });
 
+    test('folds dispute and support notification links to app routes', () {
+      expect(
+        normalizeJeebSchemeDeepLink(Uri.parse('jeeb://disputes/dsp-1')),
+        '/disputes/dsp-1',
+      );
+      expect(
+        normalizeJeebSchemeDeepLink(
+          Uri.parse('jeeb://support/tickets/ticket-1'),
+        ),
+        '/support/tickets/ticket-1',
+      );
+    });
+
     test('preserves the query string', () {
       expect(
         normalizeJeebSchemeDeepLink(
@@ -70,8 +83,10 @@ void main() {
 
     test('host-less jeeb:/ URIs → null', () {
       expect(normalizeJeebSchemeDeepLink(Uri.parse('jeeb:/')), isNull);
-      expect(normalizeJeebSchemeDeepLink(Uri.parse('jeeb:/requests/abc')),
-          isNull);
+      expect(
+        normalizeJeebSchemeDeepLink(Uri.parse('jeeb:/requests/abc')),
+        isNull,
+      );
     });
   });
 }

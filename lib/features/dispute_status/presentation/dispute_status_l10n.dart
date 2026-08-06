@@ -10,8 +10,8 @@ import '../domain/dispute_status_repository.dart';
 /// The shared ARB files + the hand-authored `AppLocalizations` getter layer are
 /// integrator-owned (50_EXECUTION_PLAN §S4). The W4 integrator batched FIVE
 /// dispute-status keys (title / open-label / body / support-cta / back-cta).
-/// The rest — the Resolved label, the typed outcome lines (refund/penalty/
-/// dismissed, D2), the evidence-summary heading + its per-item labels (D53),
+/// The rest — the canonical lifecycle labels, neutral resolution copy,
+/// the evidence-summary heading + its per-item labels (D53),
 /// and the load-error/retry copy — is NOT yet present. Per the JM-057/JM-058
 /// precedent this resolver reuses the EXISTING getters where one fits and
 /// supplies the genuinely-missing strings from a feature-local EN/AR map until
@@ -47,55 +47,34 @@ class DisputeStatusL10n {
 
   // ── Genuinely-missing copy (feature-local until the integrator lands keys). ─
 
-  /// `dispute_status_state` label when resolved (D2). Open uses [openLabel].
-  /// Doubles as the third node's label on the lifecycle stepper.
-  String get resolvedLabel => _pick('Resolved', 'تم الحل');
+  String get pendingLabel => _pick('Pending', 'قيد المراجعة');
+  String get fixedLabel => _pick('Fixed', 'تم الإصلاح');
+  String get closedLabel => _pick('Closed', 'مغلق');
 
   /// First node of the lifecycle stepper — always `done` (the dispute exists,
   /// so it was submitted). Short by design: a stepper label is 10.5/w700.
   String get stepSubmittedLabel => _l10n.disputeStatusStepSubmitted;
 
-  /// Second node of the lifecycle stepper — the active step while the dispute
-  /// is open. The short form of [openLabel] ("Open — under review").
+  /// Legacy label retained for existing generated localization compatibility.
   String get stepUnderReviewLabel => _l10n.disputeStatusStepUnderReview;
 
-  /// Outcome note heading shown above the typed outcome line (D2).
-  String get outcomeHeading => _pick('Outcome', 'النتيجة');
+  String get resolutionHeading => _pick('Resolution', 'المعالجة');
+  String get fixedBody => _pick(
+    'Support marked the reported issue as fixed.',
+    'حدّد فريق الدعم المشكلة المبلّغ عنها كمشكلة تم إصلاحها.',
+  );
+  String get closedBody => _pick(
+    'An administrator closed this dispute after review.',
+    'أغلق أحد المشرفين هذا النزاع بعد المراجعة.',
+  );
+  String get historyHeading => _pick('Status history', 'سجل الحالة');
 
-  /// Typed outcome line for a [DisputeOutcome] (D2). [amount] is the formatted
-  /// refund/penalty amount when present.
-  String outcomeLine(DisputeOutcome outcome, {String? amount}) {
-    switch (outcome) {
-      case DisputeOutcome.refund:
-        return amount == null
-            ? _pick('A refund was issued to you.', 'تمت إعادة المبلغ إليك.')
-            : _pick(
-                'A refund of $amount was issued to you.',
-                'تمت إعادة مبلغ $amount إليك.',
-              );
-      case DisputeOutcome.penalty:
-        return amount == null
-            ? _pick(
-                'A penalty was applied to the other party.',
-                'تم تطبيق غرامة على الطرف الآخر.',
-              )
-            : _pick(
-                'A penalty of $amount was applied.',
-                'تم تطبيق غرامة قدرها $amount.',
-              );
-      case DisputeOutcome.dismissed:
-        return _pick(
-          'This dispute was reviewed and dismissed.',
-          'تمت مراجعة هذا النزاع ورفضه.',
-        );
-      case DisputeOutcome.other:
-      case DisputeOutcome.none:
-        return _pick(
-          'This dispute has been resolved.',
-          'تم حل هذا النزاع.',
-        );
-    }
-  }
+  String statusLabel(DisputeState state) => switch (state) {
+    DisputeState.pending || DisputeState.open => pendingLabel,
+    DisputeState.fixed || DisputeState.resolved => fixedLabel,
+    DisputeState.closed => closedLabel,
+    DisputeState.unknown => _pick('Status unavailable', 'الحالة غير متاحة'),
+  };
 
   // ── Evidence summary (D53). ────────────────────────────────────────────────
   String get evidenceHeading => _pick('Evidence summary', 'ملخص الأدلة');
@@ -127,6 +106,12 @@ class DisputeStatusL10n {
   /// docs/redesign-midnight/l10n-queue/M3-32.md.
   String get evidenceEmptyHeadline =>
       _pick('No evidence attached', 'لا توجد أدلة مرفقة');
+  String get evidencePartial => _pick(
+    'Some evidence could not be attached. Support can still review the available items.',
+    'تعذر إرفاق بعض الأدلة. لا يزال بإمكان الدعم مراجعة العناصر المتاحة.',
+  );
+  String get evidenceUploadFailed =>
+      _pick('Attachment unavailable', 'المرفق غير متاح');
 
   String get evidenceReasonLabel => _pick('Reason', 'السبب');
   String get evidenceCommentLabel => _pick('Your note', 'ملاحظتك');
@@ -145,9 +130,9 @@ class DisputeStatusL10n {
         );
 
   String timelineLabel(int count) => _pick(
-        'Delivery timeline attached ($count steps)',
-        'تم إرفاق مسار التوصيل ($count خطوات)',
-      );
+    'Delivery timeline attached ($count steps)',
+    'تم إرفاق مسار التوصيل ($count خطوات)',
+  );
 
   // ── D30 error / loading copy. ──────────────────────────────────────────────
 
@@ -159,13 +144,11 @@ class DisputeStatusL10n {
 
   String get loadError =>
       _pick('Could not load this dispute.', 'تعذّر تحميل هذا النزاع.');
-  String get notFoundError => _pick(
-        'This dispute could not be found.',
-        'تعذّر العثور على هذا النزاع.',
-      );
+  String get notFoundError =>
+      _pick('This dispute could not be found.', 'تعذّر العثور على هذا النزاع.');
   String get networkError => _pick(
-        'No connection. Check your network and try again.',
-        'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
-      );
+    'No connection. Check your network and try again.',
+    'لا يوجد اتصال. تحقّق من الشبكة وحاول مجددًا.',
+  );
   String get retry => _pick('Retry', 'إعادة المحاولة');
 }

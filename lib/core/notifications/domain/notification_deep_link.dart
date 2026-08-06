@@ -58,6 +58,23 @@ String? deepLinkForMessage(NotificationMessage message, {UserRole? role}) {
       return '/jeeber/deliveries/$id/active';
     case NotificationCategory.offerLost:
       return '/';
+    case NotificationCategory.dispute:
+      final id =
+          message.data['dispute_id'] ??
+          message.data['disputeId'] ??
+          message.data['case_id'] ??
+          message.data['caseId'];
+      if (id == null || id.isEmpty) return null;
+      return '/disputes/$id';
+    case NotificationCategory.support:
+      final id =
+          message.data['ticket_id'] ??
+          message.data['ticketId'] ??
+          message.data['support_ticket_id'] ??
+          message.data['case_id'] ??
+          message.data['caseId'];
+      if (id == null || id.isEmpty) return '/support';
+      return '/support/tickets/$id';
     case NotificationCategory.other:
       return null;
   }

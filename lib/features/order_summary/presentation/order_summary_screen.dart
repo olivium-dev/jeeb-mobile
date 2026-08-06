@@ -74,6 +74,8 @@ class _OrderSummaryView extends StatelessWidget {
       builder: (context, state) {
         final OrderSummary? summary =
             state.status == OrderSummaryStatus.loaded ? state.summary : null;
+        final Widget? footer =
+            summary == null ? null : _footer(context, summary);
         return Scaffold(
           backgroundColor: Colors.transparent,
           // R12 draws no radial of its own past the top-end bloom, so the
@@ -103,7 +105,8 @@ class _OrderSummaryView extends StatelessWidget {
                       },
                     ),
                     Expanded(child: _body(context, l10n, state)),
-                    if (summary != null) ?_footer(context, summary),
+                    // ignore: use_null_aware_elements
+                    if (footer != null) footer,
                   ],
                 ),
               ),

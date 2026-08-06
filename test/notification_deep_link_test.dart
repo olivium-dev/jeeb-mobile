@@ -461,19 +461,21 @@ void main() {
       );
     });
 
-    test('a CLIENT tapping a requestExpired still reaches the waiting screen',
-        () {
-      expect(
-        deepLinkForMessage(
-          _msg(
-            category: NotificationCategory.requestExpired,
-            data: const {'requestId': 'R'},
+    test(
+      'a CLIENT tapping a requestExpired still reaches the waiting screen',
+      () {
+        expect(
+          deepLinkForMessage(
+            _msg(
+              category: NotificationCategory.requestExpired,
+              data: const {'requestId': 'R'},
+            ),
+            role: UserRole.client,
           ),
-          role: UserRole.client,
-        ),
-        '/requests/R/waiting',
-      );
-    });
+          '/requests/R/waiting',
+        );
+      },
+    );
   });
 
   group('NotificationCategory.fromKey', () {
@@ -818,6 +820,46 @@ void main() {
     });
   });
 
+  group('dispute and support notifications', () {
+    test('dispute update routes to its read-only status timeline', () {
+      const data = <String, String>{
+        'type': 'jeeb.dispute.updated',
+        'caseId': 'dsp-1',
+      };
+      expect(NotificationCategory.fromData(data), NotificationCategory.dispute);
+      expect(
+        deepLinkForMessage(
+          _msg(category: NotificationCategory.fromData(data), data: data),
+        ),
+        '/disputes/dsp-1',
+      );
+    });
+
+    test('support reply routes directly to its ticket thread', () {
+      const data = <String, String>{
+        'type': 'jeeb.support.replied',
+        'caseId': 'ticket-1',
+      };
+      expect(NotificationCategory.fromData(data), NotificationCategory.support);
+      expect(
+        deepLinkForMessage(
+          _msg(category: NotificationCategory.fromData(data), data: data),
+        ),
+        '/support/tickets/ticket-1',
+      );
+    });
+
+    test(
+      'support update without an id safely opens the existing support route',
+      () {
+        expect(
+          deepLinkForMessage(_msg(category: NotificationCategory.support)),
+          '/support',
+        );
+      },
+    );
+  });
+
   // A15 (P2) — the assertion that would have caught the original bug, and the
   group('negative fence: no non-delivery type may resolve onto /orders/', () {
     const orderSurfaceTypes = <String>{'delivery', 'accept'};
@@ -853,7 +895,8 @@ void main() {
           expect(
             path?.startsWith('/orders/') ?? false,
             isFalse,
-            reason: '$type must never launder a request id into /orders/ '
+            reason:
+                '$type must never launder a request id into /orders/ '
                 '(resolved: $path)',
           );
         }
