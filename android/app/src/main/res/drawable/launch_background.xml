@@ -12,13 +12,13 @@
 
   Note: the centred item references the vector wordmark directly (a layer-list
   <item> accepts a VectorDrawable; <bitmap> would not). width/height pin the
-  wordmark to its intrinsic 182x73 box so it is centred, not stretched.
+  wordmark to a compact 168x68 box so it is centred, not stretched.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/jeeb_navy" />
     <item
-        android:width="182dp"
-        android:height="73dp"
+        android:width="168dp"
+        android:height="68dp"
         android:gravity="center"
         android:drawable="@drawable/jeeb_splash_logo" />
 </layer-list>

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,23 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/app/branded_splash.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
-import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_midnight_field.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
-
-/// WCAG relative-contrast ratio between two opaque colours.
-double _contrast(Color a, Color b) {
-  final double hi = math.max(a.computeLuminance(), b.computeLuminance());
-  final double lo = math.min(a.computeLuminance(), b.computeLuminance());
-  return (hi + 0.05) / (lo + 0.05);
-}
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
   final Map<String, String> _arbByTag;
 
   @override
-  bool isSupported(Locale locale) =>
-      _arbByTag.containsKey(locale.languageCode);
+  bool isSupported(Locale locale) => _arbByTag.containsKey(locale.languageCode);
 
   @override
   Future<AppLocalizations> load(Locale locale) async =>
@@ -45,7 +35,10 @@ void _loadArbs() {
   });
 }
 
-Widget _harness({Locale locale = const Locale('en')}) {
+Widget _harness({
+  Locale locale = const Locale('en'),
+  bool disableAnimations = false,
+}) {
   return MaterialApp(
     theme: AppTheme.light(),
     locale: locale,
@@ -56,6 +49,12 @@ Widget _harness({Locale locale = const Locale('en')}) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(
+        context,
+      ).copyWith(disableAnimations: disableAnimations),
+      child: child!,
+    ),
     home: const BrandedSplash(),
   );
 }
@@ -63,13 +62,83 @@ Widget _harness({Locale locale = const Locale('en')}) {
 void main() {
   setUpAll(_loadArbs);
 
-  testWidgets('renders the bundled logo SVG and localized EN tagline',
-      (tester) async {
+  testWidgets('renders only the bundled logo on the native splash field', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
 
     expect(find.byType(SvgPicture), findsOneWidget);
-    expect(find.text('Delivery App'), findsOneWidget);
+    expect(find.text('Delivery App'), findsNothing);
+  });
+
+  testWidgets('sizes the logo responsively without crowding compact phones', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    tester.view.physicalSize = const Size(360, 640);
+    await tester.pumpWidget(_harness(disableAnimations: true));
+    await tester.pump();
+    expect(tester.widget<SvgPicture>(find.byType(SvgPicture)).width, 152);
+
+    tester.view.physicalSize = const Size(834, 1194);
+    await tester.pumpWidget(_harness(disableAnimations: true));
+    await tester.pump();
+    expect(tester.widget<SvgPicture>(find.byType(SvgPicture)).width, 184);
+  });
+
+  testWidgets('logo settles into place and honours reduced motion', (
+    tester,
+  ) async {
+    Finder motion(Type type) => find.descendant(
+      of: find.bySemanticsIdentifier('_splash_logo'),
+      matching: find.byType(type),
+    );
+
+    await tester.pumpWidget(_harness());
+    await tester.pump();
+    expect(
+      tester.widget<FadeTransition>(motion(FadeTransition)).opacity.value,
+      1,
+    );
+    expect(
+      tester.widget<ScaleTransition>(motion(ScaleTransition)).scale.value,
+      1,
+    );
+
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      tester.widget<FadeTransition>(motion(FadeTransition)).opacity.value,
+      lessThan(0.9),
+    );
+    expect(
+      tester.widget<ScaleTransition>(motion(ScaleTransition)).scale.value,
+      greaterThan(1.06),
+    );
+
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+      tester.widget<FadeTransition>(motion(FadeTransition)).opacity.value,
+      1,
+    );
+    expect(
+      tester.widget<ScaleTransition>(motion(ScaleTransition)).scale.value,
+      1,
+    );
+
+    await tester.pumpWidget(_harness(disableAnimations: true));
+    await tester.pump();
+    expect(
+      tester.widget<FadeTransition>(motion(FadeTransition)).opacity.value,
+      1,
+    );
+    expect(
+      tester.widget<ScaleTransition>(motion(ScaleTransition)).scale.value,
+      1,
+    );
   });
 
   // Regression guard for the "plain navy square" splash. The widget being
@@ -77,8 +146,10 @@ void main() {
     final svg = File('assets/brand/jeeb_logo.svg').readAsStringSync();
 
     // Real drawable geometry — at least one filled <path>.
-    final fillMatches =
-        RegExp(r'fill="([^"]+)"', caseSensitive: false).allMatches(svg);
+    final fillMatches = RegExp(
+      r'fill="([^"]+)"',
+      caseSensitive: false,
+    ).allMatches(svg);
     final fills = fillMatches
         .map((m) => m.group(1)!.toLowerCase())
         .where((f) => f != 'none')
@@ -86,14 +157,16 @@ void main() {
     expect(
       RegExp(r'<path').allMatches(svg).length,
       greaterThan(0),
-      reason: 'logo SVG has no <path> geometry — would render as a blank/navy square',
+      reason:
+          'logo SVG has no <path> geometry — would render as a blank/navy square',
     );
 
     // White glyphs (read on navy) + orange brand accent.
     expect(
       fills.any((f) => f == 'white' || f == '#fff' || f == '#ffffff'),
       isTrue,
-      reason: 'wordmark must contain white fills that read on the navy background',
+      reason:
+          'wordmark must contain white fills that read on the navy background',
     );
     expect(
       fills.contains('#d73b00'),
@@ -111,8 +184,9 @@ void main() {
   });
 
   // Confirms the splash actually draws the wordmark asset on the navy field,
-  testWidgets('BrandedSplash draws the wordmark asset over the navy background',
-      (tester) async {
+  testWidgets('BrandedSplash draws the wordmark asset over the navy background', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
 
@@ -124,31 +198,28 @@ void main() {
         'assetName',
         'assets/brand/jeeb_logo.svg',
       ),
-      reason: 'splash must draw the brand wordmark asset, not a different drawable',
+      reason:
+          'splash must draw the brand wordmark asset, not a different drawable',
     );
 
-    // L12/3b: the splash mounts the ratified §8 field, not a flat slab.
-    final field = tester.widget<JeebMidnightField>(
+    final field = tester.widget<ColoredBox>(
       find.descendant(
         of: find.byType(BrandedSplash),
-        matching: find.byType(JeebMidnightField),
+        matching: find.byType(ColoredBox),
       ),
     );
-    expect(field.variant, JeebFieldVariant.content);
-    expect(field.animateDecor, isFalse);
     expect(
-      field.glowColor,
-      Colors.transparent,
-      reason: 'the splash has no tile, so it spends no orange budget',
+      field.color,
+      JeebMidnight.surface,
+      reason: 'Flutter must continue the exact flat navy Android launch field',
     );
   });
 
-  testWidgets('exposes Semantics identifiers for QA targeting',
-      (tester) async {
+  testWidgets('exposes Semantics identifiers for QA targeting', (tester) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
 
-    for (final id in const ['_splash_screen', '_splash_logo', '_splash_tagline']) {
+    for (final id in const ['_splash_screen', '_splash_logo']) {
       expect(
         find.bySemanticsIdentifier(id),
         findsOneWidget,
@@ -157,39 +228,9 @@ void main() {
     }
   });
 
-  // L12: the tagline used to ink `onSecondary` (page navy) on a
-  // `secondaryContainer` slab — 1.17 : 1, effectively invisible.
-  testWidgets('the tagline ink clears AA against every navy the field paints',
-      (tester) async {
-    await tester.pumpWidget(_harness());
-    await tester.pump();
-
-    final ink = tester
-        .widget<Text>(find.text('Delivery App'))
-        .style!
-        .color!;
-    final scheme = AppTheme.midnight().colorScheme;
-    expect(ink, scheme.onSecondaryContainer);
-
-    for (final navy in const <Color>[
-      JeebMidnight.page,
-      JeebMidnight.surface,
-      JeebMidnight.surfaceHigh,
-    ]) {
-      expect(
-        _contrast(ink, navy),
-        greaterThanOrEqualTo(4.5),
-        reason: 'tagline must read on every stop of the §8 base wash',
-      );
-    }
-
-    // Discrimination: the reverted value fails the same assertion.
-    expect(_contrast(scheme.onSecondary, JeebMidnight.surfaceHigh),
-        lessThan(1.5));
-  });
-
-  testWidgets('both system bands take the Midnight overlay, not raw .light',
-      (tester) async {
+  testWidgets('both system bands take the Midnight overlay, not raw .light', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness());
     await tester.pump();
 
@@ -207,12 +248,13 @@ void main() {
     );
   });
 
-  testWidgets('mirrors to RTL and shows the Arabic tagline in ar locale',
-      (tester) async {
+  testWidgets('preserves RTL locale direction without changing the artwork', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(locale: const Locale('ar')));
     await tester.pump();
 
-    expect(find.text('تطبيق التوصيل'), findsOneWidget);
+    expect(find.byType(SvgPicture), findsOneWidget);
     final dir = Directionality.of(tester.element(find.byType(BrandedSplash)));
     expect(dir, TextDirection.rtl);
   });
