@@ -61,6 +61,8 @@ exit 0
       contains('--dart-define=JEEB_MOCK_BASE_URL="\${MSI_GATEWAY}"'),
     );
     expect(script, contains('--dart-define=JEEB_USE_MOCK_PREFIXES=false'));
+    expect(script, contains('--dart-define=JEEB_DEVTOOL_ENABLED=true'));
+    expect(script, contains('--dart-define=JEEB_REALTIME_TRACKING=true'));
     expect(script, isNot(contains('--dart-define=GATEWAY_BASE_URL=')));
     expect(script, isNot(contains('MAPS_API_KEY')));
     expect(script, isNot(contains('emulator-5554')));

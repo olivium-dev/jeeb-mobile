@@ -6,10 +6,12 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jeeb_mobile/core/idempotency/operation_id.dart';
 import 'package:jeeb_mobile/features/kyc/data/dio_cdn_asset_gateway.dart';
 import 'package:jeeb_mobile/features/kyc/domain/cdn_asset_gateway.dart';
 
-const _signedUrl = 'https://signed.cdn.test/api/cdn/put-signed/'
+const _signedUrl =
+    'https://signed.cdn.test/api/cdn/put-signed/'
     'selfie_with_liveness?exp=1750000000&ct=jpeg&sig=abc-DEF_123.tok';
 
 void main() {
@@ -31,9 +33,65 @@ void main() {
 
       expect(broker.requests.single.method, 'POST');
       expect(broker.requests.single.path, '/api/cdn/assets');
+      expect(
+        isOperationId(
+          broker.requests.single.headers['Idempotency-Key'] as String,
+        ),
+        isTrue,
+      );
       final body = broker.requests.single.data! as Map<String, dynamic>;
       expect(body['slot'], 'id_document_front');
       expect(body['content_type'], 'image/jpeg');
+    });
+
+    test('uses a fresh idempotency key for each upload operation', () async {
+      final broker = _BrokerRecorder();
+      final upload = _UploadRecorder();
+      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
+
+      await gateway.uploadAsset(
+        slot: CdnUploadSlot.proofOfDelivery,
+        bytes: bytes,
+      );
+      await gateway.uploadAsset(
+        slot: CdnUploadSlot.proofOfDelivery,
+        bytes: bytes,
+      );
+
+      final keys = broker.requests
+          .map((request) => request.headers['Idempotency-Key'] as String)
+          .toList();
+      expect(keys, hasLength(2));
+      expect(keys.toSet(), hasLength(2));
+      expect(keys, everyElement(predicate<String>(isOperationId)));
+    });
+
+    test('surfaces a broker rejection as CdnUploadException', () async {
+      final broker = Dio(BaseOptions(baseUrl: 'https://gateway.test'));
+      broker.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) => handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response<void>(
+                requestOptions: options,
+                statusCode: 400,
+              ),
+              type: DioExceptionType.badResponse,
+              message: 'HTTP 400',
+            ),
+          ),
+        ),
+      );
+      final gateway = DioCdnAssetGateway(
+        broker,
+        uploadDio: _UploadRecorder().dio,
+      );
+
+      expect(
+        gateway.uploadAsset(slot: CdnUploadSlot.proofOfDelivery, bytes: bytes),
+        throwsA(isA<CdnUploadException>()),
+      );
     });
 
     test('maps every CdnUploadSlot to its wire value', () async {
@@ -64,14 +122,16 @@ void main() {
   });
 
   group('DioCdnAssetGateway — dedicated interceptor-free upload Dio', () {
-    test('the default upload Dio is a DIFFERENT instance with NO interceptors',
-        () {
-      final broker = _BrokerRecorder();
-      final gateway = DioCdnAssetGateway(broker.dio); // production default
+    test(
+      'the default upload Dio is a DIFFERENT instance with NO interceptors',
+      () {
+        final broker = _BrokerRecorder();
+        final gateway = DioCdnAssetGateway(broker.dio); // production default
 
-      expect(identical(gateway.uploadDio, broker.dio), isFalse);
-      expect(gateway.uploadDio.interceptors, isEmpty);
-    });
+        expect(identical(gateway.uploadDio, broker.dio), isFalse);
+        expect(gateway.uploadDio.interceptors, isEmpty);
+      },
+    );
 
     test('the default upload Dio carries BOUNDED connect/send/receive timeouts '
         'so a stalled CDN upload can never hang the submit forever '
@@ -81,59 +141,67 @@ void main() {
       final opts = gateway.uploadDio.options;
 
       // The raw Dio() used to have NONE of these — a half-open socket during the
-      expect(opts.connectTimeout, isNotNull,
-          reason: 'connect must be bounded');
-      expect(opts.sendTimeout, isNotNull,
-          reason: 'the image PUT is a SEND — this is the load-bearing bound');
-      expect(opts.receiveTimeout, isNotNull,
-          reason: 'receive must be bounded');
+      expect(opts.connectTimeout, isNotNull, reason: 'connect must be bounded');
+      expect(
+        opts.sendTimeout,
+        isNotNull,
+        reason: 'the image PUT is a SEND — this is the load-bearing bound',
+      );
+      expect(opts.receiveTimeout, isNotNull, reason: 'receive must be bounded');
       // Finite and sane (a compressed ID photo should never need > ~30s).
       expect(opts.connectTimeout!.inSeconds, inInclusiveRange(1, 60));
       expect(opts.sendTimeout!.inSeconds, inInclusiveRange(1, 60));
       expect(opts.receiveTimeout!.inSeconds, inInclusiveRange(1, 60));
     });
 
-    test('PUTs to the ABSOLUTE upload_url verbatim — baseUrl never joined',
-        () async {
-      final broker = _BrokerRecorder();
-      final upload = _UploadRecorder(); // its Dio has a decoy baseUrl
-      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
+    test(
+      'PUTs to the ABSOLUTE upload_url verbatim — baseUrl never joined',
+      () async {
+        final broker = _BrokerRecorder();
+        final upload = _UploadRecorder(); // its Dio has a decoy baseUrl
+        final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
 
-      await gateway.uploadAsset(
-        slot: CdnUploadSlot.selfieWithLiveness,
-        bytes: bytes,
-      );
+        await gateway.uploadAsset(
+          slot: CdnUploadSlot.selfieWithLiveness,
+          bytes: bytes,
+        );
 
-      // Broker Dio saw ONLY the POST; the PUT never traversed it.
-      expect(broker.requests.length, 1);
-      final put = upload.captured!;
-      expect(put.method, 'PUT');
-      // Query string (incl. the signature) is preserved byte-for-byte and the
-      expect(put.uri.toString(), _signedUrl);
-      expect(put.uri.host, 'signed.cdn.test');
-    });
+        // Broker Dio saw ONLY the POST; the PUT never traversed it.
+        expect(broker.requests.length, 1);
+        final put = upload.captured!;
+        expect(put.method, 'PUT');
+        // Query string (incl. the signature) is preserved byte-for-byte and the
+        expect(put.uri.toString(), _signedUrl);
+        expect(put.uri.host, 'signed.cdn.test');
+      },
+    );
 
     test(
-        'sends the RAW bytes unmodified with Content-Type from required_headers '
-        '(never application/json) and NO Authorization', () async {
-      final broker = _BrokerRecorder();
-      final upload = _UploadRecorder();
-      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
+      'sends the RAW bytes unmodified with Content-Type from required_headers '
+      '(never application/json) and NO Authorization',
+      () async {
+        final broker = _BrokerRecorder();
+        final upload = _UploadRecorder();
+        final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
 
-      await gateway.uploadAsset(
-        slot: CdnUploadSlot.idDocumentFront,
-        bytes: bytes,
-      );
+        await gateway.uploadAsset(
+          slot: CdnUploadSlot.idDocumentFront,
+          bytes: bytes,
+        );
 
-      final put = upload.captured!;
-      // (c) raw bytes, byte-for-byte — not JSON/multipart re-encoded.
-      expect(upload.capturedBody, equals(bytes));
-      // (c) Content-Type from required_headers, NOT application/json.
-      expect(_header(put, 'Content-Type'), 'image/jpeg');
-      expect(_header(put, 'Content-Type'), isNot(contains('application/json')));
-      // (d) no Bearer/authorization from any interceptor.
-      expect(_header(put, 'Authorization'), isNull);
-    });
+        final put = upload.captured!;
+        // (c) raw bytes, byte-for-byte — not JSON/multipart re-encoded.
+        expect(upload.capturedBody, equals(bytes));
+        // (c) Content-Type from required_headers, NOT application/json.
+        expect(_header(put, 'Content-Type'), 'image/jpeg');
+        expect(
+          _header(put, 'Content-Type'),
+          isNot(contains('application/json')),
+        );
+        // (d) no Bearer/authorization from any interceptor.
+        expect(_header(put, 'Authorization'), isNull);
+      },
+    );
 
     test('forwards required_headers verbatim (extra headers) with a custom '
         'contentType', () async {
@@ -155,19 +223,21 @@ void main() {
       expect(_header(put, 'x-amz-acl'), 'private');
     });
 
-    test('uses the HTTP method the broker returns (normalized upper-case)',
-        () async {
-      final broker = _BrokerRecorder(method: 'put');
-      final upload = _UploadRecorder();
-      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
+    test(
+      'uses the HTTP method the broker returns (normalized upper-case)',
+      () async {
+        final broker = _BrokerRecorder(method: 'put');
+        final upload = _UploadRecorder();
+        final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
 
-      await gateway.uploadAsset(
-        slot: CdnUploadSlot.idDocumentFront,
-        bytes: bytes,
-      );
+        await gateway.uploadAsset(
+          slot: CdnUploadSlot.idDocumentFront,
+          bytes: bytes,
+        );
 
-      expect(upload.captured!.method, 'PUT');
-    });
+        expect(upload.captured!.method, 'PUT');
+      },
+    );
 
     test('returns the object_ref from the broker ticket', () async {
       final broker = _BrokerRecorder();
@@ -199,35 +269,40 @@ void main() {
       expect(upload.captured, isNotNull, reason: 'the PUT was attempted');
     });
 
-    test('surfaces an upstream transport error as CdnUploadException', () async {
-      final broker = _BrokerRecorder();
-      final upload = _UploadRecorder(throwError: true);
-      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
+    test(
+      'surfaces an upstream transport error as CdnUploadException',
+      () async {
+        final broker = _BrokerRecorder();
+        final upload = _UploadRecorder(throwError: true);
+        final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
 
-      await expectLater(
-        () => gateway.uploadAsset(
-          slot: CdnUploadSlot.idDocumentFront,
-          bytes: bytes,
-        ),
-        throwsA(isA<CdnUploadException>()),
-      );
-    });
+        await expectLater(
+          () => gateway.uploadAsset(
+            slot: CdnUploadSlot.idDocumentFront,
+            bytes: bytes,
+          ),
+          throwsA(isA<CdnUploadException>()),
+        );
+      },
+    );
 
-    test('throws (and never attempts the PUT) when upload_url is missing',
-        () async {
-      final broker = _BrokerRecorder(dropUploadUrl: true);
-      final upload = _UploadRecorder();
-      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
+    test(
+      'throws (and never attempts the PUT) when upload_url is missing',
+      () async {
+        final broker = _BrokerRecorder(dropUploadUrl: true);
+        final upload = _UploadRecorder();
+        final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
 
-      await expectLater(
-        () => gateway.uploadAsset(
-          slot: CdnUploadSlot.idDocumentFront,
-          bytes: bytes,
-        ),
-        throwsA(isA<CdnUploadException>()),
-      );
-      expect(upload.captured, isNull, reason: 'no PUT before a valid ticket');
-    });
+        await expectLater(
+          () => gateway.uploadAsset(
+            slot: CdnUploadSlot.idDocumentFront,
+            bytes: bytes,
+          ),
+          throwsA(isA<CdnUploadException>()),
+        );
+        expect(upload.captured, isNull, reason: 'no PUT before a valid ticket');
+      },
+    );
 
     test('throws when object_ref is missing', () async {
       final broker = _BrokerRecorder(dropObjectRef: true);
@@ -246,41 +321,48 @@ void main() {
 
   // ===========================================================================
   group('DioCdnAssetGateway.fetchAsset — authenticated read proxy', () {
-    test('GETs /api/cdn/assets/content/<ref> on the SHARED Dio as raw bytes',
-        () async {
-      final payload = Uint8List.fromList(const <int>[1, 2, 3, 4, 5]);
-      final broker = _ContentRecorder(body: payload);
-      final upload = _UploadRecorder();
-      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
+    test(
+      'GETs /api/cdn/assets/content/<ref> on the SHARED Dio as raw bytes',
+      () async {
+        final payload = Uint8List.fromList(const <int>[1, 2, 3, 4, 5]);
+        final broker = _ContentRecorder(body: payload);
+        final upload = _UploadRecorder();
+        final gateway = DioCdnAssetGateway(broker.dio, uploadDio: upload.dio);
 
-      final out = await gateway.fetchAsset('chat_attachment/abc123.jpg');
+        final out = await gateway.fetchAsset('chat_attachment/abc123.jpg');
 
-      expect(out, payload, reason: 'bytes are returned verbatim');
-      final req = broker.requests.single;
-      expect(req.method, 'GET');
-      expect(req.path, '/api/cdn/assets/content/chat_attachment/abc123.jpg');
-      expect(
-        req.responseType,
-        ResponseType.bytes,
-        reason: 'the JSON response transformer must be bypassed',
-      );
-      expect(
-        upload.captured,
-        isNull,
-        reason: 'the read is capability-gated — it needs the Bearer the shared '
-            'Dio carries, so the bare upload Dio must never be used',
-      );
-      expect(
-        req.path,
-        contains('chat_attachment/abc123.jpg'),
-        reason: 'the object_ref `/` stays a PATH SEPARATOR so the gateway '
-            'catch-all binds it; the gateway does cdn\'s single-segment encode',
-      );
-    });
+        expect(out, payload, reason: 'bytes are returned verbatim');
+        final req = broker.requests.single;
+        expect(req.method, 'GET');
+        expect(req.path, '/api/cdn/assets/content/chat_attachment/abc123.jpg');
+        expect(
+          req.responseType,
+          ResponseType.bytes,
+          reason: 'the JSON response transformer must be bypassed',
+        );
+        expect(
+          upload.captured,
+          isNull,
+          reason:
+              'the read is capability-gated — it needs the Bearer the shared '
+              'Dio carries, so the bare upload Dio must never be used',
+        );
+        expect(
+          req.path,
+          contains('chat_attachment/abc123.jpg'),
+          reason:
+              'the object_ref `/` stays a PATH SEPARATOR so the gateway '
+              'catch-all binds it; the gateway does cdn\'s single-segment encode',
+        );
+      },
+    );
 
     test('an empty object_ref throws WITHOUT touching the network', () async {
       final broker = _ContentRecorder(body: Uint8List.fromList(const <int>[1]));
-      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: _UploadRecorder().dio);
+      final gateway = DioCdnAssetGateway(
+        broker.dio,
+        uploadDio: _UploadRecorder().dio,
+      );
 
       await expectLater(
         () => gateway.fetchAsset('   '),
@@ -291,7 +373,10 @@ void main() {
 
     test('an empty 200 body throws CdnFetchException', () async {
       final broker = _ContentRecorder(body: Uint8List(0));
-      final gateway = DioCdnAssetGateway(broker.dio, uploadDio: _UploadRecorder().dio);
+      final gateway = DioCdnAssetGateway(
+        broker.dio,
+        uploadDio: _UploadRecorder().dio,
+      );
 
       await expectLater(
         () => gateway.fetchAsset('chat_attachment/abc.jpg'),
@@ -299,27 +384,33 @@ void main() {
       );
     });
 
-    test('a 404 / 500 / network error all surface as CdnFetchException',
-        () async {
-      for (final status in <int>[404, 500]) {
-        final broker = _ContentRecorder(body: Uint8List(0), status: status);
-        final gateway =
-            DioCdnAssetGateway(broker.dio, uploadDio: _UploadRecorder().dio);
+    test(
+      'a 404 / 500 / network error all surface as CdnFetchException',
+      () async {
+        for (final status in <int>[404, 500]) {
+          final broker = _ContentRecorder(body: Uint8List(0), status: status);
+          final gateway = DioCdnAssetGateway(
+            broker.dio,
+            uploadDio: _UploadRecorder().dio,
+          );
+          await expectLater(
+            () => gateway.fetchAsset('chat_attachment/abc.jpg'),
+            throwsA(isA<CdnFetchException>()),
+            reason: 'status $status',
+          );
+        }
+
+        final broken = _ContentRecorder(body: Uint8List(0), networkError: true);
+        final gateway = DioCdnAssetGateway(
+          broken.dio,
+          uploadDio: _UploadRecorder().dio,
+        );
         await expectLater(
           () => gateway.fetchAsset('chat_attachment/abc.jpg'),
           throwsA(isA<CdnFetchException>()),
-          reason: 'status $status',
         );
-      }
-
-      final broken = _ContentRecorder(body: Uint8List(0), networkError: true);
-      final gateway =
-          DioCdnAssetGateway(broken.dio, uploadDio: _UploadRecorder().dio);
-      await expectLater(
-        () => gateway.fetchAsset('chat_attachment/abc.jpg'),
-        throwsA(isA<CdnFetchException>()),
-      );
-    });
+      },
+    );
   });
 }
 
@@ -425,7 +516,8 @@ class _BrokerRecorder {
       requestOptions: options,
       data: <String, dynamic>{
         if (!dropUploadUrl)
-          'upload_url': 'https://signed.cdn.test/api/cdn/put-signed/$slot'
+          'upload_url':
+              'https://signed.cdn.test/api/cdn/put-signed/$slot'
               '?exp=1750000000&ct=jpeg&sig=abc-DEF_123.tok',
         if (!dropObjectRef) 'object_ref': 'cdn://obj/$slot/abc123',
         'expires_in': 300,
@@ -472,8 +564,9 @@ class _CapturingAdapter implements HttpClientAdapter {
     _owner.captured = options;
     if (requestStream != null) {
       final chunks = await requestStream.toList();
-      _owner.capturedBody =
-          Uint8List.fromList(chunks.expand((chunk) => chunk).toList());
+      _owner.capturedBody = Uint8List.fromList(
+        chunks.expand((chunk) => chunk).toList(),
+      );
     }
     if (_owner.throwError) {
       throw DioException.connectionError(

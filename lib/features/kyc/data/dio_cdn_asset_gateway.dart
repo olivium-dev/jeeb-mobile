@@ -1,12 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/idempotency/operation_id.dart';
 import '../domain/cdn_asset_gateway.dart';
 
 /// Dio-backed [CdnAssetGateway].
 class DioCdnAssetGateway implements CdnAssetGateway {
   DioCdnAssetGateway(this._brokerDio, {Dio? uploadDio})
-      : _uploadDio = uploadDio ?? _bareUploadDio();
+    : _uploadDio = uploadDio ?? _bareUploadDio();
 
   final Dio _brokerDio;
 
@@ -50,14 +51,23 @@ class DioCdnAssetGateway implements CdnAssetGateway {
     CdnUploadSlot slot,
     String contentType,
   ) async {
-    final res = await _brokerDio.post<Map<String, dynamic>>(
-      _brokerPath,
-      data: {'slot': _wireSlot(slot), 'content_type': contentType},
-    );
-    return _CdnUploadTicket.fromBroker(
-      res.data ?? const <String, dynamic>{},
-      fallbackContentType: contentType,
-    );
+    try {
+      final res = await _brokerDio.post<Map<String, dynamic>>(
+        _brokerPath,
+        data: {'slot': _wireSlot(slot), 'content_type': contentType},
+        options: Options(
+          headers: <String, Object?>{'Idempotency-Key': newOperationId()},
+        ),
+      );
+      return _CdnUploadTicket.fromBroker(
+        res.data ?? const <String, dynamic>{},
+        fallbackContentType: contentType,
+      );
+    } on DioException catch (e) {
+      throw CdnUploadException(
+        'CDN broker ticket failed for ${_wireSlot(slot)}: ${e.message}',
+      );
+    }
   }
 
   Future<void> _putBytes({
@@ -160,8 +170,7 @@ class _CdnUploadTicket {
       objectRef: _requireField(body, 'object_ref'),
       method: _resolveMethod(body),
       headers: headers,
-      contentType:
-          _headerValue(headers, 'Content-Type') ?? fallbackContentType,
+      contentType: _headerValue(headers, 'Content-Type') ?? fallbackContentType,
     );
   }
 

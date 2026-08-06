@@ -35,6 +35,8 @@ DEFINES=(
   --dart-define=USE_MOCK_GATEWAY=false
   --dart-define=JEEB_MOCK_BASE_URL="${MSI_GATEWAY}"
   --dart-define=JEEB_USE_MOCK_PREFIXES=false
+  --dart-define=JEEB_DEVTOOL_ENABLED=true
+  --dart-define=JEEB_REALTIME_TRACKING=true
 )
 
 fail() {
