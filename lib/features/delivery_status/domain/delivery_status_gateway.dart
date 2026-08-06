@@ -39,7 +39,7 @@ class InMemoryDeliveryStatusGateway implements DeliveryStatusGateway {
     _controller = controller;
     final initial = _seed ?? _scripted.firstOrNull;
     final pending = [
-      if (initial != null) initial,
+      ?initial,
       ..._scripted.skip(_seed == null ? 1 : 0),
     ];
     controller.onListen = () {
