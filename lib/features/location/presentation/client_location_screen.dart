@@ -33,6 +33,7 @@ import '../data/fake_location_select_repository.dart';
 import '../domain/current_location_resolver.dart';
 import '../domain/location_select_repository.dart';
 import 'widgets/client_location_add_row.dart';
+import 'widgets/compose_tier_section.dart';
 import 'widgets/current_location_status_card.dart';
 import 'widgets/delivery_create_layout.dart';
 import 'widgets/saved_address_pill_row.dart';
@@ -505,6 +506,10 @@ class _Body extends StatelessWidget {
         // ComposeRequestController, which threads it into the POST /requests
         // body. It is the correct delivery UX (who receives + their phone).
         const _RecipientPhoneField(),
+        const SizedBox(height: Spacing.medium),
+        // The voice path auto-selects the recommended tier so the mic can reach
+        // a create in one hop; this is where that choice is disclosed.
+        const ComposeTierSection(),
       ],
     );
   }

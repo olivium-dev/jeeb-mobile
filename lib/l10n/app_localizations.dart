@@ -2878,8 +2878,19 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get homeCapsuleOrTapToType => _get('homeCapsuleOrTapToType');
   String get homeCapsuleFirstRequestTitle =>
       _get('homeCapsuleFirstRequestTitle');
-  String get homeCapsuleFirstRequestSubtitle =>
-      _get('homeCapsuleFirstRequestSubtitle');
+  String get homeCreateOrderCta => _get('homeCreateOrderCta');
+  String get homeVoiceSlideToCancel => _get('homeVoiceSlideToCancel');
+  String get homeVoiceReleaseToCancel =>
+      _get('homeVoiceReleaseToCancel');
+  String get homeVoiceTierUnavailable => _get('homeVoiceTierUnavailable');
+  String get homeVoiceTranscriptEmpty => _get('homeVoiceTranscriptEmpty');
+  String get homeVoiceHoldToRecord => _get('homeVoiceHoldToRecord');
+  String get homeMicTapHintStart => _get('homeMicTapHintStart');
+  String get homeMicTapHintStop => _get('homeMicTapHintStop');
+  String get homeMicLabelRecording => _get('homeMicLabelRecording');
+  String get homeMicCancelRecording => _get('homeMicCancelRecording');
+  String get composeTierHeading => _get('composeTierHeading');
+  String get composeTierSheetTitle => _get('composeTierSheetTitle');
   String get homePendingEmptyMidnight => _get('homePendingEmptyMidnight');
   String get pendingTabBroadcastingLabel => _get('pendingTabBroadcastingLabel');
   String get homeTabPending => _get('homeTabPending');

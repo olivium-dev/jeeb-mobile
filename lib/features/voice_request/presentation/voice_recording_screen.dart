@@ -23,6 +23,7 @@ import '../domain/audioplayers_voice_player.dart';
 import '../domain/record_voice_recorder.dart';
 import '../domain/voice_player.dart';
 import '../domain/voice_recorder.dart';
+import 'voice_recording_error_policy.dart';
 import 'widgets/live_transcript_band.dart';
 import 'widgets/mic_cluster.dart';
 import 'widgets/mic_field_rings.dart';
@@ -178,12 +179,15 @@ class _VoiceRecordingView extends StatelessWidget {
               );
             }
             final error = state.error;
-            if (error != null && _isTransientError(error)) {
+            if (error != null && isTransientVoiceError(error)) {
               // Recording errors remain one-shot feedback. Upload errors are
               // deliberately excluded: the retained clip renders a persistent
               // OMDS error state with retry-submit and record-again actions.
               ScaffoldMessenger.of(context).clearSnackBars();
-              showOmdsErrorSnackbar(context, message: _errorCopy(l10n, error));
+              showOmdsErrorSnackbar(
+                context,
+                message: voiceErrorCopy(l10n, error),
+              );
               context.read<VoiceRecordingCubit>().acknowledgeError();
             }
           },
@@ -466,7 +470,7 @@ class _UploadFailureSurface extends StatelessWidget {
       illustrationSize: _kStateIllustrationSize,
       padding: EdgeInsets.zero,
       headline: l10n.voiceRecordingUploadErrorTitle,
-      body: _errorCopy(l10n, error),
+      body: voiceErrorCopy(l10n, error),
     );
   }
 }
@@ -675,28 +679,12 @@ class _UploadFailureActions extends StatelessWidget {
   }
 }
 
-/// Errors that block recording until the user acts (grants mic permission, or
-/// frees the recorder). These persist on screen as a recoverable
-/// [OmdsErrorState] instead of a transient snackbar so the user is never left
-/// in a dead-end tap-deny-tap loop.
-bool _isBlockingError(VoiceRecordingError error) =>
-    error == VoiceRecordingError.permissionDenied ||
-    error == VoiceRecordingError.recorderUnavailable;
-
-bool _isUploadError(VoiceRecordingError error) =>
-    error == VoiceRecordingError.uploadNetwork ||
-    error == VoiceRecordingError.uploadServer ||
-    error == VoiceRecordingError.uploadUnknown;
-
-bool _isTransientError(VoiceRecordingError error) =>
-    !_isBlockingError(error) && !_isUploadError(error);
-
 /// Whether the mic pre-conditions are failing, i.e. the composer is replaced by
 /// a recoverable error surface.
 bool _isBlocked(VoiceRecordingState state) {
   if (state.isRecording || state.hasUploadFailure) return false;
   final error = state.error;
-  return error != null && _isBlockingError(error);
+  return error != null && isBlockingVoiceError(error);
 }
 
 /// The two phases the board actually draws — composer docked at the thumb with
@@ -721,24 +709,3 @@ const double _kFloorGlowAlpha = 0.40;
 JeebSemanticColors _semanticColors(BuildContext context) =>
     Theme.of(context).extension<JeebSemanticColors>() ??
     JeebSemanticColors.midnight();
-
-String _errorCopy(AppLocalizations l10n, VoiceRecordingError error) {
-  switch (error) {
-    case VoiceRecordingError.permissionDenied:
-      return l10n.voiceRecordingErrorPermission;
-    case VoiceRecordingError.recorderUnavailable:
-      return l10n.voiceRecordingErrorUnavailable;
-    case VoiceRecordingError.recorderFailed:
-      return l10n.voiceRecordingErrorRecorderFailed;
-    case VoiceRecordingError.tooShort:
-      return l10n.voiceRecordingErrorTooShort;
-    case VoiceRecordingError.maxDurationReached:
-      return l10n.voiceRecordingErrorMaxReached;
-    case VoiceRecordingError.uploadNetwork:
-      return l10n.voiceRecordingErrorUploadNetwork;
-    case VoiceRecordingError.uploadServer:
-      return l10n.voiceRecordingErrorUploadServer;
-    case VoiceRecordingError.uploadUnknown:
-      return l10n.voiceRecordingErrorUploadGeneric;
-  }
-}

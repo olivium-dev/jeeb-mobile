@@ -1,29 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/motion/jeeb_motion.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/directional_icons.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
-import '../../../../core/widgets/jeeb/jeeb_mic_hero.dart';
-import '../../../../core/widgets/jeeb/jeeb_waveform.dart';
 import '../../../../l10n/app_localizations.dart';
 
-/// MIDNIGHT R1's create surface: the white prompt, the orange Arabic tagline
-/// and the frosted voice capsule that carries the Ø56 mic.
-///
-/// Two tap targets, two frozen contracts:
-///   * the mic (`client_home_mic_cta`) routes to `voice-request` on tap AND on
-///     hold — the capsule promises both gestures and both work;
-///   * the capsule body (`orders_create_request_button`) runs the host's create
-///     handler, which is what Maestro jm-023/jm-024 and flows 08/13/14/15 tap.
+/// MIDNIGHT R1's create surface: prompt, Arabic tagline and the single-line
+/// capsule body that carries the frozen create id.
 ///
 /// E1 re-homes `_request_empty_state_new_order_button` onto that same body
-/// ([firstRequest]) — the empty tile draws no separate CTA button, only this
-/// capsule, so the identifier follows the affordance instead of keeping a
-/// button alive that the board deleted (doc-13 Pattern D).
+/// ([firstRequest]) — the empty tile draws no separate CTA button (doc-13
+/// Pattern D).
 class ClientHomeRequestHero extends StatelessWidget {
   const ClientHomeRequestHero({
     super.key,
@@ -32,14 +24,22 @@ class ClientHomeRequestHero extends StatelessWidget {
     this.firstRequest = false,
   });
 
-  /// Board capsule: a leading disc inset by 10, text side 18.
+  /// Board capsule: text side 18. The 48dp interactive floor supplies the
+  /// vertical air, so the padding adds none of its own.
   static const EdgeInsetsGeometry _capsulePadding =
-      EdgeInsetsDirectional.fromSTEB(10, 10, 18, 10);
+      EdgeInsetsDirectional.symmetric(horizontal: 18, vertical: 0);
 
-  /// Above this effective subtitle size the waveform is dropped so the row
-  /// cannot overflow at large accessibility text scales. The mic never hides —
-  /// it is the screen's primary action.
-  static const double _waveformHideThreshold = 20;
+  /// Above this effective title size the trailing chevron is dropped so the
+  /// row cannot overflow at large accessibility text scales.
+  static const double _chevronHideThreshold = 27;
+
+  /// The leading add-glyph disc — a tint, never a filled orange pill: §4.1
+  /// rations solid accent to the mic.
+  static const double _glyphDisc = 24;
+
+  /// Peak of the leading tint's breath; `× breatheRestOpacity` lands on the
+  /// flat .16 the disc paints at rest, so the still frame never dims.
+  static const double _glyphTintPeak = 0.36;
 
   /// Gap under the prompt headline (board `margin:6px 0 0`).
   static const double _taglineGap = 6;
@@ -48,9 +48,8 @@ class ClientHomeRequestHero extends StatelessWidget {
   static const int _afternoonHour = 12;
   static const int _eveningHour = 17;
 
-  /// Runs the host shell's create-request flow. Null leaves the body inert
-  /// (the mic still routes), which is the honest rendering of a host that has
-  /// not wired one.
+  /// Runs the host shell's create-request flow. Null leaves the body inert —
+  /// the honest rendering of a host that has not wired one.
   final VoidCallback? onCreateRequest;
 
   /// Draws the "What do you need tonight?" prompt + Arabic tagline above the
@@ -68,11 +67,11 @@ class ClientHomeRequestHero extends StatelessWidget {
     final semantic =
         Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
-    final subtitleSize =
-        context.jeebText.bodySmall.fontSize ?? _waveformHideThreshold;
-    final showWaveform =
-        MediaQuery.textScalerOf(context).scale(subtitleSize) <=
-        _waveformHideThreshold;
+    final titleSize =
+        context.jeebText.titleProminent.fontSize ?? _chevronHideThreshold;
+    final showChevron =
+        MediaQuery.textScalerOf(context).scale(titleSize) <=
+        _chevronHideThreshold;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -97,23 +96,7 @@ class ClientHomeRequestHero extends StatelessWidget {
         JeebGlassCapsule(
           radius: JeebRadii.capsule,
           padding: _capsulePadding,
-          child: Row(
-            children: [
-              JeebMicHero(
-                size: JeebMicHero.sizeCompact,
-                identifier: 'client_home_mic_cta',
-                semanticLabel: l10n.homeMicLabel,
-                onTap: () => _openVoiceRequest(context),
-                onLongPress: () => _openVoiceRequest(context),
-              ),
-              const SizedBox(width: Spacing.small),
-              Expanded(child: _createBody(context, l10n, semantic)),
-              if (showWaveform) ...[
-                const SizedBox(width: Spacing.small),
-                const ExcludeSemantics(child: JeebWaveform.onNavy()),
-              ],
-            ],
-          ),
+          child: _createBody(context, l10n, semantic, showChevron),
         ),
       ],
     );
@@ -123,46 +106,81 @@ class ClientHomeRequestHero extends StatelessWidget {
     BuildContext context,
     AppLocalizations l10n,
     JeebSemanticColors semantic,
+    bool showChevron,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
+    final accent = context.jeebRoles.accent;
+    final title = firstRequest
+        ? l10n.homeCapsuleFirstRequestTitle
+        : l10n.homeCreateOrderCta;
     Widget body = Semantics(
       // FROZEN id — jm-023:154, jm-024:45/96, flows 08/13/14/15 and
       // client_home_429_tolerant_test.dart:196 all target it.
       identifier: 'orders_create_request_button',
       button: true,
-      label: l10n.homeEmptyCta,
+      // Label-in-name: Voice Control users say the VISIBLE title.
+      label: title,
       onTap: onCreateRequest,
       container: true,
       explicitChildNodes: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onCreateRequest,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              firstRequest
-                  ? l10n.homeCapsuleFirstRequestTitle
-                  : l10n.homeCapsuleHoldToTalk,
-              style: context.jeebText.titleProminent.copyWith(
-                color: colorScheme.onSurface,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: kMinInteractiveDimension,
+          ),
+          child: Row(
+            children: [
+              ExcludeSemantics(
+                child: SizedBox.square(
+                  dimension: _glyphDisc,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned.fill(
+                        child: JBreathe(
+                          duration: JeebMotion.breatheDuration,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: accent.withValues(alpha: _glyphTintPeak),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.add, size: 16, color: accent),
+                    ],
+                  ),
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: Spacing.twoXSmall),
-            Text(
-              firstRequest
-                  ? l10n.homeCapsuleFirstRequestSubtitle
-                  : l10n.homeCapsuleOrTapToType,
-              style: context.jeebText.bodySmall.copyWith(
-                color: semantic.mutedText,
+              const SizedBox(width: Spacing.xSmall),
+              Expanded(
+                // The wrapper already carries `title` as its label; leaving the
+                // Text a node of its own reads the same words twice.
+                child: ExcludeSemantics(
+                  child: Text(
+                    title,
+                    style: context.jeebText.titleProminent.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+              if (showChevron) ...[
+                const SizedBox(width: Spacing.xSmall),
+                ExcludeSemantics(
+                  child: Icon(
+                    DirectionalIcons.disclosureIos(context),
+                    size: 14,
+                    color: semantic.mutedText,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -184,11 +202,5 @@ class ClientHomeRequestHero extends StatelessWidget {
     if (hour < _afternoonHour) return l10n.homeHeroPromptMorning;
     if (hour < _eveningHour) return l10n.homeHeroPromptAfternoon;
     return l10n.homeHeroPromptEvening;
-  }
-
-  /// Both mic gestures land on the same registered route
-  /// (`app_router.dart:1059-1060`) — no router change, no invented screen.
-  void _openVoiceRequest(BuildContext context) {
-    GoRouter.of(context).pushNamed('voice-request');
   }
 }

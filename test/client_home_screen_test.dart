@@ -798,9 +798,10 @@ void main() {
       final list = tester.widget<ListView>(
         find.byKey(const Key('client-home-ready-list')),
       );
+      // Nav inset + the floating mic's band (nav gap + Ø56 + trailing air).
       expect(
         list.padding?.resolve(TextDirection.ltr).bottom,
-        Spacing.twoXLarge + navInset,
+        navInset + Spacing.xLarge + JeebMicHero.sizeCompact + Spacing.medium,
       );
     });
 
@@ -1158,10 +1159,9 @@ void main() {
     });
 
     // DEFECT 1 (carried onto MIDNIGHT's voice capsule) — the create surface must
-    // be the frosted-glass capsule with the ORANGE mic, never a low-emphasis
-    // slab. The capsule fill is `glassFillEmphasis` and the mic disc is
-    // `jeebRoles.accent`, so a disabled-gray regression is still caught.
-    testWidgets('create-request capsule uses hero glass + accent mic', (
+    // be the frosted-glass capsule and the floating mic must stay ORANGE, never
+    // a low-emphasis slab or a disabled gray.
+    testWidgets('create capsule uses hero glass; floating mic stays accent', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -1199,9 +1199,8 @@ void main() {
         reason: 'the create capsule must render on the hero glass fill',
       );
 
-      // The mic disc is the one rationed orange on this screen.
-      // `DecoratedBox`, not `Container`: the kit's JeebMicHero paints the disc
-      // with a bare DecoratedBox. Same assertion, current paint node.
+      // The mic disc is the one rationed orange on this screen; it is a Stack
+      // sibling of the hero, so this finder is screen-wide.
       final micFills = tester
           .widgetList<DecoratedBox>(
             find.descendant(
