@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/jeeb_color_roles.dart';
 
@@ -68,16 +70,16 @@ class JeebMicGlow {
 
   /// Paints this glow in [accent] (`jeebRoles.accent`).
   List<BoxShadow> resolve(Color accent) => <BoxShadow>[
-        BoxShadow(
-          color: accent.withValues(alpha: ringAlpha),
-          spreadRadius: ringSpread,
-        ),
-        BoxShadow(
-          color: accent.withValues(alpha: dropAlpha),
-          offset: Offset(0, dropOffsetY),
-          blurRadius: dropBlur,
-        ),
-      ];
+    BoxShadow(
+      color: accent.withValues(alpha: ringAlpha),
+      spreadRadius: ringSpread,
+    ),
+    BoxShadow(
+      color: accent.withValues(alpha: dropAlpha),
+      offset: Offset(0, dropOffsetY),
+      blurRadius: dropBlur,
+    ),
+  ];
 }
 
 /// The Jeeb mic (redesign-2026-08 §5 #15).
@@ -112,11 +114,22 @@ class JeebMicHero extends StatefulWidget {
     this.halo,
     this.glow,
     this.glyphSize,
+    this.discColor,
+    this.glyphColor,
+    this.crossfadeGlyph,
+    this.glyphCrossfade = 0,
     this.onPressStart,
     this.onPressEnd,
     this.onSlideCancel,
+    this.onPressCancel,
+    this.slideProgress,
+    this.holdSlideOnRelease = false,
     this.onTap,
     this.onLongPress,
+    this.onSemanticTap,
+    this.semanticTapHint,
+    this.onSemanticCancel,
+    this.semanticCancelLabel,
     this.identifier,
     this.semanticLabel,
   }) : decorative = false;
@@ -132,16 +145,27 @@ class JeebMicHero extends StatefulWidget {
     this.halo,
     this.glow,
     this.glyphSize,
-  })  : decorative = true,
-        isRecording = false,
-        progress = null,
-        onPressStart = null,
-        onPressEnd = null,
-        onSlideCancel = null,
-        onTap = null,
-        onLongPress = null,
-        identifier = null,
-        semanticLabel = null;
+  }) : decorative = true,
+       isRecording = false,
+       progress = null,
+       discColor = null,
+       glyphColor = null,
+       crossfadeGlyph = null,
+       glyphCrossfade = 0,
+       onPressStart = null,
+       onPressEnd = null,
+       onSlideCancel = null,
+       onPressCancel = null,
+       slideProgress = null,
+       holdSlideOnRelease = false,
+       onTap = null,
+       onLongPress = null,
+       onSemanticTap = null,
+       semanticTapHint = null,
+       onSemanticCancel = null,
+       semanticCancelLabel = null,
+       identifier = null,
+       semanticLabel = null;
 
   /// Ø56 — 04's navy request hero (`tpl 169`).
   static const double sizeCompact = 56;
@@ -154,6 +178,10 @@ class JeebMicHero extends StatefulWidget {
 
   /// Slide-to-cancel travel in logical px, measured toward the start edge.
   static const double slideCancelThreshold = 64;
+
+  /// Where an ARMED slide disarms again. The dead band is what stops a thumb
+  /// parked on the wall from strobing every armed affordance at once.
+  static const double slideCancelRelease = 52;
 
   /// Halo diameter as a fraction of the disc — 184/128 on 05 (`tpl 273`),
   /// concentric with the disc.
@@ -196,6 +224,22 @@ class JeebMicHero extends StatefulWidget {
   /// falling back to 45% of the disc.
   final double? glyphSize;
 
+  /// Overrides the disc fill and the hue its glow and halo resolve from. Null
+  /// uses `jeebRoles.accent`.
+  final Color? discColor;
+
+  /// Glyph ink. Null uses `jeebRoles.onAccent`, which is paired with the
+  /// DEFAULT fill — a [discColor] that leaves accent must re-pick its own.
+  final Color? glyphColor;
+
+  /// A second glyph cross-faded over [Icons.mic] at [glyphCrossfade]. Null
+  /// draws the mic alone, which is the shape every non-slide consumer keeps.
+  final IconData? crossfadeGlyph;
+
+  /// 0..1 blend from [Icons.mic] toward [crossfadeGlyph]. Inert when that is
+  /// null. Values outside 0–1 are clamped.
+  final double glyphCrossfade;
+
   /// Fires on touch-down. Hold-to-talk start.
   final VoidCallback? onPressStart;
 
@@ -207,11 +251,37 @@ class JeebMicHero extends StatefulWidget {
   /// `VoiceRecordingCubit.cancelRecording()`.
   final VoidCallback? onSlideCancel;
 
+  /// Fires on `PointerCancel` instead of [onPressEnd] (null falls back to it).
+  /// Only the platform cancels here, so it is an exact "touch stolen" signal.
+  final VoidCallback? onPressCancel;
+
+  /// Optional 0..1 sink the widget WRITES the live slide-to-cancel travel to,
+  /// 1.0 landing exactly where [onSlideCancel] arms. Never read or painted here.
+  final ValueNotifier<double>? slideProgress;
+
+  /// When true the sink KEEPS its release value so the consumer can animate it
+  /// home; pointer-down and pointer-cancel still zero it.
+  final bool holdSlideOnRelease;
+
   /// Discrete tap — 04 routes to `/voice-request` with it.
   final VoidCallback? onTap;
 
   /// Discrete long press — 04 routes with this too.
   final VoidCallback? onLongPress;
+
+  /// Screen-reader activation for a hold-only mic: it sits on the semantics
+  /// node alone, so no finger tap reaches it. Wire it to a start/stop toggle.
+  final VoidCallback? onSemanticTap;
+
+  /// `onTapHint` for [onSemanticTap] — TalkBack reads "Double tap to {hint}".
+  final String? semanticTapHint;
+
+  /// Assistive-only escape hatch, published as a custom action: the slide is
+  /// raw pointer, so without it a screen reader cannot abandon a recording.
+  final VoidCallback? onSemanticCancel;
+
+  /// The action label a screen reader reads for [onSemanticCancel].
+  final String? semanticCancelLabel;
 
   /// Maestro/`find.bySemanticsIdentifier` id, applied via an explicit
   /// [Semantics] wrapper (never OMDS's own `identifier:`).
@@ -250,15 +320,15 @@ class _JeebMicHeroState extends State<JeebMicHero> {
   /// Screen-space dx of the active press, or null when no press is down.
   double? _pressOriginDx;
 
-  /// Whether the current press has travelled far enough to cancel.
-  /// Deliberately not in [setState]: 05's `‹ Slide` caption is static on the
-  /// board, so arming changes no pixels.
+  /// Whether the current press has travelled far enough to cancel. Mirrored to
+  /// [JeebMicHero.slideProgress], which pins at 1 for exactly this state.
   bool _cancelArmed = false;
 
   bool get _tracksPress =>
       widget.onPressStart != null ||
       widget.onPressEnd != null ||
-      widget.onSlideCancel != null;
+      widget.onSlideCancel != null ||
+      widget.onPressCancel != null;
 
   bool get _hasDiscreteTaps =>
       widget.onTap != null || widget.onLongPress != null;
@@ -266,8 +336,8 @@ class _JeebMicHeroState extends State<JeebMicHero> {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
-    final Color accent = context.jeebRoles.accent;
-    final Color onAccent = context.jeebRoles.onAccent;
+    final Color accent = widget.discColor ?? context.jeebRoles.accent;
+    final Color onAccent = widget.glyphColor ?? context.jeebRoles.onAccent;
 
     final bool haloOn = widget.halo ?? widget.isRecording;
     final double? progress = widget.progress?.clamp(0.0, 1.0);
@@ -276,6 +346,11 @@ class _JeebMicHeroState extends State<JeebMicHero> {
       halo: haloOn,
       arc: progress != null,
     );
+
+    final double glyphSize = widget.glyphSize ?? _glyphForSize(widget.size);
+    final IconData? crossfade = widget.crossfadeGlyph;
+    final double blend = widget.glyphCrossfade.clamp(0.0, 1.0);
+    final Widget mic = Icon(Icons.mic, size: glyphSize, color: onAccent);
 
     Widget disc = SizedBox.square(
       dimension: widget.size,
@@ -286,11 +361,22 @@ class _JeebMicHeroState extends State<JeebMicHero> {
           boxShadow: (widget.glow ?? _glowForSize(widget.size)).resolve(accent),
         ),
         child: Center(
-          child: Icon(
-            Icons.mic,
-            size: widget.glyphSize ?? _glyphForSize(widget.size),
-            color: onAccent,
-          ),
+          child: crossfade == null
+              ? mic
+              : Stack(
+                  alignment: Alignment.center,
+                  children: <Widget>[
+                    Opacity(opacity: 1 - blend, child: mic),
+                    Opacity(
+                      opacity: blend,
+                      child: Icon(
+                        crossfade,
+                        size: glyphSize,
+                        color: onAccent,
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
@@ -349,7 +435,8 @@ class _JeebMicHeroState extends State<JeebMicHero> {
                 size: Size.square(extent),
                 painter: _JeebMicArcPainter(
                   progress: progress,
-                  radius: widget.size / 2 + widget.size * JeebMicHero.arcGapRatio,
+                  radius:
+                      widget.size / 2 + widget.size * JeebMicHero.arcGapRatio,
                   strokeWidth: widget.size * JeebMicHero.arcStrokeRatio,
                   trackColor: scheme.surfaceContainerHighest,
                   arcColor: accent,
@@ -364,15 +451,26 @@ class _JeebMicHeroState extends State<JeebMicHero> {
     if (widget.decorative ||
         (widget.identifier == null &&
             widget.semanticLabel == null &&
+            widget.onSemanticTap == null &&
+            widget.onSemanticCancel == null &&
             !_hasDiscreteTaps &&
             !_tracksPress)) {
       return stack;
     }
 
+    final VoidCallback? cancel = widget.onSemanticCancel;
+    final String? cancelLabel = widget.semanticCancelLabel;
     return Semantics(
       identifier: widget.identifier,
       label: widget.semanticLabel,
       button: true,
+      onTap: widget.onSemanticTap,
+      onTapHint: widget.onSemanticTap == null ? null : widget.semanticTapHint,
+      customSemanticsActions: cancel == null || cancelLabel == null
+          ? null
+          : <CustomSemanticsAction, VoidCallback>{
+              CustomSemanticsAction(label: cancelLabel): cancel,
+            },
       // Mandatory pair (§7.5): without them this node merges into the
       // consumer's wrapper and its id disappears from the tree.
       container: true,
@@ -384,6 +482,7 @@ class _JeebMicHeroState extends State<JeebMicHero> {
   void _handlePointerDown(PointerDownEvent event) {
     _pressOriginDx = event.position.dx;
     _cancelArmed = false;
+    widget.slideProgress?.value = 0;
     widget.onPressStart?.call();
   }
 
@@ -392,15 +491,33 @@ class _JeebMicHeroState extends State<JeebMicHero> {
     if (origin == null || widget.onSlideCancel == null) return;
     // Direction-signed: the cancel affordance sits at the cluster start, which
     // is the left edge in LTR and the right edge in RTL.
-    final double sign =
-        Directionality.of(context) == TextDirection.rtl ? -1 : 1;
+    final double sign = Directionality.of(context) == TextDirection.rtl
+        ? -1
+        : 1;
     final double travel = sign * (event.position.dx - origin);
-    _cancelArmed = travel <= -JeebMicHero.slideCancelThreshold;
+    final bool armed = _cancelArmed
+        ? travel <= -JeebMicHero.slideCancelRelease
+        : travel <= -JeebMicHero.slideCancelThreshold;
+    // Arming weighs more than disarming: one is about to destroy a recording.
+    if (armed != _cancelArmed) {
+      if (armed) {
+        HapticFeedback.mediumImpact();
+      } else {
+        HapticFeedback.selectionClick();
+      }
+    }
+    _cancelArmed = armed;
+    // Pinned at 1 for the whole armed band, so the disc, the hint and the
+    // release verdict read one number and can never disagree.
+    widget.slideProgress?.value = armed
+        ? 1
+        : (-travel / JeebMicHero.slideCancelThreshold).clamp(0.0, 1.0);
   }
 
   void _handlePointerUp(PointerUpEvent event) {
     if (_pressOriginDx == null) return;
     _pressOriginDx = null;
+    if (!widget.holdSlideOnRelease) widget.slideProgress?.value = 0;
     if (_cancelArmed && widget.onSlideCancel != null) {
       _cancelArmed = false;
       widget.onSlideCancel!.call();
@@ -413,8 +530,9 @@ class _JeebMicHeroState extends State<JeebMicHero> {
   void _handlePointerCancel(PointerCancelEvent event) {
     if (_pressOriginDx == null) return;
     _pressOriginDx = null;
+    widget.slideProgress?.value = 0;
     _cancelArmed = false;
-    widget.onPressEnd?.call();
+    (widget.onPressCancel ?? widget.onPressEnd)?.call();
   }
 
   /// Nearest measured glow stack. Midpoints, so 56/118/128 each land on their

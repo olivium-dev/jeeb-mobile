@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
@@ -27,21 +26,16 @@ import '../widgets/client_home_tier_chip.dart';
 ///
 /// Mock endpoint: GET /v1/requests?status=pending  (Mockoon :3055)
 class PendingRequestsTab extends StatelessWidget {
-  const PendingRequestsTab({super.key, this.onTap, this.onCreateRequest});
+  const PendingRequestsTab({super.key, this.onTap});
 
   /// Called when a card row is tapped. If null the tap is a no-op.
   final void Function(ClientHomeRequest request)? onTap;
-  final VoidCallback? onCreateRequest;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ClientHomeCubit, ClientHomeState>(
       buildWhen: _rebuildWhen,
-      builder: (context, state) => _PendingContent(
-        state: state,
-        onTap: onTap,
-        onCreateRequest: onCreateRequest,
-      ),
+      builder: (context, state) => _PendingContent(state: state, onTap: onTap),
     );
   }
 
@@ -50,15 +44,10 @@ class PendingRequestsTab extends StatelessWidget {
 }
 
 class _PendingContent extends StatelessWidget {
-  const _PendingContent({
-    required this.state,
-    required this.onTap,
-    required this.onCreateRequest,
-  });
+  const _PendingContent({required this.state, required this.onTap});
 
   final ClientHomeState state;
   final void Function(ClientHomeRequest)? onTap;
-  final VoidCallback? onCreateRequest;
 
   @override
   Widget build(BuildContext context) {
@@ -71,16 +60,9 @@ class _PendingContent extends StatelessWidget {
       return const _PendingLoading();
     }
     if (state.pending.isEmpty) {
-      return ClientHomeEmptyView(
-        key: const Key('pending-empty'),
-        onNewOrder: onCreateRequest ?? () => _openCreateRequest(context),
-      );
+      return const ClientHomeEmptyView(key: Key('pending-empty'));
     }
     return _PendingList(requests: state.pending, onTap: onTap);
-  }
-
-  static void _openCreateRequest(BuildContext context) {
-    GoRouter.of(context).pushNamed('request-type');
   }
 }
 

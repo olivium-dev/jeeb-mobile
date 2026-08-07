@@ -31,10 +31,6 @@ env:
 - runFlow: ../pages/name-capture.yaml
 - takeScreenshot: r5_home_shell
 - runFlow: ../pages/home-requests-empty.yaml
-- runFlow:
-    file: ../pages/request-type.yaml
-    env:
-      TIER_POINT: "${TIER_POINT}"
 - runFlow: ../pages/location-permission.yaml
 - runFlow:
     file: ../pages/client-location-compose.yaml

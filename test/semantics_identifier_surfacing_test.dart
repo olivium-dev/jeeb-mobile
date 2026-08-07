@@ -613,6 +613,12 @@ Widget _clientHome({required ClientHomeTab initialTab}) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
     home: Scaffold(
       body: BlocProvider(
         create: (_) => ClientHomeCubit(

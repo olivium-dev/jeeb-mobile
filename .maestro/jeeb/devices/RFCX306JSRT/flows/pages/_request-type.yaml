@@ -1,6 +1,8 @@
 # PAGE OBJECT — request-type / "Choose your request" (tiers)
 # ─────────────────────────────────────────────────────────────────────────────
-# route: request-type. Reached by: New Order or FAB from shell => GET /tiers 200.
+# route: request-type. NOT reached by New Order since S3 (that goes straight to
+# client-location). Reached by waiting-retarget / order-history reorder / dev
+# seam => GET /tiers 200.
 # Flash tier is pre-selected, so the fast path only taps Continue => route
 # client-location. Express/Standard rows are exposed for the tour.
 #

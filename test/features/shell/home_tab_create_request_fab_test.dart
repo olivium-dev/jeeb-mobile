@@ -5,8 +5,15 @@
 // defaulted to null and the create surface rendered inert — originally as a
 // disabled-gray "+" circle instead of the Figma filled-navy one.
 //
-// THE FIX: home_tab.dart now passes a non-null `onCreateRequest` (wired to the
-// `request-type` route, matching production create-request intent).
+// THE FIX: home_tab.dart now passes a non-null `onCreateRequest` (matching
+// production create-request intent).
+//
+// S3 (2026-08-07): that callback no longer opens the tier screen. It seeds the
+// recommended tier — the SAME `recommended ?? first` the voice path defaults to
+// — and pushes `client-location`, where `ComposeTierSection` discloses the tier
+// with a Change row. `request-type` survives as the fallback for an unreachable
+// catalog (a tier with no `wireId` would 400 the create POST) and as the target
+// of waiting-retarget / order-history reorder. Both edges are pinned below.
 //
 // REDESIGN-2026-08 (screen 04, wiring request): the top "+" IconButton
 // (`Key('client-home-greeting-add')`) was replaced by the board's mic hero, so
@@ -34,18 +41,84 @@ import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/dev_seam/dev_seam.dart';
 import 'package:jeeb_mobile/core/dev_seam/dev_seam_config.dart';
+import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/features/home_client/data/dev_client_home_fixtures.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
+import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
+import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
+import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
 import 'package:jeeb_mobile/features/shell/tabs/home_tab.dart';
+import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
+import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/sync_app_localizations.dart';
 
+class _NoopSubmission implements RequestSubmissionService {
+  @override
+  Future<String> submit(RequestDraft draft) async => 'req-1';
+}
+
+/// `FakeTierRepository.defaultCatalog` carries no `serverId`, so every tier in
+/// it has a null `wireId` and none of them is a legal create-POST default.
+class _WiredCatalog implements TierRepository {
+  const _WiredCatalog();
+
+  @override
+  Future<List<Tier>> fetchTiers() async => const <Tier>[
+    Tier(
+      id: TierId.flash,
+      serverId: 'tier-flash',
+      priceLow: 120000,
+      priceHigh: 160000,
+      currency: 'LBP',
+      vehicleClass: TierVehicleClass.scooterOrCar,
+      slaMinutes: 60,
+    ),
+    Tier(
+      id: TierId.standard,
+      serverId: 'tier-standard',
+      priceLow: 45000,
+      priceHigh: 70000,
+      currency: 'LBP',
+      vehicleClass: TierVehicleClass.bikeOrScooter,
+      slaMinutes: 240,
+      recommended: true,
+    ),
+  ];
+}
+
+/// Counts reads so a create tap that re-fetches the catalog the home screen
+/// already warmed is visible as a number, not as a stall.
+class _CountingCatalog implements TierRepository {
+  _CountingCatalog();
+
+  int calls = 0;
+
+  @override
+  Future<List<Tier>> fetchTiers() async {
+    calls += 1;
+    return const _WiredCatalog().fetchTiers();
+  }
+}
+
+/// A catalog that has not answered yet — the cold-cellular case the create
+/// door used to sit on with no spinner and no disabled state.
+class _SlowCatalog implements TierRepository {
+  const _SlowCatalog();
+
+  @override
+  Future<List<Tier>> fetchTiers() => Future<List<Tier>>.delayed(
+    const Duration(milliseconds: 800),
+    () => const _WiredCatalog().fetchTiers(),
+  );
+}
+
 /// Minimal router so `GoRouter.of(context)` (used by HomeTab's create-request
-/// wiring) resolves. The create tap is never exercised here — we only assert the
-/// node carries a tap action — so a single placeholder route is sufficient.
-GoRouter _router({required String homeTab}) {
+/// wiring) resolves. BOTH create destinations are registered: `client-location`
+/// is where the tap lands, `request-type` is the no-catalog fallback.
+GoRouter _router({VoidCallback? onLocationBuild}) {
   return GoRouter(
     initialLocation: '/',
     routes: [
@@ -63,10 +136,19 @@ GoRouter _router({required String homeTab}) {
         ),
       ),
       GoRoute(
-        // NAMED, because HomeTab._openRequestType uses `pushNamed`.
+        // NAMED, because HomeTab._openCreateRequest uses `pushNamed`.
         path: '/request-type',
         name: 'request-type',
-        builder: (context, state) => const Scaffold(body: Placeholder()),
+        builder: (context, state) =>
+            const Scaffold(body: Text('request-type-screen')),
+      ),
+      GoRoute(
+        path: '/client-location',
+        name: 'client-location',
+        builder: (context, state) {
+          onLocationBuild?.call();
+          return const Scaffold(body: Text('client-location-screen'));
+        },
       ),
     ],
   );
@@ -84,11 +166,20 @@ Widget _app(GoRouter router) {
       GlobalWidgetsLocalizations.delegate,
       GlobalCupertinoLocalizations.delegate,
     ],
+    // Midnight primitives loop ∞ (02-STUDY-NOTES M0-4): `pumpAndSettle` only
+    // terminates under reduce motion.
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: child!,
+    ),
   );
 }
 
 void main() {
-  tearDown(DevSeam.debugReset);
+  tearDown(() async {
+    DevSeam.debugReset();
+    await sl.reset();
+  });
 
   group('HomeTab create-request surface (dev-seam screens 13/14/15)', () {
     // The seam drives the home tab to each of the three filter variants. In
@@ -101,7 +192,7 @@ void main() {
           DevSeam.debugOverride(DevSeamConfig(route: '/', homeTab: homeTab));
 
           final handle = tester.ensureSemantics();
-          await tester.pumpWidget(_app(_router(homeTab: homeTab)));
+          await tester.pumpWidget(_app(_router()));
           await tester.pumpAndSettle();
 
           final createFinder = find.bySemanticsIdentifier(
@@ -138,6 +229,154 @@ void main() {
         },
       );
     }
+
+    // S3 — the typed door lands where the voice door lands, priced the same.
+    testWidgets('the create tap opens client-location, never the tier screen', (
+      tester,
+    ) async {
+      DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
+      sl.registerSingleton<TierRepository>(const _WiredCatalog());
+      final compose = ComposeRequestController(_NoopSubmission());
+      sl.registerSingleton<ComposeRequestController>(compose);
+
+      await tester.pumpWidget(_app(_router()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('orders_create_request_button'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('client-location-screen'), findsOneWidget);
+      expect(find.text('request-type-screen'), findsNothing);
+    });
+
+    testWidgets('it seeds the recommended tier, the one the voice path picks', (
+      tester,
+    ) async {
+      DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
+      sl.registerSingleton<TierRepository>(const _WiredCatalog());
+      final compose = ComposeRequestController(_NoopSubmission());
+      sl.registerSingleton<ComposeRequestController>(compose);
+
+      await tester.pumpWidget(_app(_router()));
+      await tester.pumpAndSettle();
+      expect(compose.tier, isNull);
+
+      await tester.tap(
+        find.bySemanticsIdentifier('orders_create_request_button'),
+      );
+      await tester.pumpAndSettle();
+
+      // Not merely non-null: a null `wireId` here is a 400 on the create POST,
+      // and Flash is the catalog's first entry, so this also pins the ordering.
+      expect(compose.tier, isNotNull);
+      expect(compose.tier!.wireId, 'tier-standard');
+      expect(compose.tier!.recommended, isTrue);
+    });
+
+    // The tap must be a pure navigation: the screen warmed the catalog on
+    // entry, so blocking the primary CTA on a live GET is both a dead window
+    // and a second push waiting to happen.
+    testWidgets('the create tap reads the warmed tier, never the network', (
+      tester,
+    ) async {
+      DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
+      final catalog = _CountingCatalog();
+      sl.registerSingleton<TierRepository>(catalog);
+      sl.registerSingleton<ComposeRequestController>(
+        ComposeRequestController(_NoopSubmission()),
+      );
+
+      var locationBuilds = 0;
+      await tester.pumpWidget(
+        _app(_router(onLocationBuild: () => locationBuilds += 1)),
+      );
+      await tester.pumpAndSettle();
+      expect(catalog.calls, 1, reason: 'the screen warms the catalog once');
+
+      final cta = find.bySemanticsIdentifier('orders_create_request_button');
+      await tester.tap(cta);
+      await tester.pumpAndSettle();
+
+      expect(find.text('client-location-screen'), findsOneWidget);
+      expect(catalog.calls, 1, reason: 'the tap must not re-fetch /tiers');
+      expect(locationBuilds, 1);
+      expect(
+        cta,
+        findsNothing,
+        reason:
+            'the pushed route covers the button from the first frame, so there '
+            'is no window in which a second tap stacks a second location screen',
+      );
+    });
+
+    // The other half of the same defect: with the catalog still in flight the
+    // door must open on something, immediately — never stall on the GET.
+    testWidgets('a catalog still in flight opens the picker, never a stall', (
+      tester,
+    ) async {
+      DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
+      sl.registerSingleton<TierRepository>(const _SlowCatalog());
+      sl.registerSingleton<ComposeRequestController>(
+        ComposeRequestController(_NoopSubmission()),
+      );
+
+      await tester.pumpWidget(_app(_router()));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+
+      await tester.tap(
+        find.bySemanticsIdentifier('orders_create_request_button'),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+
+      expect(find.text('request-type-screen'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('an unreachable catalog still asks, and never invents a tier', (
+      tester,
+    ) async {
+      DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
+      sl.registerSingleton<TierRepository>(
+        const FakeTierRepository(failWith: TierLoadFailure.network),
+      );
+      final compose = ComposeRequestController(_NoopSubmission());
+      sl.registerSingleton<ComposeRequestController>(compose);
+
+      await tester.pumpWidget(_app(_router()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('orders_create_request_button'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(compose.tier, isNull);
+    });
+
+    testWidgets('a catalog with no wireId is not a usable default either', (
+      tester,
+    ) async {
+      DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
+      sl.registerSingleton<TierRepository>(const FakeTierRepository());
+      final compose = ComposeRequestController(_NoopSubmission());
+      sl.registerSingleton<ComposeRequestController>(compose);
+
+      await tester.pumpWidget(_app(_router()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('orders_create_request_button'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(compose.tier, isNull);
+    });
 
     // RETIRED (redesign-2026-08, screen 04): this file's second case used to
     // resolve `IconButton.style.backgroundColor` on

@@ -1,11 +1,18 @@
 # PAGE OBJECT — shell / "Everything, One Place" (Requests tab = authenticated home)
 # ─────────────────────────────────────────────────────────────────────────────
 # route: shell. Reached by: Skip for now / Continue from profile-name.
-# Default action: New Order => route request-type. The bottom-nav taps are
+# Default action: New Order => route client-location, tier seeded (S3). The bottom-nav taps are
 # exposed as an ACTION param so the tour can jump straight to any tab.
 #
 # Coordinate fractions of the screen:
-#   New Order:          50%,81%
+#   New Order:          50%,83.6%   (PINNED BAND — geometry, not content)
+#     The capsule is no longer laid out by the scroll body: it is pinned at
+#     bottom = scrollBodyBottomInset + 28 and is 48dp tall, so its band is
+#     [1-(inset+76)/H , 1-(inset+28)/H] and its centre is 1-(inset+52)/H.
+#     `inset` is the floating pill nav's painted height PLUS the system nav
+#     inset (shell_screen.dart `_NavBarContentInset`). 83.6% is that centre for
+#     inset 88dp / H 854dp — RE-MEASURE from a screenshot on any device whose
+#     bottom inset differs by more than ~20dp, or the tap lands on the list.
 #   FAB (+):            88%,74%
 #   wallet icon:        78%,8%
 #   notification bell:  91%,8%
@@ -32,7 +39,7 @@ env:
 - takeScreenshot: "${SHOT}"
 - runFlow:
     when: { true: "${ACTION == 'new_order'}" }
-    commands: [ { tapOn: { point: "50%,81%" } } ]      # New Order -> request-type
+    commands: [ { tapOn: { point: "50%,83.6%" } }, { waitForAnimationToEnd: { timeout: 4000 } }, { takeScreenshot: "${SHOT}-after-new-order" } ]
 - runFlow:
     when: { true: "${ACTION == 'requests'}" }
     commands: [ { tapOn: { point: "10%,92%" } } ]

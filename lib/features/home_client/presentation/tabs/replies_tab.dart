@@ -171,7 +171,8 @@ class _RepliesEmpty extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return JeebEmptyState(
       key: const Key('replies-empty'),
-      headline: l10n.homeEmptyTitle,
+      // Not `homeEmptyTitle`: the permanent hero prompt already asks that.
+      headline: l10n.homeRepliesEmptyTitle,
       body: l10n.homeRepliesEmpty,
     );
   }

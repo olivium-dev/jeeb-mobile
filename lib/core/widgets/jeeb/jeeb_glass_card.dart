@@ -23,6 +23,7 @@ class JeebGlassCard extends StatelessWidget {
     this.padding = defaultPadding,
     this.radius = JeebRadii.lg,
     this.shadow = noShadow,
+    this.emphasis = false,
     this.onTap,
     this.identifier,
     this.semanticLabel,
@@ -51,6 +52,10 @@ class JeebGlassCard extends StatelessWidget {
   /// Elevation. [noShadow] here; `JeebShadows.overlay` for a floating chip.
   final List<BoxShadow> shadow;
 
+  /// Borrows the capsule's stronger fill + border for a surface that must read
+  /// as hero glass without spending a `BackdropFilter` from the §4 budget.
+  final bool emphasis;
+
   /// Makes the whole card tappable, with the white-alpha glass splash.
   final VoidCallback? onTap;
 
@@ -67,8 +72,8 @@ class JeebGlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final JeebSemanticColors glass = _glassOf(context);
     return _GlassSurface(
-      fill: glass.glassFill,
-      borderColor: glass.glassBorder,
+      fill: emphasis ? glass.glassFillEmphasis : glass.glassFill,
+      borderColor: emphasis ? glass.glassBorderStrong : glass.glassBorder,
       radius: radius,
       padding: padding,
       shadow: shadow,

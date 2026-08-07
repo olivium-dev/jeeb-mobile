@@ -1,6 +1,10 @@
 # PAGE OBJECT — request-type / "Choose your request" (Flash/Express/Standard tiers)
 # ─────────────────────────────────────────────────────────────────────────────
-# route: request-type. Reached by: New Order (or FAB+) from shell.
+# route: request-type. NO LONGER on the create path (S3): New Order goes
+# straight to client-location with the recommended tier seeded. Enter this
+# page by `jeeb.route: "/request-type"`, waiting-retarget, or order-history
+# reorder — a journey that runFlows it straight after New Order will tap
+# blind into the location screen.
 #   => GET /tiers 200. Flash is pre-selected. Default action: Continue (keeps the
 #   pre-selected tier) => route client-location.
 #

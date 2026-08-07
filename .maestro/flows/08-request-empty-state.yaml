@@ -9,6 +9,10 @@
 #   orders_filter_replies                    — Replies chip
 #   shell_tab_requests / delivery / profile  — client bottom navigation
 #
+# TIERS DEPENDENCY (S3): the create tap routes to client-location only when
+# `GET /tiers` has answered with at least one tier carrying a server id. With
+# no such tier the app falls back to `request-type`, so a missing or
+# wireId-less tiers mock fails this flow on an unrelated id.
 # Removed entry points stay absent: orders_home_new_order_fab,
 # client_home_voice_request, and orders_search_bar.
 #
@@ -63,7 +67,7 @@ appId: ${APP_ID}
     id: "_request_empty_state_new_order_button"
 - extendedWaitUntil:
     visible:
-      id: "request_type_continue_cta"
+      id: "location_select_confirm_cta"
     timeout: 15000
 - back
 - extendedWaitUntil:

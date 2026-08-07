@@ -45,13 +45,12 @@ Deepest state a **solo** customer run can reach = `waiting-no-coverage`
 | 4 | read OTP from jeeb-otpdb, type it (auto-fills 4 boxes) | `otp.sh` + type | code entered |
 | 5 | **Verify** | `50%,38%` | `POST /v1/auth/otp/verify` 200 → `profile-name` |
 | 6 | **Skip for now** | `50%,45%` | route `shell` (home); `GET /v1/users/me` 200 |
-| 7 | **New Order** | `50%,81%` | route `request-type` (Flash pre-selected) |
-| 8 | **Continue** | `50%,87%` | route `client-location` |
-| 9 | type description, hide kb, **Confirm location** | `50%,26%` + `50%,87%` | `POST /v1/requests` 201 → `waiting-no-coverage` |
+| 7 | **New Order** (pinned beside the mic — see the band formula in `pages/shell-home.yaml`) | `50%,83.6%` | route `client-location` (S3: recommended tier seeded + disclosed above the fold) |
+| 8 | type description, hide kb, **Confirm location** | `50%,26%` + `50%,87%` | `POST /v1/requests` 201 → `waiting-no-coverage` |
 
-- **~13 discrete taps** (+3 text inputs: phone, OTP, description) with perms pre-granted; ~15 taps if the 2 OS dialogs are tapped through in-UI.
+- **~12 discrete taps** (+3 text inputs: phone, OTP, description) with perms pre-granted; ~14 taps if the 2 OS dialogs are tapped through in-UI. (S3 deleted the tier screen's Continue from this path.)
 - **~55s wall** scripted end-to-end, dominated by the OTP DB round-trip (~10–15s) and the two ~1.6s slow gateway GETs. Pure in-app transitions total <10s (all APIs 30–530ms).
-- **Why minimal**: onboarding **Skip = 1 tap** (vs Next×2 + Get Started = 3); **Skip for now** avoids name entry; **Flash is pre-selected** so request-type is a single Continue; the description is the only required field to enable Confirm. No wasted navigation.
+- **Why minimal**: onboarding **Skip = 1 tap** (vs Next×2 + Get Started = 3); **Skip for now** avoids name entry; **request-type is off this path entirely** (S3 seeds the recommended tier and discloses it on client-location); the description is the only required field to enable Confirm. No wasted navigation.
 
 ---
 

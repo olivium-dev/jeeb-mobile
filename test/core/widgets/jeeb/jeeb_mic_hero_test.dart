@@ -311,6 +311,67 @@ void main() {
       expect(log, <String>['start', 'end']);
     });
 
+    // The disc joins no gesture arena, so a PointerCancel is always the
+    // platform stealing the touch — never a finger-lift.
+    testWidgets('a stolen pointer routes to onPressCancel, not onPressEnd',
+        (WidgetTester tester) async {
+      final List<String> log = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          JeebMicHero(
+            onPressStart: () => log.add('start'),
+            onPressEnd: () => log.add('end'),
+            onPressCancel: () => log.add('stolen'),
+          ),
+        ),
+      );
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.cancel();
+      await tester.pump();
+      expect(log, <String>['start', 'stolen']);
+    });
+
+    testWidgets('without onPressCancel a stolen pointer still ends the press',
+        (WidgetTester tester) async {
+      final List<String> log = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          JeebMicHero(
+            onPressStart: () => log.add('start'),
+            onPressEnd: () => log.add('end'),
+          ),
+        ),
+      );
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.cancel();
+      await tester.pump();
+      expect(log, <String>['start', 'end']);
+    });
+
+    testWidgets('a finger-lift never reaches onPressCancel',
+        (WidgetTester tester) async {
+      final List<String> log = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          JeebMicHero(
+            onPressStart: () => log.add('start'),
+            onPressEnd: () => log.add('end'),
+            onPressCancel: () => log.add('stolen'),
+          ),
+        ),
+      );
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.up();
+      await tester.pump();
+      expect(log, <String>['start', 'end']);
+    });
+
     testWidgets('the whole disc is a hit target, not just the glyph',
         (WidgetTester tester) async {
       int starts = 0;
@@ -431,6 +492,206 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(tester.getSize(find.byType(JeebMicHero)),
           const Size(JeebMicHero.sizeCompact, JeebMicHero.sizeCompact));
+    });
+  });
+
+  group('JeebMicHero slideProgress sink', () {
+    Widget hero(ValueNotifier<double>? sink) => JeebMicHero(
+          onPressStart: () {},
+          onPressEnd: () {},
+          onSlideCancel: () {},
+          slideProgress: sink,
+        );
+
+    testWidgets('tracks travel toward the start edge (LTR)',
+        (WidgetTester tester) async {
+      final ValueNotifier<double> sink = ValueNotifier<double>(0);
+      addTearDown(sink.dispose);
+      await tester.pumpWidget(_wrap(hero(sink)));
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      expect(sink.value, 0);
+
+      await gesture.moveBy(const Offset(-32, 0));
+      expect(sink.value, closeTo(0.5, 1e-9));
+
+      // Clamped: 1.0 is exactly where the cancel arms, never past it.
+      await gesture.moveBy(const Offset(-64, 0));
+      expect(sink.value, 1.0);
+
+      await gesture.up();
+      expect(sink.value, 0);
+    });
+
+    testWidgets('mirrors under RTL', (WidgetTester tester) async {
+      final ValueNotifier<double> sink = ValueNotifier<double>(0);
+      addTearDown(sink.dispose);
+      await tester
+          .pumpWidget(_wrap(hero(sink), direction: TextDirection.rtl));
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.moveBy(const Offset(32, 0));
+      expect(sink.value, closeTo(0.5, 1e-9));
+      await gesture.up();
+    });
+
+    testWidgets('does not latch', (WidgetTester tester) async {
+      final ValueNotifier<double> sink = ValueNotifier<double>(0);
+      addTearDown(sink.dispose);
+      await tester.pumpWidget(_wrap(hero(sink)));
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.moveBy(
+        const Offset(-JeebMicHero.slideCancelThreshold - 20, 0),
+      );
+      expect(sink.value, 1.0);
+      await gesture.moveBy(
+        const Offset(JeebMicHero.slideCancelThreshold + 20, 0),
+      );
+      expect(sink.value, 0);
+      await gesture.up();
+    });
+
+    testWidgets('a mic with no sink still cancels',
+        (WidgetTester tester) async {
+      final List<String> log = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          JeebMicHero(
+            onPressStart: () => log.add('start'),
+            onPressEnd: () => log.add('end'),
+            onSlideCancel: () => log.add('cancel'),
+          ),
+        ),
+      );
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.moveBy(const Offset(-80, 0));
+      await gesture.up();
+      await tester.pump();
+      expect(log, <String>['start', 'cancel']);
+    });
+  });
+
+  group('JeebMicHero holdSlideOnRelease', () {
+    Widget hero(ValueNotifier<double> sink, {required bool hold}) =>
+        JeebMicHero(
+          onPressStart: () {},
+          onPressEnd: () {},
+          onSlideCancel: () {},
+          slideProgress: sink,
+          holdSlideOnRelease: hold,
+        );
+
+    testWidgets('holds the release value so a consumer can animate it home',
+        (WidgetTester tester) async {
+      final ValueNotifier<double> sink = ValueNotifier<double>(0);
+      addTearDown(sink.dispose);
+      await tester.pumpWidget(_wrap(hero(sink, hold: true)));
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.moveBy(
+        const Offset(-JeebMicHero.slideCancelThreshold, 0),
+      );
+      expect(sink.value, 1.0);
+
+      await gesture.up();
+      expect(sink.value, 1.0, reason: 'the exit curve needs something to run from');
+    });
+
+    testWidgets('pointer-down still zeroes it, so a new press cannot inherit',
+        (WidgetTester tester) async {
+      final ValueNotifier<double> sink = ValueNotifier<double>(0);
+      addTearDown(sink.dispose);
+      await tester.pumpWidget(_wrap(hero(sink, hold: true)));
+
+      final Offset centre = tester.getCenter(find.byIcon(Icons.mic));
+      TestGesture gesture = await tester.startGesture(centre);
+      await gesture.moveBy(const Offset(-80, 0));
+      await gesture.up();
+      expect(sink.value, 1.0);
+
+      gesture = await tester.startGesture(centre);
+      expect(sink.value, 0);
+      await gesture.up();
+    });
+
+    testWidgets('an abnormal pointer-cancel still zeroes it',
+        (WidgetTester tester) async {
+      final ValueNotifier<double> sink = ValueNotifier<double>(0);
+      addTearDown(sink.dispose);
+      await tester.pumpWidget(_wrap(hero(sink, hold: true)));
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.moveBy(const Offset(-80, 0));
+      expect(sink.value, 1.0);
+
+      // No consumer curve is guaranteed to run when the OS steals the pointer.
+      await gesture.cancel();
+      expect(sink.value, 0);
+    });
+
+    testWidgets('the default still teleports home, as every other consumer expects',
+        (WidgetTester tester) async {
+      final ValueNotifier<double> sink = ValueNotifier<double>(0);
+      addTearDown(sink.dispose);
+      await tester.pumpWidget(_wrap(hero(sink, hold: false)));
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.moveBy(const Offset(-80, 0));
+      await gesture.up();
+      expect(sink.value, 0);
+    });
+  });
+
+  group('JeebMicHero glyph crossfade', () {
+    testWidgets('draws the mic alone until a crossfade glyph is named',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(_wrap(const JeebMicHero()));
+      expect(find.byIcon(Icons.mic), findsOneWidget);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+    });
+
+    testWidgets('blends both glyphs without ever swapping the disc subtree',
+        (WidgetTester tester) async {
+      for (final double blend in <double>[0, 0.5, 1]) {
+        await tester.pumpWidget(
+          _wrap(
+            JeebMicHero(
+              crossfadeGlyph: Icons.delete_outline,
+              glyphCrossfade: blend,
+            ),
+          ),
+        );
+        expect(find.byIcon(Icons.mic), findsOneWidget);
+        expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+
+        final Opacity micLayer = tester.widget<Opacity>(
+          find.ancestor(
+            of: find.byIcon(Icons.mic),
+            matching: find.byType(Opacity),
+          ).first,
+        );
+        expect(micLayer.opacity, closeTo(1 - blend, 1e-9));
+      }
+    });
+  });
+
+  group('JeebMicHero discColor', () {
+    testWidgets('overrides the fill and the hue its glow resolves from',
+        (WidgetTester tester) async {
+      const Color tint = Color(0xFFBA1A1A);
+      await tester.pumpWidget(_wrap(const JeebMicHero(discColor: tint)));
+
+      final BoxDecoration decoration = _discDecoration(tester);
+      expect(decoration.color, tint);
+      expect(decoration.boxShadow!.first.color.r, closeTo(tint.r, 1e-6));
     });
   });
 }

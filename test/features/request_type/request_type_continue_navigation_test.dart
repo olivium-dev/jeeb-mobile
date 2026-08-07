@@ -1,4 +1,9 @@
-// JM-024 — the request-type "Continue" CTA advances to `location-select`.
+// JM-024 AC1b — the request-type "Continue" CTA advances to `location-select`.
+//
+// S3 took this screen off the create path (the create tap now seeds the
+// recommended tier and opens location-select directly), so this file is the
+// regression guard for its SURVIVING entries: waiting-retarget, order-history
+// reorder, and the dev-seam route.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -141,7 +146,8 @@ void main() {
       await tester.tap(continueCta);
       await tester.pumpAndSettle();
 
-      // JM-024 AC1: Continue → location-select.
+      // JM-024 AC1b: Continue → location-select. S3 removed the create button
+      // from this screen's entries; retarget and reorder still reach it.
       expect(
         find.byType(ClientLocationScreen),
         findsOneWidget,

@@ -13,6 +13,10 @@
 #   AC5: Reachable from location-select (location_select_saved_addresses_row →
 #        saved_address_add_cta visible) [JM-024].
 #
+# TIERS DEPENDENCY (S3): the create tap routes to client-location only when
+# `GET /tiers` has answered with at least one tier carrying a server id. With
+# no such tier the app falls back to `request-type`, so a missing or
+# wireId-less tiers mock fails this flow on an unrelated id.
 # Mock: GET /user-management/users/:userId/saved-locations,
 #       POST /user-management/users/:userId/saved-locations
 # Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=has_saved_addresses
@@ -130,17 +134,6 @@ appId: ${APP_ID}
 
 - tapOn:
     id: "orders_create_request_button"
-
-- extendedWaitUntil:
-    visible:
-      id: "request_type_continue_cta"
-    timeout: 15000
-
-- tapOn:
-    id: "request_type_standard_radio"
-
-- tapOn:
-    id: "request_type_continue_cta"
 
 - extendedWaitUntil:
     visible:

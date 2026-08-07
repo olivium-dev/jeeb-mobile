@@ -33,6 +33,7 @@ import '../data/fake_location_select_repository.dart';
 import '../domain/current_location_resolver.dart';
 import '../domain/location_select_repository.dart';
 import 'widgets/client_location_add_row.dart';
+import 'widgets/compose_tier_section.dart';
 import 'widgets/current_location_status_card.dart';
 import 'widgets/delivery_create_layout.dart';
 import 'widgets/saved_address_pill_row.dart';
@@ -436,6 +437,9 @@ class _Body extends StatelessWidget {
         // R12: sections breathe at 14–20, cards at 9–12. The old 24/20 rhythm
         // is off this board entirely.
         const SizedBox(height: Spacing.medium),
+        // Above the fold on purpose: the create door seeds a tier the customer
+        // never picked, so this screen has to SHOW it, not merely hold it.
+        const ComposeTierSection(),
         _Heading(text: l10n.clientLocationHeading),
         const SizedBox(height: Spacing.small),
         // JEBV4-176 (Q-060): the "Current Location" option now reflects the

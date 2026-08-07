@@ -58,8 +58,8 @@ empty-semantics-tree fallback from the `maestro-visual-capture` skill.
 | 3 | otp-verify | pushed (prev=register) | Send code => `POST /v1/auth/otp/request 200` | `flows/pages/_otp-verify.yaml` |
 | 4 | profile-name | pushed (prev=otp) | Verify => `POST /v1/auth/otp/verify 200` | `flows/pages/_profile-name.yaml` |
 | 5 | shell-home (Requests) | `shell` | Skip/Continue from profile-name | `flows/pages/_shell-home.yaml` |
-| 6 | request-type | `request-type` | New Order => `GET /tiers 200` | `flows/pages/_request-type.yaml` |
-| 7 | client-location | `client-location` | Continue => `GET /api/users/me/saved-locations 200` (~1.6s) | `flows/pages/_client-location.yaml` |
+| 6 | request-type | `request-type` | ~~New Order~~ retarget/reorder/dev-seam only since S3 => `GET /tiers 200` | `flows/pages/_request-type.yaml` |
+| 7 | client-location | `client-location` | New Order (S3, tier pre-seeded) or request-type Continue => `GET /api/users/me/saved-locations 200` (~1.6s) | `flows/pages/_client-location.yaml` |
 | 8 | **waiting-no-coverage** | `waiting-no-coverage` | Confirm => `POST /v1/requests 201` => `GET /v1/offers 200` | `flows/pages/_waiting-no-coverage.yaml` |
 | 9 | cancel-delivery-sheet | modal (prev=waiting) | Cancel request | `flows/pages/_cancel-delivery-sheet.yaml` |
 | 10 | delivery-order-history | shell (Delivery tab) | Delivery nav tab | `flows/pages/_delivery-history.yaml` |
@@ -79,7 +79,7 @@ onboarding      Skip 50%,88% | Next/GetStarted 50%,80% | English 66%,9% | Arabic
 register        Google 50%,42% | phone field 50%,59% | Send code 50%,67%
 otp-verify      boxes 50%,28% | Verify 50%,38% | Resend 50%,45% | Change phone 50%,51%
 profile-name    name 50%,29% | Continue 50%,38% | Skip for now 50%,45%
-shell-home      New Order 50%,81% | FAB 88%,74% | wallet 78%,8% | bell 91%,8% | help 7%,8%
+shell-home      New Order 50%,83.6% (pinned band, re-measure) | FAB 88%,74% | wallet 78%,8% | bell 91%,8% | help 7%,8%
   bottom nav    Requests 10%,92% | Delivery 31%,92% | Dashboard 52%,92% | Earnings 73%,92% | Profile 91%,92%
 request-type    Flash(row) 50%,26% | Express 50%,38% | Standard 50%,51% | ChangeLoc 72%,71% | Continue 50%,87%
 client-location desc field 50%,26% | mic 88%,25% | Current Loc 50%,51% | Saved 31%,64% | New 88%,73% | Confirm 50%,87%
@@ -104,10 +104,13 @@ Fresh install -> deepest customer state. Auth = phone-OTP with a real code.
 5. read OTP from `jeeb-otpdb` (newest row) -> input the 4-digit code (auto-fills 4 boxes)
 6. hide kb -> Verify `50%,38%` => `POST /v1/auth/otp/verify 200` -> profile-name
 7. Skip for now `50%,45%` => route shell (home)
-8. New Order `50%,81%` => request-type (Flash pre-selected)
-9. Continue `50%,87%` => client-location (grant location While-using-app if not pre-granted)
-10. input description (required to enable button) -> hide kb -> Confirm location `50%,87%`
-    => `POST /v1/requests 201` => route **waiting-no-coverage**
+8. New Order `50%,83.6%` => client-location directly (S3: recommended tier seeded,
+   disclosed by the compose tier row above the fold; grant location
+   While-using-app if not pre-granted). The capsule is PINNED to the mic band
+   now: its centre is `1-(bottomInset+52)/H`, so re-measure on a device whose
+   bottom inset is not ~88dp.
+9. input description (required to enable button) -> hide kb -> Confirm location `50%,87%`
+   => `POST /v1/requests 201` => route **waiting-no-coverage**
 
 ### The OTP timing problem and how these flows solve it
 

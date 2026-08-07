@@ -34,10 +34,7 @@ void _loadArbs() {
   _syncDelegate = _SyncDelegate({'en': en, 'ar': ar});
 }
 
-Widget _harness({
-  VoidCallback? onNewOrder,
-  Locale locale = const Locale('en'),
-}) {
+Widget _harness({Locale locale = const Locale('en')}) {
   return MaterialApp(
     theme: AppTheme.light(),
     locale: locale,
@@ -54,7 +51,7 @@ Widget _harness({
       data: MediaQuery.of(context).copyWith(disableAnimations: true),
       child: child!,
     ),
-    home: Scaffold(body: ClientHomeEmptyView(onNewOrder: onNewOrder)),
+    home: const Scaffold(body: ClientHomeEmptyView()),
   );
 }
 
@@ -78,12 +75,13 @@ void main() {
 
   group('ClientHomeEmptyView', () {
     testWidgets('renders the E1 headline and body (EN)', (tester) async {
-      await tester.pumpWidget(_harness(onNewOrder: () {}));
+      await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
 
-      // MIDNIGHT E1 draws the headline INSIDE the empty block; the screen drops
-      // its own prompt in this composition, so it is still printed once.
-      expect(find.text('What do you need?'), findsOneWidget);
+      // MIDNIGHT E1 draws the headline INSIDE the empty block. It must NOT be
+      // `homeEmptyTitle`: the screen's hero prompt asks that question already.
+      expect(find.text('Ready when you are'), findsOneWidget);
+      expect(find.text('What do you need?'), findsNothing);
       expect(
         find.text(
           'No pending requests — say it, and offers from nearby Jeebers '
@@ -97,7 +95,7 @@ void main() {
     testWidgets('draws the composed kit illustration, not a Lottie or PNG', (
       tester,
     ) async {
-      await tester.pumpWidget(_harness(onNewOrder: () {}));
+      await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
 
       expect(find.byType(JeebEmptyState), findsOneWidget);
@@ -110,7 +108,7 @@ void main() {
     testWidgets('the board draws no CTA button in this block', (tester) async {
       // doc-13 Pattern D: `_request_empty_state_new_order_button` moved onto
       // the screen's voice capsule, which is E1's own create affordance.
-      await tester.pumpWidget(_harness(onNewOrder: () {}));
+      await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
 
       expect(find.text('Create your first request'), findsNothing);
@@ -122,7 +120,7 @@ void main() {
 
     testWidgets('exposes the frozen root Semantics identifier', (tester) async {
       final handle = tester.ensureSemantics();
-      await tester.pumpWidget(_harness(onNewOrder: () {}));
+      await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
 
       expect(
@@ -135,12 +133,11 @@ void main() {
     testWidgets('renders mirrored Arabic strings under ar locale', (
       tester,
     ) async {
-      await tester.pumpWidget(
-        _harness(onNewOrder: () {}, locale: const Locale('ar')),
-      );
+      await tester.pumpWidget(_harness(locale: const Locale('ar')));
       await tester.pumpAndSettle();
 
-      expect(find.text('ماذا تحتاج؟'), findsOneWidget);
+      expect(find.text('جاهزون متى ما أردت'), findsOneWidget);
+      expect(find.text('ماذا تحتاج؟'), findsNothing);
       expect(
         find.text(
           'لا توجد طلبات معلّقة — قلها، وستصلك عروض من جيبرز قريبين خلال دقائق.',
