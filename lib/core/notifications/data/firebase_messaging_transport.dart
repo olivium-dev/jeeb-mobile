@@ -8,10 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../diagnostics/diag.dart';
 import '../../observability/session_trace/session_trace.dart';
+import '../../role/role_availability_cubit.dart';
 import '../domain/active_chat_thread.dart';
 import '../domain/foreground_push_display.dart';
 import '../domain/local_push_inbox.dart';
 import '../domain/notification_message.dart';
+import '../domain/push_audience.dart';
 import 'shared_prefs_local_push_inbox.dart';
 import 'push_transport.dart';
 
@@ -41,6 +43,17 @@ Future<void> persistNewRequestPush(RemoteMessage message) async {
       return;
     }
     final prefs = await SharedPreferences.getInstance();
+    // Absent snapshot fails OPEN (persist); never fall back to the active role.
+    final snapshot =
+        prefs.getStringList(RoleAvailabilityCubit.availableRolesPrefKey);
+    if (snapshot != null && !isPushAudienceMatch(data, snapshot.toSet())) {
+      Diag.event('push_inbox_suppressed', <String, Object?>{
+        'id': message.messageId,
+        'audience_role': data['audience_role'],
+        'reason': 'audience_mismatch',
+      });
+      return;
+    }
     final inbox = SharedPrefsLocalPushInbox(prefs: prefs);
     await inbox.append(
       LocalPushRecord(
@@ -72,16 +85,21 @@ class FirebaseMessagingTransport implements PushTransport {
     FirebaseMessaging? messaging,
     FlutterLocalNotificationsPlugin? localNotifications,
     Set<String> Function()? openChatThreadIds,
+    Set<String> Function()? localRoles,
   }) : _messaging = messaging ?? FirebaseMessaging.instance,
        _localNotifications =
            localNotifications ?? FlutterLocalNotificationsPlugin(),
        _openChatThreadIds =
-           openChatThreadIds ?? (() => ActiveChatThread.instance.openIds);
+           openChatThreadIds ?? (() => ActiveChatThread.instance.openIds),
+       _localRoles = localRoles;
 
   final FirebaseMessaging _messaging;
   final FlutterLocalNotificationsPlugin _localNotifications;
 
   final Set<String> Function() _openChatThreadIds;
+
+  /// null = no resolver: the heads-up audience gate is skipped (fail open).
+  final Set<String> Function()? _localRoles;
 
   final _foreground = StreamController<NotificationMessage>.broadcast();
   final _opened = StreamController<NotificationMessage>.broadcast();
@@ -169,16 +187,22 @@ class FirebaseMessagingTransport implements PushTransport {
 
   ///   renders the tray entry before Dart runs — same constraint recorded in
   bool _shouldShow(NotificationMessage domain) {
+    final roles = _localRoles?.call();
     final show = shouldShowForegroundPush(
       category: domain.category,
       data: domain.data,
       openChatThreadIds: _openChatThreadIds(),
+      localRoles: roles,
     );
     if (!show) {
       Diag.event('push_headsup_suppressed', <String, Object?>{
         'id': domain.id,
         'category': domain.category.name,
-        'reason': isSilentPush(domain.data) ? 'silent' : 'chat_thread_open',
+        'reason': isSilentPush(domain.data)
+            ? 'silent'
+            : (roles != null && !isPushAudienceMatch(domain.data, roles))
+            ? 'audience_mismatch'
+            : 'chat_thread_open',
       });
     }
     return show;

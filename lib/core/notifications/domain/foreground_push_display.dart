@@ -1,6 +1,7 @@
 library;
 
 import 'notification_message.dart';
+import 'push_audience.dart';
 
 const String kSilentPushKey = 'silent';
 
@@ -41,8 +42,13 @@ bool shouldShowForegroundPush({
   required NotificationCategory category,
   required Map<String, String> data,
   required Set<String> openChatThreadIds,
+  // null = no roles resolver wired: skip the audience gate (fail open).
+  Set<String>? localRoles,
 }) {
   if (isSilentPush(data)) return false;
+  if (localRoles != null && !isPushAudienceMatch(data, localRoles)) {
+    return false;
+  }
   if (category != NotificationCategory.chat) return true;
   if (openChatThreadIds.isEmpty) return true;
   for (final id in chatThreadIdsFromPush(data)) {

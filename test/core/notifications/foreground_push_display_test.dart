@@ -20,11 +20,13 @@ bool _show(
   Map<String, String> data, {
   NotificationCategory category = NotificationCategory.chat,
   Set<String> open = const <String>{},
+  Set<String>? roles,
 }) =>
     shouldShowForegroundPush(
       category: category,
       data: data,
       openChatThreadIds: open,
+      localRoles: roles,
     );
 
 void main() {
@@ -130,6 +132,109 @@ void main() {
         );
       },
     );
+  });
+
+  group('audience gate — reuses isPushAudienceMatch, fails open', () {
+    const driverNewRequest = <String, String>{
+      'type': 'new_request',
+      'requestId': 'req-1',
+      'audience_role': 'driver',
+    };
+
+    test('client-only roles + audience_role=driver ⇒ suppressed', () {
+      expect(
+        _show(
+          driverNewRequest,
+          category: NotificationCategory.newRequest,
+          roles: const {'client'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('jeeber roles ⇒ shows (driver canonicalises to jeeber)', () {
+      expect(
+        _show(
+          driverNewRequest,
+          category: NotificationCategory.newRequest,
+          roles: const {'jeeber'},
+        ),
+        isTrue,
+      );
+    });
+
+    test('dual-role ⇒ shows', () {
+      expect(
+        _show(
+          driverNewRequest,
+          category: NotificationCategory.newRequest,
+          roles: const {'client', 'jeeber'},
+        ),
+        isTrue,
+      );
+    });
+
+    test('null roles (no resolver wired) ⇒ shows — behaviour unchanged', () {
+      expect(
+        _show(driverNewRequest, category: NotificationCategory.newRequest),
+        isTrue,
+      );
+    });
+
+    test('EMPTY roles ⇒ shows (matcher fails open on unknown roles)', () {
+      expect(
+        _show(
+          driverNewRequest,
+          category: NotificationCategory.newRequest,
+          roles: const <String>{},
+        ),
+        isTrue,
+      );
+    });
+
+    test('no audience key ⇒ shows for any roles (fails open)', () {
+      expect(
+        _show(
+          const <String, String>{'type': 'new_request', 'requestId': 'r'},
+          category: NotificationCategory.newRequest,
+          roles: const {'client'},
+        ),
+        isTrue,
+      );
+    });
+
+    test('a matching audience does NOT bypass the silent gate', () {
+      expect(
+        _show(
+          const <String, String>{
+            'type': 'new_request',
+            'silent': 'True',
+            'audience_role': 'driver',
+          },
+          category: NotificationCategory.newRequest,
+          roles: const {'jeeber'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('audience mismatch also gates a chat push (category-independent)', () {
+      expect(
+        _show(_chat(conversationId: 'conv-1'), roles: const {'jeeber'}),
+        isTrue,
+        reason: 'no audience key on the chat payload ⇒ untouched',
+      );
+      expect(
+        _show(
+          <String, String>{
+            ..._chat(conversationId: 'conv-1'),
+            'audience_role': 'client',
+          },
+          roles: const {'jeeber'},
+        ),
+        isFalse,
+      );
+    });
   });
 
   group('NEGATIVE CONTROL — the suppression is not blanket', () {

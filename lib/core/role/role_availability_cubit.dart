@@ -1,13 +1,25 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RoleAvailabilityCubit extends Cubit<RoleAvailability> {
-  RoleAvailabilityCubit([super.initial = const RoleAvailability()]);
+  RoleAvailabilityCubit([
+    super.initial = const RoleAvailability(),
+    SharedPreferences? prefs,
+  ]) : _prefs = prefs;
+
+  /// Snapshot the FCM background isolate reads to audience-gate inbox rows.
+  static const String availableRolesPrefKey = 'app.available_roles';
+
+  final SharedPreferences? _prefs;
 
   void setAvailableRoles(List<String> roles) {
     final next = RoleAvailability(roles: List<String>.unmodifiable(roles));
     if (next == state) return;
     emit(next);
+    unawaited(_prefs?.setStringList(availableRolesPrefKey, roles));
   }
 }
 

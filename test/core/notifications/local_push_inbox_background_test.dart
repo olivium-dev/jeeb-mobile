@@ -8,6 +8,7 @@ import 'package:jeeb_mobile/core/notifications/application/badge_count_cubit.dar
 import 'package:jeeb_mobile/core/notifications/data/firebase_messaging_transport.dart';
 import 'package:jeeb_mobile/core/notifications/data/shared_prefs_local_push_inbox.dart';
 import 'package:jeeb_mobile/core/notifications/domain/local_push_inbox.dart';
+import 'package:jeeb_mobile/core/role/role_availability_cubit.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -84,6 +85,74 @@ void main() {
     final inbox = SharedPrefsLocalPushInbox(prefs: prefs);
     expect(await inbox.readAll(), isEmpty,
         reason: 'chat/offer are server-sourced; local persistence would double');
+  });
+
+  const driverMessage = RemoteMessage(
+    messageId: 'bg-aud-1',
+    data: <String, dynamic>{
+      'type': 'new_request',
+      'requestId': 'req-aud',
+      'audience_role': 'driver',
+    },
+    notification: RemoteNotification(title: 't', body: 'b'),
+  );
+
+  test(
+      'AUDIENCE GUARD (C-3): a client-only roles snapshot drops a driver '
+      'new_request — no inbox row, no badge', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      RoleAvailabilityCubit.availableRolesPrefKey: <String>['client'],
+    });
+    await firebaseMessagingBackgroundHandler(driverMessage);
+
+    final prefs = await SharedPreferences.getInstance();
+    final inbox = SharedPrefsLocalPushInbox(prefs: prefs);
+    expect(await inbox.readAll(), isEmpty,
+        reason: 'a customer-only session must not accrue jeeber inbox rows');
+    final badge = BadgeCountCubit(inbox: inbox);
+    addTearDown(badge.close);
+    await badge.hydrate();
+    expect(badge.state.newRequests, 0, reason: 'no row ⇒ no badge');
+  });
+
+  test(
+      'FAIL-OPEN: an ABSENT roles snapshot persists the driver row unchanged '
+      '(never gate on the active role)', () async {
+    // setUp cleared prefs, so no snapshot key exists — pre-getMe state.
+    await firebaseMessagingBackgroundHandler(driverMessage);
+
+    final prefs = await SharedPreferences.getInstance();
+    final records = await SharedPrefsLocalPushInbox(prefs: prefs).readAll();
+    expect(records, hasLength(1),
+        reason: 'unknown roles must never eat a push');
+    expect(records.single.ref, 'req-aud');
+  });
+
+  test('a dual-role (jeeber) snapshot keeps the driver row', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      RoleAvailabilityCubit.availableRolesPrefKey: <String>[
+        'client',
+        'jeeber',
+      ],
+    });
+    await firebaseMessagingBackgroundHandler(driverMessage);
+
+    final prefs = await SharedPreferences.getInstance();
+    final records = await SharedPrefsLocalPushInbox(prefs: prefs).readAll();
+    expect(records, hasLength(1));
+    expect(records.single.ref, 'req-aud');
+  });
+
+  test(
+      'WRITE↔READ contract: RoleAvailabilityCubit persists the exact snapshot '
+      'the background isolate gates on', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final cubit = RoleAvailabilityCubit(const RoleAvailability(), prefs);
+    addTearDown(cubit.close);
+    cubit.setAvailableRoles(const <String>['client']);
+
+    await firebaseMessagingBackgroundHandler(driverMessage);
+    expect(await SharedPrefsLocalPushInbox(prefs: prefs).readAll(), isEmpty);
   });
 
   test('a new_request nested inside a stringified data blob is still persisted '
