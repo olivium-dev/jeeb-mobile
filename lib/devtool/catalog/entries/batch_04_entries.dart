@@ -122,7 +122,7 @@ Widget _clientHome({
       ),
       child: ClientHomeScreen(
         initialTab: initialTab,
-        onCreateRequest: () {},
+        onCreateRequest: (_) {},
         onTrack: (_) {},
       ),
     ),

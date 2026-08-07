@@ -23,7 +23,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_color_roles.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_glass_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_mic_hero.dart';
+import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_request_hero.dart';
 import 'package:jeeb_mobile/features/shell/tab_visibility.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
@@ -76,7 +78,7 @@ Widget _harness(
 }) {
   final Widget screen = ClientHomeScreen(
     initialTab: ClientHomeTab.pendingRequests,
-    onCreateRequest: () {},
+    onCreateRequest: (_) {},
     voiceCubit: cubit,
   );
   return MaterialApp(
@@ -139,6 +141,12 @@ double _chipOpacity(WidgetTester tester) =>
 /// transforms, so it must be measured from below them.
 Finder _chipPaint() =>
     find.descendant(of: find.byKey(_chipKey), matching: find.byType(CustomPaint));
+
+/// The pinned create door — the capsule half of the split hero.
+Finder _createCapsule() => find.descendant(
+  of: find.byType(ClientHomeRequestHero),
+  matching: find.byType(JeebGlassCard),
+);
 
 /// Every circle the arm ring actually puts on the canvas this frame.
 ///
@@ -285,7 +293,20 @@ void main() {
       await _flush(tester);
       expect(cubit.state.phase, VoiceRecordingPhase.recording);
 
+      // S2: the wash tracks the RECORDING, not the finger. Releasing this
+      // early leaves a tap-started recording running, so the scrim stays.
       await gesture.up();
+      await _flush(tester);
+      expect(cubit.state.phase, VoiceRecordingPhase.recording);
+      expect(_scrimAbsorbs(tester, overList), isTrue);
+
+      _ticks.add(const Duration(seconds: 3));
+      await _flush(tester);
+      final stop = await tester.startGesture(
+        tester.getCenter(find.byType(JeebMicHero)),
+      );
+      await _flush(tester);
+      await stop.up();
       await _flush(tester);
       expect(_scrimAbsorbs(tester, overList), isFalse);
     });
@@ -343,6 +364,36 @@ void main() {
       await gesture.moveTo(centre.translate(-44.8, 0));
       await tester.pump();
       expect(_chipOpacity(tester), 1);
+
+      await gesture.up();
+      await _flush(tester);
+    });
+
+    testWidgets('travels over the pinned create door, which the scrim owns', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_harness(_buildCubit()));
+      await _flush(tester);
+
+      final Rect capsule = tester.getRect(_createCapsule());
+      final centre = tester.getCenter(find.byType(JeebMicHero));
+      final gesture = await tester.startGesture(centre);
+      await _flush(tester);
+      await gesture.moveTo(
+        centre.translate(-JeebMicHero.slideCancelThreshold, 0),
+      );
+      await _flush(tester);
+
+      // The chip's destination is INSIDE the capsule's band by design; what
+      // keeps that honest is the scrim, not a gap.
+      expect(tester.getCenter(_chipPaint()).dx, lessThan(capsule.right));
+      expect(
+        _scrimAbsorbs(tester, capsule.center),
+        isTrue,
+        reason:
+            'a create door still tappable under the cancel chip is the '
+            'defect pinning it into the mic band could have introduced',
+      );
 
       await gesture.up();
       await _flush(tester);

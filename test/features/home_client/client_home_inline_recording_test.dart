@@ -127,7 +127,7 @@ Future<void> _flush(WidgetTester tester, [int rounds = 6]) async {
 
 Widget _harness(
   VoiceRecordingCubit cubit, {
-  VoidCallback? onCreateRequest,
+  void Function(Tier?)? onCreateRequest,
   Locale locale = const Locale('en'),
   double textScale = 1.0,
   bool disableAnimations = true,
@@ -157,7 +157,7 @@ Widget _harness(
         ),
         child: ClientHomeScreen(
           initialTab: ClientHomeTab.pendingRequests,
-          onCreateRequest: onCreateRequest ?? () {},
+          onCreateRequest: onCreateRequest ?? (_) {},
           voiceCubit: cubit,
         ),
       ),
@@ -365,7 +365,7 @@ void main() {
             error: VoiceRecordingError.permissionDenied,
           ),
         ),
-        onCreateRequest: () => taps += 1,
+        onCreateRequest: (_) => taps += 1,
       ),
     );
     await tester.pumpAndSettle();
@@ -402,10 +402,13 @@ void main() {
     expect(find.byType(SnackBar), findsNothing);
   });
 
-  testWidgets('a too-short clip teaches the gesture with a snackbar', (
+  // S2. A release too brief to be a hold is a TAP, and a tap is the second way
+  // in — the old `tooShort` snackbar was failure-first teaching.
+  testWidgets('a tap keeps recording instead of teaching the gesture', (
     tester,
   ) async {
-    await tester.pumpWidget(_harness(_buildCubit()));
+    final cubit = _buildCubit();
+    await tester.pumpWidget(_harness(cubit));
     await tester.pumpAndSettle();
 
     final gesture = await tester.startGesture(
@@ -415,11 +418,206 @@ void main() {
     await gesture.up();
     await _flush(tester);
 
-    expect(find.text('Hold the button for at least a second.'), findsOneWidget);
+    expect(cubit.state.phase, VoiceRecordingPhase.recording);
+    expect(find.text('Hold the button for at least a second.'), findsNothing);
+    expect(find.text('Press and hold the mic to record.'), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('client_home_voice_status'),
+      findsOneWidget,
+    );
+    _expectFrozenIds();
+  });
+
+  testWidgets('a second tap stops the tap-started recording and uploads', (
+    tester,
+  ) async {
+    final cubit = _buildCubit(transcript: 'two kilos of apples');
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final centre = tester.getCenter(find.byType(JeebMicHero));
+    final first = await tester.startGesture(centre);
+    await _flush(tester);
+    await first.up();
+    await _flush(tester);
+    expect(cubit.state.phase, VoiceRecordingPhase.recording);
+
+    _ticks.add(const Duration(seconds: 3));
+    await _flush(tester);
+
+    final second = await tester.startGesture(centre);
+    await _flush(tester);
+    await second.up();
+    await _flush(tester);
+
+    expect(_repo.uploadCalls, 1);
+    expect(_repo.lastClip?.duration, const Duration(seconds: 3));
     expect(
       find.bySemanticsIdentifier('client_home_voice_status'),
       findsNothing,
     );
+  });
+
+  testWidgets('a hold after a tap still stops on release, never re-latches', (
+    tester,
+  ) async {
+    final cubit = _buildCubit(transcript: 'apples');
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final centre = tester.getCenter(find.byType(JeebMicHero));
+    final tap = await tester.startGesture(centre);
+    await _flush(tester);
+    await tap.up();
+    await _flush(tester);
+
+    final hold = await tester.startGesture(centre);
+    await _flush(tester);
+    _ticks.add(const Duration(seconds: 3));
+    await _flush(tester);
+    await hold.up();
+    await _flush(tester);
+
+    expect(_repo.uploadCalls, 1);
+    expect(_repo.lastClip?.duration, const Duration(seconds: 3));
+  });
+
+  testWidgets('a slide-cancel after a tap clears the latch and throws away', (
+    tester,
+  ) async {
+    final cubit = _buildCubit();
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final centre = tester.getCenter(find.byType(JeebMicHero));
+    final tap = await tester.startGesture(centre);
+    await _flush(tester);
+    await tap.up();
+    await _flush(tester);
+    _ticks.add(const Duration(seconds: 3));
+    await _flush(tester);
+
+    final slide = await tester.startGesture(centre);
+    await _flush(tester);
+    await slide.moveTo(
+      centre.translate(-JeebMicHero.slideCancelThreshold - 8, 0),
+    );
+    await slide.up();
+    await _flush(tester);
+
+    expect(cubit.state.phase, VoiceRecordingPhase.idle);
+    expect(_repo.uploadCalls, 0);
+  });
+
+  // A brush and a deliberate tap are the same gesture. Only the CONSEQUENCE
+  // can tell them apart: the cap is not a stop the customer asked for.
+  testWidgets('a latch nobody stopped never uploads itself at the cap', (
+    tester,
+  ) async {
+    final cubit = _buildCubit(transcript: 'ambient noise');
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final brush = await tester.startGesture(
+      tester.getCenter(find.byType(JeebMicHero)),
+    );
+    await _flush(tester);
+    await brush.up();
+    await _flush(tester);
+    expect(cubit.state.phase, VoiceRecordingPhase.recording);
+
+    _ticks.add(VoiceRecordingState.maxDuration);
+    await _flush(tester);
+
+    expect(
+      _repo.uploadCalls,
+      0,
+      reason: 'a 60s clip from a pocket brush must not upload and hand off',
+    );
+    expect(
+      cubit.state.phase,
+      VoiceRecordingPhase.idle,
+      reason: 'and it must not be left stranded either',
+    );
+    expect(find.byType(ClientHomeScreen), findsOneWidget);
+  });
+
+  testWidgets('a held clip that hits the cap still sends on release', (
+    tester,
+  ) async {
+    final cubit = _buildCubit(transcript: 'two kilos of apples');
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final hold = await tester.startGesture(
+      tester.getCenter(find.byType(JeebMicHero)),
+    );
+    await _flush(tester);
+    _ticks.add(VoiceRecordingState.maxDuration);
+    await _flush(tester);
+    expect(cubit.state.phase, VoiceRecordingPhase.recorded);
+    expect(_repo.uploadCalls, 0);
+
+    await hold.up();
+    await _flush(tester);
+    expect(_repo.uploadCalls, 1);
+  });
+
+  // S2 blessed the tap; the tooShort copy must not answer it with "hold".
+  testWidgets('a tap stopped under a second is never told to hold', (
+    tester,
+  ) async {
+    final cubit = _buildCubit();
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final centre = tester.getCenter(find.byType(JeebMicHero));
+    final first = await tester.startGesture(centre);
+    await _flush(tester);
+    await first.up();
+    await _flush(tester);
+    _ticks.add(const Duration(milliseconds: 600));
+    await _flush(tester);
+
+    final second = await tester.startGesture(centre);
+    await _flush(tester);
+    await second.up();
+    await _flush(tester);
+
+    expect(cubit.state.phase, VoiceRecordingPhase.idle);
+    expect(_repo.uploadCalls, 0);
+    // The screen-level cover for tooShort: reachable, and gesture-neutral.
+    expect(find.text('Hold the button for at least a second.'), findsNothing);
+    expect(
+      find.text('Too short — record for at least a second.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a hands-free recording is told how to stop, not how to slide', (
+    tester,
+  ) async {
+    final cubit = _buildCubit();
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final centre = tester.getCenter(find.byType(JeebMicHero));
+    final hold = await tester.startGesture(centre);
+    await _flush(tester);
+    // A finger IS on the glass here, so the slide instruction is obeyable.
+    expect(find.text('Slide to cancel'), findsOneWidget);
+    expect(find.text('Tap the mic to stop'), findsNothing);
+
+    await hold.up();
+    await _flush(tester);
+
+    expect(cubit.state.phase, VoiceRecordingPhase.recording);
+    expect(
+      find.text('Tap the mic to stop'),
+      findsOneWidget,
+      reason: 'nothing is being held, so "Slide to cancel" cannot be obeyed',
+    );
+    expect(find.text('Slide to cancel'), findsNothing);
   });
 
   testWidgets('a sent clip seeds the compose session with a real tier', (
@@ -648,7 +846,9 @@ void main() {
     );
   }
 
-  testWidgets('a tap that beats the recorder says to hold, never nothing', (
+  // The two halves of the release-beats-the-recorder race, which the screen now
+  // tells apart by PointerUp vs PointerCancel rather than by guessing.
+  testWidgets('a tap that beats the recorder keeps what the recorder opened', (
     tester,
   ) async {
     final recorder = _GatedRecorder();
@@ -656,8 +856,6 @@ void main() {
     await tester.pumpWidget(_harness(cubit));
     await tester.pumpAndSettle();
 
-    // Release BEFORE the platform recorder resolves — a real tap, and the
-    // first-run permission dialog cancelling the touch.
     final gesture = await tester.startGesture(
       tester.getCenter(find.byType(JeebMicHero)),
     );
@@ -667,9 +865,56 @@ void main() {
     recorder.release();
     await _flush(tester);
 
+    expect(cubit.state.phase, VoiceRecordingPhase.recording);
+    expect(find.text('Press and hold the mic to record.'), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('client_home_voice_status'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a stolen pointer still says to hold, and captures nothing', (
+    tester,
+  ) async {
+    final recorder = _GatedRecorder();
+    final cubit = _buildCubit(recorder: recorder);
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    // The first-run permission dialog cancels the touch; the recorder only
+    // comes up once the customer has answered it.
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(JeebMicHero)),
+    );
+    await _flush(tester);
+    await gesture.cancel();
+    await _flush(tester);
+    recorder.release();
+    await _flush(tester);
+
     expect(cubit.state.phase, VoiceRecordingPhase.idle);
     expect(_repo.uploadCalls, 0);
     expect(find.text('Press and hold the mic to record.'), findsOneWidget);
+  });
+
+  testWidgets('a stolen pointer mid-recording never latches the mic open', (
+    tester,
+  ) async {
+    final cubit = _buildCubit();
+    await tester.pumpWidget(_harness(cubit));
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(JeebMicHero)),
+    );
+    await _flush(tester);
+    expect(cubit.state.phase, VoiceRecordingPhase.recording);
+
+    await gesture.cancel();
+    await _flush(tester);
+
+    expect(cubit.state.phase, VoiceRecordingPhase.idle);
+    expect(_repo.uploadCalls, 0);
   });
 
   testWidgets('a screen-reader tap toggles recording on then off', (

@@ -6,7 +6,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage: home shell -> wallet -> notifications -> delivery/dashboard/earnings
 #           tabs -> profile -> language -> saved addresses -> address-detail ->
-#           back to home -> create-request (request-type -> location -> waiting)
+#           back to home -> create-request (New Order -> location -> waiting)
 #           -> cancel back out. All assertion is visual (screenshots).
 #
 # Bottom-nav x-fractions @ y=90.5%:  Delivery 30.6% · Dashboard 51.7% ·
@@ -90,10 +90,6 @@ env:
     timeout: 2000
 # Return to Requests/home tab and start a new order.
 - runFlow: ../pages/home-requests-empty.yaml
-- runFlow:
-    file: ../pages/request-type.yaml
-    env:
-      TIER_POINT: "${TIER_POINT}"
 - runFlow: ../pages/location-permission.yaml
 - runFlow:
     file: ../pages/client-location-compose.yaml

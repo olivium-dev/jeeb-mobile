@@ -2,10 +2,18 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # route: shell. Reached by: Skip for now / Continue from profile-name.
 # This is the authenticated home. Default action: start a New Order => route
-# request-type. Bottom nav taps are exposed as params for the tour.
+# client-location, tier already seeded (S3). Bottom nav taps are exposed as
+# params for the tour.
 #
 # Coordinate fractions of 1080x2340:
-#   New Order:        50%,81%
+#   New Order:          50%,83.6%   (PINNED BAND — geometry, not content)
+#     The capsule is no longer laid out by the scroll body: it is pinned at
+#     bottom = scrollBodyBottomInset + 28 and is 48dp tall, so its band is
+#     [1-(inset+76)/H , 1-(inset+28)/H] and its centre is 1-(inset+52)/H.
+#     `inset` is the floating pill nav's painted height PLUS the system nav
+#     inset (shell_screen.dart `_NavBarContentInset`). 83.6% is that centre for
+#     inset 88dp / H 854dp — RE-MEASURE from a screenshot on any device whose
+#     bottom inset differs by more than ~20dp, or the tap lands on the list.
 #   FAB (+):          88%,74%
 #   wallet icon:      78%,8%
 #   notification bell:91%,8%
@@ -30,6 +38,9 @@ env:
 - takeScreenshot: "${SHOT}"
 # Default: begin a new order.
 - tapOn:
-    point: "50%,81%"
+    point: "50%,83.6%"        # pinned band — see the formula above
 - waitForAnimationToEnd:
     timeout: 5000
+# A miss lands back on home with no assertable id (semantics are unreliable in
+# prod on this device), so this frame is the only evidence the tap connected.
+- takeScreenshot: "${SHOT}-after-new-order"

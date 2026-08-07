@@ -25,7 +25,7 @@ import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../request_summary/application/compose_request_controller.dart';
 import '../../shell/tab_visibility.dart';
-import '../../tier_selection/data/tier_repository.dart';
+import '../../tier_selection/application/default_tier.dart';
 import '../../tier_selection/domain/tier.dart';
 import '../../voice_request/cubit/voice_recording_cubit.dart';
 import '../../voice_request/cubit/voice_recording_state.dart';
@@ -48,11 +48,10 @@ import 'widgets/offer_status_info_sheet.dart';
 /// (`27-e1-empty-no-requests.png`), on the hero `JeebMidnightField`.
 ///
 /// R1 top-to-bottom: profile header · white prompt + orange Arabic tagline ·
-/// frosted voice capsule · Pending/Replies segmented toggle · glass cards.
-/// E1 is the board's OTHER composition of the same parts: header · toggle ·
-/// the composed empty illustration · the capsule beneath it. Which one renders
-/// is decided by [_ReadyLayout] from the selected tab's emptiness, so the
-/// prompt is never printed twice on one screen.
+/// Pending/Replies segmented toggle · glass cards. The create capsule is no
+/// longer one of them: it is PINNED into the mic's band beside the disc, so
+/// both doors into a request sit under the thumb and neither scrolls away. E1
+/// swaps the cards for the composed empty illustration and nothing else moves.
 ///
 /// The field's decor is drawn but NOT animated (`03-MOTION-NOTES` §R1: zero
 /// animated elements, including the broadcast dot and the orbit rings).
@@ -74,7 +73,10 @@ class ClientHomeScreen extends StatefulWidget {
   /// (JM-028) / `offer-accept-confirm` (JM-029) from inside their own tabs, so
   /// `my-orders` no longer opens `/chat/:id` (the divergence 20_GAP_MAP flagged).
   final void Function(ClientHomeRequest request)? onOpenRequest;
-  final VoidCallback? onCreateRequest;
+
+  /// Opens the TYPED create door. The screen hands over the tier it already
+  /// warmed, so the host never re-fetches the catalog on the tap.
+  final void Function(Tier? seedTier)? onCreateRequest;
 
   /// Opens the live-tracking screen (`/orders/:id/tracking`) for an in-progress
   /// delivery's "Track my order" CTA. Distinct from [onOpenRequest]. When null
@@ -135,6 +137,20 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
   /// race: `startRecording` emits `idle` before awaiting the platform recorder.
   bool _pressDown = false;
 
+  /// A recording running with NO finger on the glass — the tap route in. A
+  /// notifier: the next activation stops it, and the dock has to say so.
+  final ValueNotifier<bool> _handsFree = ValueNotifier<bool>(false);
+  bool get _tapLatched => _handsFree.value;
+  set _tapLatched(bool value) => _handsFree.value = value;
+
+  /// True once the user asked THIS recording to end. Auto-send is gated on it,
+  /// so a latch nobody is watching cannot upload itself at the 60s cap.
+  bool _stopRequested = false;
+
+  /// True when the last press ended in a `PointerCancel`. The disc joins no
+  /// gesture arena, so only the platform steals its touch.
+  bool _pressStolen = false;
+
   /// 0..1 slide-to-cancel travel, written by the mic and read by the disc's
   /// transform and the dock's hint — a notifier so a pointer move rebuilds none.
   final ValueNotifier<double> _slideProgress = ValueNotifier<double>(0);
@@ -192,6 +208,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
       // A backgrounded app may never deliver the pointer-up; a stuck
       // `_pressDown` would disable auto-send for the rest of the session.
       _pressDown = false;
+      _tapLatched = false;
+      _stopRequested = false;
       _cancelExit.value = true;
       unawaited(_voice.cancelRecording());
       _clearBlockingVoiceError();
@@ -225,6 +243,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     // [IndexedStack] child, so it is never disposed.
     if (_wasVisible == true && !isVisible) {
       _pressDown = false;
+      _tapLatched = false;
+      _stopRequested = false;
       _cancelExit.value = true;
       unawaited(_voice.cancelRecording());
       _clearBlockingVoiceError();
@@ -251,6 +271,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     if (owned != null) _closeVoice(owned);
     _slideProgress.dispose();
     _cancelExit.dispose();
+    _handsFree.dispose();
     super.dispose();
   }
 
@@ -281,6 +302,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
   Future<void> _onPressStart() async {
     if (_voice.state.isSending) return;
     _pressDown = true;
+    _pressStolen = false;
+    _stopRequested = false;
     _cancelExit.value = false;
     _pendingHandOff = null;
     unawaited(_warmTiers());
@@ -289,29 +312,38 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     if (_voice.state.hasClip) await _voice.discardClip();
     if (!mounted) return;
     if (!_pressDown) {
-      _showHoldHint();
+      // Released while the old clip was being dropped — a tap, so honour it.
+      if (_pressStolen) {
+        _showHoldHint();
+        return;
+      }
+      await _startFromActivation();
       return;
     }
     if (_tierBlocked) setState(() => _tierBlocked = false);
     await _voice.startRecording();
     if (!mounted || _pressDown) return;
-    // The release — or the first-run permission dialog's pointer-cancel — beat
-    // the platform recorder. Drop the orphan and say why nothing was captured.
-    if (_voice.state.isRecording) {
-      await _voice.cancelRecording();
-      _showHoldHint();
-    }
-  }
-
-  /// The screen-reader route into recording: press-and-hold carries no
-  /// semantics action, so activation has to be a start/stop toggle.
-  Future<void> _onMicSemanticTap() async {
-    if (_voice.state.isSending) return;
-    if (_voice.state.isRecording) {
-      await _voice.stopRecording();
+    if (_pressStolen) {
+      // The first-run permission dialog took the pointer, not the user. Drop
+      // the orphan recording and say why nothing was captured.
+      if (_voice.state.isRecording) {
+        await _voice.cancelRecording();
+        _showHoldHint();
+      }
       return;
     }
+    // The release beat the platform recorder: keep what it finally opened and
+    // let the next activation close it.
+    if (_voice.state.isRecording) _tapLatched = true;
+  }
+
+  /// Recording from an activation rather than a hold — the screen-reader tap
+  /// and the sighted quick tap land here, and neither has a release edge.
+  Future<void> _startFromActivation() async {
+    if (_voice.state.isSending) return;
     _pressDown = false;
+    _pressStolen = false;
+    _stopRequested = false;
     _cancelExit.value = false;
     _pendingHandOff = null;
     unawaited(_warmTiers());
@@ -319,6 +351,22 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     if (!mounted) return;
     if (_tierBlocked) setState(() => _tierBlocked = false);
     await _voice.startRecording();
+    if (!mounted) return;
+    // A pointer stolen while the recorder came up must not leave a latch.
+    if (_voice.state.isRecording && !_pressStolen) _tapLatched = true;
+  }
+
+  /// The screen-reader route into recording: press-and-hold carries no
+  /// semantics action, so activation has to be a start/stop toggle.
+  Future<void> _onMicSemanticTap() async {
+    if (_voice.state.isSending) return;
+    if (_voice.state.isRecording) {
+      _tapLatched = false;
+      _stopRequested = true;
+      await _voice.stopRecording();
+      return;
+    }
+    await _startFromActivation();
   }
 
   void _showHoldHint() {
@@ -359,28 +407,67 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     });
   }
 
+  /// The typed door. Hands the host the tier this screen already warmed, so the
+  /// tap never blocks on `GET /tiers` and never stacks two pushes.
+  void _openTyped() {
+    if (_voice.state.isRecording) {
+      // Leaving home with a live recorder would strand it: nothing else on this
+      // route stops it, and the pinned capsule is reachable to a screen reader.
+      _tapLatched = false;
+      _stopRequested = false;
+      _cancelExit.value = true;
+      unawaited(_voice.cancelRecording());
+    }
+    widget.onCreateRequest?.call(_tier);
+  }
+
   void _typeInstead() {
     _clearBlockingVoiceError();
     if (_tierBlocked || _pendingHandOff != null) _dismissTier();
-    widget.onCreateRequest?.call();
+    _openTyped();
   }
 
   void _onPressEnd() {
     _pressDown = false;
-    if (_voice.state.phase == VoiceRecordingPhase.recorded) {
+    final VoiceRecordingState s = _voice.state;
+    if (_tapLatched) {
+      // The latch is consumed FIRST, so a second tap can always stop.
+      _tapLatched = false;
+    } else if (!_pressStolen &&
+        s.isRecording &&
+        s.elapsed < VoiceRecordingState.minSendableDuration) {
+      // Too brief to be a hold: this was a tap, so keep listening.
+      _tapLatched = true;
+      return;
+    }
+    _stopRequested = true;
+    if (s.phase == VoiceRecordingPhase.recorded) {
       _maybeAutoSend();
       return;
     }
     unawaited(_voice.stopRecording());
   }
 
+  /// Only the platform reaches here, so it is the exact discriminator between
+  /// a quick tap and the first-run permission dialog stealing the touch.
+  void _onPressCancel() {
+    _pressStolen = true;
+    _tapLatched = false;
+    _onPressEnd();
+  }
+
   void _onSlideCancel() {
     _pressDown = false;
+    _tapLatched = false;
+    _stopRequested = false;
     _cancelExit.value = true;
     unawaited(_voice.cancelRecording());
   }
 
   void _onVoiceState(BuildContext context, VoiceRecordingState state) {
+    // Live state, not the delivered event: a late `idle` from the start of a
+    // tap must not clear the latch the same start just armed.
+    if (!_voice.state.isRecording) _tapLatched = false;
     final l10n = AppLocalizations.of(context);
     final error = state.error;
     if (error != null && isTransientVoiceError(error)) {
@@ -429,6 +516,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     if (_pressDown) return;
     if (s.hasUploadFailure) return;
     if (s.phase != VoiceRecordingPhase.recorded) return;
+    if (!_stopRequested) {
+      // The cap ended a latch nobody asked to end: uploading it would navigate
+      // the customer off home on a pocket brush, and keeping it strands a clip.
+      unawaited(_voice.discardClip());
+      return;
+    }
     if (!s.canSend) return;
     unawaited(_voice.send());
   }
@@ -495,19 +588,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
   }
 
   Future<void> _fetchTier() async {
-    if (!sl.isRegistered<TierRepository>()) return;
-    try {
-      final tiers = await sl<TierRepository>().fetchTiers();
-      if (!mounted) return;
-      final usable = tiers.where((t) => t.wireId != null).toList();
-      if (usable.isEmpty) return;
-      _tier = usable.firstWhere(
-        (t) => t.recommended,
-        orElse: () => usable.first,
-      );
-    } catch (_) {
-      // The dock's tier surface is the recovery; _tier simply stays null.
-    }
+    final tier = await resolveDefaultTier();
+    // The dock's tier surface is the recovery; _tier simply stays null.
+    if (mounted) _tier = tier;
   }
 
   /// Runs on EVERY warm, success or failure — the resume must not be gated on
@@ -580,6 +663,13 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
     return BlocBuilder<ClientHomeCubit, ClientHomeState>(
       builder: (context, state) {
         _resolveInitialTab(state);
+        // E1's composition: the pending tab with nothing pending. The ONLY
+        // state that re-homes the empty CTA id and the empty avatar id.
+        final bool firstRequest =
+            state.status == ClientHomeStatus.ready &&
+            _selectedOfferStatus == null &&
+            _selectedTab == ClientHomeTab.pendingRequests &&
+            state.pending.isEmpty;
         return Semantics(
           identifier: 'client_home_root',
           container: true,
@@ -602,6 +692,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                       state: state,
                       selectedTab: _selectedTab,
                       selectedOfferStatus: _selectedOfferStatus,
+                      firstRequest: firstRequest,
                       onTabSelected: (tab) {
                         setState(() {
                           _tabResolved = true;
@@ -615,11 +706,17 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                           _selectedOfferStatus = status;
                         });
                       },
-                      onCreateRequest: widget.onCreateRequest,
                       onTrack: widget.onTrack,
                     ),
                   ),
                   const _HeaderActionsGlassBackdrop(),
+                  // Before the scrim, so recording dims the typed door too.
+                  _PinnedCreateCta(
+                    onCreateRequest: widget.onCreateRequest == null
+                        ? null
+                        : _openTyped,
+                    firstRequest: firstRequest,
+                  ),
                   // Under the dock and the disc, over everything else: the
                   // focus wash is what raises their contrast while recording.
                   _RecordingScrim(cancelExit: _cancelExit),
@@ -627,6 +724,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                     bottom:
                         context.scrollBodyBottomInset + _kFloatingMicReserve,
                     slideProgress: _slideProgress,
+                    handsFree: _handsFree,
                     tierBlocked: _tierBlocked,
                     tierRetrying: _tierRetrying,
                     onRetryUpload: () => unawaited(_voice.send()),
@@ -643,6 +741,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                   _FloatingVoiceMic(
                     onPressStart: () => unawaited(_onPressStart()),
                     onPressEnd: _onPressEnd,
+                    onPressCancel: _onPressCancel,
                     onSlideCancel: _onSlideCancel,
                     onSemanticTap: () => unawaited(_onMicSemanticTap()),
                     onSemanticCancel: _onSlideCancel,
@@ -663,18 +762,18 @@ class _ClientHomeBody extends StatelessWidget {
     required this.state,
     required this.selectedTab,
     required this.selectedOfferStatus,
+    required this.firstRequest,
     required this.onTabSelected,
     required this.onOfferStatusSelected,
-    required this.onCreateRequest,
     required this.onTrack,
   });
 
   final ClientHomeState state;
   final ClientHomeTab selectedTab;
   final ClientOfferStatus? selectedOfferStatus;
+  final bool firstRequest;
   final ValueChanged<ClientHomeTab> onTabSelected;
   final ValueChanged<ClientOfferStatus> onOfferStatusSelected;
-  final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onTrack;
 
   @override
@@ -682,20 +781,17 @@ class _ClientHomeBody extends StatelessWidget {
     switch (state.status) {
       case ClientHomeStatus.initial:
       case ClientHomeStatus.loading:
-        return _LoadingLayout(onCreateRequest: onCreateRequest);
+        return const _LoadingLayout();
       case ClientHomeStatus.failed:
-        return _FailedLayout(
-          name: state.greetingName,
-          onCreateRequest: onCreateRequest,
-        );
+        return _FailedLayout(name: state.greetingName);
       case ClientHomeStatus.ready:
         return _ReadyLayout(
           state: state,
           selectedTab: selectedTab,
           selectedOfferStatus: selectedOfferStatus,
+          firstRequest: firstRequest,
           onTabSelected: onTabSelected,
           onOfferStatusSelected: onOfferStatusSelected,
-          onCreateRequest: onCreateRequest,
           onTrack: onTrack,
         );
     }
@@ -718,6 +814,48 @@ const double _kFloatingMicReserve =
 /// How long a dispose waits on an in-flight upload before closing anyway, so a
 /// hung POST cannot leak the cubit and its platform recorder forever.
 const Duration _kUploadCloseGrace = Duration(seconds: 30);
+
+/// End inset that clears the disc's whole reserved box, leaving `Spacing.small`
+/// of air between the capsule's end edge and the Ø56 disc.
+final double _kCreateCtaEnd = Spacing.medium + _kMicExtent;
+
+/// Bottom offset that lands the 48dp capsule's centre exactly on the disc's.
+const double _kCreateCtaBottom =
+    _kFloatingMicGap + (JeebMicHero.sizeCompact - kMinInteractiveDimension) / 2;
+
+/// The typed door, pinned beside the mic instead of scrolling with the list:
+/// both ways into a request now live in the same thumb band.
+class _PinnedCreateCta extends StatelessWidget {
+  const _PinnedCreateCta({
+    required this.onCreateRequest,
+    required this.firstRequest,
+  });
+
+  final VoidCallback? onCreateRequest;
+  final bool firstRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    return PositionedDirectional(
+      start: Spacing.xLarge,
+      end: _kCreateCtaEnd,
+      bottom: context.scrollBodyBottomInset + _kCreateCtaBottom,
+      child: SafeArea(
+        top: false,
+        bottom: false,
+        // Effective only because the capsule carries no `BackdropFilter`: a
+        // filter re-samples the scrolling backdrop whatever boundary wraps it.
+        child: RepaintBoundary(
+          child: ClientHomeRequestHero(
+            onCreateRequest: onCreateRequest,
+            showPrompt: false,
+            firstRequest: firstRequest,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// Gives the shell's fixed wallet/bell actions a glass resting surface so
 /// scrolled card text cannot compete with their glyphs. The translucent blur
@@ -1013,6 +1151,7 @@ class _FloatingVoiceMic extends StatefulWidget {
   const _FloatingVoiceMic({
     required this.onPressStart,
     required this.onPressEnd,
+    required this.onPressCancel,
     required this.onSlideCancel,
     required this.onSemanticTap,
     required this.onSemanticCancel,
@@ -1021,6 +1160,7 @@ class _FloatingVoiceMic extends StatefulWidget {
 
   final VoidCallback onPressStart;
   final VoidCallback onPressEnd;
+  final VoidCallback onPressCancel;
   final VoidCallback onSlideCancel;
   final VoidCallback onSemanticTap;
   final VoidCallback onSemanticCancel;
@@ -1176,6 +1316,12 @@ class _FloatingVoiceMicState extends State<_FloatingVoiceMic>
     _glide.forward(from: 0);
   }
 
+  /// The kit already zeroed the sink, so there is no travel left to glide back.
+  void _handlePressCancel() {
+    widget.onPressCancel();
+    widget.slideProgress.value = 0;
+  }
+
   void _handleSlideCancel() {
     HapticFeedback.lightImpact();
     widget.onSlideCancel();
@@ -1314,6 +1460,7 @@ class _FloatingVoiceMicState extends State<_FloatingVoiceMic>
                                       : null,
                                   onPressStart: _handlePressStart,
                                   onPressEnd: _handlePressEnd,
+                                  onPressCancel: _handlePressCancel,
                                   onSlideCancel: _handleSlideCancel,
                                   slideProgress: widget.slideProgress,
                                   holdSlideOnRelease: true,
@@ -1496,9 +1643,7 @@ class _MicHoldRingPainter extends CustomPainter {
 }
 
 class _LoadingLayout extends StatelessWidget {
-  const _LoadingLayout({required this.onCreateRequest});
-
-  final VoidCallback? onCreateRequest;
+  const _LoadingLayout();
 
   @override
   Widget build(BuildContext context) {
@@ -1513,17 +1658,6 @@ class _LoadingLayout extends StatelessWidget {
       children: [
         const ClientHomeGreeting(name: null),
         const SizedBox(height: Spacing.medium),
-        // The create surface must survive a degraded load — a spinner with no
-        // way to start a request is the defect this mirrors on all three
-        // layouts (client_home_429_tolerant_test.dart:196).
-        Padding(
-          padding: _kGutter,
-          child: ClientHomeRequestHero(
-            onCreateRequest: onCreateRequest,
-            showPrompt: false,
-          ),
-        ),
-        const SizedBox(height: Spacing.large),
         JeebEmptyState(
           status: JeebEmptyStateStatus.loading,
           headline: l10n.homeEmptyTitle,
@@ -1534,10 +1668,9 @@ class _LoadingLayout extends StatelessWidget {
 }
 
 class _FailedLayout extends StatelessWidget {
-  const _FailedLayout({required this.name, required this.onCreateRequest});
+  const _FailedLayout({required this.name});
 
   final String? name;
-  final VoidCallback? onCreateRequest;
 
   @override
   Widget build(BuildContext context) {
@@ -1552,14 +1685,6 @@ class _FailedLayout extends StatelessWidget {
       children: [
         ClientHomeGreeting(name: name),
         const SizedBox(height: Spacing.medium),
-        Padding(
-          padding: _kGutter,
-          child: ClientHomeRequestHero(
-            onCreateRequest: onCreateRequest,
-            showPrompt: false,
-          ),
-        ),
-        const SizedBox(height: Spacing.large),
         JeebEmptyState(
           status: JeebEmptyStateStatus.error,
           headline: l10n.homeLoadFailedTitle,
@@ -1583,18 +1708,18 @@ class _ReadyLayout extends StatelessWidget {
     required this.state,
     required this.selectedTab,
     required this.selectedOfferStatus,
+    required this.firstRequest,
     required this.onTabSelected,
     required this.onOfferStatusSelected,
-    required this.onCreateRequest,
     required this.onTrack,
   });
 
   final ClientHomeState state;
   final ClientHomeTab selectedTab;
   final ClientOfferStatus? selectedOfferStatus;
+  final bool firstRequest;
   final ValueChanged<ClientHomeTab> onTabSelected;
   final ValueChanged<ClientOfferStatus> onOfferStatusSelected;
-  final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onTrack;
 
   @override
@@ -1611,42 +1736,21 @@ class _ReadyLayout extends StatelessWidget {
     );
   }
 
-  /// True on the pending tab with nothing pending — E1's own composition, and
-  /// the only state that re-homes the empty CTA identifier.
-  bool get _pendingEmpty =>
-      selectedOfferStatus == null &&
-      selectedTab == ClientHomeTab.pendingRequests &&
-      state.pending.isEmpty;
-
-  /// Either tab showing its empty block: the prompt moves into that block, so
-  /// the capsule follows it to the bottom the way the E1 tile draws.
-  bool get _emptyComposition =>
-      _pendingEmpty ||
-      (selectedOfferStatus != null
-          ? !state.offerStatusRequests.any(
-              (request) => request.offerStatuses.contains(selectedOfferStatus),
-            )
-          : selectedTab == ClientHomeTab.replies && state.replies.isEmpty);
-
   List<Widget> _scrollChildren() {
-    final bool empty = _emptyComposition;
-    final Widget capsule = Padding(
-      padding: _kGutter,
-      child: ClientHomeRequestHero(
-        onCreateRequest: onCreateRequest,
-        showPrompt: !empty,
-        firstRequest: _pendingEmpty,
-      ),
-    );
     return <Widget>[
       ClientHomeGreeting(
         name: state.greetingName,
-        avatarSemanticsIdentifier: _pendingEmpty
+        avatarSemanticsIdentifier: firstRequest
             ? '_request_empty_state_avatar'
             : null,
       ),
       const SizedBox(height: Spacing.medium),
-      if (!empty) ...<Widget>[capsule, const SizedBox(height: Spacing.large)],
+      // Unconditional: a filter tap must never rebuild the top of the screen.
+      const Padding(
+        padding: _kGutter,
+        child: ClientHomeRequestHero(showCapsule: false),
+      ),
+      const SizedBox(height: Spacing.large),
       _ClientHomeTabBar(
         selectedTab: selectedTab,
         selectedOfferStatus: selectedOfferStatus,
@@ -1658,10 +1762,8 @@ class _ReadyLayout extends StatelessWidget {
         state: state,
         selectedTab: selectedTab,
         selectedOfferStatus: selectedOfferStatus,
-        onCreateRequest: onCreateRequest,
         onTrack: onTrack,
       ),
-      if (empty) ...<Widget>[const SizedBox(height: Spacing.large), capsule],
     ];
   }
 }
@@ -1671,14 +1773,12 @@ class _ReadyContent extends StatelessWidget {
     required this.state,
     required this.selectedTab,
     required this.selectedOfferStatus,
-    required this.onCreateRequest,
     required this.onTrack,
   });
 
   final ClientHomeState state;
   final ClientHomeTab selectedTab;
   final ClientOfferStatus? selectedOfferStatus;
-  final VoidCallback? onCreateRequest;
   final void Function(ClientHomeRequest)? onTrack;
 
   @override
@@ -1701,7 +1801,6 @@ class _ReadyContent extends StatelessWidget {
         // the indexed `orders_home_request_row_<n>` identifier inside the tab.
         return PendingRequestsTab(
           onTap: (request) => _openWaiting(context, request),
-          onCreateRequest: onCreateRequest,
         );
       case ClientHomeTab.replies:
         // JM-027: the Replies sub-tab owns its own navigation — Check Offers →

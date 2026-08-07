@@ -311,6 +311,67 @@ void main() {
       expect(log, <String>['start', 'end']);
     });
 
+    // The disc joins no gesture arena, so a PointerCancel is always the
+    // platform stealing the touch — never a finger-lift.
+    testWidgets('a stolen pointer routes to onPressCancel, not onPressEnd',
+        (WidgetTester tester) async {
+      final List<String> log = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          JeebMicHero(
+            onPressStart: () => log.add('start'),
+            onPressEnd: () => log.add('end'),
+            onPressCancel: () => log.add('stolen'),
+          ),
+        ),
+      );
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.cancel();
+      await tester.pump();
+      expect(log, <String>['start', 'stolen']);
+    });
+
+    testWidgets('without onPressCancel a stolen pointer still ends the press',
+        (WidgetTester tester) async {
+      final List<String> log = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          JeebMicHero(
+            onPressStart: () => log.add('start'),
+            onPressEnd: () => log.add('end'),
+          ),
+        ),
+      );
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.cancel();
+      await tester.pump();
+      expect(log, <String>['start', 'end']);
+    });
+
+    testWidgets('a finger-lift never reaches onPressCancel',
+        (WidgetTester tester) async {
+      final List<String> log = <String>[];
+      await tester.pumpWidget(
+        _wrap(
+          JeebMicHero(
+            onPressStart: () => log.add('start'),
+            onPressEnd: () => log.add('end'),
+            onPressCancel: () => log.add('stolen'),
+          ),
+        ),
+      );
+
+      final TestGesture gesture =
+          await tester.startGesture(tester.getCenter(find.byIcon(Icons.mic)));
+      await gesture.up();
+      await tester.pump();
+      expect(log, <String>['start', 'end']);
+    });
+
     testWidgets('the whole disc is a hit target, not just the glyph',
         (WidgetTester tester) async {
       int starts = 0;

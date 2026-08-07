@@ -51,7 +51,7 @@ Widget _harness({required bool reduceMotion, bool visible = true}) {
               ),
               child: ClientHomeScreen(
                 initialTab: ClientHomeTab.pendingRequests,
-                onCreateRequest: () {},
+                onCreateRequest: (_) {},
               ),
             ),
           ),

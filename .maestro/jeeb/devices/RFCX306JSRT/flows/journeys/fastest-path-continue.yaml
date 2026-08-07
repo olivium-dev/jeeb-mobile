@@ -36,10 +36,6 @@ tags:
     env:
       APP_ID: ${APP_ID}
 - runFlow:
-    file: ../pages/_request-type.yaml
-    env:
-      APP_ID: ${APP_ID}
-- runFlow:
     file: ../pages/_client-location.yaml
     env:
       APP_ID: ${APP_ID}

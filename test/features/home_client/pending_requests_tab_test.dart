@@ -21,7 +21,6 @@ import '../../support/sync_app_localizations.dart';
 Widget _harness({
   required ClientHomeRepository repo,
   Locale locale = const Locale('en'),
-  VoidCallback? onCreateRequest,
 }) {
   return MaterialApp(
     theme: AppTheme.light(),
@@ -46,7 +45,7 @@ Widget _harness({
           repository: repo,
           greetingNameProvider: () => 'Sami',
         )..load(),
-        child: PendingRequestsTab(onCreateRequest: onCreateRequest),
+        child: const PendingRequestsTab(),
       ),
     ),
   );
@@ -176,7 +175,7 @@ void main() {
       expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
       // E1 draws the headline INSIDE the empty block (the screen drops its own
       // prompt in this composition, so it is still printed exactly once).
-      expect(find.text('What do you need?'), findsOneWidget);
+      expect(find.text('Ready when you are'), findsOneWidget);
       expect(
         find.text(
           'No pending requests — say it, and offers from nearby Jeebers '

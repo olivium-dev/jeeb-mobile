@@ -10,6 +10,10 @@
 #   description text field:  50%,26%
 #   voice mic button:        88%,25%
 #   Current Location (row):  50%,51%   (pre-selected when location granted)
+#   NOTE (S3): the seeded-tier disclosure now sits directly under the
+#   description, so every fraction below it moved DOWN by ~1 section. Only the
+#   description field and the sticky Confirm are tapped here; the three between
+#   them are documentation and must be re-measured before they are used.
 #   Saved addresses >:       31%,64%
 #   New Location +:          88%,73%
 #   Confirm location:        50%,87%

@@ -263,11 +263,12 @@ Convention: `<screen-id>_<element>` per `30_BACKLOG.md §Identifier convention`.
 
 | Flow | Tapped / Triggered | Expected Destination ID | JM Dep / Notes |
 |------|--------------------|------------------------|----------------|
-| jm-023 | `orders_home_new_order_fab` | `request_type_continue_cta` | JM-024 |
+| jm-023 | `orders_create_request_button` | `location_select_confirm_cta` | JM-024 AC1a (S3) |
 | jm-023 | `orders_home_request_row_0` (pending) | `waiting_notified_count` | JM-026; needs pending_request seed |
 | jm-023 | `orders_home_wallet_chip` | `shell_tab_requests` (AP-9 root survives) | JM-053 (W2.5 guard) |
 | jm-023 | `orders_home_bell` | `shell_tab_requests` (AP-9 root survives) | JM-057 (W4 guard) |
-| jm-024 | `request_type_continue_cta` (tier selected) | `location_select_confirm_cta` | JM-024 |
+| jm-024 | `orders_create_request_button` | `location_select_confirm_cta` + `compose_tier_row` | JM-024 AC1a (S3) |
+| jm-024 | `request_type_continue_cta` (tier selected, dev-seam entry) | `location_select_confirm_cta` | JM-024 AC1b |
 | jm-024 | `location_select_saved_addresses_row` | `saved_address_add_cta` | JM-049 |
 | jm-024 | `location_select_new_location_cta` | `capture_location_pin_cta` | JM-024 |
 | jm-024 | `capture_location_pin_cta` | `location_select_confirm_cta` (back) | JM-024 |

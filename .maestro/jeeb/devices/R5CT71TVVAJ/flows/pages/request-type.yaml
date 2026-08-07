@@ -1,5 +1,6 @@
 # PAGE OBJECT: request-type — "Choose your request" (Flash / Express / Standard).
-# Reached by: home New Order or FAB +. Coordinate taps (no semantics).
+# Reached by: waiting-retarget or order-history reorder — NOT home New Order,
+# which goes straight to client-location since S3. Coordinate taps (no semantics).
 # Params:
 #   TIER_POINT — y-fraction point of the tier tile to select.
 #                Default "50%,23.2%" = Flash (already pre-selected).

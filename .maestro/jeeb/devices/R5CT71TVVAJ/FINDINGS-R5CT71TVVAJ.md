@@ -61,9 +61,9 @@ All under `flows/pages/` — appId-less subflows, composed via `runFlow`. `[JEEB
 | `register.yaml` | Enter phone / Welcome | type `PHONE` -> Send code (otp/request 200) |
 | `otp-entry.yaml` | Enter the code (4-box) | type `OTP` -> auto-submit (otp/verify 200) |
 | `name-capture.yaml` | What should we call you? | Skip for now -> shell |
-| `home-requests-empty.yaml` | Home / No orders yet | New Order -> request-type |
+| `home-requests-empty.yaml` | Home / No orders yet | New Order -> client-location (S3) |
 | `home-requests-populated.yaml` | Requests tab + list | Record a request (voice) |
-| `request-type.yaml` | Flash/Express/Standard | select `TIER_POINT` -> Continue |
+| `request-type.yaml` | Flash/Express/Standard | select `TIER_POINT` -> Continue (off the create path since S3) |
 | `client-location-compose.yaml` | Location / What do you need? | type `DESC` -> Confirm (requests 201) |
 | `location-permission.yaml` | System location dialog | While using the app (text, optional) |
 | `waiting-no-coverage.yaml` | **Finding a Jeeber (DEEPEST)** | screenshot; retarget/cancel commented |
@@ -89,9 +89,11 @@ Bottom-nav x-fractions @ y=90.5%: **Delivery 30.6% - Dashboard 51.7% - Earnings 
 **Deepest customer state:** `waiting-no-coverage` ("Finding a Jeeber", request
 broadcasting after `POST /v1/requests 201`).
 
-Sequence (~11 taps, ~90s wall): cold launch -> notif Allow -> skip onboarding ->
+Sequence (~10 taps, ~90s wall): cold launch -> notif Allow -> skip onboarding ->
 phone `76543201` -> Send code -> **[read OTP]** -> OTP auto-submit -> Skip name ->
-New Order -> Flash + Continue -> grant location -> describe + Confirm -> **waiting**.
+New Order -> grant location -> describe + Confirm -> **waiting**.
+(S3 deleted the request-type Continue from this path; New Order lands on
+client-location with the recommended tier seeded and disclosed.)
 
 Journeys (`flows/journeys/`):
 - `fastest-path.yaml` — the whole path in one file; requires `-e OTP` (see §6).

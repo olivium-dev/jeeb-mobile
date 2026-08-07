@@ -22,6 +22,7 @@ class ClientHomeVoiceDock extends StatelessWidget {
     super.key,
     required this.bottom,
     required this.slideProgress,
+    required this.handsFree,
     required this.tierBlocked,
     this.tierRetrying = false,
     this.onRetryUpload,
@@ -45,6 +46,10 @@ class ClientHomeVoiceDock extends StatelessWidget {
 
   /// 0..1 slide-to-cancel travel the floating mic writes while it is held.
   final ValueListenable<double> slideProgress;
+
+  /// True while the recording runs with no finger on the glass. Slide and
+  /// release both need a pointer that is not there, so the hint has to change.
+  final ValueListenable<bool> handsFree;
 
   /// True once a clip is ready but no delivery tier could be resolved.
   final bool tierBlocked;
@@ -260,10 +265,16 @@ class ClientHomeVoiceDock extends StatelessWidget {
         const SizedBox(height: Spacing.twoXSmall),
         // Confines the per-pointer-move slide rebuild to the hint row.
         RepaintBoundary(
-          child: ValueListenableBuilder<double>(
-            valueListenable: slideProgress,
-            builder: (context, t, _) {
+          child: AnimatedBuilder(
+            animation: Listenable.merge(<Listenable>[slideProgress, handsFree]),
+            builder: (context, _) {
               final bool rtl = Directionality.of(context) == TextDirection.rtl;
+              // No pointer means no slide and no release: the second tap is
+              // the only stop this user has.
+              if (handsFree.value) {
+                return _HandsFreeHint(muted: semantic.mutedText);
+              }
+              final double t = slideProgress.value;
               final bool armed = t >= 1;
               final bool pinned = MediaQuery.disableAnimationsOf(context);
               final double lean = pinned ? 0 : t;
@@ -309,6 +320,40 @@ class ClientHomeVoiceDock extends StatelessWidget {
                 ),
               );
             },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The instruction for a recording nobody is holding: the stop lives in a
+/// second tap, and it was previously spoken only as a TalkBack tap hint.
+class _HandsFreeHint extends StatelessWidget {
+  const _HandsFreeHint({required this.muted});
+
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Row(
+      key: const Key('client-home-voice-hands-free-hint'),
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        ExcludeSemantics(
+          child: Icon(Icons.touch_app_rounded, size: 16, color: muted),
+        ),
+        const SizedBox(width: Spacing.twoXSmall),
+        Flexible(
+          child: Semantics(
+            liveRegion: true,
+            child: Text(
+              l10n.homeVoiceTapToStop,
+              style: context.jeebText.bodySmall.copyWith(color: muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
       ],

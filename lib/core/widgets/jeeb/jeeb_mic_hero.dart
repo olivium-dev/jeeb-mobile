@@ -121,6 +121,7 @@ class JeebMicHero extends StatefulWidget {
     this.onPressStart,
     this.onPressEnd,
     this.onSlideCancel,
+    this.onPressCancel,
     this.slideProgress,
     this.holdSlideOnRelease = false,
     this.onTap,
@@ -154,6 +155,7 @@ class JeebMicHero extends StatefulWidget {
        onPressStart = null,
        onPressEnd = null,
        onSlideCancel = null,
+       onPressCancel = null,
        slideProgress = null,
        holdSlideOnRelease = false,
        onTap = null,
@@ -249,6 +251,10 @@ class JeebMicHero extends StatefulWidget {
   /// `VoiceRecordingCubit.cancelRecording()`.
   final VoidCallback? onSlideCancel;
 
+  /// Fires on `PointerCancel` instead of [onPressEnd] (null falls back to it).
+  /// Only the platform cancels here, so it is an exact "touch stolen" signal.
+  final VoidCallback? onPressCancel;
+
   /// Optional 0..1 sink the widget WRITES the live slide-to-cancel travel to,
   /// 1.0 landing exactly where [onSlideCancel] arms. Never read or painted here.
   final ValueNotifier<double>? slideProgress;
@@ -321,7 +327,8 @@ class _JeebMicHeroState extends State<JeebMicHero> {
   bool get _tracksPress =>
       widget.onPressStart != null ||
       widget.onPressEnd != null ||
-      widget.onSlideCancel != null;
+      widget.onSlideCancel != null ||
+      widget.onPressCancel != null;
 
   bool get _hasDiscreteTaps =>
       widget.onTap != null || widget.onLongPress != null;
@@ -525,7 +532,7 @@ class _JeebMicHeroState extends State<JeebMicHero> {
     _pressOriginDx = null;
     widget.slideProgress?.value = 0;
     _cancelArmed = false;
-    widget.onPressEnd?.call();
+    (widget.onPressCancel ?? widget.onPressEnd)?.call();
   }
 
   /// Nearest measured glow stack. Midpoints, so 56/118/128 each land on their

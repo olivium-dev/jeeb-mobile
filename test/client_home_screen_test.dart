@@ -22,6 +22,7 @@ import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_request_hero.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
+import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
 class _SyncDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncDelegate(this._arbByTag);
@@ -55,7 +56,7 @@ Widget _harness({
   String? greetingName,
   void Function(ClientHomeRequest)? onOpenRequest,
   void Function(ClientHomeRequest)? onTrack,
-  VoidCallback? onCreateRequest,
+  void Function(Tier?)? onCreateRequest,
   Locale locale = const Locale('en'),
   ClientHomeTab initialTab = ClientHomeTab.inProgress,
   bool shellHeaderOverlay = false,
@@ -272,7 +273,7 @@ void main() {
         _harness(
           repo: repo,
           greetingName: 'Layla',
-          onCreateRequest: () {},
+          onCreateRequest: (_) {},
           initialTab: ClientHomeTab.pendingRequests,
         ),
       );
@@ -335,7 +336,10 @@ void main() {
       expect(find.text('Pending'), findsOneWidget);
       expect(find.text('Replies'), findsOneWidget);
       expect(find.text('More'), findsOneWidget);
-      expect(find.text('What do you need?'), findsOneWidget);
+      // NOT the hero prompt's question: the prompt is permanent now, so an
+      // E1 tile that repeated it would print the same words twice.
+      expect(find.text('Ready when you are'), findsOneWidget);
+      expect(find.text('What do you need?'), findsNothing);
       expect(
         find.text(
           'No pending requests — say it, and offers from nearby Jeebers '
@@ -376,7 +380,7 @@ void main() {
       await tester.pumpWidget(
         _harness(
           repo: repo,
-          onCreateRequest: () => taps += 1,
+          onCreateRequest: (_) => taps += 1,
           initialTab: ClientHomeTab.pendingRequests,
         ),
       );
@@ -480,13 +484,14 @@ void main() {
         _harness(
           repo: repo,
           locale: const Locale('ar'),
-          onCreateRequest: () {},
+          onCreateRequest: (_) {},
           initialTab: ClientHomeTab.pendingRequests,
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('ماذا تحتاج؟'), findsOneWidget);
+      expect(find.text('جاهزون متى ما أردت'), findsOneWidget);
+      expect(find.text('ماذا تحتاج؟'), findsNothing);
       expect(
         find.text(
           'لا توجد طلبات معلّقة — قلها، وستصلك عروض من جيبرز قريبين خلال دقائق.',
@@ -1165,23 +1170,28 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        _harness(repo: _threeTabRepo(), onCreateRequest: () {}),
+        _harness(repo: _threeTabRepo(), onCreateRequest: (_) {}),
       );
       await tester.pumpAndSettle();
 
+      // Two halves now: the prompt scrolls, the capsule is pinned by the mic.
       final heroFinder = find.byType(ClientHomeRequestHero);
-      expect(heroFinder, findsOneWidget);
-      final context = tester.element(heroFinder);
+      expect(heroFinder, findsNWidgets(2));
+      final context = tester.element(heroFinder.first);
       final accent = context.jeebRoles.accent;
       final glass = Theme.of(context).extension<JeebSemanticColors>()!;
 
       expect(
-        find.descendant(
-          of: heroFinder,
-          matching: find.byType(JeebGlassCapsule),
-        ),
+        find.descendant(of: heroFinder, matching: find.byType(JeebGlassCard)),
         findsOneWidget,
       );
+      // §4 budget: the pinned capsule never leaves the scene, so its blur would
+      // re-sample the scrolling list on every frame. The header keeps the one.
+      expect(
+        find.descendant(of: heroFinder, matching: find.byType(BackdropFilter)),
+        findsNothing,
+      );
+      expect(find.byType(BackdropFilter), findsOneWidget);
       final fills = tester
           .widgetList<DecoratedBox>(
             find.descendant(

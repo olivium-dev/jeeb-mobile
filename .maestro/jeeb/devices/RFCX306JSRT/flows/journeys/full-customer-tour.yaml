@@ -106,11 +106,6 @@ tags:
       APP_ID: ${APP_ID}
       SHOT: tour-06-shell-home-before-order
 - runFlow:
-    file: ../pages/_request-type.yaml
-    env:
-      APP_ID: ${APP_ID}
-      SHOT: tour-07-request-type
-- runFlow:
     file: ../pages/_client-location.yaml
     env:
       APP_ID: ${APP_ID}

@@ -11,6 +11,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/features/location/data/fake_location_select_repository.dart';
+import 'package:jeeb_mobile/features/location/domain/current_location_resolver.dart';
+import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/widgets/compose_tier_section.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_draft.dart';
@@ -18,6 +21,7 @@ import 'package:jeeb_mobile/features/request_summary/domain/request_submission_s
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
+import '../../support/fake_current_location_resolver.dart';
 import '../../support/sync_app_localizations.dart';
 
 class _NoopSubmission implements RequestSubmissionService {
@@ -71,6 +75,27 @@ Widget _harness() {
     home: const Scaffold(
       body: SingleChildScrollView(child: ComposeTierSection()),
     ),
+  );
+}
+
+/// The same app shell around the REAL screen, so the section's position in the
+/// compose list is measurable rather than assumed.
+Widget _screenHarness(Widget child) {
+  return MaterialApp(
+    theme: AppTheme.light(),
+    locale: const Locale('en'),
+    supportedLocales: const [Locale('en'), Locale('ar')],
+    localizationsDelegates: const [
+      SyncAppLocalizationsDelegate(),
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    builder: (context, inner) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(disableAnimations: true),
+      child: inner!,
+    ),
+    home: child,
   );
 }
 
@@ -138,5 +163,63 @@ void main() {
     // `setTier` would have blanked both — that is why `changeTier` exists.
     expect(controller.description, 'two kilos of apples');
     expect(find.text('Flash'), findsOneWidget);
+  });
+
+  // S3: the typed path seeds through `setTier` and shows no tier screen, so
+  // this section IS its disclosure — the Change row has to be the whole catalog.
+  testWidgets('a setTier-seeded typed session discloses and changes too', (
+    tester,
+  ) async {
+    final controller = _seed()..setTier(_standard);
+
+    await tester.pumpWidget(_harness());
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('compose_tier_row'), findsOneWidget);
+    expect(find.text('Standard'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsIdentifier('compose_tier_change'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsIdentifier('compose_tier_option_flash'));
+    await tester.pumpAndSettle();
+
+    expect(controller.tier, _flash);
+    expect(find.text('Flash'), findsOneWidget);
+  });
+
+  // Maestro's `assertVisible` does not scroll, and neither does a customer who
+  // was never asked: a tier chosen for them has to be ON the first screenful.
+  testWidgets('the disclosure is above the fold on the real screen', (
+    tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(384 * 3, 854 * 3);
+    tester.view.devicePixelRatio = 3;
+    _seed().setTier(_standard);
+    sl.registerLazySingleton<CurrentLocationResolver>(
+      FakeCurrentLocationResolver.new,
+    );
+
+    await tester.pumpWidget(
+      _screenHarness(
+        const ClientLocationScreen(
+          userId: 'user-client-001',
+          repository: FakeLocationSelectRepository(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Finder row = find.bySemanticsIdentifier('compose_tier_row');
+    expect(row, findsOneWidget);
+    expect(
+      tester.getRect(row).bottom,
+      lessThan(854),
+      reason: 'the seeded tier scrolled off the first screenful',
+    );
+    expect(
+      tester.getRect(find.bySemanticsIdentifier('compose_tier_change')).bottom,
+      lessThan(854),
+    );
   });
 }

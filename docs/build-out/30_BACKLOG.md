@@ -151,7 +151,8 @@ profile/dashboard/earnings). Bottom sheets carry `<screen-id>_sheet_<element>`.
 ### JM-024 — Create-flow location leg (tier → location-select → map-pin → order-chat)
 - **Blueprint:** `request-type-selection`, `location-select`, `location-map-pin` · **Target:** `request_type_screen.dart`, `client_location_screen.dart`, `capture_location_screen.dart`.
 - **AC:**
-  - Given a tier selected (`request_type_<tier>_radio`), When `request_type_continue_cta` tapped, Then route to `location-select` [not /request-summary].
+  - (AC1a) Given `orders_create_request_button` tapped, Then route to `location-select` with the recommended tier already seeded and disclosed by `compose_tier_row` — no tier screen on the create path (S3).
+  - (AC1b) Given `/request-type` reached by retarget / order-history reorder / dev seam and a tier selected (`request_type_<tier>_radio`), When `request_type_continue_cta` tapped, Then route to `location-select` [not /request-summary].
   - Given `location_select_saved_addresses_row`, When tapped, Then route to `saved-addresses` [Q3, JM-049].
   - Given `location_select_new_location_cta`, Then route to `location-map-pin`; `capture_location_pin_cta` confirms back.
   - Given a location confirmed, When `location_select_confirm_cta` tapped, Then route to `order-chat` (compose) [JM-025].

@@ -2882,6 +2882,7 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get homeVoiceSlideToCancel => _get('homeVoiceSlideToCancel');
   String get homeVoiceReleaseToCancel =>
       _get('homeVoiceReleaseToCancel');
+  String get homeVoiceTapToStop => _get('homeVoiceTapToStop');
   String get homeVoiceTierUnavailable => _get('homeVoiceTierUnavailable');
   String get homeVoiceTranscriptEmpty => _get('homeVoiceTranscriptEmpty');
   String get homeVoiceHoldToRecord => _get('homeVoiceHoldToRecord');
@@ -2892,6 +2893,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get composeTierHeading => _get('composeTierHeading');
   String get composeTierSheetTitle => _get('composeTierSheetTitle');
   String get homePendingEmptyMidnight => _get('homePendingEmptyMidnight');
+  String get homePendingEmptyTitle => _get('homePendingEmptyTitle');
+  String get homeRepliesEmptyTitle => _get('homeRepliesEmptyTitle');
   String get pendingTabBroadcastingLabel => _get('pendingTabBroadcastingLabel');
   String get homeTabPending => _get('homeTabPending');
   String get homeRepliesViewOffersCta => _get('homeRepliesViewOffersCta');

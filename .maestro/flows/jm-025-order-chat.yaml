@@ -11,6 +11,10 @@
 #   AC3: Given an active order, Then order_chat_open_dispute → dispute-open-evidence
 #        (dispute_reason visible) [JM-060].
 #
+# TIERS DEPENDENCY (S3): the create tap routes to client-location only when
+# `GET /tiers` has answered with at least one tier carrying a server id. With
+# no such tier the app falls back to `request-type`, so a missing or
+# wireId-less tiers mock fails this flow on an unrelated id.
 # Mock: POST /chat-service/v1/chat/jeeb/conversations,
 #       GET .../by-request/:requestId, GET .../:conversationId,
 #       GET/POST .../messages, GET .../snapshot
@@ -37,7 +41,7 @@ appId: ${APP_ID}
 ---
 
 # ── AC1: Send first message → broadcast → waiting-no-coverage ────────────────
-# Navigate to compose state via create flow (tier → location → chat)
+# Navigate to compose state via create flow (create → location → chat)
 - launchApp:
     clearState: true
     arguments:
@@ -50,17 +54,6 @@ appId: ${APP_ID}
 
 - tapOn:
     id: "orders_create_request_button"
-
-- extendedWaitUntil:
-    visible:
-      id: "request_type_continue_cta"
-    timeout: 15000
-
-- tapOn:
-    id: "request_type_standard_radio"
-
-- tapOn:
-    id: "request_type_continue_cta"
 
 - extendedWaitUntil:
     visible:

@@ -193,8 +193,17 @@ void main() {
         // The saved-locations error banner is shown — proving the fetch
         // failed. MIDNIGHT: the band is a `JeebEmptyState`, so the assertion is
         // re-homed onto its frozen identifier rather than the widget type.
+        // Scrolled to: the seeded tier is disclosed above it now.
+        final Finder savedError = find.bySemanticsIdentifier(
+          'location_select_saved_addresses_error',
+        );
+        await tester.scrollUntilVisible(
+          savedError,
+          120,
+          scrollable: find.byType(Scrollable).first,
+        );
         expect(
-          find.bySemanticsIdentifier('location_select_saved_addresses_error'),
+          savedError,
           findsOneWidget,
           reason: 'the saved-locations fetch must have failed in this case',
         );

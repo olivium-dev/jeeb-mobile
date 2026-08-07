@@ -5,6 +5,7 @@ import '../../../../core/motion/jeeb_motion.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
+import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/directional_icons.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
@@ -16,11 +17,15 @@ import '../../../../l10n/app_localizations.dart';
 /// E1 re-homes `_request_empty_state_new_order_button` onto that same body
 /// ([firstRequest]) — the empty tile draws no separate CTA button (doc-13
 /// Pattern D).
+///
+/// [showPrompt] and [showCapsule] split it in two: the scroll body mounts the
+/// prompt half, the screen pins the capsule half into the mic's thumb band.
 class ClientHomeRequestHero extends StatelessWidget {
   const ClientHomeRequestHero({
     super.key,
     this.onCreateRequest,
     this.showPrompt = true,
+    this.showCapsule = true,
     this.firstRequest = false,
   });
 
@@ -52,10 +57,13 @@ class ClientHomeRequestHero extends StatelessWidget {
   /// the honest rendering of a host that has not wired one.
   final VoidCallback? onCreateRequest;
 
-  /// Draws the "What do you need tonight?" prompt + Arabic tagline above the
-  /// capsule. False on the E1 composition, where the empty block owns the
-  /// headline and the capsule sits under it.
+  /// Draws the "What do you need tonight?" prompt + Arabic tagline. False on
+  /// the pinned half, which is capsule-only.
   final bool showPrompt;
+
+  /// Draws the create capsule and the frozen ids it carries. False in the
+  /// scroll body, which keeps the prompt only.
+  final bool showCapsule;
 
   /// Re-homes the empty state's frozen CTA identifier onto the capsule body.
   final bool firstRequest;
@@ -75,6 +83,7 @@ class ClientHomeRequestHero extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (showPrompt) ...[
           Text(
@@ -91,13 +100,20 @@ class ClientHomeRequestHero extends StatelessWidget {
             // reading-start edge under the prompt, not on the far edge.
             textAlign: TextAlign.start,
           ),
-          const SizedBox(height: Spacing.medium),
+          if (showCapsule) const SizedBox(height: Spacing.medium),
         ],
-        JeebGlassCapsule(
-          radius: JeebRadii.capsule,
-          padding: _capsulePadding,
-          child: _createBody(context, l10n, semantic, showChevron),
-        ),
+        if (showCapsule)
+          // Blur-free: pinned over a scrolling backdrop a BackdropFilter never
+          // leaves the scene, so §4's emphasis fill + border carry it instead.
+          JeebGlassCard(
+            radius: JeebRadii.capsule,
+            padding: _capsulePadding,
+            emphasis: true,
+            // Pinned over the nav gap, floatNav's 20dp drop would smear onto
+            // the pill nav underneath.
+            shadow: JeebShadows.overlay,
+            child: _createBody(context, l10n, semantic, showChevron),
+          ),
       ],
     );
   }
@@ -138,13 +154,17 @@ class ClientHomeRequestHero extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
+                      // The only perpetual tick on a pinned layer; unbounded it
+                      // re-paints the whole capsule every frame.
                       Positioned.fill(
-                        child: JBreathe(
-                          duration: JeebMotion.breatheDuration,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: accent.withValues(alpha: _glyphTintPeak),
+                        child: RepaintBoundary(
+                          child: JBreathe(
+                            duration: JeebMotion.breatheDuration,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: accent.withValues(alpha: _glyphTintPeak),
+                              ),
                             ),
                           ),
                         ),

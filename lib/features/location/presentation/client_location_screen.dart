@@ -437,6 +437,9 @@ class _Body extends StatelessWidget {
         // R12: sections breathe at 14–20, cards at 9–12. The old 24/20 rhythm
         // is off this board entirely.
         const SizedBox(height: Spacing.medium),
+        // Above the fold on purpose: the create door seeds a tier the customer
+        // never picked, so this screen has to SHOW it, not merely hold it.
+        const ComposeTierSection(),
         _Heading(text: l10n.clientLocationHeading),
         const SizedBox(height: Spacing.small),
         // JEBV4-176 (Q-060): the "Current Location" option now reflects the
@@ -506,10 +509,6 @@ class _Body extends StatelessWidget {
         // ComposeRequestController, which threads it into the POST /requests
         // body. It is the correct delivery UX (who receives + their phone).
         const _RecipientPhoneField(),
-        const SizedBox(height: Spacing.medium),
-        // The voice path auto-selects the recommended tier so the mic can reach
-        // a create in one hop; this is where that choice is disclosed.
-        const ComposeTierSection(),
       ],
     );
   }
