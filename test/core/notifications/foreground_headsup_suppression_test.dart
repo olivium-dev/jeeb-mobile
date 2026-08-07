@@ -13,11 +13,15 @@ class _MockMessaging extends Mock implements FirebaseMessaging {}
 class _MockLocalNotifications extends Mock
     implements FlutterLocalNotificationsPlugin {}
 
-FirebaseMessagingTransport _transport(Set<String> openThreads) =>
+FirebaseMessagingTransport _transport(
+  Set<String> openThreads, {
+  Set<String> Function()? roles,
+}) =>
     FirebaseMessagingTransport(
       messaging: _MockMessaging(),
       localNotifications: _MockLocalNotifications(),
       openChatThreadIds: () => openThreads,
+      localRoles: roles,
     );
 
 RemoteMessage _msg(String id, Map<String, String> data) =>
@@ -101,6 +105,53 @@ void main() {
       await transport.dispose();
     },
   );
+
+  const driverPush = <String, String>{
+    'type': 'new_request',
+    'requestId': 'req-1',
+    'audience_role': 'driver',
+  };
+
+  test(
+    'P1 audience gate: client-only roles + audience_role=driver ⇒ NO heads-up, '
+    'stream event STILL emitted',
+    () async {
+      final transport = _transport(
+        const <String>{},
+        roles: () => const {'client'},
+      );
+      final seen = <NotificationMessage>[];
+      final sub = transport.onForegroundMessage.listen(seen.add);
+      transport.debugHandleForeground(_msg('m-aud', driverPush));
+      await Future<void>.delayed(Duration.zero);
+      expect(transport.debugForegroundShownIds, isEmpty);
+      expect(
+        seen.map((m) => m.id),
+        <String>['m-aud'],
+        reason: 'display-only gate; downstream consumers still get the event',
+      );
+      await sub.cancel();
+      await transport.dispose();
+    },
+  );
+
+  test('a dual-role jeeber still gets the driver heads-up', () async {
+    final transport = _transport(
+      const <String>{},
+      roles: () => const {'client', 'jeeber'},
+    );
+    transport.debugHandleForeground(_msg('m-dual', driverPush));
+    expect(transport.debugForegroundShownIds, <String>{'m-dual'});
+    await transport.dispose();
+  });
+
+  test('NO roles resolver injected ⇒ audience_role ignored (unchanged)',
+      () async {
+    final transport = _transport(const <String>{});
+    transport.debugHandleForeground(_msg('m-noresolver', driverPush));
+    expect(transport.debugForegroundShownIds, <String>{'m-noresolver'});
+    await transport.dispose();
+  });
 
   test(
     'the DEFAULT wiring reads ActiveChatThread — no injection, no fake',

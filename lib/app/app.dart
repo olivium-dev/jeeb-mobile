@@ -169,7 +169,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// dual-role jeeber on the Jeeber surface instead of the client surface.
   /// Empty until the first [RoleSync.sync] resolves, so a plain client never
   /// flashes jeeber content.
-  late final RoleAvailabilityCubit _roleAvailability = RoleAvailabilityCubit();
+  late final RoleAvailabilityCubit _roleAvailability =
+      RoleAvailabilityCubit(const RoleAvailability(), widget.preferences);
 
   /// BUG-1: login→capability sync. Reads getMe and publishes `available_roles`
   /// (and the server `active_role`) to [_roleAvailability] / [_role]. Resolves
@@ -514,12 +515,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // (RoleSync ← getMe); fall back to the active role only while that
       // list is still empty. An empty set means "roles unknown" and the
       // matcher fails OPEN, so a pre-getMe push is never suppressed.
-      localRoles: () {
-        final available = _roleAvailability.state.roles.toSet();
-        return available.isNotEmpty
-            ? available
-            : <String>{_role.state.storageKey};
-      },
+      localRoles: _sessionLocalRoles,
     );
     if (injectedRegistrar == null && transport is FirebaseMessagingTransport) {
       final registrar = DeviceTokenRegistrar(
@@ -564,12 +560,23 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Session roles for push-audience gating: server available_roles, else the
+  /// active role while that list is empty (the matcher fails OPEN on empty).
+  Set<String> _sessionLocalRoles() {
+    final available = _roleAvailability.state.roles.toSet();
+    return available.isNotEmpty
+        ? available
+        : <String>{_role.state.storageKey};
+  }
+
   /// Default real-transport builder. `initialize()` wires the background
   /// handler, the Android channel, and the foreground listeners; the handler
   /// subscribes to the transport's broadcast streams immediately after, so
   /// ordering is safe.
-  static Future<PushTransport> _defaultFcmTransportBuilder() async {
-    final transport = FirebaseMessagingTransport();
+  Future<PushTransport> _defaultFcmTransportBuilder() async {
+    final transport = FirebaseMessagingTransport(
+      localRoles: _sessionLocalRoles,
+    );
     await transport.initialize();
     return transport;
   }
