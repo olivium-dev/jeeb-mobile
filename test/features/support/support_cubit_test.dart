@@ -4,18 +4,21 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/idempotency/operation_id.dart';
 import 'package:jeeb_mobile/features/support/application/support_cubit.dart';
 import 'package:jeeb_mobile/features/support/application/support_state.dart';
 import 'package:jeeb_mobile/features/support/domain/support_repository.dart';
 
 class _RecordingRepo implements SupportRepository {
   _RecordingRepo({this.failWith});
-  final SupportFailure? failWith;
+  SupportFailure? failWith;
   SupportTicketDraft? lastDraft;
+  final List<SupportTicketDraft> drafts = <SupportTicketDraft>[];
 
   @override
   Future<SupportTicket> submitTicket(SupportTicketDraft draft) async {
     lastDraft = draft;
+    drafts.add(draft);
     if (failWith != null) {
       throw SupportRepositoryException(failWith!);
     }
@@ -123,6 +126,35 @@ void main() {
         // The form fields survive the retry.
         expect(cubit.state.category, SupportCategory.payment);
         expect(cubit.state.body, 'charge issue');
+        cubit.close();
+      },
+    );
+
+    test(
+      'operation id survives submit → error → retry → submit',
+      () async {
+        final repo = _RecordingRepo(failWith: SupportFailure.network);
+        final cubit = SupportCubit(repo);
+        cubit.setCategory(SupportCategory.payment);
+        cubit.setBody('charged twice for one delivery');
+        final operationId = cubit.state.operationId;
+        expect(isOperationId(operationId), isTrue);
+
+        await cubit.submit();
+        expect(cubit.state.phase, SupportPhase.error);
+
+        cubit.retryFromError();
+        repo.failWith = null;
+        await cubit.submit();
+        expect(cubit.state.phase, SupportPhase.success);
+
+        expect(cubit.state.operationId, operationId);
+        expect(repo.drafts, hasLength(2));
+        expect(
+          repo.drafts.map((draft) => draft.operationId),
+          everyElement(operationId),
+          reason: 'the retry must reuse the first attempt Idempotency-Key',
+        );
         cubit.close();
       },
     );
