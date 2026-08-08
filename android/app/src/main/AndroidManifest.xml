@@ -204,6 +204,13 @@
             only appears on non-production builds — defence-in-depth alongside
             the compile-time kDevToolEnabled dart-define.
         -->
+        <!-- F5: image_cropper (uCrop) needs its host activity registered;
+             portrait-locked to match F4's app-wide lock. -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
+
         <activity-alias
             android:name=".DevToolLauncher"
             android:targetActivity=".MainActivity"

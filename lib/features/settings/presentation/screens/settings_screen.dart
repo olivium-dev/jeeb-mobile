@@ -11,12 +11,16 @@ import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../customer_profile/data/dio_customer_profile_repository.dart';
+import '../../../customer_profile/domain/customer_profile_repository.dart';
 import '../../../profile_name/data/dio_display_name_repository.dart';
 import '../../../profile_name/domain/display_name_repository.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
 import '../../domain/account_deletion_policy.dart';
 import '../../domain/account_service.dart';
+import '../../domain/avatar_cache_evictor.dart';
+import '../../domain/avatar_repository.dart';
 import '../../domain/profile_repository.dart';
 import '../widgets/settings_become_jeeber_card.dart';
 import '../widgets/settings_footer.dart';
@@ -78,6 +82,11 @@ class SettingsScreen extends StatelessWidget {
         // live greeting surfaces re-pull getMe. Both resolve off the shared DI
         // graph; a bare test host (no Dio) degrades to local-only saves.
         displayNameRepository: _resolveDisplayNameRepository(),
+        // F5: avatar write path, cache-evict seam, remote-aware load() —
+        // same DI-graph-or-degrade shape as the name lane above.
+        avatarRepository: _resolveAvatarRepository(),
+        avatarCacheEvictor: _resolveAvatarCacheEvictor(),
+        remoteProfileRepository: _resolveRemoteProfileRepository(),
         refreshSignals: _resolveProfileRefreshSignals(),
       )..load(),
       child: view,
@@ -87,6 +96,21 @@ class SettingsScreen extends StatelessWidget {
   static DisplayNameRepository? _resolveDisplayNameRepository() {
     if (!sl.isRegistered<Dio>()) return null;
     return DioDisplayNameRepository(sl<Dio>());
+  }
+
+  static AvatarRepository? _resolveAvatarRepository() {
+    if (!sl.isRegistered<AvatarRepository>()) return null;
+    return sl<AvatarRepository>();
+  }
+
+  static AvatarCacheEvictor? _resolveAvatarCacheEvictor() {
+    if (!sl.isRegistered<AvatarCacheEvictor>()) return null;
+    return sl<AvatarCacheEvictor>();
+  }
+
+  static CustomerProfileRepository? _resolveRemoteProfileRepository() {
+    if (!sl.isRegistered<Dio>()) return null;
+    return DioCustomerProfileRepository(sl<Dio>());
   }
 
   static ProfileRefreshSignals? _resolveProfileRefreshSignals() {

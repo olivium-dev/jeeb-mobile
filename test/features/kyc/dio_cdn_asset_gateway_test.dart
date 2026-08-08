@@ -103,6 +103,8 @@ void main() {
         CdnUploadSlot.proofOfDelivery: 'proof_of_delivery',
         // P4/P5 (b01-20260725): the in-chat camera/gallery attachment slot.
         CdnUploadSlot.chatAttachment: 'chat_attachment',
+        // F5 (b08-20260808): the profile-avatar upload slot.
+        CdnUploadSlot.avatar: 'profile_avatar',
       };
       // TC-C16: a future slot cannot be added without a mapping assertion here.
       expect(

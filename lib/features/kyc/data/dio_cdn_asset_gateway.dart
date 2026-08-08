@@ -123,6 +123,8 @@ class DioCdnAssetGateway implements CdnAssetGateway {
         return 'proof_of_delivery';
       case CdnUploadSlot.chatAttachment:
         return 'chat_attachment';
+      case CdnUploadSlot.avatar:
+        return 'profile_avatar';
     }
   }
 

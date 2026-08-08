@@ -26,6 +26,7 @@ import '../../features/biometric_auth/presentation/biometric_lock_screen.dart';
 import '../../features/chat/presentation/dev_chat_preview_screen.dart';
 import '../../features/client_offers/presentation/client_offers_screen.dart';
 import '../../features/customer_profile/data/dev_customer_profile_fixtures.dart';
+import '../../features/customer_profile/data/dio_customer_profile_repository.dart';
 import '../../features/customer_profile/domain/customer_profile_view_data.dart';
 import '../../features/customer_profile/presentation/customer_profile_screen.dart';
 import '../../features/deep_link_targets/chat_detail_screen.dart';
@@ -103,6 +104,8 @@ import '../../features/profile_name/data/dio_display_name_repository.dart';
 import '../../features/settings/application/settings_cubit.dart';
 import '../../features/settings/data/dio_account_service.dart';
 import '../../features/settings/data/shared_prefs_profile_repository.dart';
+import '../../features/settings/domain/avatar_cache_evictor.dart';
+import '../../features/settings/domain/avatar_repository.dart';
 import '../../features/settings/presentation/screens/notification_preferences_screen.dart';
 import '../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../features/cancellation/presentation/cancellation_screen.dart';
@@ -1052,6 +1055,10 @@ class AppRouter {
                   accountService:
                       DioAccountService(sl<Dio>(), AuthTokenStore()),
                   displayNameRepository: DioDisplayNameRepository(sl<Dio>()),
+                  // F5: avatar write path + remote-aware load() (cross-device sync).
+                  avatarRepository: sl<AvatarRepository>(),
+                  avatarCacheEvictor: sl<AvatarCacheEvictor>(),
+                  remoteProfileRepository: DioCustomerProfileRepository(sl<Dio>()),
                   refreshSignals: sl.isRegistered<ProfileRefreshSignals>()
                       ? sl<ProfileRefreshSignals>()
                       : null,

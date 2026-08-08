@@ -13,6 +13,10 @@ enum CdnUploadSlot {
   /// P4/P5 (b01-20260725): an image attached inside the 1:1 chat (camera or
   /// gallery). Wire value `chat_attachment`; gateway
   chatAttachment,
+
+  /// F5: profile-picture change flow. Wire value `profile_avatar`; the
+  /// gateway allowlist + public read route are a paired gateway PR.
+  avatar,
 }
 
 abstract class CdnAssetGateway {

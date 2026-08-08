@@ -120,6 +120,14 @@ dependencies:
   # stay platform-free.
   image_picker: ^1.1.2
 
+  # F5: square-crop step behind PhotoCropperService (pattern only, not
+  # rahmah-fe's version/keys); resolved fresh against this app's SDK floors.
+  image_cropper: ^12.0.0
+
+  # F5: explicit pin for CachedNetworkImage.evictFromCache (already transitive
+  # via omds' OmdsCachedImage) — the avatar cache-bust seam.
+  cached_network_image: ^3.4.1
+
   # P4/P5 (b01-20260725): Android 13+ SYSTEM Photo Picker opt-in
   # (ACTION_PICK_IMAGES) — see the `useAndroidPhotoPicker` toggle in
   # `injection_container.dart`. Without it the plugin falls back to the legacy
