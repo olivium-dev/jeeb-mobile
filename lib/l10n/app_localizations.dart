@@ -2318,6 +2318,19 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chargeInfoAutoUpdateNote => _get('chargeInfoAutoUpdateNote');
   String get chargeInfoFeeNote => _get('chargeInfoFeeNote');
   String get chargeInfoBackCta => _get('chargeInfoBackCta');
+  String get chargeInfoWhatsAppNote => _get('chargeInfoWhatsAppNote');
+  String get chargeInfoWhatsAppCta => _get('chargeInfoWhatsAppCta');
+  String get chargeInfoWhatsAppMessage => _get('chargeInfoWhatsAppMessage');
+  String chargeInfoWhatsAppMessagePhoneSentence(String phone) =>
+      _get('chargeInfoWhatsAppMessagePhoneSentence')
+          .replaceFirst('{phone}', phone);
+  String chargeInfoWhatsAppFallbackMessage(String number) =>
+      _get('chargeInfoWhatsAppFallbackMessage')
+          .replaceFirst('{number}', number);
+  String get chargeInfoWhatsAppCopyAction =>
+      _get('chargeInfoWhatsAppCopyAction');
+  String get chargeInfoWhatsAppNumberCopied =>
+      _get('chargeInfoWhatsAppNumberCopied');
 
   String get fundingTitle => _get('fundingTitle');
   String get fundingStarterCreditBody => _get('fundingStarterCreditBody');

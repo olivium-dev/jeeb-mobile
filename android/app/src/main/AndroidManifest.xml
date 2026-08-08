@@ -254,4 +254,11 @@
             android:name="flutterEmbedding"
             android:value="2"/>
     </application>
+
+    <!-- F2: package visibility (API 30+) for the WhatsApp CTA; w4b = WhatsApp
+         Business. wa.me needs none, but canLaunchUrl/whatsapp:// would fail. -->
+    <queries>
+        <package android:name="com.whatsapp"/>
+        <package android:name="com.whatsapp.w4b"/>
+    </queries>
 </manifest>

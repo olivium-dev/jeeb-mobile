@@ -4469,6 +4469,26 @@
   "@chargeInfoFeeNote": { "description": "JM-054 fee note (charge_info_fee_note) — D1/D41." },
   "chargeInfoBackCta": "Back to wallet",
   "@chargeInfoBackCta": { "description": "JM-054 back CTA (charge_info_back_cta) → wallet-hub." },
+  "chargeInfoWhatsAppNote": "Can't get to a store? Contact support on WhatsApp to top up your wallet.",
+  "@chargeInfoWhatsAppNote": { "description": "F2 WhatsApp support note body (charge_info_whatsapp_note)." },
+  "chargeInfoWhatsAppCta": "WhatsApp us",
+  "@chargeInfoWhatsAppCta": { "description": "F2 WhatsApp support link label (charge_info_whatsapp_cta)." },
+  "chargeInfoWhatsAppMessage": "Hi, I would like to top up my Jeeb wallet.",
+  "@chargeInfoWhatsAppMessage": { "description": "F2 base prefilled wa.me message, before the optional account-phone sentence." },
+  "chargeInfoWhatsAppMessagePhoneSentence": "My account phone number is {phone}.",
+  "@chargeInfoWhatsAppMessagePhoneSentence": {
+    "description": "F2 optional wa.me message suffix appended only when the local profile phone is known.",
+    "placeholders": { "phone": { "type": "String" } }
+  },
+  "chargeInfoWhatsAppFallbackMessage": "Couldn't open WhatsApp. Message or save this number: {number}",
+  "@chargeInfoWhatsAppFallbackMessage": {
+    "description": "F2 fallback shown when launchUrl returns false / throws.",
+    "placeholders": { "number": { "type": "String" } }
+  },
+  "chargeInfoWhatsAppCopyAction": "Copy",
+  "@chargeInfoWhatsAppCopyAction": { "description": "F2 fallback SnackBar copy-to-clipboard action label." },
+  "chargeInfoWhatsAppNumberCopied": "Number copied",
+  "@chargeInfoWhatsAppNumberCopied": { "description": "F2 confirmation after the fallback copy action is tapped." },
 
   "fundingTitle": "Your starter credit",
   "@fundingTitle": { "description": "JM-041 onboarding-funding OMDSAppBar title." },
