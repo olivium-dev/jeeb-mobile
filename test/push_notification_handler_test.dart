@@ -267,6 +267,89 @@ void main() {
     });
   });
 
+  group('wallet push -> refetch signal (F1)', () {
+    Future<int> countWalletSignalsFor(NotificationMessage message) async {
+      final t = FakePushTransport(token: 'tok-w');
+      final b = BadgeCountCubit();
+      final signals = PushRefreshSignals();
+      var count = 0;
+      final sub =
+          signals.streamFor(const {RefreshTopic.wallet}).listen((_) => count += 1);
+      final h = PushNotificationHandler(
+        transport: t,
+        badgeCount: b,
+        refreshSignals: signals,
+      );
+      addTearDown(() async {
+        await sub.cancel();
+        await h.close();
+        await b.close();
+        await signals.dispose();
+      });
+      t.emitForeground(message);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      return count;
+    }
+
+    // Correction 4: wallet pushes carry no id, so `wallet` must live in the
+    // `idless` set — same shape as `chat`/`newRequest`.
+    test('a wallet push with no id still signals wallet listeners (idless)',
+        () async {
+      final walletMsg = NotificationMessage(
+        id: 'w1',
+        category: NotificationCategory.wallet,
+        title: 'Offer withdrawn',
+        body: 'Not enough balance',
+        receivedAt: DateTime.utc(2026, 8, 8),
+      );
+      expect(await countWalletSignalsFor(walletMsg), 1);
+    });
+
+    test('an unrelated category (offerAccepted: order/offers only) does NOT '
+        'signal wallet listeners', () async {
+      final accepted = NotificationMessage(
+        id: 'w2',
+        category: NotificationCategory.offerAccepted,
+        title: 'Offer accepted',
+        body: 'b',
+        receivedAt: DateTime.utc(2026, 8, 8),
+        data: const {'offerId': 'off-1'},
+      );
+      expect(await countWalletSignalsFor(accepted), 0);
+    });
+
+    // Neither `idless` nor `orderish` — `_maybeSignalStatusChange` returns
+    // before `_topicsFor` runs, so `_everyTopic`'s wallet arm is unreached.
+    test('an unmapped (other) category push still signals nothing at all '
+        '(pre-existing no-op, wallet included)', () async {
+      final unknown = NotificationMessage(
+        id: 'w3',
+        category: NotificationCategory.other,
+        title: 'T',
+        body: 'B',
+        receivedAt: DateTime.utc(2026, 8, 8),
+      );
+      expect(await countWalletSignalsFor(unknown), 0);
+    });
+
+    // Correction 4's reachable surface: `signalStatusChange()` (a real call
+    // site) fires `_everyTopic`, which now includes `wallet` too.
+    test('PushRefreshSignals.signalStatusChange() now also reaches a '
+        'wallet-only listener', () async {
+      final bus = PushRefreshSignals();
+      var count = 0;
+      final sub =
+          bus.streamFor(const {RefreshTopic.wallet}).listen((_) => count += 1);
+      addTearDown(() async {
+        await sub.cancel();
+        await bus.dispose();
+      });
+      bus.signalStatusChange();
+      await Future<void>.delayed(Duration.zero);
+      expect(count, 1);
+    });
+  });
+
   group('offer-lifecycle signal (sprint-009)', () {
     Future<List<OfferLifecycleEvent>> eventsFor(
       NotificationMessage message,

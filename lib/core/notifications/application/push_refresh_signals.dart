@@ -8,6 +8,10 @@ enum RefreshTopic {
   feed,
 
   offers,
+
+  /// F1 — wallet-affecting pushes (currently: guard-2 auto-withdraw only, no
+  /// top-up producer exists server-side).
+  wallet,
 }
 
 class PushRefreshSignals {

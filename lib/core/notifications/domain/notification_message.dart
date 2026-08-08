@@ -17,6 +17,10 @@ enum NotificationCategory {
   offerLost,
   dispute,
   support,
+
+  /// F1 — wallet-affecting pushes (e.g. guard-2's auto-withdraw notice). No
+  /// order/delivery/request id, mirroring `chat`/`newRequest`.
+  wallet,
   other;
 
   static NotificationCategory fromKey(String? key) {
@@ -65,6 +69,10 @@ enum NotificationCategory {
       case 'support_update':
       case 'support_ticket_update':
         return NotificationCategory.support;
+      case 'wallet':
+      case 'wallet_insufficient_balance':
+      case 'offer_withdrawn_insufficient_balance':
+        return NotificationCategory.wallet;
       default:
         return NotificationCategory.other;
     }

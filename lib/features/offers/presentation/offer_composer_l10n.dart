@@ -251,4 +251,11 @@ class OfferComposerL10n {
   /// `insufficient_keep_editing_cta` — dismiss, draft preserved.
   String get insufficientKeepEditingCta =>
       _pick('Keep editing', 'متابعة التعديل');
+
+  /// `offer_composer_insufficient_reason` — F1 client pre-check under the
+  /// disabled CTA. Short by design; the send-time sheet carries the figures.
+  String get ctaDisabledInsufficientReason => _pick(
+        'Not enough wallet balance to cover this offer’s fee.',
+        'رصيد المحفظة لا يكفي لتغطية رسوم هذا العرض.',
+      );
 }

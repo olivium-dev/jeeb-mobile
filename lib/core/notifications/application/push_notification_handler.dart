@@ -214,6 +214,9 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       NotificationCategory.offerAccepted,
       NotificationCategory.newRequest,
       NotificationCategory.chat,
+      // F1 correction 4 — wallet pushes (guard-2 auto-withdraw) carry no
+      // order/delivery/request id; without this they never reach _topicsFor.
+      NotificationCategory.wallet,
     };
     if (idless.contains(message.category)) {
       _refreshSignals.signal(_topicsFor(message.category));
@@ -238,6 +241,8 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
     switch (category) {
       case NotificationCategory.chat:
         return const {RefreshTopic.chat};
+      case NotificationCategory.wallet:
+        return const {RefreshTopic.wallet};
       case NotificationCategory.newRequest:
         return const {RefreshTopic.feed};
       case NotificationCategory.delivery:
