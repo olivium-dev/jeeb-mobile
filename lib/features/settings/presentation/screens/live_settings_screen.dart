@@ -16,6 +16,7 @@ import '../../application/settings_cubit.dart';
 import '../../data/dio_account_service.dart';
 import '../../domain/avatar_cache_evictor.dart';
 import '../../domain/avatar_repository.dart';
+import '../../domain/jeeber_unregister_service.dart';
 import '../../domain/profile_repository.dart';
 import '../../domain/user_profile.dart';
 import 'settings_screen.dart';
@@ -202,6 +203,10 @@ class _LoadedLiveSettingsState extends State<_LoadedLiveSettings> {
         : null,
     refreshSignals: sl.isRegistered<ProfileRefreshSignals>()
         ? sl<ProfileRefreshSignals>()
+        : null,
+    // F3: same DI-graph-or-degrade shape as the avatar seams above.
+    jeeberUnregisterService: sl.isRegistered<JeeberUnregisterService>()
+        ? sl<JeeberUnregisterService>()
         : null,
   )..load();
 

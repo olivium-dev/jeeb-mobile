@@ -9,6 +9,7 @@ import '../../profile_name/domain/display_name_repository.dart';
 import '../domain/account_service.dart';
 import '../domain/avatar_cache_evictor.dart';
 import '../domain/avatar_repository.dart';
+import '../domain/jeeber_unregister_service.dart';
 import '../domain/profile_repository.dart';
 import '../domain/user_profile.dart';
 import 'settings_state.dart';
@@ -26,6 +27,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     AvatarCacheEvictor? avatarCacheEvictor,
     CustomerProfileRepository? remoteProfileRepository,
     ProfileRefreshSignals? refreshSignals,
+    JeeberUnregisterService? jeeberUnregisterService,
     String fallbackPhoneE164 = '',
   })  : _profileRepository = profileRepository,
         _accountService = accountService,
@@ -34,6 +36,7 @@ class SettingsCubit extends Cubit<SettingsState> {
         _cacheEvictor = avatarCacheEvictor,
         _remoteProfileRepository = remoteProfileRepository,
         _refreshSignals = refreshSignals,
+        _jeeberUnregisterService = jeeberUnregisterService,
         _fallbackPhoneE164 = fallbackPhoneE164,
         super(const SettingsState());
 
@@ -43,6 +46,9 @@ class SettingsCubit extends Cubit<SettingsState> {
   final DisplayNameRepository? _displayNameRepository;
   final AvatarRepository? _avatarRepository;
   final AvatarCacheEvictor? _cacheEvictor;
+
+  /// F3: optional so a bare/test cubit degrades — see [unregisterAsJeeber].
+  final JeeberUnregisterService? _jeeberUnregisterService;
 
   /// F5: lets `load()` also pull the remote avatar so a cross-device change
   /// shows here. Optional so a bare/test cubit degrades to local-only.
@@ -223,6 +229,53 @@ class SettingsCubit extends Cubit<SettingsState> {
       case AccountActionOutcome.networkError:
         emit(state.copyWith(
           isDeletingAccount: false,
+          banner: SettingsBanner.networkError,
+        ));
+    }
+  }
+
+  /// F3: honest per-outcome banners — a dark `502 upstream_fault` (UM has no
+  /// revoke op yet) renders as "temporarily unavailable", never a fake
+  /// success. [state.jeeberUnregistered] latches on success/notAJeeber so the
+  /// caller can trigger a role-state refresh exactly once.
+  Future<void> unregisterAsJeeber() async {
+    if (state.isUnregisteringJeeber || state.jeeberUnregistered) return;
+    final service = _jeeberUnregisterService;
+    if (service == null) {
+      emit(state.copyWith(banner: SettingsBanner.jeeberUnregisterUnavailable));
+      return;
+    }
+    emit(state.copyWith(
+      isUnregisteringJeeber: true,
+      banner: SettingsBanner.none,
+    ));
+    final outcome = await service.unregister();
+    switch (outcome) {
+      case JeeberUnregisterOutcome.success:
+      case JeeberUnregisterOutcome.notAJeeber:
+        emit(state.copyWith(
+          isUnregisteringJeeber: false,
+          jeeberUnregistered: true,
+          banner: SettingsBanner.jeeberUnregistered,
+        ));
+      case JeeberUnregisterOutcome.activeDelivery:
+        emit(state.copyWith(
+          isUnregisteringJeeber: false,
+          banner: SettingsBanner.jeeberUnregisterActiveDelivery,
+        ));
+      case JeeberUnregisterOutcome.positiveBalance:
+        emit(state.copyWith(
+          isUnregisteringJeeber: false,
+          banner: SettingsBanner.jeeberUnregisterPositiveBalance,
+        ));
+      case JeeberUnregisterOutcome.unavailable:
+        emit(state.copyWith(
+          isUnregisteringJeeber: false,
+          banner: SettingsBanner.jeeberUnregisterUnavailable,
+        ));
+      case JeeberUnregisterOutcome.networkError:
+        emit(state.copyWith(
+          isUnregisteringJeeber: false,
           banner: SettingsBanner.networkError,
         ));
     }

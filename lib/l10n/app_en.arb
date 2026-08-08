@@ -5468,5 +5468,22 @@
   "disputeStatusLoading": "Checking this dispute",
   "@disputeStatusLoading": {"description": "JM-065 dispute-status D30 cold-read headline — shown on the JeebEmptyState radar skeleton while GET /v1/disputes/:id is in flight."},
   "disputeStatusEvidenceEmpty": "No evidence attached",
-  "@disputeStatusEvidenceEmpty": {"description": "JM-065 dispute-status D53 empty evidence summary — headline of the compact parcel JeebEmptyState drawn when the wire carries no reason, comment, photo, voice, chat snapshot or timeline. Distinct from escalateEvidenceEmpty, which reports a FAILED auto-attach on the escalate form."}
+  "@disputeStatusEvidenceEmpty": {"description": "JM-065 dispute-status D53 empty evidence summary — headline of the compact parcel JeebEmptyState drawn when the wire carries no reason, comment, photo, voice, chat snapshot or timeline. Distinct from escalateEvidenceEmpty, which reports a FAILED auto-attach on the escalate form."},
+
+  "settingsUnregisterJeeberTitle": "Unregister as a Jeeber",
+  "@settingsUnregisterJeeberTitle": {"description": "F3 Settings > More row title, role-gated (shown only when the jeeber role is currently held) — the destructive-action sibling of becomeJeeberCardTitle."},
+  "unregisterJeeberDialogTitle": "Stop being a Jeeber?",
+  "@unregisterJeeberDialogTitle": {"description": "F3 confirm-sheet title (UnregisterJeeberConfirmSheet)."},
+  "unregisterJeeberDialogBody": "You'll lose the ability to accept deliveries until you re-apply. Your account, orders, and wallet stay exactly as they are.",
+  "@unregisterJeeberDialogBody": {"description": "F3 confirm-sheet body — makes explicit this removes the jeeber role only, not the account (distinct from account deletion)."},
+  "unregisterJeeberConfirmCta": "Unregister",
+  "@unregisterJeeberConfirmCta": {"description": "F3 confirm-sheet destructive CTA label."},
+  "jeeberUnregisterSuccess": "You're no longer registered as a Jeeber.",
+  "@jeeberUnregisterSuccess": {"description": "F3 snackbar banner on a completed (or already-not-a-jeeber) unregister."},
+  "jeeberUnregisterActiveDelivery": "You can't unregister while you have an active delivery. Finish it first, then try again.",
+  "@jeeberUnregisterActiveDelivery": {"description": "F3 snackbar banner for the gateway's 409 active_delivery guard."},
+  "jeeberUnregisterPositiveBalance": "Settle your Jeeber wallet balance before unregistering.",
+  "@jeeberUnregisterPositiveBalance": {"description": "F3 snackbar banner for the gateway's 409 positive_wallet_balance guard."},
+  "jeeberUnregisterUnavailable": "Unregistering is temporarily unavailable. Please try again later.",
+  "@jeeberUnregisterUnavailable": {"description": "F3 snackbar banner for the gateway's 502 upstream_fault (user-management has no revoke op yet) — an honest dark-path message, never a fake success."}
 }

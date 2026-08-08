@@ -6,6 +6,7 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
+import '../../../../core/role/role_availability_cubit.dart';
 import '../../../../core/session/profile_refresh_signals.dart';
 import '../../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
@@ -21,6 +22,7 @@ import '../../domain/account_deletion_policy.dart';
 import '../../domain/account_service.dart';
 import '../../domain/avatar_cache_evictor.dart';
 import '../../domain/avatar_repository.dart';
+import '../../domain/jeeber_unregister_service.dart';
 import '../../domain/profile_repository.dart';
 import '../widgets/settings_become_jeeber_card.dart';
 import '../widgets/settings_footer.dart';
@@ -88,6 +90,8 @@ class SettingsScreen extends StatelessWidget {
         avatarCacheEvictor: _resolveAvatarCacheEvictor(),
         remoteProfileRepository: _resolveRemoteProfileRepository(),
         refreshSignals: _resolveProfileRefreshSignals(),
+        // F3: unregister-role write path, same DI-graph-or-degrade shape.
+        jeeberUnregisterService: _resolveJeeberUnregisterService(),
       )..load(),
       child: view,
     );
@@ -116,6 +120,11 @@ class SettingsScreen extends StatelessWidget {
   static ProfileRefreshSignals? _resolveProfileRefreshSignals() {
     if (!sl.isRegistered<ProfileRefreshSignals>()) return null;
     return sl<ProfileRefreshSignals>();
+  }
+
+  static JeeberUnregisterService? _resolveJeeberUnregisterService() {
+    if (!sl.isRegistered<JeeberUnregisterService>()) return null;
+    return sl<JeeberUnregisterService>();
   }
 }
 
@@ -203,6 +212,10 @@ class _SettingsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // F3: bifurcate become-jeeber vs unregister on LIVE role presence, not raw
+    // KYC status; nullable-read degrades to today's become-jeeber card.
+    final roles = context.watch<RoleAvailabilityCubit?>()?.state.roles;
+    final isJeeber = roles?.contains('jeeber') ?? false;
     return ListView(
       key: const Key('settings-screen-list'),
       // Preserve the horizontal gutter AND reserve the system nav-bar inset so
@@ -226,8 +239,10 @@ class _SettingsBody extends StatelessWidget {
             children: [
               const SizedBox(height: Spacing.medium),
               SettingsIdentityCard(state: state),
-              const SizedBox(height: Spacing.small),
-              const SettingsBecomeJeeberCard(),
+              if (!isJeeber) ...[
+                const SizedBox(height: Spacing.small),
+                const SettingsBecomeJeeberCard(),
+              ],
               // The board opens each labelled band with 20 (`tpl 1370`/`1377`),
               // not the 16 that separates the two cards above.
               const SizedBox(height: Spacing.large),
@@ -235,7 +250,7 @@ class _SettingsBody extends StatelessWidget {
               const SizedBox(height: Spacing.large),
               SettingsNotificationsCard(state: state),
               const SizedBox(height: Spacing.large),
-              const SettingsMoreCard(),
+              SettingsMoreCard(showUnregisterRow: isJeeber),
             ],
           ),
         ),
@@ -256,5 +271,13 @@ String? _bannerMessage(SettingsBanner banner, AppLocalizations l10n) {
       return l10n.accountDeleteSubmitted(kAccountPurgeGraceDays);
     case SettingsBanner.networkError:
       return l10n.settingsNetworkError;
+    case SettingsBanner.jeeberUnregistered:
+      return l10n.jeeberUnregisterSuccess;
+    case SettingsBanner.jeeberUnregisterActiveDelivery:
+      return l10n.jeeberUnregisterActiveDelivery;
+    case SettingsBanner.jeeberUnregisterPositiveBalance:
+      return l10n.jeeberUnregisterPositiveBalance;
+    case SettingsBanner.jeeberUnregisterUnavailable:
+      return l10n.jeeberUnregisterUnavailable;
   }
 }

@@ -2077,5 +2077,14 @@
   "addressFormLoadingHeadline": "جارٍ فتح نموذج العنوان",
 
   "disputeStatusLoading": "جارٍ التحقق من هذا النزاع",
-  "disputeStatusEvidenceEmpty": "لا توجد أدلة مرفقة"
+  "disputeStatusEvidenceEmpty": "لا توجد أدلة مرفقة",
+
+  "settingsUnregisterJeeberTitle": "إلغاء التسجيل كـ Jeeber",
+  "unregisterJeeberDialogTitle": "التوقف عن العمل كـ Jeeber؟",
+  "unregisterJeeberDialogBody": "لن تتمكن من قبول التوصيلات حتى تُعيد التقديم. يبقى حسابك وطلباتك ومحفظتك كما هي.",
+  "unregisterJeeberConfirmCta": "إلغاء التسجيل",
+  "jeeberUnregisterSuccess": "لم تعد مسجلاً كـ Jeeber.",
+  "jeeberUnregisterActiveDelivery": "لا يمكنك إلغاء التسجيل أثناء وجود توصيلة نشطة. أنهِها أولاً ثم أعد المحاولة.",
+  "jeeberUnregisterPositiveBalance": "قم بتسوية رصيد محفظتك كـ Jeeber قبل إلغاء التسجيل.",
+  "jeeberUnregisterUnavailable": "إلغاء التسجيل غير متاح مؤقتًا. حاول مرة أخرى لاحقًا."
 }

@@ -70,8 +70,10 @@ import '../../features/registration/data/dio_otp_service.dart';
 import '../../features/registration/data/super_login_demo_user.dart';
 import '../../features/registration/data/super_login_service.dart';
 import '../../features/registration/domain/otp_service.dart';
+import '../../features/settings/data/dio_jeeber_unregister_service.dart';
 import '../../features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import '../../features/settings/data/repositories/dio_role_switch_repository.dart';
+import '../../features/settings/domain/jeeber_unregister_service.dart';
 import '../../features/settings/domain/role_switch_repository.dart';
 import '../../features/tier_selection/data/tier_repository.dart';
 import '../../features/voice_request/data/voice_recording_repository.dart';
@@ -358,6 +360,11 @@ void configureDependencies({
 
   sl.registerLazySingleton<RoleSwitchRepository>(
     () => DioRoleSwitchRepository(sl<Dio>(), sl<AuthTokenStore>()),
+  );
+
+  // F3: unregister-as-jeeber write path (dark until UM ships role/revoke).
+  sl.registerLazySingleton<JeeberUnregisterService>(
+    () => DioJeeberUnregisterService(sl<Dio>(), sl<AuthTokenStore>()),
   );
 
   sl.registerLazySingleton<SavedLocationRepository>(
