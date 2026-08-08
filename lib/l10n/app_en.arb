@@ -1446,6 +1446,10 @@
   "@captureLocationMyLocation": {
     "description": "Accessibility label + tooltip for the 'centre map on current GPS location' button on the Capture Location screen"
   },
+  "captureLocationPinFailed": "Couldn't get your pinned location. Please try again.",
+  "@captureLocationPinFailed": {
+    "description": "Snackbar shown when the Capture Location route hands back an unexpected result instead of a confirmed point or a cancel"
+  },
   "tierSelectionOnTheWayMvpNote": "Smart route matching coming soon — matched like Standard for now.",
   "@tierSelectionOnTheWayMvpNote": {
     "description": "Info note on the On-the-way tier card explaining the MVP Standard-fallback behavior (T-mobile-042)"

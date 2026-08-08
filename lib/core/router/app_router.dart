@@ -139,7 +139,7 @@ import '../onboarding/onboarding_cubit.dart';
 /// coordinate, so the seed can never masquerade as the customer's choice.
 @visibleForTesting
 class CaptureLocationRoute extends StatefulWidget {
-  const CaptureLocationRoute({super.key});
+  const CaptureLocationRoute({super.key, this.mapBuilderOverride});
 
   /// Camera seed — Beirut downtown, the same point the launcher starts from.
   /// It is a VIEWPORT seed, never a returned answer: the map reports its own
@@ -148,6 +148,12 @@ class CaptureLocationRoute extends StatefulWidget {
     latitude: 33.8938,
     longitude: 35.5018,
   );
+
+  /// Test-only seam: replaces the real [GoogleMapCaptureView] so a widget
+  /// test can call the same `markReady` callback the real map's
+  /// `onCameraIdle` drives, without a live Maps platform view.
+  @visibleForTesting
+  final Widget Function(MapCaptureController controller)? mapBuilderOverride;
 
   @override
   State<CaptureLocationRoute> createState() => _CaptureLocationRouteState();
@@ -159,9 +165,6 @@ class _CaptureLocationRouteState extends State<CaptureLocationRoute> {
   );
   final GeolocatorGeocaptureGateway _gateway = GeolocatorGeocaptureGateway();
 
-  /// True once the live camera has settled at least once.
-  bool _cameraLive = false;
-
   @override
   void dispose() {
     _controller.dispose();
@@ -172,15 +175,20 @@ class _CaptureLocationRouteState extends State<CaptureLocationRoute> {
   Widget build(BuildContext context) {
     return CaptureLocationScreen(
       controller: _controller,
-      mapBuilder: (_) => GoogleMapCaptureView(
-        controller: _controller,
-        gateway: _gateway,
-        onCameraSettled: () => _cameraLive = true,
-        bottomInset: CapturePickerSheet.dockedClearance + Spacing.large,
-      ),
+      mapBuilder: (_) =>
+          widget.mapBuilderOverride?.call(_controller) ??
+          GoogleMapCaptureView(
+            controller: _controller,
+            gateway: _gateway,
+            onCameraSettled: _controller.markReady,
+            bottomInset: CapturePickerSheet.dockedClearance + Spacing.large,
+          ),
       onPinned: () {
         if (!context.canPop()) return;
-        context.pop(_cameraLive ? _controller.center : null);
+        // Defense-in-depth: the CTA is disabled pre-ready (CapturePickerSheet),
+        // so this only guards a direct onPinned call bypassing the UI.
+        if (!_controller.isReady) return;
+        context.pop(_controller.center);
       },
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
@@ -128,8 +129,8 @@ void main() {
     });
 
     testWidgets(
-      'the production /capture-location builder pops WITHOUT a coordinate, so '
-      'the pinned choice is un-confirmable and no fabricated draft is created',
+      'the production /capture-location CTA stays disabled pre-ready, so the '
+      'pinned choice is un-confirmable and no fabricated draft is created',
       (tester) async {
         final built = await _buildRouter();
         built.router.go('/request-type');
@@ -167,26 +168,25 @@ void main() {
           findsOneWidget,
         );
 
-        // Confirm the pin. MIDNIGHT M2-05 wired the live map here, but the pop
-        // is gated on a camera that really settled: a platform view that never
-        // rendered (this harness, a missing SDK key) still pops WITHOUT a
-        // coordinate, so the seed can never masquerade as the customer's pick.
+        // Tapping "Confirm" here is a no-op: the CTA is gated on the camera
+        // having settled at least once (`onCameraIdle`), and a platform view
+        // that never rendered (this harness, a missing SDK key) never fires
+        // it — so the seed can never masquerade as the customer's pick.
+        final cta = tester.widget<OmdsPrimaryButton>(
+          find.byType(OmdsPrimaryButton),
+        );
+        expect(cta.isEnabled, isFalse);
         await tester.tap(
           find.bySemanticsIdentifier('capture_location_pin_cta'),
         );
-        await tester.pumpAndSettle();
-
-
-        // Back on location-select: supply the G1 description, then attempt to
-        await tester.enterText(
-          find.byKey(const Key('clientLocation.descriptionField')),
-          'A cake from Sea Sweet',
-        );
         await tester.pump();
-        await tester.tap(
-          find.bySemanticsIdentifier('location_select_confirm_cta'),
+
+        // No pop happened — still on the capture-location surface, so the
+        // create flow never even reached the confirm footer.
+        expect(
+          find.bySemanticsIdentifier('capture_location_pin_cta'),
+          findsOneWidget,
         );
-        await tester.pumpAndSettle();
 
         // No create draft was submitted: the placeholder pin fabricated nothing,
         expect(submission.submitCount, 0);
