@@ -136,6 +136,9 @@ class _Body extends StatelessWidget {
           isVerified: data.isVerified,
           rating: data.rating,
           ratingCount: data.ratingCount,
+          // F5: only reachable Profile surface for both roles — routes
+          // straight into the already-wired avatar edit flow (PR #232).
+          onAvatarTap: () => context.pushNamed('settings-profile'),
         ),
         if (CustomerProfileStatusBlock.showsFor(state)) ...[
           const SizedBox(height: Spacing.small),

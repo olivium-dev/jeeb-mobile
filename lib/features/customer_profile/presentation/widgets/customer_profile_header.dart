@@ -19,8 +19,10 @@ import 'customer_profile_rating.dart';
 /// the same measurement — emphasis glass, radius `lg`, `16/15` padding, gap 13,
 /// Ø50 disc. **No shadow**: the fill step and the 1px stroke are what raise it
 /// (`JeebNavySurfaceCard` doc; theme ruling 1 retires the navy-tinted set).
-/// It is deliberately **not** tappable: unlike Settings, this tab exposes no
-/// edit-profile edge today, and the restyle adds no navigation.
+///
+/// F5: the avatar disc is tappable when [onAvatarTap] is given — this tab is
+/// the only reachable Profile surface for both roles, so it is the entry into
+/// the existing pick/crop/compress avatar flow (`settings-profile` route).
 ///
 /// Exposes the JM-035 AC1 identifiers `customer_profile_avatar`,
 /// `customer_profile_name` and `customer_profile_rating` (the wallet chip + bell
@@ -36,6 +38,7 @@ class CustomerProfileHeader extends StatelessWidget {
     required this.isVerified,
     required this.rating,
     required this.ratingCount,
+    this.onAvatarTap,
   });
 
   /// Board 20 → the `lg` rung of the §5 ladder, inside its ±2 tolerance.
@@ -59,6 +62,7 @@ class CustomerProfileHeader extends StatelessWidget {
   final bool isVerified;
   final double? rating;
   final int ratingCount;
+  final VoidCallback? onAvatarTap;
 
   bool get _hasName => (name ?? '').trim().isNotEmpty;
 
@@ -70,7 +74,12 @@ class CustomerProfileHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _Avatar(name: name, avatarUrl: avatarUrl, known: _hasName),
+          _Avatar(
+            name: name,
+            avatarUrl: avatarUrl,
+            known: _hasName,
+            onTap: onAvatarTap,
+          ),
           const SizedBox(width: gap),
           Expanded(
             child: _Identity(
@@ -92,28 +101,38 @@ class _Avatar extends StatelessWidget {
     required this.name,
     required this.avatarUrl,
     required this.known,
+    required this.onTap,
   });
 
   final String? name;
   final String? avatarUrl;
   final bool known;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final disc = JeebAvatar(
+      // `JeebAvatar` normalises a full name to its first letter (and to '?'
+      // when there is none), so the seed's null name still renders a disc.
+      initial: name ?? '',
+      diameter: CustomerProfileHeader.avatarDiameter,
+      imageUrl: avatarUrl,
+      // No name on file is the kit's `dormant` mark — the honest "we do not
+      // know this person" rung, never a fabricated initial.
+      fill: known ? JeebAvatarFill.primary : JeebAvatarFill.dormant,
+      avatarKey: const Key('customer-profile-avatar'),
+    );
     return Semantics(
       identifier: 'customer_profile_avatar',
       image: true,
-      child: JeebAvatar(
-        // `JeebAvatar` normalises a full name to its first letter (and to '?'
-        // when there is none), so the seed's null name still renders a disc.
-        initial: name ?? '',
-        diameter: CustomerProfileHeader.avatarDiameter,
-        imageUrl: avatarUrl,
-        // No name on file is the kit's `dormant` mark — the honest "we do not
-        // know this person" rung, never a fabricated initial.
-        fill: known ? JeebAvatarFill.primary : JeebAvatarFill.dormant,
-        avatarKey: const Key('customer-profile-avatar'),
-      ),
+      button: onTap != null,
+      child: onTap == null
+          ? disc
+          : InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: disc,
+            ),
     );
   }
 }
