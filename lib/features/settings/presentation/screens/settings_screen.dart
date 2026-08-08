@@ -212,12 +212,8 @@ class _SettingsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // F3: Become-a-Jeeber vs Unregister-as-Jeeber bifurcate on LIVE role
-    // presence (`RoleAvailabilityCubit`, app-root, kept fresh by `RoleSync`
-    // on auth + resume) — not raw KYC status, per the corrected F3 design.
-    // Nullable-read: a harness with no cubit provided (tests, bare hosts)
-    // degrades to "not a jeeber", i.e. today's unconditional become-jeeber
-    // card, so this is additive-only for every existing caller.
+    // F3: bifurcate become-jeeber vs unregister on LIVE role presence, not raw
+    // KYC status; nullable-read degrades to today's become-jeeber card.
     final roles = context.watch<RoleAvailabilityCubit?>()?.state.roles;
     final isJeeber = roles?.contains('jeeber') ?? false;
     return ListView(

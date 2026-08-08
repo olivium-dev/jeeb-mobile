@@ -40,9 +40,8 @@ class SettingsState extends Equatable {
 
   final bool deletionPending;
 
-  // F3: `isUnregisteringJeeber` guards double-submit; `jeeberUnregistered`
-  // latches (never resets) so the role-gated row/card family and the
-  // confirm-sheet caller can tell a completed unregister from a blocked one.
+  // F3: guards double-submit; `jeeberUnregistered` latches so callers can tell
+  // a completed unregister from a blocked one.
   final bool isUnregisteringJeeber;
   final bool jeeberUnregistered;
 
