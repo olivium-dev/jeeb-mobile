@@ -17,6 +17,10 @@
 			</dict>
 		</dict>
 	</dict>
+	<!-- iOS 14+ Local Network privacy: reaching the LAN dev gateway (192.168.2.39)
+	     from a physical device needs this consent prompt; denial = errno 65. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Jeeb connects to a development server on your local network to test deliveries.</string>
 	<!-- Sprint 1 Stream B (T-MOB-017) / Sprint 2 Stream G: location usage
 	     descriptions. Required before iOS will surface the geolocator permission
 	     prompt — Apple rejects any build that uses location without these keys. -->
