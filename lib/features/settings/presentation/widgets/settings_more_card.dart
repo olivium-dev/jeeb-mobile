@@ -8,6 +8,7 @@ import '../../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../../l10n/app_localizations.dart';
+import 'settings_unregister_jeeber_row.dart';
 
 /// MORE — the navigation rows the board omits but the app still owns
 /// (CF2, REFUSED: they are live routes with frozen identifiers).
@@ -21,7 +22,11 @@ import '../../../../l10n/app_localizations.dart';
 /// the kit's `11/14` navigation rung — these navigate, they are not the board's
 /// `13/16` toggle rows.
 class SettingsMoreCard extends StatelessWidget {
-  const SettingsMoreCard({super.key});
+  const SettingsMoreCard({super.key, this.showUnregisterRow = false});
+
+  /// F3: role-gated (`RoleAvailabilityCubit` holds `jeeber`) — see
+  /// `_SettingsBody`'s bifurcation with [SettingsBecomeJeeberCard].
+  final bool showUnregisterRow;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +55,7 @@ class SettingsMoreCard extends StatelessWidget {
               titleStyle: _titleStyle(context),
               onTap: () => context.pushNamed('settings-notifications'),
             ),
+            if (showUnregisterRow) const SettingsUnregisterJeeberRow(),
             // Dev-only diagnostics export entry (diag-persistence lane). Gated
             // on Diag.enabled (kDebugMode || JEEB_DIAG dart-define) so it NEVER
             // renders in release. Literal English strings by design — a dev tool

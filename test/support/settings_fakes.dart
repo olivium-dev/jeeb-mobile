@@ -5,6 +5,7 @@ import 'package:jeeb_mobile/features/customer_profile/domain/customer_profile_vi
 import 'package:jeeb_mobile/features/settings/domain/account_service.dart';
 import 'package:jeeb_mobile/features/settings/domain/avatar_cache_evictor.dart';
 import 'package:jeeb_mobile/features/settings/domain/avatar_repository.dart';
+import 'package:jeeb_mobile/features/settings/domain/jeeber_unregister_service.dart';
 import 'package:jeeb_mobile/features/settings/domain/profile_repository.dart';
 import 'package:jeeb_mobile/features/settings/domain/user_profile.dart';
 
@@ -103,5 +104,22 @@ class FakeCustomerProfileRepository implements CustomerProfileRepository {
       );
     }
     return profile ?? const CustomerProfileViewData();
+  }
+}
+
+/// F3 test double for [JeeberUnregisterService] — scripted outcome + a call
+/// counter so tests can assert the double-submit guard.
+class FakeJeeberUnregisterService implements JeeberUnregisterService {
+  FakeJeeberUnregisterService({
+    this.outcome = JeeberUnregisterOutcome.success,
+  });
+
+  JeeberUnregisterOutcome outcome;
+  int calls = 0;
+
+  @override
+  Future<JeeberUnregisterOutcome> unregister() async {
+    calls++;
+    return outcome;
   }
 }

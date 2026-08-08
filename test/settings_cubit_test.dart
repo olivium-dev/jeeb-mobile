@@ -9,6 +9,7 @@ import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_state.dart';
 import 'package:jeeb_mobile/features/settings/domain/account_service.dart';
 import 'package:jeeb_mobile/features/settings/domain/avatar_repository.dart';
+import 'package:jeeb_mobile/features/settings/domain/jeeber_unregister_service.dart';
 import 'package:jeeb_mobile/features/settings/domain/user_profile.dart';
 
 import 'support/settings_fakes.dart';
@@ -59,6 +60,7 @@ SettingsCubit _buildCubit({
   FakeAvatarRepository? avatarRepo,
   FakeAvatarCacheEvictor? cacheEvictor,
   FakeCustomerProfileRepository? remoteProfileRepo,
+  FakeJeeberUnregisterService? unregisterService,
   String fallbackPhone = '+96170100200',
 }) {
   final cubit = SettingsCubit(
@@ -68,6 +70,7 @@ SettingsCubit _buildCubit({
     avatarRepository: avatarRepo,
     avatarCacheEvictor: cacheEvictor,
     remoteProfileRepository: remoteProfileRepo,
+    jeeberUnregisterService: unregisterService,
     fallbackPhoneE164: fallbackPhone,
   );
   addTearDown(cubit.close);
@@ -414,6 +417,102 @@ void main() {
       expect(cubit.state.banner, SettingsBanner.networkError);
       expect(cubit.state.profile.name, 'Sami');
       expect((await repo.load())?.name, 'Sami');
+    });
+  });
+
+  group('SettingsCubit — F3 unregister as jeeber', () {
+    test('success latches jeeberUnregistered and shows the done banner',
+        () async {
+      final service = FakeJeeberUnregisterService();
+      final cubit = _buildCubit(unregisterService: service);
+      await cubit.unregisterAsJeeber();
+      expect(cubit.state.jeeberUnregistered, isTrue);
+      expect(cubit.state.isUnregisteringJeeber, isFalse);
+      expect(cubit.state.banner, SettingsBanner.jeeberUnregistered);
+      expect(service.calls, 1);
+    });
+
+    test('notAJeeber (idempotent replay) also latches the done banner',
+        () async {
+      final service = FakeJeeberUnregisterService(
+        outcome: JeeberUnregisterOutcome.notAJeeber,
+      );
+      final cubit = _buildCubit(unregisterService: service);
+      await cubit.unregisterAsJeeber();
+      expect(cubit.state.jeeberUnregistered, isTrue);
+      expect(cubit.state.banner, SettingsBanner.jeeberUnregistered);
+    });
+
+    test('activeDelivery blocks without latching jeeberUnregistered',
+        () async {
+      final service = FakeJeeberUnregisterService(
+        outcome: JeeberUnregisterOutcome.activeDelivery,
+      );
+      final cubit = _buildCubit(unregisterService: service);
+      await cubit.unregisterAsJeeber();
+      expect(cubit.state.jeeberUnregistered, isFalse);
+      expect(cubit.state.banner, SettingsBanner.jeeberUnregisterActiveDelivery);
+    });
+
+    test('positiveBalance blocks without latching jeeberUnregistered',
+        () async {
+      final service = FakeJeeberUnregisterService(
+        outcome: JeeberUnregisterOutcome.positiveBalance,
+      );
+      final cubit = _buildCubit(unregisterService: service);
+      await cubit.unregisterAsJeeber();
+      expect(cubit.state.jeeberUnregistered, isFalse);
+      expect(
+        cubit.state.banner,
+        SettingsBanner.jeeberUnregisterPositiveBalance,
+      );
+    });
+
+    test('a 502 dark path shows "temporarily unavailable", not success',
+        () async {
+      final service = FakeJeeberUnregisterService(
+        outcome: JeeberUnregisterOutcome.unavailable,
+      );
+      final cubit = _buildCubit(unregisterService: service);
+      await cubit.unregisterAsJeeber();
+      expect(cubit.state.jeeberUnregistered, isFalse);
+      expect(cubit.state.banner, SettingsBanner.jeeberUnregisterUnavailable);
+    });
+
+    test('a generic network error surfaces the shared network-error banner',
+        () async {
+      final service = FakeJeeberUnregisterService(
+        outcome: JeeberUnregisterOutcome.networkError,
+      );
+      final cubit = _buildCubit(unregisterService: service);
+      await cubit.unregisterAsJeeber();
+      expect(cubit.state.banner, SettingsBanner.networkError);
+    });
+
+    test('no service wired degrades to "temporarily unavailable" (bare host)',
+        () async {
+      final cubit = _buildCubit();
+      await cubit.unregisterAsJeeber();
+      expect(cubit.state.jeeberUnregistered, isFalse);
+      expect(cubit.state.banner, SettingsBanner.jeeberUnregisterUnavailable);
+    });
+
+    test('does not double-submit while a call is in flight', () async {
+      final service = FakeJeeberUnregisterService();
+      final cubit = _buildCubit(unregisterService: service);
+      final a = cubit.unregisterAsJeeber();
+      final b = cubit.unregisterAsJeeber();
+      await Future.wait([a, b]);
+      expect(service.calls, 1);
+    });
+
+    test('short-circuits once jeeberUnregistered has already latched',
+        () async {
+      final service = FakeJeeberUnregisterService();
+      final cubit = _buildCubit(unregisterService: service);
+      await cubit.unregisterAsJeeber();
+      await cubit.unregisterAsJeeber();
+      expect(service.calls, 1);
     });
   });
 

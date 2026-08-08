@@ -9,6 +9,12 @@ enum SettingsBanner {
   signedOut,
   accountDeletionRequested,
   networkError,
+  // F3: distinct per-outcome copy — never collapse the 502 dark path into a
+  // fake success or a generic error (see JeeberUnregisterService).
+  jeeberUnregistered,
+  jeeberUnregisterActiveDelivery,
+  jeeberUnregisterPositiveBalance,
+  jeeberUnregisterUnavailable,
 }
 
 class SettingsState extends Equatable {
@@ -20,6 +26,8 @@ class SettingsState extends Equatable {
     this.isDeletingAccount = false,
     this.isSigningOut = false,
     this.deletionPending = false,
+    this.isUnregisteringJeeber = false,
+    this.jeeberUnregistered = false,
     this.banner = SettingsBanner.none,
   });
 
@@ -32,6 +40,12 @@ class SettingsState extends Equatable {
 
   final bool deletionPending;
 
+  // F3: `isUnregisteringJeeber` guards double-submit; `jeeberUnregistered`
+  // latches (never resets) so the role-gated row/card family and the
+  // confirm-sheet caller can tell a completed unregister from a blocked one.
+  final bool isUnregisteringJeeber;
+  final bool jeeberUnregistered;
+
   final SettingsBanner banner;
 
   SettingsState copyWith({
@@ -42,6 +56,8 @@ class SettingsState extends Equatable {
     bool? isDeletingAccount,
     bool? isSigningOut,
     bool? deletionPending,
+    bool? isUnregisteringJeeber,
+    bool? jeeberUnregistered,
     SettingsBanner? banner,
   }) {
     return SettingsState(
@@ -52,6 +68,9 @@ class SettingsState extends Equatable {
       isDeletingAccount: isDeletingAccount ?? this.isDeletingAccount,
       isSigningOut: isSigningOut ?? this.isSigningOut,
       deletionPending: deletionPending ?? this.deletionPending,
+      isUnregisteringJeeber:
+          isUnregisteringJeeber ?? this.isUnregisteringJeeber,
+      jeeberUnregistered: jeeberUnregistered ?? this.jeeberUnregistered,
       banner: banner ?? this.banner,
     );
   }
@@ -65,6 +84,8 @@ class SettingsState extends Equatable {
         isDeletingAccount,
         isSigningOut,
         deletionPending,
+        isUnregisteringJeeber,
+        jeeberUnregistered,
         banner,
       ];
 }

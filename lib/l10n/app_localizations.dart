@@ -3106,4 +3106,19 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get disputeStatusLoading => _get('disputeStatusLoading');
   String get disputeStatusEvidenceEmpty =>
       _get('disputeStatusEvidenceEmpty');
+
+  // F3 · unregister as jeeber
+  String get settingsUnregisterJeeberTitle =>
+      _get('settingsUnregisterJeeberTitle');
+  String get unregisterJeeberDialogTitle =>
+      _get('unregisterJeeberDialogTitle');
+  String get unregisterJeeberDialogBody => _get('unregisterJeeberDialogBody');
+  String get unregisterJeeberConfirmCta => _get('unregisterJeeberConfirmCta');
+  String get jeeberUnregisterSuccess => _get('jeeberUnregisterSuccess');
+  String get jeeberUnregisterActiveDelivery =>
+      _get('jeeberUnregisterActiveDelivery');
+  String get jeeberUnregisterPositiveBalance =>
+      _get('jeeberUnregisterPositiveBalance');
+  String get jeeberUnregisterUnavailable =>
+      _get('jeeberUnregisterUnavailable');
 }
