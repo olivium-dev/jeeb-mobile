@@ -136,9 +136,16 @@ class _Body extends StatelessWidget {
           isVerified: data.isVerified,
           rating: data.rating,
           ratingCount: data.ratingCount,
-          // F5: only reachable Profile surface for both roles — routes
-          // straight into the already-wired avatar edit flow (PR #232).
-          onAvatarTap: () => context.pushNamed('settings-profile'),
+          // F5: into the PR #232 avatar edit flow; re-read /me on return —
+          // IndexedStack keeps this tab mounted, nothing else refreshes it.
+          onAvatarTap: () {
+            final cubit = context.read<CustomerProfileCubit>();
+            unawaited(
+              context.pushNamed('settings-profile').then((_) {
+                if (!cubit.isClosed) unawaited(cubit.refresh());
+              }),
+            );
+          },
         ),
         if (CustomerProfileStatusBlock.showsFor(state)) ...[
           const SizedBox(height: Spacing.small),

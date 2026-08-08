@@ -114,6 +114,18 @@ class _PendingRepository implements CustomerProfileRepository {
       Completer<CustomerProfileViewData>().future;
 }
 
+/// A `getMe` that counts reads and answers a renamed profile from the second.
+class _CountingRepository implements CustomerProfileRepository {
+  int calls = 0;
+
+  @override
+  Future<CustomerProfileViewData> fetchProfile() async {
+    calls++;
+    if (calls == 1) return _ratedCustomer;
+    return _ratedCustomer.copyWith(name: 'Sami Refreshed');
+  }
+}
+
 /// A `getMe` that fails, then succeeds on the retry.
 class _FailThenSucceedRepository implements CustomerProfileRepository {
   int calls = 0;
@@ -289,6 +301,57 @@ void main() {
         find.bySemanticsIdentifier('password_security_root'),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'avatar tap opens the settings-profile edit route and returning '
+        're-reads the profile (F5)', (tester) async {
+      final repo = _CountingRepository();
+      final router = GoRouter(
+        initialLocation: '/profile',
+        routes: [
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => CustomerProfileScreen(
+              data: _ratedCustomer,
+              repository: repo,
+            ),
+          ),
+          GoRoute(
+            path: '/settings/profile',
+            name: 'settings-profile',
+            builder: (context, state) => _stubRoot('profile_edit_stub_root'),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp.router(
+          theme: AppTheme.midnight(),
+          routerConfig: router,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: [
+            _syncDelegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(repo.calls, 1);
+
+      await tester.tap(find.bySemanticsIdentifier('customer_profile_avatar'));
+      await tester.pumpAndSettle();
+      expect(
+        find.bySemanticsIdentifier('profile_edit_stub_root'),
+        findsOneWidget,
+      );
+
+      router.pop();
+      await tester.pumpAndSettle();
+      // The pop re-read /me, so a just-committed avatar/name shows.
+      expect(repo.calls, 2);
+      expect(find.text('Sami Refreshed'), findsOneWidget);
     });
 
     testWidgets(
