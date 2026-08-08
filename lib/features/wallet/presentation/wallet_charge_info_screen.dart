@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
@@ -11,7 +12,9 @@ import '../../../core/widgets/jeeb/jeeb_list_row.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_outlined_card.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
+import '../../../features/support/domain/support_contact.dart';
 import '../../../l10n/app_localizations.dart';
+import '../application/whatsapp_top_up_launcher.dart';
 
 /// The board gutter (24) with 16 above the first block; the docked
 /// [JeebCtaFooter] owns the bottom edge, so the list keeps only enough bottom
@@ -64,7 +67,30 @@ const EdgeInsetsGeometry _kBodyPadding = EdgeInsetsDirectional.fromSTEB(
 /// `colorScheme.primary` (which under Midnight IS `#D73B00`), are now the kit's
 /// glass disc rung.
 class WalletChargeInfoScreen extends StatelessWidget {
-  const WalletChargeInfoScreen({super.key});
+  const WalletChargeInfoScreen({
+    super.key,
+    this.whatsAppLauncher,
+    this.accountPhoneProvider,
+    this.supportWhatsAppNumberE164 = kSupportWhatsAppNumberE164,
+  });
+
+  /// F2 — injected `url_launcher` seam, mirroring `mapsUrlBuilder`
+  /// (`app_router.dart`'s active-delivery maps CTA). Wired to the real
+  /// `launchUrl` at the `wallet-charge-info` route builder; left null in
+  /// bare/default construction (existing widget tests).
+  final WhatsAppLauncher? whatsAppLauncher;
+
+  /// F2 — resolves the local, cached account phone (`settings.profile.v1`)
+  /// lazily on tap. This screen makes NO network call (see class doc), so
+  /// this must stay a pure local read — never a repository/cubit fetch.
+  final Future<String?> Function()? accountPhoneProvider;
+
+  /// F2 release gate: the OWNER-PROVIDED WhatsApp E.164 number. Defaults to
+  /// [kSupportWhatsAppNumberE164] (empty until the owner confirms it, which
+  /// hides the whole CTA block — ship-safe). Overridable only so widget
+  /// tests can exercise the populated-state rendering without a real number
+  /// ever reaching production.
+  final String supportWhatsAppNumberE164;
 
   /// The single exit this screen owns, shared by the top bar's leading circle
   /// and the body CTA so the two can never disagree.
@@ -169,6 +195,20 @@ class WalletChargeInfoScreen extends StatelessWidget {
                         text: l10n.chargeInfoFeeNote,
                       ),
                     ),
+
+                    // ── F2 — WhatsApp support CTA, a second top-up path
+                    //    alongside the store flow above. Release-gated: an
+                    //    empty [supportWhatsAppNumberE164] (the shipped
+                    //    default) hides this block entirely — no placeholder
+                    //    number may ever render here.
+                    if (supportWhatsAppNumberE164.isNotEmpty) ...[
+                      const SizedBox(height: Spacing.xSmall),
+                      _WhatsAppSupportCta(
+                        supportPhoneE164: supportWhatsAppNumberE164,
+                        whatsAppLauncher: whatsAppLauncher,
+                        accountPhoneProvider: accountPhoneProvider,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -264,6 +304,82 @@ class _Step extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// F2 — the WhatsApp support note+link (`charge_info_whatsapp_note` /
+/// `charge_info_whatsapp_cta`). Resolves the account phone and launches the
+/// `wa.me` deep link on tap; on a failed hand-off, shows a copyable-number
+/// fallback rather than a dead tap.
+class _WhatsAppSupportCta extends StatelessWidget {
+  const _WhatsAppSupportCta({
+    required this.supportPhoneE164,
+    required this.whatsAppLauncher,
+    required this.accountPhoneProvider,
+  });
+
+  final String supportPhoneE164;
+  final WhatsAppLauncher? whatsAppLauncher;
+  final Future<String?> Function()? accountPhoneProvider;
+
+  Future<void> _onLink(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    String? userPhone;
+    try {
+      userPhone = await (accountPhoneProvider ?? (() async => null))();
+    } catch (_) {
+      userPhone = null;
+    }
+    final Uri uri = WhatsAppTopUpLink.build(
+      supportPhoneE164: supportPhoneE164,
+      baseMessage: l10n.chargeInfoWhatsAppMessage,
+      accountPhoneSentence: (userPhone == null || userPhone.isEmpty)
+          ? null
+          : l10n.chargeInfoWhatsAppMessagePhoneSentence(userPhone),
+    );
+    bool launched;
+    try {
+      launched = await (whatsAppLauncher ?? (_) async => false)(uri);
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched && context.mounted) {
+      _showFallback(context, l10n);
+    }
+  }
+
+  void _showFallback(BuildContext context, AppLocalizations l10n) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.chargeInfoWhatsAppFallbackMessage(supportPhoneE164),
+        ),
+        action: SnackBarAction(
+          label: l10n.chargeInfoWhatsAppCopyAction,
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: supportPhoneE164));
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(l10n.chargeInfoWhatsAppNumberCopied)),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return JeebInfoNote.accent(
+      // Filled glyph only (R10) — chat_bubble_outline is forbidden.
+      icon: Icons.chat_bubble,
+      text: l10n.chargeInfoWhatsAppNote,
+      linkLabel: l10n.chargeInfoWhatsAppCta,
+      onLink: () => _onLink(context),
+      identifier: 'charge_info_whatsapp_note',
+      linkIdentifier: 'charge_info_whatsapp_cta',
     );
   }
 }

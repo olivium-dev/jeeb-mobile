@@ -253,4 +253,17 @@
             android:name="flutterEmbedding"
             android:value="2"/>
     </application>
+
+    <!--
+        F2: package-visibility declaration (Android 11+/API 30+) for the
+        WhatsApp support CTA's wa.me hand-off — com.whatsapp.w4b is included
+        since support lines are commonly WhatsApp Business accounts. Purely
+        additive; wa.me itself needs no <queries> entry to open (universal
+        link), but a canLaunchUrl pre-check or an explicit whatsapp:// intent
+        would silently fail without this.
+    -->
+    <queries>
+        <package android:name="com.whatsapp"/>
+        <package android:name="com.whatsapp.w4b"/>
+    </queries>
 </manifest>

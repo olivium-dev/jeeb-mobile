@@ -15,6 +15,13 @@
 #        (wallet_available_balance visible) [JM-053].
 #        (For the standalone screen, back returns to hub. From onboarding/KYC
 #         paths, back returns to the caller — tested via JM-041/042.)
+#   AC4 (F2): charge_info_whatsapp_note must NOT be visible while
+#        kSupportWhatsAppNumberE164 (support_contact.dart) ships empty — the
+#        release gate. Flip this assertion to assertVisible on
+#        charge_info_whatsapp_note/charge_info_whatsapp_cta (assertVisible
+#        ONLY — never tapOn: it hands off to WhatsApp/browser and exits the
+#        app, wrecking AC3's back-navigation sequencing) once the real
+#        owner-provided number lands.
 #
 # Mock: — (no network call; purely static)
 # Seam:
@@ -89,3 +96,19 @@ appId: ${APP_ID}
     timeout: 15000
 
 - takeScreenshot: jm054_ac3_back_to_wallet_hub
+
+# ── AC4 (F2): WhatsApp CTA absent under the shipped empty-number gate ────────
+- launchApp:
+    clearState: true
+    arguments:
+      jeeb.seam.session: "jeeber_logged_in"
+      jeeb.seam.kyc_status: "approved"
+      jeeb.route: "/wallet/charge-info"
+
+- extendedWaitUntil:
+    visible:
+      id: "charge_info_root"
+    timeout: 30000
+
+- assertNotVisible:
+    id: "charge_info_whatsapp_note"

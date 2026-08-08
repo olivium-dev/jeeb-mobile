@@ -1672,7 +1672,22 @@ class AppRouter {
         GoRoute(
           path: '/wallet/charge-info',
           name: 'wallet-charge-info',
-          builder: (context, state) => const WalletChargeInfoScreen(),
+          // F2: WhatsApp support CTA seams — url_launcher mirrors the
+          // active-delivery mapsUrlBuilder wiring above; the phone provider
+          // reads the same local settings.profile.v1 cache SettingsCubit
+          // uses (no network call, matching this screen's own AC).
+          builder: (context, state) => WalletChargeInfoScreen(
+            whatsAppLauncher: (uri) => launchUrl(
+              uri,
+              mode: LaunchMode.externalApplication,
+            ),
+            accountPhoneProvider: () async {
+              final profile = await SharedPrefsProfileRepository(
+                prefs: sl<SharedPreferences>(),
+              ).load();
+              return profile?.phoneE164;
+            },
+          ),
         ),
         // JM-052 earnings — the earnings-fees dashboard as a standalone route
         // (R-4, jm-053). The dashboard otherwise lives only as the jeeber

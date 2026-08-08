@@ -1555,6 +1555,13 @@
   "chargeInfoAutoUpdateNote": "يُحدّث رصيد محفظتك تلقائياً بمجرد تأكيد المتجر — لا يوجد دفع داخل التطبيق.",
   "chargeInfoFeeNote": "تُخصم رسوم المنصّة البالغة 10% عن كل عرض مقبول من رصيدك المشحون مسبقاً.",
   "chargeInfoBackCta": "العودة إلى المحفظة",
+  "chargeInfoWhatsAppNote": "لا يمكنك الوصول إلى متجر؟ تواصل مع الدعم عبر واتساب لشحن محفظتك.",
+  "chargeInfoWhatsAppCta": "راسلنا على واتساب",
+  "chargeInfoWhatsAppMessage": "مرحباً، أرغب في شحن محفظة جيب الخاصة بي.",
+  "chargeInfoWhatsAppMessagePhoneSentence": "رقم هاتف حسابي هو {phone}.",
+  "chargeInfoWhatsAppFallbackMessage": "تعذّر فتح واتساب. راسلنا أو احفظ هذا الرقم: {number}",
+  "chargeInfoWhatsAppCopyAction": "نسخ",
+  "chargeInfoWhatsAppNumberCopied": "تم نسخ الرقم",
 
   "fundingTitle": "رصيدك الابتدائي",
   "fundingStarterCreditBody": "بمجرد الموافقة على توثيقك تحصل على رصيد ابتدائي ثابت وغير قابل للاسترداد لتبدأ بإرسال العروض.",
