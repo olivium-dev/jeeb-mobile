@@ -2,6 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Dev-only ATS exception, scoped to the MSI LAN gateway host. Mirrors
+	     android/app/src/{main,debug}/res/xml/network_security_config.xml. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>192.168.2.39</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
 	<!-- Sprint 1 Stream B (T-MOB-017) / Sprint 2 Stream G: location usage
 	     descriptions. Required before iOS will surface the geolocator permission
 	     prompt — Apple rejects any build that uses location without these keys. -->
