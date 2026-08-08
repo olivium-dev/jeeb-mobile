@@ -223,6 +223,8 @@ class _BannerCard extends StatelessWidget {
         return Icons.report_problem_outlined;
       case NotificationCategory.support:
         return Icons.support_agent;
+      case NotificationCategory.wallet:
+        return Icons.account_balance_wallet_outlined;
       case NotificationCategory.other:
         return Icons.notifications_outlined;
     }

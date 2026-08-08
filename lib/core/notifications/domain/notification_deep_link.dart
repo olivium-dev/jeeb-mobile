@@ -75,6 +75,8 @@ String? deepLinkForMessage(NotificationMessage message, {UserRole? role}) {
           message.data['caseId'];
       if (id == null || id.isEmpty) return '/support';
       return '/support/tickets/$id';
+    case NotificationCategory.wallet:
+      return '/wallet';
     case NotificationCategory.other:
       return null;
   }

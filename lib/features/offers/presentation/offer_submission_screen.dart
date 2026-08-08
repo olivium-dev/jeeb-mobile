@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +9,8 @@ import 'package:omds/omds.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/friendly_reference.dart';
 import '../../../core/jeeb_commission.dart';
+import '../../../core/lifecycle/app_resume_signals.dart';
+import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
@@ -79,6 +83,7 @@ class OfferSubmissionScreen extends StatelessWidget {
     this.onRequestGone,
     this.repository,
     this.walletRepository,
+    this.walletRefreshSignals,
     this.cubit,
   });
 
@@ -106,6 +111,10 @@ class OfferSubmissionScreen extends StatelessWidget {
   /// resolved from DI when omitted.
   final WalletRepository? walletRepository;
 
+  /// F1 — the push→refetch bus, filtered to `RefreshTopic.wallet`. Defaults
+  /// to the DI-registered [PushRefreshSignals] stream; injectable for tests.
+  final Stream<void>? walletRefreshSignals;
+
   /// DT-04 catalog/test seam: an already-constructed cubit to host verbatim
   /// (via `BlocProvider.value`), bypassing [repository]/DI entirely. Lets a
   /// caller pre-drive [OfferFormCubit.submit] (e.g. into `submitting` or a
@@ -132,6 +141,7 @@ class OfferSubmissionScreen extends StatelessWidget {
     final composer = _OfferComposer(
       requestId: requestId,
       walletRepository: _resolveWalletRepo(),
+      walletRefreshSignals: walletRefreshSignals,
       onWithdrawn: onWithdrawn,
       onSubmitted: onSubmitted,
       onRequestGone: onRequestGone,
@@ -154,12 +164,14 @@ class _OfferComposer extends StatefulWidget {
     required this.requestId,
     required this.walletRepository,
     required this.onWithdrawn,
+    this.walletRefreshSignals,
     this.onSubmitted,
     this.onRequestGone,
   });
 
   final String requestId;
   final WalletRepository? walletRepository;
+  final Stream<void>? walletRefreshSignals;
   final VoidCallback onWithdrawn;
   final void Function(String conversationId)? onSubmitted;
   final VoidCallback? onRequestGone;
@@ -168,7 +180,8 @@ class _OfferComposer extends StatefulWidget {
   State<_OfferComposer> createState() => _OfferComposerState();
 }
 
-class _OfferComposerState extends State<_OfferComposer> {
+class _OfferComposerState extends State<_OfferComposer>
+    with ResumeRefetchMixin {
   /// Digits and one decimal point — the gateway takes a decimal amount, and a
   /// keypad-typed `,` would fail `double.tryParse`.
   static final List<TextInputFormatter> _priceFormatters =
@@ -194,6 +207,7 @@ class _OfferComposerState extends State<_OfferComposer> {
   /// the cubit's network failure path, not here).
   WalletBalance? _wallet;
   bool _insufficientShown = false;
+  StreamSubscription<void>? _walletRefreshSub;
 
   @override
   void initState() {
@@ -203,6 +217,11 @@ class _OfferComposerState extends State<_OfferComposer> {
     final quick = _etaBand.quickOptions;
     _selectedEta = quick.isEmpty ? null : quick[quick.length ~/ 2];
     _loadWallet();
+    // F1 — no top-up event exists server-side; only guard-2's auto-withdraw
+    // fires this bus (a top-up is caught by the resume catch-up below).
+    _walletRefreshSub = (widget.walletRefreshSignals ??
+            resolvePushRefreshStream(topics: const {RefreshTopic.wallet}))
+        ?.listen((_) => unawaited(_loadWallet()));
   }
 
   Future<void> _loadWallet() async {
@@ -216,8 +235,15 @@ class _OfferComposerState extends State<_OfferComposer> {
     }
   }
 
+  /// F1 — catch-up read on foreground return; the only way to catch an
+  /// out-of-band top-up, which has no server push (corrected design).
+  @override
+  void onAppResumed() => unawaited(_loadWallet());
+
   @override
   void dispose() {
+    unawaited(_walletRefreshSub?.cancel());
+    _walletRefreshSub = null;
     _priceController.dispose();
     _noteController.dispose();
     super.dispose();
@@ -243,6 +269,11 @@ class _OfferComposerState extends State<_OfferComposer> {
   /// A price is only "entered" once it is a positive number — the CTA label,
   /// the breakdown and the `−1` floor all key off this.
   bool get _hasPrice => _price != null && _price! > 0;
+
+  /// F1 pre-check, UX only: disables the CTA once a KNOWN wallet snapshot
+  /// can't cover the reserve. A null/stale [_wallet] never blocks (D35).
+  bool get _insufficientForEnteredPrice =>
+      _wallet != null && _hasPrice && _reserve! > _wallet!.availableBalance;
 
   @override
   Widget build(BuildContext context) {
@@ -389,9 +420,13 @@ class _OfferComposerState extends State<_OfferComposer> {
         // The board draws this pill ORANGE (`#D73B00`, h58) with the
         // ctaOrange glow — the tile-drawn act, so `.accent`, not primary.
         JeebCtaFooter.single(
+          below: _insufficientForEnteredPrice
+              ? _InsufficientReason(text: l10n.ctaDisabledInsufficientReason)
+              : null,
           child: JeebCtaButton.accent(
             label: _sendLabel(l10n),
             height: JeebCtaButton.primaryHeightTall,
+            isEnabled: !_insufficientForEnteredPrice,
             isLoading: state.isSubmitting,
             onTap: () => _onSendTapped(context),
             identifier: 'offer_composer_send_cta',
@@ -746,6 +781,29 @@ class _WalletStripWrap extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// `offer_composer_insufficient_reason` — F1's inline pre-check reason under
+/// the disabled CTA. UX only; mirrors [_EtaError]'s bare-line shape.
+class _InsufficientReason extends StatelessWidget {
+  const _InsufficientReason({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      identifier: 'offer_composer_insufficient_reason',
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.error,
+        ),
+      ),
     );
   }
 }

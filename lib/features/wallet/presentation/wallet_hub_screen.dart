@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -6,6 +8,8 @@ import 'package:omds/omds.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/formatting/money_format.dart';
+import '../../../core/lifecycle/app_resume_signals.dart';
+import '../../../core/notifications/application/push_refresh_signals.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../core/theme/jeeb_color_roles.dart';
 import '../../../core/theme/jeeb_radii.dart';
@@ -67,8 +71,13 @@ import 'wallet_hub_l10n.dart';
 /// `DioWalletRepository` (CTO-D2). The screen renders whatever snapshot the repo
 /// returns; the `jeeb.seam.wallet_state` Maestro states surface once DI is on
 /// the live endpoint.
-class WalletHubScreen extends StatelessWidget {
-  const WalletHubScreen({super.key, this.repository, this.kycStatusGate});
+class WalletHubScreen extends StatefulWidget {
+  const WalletHubScreen({
+    super.key,
+    this.repository,
+    this.kycStatusGate,
+    this.walletRefreshSignals,
+  });
 
   /// Constructor test seam (40_GUARDRAILS_ARCH §5.4) — defaults to DI.
   final WalletRepository? repository;
@@ -79,13 +88,47 @@ class WalletHubScreen extends StatelessWidget {
   /// the `jeeb.seam.kyc_status=pending` Maestro state drives it. Test seam.
   final JeeberKycStatusGate? kycStatusGate;
 
+  /// F1 — the push→refetch bus, filtered to `RefreshTopic.wallet`. Injectable
+  /// for tests; defaults to the DI-registered [PushRefreshSignals] stream.
+  final Stream<void>? walletRefreshSignals;
+
+  @override
+  State<WalletHubScreen> createState() => _WalletHubScreenState();
+}
+
+class _WalletHubScreenState extends State<WalletHubScreen>
+    with ResumeRefetchMixin {
+  late final WalletHubCubit _cubit = WalletHubCubit(
+    repository: widget.repository ?? sl<WalletRepository>(),
+  )..load();
+  StreamSubscription<void>? _walletRefreshSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // F1 — no top-up event exists server-side; only guard-2's auto-withdraw
+    // fires this bus (a top-up is caught by the resume catch-up below).
+    _walletRefreshSub = (widget.walletRefreshSignals ??
+            resolvePushRefreshStream(topics: const {RefreshTopic.wallet}))
+        ?.listen((_) => unawaited(_cubit.refresh()));
+  }
+
+  @override
+  void onAppResumed() => unawaited(_cubit.refresh());
+
+  @override
+  void dispose() {
+    unawaited(_walletRefreshSub?.cancel());
+    _walletRefreshSub = null;
+    unawaited(_cubit.close());
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final gate = kycStatusGate ?? sl<JeeberKycStatusGate>();
-    return BlocProvider<WalletHubCubit>(
-      create: (_) => WalletHubCubit(
-        repository: repository ?? sl<WalletRepository>(),
-      )..load(),
+    final gate = widget.kycStatusGate ?? sl<JeeberKycStatusGate>();
+    return BlocProvider<WalletHubCubit>.value(
+      value: _cubit,
       child: _WalletHubView(kycPending: gate.status == JeeberKycStatus.pending),
     );
   }
