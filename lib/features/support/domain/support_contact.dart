@@ -1,6 +1,3 @@
-/// F2 — WhatsApp support CTA release gate. OWNER-PROVIDED E.164 number
-/// (digits, optionally with a leading `+`) for the wallet top-up WhatsApp
-/// line. Empty = the CTA is hidden entirely (ship-safe default) — this MUST
-/// stay empty until the real number is confirmed. NEVER put a placeholder,
-/// test, or example number here.
+/// F2 release gate: OWNER-PROVIDED E.164 WhatsApp top-up support number.
+/// Empty hides the CTA (ship-safe); NEVER commit a placeholder/test number.
 const String kSupportWhatsAppNumberE164 = '';

@@ -1672,10 +1672,8 @@ class AppRouter {
         GoRoute(
           path: '/wallet/charge-info',
           name: 'wallet-charge-info',
-          // F2: WhatsApp support CTA seams — url_launcher mirrors the
-          // active-delivery mapsUrlBuilder wiring above; the phone provider
-          // reads the same local settings.profile.v1 cache SettingsCubit
-          // uses (no network call, matching this screen's own AC).
+          // F2 seams: launcher mirrors mapsUrlBuilder; the phone provider
+          // reads the local settings.profile.v1 cache (no network, per AC).
           builder: (context, state) => WalletChargeInfoScreen(
             whatsAppLauncher: (uri) => launchUrl(
               uri,

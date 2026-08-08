@@ -1,6 +1,7 @@
 // F2 — WhatsApp support CTA on the wallet top-up screen. Extends the
 // existing wallet_charge_info_midnight_test.dart harness pattern.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodCall, SystemChannels;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -166,8 +167,21 @@ void main() {
   );
 
   testWidgets(
-    'launcher returning false surfaces the fallback with a copy affordance',
+    'launcher returning false surfaces the fallback, and its Copy action '
+    'writes the number to the clipboard',
     (tester) async {
+      final List<MethodCall> clipboardCalls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') clipboardCalls.add(call);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
       await pump(
         tester,
         WalletChargeInfoScreen(
@@ -182,6 +196,19 @@ void main() {
 
       expect(find.byType(SnackBar), findsOneWidget);
       expect(find.text('Copy'), findsOneWidget);
+
+      // Let the SnackBar entrance animation finish so the action is hittable.
+      await tester.pump(const Duration(milliseconds: 750));
+      await tester.tap(find.text('Copy'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 750));
+
+      expect(clipboardCalls, hasLength(1));
+      expect(
+        (clipboardCalls.single.arguments as Map<Object?, Object?>)['text'],
+        '+9613000099',
+      );
+      expect(find.text('Number copied'), findsOneWidget);
     },
   );
 

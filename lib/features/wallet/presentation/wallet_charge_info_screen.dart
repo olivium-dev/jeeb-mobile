@@ -74,22 +74,16 @@ class WalletChargeInfoScreen extends StatelessWidget {
     this.supportWhatsAppNumberE164 = kSupportWhatsAppNumberE164,
   });
 
-  /// F2 — injected `url_launcher` seam, mirroring `mapsUrlBuilder`
-  /// (`app_router.dart`'s active-delivery maps CTA). Wired to the real
-  /// `launchUrl` at the `wallet-charge-info` route builder; left null in
-  /// bare/default construction (existing widget tests).
+  /// F2 — injected `url_launcher` seam (mirrors `mapsUrlBuilder`); wired at
+  /// the route builder, null in bare construction (existing widget tests).
   final WhatsAppLauncher? whatsAppLauncher;
 
-  /// F2 — resolves the local, cached account phone (`settings.profile.v1`)
-  /// lazily on tap. This screen makes NO network call (see class doc), so
-  /// this must stay a pure local read — never a repository/cubit fetch.
+  /// F2 — lazy local read of the cached account phone (`settings.profile.v1`);
+  /// must never become a network fetch — this screen makes NO network call.
   final Future<String?> Function()? accountPhoneProvider;
 
-  /// F2 release gate: the OWNER-PROVIDED WhatsApp E.164 number. Defaults to
-  /// [kSupportWhatsAppNumberE164] (empty until the owner confirms it, which
-  /// hides the whole CTA block — ship-safe). Overridable only so widget
-  /// tests can exercise the populated-state rendering without a real number
-  /// ever reaching production.
+  /// F2 release gate: defaults to [kSupportWhatsAppNumberE164] (empty = CTA
+  /// hidden); overridable only so tests can render the populated state.
   final String supportWhatsAppNumberE164;
 
   /// The single exit this screen owns, shared by the top bar's leading circle
@@ -196,11 +190,8 @@ class WalletChargeInfoScreen extends StatelessWidget {
                       ),
                     ),
 
-                    // ── F2 — WhatsApp support CTA, a second top-up path
-                    //    alongside the store flow above. Release-gated: an
-                    //    empty [supportWhatsAppNumberE164] (the shipped
-                    //    default) hides this block entirely — no placeholder
-                    //    number may ever render here.
+                    // F2 — second top-up path; release-gated: an empty number
+                    // (the shipped default) hides the block entirely.
                     if (supportWhatsAppNumberE164.isNotEmpty) ...[
                       const SizedBox(height: Spacing.xSmall),
                       _WhatsAppSupportCta(
@@ -308,10 +299,8 @@ class _Step extends StatelessWidget {
   }
 }
 
-/// F2 — the WhatsApp support note+link (`charge_info_whatsapp_note` /
-/// `charge_info_whatsapp_cta`). Resolves the account phone and launches the
-/// `wa.me` deep link on tap; on a failed hand-off, shows a copyable-number
-/// fallback rather than a dead tap.
+/// F2 — WhatsApp note+link (`charge_info_whatsapp_note`/`_cta`); a failed
+/// hand-off shows a copyable-number fallback, never a dead tap.
 class _WhatsAppSupportCta extends StatelessWidget {
   const _WhatsAppSupportCta({
     required this.supportPhoneE164,

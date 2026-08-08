@@ -97,9 +97,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- F2: declares the whatsapp:// scheme so canOpenURL/launchUrl resolve
-	     reliably for the wallet top-up WhatsApp support CTA (wa.me itself
-	     needs no entry — it is a universal link). -->
+	<!-- F2: whatsapp:// scheme for canOpenURL/launchUrl resolution; wa.me
+	     itself needs no entry (universal link). -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>whatsapp</string>
