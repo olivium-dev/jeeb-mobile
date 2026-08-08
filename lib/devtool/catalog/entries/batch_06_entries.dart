@@ -293,12 +293,13 @@ final CatalogEntry _captureLocationEntry = CatalogEntry(
   ],
 );
 
+// markReady: catalog states preview a settled camera, so the CTA renders live.
 MapCaptureController _captureCentre() => MapCaptureController(
       initial: const LocationPoint(
         latitude: CaptureLocationScreenPreviewFixtures.beirutLatitude,
         longitude: CaptureLocationScreenPreviewFixtures.beirutLongitude,
       ),
-    );
+    )..markReady();
 
 /// Emits [seed] on microtask (after mount) to avoid network calls.
 class _SeededMaskedCallCubit extends MaskedCallCubit {

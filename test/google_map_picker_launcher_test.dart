@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/features/location/data/google_map_picker_launcher.dart';
 import 'package:jeeb_mobile/features/location/data/location_repository.dart';
@@ -40,12 +41,21 @@ void main() {
     // reads is the coordinate the launcher handed the map.
     expect(find.text('33.7000, 35.4000'), findsOneWidget);
 
+    // JEBV4-176: no platform view painted here, so no camera ever settled. The
+    // CTA stays disabled and tapping it must not pop; the launcher must NOT
+    // hand the seed back as if the customer had chosen it.
+    expect(
+      tester.widget<OmdsPrimaryButton>(find.byType(OmdsPrimaryButton)).isEnabled,
+      isFalse,
+    );
     await tester.ensureVisible(cta);
     await tester.tap(cta);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(cta, findsOneWidget);
 
-    // JEBV4-176: no platform view painted here, so no camera ever settled. The
-    // launcher must NOT hand the seed back as if the customer had chosen it.
+    // Backing out is the only exit, and it resolves the picker with null.
+    await tester.tap(find.bySemanticsIdentifier('capture_location_back'));
+    await tester.pumpAndSettle();
     expect(await future, isNull);
   });
 
@@ -71,8 +81,12 @@ void main() {
     expect(find.text('Confirm drop-off'), findsOneWidget);
     expect(find.text('33.8938, 35.5018'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Confirm drop-off'));
-    await tester.tap(find.text('Confirm drop-off'));
+    // Camera never settled: the CTA is disabled, so back out to resolve.
+    expect(
+      tester.widget<OmdsPrimaryButton>(find.byType(OmdsPrimaryButton)).isEnabled,
+      isFalse,
+    );
+    await tester.tap(find.bySemanticsIdentifier('capture_location_back'));
     await tester.pumpAndSettle();
 
     expect(await future, isNull);
@@ -111,6 +125,10 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
+
+    // The camera settled (what onCameraIdle reports), so the CTA is live.
+    controller.markReady();
+    await tester.pump();
 
     await tester.tap(find.bySemanticsIdentifier('capture_location_pin_cta'));
     await tester.pumpAndSettle();
