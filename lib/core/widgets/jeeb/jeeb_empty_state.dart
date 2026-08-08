@@ -1641,33 +1641,26 @@ void _paintE1Arcs(Canvas canvas, _Ink ink) {
     ..drawPath(_dotted(bottom), paint);
 }
 
+// Flat glass disc with an accent mic, matching the medallions — the old 3D
+// orange sphere read as a second record FAB (owner ruling, 2026-08-09).
 void _paintE1Mic(Canvas canvas, _Ink ink) {
   canvas
-    ..drawCircle(_e1Centre, _e1MicRadius, _fillPaint(ink.accentDeep))
     ..drawCircle(
-      const Offset(150, 138),
-      45,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[ink.accentBright, ink.accentDeep],
-        ).createShader(
-          Rect.fromCircle(center: const Offset(150, 138), radius: 45),
-        ),
+      _e1Centre,
+      _e1MicRadius,
+      _fillPaint(ink.semantic.glassFillEmphasis),
     )
-    ..drawPath(
-      Path()
-        ..moveTo(118, 118)
-        ..arcToPoint(const Offset(148, 96), radius: const Radius.circular(45)),
-      _strokePaint(ink.onAccent.withValues(alpha: 0.45), 4),
+    ..drawCircle(
+      _e1Centre,
+      _e1MicRadius,
+      _strokePaint(ink.semantic.glassBorderStrong, 1),
     )
     ..drawRRect(
       RRect.fromRectAndRadius(
         const Rect.fromLTWH(141, 114, 18, 32),
         const Radius.circular(9),
       ),
-      _fillPaint(ink.onAccent),
+      _fillPaint(ink.accent),
     )
     ..drawPath(
       Path()
@@ -1677,7 +1670,7 @@ void _paintE1Mic(Canvas canvas, _Ink ink) {
           radius: const Radius.circular(17),
           clockwise: false,
         ),
-      _strokePaint(ink.onAccent, 4),
+      _strokePaint(ink.accent, 4),
     )
     ..drawPath(
       Path()
@@ -1685,7 +1678,7 @@ void _paintE1Mic(Canvas canvas, _Ink ink) {
         ..lineTo(150, 165)
         ..moveTo(141, 166)
         ..lineTo(159, 166),
-      _strokePaint(ink.onAccent, 4),
+      _strokePaint(ink.accent, 4),
     );
 }
 
