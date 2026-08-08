@@ -46,7 +46,8 @@ import '../widgets/profile_avatar.dart';
 /// the glow. It also gained the loading frame it never had, which is what
 /// fixes the empty-name-field defect described on [_ProfileEditScreenState].
 // REACHABLE (was mis-flagged ORPHAN, JEBV4-227): ships behind
-// `/settings/profile`, reached from settings_screen.dart's Profile row.
+// `/settings/profile`. `settings_screen.dart` itself has no forward-nav
+// entry; the live path is customer_profile_screen.dart's avatar tap (F5).
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({
     super.key,
