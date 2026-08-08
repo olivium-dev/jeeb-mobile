@@ -58,7 +58,6 @@ class CapturePickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final glass = theme.extension<JeebSemanticColors>() ??
@@ -108,27 +107,51 @@ class CapturePickerSheet extends StatelessWidget {
                 child: Semantics(
                   identifier: 'capture_location_pin_cta',
                   button: true,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(JeebRadii.pill),
-                      // A disabled CTA drops its lift (kit §1.6).
-                      boxShadow: isConfirming ? null : JeebShadows.ctaOrange,
-                    ),
-                    child: OmdsPrimaryButton(
-                      text: l10n.captureLocationConfirmDropOffCta,
-                      isEnabled: !isConfirming,
-                      height: ctaHeight,
-                      borderRadius: OmdsBorderRadius.pill,
-                      textStyle: context.jeebText.button
-                          .copyWith(fontWeight: FontWeight.w700),
-                      onTap: onPin,
-                    ),
-                  ),
+                  child: live == null
+                      ? _ConfirmCta(enabled: !isConfirming, onPin: onPin)
+                      : ListenableBuilder(
+                          listenable: live,
+                          builder: (context, _) => _ConfirmCta(
+                            enabled: !isConfirming && live.isReady,
+                            onPin: onPin,
+                          ),
+                        ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The "Confirm drop-off" CTA button, factored out so its enabled state can
+/// be driven either statically ([CapturePickerSheet.isConfirming] alone, no
+/// map) or reactively (also gated on [MapCaptureController.isReady]).
+class _ConfirmCta extends StatelessWidget {
+  const _ConfirmCta({required this.enabled, required this.onPin});
+
+  final bool enabled;
+  final VoidCallback onPin;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(JeebRadii.pill),
+        // A disabled CTA drops its lift (kit §1.6).
+        boxShadow: enabled ? JeebShadows.ctaOrange : null,
+      ),
+      child: OmdsPrimaryButton(
+        text: l10n.captureLocationConfirmDropOffCta,
+        isEnabled: enabled,
+        height: CapturePickerSheet.ctaHeight,
+        borderRadius: OmdsBorderRadius.pill,
+        textStyle:
+            context.jeebText.button.copyWith(fontWeight: FontWeight.w700),
+        onTap: onPin,
       ),
     );
   }

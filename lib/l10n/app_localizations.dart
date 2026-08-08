@@ -708,6 +708,7 @@ class AppLocalizations {
   String get captureLocationPinSemantic => _get('captureLocationPinSemantic');
   String get captureLocationMapPreview => _get('captureLocationMapPreview');
   String get captureLocationMyLocation => _get('captureLocationMyLocation');
+  String get captureLocationPinFailed => _get('captureLocationPinFailed');
 
   String get captureLocationGpsDeniedTitle =>
       _get('captureLocationGpsDeniedTitle');

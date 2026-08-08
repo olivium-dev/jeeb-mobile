@@ -538,7 +538,20 @@ class _Body extends StatelessWidget {
     // create draft — it used to be discarded here, collapsing every pinned
     // pickup to the Beirut fallback.
     final result = await context.pushNamed<Object?>('capture-location');
-    final point = result is LocationPoint ? result : null;
+    // The route only ever pops a LocationPoint (confirmed) or null (user
+    // backed out — a legitimate cancel, left silent). Anything else is a
+    // contract violation, not a cancel, so it gets user-visible feedback
+    // instead of silently collapsing into the same no-op as a cancel.
+    if (result != null && result is! LocationPoint) {
+      if (context.mounted) {
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(l10n.captureLocationPinFailed)),
+        );
+      }
+      return;
+    }
+    final point = result as LocationPoint?;
     cubit.markPinned(
       latitude: point?.latitude,
       longitude: point?.longitude,
