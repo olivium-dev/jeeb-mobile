@@ -15,8 +15,10 @@ import '../../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../../core/widgets/jeeb/jeeb_surface_tone.dart';
 import '../../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../../photo_attachment/data/image_cropper_photo_cropper_service.dart';
 import '../../../photo_attachment/data/image_picker_photo_picker_service.dart';
 import '../../../photo_attachment/domain/photo_compressor.dart';
+import '../../../photo_attachment/domain/photo_cropper_service.dart';
 import '../../../photo_attachment/domain/photo_picker_service.dart';
 import '../../application/settings_cubit.dart';
 import '../../application/settings_state.dart';
@@ -43,20 +45,36 @@ import '../widgets/profile_avatar.dart';
 /// back to the flat scaffold navy, so pushing here from Settings does not drop
 /// the glow. It also gained the loading frame it never had, which is what
 /// fixes the empty-name-field defect described on [_ProfileEditScreenState].
-// ORPHAN (JEBV4-227, verified 2026-07-12): only reachable via orphaned /settings — see docs/project-understanding/reconciliation/orphans.md
+///
+/// F5 (2026-08-08): the ORPHAN ruling below was already stale before this
+/// change (the 2026-07-24 DI-scoped-cubit fix made the route reachable via
+/// `settings_screen.dart`'s `_ProfileSection` → `pushNamed('settings-profile')`)
+/// — correcting the docstring here, not just noting it.
+// REACHABLE (was mis-flagged ORPHAN, JEBV4-227): ships behind
+// `/settings/profile`, reached from settings_screen.dart's Profile row.
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({
     super.key,
     this.photoPicker,
     this.photoStore,
-    this.photoCompressor = const HalvingPhotoCompressor(),
+    this.photoCropper,
+    this.photoCompressor = const PassthroughPhotoCompressor(),
   });
 
-  /// JEBV4-13 test seams for the Change-avatar flow. Production resolves the
-  /// picker from DI (falling back to the real `image_picker` adapter) and
-  /// persists via [AppDirProfilePhotoStore].
+  /// JEBV4-13 / F5 test seams for the Change-avatar flow. Production
+  /// resolves the picker/cropper from DI (falling back to the real
+  /// `image_picker`/`image_cropper` adapters) and persists via
+  /// [AppDirProfilePhotoStore].
   final PhotoPickerService? photoPicker;
   final ProfilePhotoStore? photoStore;
+  final PhotoCropperService? photoCropper;
+
+  /// F5: `HalvingPhotoCompressor` (the old default) discarded every other
+  /// byte once a picked photo exceeded 2 MB — that resizes nothing, it
+  /// corrupts the JPEG byte stream. `ImagePickerPhotoPickerService` already
+  /// downsizes every real pick (maxWidth 1920, quality 85) and the new crop
+  /// step re-encodes again, so passthrough is the correct default; a real
+  /// size ceiling is enforced explicitly in [_onChangePhoto] instead.
   final PhotoCompressor photoCompressor;
 
   /// Frozen identifier for the cold-read frame.
@@ -101,6 +119,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       return;
     }
     setState(() => _validationError = null);
+    // F5: `saveProfile`'s photoUrl param is now sentinel-shaped (omitted =
+    // preserved) — this name-only save no longer clears the avatar.
     context.read<SettingsCubit>().saveProfile(name: value);
   }
 
@@ -114,9 +134,20 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     return ImagePickerPhotoPickerService();
   }
 
-  /// JEBV4-13: the Change-avatar flow — camera/gallery source sheet →
-  /// platform pick → compress (2 MB ceiling) → persist locally → save on the
-  /// profile. Cancelling anywhere is silent; real failures surface honestly.
+  /// Resolve the cropper the same way: injected seam → DI → the real
+  /// `image_cropper` adapter.
+  PhotoCropperService _resolveCropper() {
+    final injected = widget.photoCropper;
+    if (injected != null) return injected;
+    if (sl.isRegistered<PhotoCropperService>()) return sl<PhotoCropperService>();
+    return ImageCropperPhotoCropperService();
+  }
+
+  /// JEBV4-13 / F5: the Change-avatar flow — camera/gallery source sheet →
+  /// platform pick → square crop → compress → a hard client-side size gate
+  /// → persist locally (paints instantly) → upload to CDN + commit the
+  /// gateway avatar URL (`SettingsCubit.changeAvatar`). Cancelling anywhere
+  /// (picker or crop) is silent; real failures surface honestly.
   Future<void> _onChangePhoto(AppLocalizations l10n) async {
     if (_isChangingPhoto) return;
     final cubit = context.read<SettingsCubit>();
@@ -138,10 +169,21 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       final raw = choice == 'photo'
           ? await picker.pickFromCamera()
           : await picker.pickFromGallery();
-      final compressed = await widget.photoCompressor.compress(raw.bytes);
+      final cropped = await _resolveCropper().crop(raw.bytes);
+      if (cropped == null) return; // user cancelled the crop UI
+      final compressed = await widget.photoCompressor.compress(cropped);
+      // Hard client-side ceiling (F5 plan §3.3.2) — the gateway's own
+      // 15 MB edge cap is the real enforcement boundary; this just fails
+      // fast with an honest message instead of a doomed upload.
+      if (compressed.length > PhotoCompressor.maxSizeBytes) {
+        if (mounted) {
+          showOmdsErrorSnackbar(context, message: l10n.profilePhotoChangeFailed);
+        }
+        return;
+      }
       final store = widget.photoStore ?? const AppDirProfilePhotoStore();
       final path = await store.persist(compressed);
-      await cubit.saveProfile(name: cubit.state.profile.name, photoUrl: path);
+      await cubit.changeAvatar(bytes: compressed, localPreviewPath: path);
     } on PhotoPickException catch (e) {
       if (e.failure != PhotoPickFailure.cancelled && mounted) {
         showOmdsErrorSnackbar(

@@ -1,10 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/features/customer_profile/domain/customer_profile_view_data.dart';
 import 'package:jeeb_mobile/features/profile_name/domain/display_name_repository.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_cubit.dart';
 import 'package:jeeb_mobile/features/settings/application/settings_state.dart';
 import 'package:jeeb_mobile/features/settings/domain/account_service.dart';
+import 'package:jeeb_mobile/features/settings/domain/avatar_repository.dart';
 import 'package:jeeb_mobile/features/settings/domain/user_profile.dart';
 
 import 'support/settings_fakes.dart';
@@ -52,12 +56,18 @@ SettingsCubit _buildCubit({
   InMemoryProfileRepository? repo,
   _ScriptedAccountService? account,
   _RecordingDisplayNameRepository? displayNameRepo,
+  FakeAvatarRepository? avatarRepo,
+  FakeAvatarCacheEvictor? cacheEvictor,
+  FakeCustomerProfileRepository? remoteProfileRepo,
   String fallbackPhone = '+96170100200',
 }) {
   final cubit = SettingsCubit(
     profileRepository: repo ?? InMemoryProfileRepository(),
     accountService: account ?? _ScriptedAccountService(),
     displayNameRepository: displayNameRepo,
+    avatarRepository: avatarRepo,
+    avatarCacheEvictor: cacheEvictor,
+    remoteProfileRepository: remoteProfileRepo,
     fallbackPhoneE164: fallbackPhone,
   );
   addTearDown(cubit.close);
@@ -165,6 +175,155 @@ void main() {
       await cubit.removePhoto();
       expect(cubit.state.profile.photoUrl, isNull);
       expect(cubit.state.profile.name, 'Sami');
+    });
+
+    test(
+        'F5 regression: a name-only saveProfile survives a previously-set '
+        'photo (the clobber bug the validator flagged)', () async {
+      final repo = InMemoryProfileRepository();
+      await repo.save(const UserProfile(
+        phoneE164: '+96170100200',
+        name: 'Sami',
+        photoUrl: 'https://cdn/jeeb/avatar.png',
+      ));
+      final cubit = _buildCubit(repo: repo);
+      await cubit.load();
+      await cubit.saveProfile(name: 'Ahmad');
+      expect(cubit.state.profile.name, 'Ahmad');
+      expect(cubit.state.profile.photoUrl, 'https://cdn/jeeb/avatar.png');
+      expect((await repo.load())?.photoUrl, 'https://cdn/jeeb/avatar.png');
+    });
+  });
+
+  group('SettingsCubit — F5 change avatar', () {
+    test('changeAvatar paints the local preview immediately, then commits '
+        'the uploaded remote URL and preserves the name (the clobber twin)',
+        () async {
+      final repo = InMemoryProfileRepository();
+      await repo.save(const UserProfile(
+        phoneE164: '+96170100200',
+        name: 'Sami',
+      ));
+      final avatarRepo = FakeAvatarRepository()
+        ..uploadedUrl = 'https://gw.test/api/users/u-1/avatar?v=2';
+      final evictor = FakeAvatarCacheEvictor();
+      final cubit =
+          _buildCubit(repo: repo, avatarRepo: avatarRepo, cacheEvictor: evictor);
+      await cubit.load();
+
+      final bytes = Uint8List.fromList(List<int>.filled(10, 7));
+      await cubit.changeAvatar(bytes: bytes, localPreviewPath: '/tmp/x.jpg');
+
+      expect(avatarRepo.uploadCalls, 1);
+      expect(avatarRepo.lastUploadedBytes, bytes);
+      expect(cubit.state.profile.photoUrl, avatarRepo.uploadedUrl);
+      expect(cubit.state.profile.name, 'Sami');
+      expect(cubit.state.banner, SettingsBanner.profileSaved);
+      expect((await repo.load())?.photoUrl, avatarRepo.uploadedUrl);
+    });
+
+    test('changeAvatar rolls back to the previous URL and rethrows on '
+        'upload failure', () async {
+      final repo = InMemoryProfileRepository();
+      await repo.save(const UserProfile(
+        phoneE164: '+96170100200',
+        photoUrl: 'https://cdn/jeeb/old.png',
+      ));
+      final avatarRepo = FakeAvatarRepository(
+        uploadFailure: const AvatarRepositoryException(AvatarUploadFailure.network),
+      );
+      final cubit = _buildCubit(repo: repo, avatarRepo: avatarRepo);
+      await cubit.load();
+
+      await expectLater(
+        cubit.changeAvatar(
+          bytes: Uint8List(4),
+          localPreviewPath: '/tmp/new.jpg',
+        ),
+        throwsA(isA<AvatarRepositoryException>()),
+      );
+      expect(cubit.state.profile.photoUrl, 'https://cdn/jeeb/old.png');
+      expect(cubit.state.isSavingProfile, isFalse);
+    });
+
+    test('changeAvatar evicts the previous URL from the image cache after '
+        'a successful upload', () async {
+      final repo = InMemoryProfileRepository();
+      await repo.save(const UserProfile(
+        phoneE164: '+96170100200',
+        photoUrl: 'https://cdn/jeeb/old.png',
+      ));
+      final avatarRepo = FakeAvatarRepository()
+        ..uploadedUrl = 'https://cdn/jeeb/new.png';
+      final evictor = FakeAvatarCacheEvictor();
+      final cubit =
+          _buildCubit(repo: repo, avatarRepo: avatarRepo, cacheEvictor: evictor);
+      await cubit.load();
+
+      await cubit.changeAvatar(bytes: Uint8List(4), localPreviewPath: '/tmp/x.jpg');
+      expect(evictor.evicted, ['https://cdn/jeeb/old.png']);
+    });
+
+    test('changeAvatar with no avatar repository wired keeps the local '
+        'preview as the final value (bare/test-host degrade)', () async {
+      final cubit = _buildCubit();
+      await cubit.load();
+      await cubit.changeAvatar(bytes: Uint8List(4), localPreviewPath: '/tmp/x.jpg');
+      expect(cubit.state.profile.photoUrl, '/tmp/x.jpg');
+    });
+
+    test('removePhoto attempts the remote clear and fails soft on error',
+        () async {
+      final repo = InMemoryProfileRepository();
+      await repo.save(const UserProfile(
+        phoneE164: '+96170100200',
+        name: 'Sami',
+        photoUrl: 'https://cdn/jeeb/avatar.png',
+      ));
+      final avatarRepo = FakeAvatarRepository(
+        removeFailure: const AvatarRepositoryException(AvatarUploadFailure.network),
+      );
+      final cubit = _buildCubit(repo: repo, avatarRepo: avatarRepo);
+      await cubit.load();
+
+      await cubit.removePhoto();
+      expect(avatarRepo.removeCalls, 1);
+      // Local removal (what the user asked for) still committed.
+      expect(cubit.state.profile.photoUrl, isNull);
+      expect(cubit.state.banner, SettingsBanner.profileSaved);
+    });
+  });
+
+  group('SettingsCubit — F5 cross-device staleness', () {
+    test('load() prefers a fresher remote avatarUrl over the local cache',
+        () async {
+      final repo = InMemoryProfileRepository();
+      await repo.save(const UserProfile(
+        phoneE164: '+96170100200',
+        name: 'Sami',
+        photoUrl: 'https://cdn/jeeb/stale-device-a.png',
+      ));
+      final remote = FakeCustomerProfileRepository(
+        profile: const CustomerProfileViewData(
+          avatarUrl: 'https://cdn/jeeb/fresh-device-b.png',
+        ),
+      );
+      final cubit = _buildCubit(repo: repo, remoteProfileRepo: remote);
+      await cubit.load();
+      expect(cubit.state.profile.photoUrl, 'https://cdn/jeeb/fresh-device-b.png');
+    });
+
+    test('load() degrades to the local cache when the remote fetch fails',
+        () async {
+      final repo = InMemoryProfileRepository();
+      await repo.save(const UserProfile(
+        phoneE164: '+96170100200',
+        photoUrl: 'https://cdn/jeeb/local.png',
+      ));
+      final remote = FakeCustomerProfileRepository(throws: true);
+      final cubit = _buildCubit(repo: repo, remoteProfileRepo: remote);
+      await cubit.load();
+      expect(cubit.state.profile.photoUrl, 'https://cdn/jeeb/local.png');
     });
   });
 

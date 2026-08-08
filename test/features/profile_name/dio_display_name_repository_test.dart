@@ -58,6 +58,37 @@ void main() {
       });
     });
 
+    test(
+        'F5 regression: preserves a previously-set avatarUrl instead of '
+        'blanking it (the historical profilePic:"" clobber)', () async {
+      when(() => dio.get<Map<String, dynamic>>(any())).thenAnswer(
+        (_) async => Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/v1/users/me'),
+          statusCode: 200,
+          data: const <String, dynamic>{
+            'userId': meUserId,
+            'email': meEmail,
+            'avatarUrl': 'https://gw.test/api/users/$meUserId/avatar?v=1',
+          },
+        ),
+      );
+      when(() => dio.put<Map<String, dynamic>>(
+            any(),
+            data: any(named: 'data'),
+          )).thenAnswer((_) async => ok());
+
+      await repo.submitDisplayName('Ahmad');
+
+      final captured = verify(() => dio.put<Map<String, dynamic>>(
+            any(),
+            data: captureAny(named: 'data'),
+          )).captured;
+      expect(
+        (captured.single as Map)['profilePic'],
+        'https://gw.test/api/users/$meUserId/avatar?v=1',
+      );
+    });
+
     test('trims surrounding whitespace before submitting', () async {
       stubMe();
       when(() => dio.put<Map<String, dynamic>>(

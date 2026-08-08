@@ -14,6 +14,8 @@ import '../../../../l10n/app_localizations.dart';
 import '../../../profile_name/data/dio_display_name_repository.dart';
 import '../../application/settings_cubit.dart';
 import '../../data/dio_account_service.dart';
+import '../../domain/avatar_cache_evictor.dart';
+import '../../domain/avatar_repository.dart';
 import '../../domain/profile_repository.dart';
 import '../../domain/user_profile.dart';
 import 'settings_screen.dart';
@@ -190,6 +192,18 @@ class _LoadedLiveSettingsState extends State<_LoadedLiveSettings> {
     profileRepository: _SnapshotProfileRepository(widget.snapshot.profile),
     accountService: DioAccountService(sl<Dio>(), AuthTokenStore()),
     displayNameRepository: DioDisplayNameRepository(sl<Dio>()),
+    // F5: no `remoteProfileRepository` here — this screen's own `_snapshot`
+    // FutureBuilder already re-fetches `/v1/users/me` fresh on every mount
+    // (`_loadSnapshot`), so `load()`'s own cross-device sync would just be a
+    // redundant second round trip. Still wire the write path so this
+    // cubit's `changeAvatar`/`removePhoto` are correct if ever invoked from
+    // this list (today's only avatar affordance lives on `/settings/profile`).
+    avatarRepository: sl.isRegistered<AvatarRepository>()
+        ? sl<AvatarRepository>()
+        : null,
+    avatarCacheEvictor: sl.isRegistered<AvatarCacheEvictor>()
+        ? sl<AvatarCacheEvictor>()
+        : null,
     refreshSignals: sl.isRegistered<ProfileRefreshSignals>()
         ? sl<ProfileRefreshSignals>()
         : null,

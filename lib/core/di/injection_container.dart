@@ -41,7 +41,9 @@ import '../../features/kyc/data/dio_cdn_asset_gateway.dart';
 import '../../features/kyc/data/dio_kyc_gateway.dart';
 import '../../features/kyc/domain/cdn_asset_gateway.dart';
 import '../../features/kyc/domain/kyc_gateway.dart';
+import '../../features/photo_attachment/data/image_cropper_photo_cropper_service.dart';
 import '../../features/photo_attachment/data/image_picker_photo_picker_service.dart';
+import '../../features/photo_attachment/domain/photo_cropper_service.dart';
 import '../../features/photo_attachment/domain/photo_picker_service.dart';
 import '../../features/live_tracking/data/dio_live_tracking_repository.dart';
 import '../../features/live_tracking/data/realtime_courier_position_channel.dart';
@@ -104,7 +106,11 @@ import '../../features/request_summary/data/dio_request_submission_service.dart'
 import '../../features/request_summary/data/shared_prefs_recipient_phone_resolver.dart';
 import '../../features/request_summary/domain/recipient_phone_resolver.dart';
 import '../../features/request_summary/domain/request_submission_service.dart';
+import '../../features/settings/data/cached_network_image_avatar_cache_evictor.dart';
+import '../../features/settings/data/dio_avatar_repository.dart';
 import '../../features/settings/data/shared_prefs_profile_repository.dart';
+import '../../features/settings/domain/avatar_cache_evictor.dart';
+import '../../features/settings/domain/avatar_repository.dart';
 import '../../features/cancel_request/data/dio_cancel_request_repository.dart';
 import '../../features/cancel_request/domain/cancel_request_repository.dart';
 import '../../features/cancellation/data/dio_cancellation_repository.dart';
@@ -300,6 +306,20 @@ void configureDependencies({
 
   sl.registerLazySingleton<PhotoPickerService>(
     () => ImagePickerPhotoPickerService(),
+  );
+
+  sl.registerLazySingleton<PhotoCropperService>(
+    () => ImageCropperPhotoCropperService(),
+  );
+
+  // F5: profile-avatar CDN upload + PUT /api/User/profile commit, and the
+  // image-cache evict seam so a re-uploaded avatar doesn't linger stale on
+  // this device (other surfaces are covered by the URL's own `?v=` bust).
+  sl.registerLazySingleton<AvatarRepository>(
+    () => DioAvatarRepository(sl<Dio>(), sl<CdnAssetGateway>()),
+  );
+  sl.registerLazySingleton<AvatarCacheEvictor>(
+    () => const CachedNetworkImageAvatarCacheEvictor(),
   );
 
   final imagePickerPlatform = ImagePickerPlatform.instance;

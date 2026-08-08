@@ -204,6 +204,17 @@
             only appears on non-production builds — defence-in-depth alongside
             the compile-time kDevToolEnabled dart-define.
         -->
+        <!--
+            F5: `image_cropper`'s Android impl (uCrop) needs its own
+            activity registered by the host app. Portrait-locked to match
+            F4's app-wide lock; AppCompat theme comes transitively via the
+            plugin's own AAR, no direct appcompat dependency needed here.
+        -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
+
         <activity-alias
             android:name=".DevToolLauncher"
             android:targetActivity=".MainActivity"

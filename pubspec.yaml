@@ -120,6 +120,19 @@ dependencies:
   # stay platform-free.
   image_picker: ^1.1.2
 
+  # F5: square crop step between pick and compress on the profile-avatar
+  # flow, sat behind PhotoCropperService so cubits/screens stay platform-free
+  # (same pattern as image_picker above). Pattern only from rahmah-fe's
+  # profile-picture crop config, not its version/keys — resolved fresh
+  # against this app's floors (sdk >=3.10.8, flutter >=3.16.0), both well
+  # under 12.x's >=3.3.0 / >=1.20.0.
+  image_cropper: ^12.0.0
+
+  # F5: explicit dependency for CachedNetworkImage.evictFromCache (the
+  # avatar cache-bust seam) — already resolved transitively via omds'
+  # OmdsCachedImage; pinned directly here for import clarity.
+  cached_network_image: ^3.4.1
+
   # P4/P5 (b01-20260725): Android 13+ SYSTEM Photo Picker opt-in
   # (ACTION_PICK_IMAGES) — see the `useAndroidPhotoPicker` toggle in
   # `injection_container.dart`. Without it the plugin falls back to the legacy

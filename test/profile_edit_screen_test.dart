@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/features/photo_attachment/data/fake_photo_cropper_service.dart';
 import 'package:jeeb_mobile/features/photo_attachment/data/stub_photo_picker_service.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_compressor.dart';
 import 'package:jeeb_mobile/features/photo_attachment/domain/photo_picker_service.dart';
@@ -163,6 +165,7 @@ void main() {
       SettingsCubit cubit, {
       required StubPhotoPickerService picker,
       required FakeProfilePhotoStore store,
+      FakePhotoCropperService? cropper,
     }) {
       return BlocProvider<SettingsCubit>.value(
         value: cubit,
@@ -176,14 +179,18 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: ProfileEditScreen(photoPicker: picker, photoStore: store),
+          home: ProfileEditScreen(
+            photoPicker: picker,
+            photoStore: store,
+            photoCropper: cropper ?? FakePhotoCropperService(),
+          ),
         ),
       );
     }
 
     testWidgets(
         'tapping Change avatar opens the source sheet; picking Gallery '
-        'persists the photo and saves its path on the profile',
+        'crops, persists the photo and saves its path on the profile',
         (tester) async {
       final cubit = newCubit(seed: const UserProfile(
         phoneE164: '+96170100200',
@@ -191,11 +198,17 @@ void main() {
       ));
       await cubit.load();
       addTearDown(cubit.close);
-      final picker = StubPhotoPickerService();
+      // Under the F5 size ceiling — the stub bypasses the real picker's own
+      // downsizing, so a payload here must fit under the cap by itself.
+      final picker = StubPhotoPickerService(
+        galleryPayload: Uint8List(500 * 1024),
+      );
       final store = FakeProfilePhotoStore();
+      final cropper = FakePhotoCropperService();
 
-      await tester
-          .pumpWidget(harnessWithSeams(cubit, picker: picker, store: store));
+      await tester.pumpWidget(
+        harnessWithSeams(cubit, picker: picker, store: store, cropper: cropper),
+      );
       await tester.pumpAndSettle();
       expect(cubit.state.profile.photoUrl, isNull);
 
@@ -209,14 +222,69 @@ void main() {
       await tester.tap(find.text('Gallery'));
       await tester.pumpAndSettle();
 
-      // The pick went bytes → compress → persist → profile save.
+      // The pick went bytes → crop → compress → persist → profile save.
+      expect(cropper.cropCalls, 1);
       expect(store.persistCalls, 1);
       expect(cubit.state.profile.photoUrl, store.path);
-      // The 2 MB compression ceiling held (stub gallery payload is 3 MB).
       expect(store.lastBytes!.length,
           lessThanOrEqualTo(PhotoCompressor.maxSizeBytes));
-      // Name survived the photo-only save.
+      // Name survived the photo-only save (the clobber-twin fix).
       expect(cubit.state.profile.name, 'Sami');
+    });
+
+    testWidgets(
+        'an oversized pick is rejected client-side with an honest error, '
+        'never persisted or silently truncated', (tester) async {
+      final cubit = newCubit();
+      await cubit.load();
+      addTearDown(cubit.close);
+      // Default stub gallery payload is 3 MB — over the 2 MB ceiling, and
+      // nothing in this fake pipeline shrinks it (crop/compress are both
+      // passthrough test doubles here).
+      final picker = StubPhotoPickerService();
+      final store = FakeProfilePhotoStore();
+
+      await tester
+          .pumpWidget(harnessWithSeams(cubit, picker: picker, store: store));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('profile-edit-change-avatar')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Gallery'));
+      await tester.pumpAndSettle();
+
+      expect(store.persistCalls, 0);
+      expect(cubit.state.profile.photoUrl, isNull);
+      expect(
+        find.text("Couldn't update your photo. Please try again."),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a cancelled crop is silent, not an error', (tester) async {
+      final cubit = newCubit();
+      await cubit.load();
+      addTearDown(cubit.close);
+      final picker = StubPhotoPickerService(
+        galleryPayload: Uint8List(100 * 1024),
+      );
+      final store = FakeProfilePhotoStore();
+      final cropper = FakePhotoCropperService(cancels: true);
+
+      await tester.pumpWidget(
+        harnessWithSeams(cubit, picker: picker, store: store, cropper: cropper),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('profile-edit-change-avatar')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Gallery'));
+      await tester.pumpAndSettle();
+
+      expect(store.persistCalls, 0);
+      expect(
+        find.text("Couldn't update your photo. Please try again."),
+        findsNothing,
+      );
     });
 
     testWidgets('a failed pick surfaces an honest error, not silence',
