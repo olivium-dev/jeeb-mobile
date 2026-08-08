@@ -13,18 +13,8 @@ import '../domain/profile_repository.dart';
 import '../domain/user_profile.dart';
 import 'settings_state.dart';
 
-/// Sentinel default for [SettingsCubit.saveProfile]'s named params, so an
-/// OMITTED argument means "leave this field untouched" — distinct from an
-/// explicit `null`, which means "clear it". Same shape as
-/// `UserProfile.copyWith`'s own `_sentinel` (that one stays private to its
-/// file; this is this file's own).
-///
-/// F5 correction (the clobber twin): before this fix, `saveProfile`'s params
-/// were plain `String?`, so ANY omitted argument silently defaulted to
-/// `null` and was forwarded straight into `copyWith` as an explicit clear —
-/// a name-only save wiped the photo (profile_edit_screen.dart's `_onSave`),
-/// and the same shape would have wiped the name on a naive photo-only save.
-/// Sentinel-shaping BOTH params closes both directions at once.
+/// Sentinel for [SettingsCubit.saveProfile]'s params: OMITTED means "leave
+/// untouched" (distinct from `null` = "clear"), fixing the name-only-save clobber.
 const Object _unset = Object();
 
 class SettingsCubit extends Cubit<SettingsState> {
@@ -54,11 +44,8 @@ class SettingsCubit extends Cubit<SettingsState> {
   final AvatarRepository? _avatarRepository;
   final AvatarCacheEvictor? _cacheEvictor;
 
-  /// F5 correction: `load()` used to only ever read the LOCAL profile cache,
-  /// so a photo changed on another device never showed here (Settings would
-  /// visibly disagree with the home greeting, which already re-pulls
-  /// `GreetingProfileCubit`-style). Optional so a bare/test cubit degrades
-  /// to local-only, same as before.
+  /// F5: lets `load()` also pull the remote avatar so a cross-device change
+  /// shows here. Optional so a bare/test cubit degrades to local-only.
   final CustomerProfileRepository? _remoteProfileRepository;
 
   final ProfileRefreshSignals? _refreshSignals;
@@ -127,11 +114,8 @@ class SettingsCubit extends Cubit<SettingsState> {
     }
   }
 
-  /// The F5 change-avatar flow: [localPreviewPath] paints instantly
-  /// (optimistic — `ProfileAvatar` already renders local file paths via
-  /// `Image.file`, profile_avatar.dart), then [bytes] upload to the CDN and
-  /// commit onto the profile. Rolls back to the previous URL and rethrows on
-  /// failure so the screen's existing catch surfaces `profilePhotoChangeFailed`.
+  /// F5: [localPreviewPath] paints instantly, then [bytes] upload to the CDN
+  /// and commit; rolls back + rethrows on failure for the screen's catch.
   Future<void> changeAvatar({
     required Uint8List bytes,
     required String localPreviewPath,
@@ -147,8 +131,7 @@ class SettingsCubit extends Cubit<SettingsState> {
 
     final repo = _avatarRepository;
     if (repo == null) {
-      // No remote wiring (bare/test cubit, or DI without a live Dio) — the
-      // local optimistic value is the final value, matching pre-F5 behaviour.
+      // No remote wiring: local optimistic value is final (pre-F5 behaviour).
       await _profileRepository.save(optimistic);
       emit(state.copyWith(
         isSavingProfile: false,
@@ -177,12 +160,8 @@ class SettingsCubit extends Cubit<SettingsState> {
     }
   }
 
-  /// Clears the avatar locally (immediate — matches the user's tap) and
-  /// attempts the same remote clear via [AvatarRepository.removeAvatar].
-  /// F5 correction: this used to be `saveProfile(photoUrl: null)`, entirely
-  /// local — "remove" never reached the backend, so every other surface
-  /// (offer cards, delivery cards, the counterparty's own view) kept
-  /// showing the removed photo forever.
+  /// F5: clears the avatar locally AND attempts a remote clear — the old
+  /// `saveProfile(photoUrl: null)` never reached the backend.
   Future<void> removePhoto() async {
     if (state.isSavingProfile) return;
     final previousUrl = state.profile.photoUrl;
@@ -200,9 +179,7 @@ class SettingsCubit extends Cubit<SettingsState> {
         await repo.removeAvatar();
         _refreshSignals?.signalProfileChanged();
       } on Object {
-        // Fail-soft, matching _syncDisplayNameRemote's contract: the local
-        // clear already committed; a failed remote clear self-heals on the
-        // next successful avatar mutation.
+        // Fail-soft: local clear already committed; self-heals on next mutation.
       }
     }
     if (previousUrl.isNotEmpty) {

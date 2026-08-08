@@ -312,9 +312,7 @@ void configureDependencies({
     () => ImageCropperPhotoCropperService(),
   );
 
-  // F5: profile-avatar CDN upload + PUT /api/User/profile commit, and the
-  // image-cache evict seam so a re-uploaded avatar doesn't linger stale on
-  // this device (other surfaces are covered by the URL's own `?v=` bust).
+  // F5: avatar CDN upload + PUT-profile commit, plus the cache-evict seam.
   sl.registerLazySingleton<AvatarRepository>(
     () => DioAvatarRepository(sl<Dio>(), sl<CdnAssetGateway>()),
   );

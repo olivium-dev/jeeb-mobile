@@ -6,9 +6,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../domain/photo_cropper_service.dart';
 
-/// `image_cropper`-backed [PhotoCropperService]. The plugin only crops from
-/// a file path (it launches a native activity/view controller), so this
-/// round-trips the picked bytes through a scratch file in the temp dir.
+/// `image_cropper`-backed [PhotoCropperService]. The plugin crops from a file
+/// path, so this round-trips the picked bytes through a temp-dir scratch file.
 class ImageCropperPhotoCropperService implements PhotoCropperService {
   ImageCropperPhotoCropperService({ImageCropper? cropper})
       : _cropper = cropper ?? ImageCropper();
@@ -27,8 +26,7 @@ class ImageCropperPhotoCropperService implements PhotoCropperService {
     try {
       final cropped = await _cropper.cropImage(
         sourcePath: source.path,
-        // Square-first, matching rahmah-fe's profile-picture crop pattern —
-        // not its config, just the aspect-ratio shape.
+        // Square-first crop shape (pattern only).
         aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
         compressFormat: ImageCompressFormat.jpg,
         compressQuality: _compressQuality,

@@ -14,9 +14,8 @@ enum CdnUploadSlot {
   /// gallery). Wire value `chat_attachment`; gateway
   chatAttachment,
 
-  /// F5 (b08-20260808): the profile-picture change flow. Wire value
-  /// `profile_avatar`; the gateway allowlist edit + public read route are a
-  /// paired gateway PR — see that PR body for the exact contract.
+  /// F5: profile-picture change flow. Wire value `profile_avatar`; the
+  /// gateway allowlist + public read route are a paired gateway PR.
   avatar,
 }
 

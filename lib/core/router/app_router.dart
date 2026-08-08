@@ -1055,10 +1055,7 @@ class AppRouter {
                   accountService:
                       DioAccountService(sl<Dio>(), AuthTokenStore()),
                   displayNameRepository: DioDisplayNameRepository(sl<Dio>()),
-                  // F5: the CDN-upload + PUT-profile write path and the
-                  // remote-aware load() that keeps this route's Settings
-                  // row from disagreeing with the home greeting after a
-                  // cross-device avatar change.
+                  // F5: avatar write path + remote-aware load() (cross-device sync).
                   avatarRepository: sl<AvatarRepository>(),
                   avatarCacheEvictor: sl<AvatarCacheEvictor>(),
                   remoteProfileRepository: DioCustomerProfileRepository(sl<Dio>()),

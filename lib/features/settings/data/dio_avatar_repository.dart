@@ -5,21 +5,8 @@ import 'package:dio/dio.dart';
 import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../domain/avatar_repository.dart';
 
-/// Dio-backed [AvatarRepository]: CDN broker upload (reusing
-/// [CdnAssetGateway.uploadAsset] as-is, JEBV4/F5 §3.3.1) then
-/// `PUT /api/User/profile` with the gateway's own public avatar URL —
-/// never the raw CDN object_ref, which every counterparty avatar render site
-/// (a bare `imageUrl` fed to an unauthenticated `OmdsCachedImage`) cannot
-/// resolve on its own.
-///
-/// Gateway contract this expects (paired gateway PR, owner-gated on the
-/// public-route security sign-off — see PR body):
-///   - `profile_avatar` in `CdnController.AllowedUploadSlots`.
-///   - `GET /api/users/{userId}/avatar` — public, server-resolved from the
-///     UM profile (never a client-supplied object_ref).
-///   - `PUT /api/User/profile` invalidates the 30s `/v1/users/me` cache key
-///     so this flow's own read-after-write (`_fetchMe`) isn't racing a
-///     stale cache entry.
+/// Dio-backed [AvatarRepository]: CDN broker upload then `PUT /api/User/profile`
+/// with the gateway public avatar URL (never the raw object_ref). See PR body.
 class DioAvatarRepository implements AvatarRepository {
   DioAvatarRepository(this._dio, this._cdn);
 
@@ -29,9 +16,7 @@ class DioAvatarRepository implements AvatarRepository {
   static const String _profilePath = '/api/User/profile';
   static const String _mePath = '/v1/users/me';
 
-  /// Client-side upload ceiling, mirroring creamati-mobile's explicit guard
-  /// (UX only — the gateway's own `CdnUploadProxyController.MaxUploadBytes`
-  /// 15 MB edge cap is the real enforcement boundary).
+  /// Client-side ceiling (UX only); the gateway's 15 MB edge cap is the real gate.
   static const int maxUploadBytes = 10 * 1024 * 1024;
 
   @override
@@ -53,10 +38,8 @@ class DioAvatarRepository implements AvatarRepository {
   @override
   Future<void> removeAvatar() async {
     final me = await _fetchMe();
-    // Deliberate, explicit clear — NOT the accidental blank the old
-    // display-name PUT used to send on every unrelated name save. Whether UM
-    // treats an empty string as "clear" is the open owner question (F5
-    // plan §5); this is the one write shape structurally capable of it.
+    // Deliberate explicit clear (the one write shape capable of it); UM's
+    // empty-string semantics are the open owner question, F5 plan §5.
     await _putProfile(me: me, profilePic: '');
   }
 
@@ -67,10 +50,7 @@ class DioAvatarRepository implements AvatarRepository {
       return _Me(
         userId: _str(json['userId'] ?? json['user_id'] ?? json['id']) ?? '',
         email: _str(json['email']) ?? '',
-        // Preserve whatever the profile currently carries as the display
-        // name — this PUT must never construct a blank `username`, the
-        // photo-side twin of the `profilePic: ''` clobber this feature
-        // fixes on the name side (dio_display_name_repository.dart).
+        // Preserve the display name so this PUT never blanks `username`.
         username: _str(json['name'] ?? json['username']) ?? '',
       );
     } on DioException catch (e) {

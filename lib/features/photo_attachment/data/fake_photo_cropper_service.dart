@@ -2,9 +2,8 @@ import 'dart:typed_data';
 
 import '../domain/photo_cropper_service.dart';
 
-/// Test-only [PhotoCropperService]. Passthrough by default (no real crop UI
-/// exists in a widget-test host) — set [cancels] to simulate the user
-/// dismissing the crop screen.
+/// Test-only [PhotoCropperService]: passthrough by default; set [cancels]
+/// to simulate the user dismissing the crop screen.
 class FakePhotoCropperService implements PhotoCropperService {
   FakePhotoCropperService({this.cancels = false});
 

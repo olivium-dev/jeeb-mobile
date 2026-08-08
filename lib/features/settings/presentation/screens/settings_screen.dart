@@ -82,10 +82,8 @@ class SettingsScreen extends StatelessWidget {
         // live greeting surfaces re-pull getMe. Both resolve off the shared DI
         // graph; a bare test host (no Dio) degrades to local-only saves.
         displayNameRepository: _resolveDisplayNameRepository(),
-        // F5: same DI-graph-or-degrade shape as the name lane above — the
-        // CDN-upload + PUT-profile write path, its cache-evict seam, and
-        // the remote-aware load() that keeps this list's identity row from
-        // disagreeing with the home greeting after a cross-device change.
+        // F5: avatar write path, cache-evict seam, remote-aware load() —
+        // same DI-graph-or-degrade shape as the name lane above.
         avatarRepository: _resolveAvatarRepository(),
         avatarCacheEvictor: _resolveAvatarCacheEvictor(),
         remoteProfileRepository: _resolveRemoteProfileRepository(),
