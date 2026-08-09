@@ -95,12 +95,26 @@ grep -rhE '\bl10n\.[a-zA-Z_]' lib/ \
 # because the latter can drift from the ARB key (theoretically). Read the file
 # as one record so dart-formatted multiline calls and trailing commas count.
 S2="${OUT_DIR}/s2_getters.txt"
-perl -0777 -ne '
-  while (/_get\(\s*\x27([^\x27]+)\x27\s*,?\s*\)/g) {
-    print "$1\n";
-  }
-' "${LOC_DART}" \
-  | sort -u > "${S2}"
+{
+  # Direct literal lookups. Interpolated helper bodies are expanded below;
+  # treating `$base$branch` as a literal key makes the gate compare fiction
+  # against the ARBs and hides the real six-branch contract.
+  perl -0777 -ne '
+    while (/_get\(\s*\x27([A-Za-z_][A-Za-z0-9_]*)\x27\s*,?\s*\)/g) {
+      print "$1\n";
+    }
+  ' "${LOC_DART}"
+
+  # This hand-written localizer uses two generic CLDR helpers. Enumerate every
+  # literal base passed to them so S2 contains the concrete ARB keys those
+  # helpers resolve at runtime.
+  perl -0777 -ne '
+    while (/_(?:jeeberFeedAge|cldrPlural)\(\s*\x27([A-Za-z_][A-Za-z0-9_]*)\x27/g) {
+      my $base = $1;
+      print "$base$_\n" for qw(Zero One Two Few Many Other);
+    }
+  ' "${LOC_DART}"
+} | sort -u > "${S2}"
 
 # --- compute S3, S4: ARB key sets (excluding @-metadata) ----------------------
 S3="${OUT_DIR}/s3_en.txt"
