@@ -1004,6 +1004,8 @@ void main() {
       final AppLocalizations l10n = AppLocalizations.of(
         tester.element(find.byType(JeebMicHero)),
       );
+      // The deprecated accessor still identifies the active test pipeline.
+      // ignore: deprecated_member_use
       final SemanticsOwner owner =
           tester.binding.pipelineOwner.semanticsOwner!;
       final int micId = tester
@@ -1065,6 +1067,8 @@ void main() {
       final AppLocalizations l10n = AppLocalizations.of(
         tester.element(find.byType(JeebMicHero)),
       );
+      // The deprecated accessor still identifies the active test pipeline.
+      // ignore: deprecated_member_use
       tester.binding.pipelineOwner.semanticsOwner!.performAction(
         tester
             .getSemantics(find.bySemanticsIdentifier('client_home_mic_cta'))
