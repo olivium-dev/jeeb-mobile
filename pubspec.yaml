@@ -121,8 +121,9 @@ dependencies:
   image_picker: ^1.1.2
 
   # F5: square-crop step behind PhotoCropperService (pattern only, not
-  # rahmah-fe's version/keys); resolved fresh against this app's SDK floors.
-  image_cropper: ^12.0.0
+  # rahmah-fe's version/keys). Exact because the Xcode 15 compatibility guard
+  # in ios/Podfile is scoped to 12.2.1's TOCropViewController 3.1.2 dependency.
+  image_cropper: 12.2.1
 
   # F5: explicit pin for CachedNetworkImage.evictFromCache (already transitive
   # via omds' OmdsCachedImage) — the avatar cache-bust seam.
@@ -174,9 +175,12 @@ dependencies:
   # `firebase_auth` is here because a Firestore read needs an IDENTITY the
   # security rules can key on. See `ChatFirebaseIdentity` — the app signs in with
   # a CUSTOM TOKEN minted from the Jeeb JWT; it never signs in anonymously and
-  # never reads unauthenticated. Version floors match `firebase_core: ^3.6.0`.
+  # never reads unauthenticated. firebase_auth 5.5.0+ bridges the native
+  # ActionCodeSettings.linkDomain API, which is newer than the Firebase iOS
+  # 11.4 SDK required by the Xcode 15.4 build. Keep the last pre-linkDomain
+  # release exact while that native SDK pin remains in ios/Podfile.
   cloud_firestore: ^5.6.5
-  firebase_auth: ^5.5.0
+  firebase_auth: 5.4.2
 
   # Hashing for the fallback PIN store (T-mobile-005). crypto already
   # ships transitively via flutter; pinning it explicitly so the import is
@@ -238,10 +242,11 @@ dependencies:
   # Adds the NORMAL permission ACCESS_NETWORK_STATE (no runtime prompt) and no
   # first-party native code. Runtime-defensive by construction: if the platform
   # channel is unavailable the bus simply never emits, and every consumer keeps
-  # the bounded backoff it already had. 7.x declares sdk >=3.2.0 / flutter
-  # >=3.7.0, comfortably inside this app's floor (Dart 3.10.8 / Flutter 3.38.9),
-  # so it needs none of the SDK pinning `record`/`share_plus` above do.
-  connectivity_plus: ^7.3.1
+  # the bounded backoff it already had. 7.0.0 declares sdk >=3.2.0 / flutter
+  # >=3.7.0, comfortably inside this app's floor (Dart 3.10.8 / Flutter 3.38.9).
+  # Exact pin: 7.1.0+ reads the iOS 26-only NWPath.isUltraConstrained API and
+  # cannot compile with this repository's Xcode 15.4 toolchain.
+  connectivity_plus: 7.0.0
 
 dev_dependencies:
   flutter_test:
