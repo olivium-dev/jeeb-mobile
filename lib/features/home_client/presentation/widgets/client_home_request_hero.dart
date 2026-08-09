@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
-import '../../../../core/motion/jeeb_motion.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_radii.dart';
 import '../../../../core/theme/jeeb_semantic_colors.dart';
@@ -10,6 +9,7 @@ import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/directional_icons.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../l10n/app_localizations.dart';
+import 'client_home_typed_hint.dart';
 
 /// MIDNIGHT R1's create surface: prompt, Arabic tagline and the single-line
 /// capsule body that carries the frozen create id.
@@ -37,14 +37,6 @@ class ClientHomeRequestHero extends StatelessWidget {
   /// Above this effective title size the trailing chevron is dropped so the
   /// row cannot overflow at large accessibility text scales.
   static const double _chevronHideThreshold = 27;
-
-  /// The leading add-glyph disc — a tint, never a filled orange pill: §4.1
-  /// rations solid accent to the mic.
-  static const double _glyphDisc = 24;
-
-  /// Peak of the leading tint's breath; `× breatheRestOpacity` lands on the
-  /// flat .16 the disc paints at rest, so the still frame never dims.
-  static const double _glyphTintPeak = 0.36;
 
   /// Gap under the prompt headline (board `margin:6px 0 0`).
   static const double _taglineGap = 6;
@@ -109,6 +101,9 @@ class ClientHomeRequestHero extends StatelessWidget {
             radius: JeebRadii.capsule,
             padding: _capsulePadding,
             emphasis: true,
+            // Pinned over live cards, a 10% fill let "View offers" read
+            // straight through the capsule; the base makes it a real surface.
+            baseColor: colorScheme.surface,
             // Pinned over the nav gap, floatNav's 20dp drop would smear onto
             // the pill nav underneath.
             shadow: JeebShadows.overlay,
@@ -125,16 +120,19 @@ class ClientHomeRequestHero extends StatelessWidget {
     bool showChevron,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final accent = context.jeebRoles.accent;
     final title = firstRequest
         ? l10n.homeCapsuleFirstRequestTitle
         : l10n.homeCreateOrderCta;
+    final titleStyle = context.jeebText.titleProminent.copyWith(
+      color: colorScheme.onSurface,
+    );
     Widget body = Semantics(
       // FROZEN id — jm-023:154, jm-024:45/96, flows 08/13/14/15 and
       // client_home_429_tolerant_test.dart:196 all target it.
       identifier: 'orders_create_request_button',
       button: true,
-      // Label-in-name: Voice Control users say the VISIBLE title.
+      // Label-in-name: the STABLE wording, not the rotating hint under it —
+      // Voice Control cannot say a run that has already been deleted.
       label: title,
       onTap: onCreateRequest,
       container: true,
@@ -148,45 +146,24 @@ class ClientHomeRequestHero extends StatelessWidget {
           ),
           child: Row(
             children: [
-              ExcludeSemantics(
-                child: SizedBox.square(
-                  dimension: _glyphDisc,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // The only perpetual tick on a pinned layer; unbounded it
-                      // re-paints the whole capsule every frame.
-                      Positioned.fill(
-                        child: RepaintBoundary(
-                          child: JBreathe(
-                            duration: JeebMotion.breatheDuration,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: accent.withValues(alpha: _glyphTintPeak),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Icon(Icons.add, size: 16, color: accent),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: Spacing.xSmall),
               Expanded(
                 // The wrapper already carries `title` as its label; leaving the
-                // Text a node of its own reads the same words twice.
+                // run a node of its own reads the same words twice — and the
+                // hint rotates, so it is never the accessible name.
                 child: ExcludeSemantics(
-                  child: Text(
-                    title,
-                    style: context.jeebText.titleProminent.copyWith(
-                      color: colorScheme.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: firstRequest
+                      ? Text(
+                          title,
+                          style: titleStyle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : ClientHomeTypedHint(
+                          examples: _hintExamples(l10n),
+                          restLabel: title,
+                          style: titleStyle,
+                          caretColor: context.jeebRoles.accent,
+                        ),
                 ),
               ),
               if (showChevron) ...[
@@ -215,6 +192,18 @@ class ClientHomeRequestHero extends StatelessWidget {
     }
     return body;
   }
+
+  /// What a customer can actually ask for, in their own words — the answer the
+  /// static "Type it" never gave.
+  List<String> _hintExamples(AppLocalizations l10n) => <String>[
+    l10n.homeCreateHintExample1,
+    l10n.homeCreateHintExample2,
+    l10n.homeCreateHintExample3,
+    l10n.homeCreateHintExample4,
+    l10n.homeCreateHintExample5,
+    l10n.homeCreateHintExample6,
+    l10n.homeCreateHintExample7,
+  ];
 
   /// Time-of-day prompt off the DEVICE clock, like the greeting eyebrow.
   String _prompt(AppLocalizations l10n) {
