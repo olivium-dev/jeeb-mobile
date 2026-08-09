@@ -435,6 +435,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
           lowestOfferFee: probe?.minFee,
           offerCurrency: probe?.currency,
           offerStatuses: probe?.statuses ?? const <ClientOfferStatus>{},
+          offerAvatarUrlsOverride: probe?.avatarUrls,
         );
         if (request == null) continue;
         (isReply ? replies : pending).add(request);
@@ -589,11 +590,22 @@ class DioClientHomeRepository implements ClientHomeRepository {
           currency = offer['currency'] as String?;
         }
       }
+      // Offerer photos over the SAME rows, with the key precedence the
+      // offer-review list already uses (`avatarUrl` ?? `jeeberAvatarUrl`).
+      final avatarUrls = <String>[];
+      for (final offer in live) {
+        final url =
+            offer['avatarUrl'] as String? ?? offer['jeeberAvatarUrl'] as String?;
+        if (url != null && url.trim().isNotEmpty && avatarUrls.length < 3) {
+          avatarUrls.add(url);
+        }
+      }
       return (
         count: live.length,
         minFee: minFee,
         currency: currency,
         statuses: Set<ClientOfferStatus>.unmodifiable(statuses),
+        avatarUrls: List<String>.unmodifiable(avatarUrls),
       );
     } on DioException catch (e) {
       // A throttled probe degrades to the payload count (null) — but RECORD the
@@ -740,6 +752,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     double? lowestOfferFee,
     String? offerCurrency,
     Set<ClientOfferStatus> offerStatuses = const <ClientOfferStatus>{},
+    List<String>? offerAvatarUrlsOverride,
   }) {
     final id = json['id'] as String?;
     if (id == null) return null;
@@ -748,9 +761,15 @@ class DioClientHomeRepository implements ClientHomeRepository {
         ? (dropoff['address'] as String? ?? '')
         : (json['dropoffAddress'] as String? ?? '');
     final offerAvatars = json['offerAvatars'];
-    final offerAvatarUrls = offerAvatars is List
+    final payloadAvatarUrls = offerAvatars is List
         ? offerAvatars.whereType<String>().toList(growable: false)
         : const <String>[];
+    // The live `role=client` row carries no `offerAvatars`, so the probe's
+    // photos win whenever it found any; the payload key stays as the fallback.
+    final offerAvatarUrls =
+        (offerAvatarUrlsOverride != null && offerAvatarUrlsOverride.isNotEmpty)
+        ? offerAvatarUrlsOverride
+        : payloadAvatarUrls;
     return ClientHomeRequest(
       id: id,
       displayId: json['displayId'] as String?,
@@ -889,11 +908,13 @@ class DioClientHomeRepository implements ClientHomeRepository {
 /// request has, and the lowest fee among them (with its currency) for the
 /// Replies card's "from $X" floor. Both money fields are null when no offer
 /// carried a `fee` — the floor is optional by design, never fabricated.
+/// [avatarUrls] carries the offerers' photos the `role=client` row omits.
 typedef _OfferProbe = ({
   int count,
   double? minFee,
   String? currency,
   Set<ClientOfferStatus> statuses,
+  List<String> avatarUrls,
 });
 
 /// The three client-request buckets partitioned from a single

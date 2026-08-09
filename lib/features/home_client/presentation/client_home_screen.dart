@@ -713,7 +713,6 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                       onTrack: widget.onTrack,
                     ),
                   ),
-                  const _HeaderActionsGlassBackdrop(),
                   // Before the scrim, so recording dims the typed door too.
                   _PinnedCreateCta(
                     onCreateRequest: widget.onCreateRequest == null
@@ -818,6 +817,17 @@ const double _kFloatingMicGap = Spacing.xLarge;
 const double _kFloatingMicReserve =
     JeebMicHero.sizeCompact + _kFloatingMicGap + Spacing.medium;
 
+/// Tail the lists reserve so the last card clears BOTH pinned surfaces — the
+/// mic's halo box and the create capsule — by a Spacing.medium breather.
+final double _kScrollTailReserve =
+    math.max(
+      _kFloatingMicGap +
+          JeebMicHero.sizeCompact +
+          (_kMicExtent - JeebMicHero.sizeCompact) / 2,
+      _kCreateCtaBottom + kMinInteractiveDimension + 2,
+    ) +
+    Spacing.medium;
+
 /// How long a dispose waits on an in-flight upload before closing anyway, so a
 /// hung POST cannot leak the cubit and its platform recorder forever.
 const Duration _kUploadCloseGrace = Duration(seconds: 30);
@@ -857,39 +867,6 @@ class _PinnedCreateCta extends StatelessWidget {
             onCreateRequest: onCreateRequest,
             showPrompt: false,
             firstRequest: firstRequest,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Gives the shell's fixed wallet/bell actions a glass resting surface so
-/// scrolled card text cannot compete with their glyphs. The translucent blur
-/// preserves the hero field and the greeting remains at its original position.
-class _HeaderActionsGlassBackdrop extends StatelessWidget {
-  const _HeaderActionsGlassBackdrop();
-
-  static const double _width = kMinInteractiveDimension * 2;
-  static const double _height = kMinInteractiveDimension;
-
-  @override
-  Widget build(BuildContext context) {
-    return const PositionedDirectional(
-      top: 0,
-      end: Spacing.xSmall,
-      child: IgnorePointer(
-        child: SafeArea(
-          child: SizedBox(
-            width: _width,
-            height: _height,
-            child: JeebGlassCapsule(
-              key: Key('client-home-header-actions-glass-backdrop'),
-              padding: EdgeInsets.zero,
-              blurSigma: JeebGlassCapsule.softBlur,
-              shadow: JeebGlassCapsule.noShadow,
-              child: SizedBox.expand(),
-            ),
           ),
         ),
       ),
@@ -1665,10 +1642,10 @@ class _LoadingLayout extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND the floating mic so the last item clears
-      // both in edge-to-edge mode. See [BottomInsetX].
+      // Reserve the nav-bar inset AND both pinned surfaces so the last item
+      // clears them in edge-to-edge mode. See [BottomInsetX].
       padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kFloatingMicReserve,
+        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
       ),
       children: [
         ClientHomeGreeting(name: name),
@@ -1693,10 +1670,10 @@ class _FailedLayout extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND the floating mic so the retry CTA clears
-      // both in edge-to-edge mode. See [BottomInsetX].
+      // Reserve the nav-bar inset AND both pinned surfaces so the retry CTA
+      // clears them in edge-to-edge mode. See [BottomInsetX].
       padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kFloatingMicReserve,
+        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
       ),
       children: [
         ClientHomeGreeting(name: name),
@@ -1746,10 +1723,10 @@ class _ReadyLayout extends StatelessWidget {
     return ListView(
       key: const Key('client-home-ready-list'),
       physics: const AlwaysScrollableScrollPhysics(),
-      // Reserve the nav-bar inset AND the floating mic so the last order card
-      // clears both. See [BottomInsetX.scrollBodyBottomInset].
+      // Reserve the nav-bar inset AND both pinned surfaces so the last order
+      // card clears them. See [BottomInsetX.scrollBodyBottomInset].
       padding: EdgeInsets.only(
-        bottom: context.scrollBodyBottomInset + _kFloatingMicReserve,
+        bottom: context.scrollBodyBottomInset + _kScrollTailReserve,
       ),
       children: _scrollChildren(),
     );
@@ -1921,10 +1898,11 @@ class _ClientHomeTabBar extends StatelessWidget {
               selectedOfferStatus != null || constraints.maxWidth < 360;
           final Widget toggleStack = Stack(
             children: <Widget>[
-              // No enclosing track: three free pills that hug their labels
-              // until a localized selected status needs to ellipsize.
+              // No enclosing track: three free pills sharing the full width by
+              // flex, each scaling its label down rather than truncating it.
               JeebSegmentedToggle(
                 placement: JeebSegmentedPlacement.trackless,
+                expand: true,
                 segmentPadding: tightSegments
                     ? const EdgeInsetsDirectional.symmetric(
                         vertical: 10,

@@ -1732,6 +1732,7 @@
   "homeGreetingEyebrowEvening": "مساء الخير",
   "homeHeroSubtitle": "اضغط الميكروفون للتحدث · أو اكتب بدلاً من ذلك",
   "homeRepliesOffersFloor": "{offers} · ابتداءً من {amount}",
+  "homeRepliesFromFloor": "ابتداءً من {amount}",
   "voiceRecordingNewRequestTitle": "طلب جديد",
   "voiceRecordingStatusRecording": "جارٍ التسجيل — أفلت للإيقاف",
   "voiceRecordingSlideToCancel": "اسحب",

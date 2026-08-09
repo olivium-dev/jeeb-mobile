@@ -39,6 +39,11 @@ class ClientHomeGreeting extends StatelessWidget {
   /// Device-local hour at which the eyebrow flips afternoon → evening.
   static const int _eveningHour = 17;
 
+  /// Vertical center of the Ø46 header avatar below SafeArea top — the line the
+  /// shell's header actions center on.
+  static const double avatarCenterFromSafeTop =
+      Spacing.medium + JeebAvatar.headerDiameter / 2;
+
   final String? name;
   final String? avatarSemanticsIdentifier;
 

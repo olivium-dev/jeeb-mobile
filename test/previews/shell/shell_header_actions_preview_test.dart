@@ -21,7 +21,7 @@ void main() {
       'Profile tab': shellHeaderActionsProfileTab,
     },
     expectedText: const <String, String>{
-      'Actions only': 'Actions only · 96 × 48 dp',
+      'Actions only': 'Actions only · 2 × Ø44',
       'Requests tab': 'Requests tab · orders_home',
       'Requests tab · narrow + long name': 'Requests tab · long name at 320 dp',
       'Jeeber dashboard': 'Jeeber dashboard · delivery_tab',
@@ -99,6 +99,48 @@ void main() {
             findsOneWidget);
         expect(find.byIcon(Icons.notifications_none_outlined), findsOneWidget);
       }
+    });
+
+    testWidgets('the actions center on the greeting avatar line', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pumpPreview(tester, shellHeaderActionsRequestsTab);
+
+      expect(
+        tester
+            .getCenter(
+              find.bySemanticsIdentifier('orders_home_wallet_chip'),
+            )
+            .dy,
+        closeTo(
+          tester
+              .getCenter(find.byKey(const Key('client-home-greeting-avatar')))
+              .dy,
+          1,
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('both actions are opaque blur-free glass circles', (
+      WidgetTester tester,
+    ) async {
+      await pumpPreview(tester, shellHeaderActionsRequestsTab);
+
+      final actions = find.byType(ShellHeaderActions);
+      final materials = tester.widgetList<Material>(
+        find.descendant(of: actions, matching: find.byType(Material)),
+      ).where((material) => material.shape != null);
+      expect(materials, hasLength(2));
+      for (final material in materials) {
+        expect(material.shape, isA<CircleBorder>());
+        expect(material.color?.a, 1);
+      }
+      expect(
+        find.descendant(of: actions, matching: find.byType(BackdropFilter)),
+        findsNothing,
+      );
     });
 
     testWidgets('the labels are localized, not hardcoded English', (

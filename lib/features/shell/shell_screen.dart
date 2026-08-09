@@ -14,6 +14,7 @@ import '../../l10n/app_localizations.dart';
 import '../customer_profile/domain/customer_profile_view_data.dart';
 import '../customer_profile/presentation/customer_profile_screen.dart';
 import '../home_client/domain/client_home_repository.dart';
+import '../home_client/presentation/widgets/client_home_greeting.dart';
 import '../order_history/domain/order_repository.dart';
 import 'tab_visibility.dart';
 import 'tabs/dashboard_tab.dart';
@@ -210,6 +211,9 @@ class _ShellScreenState extends State<ShellScreen> {
         // so the per-screen HomeTab surface stays untouched.
         page: _HeaderedTab(
           idPrefix: 'orders_home',
+          topOffset:
+              ClientHomeGreeting.avatarCenterFromSafeTop -
+              ShellHeaderActions.buttonSize / 2,
           child: HomeTab(repository: widget.homeRepository),
         ),
       ),
@@ -294,10 +298,17 @@ class _NavBarContentInset extends StatelessWidget {
 /// shell owns the header actions; the `idPrefix` scopes the ids per screen
 /// (`orders_home` / `customer_profile` / `delivery_tab`).
 class _HeaderedTab extends StatelessWidget {
-  const _HeaderedTab({required this.idPrefix, required this.child});
+  const _HeaderedTab({
+    required this.idPrefix,
+    required this.child,
+    this.topOffset = 0,
+  });
 
   final String idPrefix;
   final Widget child;
+
+  /// Distance below the SafeArea top the actions row starts at.
+  final double topOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -305,7 +316,7 @@ class _HeaderedTab extends StatelessWidget {
       children: [
         Positioned.fill(child: child),
         PositionedDirectional(
-          top: 0,
+          top: topOffset,
           end: Spacing.xSmall,
           child: SafeArea(
             child: Material(

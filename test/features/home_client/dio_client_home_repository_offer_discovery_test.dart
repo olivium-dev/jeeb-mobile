@@ -352,6 +352,95 @@ void main() {
     });
   });
 
+  // The live `role=client` row carries NO `offerAvatars`, so the offerer photos
+  // ride the same probe the count and floor come from.
+  group('offerer avatars (gateway 8c02920 absolutized)', () {
+    test('the probe maps jeeberAvatarUrl into the replies row', () async {
+      stub(
+        requests: [
+          {'id': 'req-av', 'status': 'pending', 'title': 'Pharmacy run'},
+        ],
+        offersByRequestId: {
+          'req-av': [
+            {'id': 'o1', 'status': 'pending', 'jeeberAvatarUrl': 'http://a/1'},
+            {'id': 'o2', 'status': 'pending', 'jeeberAvatarUrl': 'http://a/2'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-av');
+      expect(reply.offerAvatarUrls, ['http://a/1', 'http://a/2']);
+    });
+
+    test('avatarUrl wins over jeeberAvatarUrl on the same offer', () async {
+      stub(
+        requests: [
+          {'id': 'req-prec', 'status': 'pending', 'title': 'Precedence'},
+        ],
+        offersByRequestId: {
+          'req-prec': [
+            {
+              'id': 'o1',
+              'status': 'pending',
+              'avatarUrl': 'http://primary',
+              'jeeberAvatarUrl': 'http://fallback',
+            },
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      expect(
+        snapshot.replies.singleWhere((r) => r.id == 'req-prec').offerAvatarUrls,
+        ['http://primary'],
+      );
+    });
+
+    test('blank urls are dropped and the list caps at three', () async {
+      stub(
+        requests: [
+          {'id': 'req-cap', 'status': 'pending', 'title': 'Many offers'},
+        ],
+        offersByRequestId: {
+          'req-cap': [
+            {'id': 'o0', 'status': 'pending', 'jeeberAvatarUrl': '   '},
+            {'id': 'o1', 'status': 'pending', 'jeeberAvatarUrl': ''},
+            for (var i = 2; i < 8; i++)
+              {'id': 'o$i', 'status': 'pending', 'jeeberAvatarUrl': 'http://$i'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-cap');
+      expect(reply.offerCount, 8);
+      expect(reply.offerAvatarUrls, ['http://2', 'http://3', 'http://4']);
+    });
+
+    test('offers with no avatar key at all leave the list empty', () async {
+      stub(
+        requests: [
+          {'id': 'req-noav', 'status': 'pending', 'title': 'Photoless'},
+        ],
+        offersByRequestId: {
+          'req-noav': [
+            {'id': 'o1', 'status': 'pending'},
+          ],
+        },
+      );
+
+      final snapshot = await repo.loadSnapshot();
+
+      final reply = snapshot.replies.singleWhere((r) => r.id == 'req-noav');
+      expect(reply.offerCount, 1);
+      expect(reply.offerAvatarUrls, isEmpty);
+    });
+  });
+
   test(
     'accepted requests are NOT probed for offers (stay In Progress)',
     () async {

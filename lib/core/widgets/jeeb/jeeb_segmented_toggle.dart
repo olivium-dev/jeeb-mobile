@@ -88,6 +88,7 @@ class JeebSegmentedToggle extends StatelessWidget {
     this.segmentPadding,
     this.borderWidth = 1,
     this.identifier,
+    this.expand = false,
   });
 
   /// Track padding (`4` — 20 `tpl 1188`).
@@ -136,6 +137,10 @@ class JeebSegmentedToggle extends StatelessWidget {
   /// so it cannot swallow them.
   final String? identifier;
 
+  /// Trackless only: share the full width by `flex` instead of hugging labels,
+  /// scaling a label down rather than truncating it. Default keeps E1's hug.
+  final bool expand;
+
   @override
   Widget build(BuildContext context) {
     final JeebSemanticColors semantics = _semantics(context);
@@ -144,14 +149,17 @@ class JeebSegmentedToggle extends StatelessWidget {
         segmentPadding ??
         (trackless ? tracklessSegmentPadding : defaultSegmentPadding);
 
+    final bool hugging = trackless && !expand;
+
     final Row row = Row(
-      mainAxisSize: trackless ? MainAxisSize.min : MainAxisSize.max,
+      mainAxisSize: hugging ? MainAxisSize.min : MainAxisSize.max,
       children: <Widget>[
         for (var index = 0; index < segments.length; index++) ...<Widget>[
           if (index > 0)
             SizedBox(width: trackless ? tracklessGap : _segmentGap),
-          // Tracked segments are `flex:1`; E1's free pills hug their labels.
-          if (trackless)
+          // Tracked segments are `flex:1`; E1's free pills hug their labels
+          // unless `expand` asks them to share the width too.
+          if (hugging)
             Flexible(
               flex: segments[index].flex,
               child: _segmentAt(index, resolvedSegmentPadding),
@@ -204,6 +212,7 @@ class JeebSegmentedToggle extends StatelessWidget {
     padding: resolvedPadding,
     borderWidth: borderWidth,
     trackless: placement == JeebSegmentedPlacement.trackless,
+    expand: expand,
     onTap: () => onChanged(index),
   );
 }
@@ -215,6 +224,7 @@ class _Segment extends StatelessWidget {
     required this.padding,
     required this.borderWidth,
     required this.trackless,
+    required this.expand,
     required this.onTap,
   });
 
@@ -223,6 +233,7 @@ class _Segment extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final double borderWidth;
   final bool trackless;
+  final bool expand;
   final VoidCallback onTap;
 
   @override
@@ -231,6 +242,24 @@ class _Segment extends StatelessWidget {
     final JeebSemanticColors semantics = _semantics(context);
     // Trackless: the unselected pill carries the glass the track would have.
     final bool glassPill = trackless && !selected;
+
+    Widget label = Text(
+      segment.label,
+      textAlign: TextAlign.center,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      // 13.5 is between the `bodySmall`/`body` rungs — design-exact px
+      // are legal inside the kit (§4.4).
+      style: context.jeebText.body.copyWith(
+        fontSize: 13.5,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+        color: selected ? scheme.surface : semantics.inkSoft,
+      ),
+    );
+    // Shared-width pills scale a long label down instead of truncating it.
+    if (trackless && expand) {
+      label = FittedBox(fit: BoxFit.scaleDown, child: label);
+    }
 
     final Widget body = DecoratedBox(
       decoration: BoxDecoration(
@@ -250,22 +279,7 @@ class _Segment extends StatelessWidget {
           key: segment.key,
           onTap: onTap,
           borderRadius: _pillRadius,
-          child: Padding(
-            padding: padding,
-            child: Text(
-              segment.label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              // 13.5 is between the `bodySmall`/`body` rungs — design-exact px
-              // are legal inside the kit (§4.4).
-              style: context.jeebText.body.copyWith(
-                fontSize: 13.5,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                color: selected ? scheme.surface : semantics.inkSoft,
-              ),
-            ),
-          ),
+          child: Padding(padding: padding, child: label),
         ),
       ),
     );

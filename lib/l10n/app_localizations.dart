@@ -2509,6 +2509,8 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('homeRepliesOffersFloor')
           .replaceFirst('{offers}', offers)
           .replaceFirst('{amount}', amount);
+  String homeRepliesFromFloor(String amount) =>
+      _get('homeRepliesFromFloor').replaceAll('{amount}', amount);
 
   // 05 · Voice recording
   String get voiceRecordingNewRequestTitle =>

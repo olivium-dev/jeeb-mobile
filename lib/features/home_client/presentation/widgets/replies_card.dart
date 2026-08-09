@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/formatting/bidi_isolate.dart';
 import '../../../../core/formatting/money_format.dart';
+import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar_stack.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -35,8 +38,18 @@ class RepliesCard extends StatelessWidget {
   /// Tapped on `replies_accept_cta` → offer-accept-confirm sheet (JM-029).
   final VoidCallback onAccept;
 
+  /// The request's own words, or nothing — never [ClientHomeRequest.summaryLine],
+  /// whose destination fallback printed the raw "Current location (lat, long)" pin.
+  String? get _metaLine {
+    final items = request.itemsSummary;
+    if (items == null || items.isEmpty) return null;
+    if (items == (request.displayId ?? request.title)) return null;
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final meta = _metaLine;
     return Padding(
       key: Key('replies-card-${request.id}'),
       padding: const EdgeInsetsDirectional.symmetric(
@@ -52,8 +65,10 @@ class RepliesCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _RepliesHeader(request: request),
-            const SizedBox(height: Spacing.twoXSmall),
-            _RepliesSummary(text: request.summaryLine),
+            if (meta != null) ...[
+              const SizedBox(height: Spacing.twoXSmall),
+              _RepliesSummary(text: meta),
+            ],
             const SizedBox(height: Spacing.small),
             _RepliesOffersLine(request: request),
             const SizedBox(height: Spacing.small),
@@ -120,7 +135,8 @@ class _RepliesSummary extends StatelessWidget {
   }
 }
 
-/// Board row 2 (`tpl 206-211`): the offerer stack beside "N offers · from $X".
+/// Board row 2 (`tpl 206-211`): the offerer stack on the start, the money
+/// anchor stacked over its offer count on the end.
 class _RepliesOffersLine extends StatelessWidget {
   const _RepliesOffersLine({required this.request});
 
@@ -129,7 +145,21 @@ class _RepliesOffersLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final floor = request.lowestOfferFee;
+    final countLabel = l10n.pendingCardOffersBadge(request.offerCount);
+    // The floor is genuinely absent on payload-count rows (never probed), so
+    // the count carries the anchor there — never a fabricated price.
+    final anchor = floor == null
+        ? countLabel
+        : l10n.homeRepliesFromFloor(
+            MoneyFormat.format(
+              floor,
+              currency: request.offerCurrency ?? 'USD',
+            ),
+          );
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _OfferAvatarStack(
           requestId: request.id,
@@ -138,31 +168,36 @@ class _RepliesOffersLine extends StatelessWidget {
         ),
         const SizedBox(width: Spacing.xSmall),
         Expanded(
-          child: Text(
-            _offersLabel(AppLocalizations.of(context)),
-            style: context.jeebText.bodySmall.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // `MoneyFormat` owns the LTR isolate, so no `Directionality`
+              // wrapping happens here; the FittedBox keeps 320 dp unclipped.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: AlignmentDirectional.centerEnd,
+                child: Text(
+                  anchor,
+                  style: context.jeebText.price.copyWith(
+                    color: context.jeebRoles.accent,
+                  ),
+                  maxLines: 1,
+                ),
+              ),
+              if (floor != null)
+                Text(
+                  countLabel,
+                  style: context.jeebText.bodySmall.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
           ),
         ),
       ],
-    );
-  }
-
-  /// "3 offers · from $8.00" when the probe found a fee floor, otherwise the
-  /// plain pluralized count. The floor is genuinely absent on payload-count
-  /// rows (they are never probed), so the fallback is the common case — never
-  /// a fabricated price. `MoneyFormat` owns the LTR isolate, so no
-  /// `Directionality` wrapping happens here.
-  String _offersLabel(AppLocalizations l10n) {
-    final offers = l10n.pendingCardOffersBadge(request.offerCount);
-    final floor = request.lowestOfferFee;
-    if (floor == null) return offers;
-    return l10n.homeRepliesOffersFloor(
-      offers,
-      MoneyFormat.format(floor, currency: request.offerCurrency ?? 'USD'),
     );
   }
 }
@@ -247,16 +282,19 @@ class _OfferAvatarStack extends StatelessWidget {
   Widget build(BuildContext context) {
     if (totalCount == 0) return const SizedBox.shrink();
     final inline = avatarUrls.take(_maxInline).toList(growable: false);
-    final extra = totalCount - inline.length;
+    // No offerer NAME reaches this surface, so every entry is the kit's dormant
+    // "unknown person" disc unless a photo URL exists — never a bare "+N".
+    final entries = inline.isNotEmpty
+        ? [for (final url in inline) JeebAvatarEntry(imageUrl: url)]
+        : List<JeebAvatarEntry>.filled(
+            math.min(totalCount, _maxInline),
+            const JeebAvatarEntry(),
+          );
+    final extra = totalCount - entries.length;
     return JeebAvatarStack(
       identifier: 'orders_replies_avatar_stack_$requestId',
       semanticLabel: '$totalCount',
-      // No offerer NAME reaches this surface, so every entry is the kit's
-      // dormant "unknown person" disc unless a photo URL exists. The board's
-      // `K N R` initials are mock data and must not be fabricated.
-      avatars: [
-        for (final url in inline) JeebAvatarEntry(imageUrl: url),
-      ],
+      avatars: entries,
       trailing: extra > 0 ? _OfferOverflowCount(extra: extra) : null,
       trailingSpacing: Spacing.twoXSmall,
     );
