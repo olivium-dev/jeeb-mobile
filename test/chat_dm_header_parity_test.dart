@@ -150,10 +150,11 @@ void main() {
         locale: const Locale('ar'),
       ));
       await tester.pump();
-      // RTL: the glyph mirrors so it still reads as "back" (points to the
-      // start/right edge) — no stray forward-arrow leaks into the header.
-      expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
-      expect(find.byIcon(Icons.arrow_back), findsNothing);
+      // D3: `Icons.arrow_back` declares matchTextDirection, so the FRAMEWORK
+      // mirrors it under RTL. The widget must keep the SAME glyph in both
+      // locales — hand-picking `arrow_forward` here mirrored it twice.
+      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_forward), findsNothing);
     });
   });
 

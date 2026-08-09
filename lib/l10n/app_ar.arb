@@ -1913,6 +1913,7 @@
   "homeTabPending": "معلّقة",
   "homeRepliesViewOffersCta": "عرض العروض",
   "homeTabMore": "المزيد",
+  "homeFilterClearLabel": "مسح التصفية",
   "offerStatusSheetTitle": "حالات العروض",
   "offerStatusSheetIntro": "اختر حالة لتصفية طلباتك.",
   "offerStatusGroupActive": "نشطة",

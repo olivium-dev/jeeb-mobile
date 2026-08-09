@@ -17,6 +17,10 @@ import '../../../../l10n/app_localizations.dart';
 class ClientHomeEmptyView extends StatelessWidget {
   const ClientHomeEmptyView({super.key});
 
+  /// D4: 60dp under the kit default so the unscrolled rest position of a
+  /// three-line body clears the pinned create capsule. Still well above 150.
+  static const double illustrationSize = 240;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -24,6 +28,7 @@ class ClientHomeEmptyView extends StatelessWidget {
       identifier: '_request_empty_state_root',
       headline: l10n.homePendingEmptyTitle,
       body: l10n.homePendingEmptyMidnight,
+      illustrationSize: illustrationSize,
     );
   }
 }

@@ -288,6 +288,10 @@ class JeebEmptyState extends StatelessWidget {
     final String? bodyText = body;
     final Widget? cta = status == JeebEmptyStateStatus.loading ? null : action;
     final TextStyle headlineStyle = compact ? text.h2 : text.h1;
+    // D4: scaled text must reclaim art space, not push the body off the fold.
+    final double textScale = MediaQuery.textScalerOf(
+      context,
+    ).scale(1).clamp(1.0, 1.6);
 
     return Semantics(
       identifier: identifier,
@@ -306,7 +310,7 @@ class JeebEmptyState extends StatelessWidget {
               ink: ink,
               center: center,
               medallions: medallions ?? medallionsFor(variant),
-              size: illustrationSize,
+              size: illustrationSize / textScale,
             ),
             SizedBox(height: compact ? compactHeadlineGap : headlineGap),
             Semantics(
@@ -736,12 +740,39 @@ class _Illustration extends StatelessWidget {
               size: viewBox,
               child: Stack(
                 clipBehavior: Clip.none,
-                children: skeleton ? _skeleton() : _layers(),
+                children: <Widget>[
+                  ...skeleton ? _skeleton() : _layers(),
+                  if (status == JeebEmptyStateStatus.error)
+                    _errorBadge(viewBox),
+                ],
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  /// D9: hue alone never differentiated the error illustration (Δ≈4/255 mean
+  /// RGB), so the danger state also carries a SHAPE — colorblind-safe.
+  Widget _errorBadge(Size viewBox) {
+    const double diameter = 34;
+    // The centre disc's lower-trailing shoulder, in viewBox units.
+    final double centerX = viewBox.width * 0.633;
+    final double centerY = viewBox.height * 0.625;
+    return Positioned(
+      key: const Key('jeeb-empty-error-badge'),
+      left: centerX - diameter / 2,
+      top: centerY - diameter / 2,
+      width: diameter,
+      height: diameter,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: ink.scheme.error,
+        ),
+        child: Icon(Icons.priority_high, color: ink.scheme.onError, size: 20),
+      ),
     );
   }
 

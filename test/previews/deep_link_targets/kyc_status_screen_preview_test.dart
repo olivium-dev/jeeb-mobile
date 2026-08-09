@@ -187,11 +187,9 @@ void main() {
     });
 
     testWidgets(
-      'the illustration and its centre mark are fixed sizes that do not follow '
-      'the text scaler',
+      'the illustration YIELDS its width to the text scaler (D4), floored at '
+      'the 1.6x clamp',
       (WidgetTester tester) async {
-        // The other font-independent half, and it did NOT change: the block
-        // still hands the illustration a raw logical width.
         await pumpPreview(tester, kycStatusScreenPhone);
         final Size artAtDefault = tester.getSize(_illustration);
         final Size markAtDefault = tester.getSize(_mark);
@@ -200,12 +198,16 @@ void main() {
 
         expect(artAtDefault, const Size(_illustrationSize, _illustrationSize));
         expect(markAtDefault, const Size(_markSize, _markSize));
+        // D4: scaled text reclaims art space instead of running off the fold.
+        // The divisor is clamped at 1.6, so 300 -> 187.5 and the mark, which
+        // scales with the FittedBox viewBox, follows in proportion.
         expect(
-          tester.getSize(_illustration),
-          artAtDefault,
-          reason: 'the art claims the same 300 pt of an 844 pt display whether '
-              'the user reads at 100% or at 200%',
+          tester.getSize(_illustration).width,
+          closeTo(_illustrationSize / 1.6, 0.5),
+          reason: 'the art must give way to the reader, not hold 300 pt',
         );
+        // The mark keeps its 58 pt slot INSIDE the viewBox; the FittedBox is
+        // what shrinks it on screen, so its local box is unchanged.
         expect(tester.getSize(_mark), markAtDefault);
       },
     );

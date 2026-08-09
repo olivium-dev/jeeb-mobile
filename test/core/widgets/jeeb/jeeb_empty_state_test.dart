@@ -1596,4 +1596,80 @@ void main() {
           lessThan(tester.getCenter(discs.at(1)).dx));
     });
   });
+
+  group('JeebEmptyState · D9 danger badge + D4 text-scale', () {
+    testWidgets('the error status carries a SHAPE, not only a hue', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrap(
+          const JeebEmptyState(
+            headline: 'Something went wrong',
+            status: JeebEmptyStateStatus.error,
+          ),
+          disableAnimations: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('jeeb-empty-error-badge')), findsOneWidget);
+      expect(find.byIcon(Icons.priority_high), findsOneWidget);
+    });
+
+    for (final status in const <JeebEmptyStateStatus>[
+      JeebEmptyStateStatus.empty,
+      JeebEmptyStateStatus.loading,
+    ]) {
+      testWidgets('the badge stays off the ${status.name} status', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          wrap(
+            JeebEmptyState(headline: 'Nothing here', status: status),
+            disableAnimations: true,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('jeeb-empty-error-badge')), findsNothing);
+      });
+    }
+
+    testWidgets('scaled text reclaims illustration width, floored at 1.6x', (
+      tester,
+    ) async {
+      Future<double> widthAt(double scale) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.midnight(),
+            home: MediaQuery(
+              data: MediaQueryData(
+                disableAnimations: true,
+                textScaler: TextScaler.linear(scale),
+              ),
+              child: const Directionality(
+                textDirection: TextDirection.ltr,
+                child: Scaffold(
+                  body: SizedBox(
+                    width: 360,
+                    child: SingleChildScrollView(
+                      child: JeebEmptyState(
+                        headline: 'Nothing yet',
+                        illustrationSize: 240,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        return tester.getSize(find.byType(FittedBox).first).width;
+      }
+
+      expect(await widthAt(1.0), closeTo(240, 0.5));
+      expect(await widthAt(2.0), closeTo(150, 0.5));
+    });
+  });
 }
