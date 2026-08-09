@@ -2893,6 +2893,13 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get homeCapsuleFirstRequestTitle =>
       _get('homeCapsuleFirstRequestTitle');
   String get homeCreateOrderCta => _get('homeCreateOrderCta');
+  String get homeCreateHintExample1 => _get('homeCreateHintExample1');
+  String get homeCreateHintExample2 => _get('homeCreateHintExample2');
+  String get homeCreateHintExample3 => _get('homeCreateHintExample3');
+  String get homeCreateHintExample4 => _get('homeCreateHintExample4');
+  String get homeCreateHintExample5 => _get('homeCreateHintExample5');
+  String get homeCreateHintExample6 => _get('homeCreateHintExample6');
+  String get homeCreateHintExample7 => _get('homeCreateHintExample7');
   String get homeVoiceSlideToCancel => _get('homeVoiceSlideToCancel');
   String get homeVoiceReleaseToCancel =>
       _get('homeVoiceReleaseToCancel');

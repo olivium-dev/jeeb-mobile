@@ -24,6 +24,7 @@ class JeebGlassCard extends StatelessWidget {
     this.radius = JeebRadii.lg,
     this.shadow = noShadow,
     this.emphasis = false,
+    this.baseColor,
     this.onTap,
     this.identifier,
     this.semanticLabel,
@@ -56,6 +57,13 @@ class JeebGlassCard extends StatelessWidget {
   /// as hero glass without spending a `BackdropFilter` from the §4 budget.
   final bool emphasis;
 
+  /// Solid colour painted UNDER the glass fill, making the surface opaque.
+  ///
+  /// Null keeps the translucency, which is the rest look. Pass a
+  /// `colorScheme.surface`-family token on a card PINNED over scrolling
+  /// content, where a 7–10% fill lets the card text underneath read through.
+  final Color? baseColor;
+
   /// Makes the whole card tappable, with the white-alpha glass splash.
   final VoidCallback? onTap;
 
@@ -73,6 +81,7 @@ class JeebGlassCard extends StatelessWidget {
     final JeebSemanticColors glass = _glassOf(context);
     return _GlassSurface(
       fill: emphasis ? glass.glassFillEmphasis : glass.glassFill,
+      baseColor: baseColor,
       borderColor: emphasis ? glass.glassBorderStrong : glass.glassBorder,
       radius: radius,
       padding: padding,
@@ -156,6 +165,7 @@ class JeebGlassCapsule extends StatelessWidget {
     final JeebSemanticColors glass = _glassOf(context);
     return _GlassSurface(
       fill: glass.glassFillEmphasis,
+      baseColor: null,
       borderColor: glass.glassBorderStrong,
       radius: radius,
       padding: padding,
@@ -176,6 +186,7 @@ class _GlassSurface extends StatelessWidget {
   const _GlassSurface({
     required this.child,
     required this.fill,
+    required this.baseColor,
     required this.borderColor,
     required this.radius,
     required this.padding,
@@ -189,6 +200,7 @@ class _GlassSurface extends StatelessWidget {
 
   final Widget child;
   final Color fill;
+  final Color? baseColor;
   final Color borderColor;
   final double radius;
   final EdgeInsetsGeometry padding;
@@ -219,9 +231,11 @@ class _GlassSurface extends StatelessWidget {
       );
     }
 
+    final Color? base = baseColor;
     Widget surface = DecoratedBox(
       decoration: BoxDecoration(
-        color: fill,
+        // Composited, not stacked: one opaque paint instead of two layers.
+        color: base == null ? fill : Color.alphaBlend(fill, base),
         borderRadius: borderRadius,
         border: Border.all(color: borderColor, width: 1),
       ),

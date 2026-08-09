@@ -1213,8 +1213,16 @@ void main() {
           .toList();
       expect(
         fills,
-        contains(glass.glassFillEmphasis),
-        reason: 'the create capsule must render on the hero glass fill',
+        contains(
+          Color.alphaBlend(
+            glass.glassFillEmphasis,
+            Theme.of(context).colorScheme.surface,
+          ),
+        ),
+        reason:
+            'the create capsule keeps the hero glass fill — now over an '
+            'opaque surface base, so scrolled card text cannot read through '
+            'the pinned capsule',
       );
 
       // The mic disc is the one rationed orange on this screen; it is a Stack

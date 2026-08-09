@@ -21,6 +21,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_radii.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
+import 'package:jeeb_mobile/core/theme/jeeb_shadows.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_glass_card.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_mic_hero.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
@@ -30,6 +33,7 @@ import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.d
 import 'package:jeeb_mobile/features/home_client/domain/client_home_request.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/client_home_screen.dart';
 import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_request_hero.dart';
+import 'package:jeeb_mobile/features/home_client/presentation/widgets/client_home_typed_hint.dart';
 import 'package:jeeb_mobile/features/tier_selection/domain/tier.dart';
 
 import '../../support/load_test_fonts.dart';
@@ -94,6 +98,56 @@ Widget _harness({
       ),
     ),
   );
+}
+
+/// The pinned half on its own, with the ticker left running. The screen-level
+/// harness pins `disableAnimations: true`, which is exactly what a rotating
+/// hint must NOT be tested under.
+Widget _heroOnly({
+  Locale locale = const Locale('en'),
+  bool firstRequest = false,
+  bool disableAnimations = false,
+}) {
+  return MaterialApp(
+    theme: AppTheme.light(),
+    locale: locale,
+    supportedLocales: const [Locale('en'), Locale('ar')],
+    localizationsDelegates: const [
+      SyncAppLocalizationsDelegate(),
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    builder: (BuildContext context, Widget? child) => MediaQuery(
+      data: MediaQuery.of(
+        context,
+      ).copyWith(disableAnimations: disableAnimations),
+      child: child!,
+    ),
+    home: Scaffold(
+      body: Center(
+        child: ClientHomeRequestHero(
+          onCreateRequest: () {},
+          showPrompt: false,
+          firstRequest: firstRequest,
+        ),
+      ),
+    ),
+  );
+}
+
+/// The capsule run as a reader sees it, caret stripped.
+String _capsuleRun(WidgetTester tester) {
+  final Text text = tester.widget<Text>(
+    find
+        .descendant(
+          of: find.byType(ClientHomeRequestHero),
+          matching: find.byType(Text),
+        )
+        .last,
+  );
+  final String plain = text.data ?? text.textSpan!.toPlainText();
+  return plain.replaceAll(ClientHomeTypedHint.caretGlyph, '');
 }
 
 const _reply = ClientHomeRequest(
@@ -573,4 +627,136 @@ void main() {
       }
     }
   }
+
+  testWidgets('the pinned capsule is OPAQUE, not 10% white over the list', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _harness(repo: InMemoryClientHomeRepository(latency: Duration.zero)),
+    );
+    await tester.pumpAndSettle();
+
+    final ThemeData theme = Theme.of(tester.element(heroCapsule()));
+    final JeebSemanticColors glass = theme.extension<JeebSemanticColors>()!;
+    final BoxDecoration fill = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: heroCapsule(),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((DecoratedBox d) => d.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((BoxDecoration d) => d.border != null);
+
+    expect(
+      fill.color!.a,
+      1.0,
+      reason:
+          'card text under the pinned capsule used to read straight '
+          'through it',
+    );
+    expect(
+      fill.color,
+      Color.alphaBlend(glass.glassFillEmphasis, theme.colorScheme.surface),
+      reason:
+          'the base is a theme token under the SAME glass fill, so the '
+          'midnight look survives being made opaque',
+    );
+    // The rest of the §4 recipe is untouched.
+    expect(fill.border, isNotNull);
+    expect(fill.borderRadius, BorderRadius.circular(JeebRadii.capsule));
+    expect(
+      tester.widget<JeebGlassCard>(heroCapsule()).shadow,
+      JeebShadows.overlay,
+    );
+  });
+
+  testWidgets('the leading + glyph is gone and the run keeps its own band', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _harness(repo: InMemoryClientHomeRepository(latency: Duration.zero)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(ClientHomeRequestHero),
+        matching: find.byIcon(Icons.add),
+      ),
+      findsNothing,
+      reason: 'the disc ate the width the hint needs',
+    );
+    // The whole capsule stays the one tappable create surface.
+    expect(
+      find.bySemanticsIdentifier('orders_create_request_button'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the hint rotates while the accessible name stays put', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(_heroOnly());
+    // NEVER pumpAndSettle here: the hint loops forever with motion on.
+    await tester.pump();
+
+    String label() => tester
+        .getSemantics(
+          find.bySemanticsIdentifier('orders_create_request_button'),
+        )
+        .getSemanticsData()
+        .label;
+
+    final String first = _capsuleRun(tester);
+    expect(label(), 'Type it');
+
+    await tester.pump(const Duration(milliseconds: 280));
+    final String typed = _capsuleRun(tester);
+    expect(typed.length, greaterThan(first.length));
+    expect(typed, startsWith(first));
+    expect(
+      label(),
+      'Type it',
+      reason: 'Voice Control cannot say a run that has already been deleted',
+    );
+
+    // Past the first example's whole round, onto the second.
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 30));
+    expect(label(), 'Type it');
+    expect(
+      find.bySemanticsIdentifier('orders_create_request_button'),
+      findsOneWidget,
+    );
+    handle.dispose();
+  });
+
+  testWidgets('the first-run capsule keeps its static title, no ticker', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_heroOnly(firstRequest: true));
+    // It settles, which is the pin: E1's title never rotates.
+    await tester.pumpAndSettle();
+
+    expect(find.text('First order'), findsOneWidget);
+    expect(find.byType(ClientHomeTypedHint), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('reduce motion pins the stable label, not an example', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_heroOnly(disableAnimations: true));
+    // No ticker under reduce motion, so the tree settles.
+    await tester.pumpAndSettle();
+
+    expect(find.text('Type it'), findsOneWidget);
+    expect(find.text('2 kg of tomatoes'), findsNothing);
+  });
 }
