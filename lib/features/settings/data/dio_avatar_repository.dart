@@ -5,8 +5,8 @@ import 'package:dio/dio.dart';
 import '../../kyc/domain/cdn_asset_gateway.dart';
 import '../domain/avatar_repository.dart';
 
-/// Dio-backed [AvatarRepository]: CDN broker upload then `PUT /api/User/profile`
-/// with the gateway public avatar URL (never the raw object_ref). See PR body.
+/// Dio-backed [AvatarRepository]: CDN broker upload, then `PUT /api/User/profile`
+/// with the BARE object_ref; the display URL is returned to the UI, never committed.
 class DioAvatarRepository implements AvatarRepository {
   DioAvatarRepository(this._dio, this._cdn);
 
@@ -24,22 +24,22 @@ class DioAvatarRepository implements AvatarRepository {
     if (bytes.length > maxUploadBytes) {
       throw const AvatarRepositoryException(AvatarUploadFailure.tooLarge);
     }
+    final String objectRef;
     try {
-      await _cdn.uploadAsset(slot: CdnUploadSlot.avatar, bytes: bytes);
+      objectRef = await _cdn.uploadAsset(slot: CdnUploadSlot.avatar, bytes: bytes);
     } on CdnUploadException catch (e) {
       throw AvatarRepositoryException(AvatarUploadFailure.network, e.message);
     }
     final me = await _fetchMe();
-    final url = _publicAvatarUrl(me.userId);
-    await _putProfile(me: me, profilePic: url);
-    return url;
+    await _putProfile(me: me, profilePic: objectRef);
+    return _publicAvatarUrl(me.userId);
   }
 
   @override
   Future<void> removeAvatar() async {
     final me = await _fetchMe();
-    // Deliberate explicit clear (the one write shape capable of it); UM's
-    // empty-string semantics are the open owner question, F5 plan §5.
+    // Empty string is the canonical clear on the wire; the gateway forwards it
+    // verbatim and every reader treats '' and NULL as "no avatar".
     await _putProfile(me: me, profilePic: '');
   }
 
