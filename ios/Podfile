@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+platform :ios, '14.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -11,8 +11,11 @@ $FirebaseSDKVersion = '11.4.0'
 
 project 'Runner', {
   'Debug' => :debug,
+  'Debug-dev' => :debug,
   'Profile' => :release,
+  'Profile-dev' => :release,
   'Release' => :release,
+  'Release-dev' => :release,
 }
 
 def flutter_root
@@ -40,6 +43,15 @@ target 'Runner' do
   # Xcode 15.4 can't compile. Pin it to the 11.4 cohort to match $FirebaseSDKVersion.
   pod 'FirebaseCoreInternal', '11.4.0'
 
+  # FirebaseFirestore 11.4 declares FirebaseSharedSwift as `~> 11.0`, which
+  # otherwise resolves to 11.15.0 and introduces Swift 6 `sending` syntax.
+  pod 'FirebaseSharedSwift', '11.4.0'
+
+  # image_cropper 12.2.1 supports TOCropViewController `~> 3.1.2`. Keep the
+  # native dependency deterministic while the Xcode 15 compatibility patch in
+  # post_install below is required.
+  pod 'TOCropViewController', '3.1.2'
+
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths
@@ -47,6 +59,24 @@ target 'Runner' do
 end
 
 post_install do |installer|
+  # TOCropViewController 3.1.2 references an iOS 26-only UIView API behind an
+  # inverted SDK guard, so Xcode 15 tries to compile an undeclared type. Its
+  # 3.2.0 release adds the missing iOS 26 SDK guard, but image_cropper's
+  # `~> 3.1.2` constraint excludes 3.2.x. Apply that guard reproducibly until
+  # image_cropper accepts the corrected native release.
+  tocrop_source = File.join(
+    installer.sandbox.root.to_s,
+    'TOCropViewController/Objective-C/TOCropViewController/TOCropViewController.m',
+  )
+  incompatible_guard = '#if __IPHONE_OS_VERSION_MAX_ALLOWED < 180000'
+  compatible_guard = '#if defined(__IPHONE_26_0)'
+  source = File.read(tocrop_source)
+  if source.include?(incompatible_guard)
+    File.write(tocrop_source, source.sub(incompatible_guard, compatible_guard))
+  elsif !source.include?(compatible_guard)
+    raise 'Unexpected TOCropViewController 3.1.2 source; review the Xcode 15 compatibility patch.'
+  end
+
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
   end

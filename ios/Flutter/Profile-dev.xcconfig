@@ -1,0 +1,6 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.profile-dev.xcconfig"
+#include "Generated.xcconfig"
+
+// Appended to Flutter's live DART_DEFINES by the Runner build phase so CLI
+// defines (gateway URL, build SHA, and similar) remain intact.
+JEEB_DEV_DART_DEFINES = SkVFQl9ERVZUT09MX0VOQUJMRUQ9dHJ1ZQ==,QVBQX0ZMQVZPUj1kZXY=
