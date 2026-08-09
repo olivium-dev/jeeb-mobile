@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/formatting/bidi_isolate.dart';
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
@@ -213,33 +214,40 @@ class _PendingCardRow extends StatelessWidget {
         _PendingCardSummary(text: request.summaryLine),
         const SizedBox(height: Spacing.small),
         // Meta row: tier chip, live status, then the age on the end edge where
-        // the tile draws its reach count.
-        Row(
+        // the tile draws its reach count. D2: a Wrap, not a Row — under a flex
+        // split the age lost glyphs as the tier chip widened; now it re-runs.
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: Spacing.xSmall,
+          runSpacing: Spacing.twoXSmall,
           children: [
-            ClientHomeTierChip(tier: request.tier),
-            const SizedBox(width: Spacing.xSmall),
-            Expanded(
-              // Once offers have arrived, surface them prominently instead of
-              // the flat "Searching…" line. NB: on the live client-home path an
-              // offer-bearing request is bucketed into Replies (offerCount>0),
-              // so on the Pending tab this branch lights up for denormalised
-              // counts / non-dio repositories; the searching line remains the
-              // default pending state.
-              child: request.offerCount > 0
-                  ? _PendingOffersBadge(
-                      count: request.offerCount,
-                      emphasize: request.hasNewOffers,
-                    )
-                  : const _PendingServerStatus(),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClientHomeTierChip(tier: request.tier),
+                const SizedBox(width: Spacing.xSmall),
+                // Once offers have arrived, surface them prominently instead of
+                // the flat "Searching…" line. NB: on the live client-home path
+                // an offer-bearing request is bucketed into Replies
+                // (offerCount>0), so on the Pending tab this branch lights up
+                // for denormalised counts / non-dio repositories; the searching
+                // line remains the default pending state.
+                Flexible(
+                  child: request.offerCount > 0
+                      ? _PendingOffersBadge(
+                          count: request.offerCount,
+                          emphasize: request.hasNewOffers,
+                        )
+                      : const _PendingServerStatus(),
+                ),
+              ],
             ),
             // Age line — shown ONLY when the server row carried a real
             // `createdAt`. It is a past-fact "created N ago" (grows over time),
             // NOT a countdown or expiry; the manufactured-deadline lie stays
             // removed.
-            if (createdAt != null) ...[
-              const SizedBox(width: Spacing.xSmall),
-              Flexible(child: _PendingCreatedAge(createdAt: createdAt)),
-            ],
+            if (createdAt != null) _PendingCreatedAge(createdAt: createdAt),
           ],
         ),
       ],
@@ -256,7 +264,7 @@ class _PendingCardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Text(
-      request.displayId ?? request.title,
+      bidiIsolate(request.displayId ?? request.title),
       style: context.jeebText.cardTitle.copyWith(
         color: theme.colorScheme.onSurface,
       ),
@@ -276,7 +284,7 @@ class _PendingCardSummary extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     return Text(
-      text.isNotEmpty ? text : l10n.pendingTabSearchingLabel,
+      text.isNotEmpty ? bidiIsolate(text) : l10n.pendingTabSearchingLabel,
       style: theme.textTheme.bodySmall?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
       ),
@@ -340,17 +348,12 @@ class _PendingOffersBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Align(
-      alignment: AlignmentDirectional.centerStart,
-      child: JeebSystemChip(
-        key: const Key('pending-offers-badge'),
-        label: l10n.pendingCardOffersBadge(count),
-        // Unseen offers are the live event; a seen count is a settled fact.
-        tone: emphasize
-            ? JeebSystemChipTone.accent
-            : JeebSystemChipTone.filled,
-        center: false,
-      ),
+    return JeebSystemChip(
+      key: const Key('pending-offers-badge'),
+      label: l10n.pendingCardOffersBadge(count),
+      // Unseen offers are the live event; a seen count is a settled fact.
+      tone: emphasize ? JeebSystemChipTone.accent : JeebSystemChipTone.filled,
+      center: false,
     );
   }
 }

@@ -331,8 +331,10 @@ void main() {
       Directionality.of(tester.element(find.byType(JeebTopBar))),
       TextDirection.rtl,
     );
-    // The back glyph mirrors (DirectionalIcons.back under ar).
-    expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+    // D3: the glyph is direction-stable; `matchTextDirection` on
+    // `Icons.arrow_back` is what mirrors it under ar.
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_forward), findsNothing);
 
     // A code never reorders: cell 0 sits before cell 1 on screen.
     await tapDigits(tester, '12');

@@ -551,7 +551,9 @@ void main() {
           find.byKey(const Key('pending-requests-tab-list')),
           findsOneWidget,
         );
-        expect(find.text('ORD-23470'), findsOneWidget);
+        // D3 bidi: card titles render inside a first-strong isolate, so the
+        // raw id is a SUBSTRING of the rendered text.
+        expect(find.textContaining('ORD-23470'), findsOneWidget);
         expect(find.text('Express'), findsOneWidget);
         expect(find.text('Track my order'), findsNothing);
         expect(find.text('Ordered'), findsNothing);
@@ -560,7 +562,7 @@ void main() {
 
     testWidgets(
       'Replies (screen 14 / JM-027) shows the order id, +N overflow, and the '
-      'SINGLE View-offers pill with both contract identifiers',
+      'View-offers + Accept pills with both contract identifiers',
       (tester) async {
         await tester.pumpWidget(
           _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.replies),
@@ -570,10 +572,10 @@ void main() {
         expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
         expect(find.text('+6'), findsOneWidget);
         expect(find.text('View offers'), findsOneWidget);
-        // doc-13 P0-7: the second inline Accept button is gone; the board draws
-        // one pill. `replies_accept_cta` is re-homed onto the card surface.
-        expect(find.byKey(const Key('replies-accept-rep-1')), findsNothing);
-        expect(find.text('Accept'), findsNothing);
+        // D6: Accept is a REAL button again — the invisible card-wide accept
+        // was a mis-tap hazard on a money action.
+        expect(find.byKey(const Key('replies-accept-rep-1')), findsOneWidget);
+        expect(find.text('Accept'), findsOneWidget);
 
         // JM-027 AC1/AC2: both CTAs carry the contract Semantics identifiers.
         // (No tap here — the Replies tab now navigates via GoRouter internally,
@@ -1101,6 +1103,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final btn = find.byKey(const Key('replies-check-offers-rep-1'));
+      final accept = find.byKey(const Key('replies-accept-rep-1'));
       final card = find.byKey(const Key('replies-card-rep-1'));
       final btnSize = tester.getSize(btn);
       final cardSize = tester.getSize(card);
@@ -1115,20 +1118,25 @@ void main() {
             '${btnSize.width} of ${cardSize.width}',
       );
 
-      // End-aligned: right edge sits at the trailing gutter, flush with the
-      // card's inner edge. `replies-card-<id>` keys the full-bleed row, so the
-      // budget is the redesign's screen gutter (24) + the outlined card's own
-      // padding + stroke (16 + 1.5) = 41.5. A centered or start-aligned CTA
-      // lands ~300px away, which is what this still catches.
+      // D6: Accept is now the END-most pill; View offers sits just before it.
+      // The budget is the redesign's screen gutter (24) + the outlined card's
+      // own padding + stroke (16 + 1.5) = 41.5. A centered or start-aligned
+      // pair lands ~300px away, which is what this still catches.
       const trailingGutterBudget = 42.0;
+      final acceptRight = tester.getTopRight(accept).dx;
       final btnRight = tester.getTopRight(btn).dx;
       final cardRight = tester.getTopRight(card).dx;
       expect(
-        (cardRight - btnRight) < trailingGutterBudget,
+        (cardRight - acceptRight) < trailingGutterBudget,
         isTrue,
         reason:
-            'Check Offers right edge should sit at the trailing gutter; '
-            'cardRight=$cardRight btnRight=$btnRight',
+            'Accept right edge should sit at the trailing gutter; '
+            'cardRight=$cardRight acceptRight=$acceptRight',
+      );
+      expect(
+        btnRight < tester.getTopLeft(accept).dx + 1,
+        isTrue,
+        reason: 'View offers must precede Accept in the action row',
       );
 
       // Still wrapped in an Align(centerEnd) — structural guard against a

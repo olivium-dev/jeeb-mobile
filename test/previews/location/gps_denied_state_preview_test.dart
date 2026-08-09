@@ -173,8 +173,8 @@ void main() {
     });
 
     testWidgets(
-      'the illustration is a fixed 300 pt block that does not follow the text '
-      'scaler',
+      'the illustration yields its 300 pt to the text scaler (D4), floored at '
+      'the 1.6x clamp',
       (WidgetTester tester) async {
         await _pumpAt(
           tester,
@@ -190,9 +190,9 @@ void main() {
           textScale: 2.0,
         );
 
-        // Kit contract, not an oversight: `illustrationSize` is a raw logical
-        // width and the medallions pin `TextScaler.noScaling`.
-        expect(tester.getSize(_illustration), const Size(300, 300));
+        // D4: `illustrationSize` is divided by the (1.0-1.6 clamped) scaler so
+        // scaled text reclaims art space instead of running off the fold.
+        expect(tester.getSize(_illustration).width, closeTo(300 / 1.6, 0.5));
       },
     );
   });
@@ -212,8 +212,8 @@ void main() {
     });
 
     testWidgets(
-      'the text half of the content doubles at the 200% ceiling, the '
-      'illustration does not',
+      'the text half of the content doubles at the 200% ceiling while the '
+      'illustration gives way (D4)',
       (WidgetTester tester) async {
         const Size tall = Size(390, 1400);
 
@@ -232,7 +232,7 @@ void main() {
 
         // Measured on a slot tall enough that neither reading scrolls, so the
         // numbers are the content's own demand and not a clamped viewport.
-        expect(artAtCeiling, artAtDefault);
+        expect(artAtCeiling, lessThan(artAtDefault));
         expect(
           atCeiling - artAtCeiling,
           greaterThan(1.9 * (atDefault - artAtDefault)),

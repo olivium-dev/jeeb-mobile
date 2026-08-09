@@ -157,7 +157,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
     // RECORD that a throttle happened (and its Retry-After) so the cubit can
     // keep the cached data, back the poll off, and never show the full-screen
     // connection error. This tracker is shared across every read of this load.
-    final rateLimit = _RateLimitTracker();
+    final rateLimit = _LoadHealthTracker();
 
     // F3 dedupe: the `role=client` list backs BOTH the auction buckets AND the
     // recent-deliveries strip. Fetch it ONCE and derive both from the same
@@ -242,6 +242,8 @@ class DioClientHomeRepository implements ClientHomeRepository {
       offerStatusRequests: offerStatusRequests,
       // F3: surface (never throw) the throttle so the cubit degrades gracefully.
       rateLimited: rateLimit.rateLimited,
+      // B1: an all-transport-failed load is NOT an empty home — say so.
+      loadFailed: rateLimit.loadFailed,
       retryAfter: rateLimit.retryAfter,
     );
   }
@@ -260,7 +262,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// pending / offers-received / terminal rows are dropped here so they can
   /// never leak into In Progress through this path.
   Future<List<ClientHomeRequest>> _fetchActiveRequests(
-    _RateLimitTracker rateLimit,
+    _LoadHealthTracker rateLimit,
   ) async {
     try {
       final response = await _get(_requestsPath, const {
@@ -269,6 +271,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
         'page': 1,
         'pageSize': 50,
       });
+      rateLimit.recordSuccess();
       final rawItems = _items(response.data);
       final items = <ClientHomeRequest>[];
       for (final raw in rawItems) {
@@ -287,13 +290,14 @@ class DioClientHomeRepository implements ClientHomeRepository {
   }
 
   Future<List<ClientHomeRequest>> _fetchInProgress(
-    _RateLimitTracker rateLimit,
+    _LoadHealthTracker rateLimit,
   ) async {
     try {
       final response = await _get(_activeDeliveriesPath, const {
         'stage': 'active',
         'limit': 50,
       });
+      rateLimit.recordSuccess();
       final rawItems = _items(response.data, fallbackKey: 'shipments');
       final items = <ClientHomeRequest>[];
       for (final raw in rawItems) {
@@ -316,7 +320,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// empty list on any transport/parse failure) so callers can derive their
   /// projections without re-fetching.
   Future<List<dynamic>> _fetchRoleClientRows(
-    _RateLimitTracker rateLimit,
+    _LoadHealthTracker rateLimit,
   ) async {
     try {
       final response = await _get(_requestsPath, const {
@@ -324,6 +328,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
         'page': 1,
         'pageSize': 50,
       });
+      rateLimit.recordSuccess();
       return _items(response.data);
     } on DioException catch (e) {
       rateLimit.record(e);
@@ -345,7 +350,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// [_resolveOfferCounts]) rather than the row's (absent) `offersCount`.
   Future<_ClientRequestBuckets> _partitionClientRequests(
     List<dynamic> rawItems,
-    _RateLimitTracker rateLimit,
+    _LoadHealthTracker rateLimit,
   ) async {
     try {
       final accepted = <ClientHomeRequest>[];
@@ -459,7 +464,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// existing ten-call/two-concurrent per-load bound.
   Future<List<_OfferProbe?>> _resolveOfferCounts(
     List<Map<String, dynamic>> candidates,
-    _RateLimitTracker rateLimit,
+    _LoadHealthTracker rateLimit,
   ) async {
     final candidateIds = <String>[];
     final indicesById = <String, List<int>>{};
@@ -535,7 +540,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
   /// an error or crash the load.
   Future<_OfferProbe?> _fetchLiveOfferCount(
     String requestId,
-    _RateLimitTracker rateLimit,
+    _LoadHealthTracker rateLimit,
   ) async {
     try {
       final response = await _get(_offersPath, {'requestId': requestId});
@@ -594,7 +599,7 @@ class DioClientHomeRepository implements ClientHomeRepository {
       // A throttled probe degrades to the payload count (null) — but RECORD the
       // 429 so the home load reports `rateLimited` and the cubit backs off
       // instead of hammering the throttled offers endpoint every poll tick.
-      rateLimit.record(e);
+      rateLimit.record(e, primary: false);
       return null;
     } catch (_) {
       return null;
@@ -921,18 +926,38 @@ class _ClientRequestBuckets {
 /// how that otherwise-swallowed 429 is surfaced (never thrown) so the cubit can
 /// keep the cached data, honor `Retry-After`, and NEVER show the full-screen
 /// connection error on a throttle.
-class _RateLimitTracker {
+///
+/// B1: it ALSO counts primary-read transport failures vs successes, because the
+/// same swallow-into-empty degradation turned a fully offline cold start into a
+/// healthy-looking empty home. 429s are deliberately excluded from
+/// [transportFailures] so the throttle contract above is unchanged.
+class _LoadHealthTracker {
   bool rateLimited = false;
+
+  /// Primary reads that failed on transport with a non-429 [DioException].
+  int transportFailures = 0;
+
+  /// Primary reads that completed (any parseable HTTP response).
+  int successes = 0;
+
+  /// True iff every primary read failed on transport and none succeeded.
+  bool get loadFailed => successes == 0 && transportFailures > 0;
+
+  void recordSuccess() => successes++;
 
   /// Longest `Retry-After` seen this load (a 429 from a slower-recovering
   /// endpoint should win so we back off for the full window).
   Duration? retryAfter;
 
-  /// Folds a [DioException] into the tracker. Non-429 errors are ignored — they
-  /// are handled (and degraded) by each read's own catch and must not flip the
-  /// rate-limit signal, which is 429-specific.
-  void record(DioException error) {
-    if (error.response?.statusCode != 429) return;
+  /// Folds a [DioException] into the tracker. Non-429 errors only feed the
+  /// transport-failure count — they must not flip the 429-specific rate-limit
+  /// signal, which each read's own catch already degrades around. Secondary
+  /// reads (offer probes) pass `primary: false`: they never mean "home failed".
+  void record(DioException error, {bool primary = true}) {
+    if (error.response?.statusCode != 429) {
+      if (primary) transportFailures++;
+      return;
+    }
     rateLimited = true;
     final advertised = _parseRetryAfter(
       error.response?.headers.value('retry-after'),

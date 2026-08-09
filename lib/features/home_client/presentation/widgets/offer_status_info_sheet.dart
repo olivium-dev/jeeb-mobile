@@ -41,6 +41,7 @@ class OfferStatusInfoSheet extends StatelessWidget {
       explicitChildNodes: true,
       child: SafeArea(
         top: false,
+        bottom: false,
         child: SizedBox(
           height: height,
           child: Column(
@@ -49,11 +50,13 @@ class OfferStatusInfoSheet extends StatelessWidget {
               _SheetHeader(title: l10n.offerStatusSheetTitle),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsetsDirectional.fromSTEB(
+                  // D5: showModalBottomSheet strips MediaQuery.padding, so the
+                  // nav-bar inset has to come from viewPadding or rows are cut.
+                  padding: EdgeInsetsDirectional.fromSTEB(
                     Spacing.xLarge,
-                    0,
+                    Spacing.xSmall,
                     Spacing.xLarge,
-                    Spacing.xLarge,
+                    Spacing.xLarge + MediaQuery.viewPaddingOf(context).bottom,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -146,7 +149,7 @@ class _SheetHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
+    final Widget header = Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(
         Spacing.xLarge,
         Spacing.small,
@@ -171,6 +174,20 @@ class _SheetHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+    // D5: rows clip hard at the viewport edge; the hairline makes that read as
+    // an intentional boundary instead of sliced glyphs.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        header,
+        Divider(
+          key: const Key('offer-status-header-divider'),
+          height: 1,
+          thickness: 1,
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ],
     );
   }
 }

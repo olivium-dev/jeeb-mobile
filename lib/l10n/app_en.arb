@@ -5167,6 +5167,8 @@
   "@homeRepliesViewOffersCta": {"description": "Pill on the replies card that opens the offers list."},
   "homeTabMore": "More",
   "@homeTabMore": {"description": "Third filter on the Requests screen. Opens the complete offer-status picker."},
+  "homeFilterClearLabel": "Clear filter",
+  "@homeFilterClearLabel": {"description": "Removes the applied offer-status filter on the Requests screen and restores the previous tab."},
   "offerStatusSheetTitle": "Offer statuses",
   "offerStatusSheetIntro": "Choose a status to filter your requests.",
   "offerStatusGroupActive": "Active",

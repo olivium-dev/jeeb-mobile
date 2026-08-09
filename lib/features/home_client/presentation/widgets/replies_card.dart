@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/formatting/bidi_isolate.dart';
 import '../../../../core/formatting/money_format.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_avatar_stack.dart';
@@ -12,14 +13,11 @@ import 'client_home_tier_chip.dart';
 
 /// Replies-tab row (JM-027 `my-orders` Replies sub-tab) on MIDNIGHT glass.
 ///
-/// doc-13 P0-7: the board draws ONE `View offers` pill, so the second inline
-/// `Accept` button is gone. Its frozen identifier is re-homed onto the card
-/// surface (Pattern D) — the whole card is the accept target, which keeps
-/// jm-027 AC2 and the double-accept guard working without drawing chrome the
-/// board never had.
-///   * `replies_check_offers_cta` (the pill) → the `offer-review` list
-///     (`/requests/:id/offers`, JM-028), NOT `/chat/:id`.
-///   * `replies_accept_cta` (the card) → the `offer-accept-confirm` sheet
+/// D6 supersedes the doc-13 P0-7 "Pattern D re-homing": an invisible card-wide
+/// accept was a mis-tap hazard on a money action, so Accept is a real button.
+///   * `replies_check_offers_cta` (outline pill) AND the card surface → the
+///     `offer-review` list (`/requests/:id/offers`, JM-028), NOT `/chat/:id`.
+///   * `replies_accept_cta` (primary pill) → the `offer-accept-confirm` sheet
 ///     (`offer_accept_sheet`, JM-029) [D11/D71].
 class RepliesCard extends StatelessWidget {
   const RepliesCard({
@@ -47,9 +45,8 @@ class RepliesCard extends StatelessWidget {
       // The card's own Semantics is a boundary (`explicitChildNodes`), so the
       // avatar-stack and pill ids inside it stay separately queryable.
       child: JeebGlassCard(
-        identifier: 'replies_accept_cta',
-        semanticLabel: AppLocalizations.of(context).offersCardAccept,
-        onTap: onAccept,
+        semanticLabel: AppLocalizations.of(context).homeRepliesViewOffersCta,
+        onTap: onCheckOffers,
         padding: const EdgeInsetsDirectional.all(Spacing.medium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,6 +60,7 @@ class RepliesCard extends StatelessWidget {
             _RepliesActions(
               request: request,
               onCheckOffers: onCheckOffers,
+              onAccept: onAccept,
             ),
           ],
         ),
@@ -85,7 +83,7 @@ class _RepliesHeader extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            request.displayId ?? request.title,
+            bidiIsolate(request.displayId ?? request.title),
             // Role fix: `secondaryContainer` is a CONTAINER (fill) role, not an
             // ink role — the same defect class the color gate's fourth regex
             // bans. Titles on surface read in `onSurface`.
@@ -112,11 +110,11 @@ class _RepliesSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Text(
-      text,
+      bidiIsolate(text),
       style: theme.textTheme.bodySmall?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
       ),
-      maxLines: 1,
+      maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
   }
@@ -169,16 +167,22 @@ class _RepliesOffersLine extends StatelessWidget {
   }
 }
 
-/// The single board-drawn action, pinned to the END of the row:
-/// `replies_check_offers_cta` → offer-review-list (JM-028), NOT chat.
+/// The two actions, pinned to the END of the row: `replies_check_offers_cta`
+/// (outline) → offer-review-list (JM-028), NOT chat; `replies_accept_cta`
+/// (primary) → the accept-confirm sheet (JM-029).
 ///
 /// [JeebCtaButton] is width-filling by default, so `expand: false` plus
-/// `IntrinsicWidth` hugs the label at the trailing gutter.
+/// `IntrinsicWidth` hugs each label at the trailing gutter.
 class _RepliesActions extends StatelessWidget {
-  const _RepliesActions({required this.request, required this.onCheckOffers});
+  const _RepliesActions({
+    required this.request,
+    required this.onCheckOffers,
+    required this.onAccept,
+  });
 
   final ClientHomeRequest request;
   final VoidCallback onCheckOffers;
+  final VoidCallback onAccept;
 
   @override
   Widget build(BuildContext context) {
@@ -186,16 +190,34 @@ class _RepliesActions extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        IntrinsicWidth(
-          child: Semantics(
-            identifier: 'replies_check_offers_cta',
-            button: true,
-            child: JeebCtaButton.primary(
-              key: Key('replies-check-offers-${request.id}'),
-              label: l10n.homeRepliesViewOffersCta,
-              height: JeebCtaButton.outlineHeight,
-              expand: false,
-              onTap: onCheckOffers,
+        Flexible(
+          child: IntrinsicWidth(
+            child: Semantics(
+              identifier: 'replies_check_offers_cta',
+              button: true,
+              child: JeebCtaButton.outline(
+                key: Key('replies-check-offers-${request.id}'),
+                label: l10n.homeRepliesViewOffersCta,
+                height: JeebCtaButton.outlineHeight,
+                expand: false,
+                onTap: onCheckOffers,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: Spacing.xSmall),
+        Flexible(
+          child: IntrinsicWidth(
+            child: Semantics(
+              identifier: 'replies_accept_cta',
+              button: true,
+              child: JeebCtaButton.primary(
+                key: Key('replies-accept-${request.id}'),
+                label: l10n.offersCardAccept,
+                height: JeebCtaButton.outlineHeight,
+                expand: false,
+                onTap: onAccept,
+              ),
             ),
           ),
         ),

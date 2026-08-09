@@ -100,7 +100,8 @@ void main() {
         find.byKey(const Key('pending-countdown-card-pen-1')),
         findsOneWidget,
       );
-      expect(find.text('ORD-23470'), findsOneWidget);
+      // D3 bidi: the title renders inside a first-strong isolate.
+      expect(find.textContaining('ORD-23470'), findsOneWidget);
     });
 
     testWidgets(

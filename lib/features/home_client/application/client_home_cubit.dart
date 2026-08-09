@@ -81,6 +81,15 @@ class ClientHomeCubit extends Cubit<ClientHomeState>
         _rateLimitedUntil = null;
       }
 
+      // B1: the repo degrades transport failures into empty lists, so an
+      // all-failed load must be read as failed, not as a healthy empty home.
+      if (snapshot.loadFailed) {
+        if (state.status != ClientHomeStatus.ready) {
+          emit(state.copyWith(status: ClientHomeStatus.failed));
+        }
+        return;
+      }
+
       emit(
         state.copyWith(
           status: ClientHomeStatus.ready,

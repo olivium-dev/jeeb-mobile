@@ -532,9 +532,11 @@ void main() {
         ),
       );
 
+      // D3: the glyph is direction-stable — `Icons.arrow_back` declares
+      // matchTextDirection, so the FRAMEWORK mirrors it under RTL.
       expect(
         tester.widget<Icon>(_inBar(find.byType(Icon))).icon,
-        Icons.arrow_forward,
+        Icons.arrow_back,
       );
       expect(
         tester.getCenter(find.bySemanticsIdentifier('offers_back')).dx,

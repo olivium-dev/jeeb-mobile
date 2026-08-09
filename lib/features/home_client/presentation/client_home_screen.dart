@@ -39,6 +39,7 @@ import 'tabs/in_progress_tab.dart';
 import 'tabs/offer_status_requests_tab.dart';
 import 'tabs/pending_requests_tab.dart';
 import 'tabs/replies_tab.dart';
+import 'widgets/client_home_empty_view.dart';
 import 'widgets/client_home_greeting.dart';
 import 'widgets/client_home_request_hero.dart';
 import 'widgets/client_home_voice_dock.dart';
@@ -706,6 +707,9 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
                           _selectedOfferStatus = status;
                         });
                       },
+                      onClearFilter: () {
+                        setState(() => _selectedOfferStatus = null);
+                      },
                       onTrack: widget.onTrack,
                     ),
                   ),
@@ -765,6 +769,7 @@ class _ClientHomeBody extends StatelessWidget {
     required this.firstRequest,
     required this.onTabSelected,
     required this.onOfferStatusSelected,
+    required this.onClearFilter,
     required this.onTrack,
   });
 
@@ -774,6 +779,7 @@ class _ClientHomeBody extends StatelessWidget {
   final bool firstRequest;
   final ValueChanged<ClientHomeTab> onTabSelected;
   final ValueChanged<ClientOfferStatus> onOfferStatusSelected;
+  final VoidCallback onClearFilter;
   final void Function(ClientHomeRequest)? onTrack;
 
   @override
@@ -781,7 +787,7 @@ class _ClientHomeBody extends StatelessWidget {
     switch (state.status) {
       case ClientHomeStatus.initial:
       case ClientHomeStatus.loading:
-        return const _LoadingLayout();
+        return _LoadingLayout(name: state.greetingName);
       case ClientHomeStatus.failed:
         return _FailedLayout(name: state.greetingName);
       case ClientHomeStatus.ready:
@@ -792,6 +798,7 @@ class _ClientHomeBody extends StatelessWidget {
           firstRequest: firstRequest,
           onTabSelected: onTabSelected,
           onOfferStatusSelected: onOfferStatusSelected,
+          onClearFilter: onClearFilter,
           onTrack: onTrack,
         );
     }
@@ -1643,7 +1650,9 @@ class _MicHoldRingPainter extends CustomPainter {
 }
 
 class _LoadingLayout extends StatelessWidget {
-  const _LoadingLayout();
+  const _LoadingLayout({required this.name});
+
+  final String? name;
 
   @override
   Widget build(BuildContext context) {
@@ -1656,11 +1665,12 @@ class _LoadingLayout extends StatelessWidget {
         bottom: context.scrollBodyBottomInset + _kFloatingMicReserve,
       ),
       children: [
-        const ClientHomeGreeting(name: null),
+        ClientHomeGreeting(name: name),
         const SizedBox(height: Spacing.medium),
         JeebEmptyState(
           status: JeebEmptyStateStatus.loading,
           headline: l10n.homeEmptyTitle,
+          illustrationSize: ClientHomeEmptyView.illustrationSize,
         ),
       ],
     );
@@ -1689,6 +1699,7 @@ class _FailedLayout extends StatelessWidget {
           status: JeebEmptyStateStatus.error,
           headline: l10n.homeLoadFailedTitle,
           body: l10n.homeLoadFailedBody,
+          illustrationSize: ClientHomeEmptyView.illustrationSize,
           action: IntrinsicWidth(
             child: JeebCtaButton.primary(
               label: l10n.homeLoadFailedRetry,
@@ -1711,6 +1722,7 @@ class _ReadyLayout extends StatelessWidget {
     required this.firstRequest,
     required this.onTabSelected,
     required this.onOfferStatusSelected,
+    required this.onClearFilter,
     required this.onTrack,
   });
 
@@ -1720,6 +1732,7 @@ class _ReadyLayout extends StatelessWidget {
   final bool firstRequest;
   final ValueChanged<ClientHomeTab> onTabSelected;
   final ValueChanged<ClientOfferStatus> onOfferStatusSelected;
+  final VoidCallback onClearFilter;
   final void Function(ClientHomeRequest)? onTrack;
 
   @override
@@ -1756,6 +1769,7 @@ class _ReadyLayout extends StatelessWidget {
         selectedOfferStatus: selectedOfferStatus,
         onSelected: onTabSelected,
         onOfferStatusSelected: onOfferStatusSelected,
+        onClearFilter: onClearFilter,
       ),
       const SizedBox(height: Spacing.medium),
       _ReadyContent(
@@ -1823,6 +1837,44 @@ class _ReadyContent extends StatelessWidget {
   }
 }
 
+/// D7: the clear affordance beside the relabelled More segment — the only
+/// visible way out of an applied offer-status filter (re-tapping the segment
+/// itself reopens the picker sheet).
+class _ClearFilterButton extends StatelessWidget {
+  const _ClearFilterButton({required this.onTap});
+
+  static const double _size = 40;
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      identifier: 'orders_filter_clear',
+      button: true,
+      label: l10n.homeFilterClearLabel,
+      child: SizedBox(
+        key: const Key('client-home-filter-clear'),
+        width: _size,
+        height: _size,
+        child: JeebGlassCard(
+          radius: _size / 2,
+          padding: EdgeInsets.zero,
+          onTap: onTap,
+          child: Center(
+            child: Icon(
+              Icons.close,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Requests filters: Pending and Replies switch their lists; More opens the
 /// complete offer-status picker and filters the same request data.
 class _ClientHomeTabBar extends StatelessWidget {
@@ -1831,6 +1883,7 @@ class _ClientHomeTabBar extends StatelessWidget {
     required this.selectedOfferStatus,
     required this.onSelected,
     required this.onOfferStatusSelected,
+    required this.onClearFilter,
   });
 
   /// JEBV4-298 (E24/Q-086): the Requests tab is the ON-HOLD surface only. The
@@ -1845,6 +1898,9 @@ class _ClientHomeTabBar extends StatelessWidget {
   final ValueChanged<ClientHomeTab> onSelected;
   final ValueChanged<ClientOfferStatus> onOfferStatusSelected;
 
+  /// D7: drops the applied offer-status filter, back to the last real tab.
+  final VoidCallback onClearFilter;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -1853,78 +1909,93 @@ class _ClientHomeTabBar extends StatelessWidget {
       padding: _kGutter,
       child: LayoutBuilder(
         builder: (context, constraints) {
+          // D8: the roomy default padding truncates "Pending"/"Replies" at
+          // 320dp, so a narrow viewport takes the tight inset too.
+          final bool tightSegments =
+              selectedOfferStatus != null || constraints.maxWidth < 360;
+          final Widget toggleStack = Stack(
+            children: <Widget>[
+              // No enclosing track: three free pills that hug their labels
+              // until a localized selected status needs to ellipsize.
+              JeebSegmentedToggle(
+                placement: JeebSegmentedPlacement.trackless,
+                segmentPadding: tightSegments
+                    ? const EdgeInsetsDirectional.symmetric(
+                        vertical: 10,
+                        horizontal: 8,
+                      )
+                    : null,
+                segments: <JeebSegment>[
+                  for (var i = 0; i < _tabs.length; i++)
+                    JeebSegment(
+                      label: labels[i],
+                      key: Key('client-home-tab-${_tabs[i].name}'),
+                      identifier: 'orders_filter_${_tabs[i].name}',
+                    ),
+                  JeebSegment(
+                    label: selectedOfferStatus == null
+                        ? l10n.homeTabMore
+                        : offerStatusTitle(l10n, selectedOfferStatus!),
+                    key: const Key('client-home-tab-more'),
+                    identifier: 'orders_filter_more',
+                    // D7: the clear button takes 48dp off the row, so the
+                    // filtered segment needs a bigger share to stay unclipped.
+                    flex: selectedOfferStatus == null ? 1 : 3,
+                  ),
+                ],
+                selectedIndex: selectedOfferStatus == null
+                    ? _tabs.indexOf(selectedTab)
+                    : _tabs.length,
+                onChanged: (index) async {
+                  if (index == _tabs.length) {
+                    final status = await OfferStatusInfoSheet.show(
+                      context,
+                      selectedStatus: selectedOfferStatus,
+                    );
+                    if (status != null) onOfferStatusSelected(status);
+                    return;
+                  }
+                  onSelected(_tabs[index]);
+                },
+              ),
+              // JM-023 / JM-027's coined `orders_home_replies_tab`: a
+              // second id for the same target, laid over the Replies third
+              // so QA still taps real bounds (the kit segment carries only
+              // one identifier).
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: FractionallySizedBox(
+                      widthFactor: 1 / 3,
+                      heightFactor: 1,
+                      child: Semantics(
+                        identifier: 'orders_home_replies_tab',
+                        button: true,
+                        label: l10n.homeTabReplies,
+                        onTap: () => onSelected(ClientHomeTab.replies),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
           return Align(
             alignment: AlignmentDirectional.centerStart,
             child: SizedBox(
               key: const Key('client-home-filter-row'),
               width: constraints.maxWidth,
-              child: Stack(
-                children: <Widget>[
-                  // No enclosing track: three free pills that hug their labels
-                  // until a localized selected status needs to ellipsize.
-                  JeebSegmentedToggle(
-                    placement: JeebSegmentedPlacement.trackless,
-                    segmentPadding: selectedOfferStatus == null
-                        ? null
-                        : const EdgeInsetsDirectional.symmetric(
-                            vertical: 10,
-                            horizontal: 8,
-                          ),
-                    segments: <JeebSegment>[
-                      for (var i = 0; i < _tabs.length; i++)
-                        JeebSegment(
-                          label: labels[i],
-                          key: Key('client-home-tab-${_tabs[i].name}'),
-                          identifier: 'orders_filter_${_tabs[i].name}',
-                        ),
-                      JeebSegment(
-                        label: selectedOfferStatus == null
-                            ? l10n.homeTabMore
-                            : offerStatusTitle(l10n, selectedOfferStatus!),
-                        key: const Key('client-home-tab-more'),
-                        identifier: 'orders_filter_more',
-                        flex: selectedOfferStatus == null ? 1 : 2,
-                      ),
-                    ],
-                    selectedIndex: selectedOfferStatus == null
-                        ? _tabs.indexOf(selectedTab)
-                        : _tabs.length,
-                    onChanged: (index) async {
-                      if (index == _tabs.length) {
-                        final status = await OfferStatusInfoSheet.show(
-                          context,
-                          selectedStatus: selectedOfferStatus,
-                        );
-                        if (status != null) onOfferStatusSelected(status);
-                        return;
-                      }
-                      onSelected(_tabs[index]);
-                    },
-                  ),
-                  // JM-023 / JM-027's coined `orders_home_replies_tab`: a
-                  // second id for the same target, laid over the Replies third
-                  // so QA still taps real bounds (the kit segment carries only
-                  // one identifier).
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: FractionallySizedBox(
-                          widthFactor: 1 / 3,
-                          heightFactor: 1,
-                          child: Semantics(
-                            identifier: 'orders_home_replies_tab',
-                            button: true,
-                            label: l10n.homeTabReplies,
-                            onTap: () => onSelected(ClientHomeTab.replies),
-                            child: const SizedBox.expand(),
-                          ),
-                        ),
-                      ),
+              child: selectedOfferStatus == null
+                  ? toggleStack
+                  : Row(
+                      children: <Widget>[
+                        Flexible(child: toggleStack),
+                        const SizedBox(width: Spacing.xSmall),
+                        _ClearFilterButton(onTap: onClearFilter),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           );
         },

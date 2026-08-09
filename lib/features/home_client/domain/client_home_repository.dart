@@ -9,6 +9,7 @@ class ClientHomeSnapshot {
     this.recentDeliveries = const [],
     this.offerStatusRequests = const [],
     this.rateLimited = false,
+    this.loadFailed = false,
     this.retryAfter,
     List<ClientHomeRequest>? activeRequests,
   }) : _activeRequestsOverride = activeRequests;
@@ -20,6 +21,10 @@ class ClientHomeSnapshot {
   final List<ClientHomeRequest> offerStatusRequests;
 
   final bool rateLimited;
+
+  /// True iff EVERY primary read of this load failed on transport (non-429
+  /// [DioException]) and none succeeded — an honest "nothing loaded", not empty.
+  final bool loadFailed;
 
   final Duration? retryAfter;
 

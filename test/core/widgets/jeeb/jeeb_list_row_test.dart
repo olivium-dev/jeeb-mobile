@@ -275,13 +275,17 @@ void main() {
   });
 
   group('JeebListRow RTL', () {
-    testWidgets('the chevron mirrors via DirectionalIcons', (tester) async {
+    testWidgets('the chevron keeps ONE glyph and lets the framework mirror it',
+        (tester) async {
       await tester.pumpWidget(
         wrapCard(earningsRow(), direction: TextDirection.rtl),
       );
 
-      expect(find.byIcon(Icons.chevron_left), findsOneWidget);
-      expect(find.byIcon(Icons.chevron_right), findsNothing);
+      // D3: `Icons.chevron_right` declares matchTextDirection, so hand-picking
+      // `chevron_left` under RTL mirrored the glyph a second time.
+      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_left), findsNothing);
+      expect(Icons.chevron_right.matchTextDirection, isTrue);
     });
 
     testWidgets('glyph leads from the end side, chevron trails at the start',
@@ -294,7 +298,7 @@ void main() {
       final double glyph = tester.getTopLeft(find.byIcon(Icons.show_chart)).dx;
       final double title = tester.getTopLeft(find.text('Earnings')).dx;
       final double chevron =
-          tester.getTopLeft(find.byIcon(Icons.chevron_left)).dx;
+          tester.getTopLeft(find.byIcon(Icons.chevron_right)).dx;
       expect(glyph, greaterThan(title));
       expect(chevron, lessThan(title));
     });

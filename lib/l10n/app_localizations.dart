@@ -2913,6 +2913,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get homeTabPending => _get('homeTabPending');
   String get homeRepliesViewOffersCta => _get('homeRepliesViewOffersCta');
   String get homeTabMore => _get('homeTabMore');
+
+  String get homeFilterClearLabel => _get('homeFilterClearLabel');
   String get offerStatusSheetTitle => _get('offerStatusSheetTitle');
   String get offerStatusSheetIntro => _get('offerStatusSheetIntro');
   String get offerStatusGroupActive => _get('offerStatusGroupActive');
