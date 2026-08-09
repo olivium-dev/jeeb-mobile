@@ -64,14 +64,14 @@ void main() {
 
   group('DioAvatarRepository.uploadAvatar', () {
     test('uploads via the CDN gateway on the avatar slot, then commits the '
-        'gateway public avatar URL — never the raw object_ref — preserving '
-        'the current username', () async {
+        'BARE object_ref — never the display URL — while still returning the '
+        'display URL and preserving the current username', () async {
       stubMe();
       stubPutOk();
       when(() => cdn.uploadAsset(
             slot: any(named: 'slot'),
             bytes: any(named: 'bytes'),
-          )).thenAnswer((_) async => 'kyc/objects/abc123');
+          )).thenAnswer((_) async => 'profile_avatar/abc123.jpg');
 
       final bytes = Uint8List.fromList(List<int>.filled(10, 1));
       final url = await repo.uploadAvatar(bytes);
@@ -83,8 +83,7 @@ void main() {
       expect(slotCall[0], CdnUploadSlot.avatar);
       expect(slotCall[1], bytes);
 
-      // Never the raw object_ref — always the gateway's own public route.
-      expect(url, isNot(contains('kyc/objects/abc123')));
+      // The UI still gets a display URL for the optimistic preview.
       expect(url, startsWith('$baseUrl/api/users/$userId/avatar?v='));
 
       final put = verify(() => dio.put<Map<String, dynamic>>(
@@ -96,7 +95,9 @@ void main() {
       expect(body['userId'], userId);
       expect(body['email'], email);
       expect(body['username'], name); // preserved, never blanked
-      expect(body['profilePic'], url);
+      // F5 contract: the wire carries the bare CDN ref, NOT a self-referential URL.
+      expect(body['profilePic'], 'profile_avatar/abc123.jpg');
+      expect(body['profilePic'], isNot(contains('/api/users/')));
     });
 
     test('rejects an oversize payload client-side without ever calling the '
