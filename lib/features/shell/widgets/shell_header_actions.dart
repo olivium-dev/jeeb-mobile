@@ -15,11 +15,7 @@ import '../../home_client/presentation/widgets/client_home_greeting.dart';
 import '../../jeeber_home/presentation/widgets/jeeber_home_greeting.dart';
 
 /// Persistent header actions — the **wallet chip** + **notification bell** — that
-/// the shell paints on the customer **Requests** and **Profile** headers
-///
-/// Each is a Ø[buttonSize] OPAQUE glass circle: scrolled card text passing
-/// underneath cannot compete with the glyph, which is the job the deleted blur
-/// backdrop used to do (blur budget −1).
+/// the shell paints as opaque Ø[buttonSize] glass circles on customer headers.
 class ShellHeaderActions extends StatelessWidget {
   const ShellHeaderActions({super.key, required this.idPrefix});
 

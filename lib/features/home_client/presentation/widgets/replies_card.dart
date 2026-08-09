@@ -38,9 +38,8 @@ class RepliesCard extends StatelessWidget {
   /// Tapped on `replies_accept_cta` → offer-accept-confirm sheet (JM-029).
   final VoidCallback onAccept;
 
-  /// The request's own words, or nothing. Deliberately NOT
-  /// [ClientHomeRequest.summaryLine]: its `destinationLabel` fallback printed
-  /// the raw "Current location (33.9, 35.5)" pin on this card.
+  /// The request's own words, or nothing — never [ClientHomeRequest.summaryLine],
+  /// whose destination fallback printed the raw "Current location (lat, long)" pin.
   String? get _metaLine {
     final items = request.itemsSummary;
     if (items == null || items.isEmpty) return null;

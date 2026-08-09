@@ -1057,9 +1057,8 @@ void main() {
         find.descendant(of: heroFinder, matching: find.byType(JeebGlassCard)),
         findsOneWidget,
       );
-      // §4 budget: the pinned capsule never leaves the scene, so its blur would
-      // re-sample the scrolling list on every frame. The screen now draws NONE
-      // — the header actions became opaque glass circles.
+      // §4 budget: the screen now draws NO BackdropFilter at all — the header
+      // actions became opaque glass circles and the pinned capsule never blurred.
       expect(
         find.descendant(of: heroFinder, matching: find.byType(BackdropFilter)),
         findsNothing,
