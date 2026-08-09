@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_avatar.dart';
 import 'package:jeeb_mobile/features/home_client/application/client_home_cubit.dart';
 import 'package:jeeb_mobile/features/home_client/data/in_memory_client_home_repository.dart';
 import 'package:jeeb_mobile/features/home_client/domain/client_home_repository.dart';
@@ -54,17 +55,24 @@ ClientHomeRequest _repliesRequest({
   int offerCount = 5,
   List<String>? avatarUrls,
   String? conversationId,
+  String destinationLabel = 'Hamra, Beirut',
+  String? itemsSummary,
+  double? lowestOfferFee,
+  String? offerCurrency,
 }) =>
     ClientHomeRequest(
       id: id,
       displayId: displayId,
       title: displayId,
       status: ClientRequestStatus.offersReceived,
-      destinationLabel: 'Hamra, Beirut',
+      destinationLabel: destinationLabel,
+      itemsSummary: itemsSummary,
       tier: ClientRequestTier.express,
       offerCount: offerCount,
       offerAvatarUrls: avatarUrls ?? ['url1', 'url2', 'url3'],
       conversationId: conversationId ?? 'conv-$id',
+      lowestOfferFee: lowestOfferFee,
+      offerCurrency: offerCurrency,
     );
 
 void main() {
@@ -175,6 +183,81 @@ void main() {
 
       expect(find.text('عرض العروض'), findsOneWidget);
       expect(find.text('Check Offers'), findsNothing);
+    });
+  });
+
+  group('RepliesCard redesign — offerer discs and the price anchor', () {
+    Future<void> pump(WidgetTester tester, ClientHomeRequest request) async {
+      final repo = InMemoryClientHomeRepository.fromSnapshot(
+        ClientHomeSnapshot(replies: [request]),
+        latency: Duration.zero,
+      );
+      await tester.pumpWidget(_harness(repo: repo));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('one photoless offer renders a dormant disc, never "+1"', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _repliesRequest(id: 'bare-1', offerCount: 1, avatarUrls: const []),
+      );
+
+      expect(find.text('+1'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('replies-card-bare-1')),
+          matching: find.byType(JeebAvatar),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('five offers with three photos still overflow to "+2"', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _repliesRequest(offerCount: 5, avatarUrls: const ['a', 'b', 'c']),
+      );
+
+      expect(find.text('+2'), findsOneWidget);
+    });
+
+    testWidgets(r'a probed floor anchors "from $8.00" over its count', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _repliesRequest(offerCount: 1, lowestOfferFee: 8, offerCurrency: 'USD'),
+      );
+
+      expect(find.textContaining('from '), findsOneWidget);
+      expect(find.textContaining(r'$8.00'), findsOneWidget);
+      expect(find.text('1 offer'), findsOneWidget);
+    });
+
+    testWidgets('with no floor the count itself is the anchor', (tester) async {
+      await pump(tester, _repliesRequest(offerCount: 3));
+
+      expect(find.textContaining('from '), findsNothing);
+      expect(find.text('3 offers'), findsOneWidget);
+    });
+
+    testWidgets('a raw destination pin never reaches the meta line', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _repliesRequest(
+          id: 'pin-1',
+          destinationLabel: 'Current location (33.9, 35.5)',
+          itemsSummary: 'ORD-23470',
+        ),
+      );
+
+      expect(find.textContaining('Current location'), findsNothing);
     });
   });
 }

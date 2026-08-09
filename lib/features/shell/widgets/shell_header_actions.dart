@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/role/role_cubit.dart';
 import '../../../core/role/user_role.dart';
+import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -15,54 +16,89 @@ import '../../jeeber_home/presentation/widgets/jeeber_home_greeting.dart';
 
 /// Persistent header actions — the **wallet chip** + **notification bell** — that
 /// the shell paints on the customer **Requests** and **Profile** headers
+///
+/// Each is a Ø[buttonSize] OPAQUE glass circle: scrolled card text passing
+/// underneath cannot compete with the glyph, which is the job the deleted blur
+/// backdrop used to do (blur budget −1).
 class ShellHeaderActions extends StatelessWidget {
   const ShellHeaderActions({super.key, required this.idPrefix});
+
+  /// Circle diameter, and the tap target (≥44).
+  static const double buttonSize = 44;
 
   final String idPrefix;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Semantics(
+        _circle(
+          context,
           identifier: '${idPrefix}_wallet_chip',
-          button: true,
-          container: true,
           label: l10n.shellWalletChipLabel,
-          child: IconButton(
-            tooltip: l10n.shellWalletChipLabel,
-            // R1: both header glyphs are WHITE. `primary` IS #D73B00 under
-            // Midnight, so this wallet chip was the header's only orange.
-            icon: Icon(
-              Icons.account_balance_wallet_outlined,
-              color: colorScheme.onSurface,
-            ),
-            onPressed: () {
-              final isJeeber =
-                  context.read<RoleCubit?>()?.state == UserRole.jeeber;
-              context.goNamed(isJeeber ? 'wallet' : 'customer-wallet');
-            },
-          ),
+          // R1: both header glyphs are WHITE. `primary` IS #D73B00 under
+          // Midnight, so this wallet chip was the header's only orange.
+          icon: Icons.account_balance_wallet_outlined,
+          onTap: () {
+            final isJeeber =
+                context.read<RoleCubit?>()?.state == UserRole.jeeber;
+            context.goNamed(isJeeber ? 'wallet' : 'customer-wallet');
+          },
         ),
-        Semantics(
+        const SizedBox(width: Spacing.xSmall),
+        _circle(
+          context,
           identifier: '${idPrefix}_bell',
-          button: true,
-          container: true,
           label: l10n.shellBellLabel,
-          child: IconButton(
-            tooltip: l10n.shellBellLabel,
-            icon: Icon(
-              Icons.notifications_none_outlined,
-              color: colorScheme.onSurface,
-            ),
-            // notifications-list (JM-057) IS registered (`/notifications`,
-            onPressed: () => context.goNamed('notifications'),
-          ),
+          icon: Icons.notifications_none_outlined,
+          // notifications-list (JM-057) IS registered (`/notifications`,
+          onTap: () => context.goNamed('notifications'),
         ),
       ],
+    );
+  }
+
+  Widget _circle(
+    BuildContext context, {
+    required String identifier,
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final glass =
+        Theme.of(context).extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    return Semantics(
+      identifier: identifier,
+      button: true,
+      container: true,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: SizedBox.square(
+          dimension: buttonSize,
+          child: Material(
+            color: Color.alphaBlend(
+              glass.glassFillEmphasis,
+              colorScheme.surface,
+            ),
+            shape: CircleBorder(
+              side: BorderSide(color: glass.glassBorderStrong, width: 1),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: Center(
+                child: Icon(icon, size: 22, color: colorScheme.onSurface),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -95,24 +131,34 @@ Widget _shellHeaderActionsHosted({
   required String caption,
   required String idPrefix,
   Widget? body,
+  double topOffset = 0,
 }) {
   return _ShellHeaderActionsSpecimen(
     caption: caption,
     child: body == null
         ? _ShellHeaderActionsBareRow(idPrefix: idPrefix)
-        : _ShellHeaderActionsHeaderedTab(idPrefix: idPrefix, body: body),
+        : _ShellHeaderActionsHeaderedTab(
+            idPrefix: idPrefix,
+            body: body,
+            topOffset: topOffset,
+          ),
   );
 }
 
-/// The component on its own: two [IconButton]s in a `mainAxisSize.min` [Row],
-/// 96 × 48 dp, outlined here so the footprint is visible.
+/// The shell's own Requests-tab offset: the two circles centered on the
+/// greeting avatar's line.
+const double _shellHeaderActionsRequestsTopOffset =
+    ClientHomeGreeting.avatarCenterFromSafeTop - ShellHeaderActions.buttonSize / 2;
+
+/// The component on its own: two Ø44 glass circles in a `mainAxisSize.min`
+/// [Row], outlined here so the footprint is visible.
 @JeebPreview(
   group: 'shell',
   name: 'Actions only',
   size: _shellHeaderActionsRowBox,
 )
 Widget shellHeaderActionsBareRow() => _shellHeaderActionsHosted(
-      caption: 'Actions only · 96 × 48 dp',
+      caption: 'Actions only · 2 × Ø44',
       idPrefix: 'orders_home',
     );
 
@@ -126,6 +172,7 @@ Widget shellHeaderActionsBareRow() => _shellHeaderActionsHosted(
 Widget shellHeaderActionsRequestsTab() => _shellHeaderActionsHosted(
       caption: 'Requests tab · orders_home',
       idPrefix: 'orders_home',
+      topOffset: _shellHeaderActionsRequestsTopOffset,
       body: ListView(
         children: <Widget>[
           const ClientHomeGreeting(name: 'Sami'),
@@ -143,6 +190,7 @@ Widget shellHeaderActionsRequestsTab() => _shellHeaderActionsHosted(
 Widget shellHeaderActionsRequestsNarrowLongName() => _shellHeaderActionsHosted(
       caption: 'Requests tab · long name at 320 dp',
       idPrefix: 'orders_home',
+      topOffset: _shellHeaderActionsRequestsTopOffset,
       body: ListView(
         children: <Widget>[
           const ClientHomeGreeting(
@@ -202,10 +250,12 @@ class _ShellHeaderActionsHeaderedTab extends StatelessWidget {
   const _ShellHeaderActionsHeaderedTab({
     required this.idPrefix,
     required this.body,
+    this.topOffset = 0,
   });
 
   final String idPrefix;
   final Widget body;
+  final double topOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +269,7 @@ class _ShellHeaderActionsHeaderedTab extends StatelessWidget {
         children: <Widget>[
           Positioned.fill(child: body),
           PositionedDirectional(
-            top: 0,
+            top: topOffset,
             end: Spacing.xSmall,
             child: SafeArea(
               child: Material(
@@ -234,8 +284,8 @@ class _ShellHeaderActionsHeaderedTab extends StatelessWidget {
   }
 }
 
-/// The actions with nothing behind them, outlined so the 96 × 48 dp footprint
-/// is measurable by eye.
+/// The actions with nothing behind them, outlined so the 2 × Ø44 footprint is
+/// measurable by eye.
 class _ShellHeaderActionsBareRow extends StatelessWidget {
   const _ShellHeaderActionsBareRow({required this.idPrefix});
 

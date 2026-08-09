@@ -533,8 +533,8 @@ void main() {
     await tester.pumpWidget(_harness(repo: repo));
     await tester.pumpAndSettle();
 
-    // The time-of-day headline's own tagline — a fixed literal in both locales.
-    final tagline = find.text('جيب لي أي شي');
+    // The time-of-day headline's own tagline — the en slogan; ar keeps its own.
+    final tagline = find.text('Jeeb me anything');
     final taglineBefore = tester.getRect(tagline);
     final capsuleBefore = tester.getRect(heroCapsule());
 

@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/formatting/bidi_isolate.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
@@ -342,6 +343,17 @@ void main() {
   });
 
   group('D8 — the filter segments fit a 320dp screen', () {
+    // The three pills now SHARE the row by flex, so the guarantee is a width
+    // floor per segment plus a label that scales down instead of truncating.
+    List<double> segmentWidths(WidgetTester tester) => <double>[
+      for (final key in const <Key>[
+        Key('client-home-tab-pendingRequests'),
+        Key('client-home-tab-replies'),
+        Key('client-home-tab-more'),
+      ])
+        tester.getSize(find.byKey(key)).width,
+    ];
+
     testWidgets('"Pending" and "Replies" render in full at 320dp', (
       tester,
     ) async {
@@ -358,21 +370,26 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The segment box minus its label is 2x the horizontal inset: 8 each
-      // side once the narrow-viewport rule fires, 18 at the roomy default.
-      // (Widget-test fonts have square metrics, so an "is it ellipsized"
-      // assertion here would measure the harness, not the layout.)
-      final segment = find.byKey(const Key('client-home-tab-pendingRequests'));
+      final widths = segmentWidths(tester);
+      for (final width in widths) {
+        expect(width, closeTo(widths.first, 1));
+        expect(
+          width,
+          greaterThanOrEqualTo(80),
+          reason: '320dp must still give every pill a tappable share',
+        );
+      }
       expect(
-        tester.getSize(segment).width -
-            tester.getSize(find.text('Pending')).width,
-        closeTo(16, 0.5),
-        reason: '320dp must take the tight segment inset',
+        tester
+            .renderObject<RenderParagraph>(find.text('Pending'))
+            .didExceedMaxLines,
+        isFalse,
+        reason: 'the label scales down rather than ellipsizing',
       );
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a roomy viewport keeps the default segment inset', (
+    testWidgets('a roomy viewport keeps every segment above the 96dp target', (
       tester,
     ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
@@ -384,12 +401,53 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final segment = find.byKey(const Key('client-home-tab-pendingRequests'));
-      expect(
-        tester.getSize(segment).width -
-            tester.getSize(find.text('Pending')).width,
-        closeTo(36, 0.5),
+      final widths = segmentWidths(tester);
+      for (final width in widths) {
+        expect(width, closeTo(widths.first, 1));
+        expect(width, greaterThanOrEqualTo(96));
+      }
+    });
+  });
+
+  group('D12 — the scrolled tail clears the pinned create capsule', () {
+    testWidgets('at max scroll the last replies card is fully above it', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(384, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final repo = InMemoryClientHomeRepository.fromSnapshot(
+        ClientHomeSnapshot(
+          replies: [_reply(id: 'r1'), _reply(id: 'r2'), _reply(id: 'r3')],
+        ),
+        latency: Duration.zero,
       );
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_screen(repo, initialTab: ClientHomeTab.replies));
+      await tester.pumpAndSettle();
+
+      final list = find.byKey(const Key('client-home-ready-list'));
+      expect(list, findsOneWidget);
+      final position = tester.state<ScrollableState>(
+        find.descendant(of: list, matching: find.byType(Scrollable)),
+      ).position;
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pumpAndSettle();
+
+      final lastCard = find.byKey(const Key('replies-card-r3'));
+      final capsule = find.bySemanticsIdentifier(
+        'orders_create_request_button',
+      );
+      expect(lastCard, findsOneWidget);
+      expect(capsule, findsOneWidget);
+      expect(
+        tester.getRect(lastCard).bottom + Spacing.medium,
+        lessThanOrEqualTo(tester.getRect(capsule).top),
+        reason: 'the tail reserve must clear the capsule with a breather',
+      );
+      expect(tester.takeException(), isNull);
+      handle.dispose();
     });
   });
 

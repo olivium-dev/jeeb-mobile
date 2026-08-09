@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -59,7 +60,6 @@ Widget _harness({
   void Function(Tier?)? onCreateRequest,
   Locale locale = const Locale('en'),
   ClientHomeTab initialTab = ClientHomeTab.inProgress,
-  bool shellHeaderOverlay = false,
 }) {
   final screen = ClientHomeScreen(
     initialTab: initialTab,
@@ -89,39 +89,10 @@ Widget _harness({
           repository: repo,
           greetingNameProvider: () => greetingName,
         ),
-        child: shellHeaderOverlay
-            ? _ShellHeaderOverlayHost(child: screen)
-            : screen,
+        child: screen,
       ),
     ),
   );
-}
-
-class _ShellHeaderOverlayHost extends StatelessWidget {
-  const _ShellHeaderOverlayHost({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(child: child),
-        const PositionedDirectional(
-          top: 0,
-          end: Spacing.xSmall,
-          child: SafeArea(
-            child: SizedBox(
-              key: Key('test-shell-header-actions-overlay'),
-              width: kMinInteractiveDimension * 2,
-              height: kMinInteractiveDimension,
-              child: ColoredBox(color: Colors.transparent),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// Snapshot covering all three My Orders tabs, mirroring the Figma mock data
@@ -220,26 +191,6 @@ ClientHomeRepository _expiredStatusRepo() {
           status: ClientRequestStatus.searching,
           offerStatuses: {ClientOfferStatus.expired},
         ),
-      ],
-    ),
-    latency: Duration.zero,
-  );
-}
-
-ClientHomeRepository _deepExpiredStatusRepo() {
-  return InMemoryClientHomeRepository.fromSnapshot(
-    ClientHomeSnapshot(
-      offerStatusRequests: [
-        for (var i = 0; i < 18; i++)
-          ClientHomeRequest(
-            id: 'deep-expired-$i',
-            title: 'Expired request $i',
-            displayId: 'ORD-DEEP-$i',
-            destinationLabel: 'Hamra',
-            itemsSummary: 'Documents, groceries and a parcel for stop $i',
-            status: ClientRequestStatus.searching,
-            offerStatuses: const {ClientOfferStatus.expired},
-          ),
       ],
     ),
     latency: Duration.zero,
@@ -805,10 +756,27 @@ void main() {
       final list = tester.widget<ListView>(
         find.byKey(const Key('client-home-ready-list')),
       );
-      // Nav inset + the floating mic's band (nav gap + Ø56 + trailing air).
+      // Nav inset + the tail that clears BOTH pinned surfaces: the mic's halo
+      // box and the create capsule, plus a Spacing.medium breather.
+      final micExtent = JeebMicHero.extentFor(
+        size: JeebMicHero.sizeCompact,
+        halo: true,
+        arc: true,
+      );
+      final tailReserve =
+          math.max(
+            Spacing.xLarge +
+                JeebMicHero.sizeCompact +
+                (micExtent - JeebMicHero.sizeCompact) / 2,
+            Spacing.xLarge +
+                (JeebMicHero.sizeCompact - kMinInteractiveDimension) / 2 +
+                kMinInteractiveDimension +
+                2,
+          ) +
+          Spacing.medium;
       expect(
         list.padding?.resolve(TextDirection.ltr).bottom,
-        navInset + Spacing.xLarge + JeebMicHero.sizeCompact + Spacing.medium,
+        navInset + tailReserve,
       );
     });
 
@@ -842,110 +810,6 @@ void main() {
       ];
       expect(widths.toSet(), hasLength(1));
     });
-
-    testWidgets(
-      'deep-scrolled status text is separated from wallet/bell by glass',
-      (tester) async {
-        await tester.binding.setSurfaceSize(const Size(384, 800));
-        addTearDown(() => tester.binding.setSurfaceSize(null));
-
-        await tester.pumpWidget(
-          _harness(
-            repo: _deepExpiredStatusRepo(),
-            initialTab: ClientHomeTab.pendingRequests,
-            shellHeaderOverlay: true,
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.byKey(const Key('client-home-tab-more')));
-        await tester.pumpAndSettle();
-        await tester.ensureVisible(
-          find.bySemanticsIdentifier('offer_status_filter_expired'),
-        );
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.bySemanticsIdentifier('offer_status_filter_expired'),
-        );
-        await tester.pumpAndSettle();
-
-        final list = find.byKey(const Key('client-home-ready-list'));
-        final overlay = find.byKey(
-          const Key('test-shell-header-actions-overlay'),
-        );
-        final backdrop = find.byKey(
-          const Key('client-home-header-actions-glass-backdrop'),
-        );
-
-        Rect? intersectingCard;
-        for (
-          var attempt = 0;
-          attempt < 8 && intersectingCard == null;
-          attempt++
-        ) {
-          await tester.drag(list, const Offset(0, -220));
-          await tester.pumpAndSettle();
-          final overlayRect = tester.getRect(overlay);
-          for (var i = 0; i < 18; i++) {
-            final cardFinder = find.bySemanticsIdentifier(
-              'offer_status_request_deep-expired-$i',
-            );
-            if (cardFinder.evaluate().isEmpty) continue;
-            final cardRect = tester.getRect(cardFinder);
-            if (cardRect.overlaps(overlayRect)) {
-              intersectingCard = cardRect;
-              break;
-            }
-          }
-        }
-
-        expect(
-          intersectingCard,
-          isNotNull,
-          reason:
-              'the test must reproduce a deep scroll where a populated card '
-              'would enter the shell header-actions footprint',
-        );
-        final overlayRect = tester.getRect(overlay);
-        final backdropRect = tester.getRect(backdrop);
-        expect(backdropRect.left, overlayRect.left);
-        expect(backdropRect.top, overlayRect.top);
-        expect(backdropRect.right, overlayRect.right);
-        expect(backdropRect.bottom, overlayRect.bottom);
-
-        final glass = tester.widget<JeebGlassCapsule>(backdrop);
-        expect(glass.blurSigma, JeebGlassCapsule.softBlur);
-        expect(glass.shadow, JeebGlassCapsule.noShadow);
-        final glassDecorations = tester
-            .widgetList<DecoratedBox>(
-              find.descendant(
-                of: backdrop,
-                matching: find.byType(DecoratedBox),
-              ),
-            )
-            .map((widget) => widget.decoration)
-            .whereType<BoxDecoration>();
-        expect(
-          glassDecorations.any(
-            (decoration) => decoration.color != null && decoration.color!.a < 1,
-          ),
-          isTrue,
-          reason: 'the action backdrop must remain translucent',
-        );
-        expect(
-          find.descendant(of: backdrop, matching: find.byType(BackdropFilter)),
-          findsOneWidget,
-          reason:
-              'the action surface must blur competing card text while keeping '
-              'the hero decoration visible through translucent glass',
-        );
-        expect(
-          find.descendant(of: backdrop, matching: find.byType(ColoredBox)),
-          findsNothing,
-          reason: 'a flat opaque rectangle must not cover the hero field',
-        );
-      },
-    );
 
     testWidgets(
       'selected Not selected label stays inside S24 chip row in Arabic',
@@ -1194,12 +1058,13 @@ void main() {
         findsOneWidget,
       );
       // §4 budget: the pinned capsule never leaves the scene, so its blur would
-      // re-sample the scrolling list on every frame. The header keeps the one.
+      // re-sample the scrolling list on every frame. The screen now draws NONE
+      // — the header actions became opaque glass circles.
       expect(
         find.descendant(of: heroFinder, matching: find.byType(BackdropFilter)),
         findsNothing,
       );
-      expect(find.byType(BackdropFilter), findsOneWidget);
+      expect(find.byType(BackdropFilter), findsNothing);
       final fills = tester
           .widgetList<DecoratedBox>(
             find.descendant(
