@@ -8,9 +8,15 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // Sprint 1 Stream B: initialise Firebase before any plugin touches it.
-    // Reads GoogleService-Info.plist (never committed; see the .template).
+    #if JEEB_DEV
+    // The isolated dev flavor intentionally ships without production Firebase
+    // credentials. Firebase-backed features use their existing fallbacks until
+    // a dedicated app.jeeb.jeebMobile.dev configuration is provisioned.
+    #else
+    // Production remains fail-loud: configure the required bundled plist
+    // before any plugin can touch Firebase.
     FirebaseApp.configure()
+    #endif
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
