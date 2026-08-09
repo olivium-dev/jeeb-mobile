@@ -21,8 +21,10 @@ void main() async {
   // Also set in `appBarTheme`; this one covers the first frame, before any
   // AppBar exists.
   SystemChrome.setSystemUIOverlayStyle(AppTheme.systemOverlayStyle);
-  if (kDevToolEnabled &&
-      ui.PlatformDispatcher.instance.defaultRouteName == '/devtool') {
+  if (shouldLaunchDevTool(
+    enabled: kDevToolEnabled,
+    initialRoute: ui.PlatformDispatcher.instance.defaultRouteName,
+  )) {
     runApp(const devtool.DevToolApp());
     return;
   }

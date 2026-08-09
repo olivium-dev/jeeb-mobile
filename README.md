@@ -38,11 +38,21 @@ lib/
 
 ## Flavors
 
-| Flavor     | App ID                       | Notes            |
-|-----------|------------------------------|------------------|
-| dev       | app.jeeb.mobile.dev          | Local/CI builds  |
-| staging   | app.jeeb.mobile.staging      | QA/UAT           |
-| production| app.jeeb.mobile              | App Store/Play   |
+Android application IDs:
+
+| Flavor | Application ID | Notes |
+|---|---|---|
+| dev | `app.jeeb.mobile.dev` | Local/CI builds |
+| staging | `app.jeeb.mobile.staging` | QA/UAT |
+| production | `app.jeeb.mobile` | Play Store |
+
+iOS bundle IDs:
+
+| Flavor | Bundle ID | Notes |
+|---|---|---|
+| dev | `app.jeeb.jeebMobile.dev` | Local development |
+| staging | Not configured | No iOS staging scheme yet |
+| production | `app.jeeb.jeebMobile` | App Store |
 
 ## iOS
 
@@ -53,6 +63,25 @@ cd ios && pod install
 ```
 
 Ensure the signing team and bundle ID are set in Xcode before building.
+
+Run the normal iOS dev app against the LAN gateway with:
+
+```bash
+flutter run -d "iPhone 15" --debug --flavor dev \
+  --dart-define=JEEB_MOCK_BASE_URL=http://192.168.2.39:10090 \
+  --dart-define=JEEB_USE_MOCK_PREFIXES=false \
+  --dart-define=JEEB_DEVTOOL_ENABLED=true \
+  --dart-define=JEEB_REALTIME_TRACKING=true
+```
+
+Launch directly into the Jeeber Dev Tool with the checked helper:
+
+```bash
+tool/run_ios_devtool.sh "iPhone 15"
+```
+
+Set `JEEB_IOS_BASE_URL` to change the gateway, or `JEEB_IOS_DEVICE` to change
+the default simulator. The Dev Tool is available only in debug builds.
 
 ## CI
 

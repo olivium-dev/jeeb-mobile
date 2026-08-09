@@ -926,6 +926,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final mic = find.bySemanticsIdentifier('client_home_mic_cta');
+    // The deprecated accessor still identifies the active test pipeline.
+    // ignore: deprecated_member_use
     final owner = tester.binding.pipelineOwner.semanticsOwner!;
     owner.performAction(tester.getSemantics(mic).id, SemanticsAction.tap);
     await _flush(tester);

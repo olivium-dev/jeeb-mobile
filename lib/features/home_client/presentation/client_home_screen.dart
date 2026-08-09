@@ -913,7 +913,9 @@ class _RecordingScrimState extends State<_RecordingScrim>
     _sync(context.read<VoiceRecordingCubit>().state.isRecording, rebuild: false);
     // A muted ticker never advances the fade, so a tab switch mid-recording
     // would otherwise replay a full-screen wash on the way back.
-    if (!TickerMode.valuesOf(context).enabled) _settle();
+    // Flutter 3.38 CI does not expose TickerMode.valuesOf yet.
+    // ignore: deprecated_member_use
+    if (!TickerMode.of(context)) _settle();
   }
 
   void _settle() => _fade
@@ -930,7 +932,9 @@ class _RecordingScrimState extends State<_RecordingScrim>
     if (recording == _absorbing) return;
     _absorbing = recording;
     if (rebuild) setState(() {});
-    final bool ticking = TickerMode.valuesOf(context).enabled;
+    // Flutter 3.38 CI does not expose TickerMode.valuesOf yet.
+    // ignore: deprecated_member_use
+    final bool ticking = TickerMode.of(context);
     if (!ticking || MediaQuery.disableAnimationsOf(context)) {
       _settle();
       return;
@@ -1204,7 +1208,9 @@ class _FloatingVoiceMicState extends State<_FloatingVoiceMic>
     _reduce = MediaQuery.disableAnimationsOf(context);
     // A muted ticker freezes an exit curve where it stands; it would otherwise
     // resume whenever the user next returns to this tab.
-    if (!TickerMode.valuesOf(context).enabled) _landExits();
+    // Flutter 3.38 CI does not expose TickerMode.valuesOf yet.
+    // ignore: deprecated_member_use
+    if (!TickerMode.of(context)) _landExits();
   }
 
   void _landExits() {
