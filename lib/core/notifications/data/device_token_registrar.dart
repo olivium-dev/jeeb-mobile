@@ -18,12 +18,16 @@ class DeviceTokenRegistrar {
     required SharedPreferences prefs,
     Duration retryInterval = const Duration(seconds: 3),
     int maxAttempts = 40,
+    Duration revalidateInterval = const Duration(minutes: 30),
+    DateTime Function()? clock,
   })  : _dio = dio,
         _tokenStore = tokenStore,
         _transport = transport,
         _prefs = prefs,
         _retryInterval = retryInterval,
-        _maxAttempts = maxAttempts;
+        _maxAttempts = maxAttempts,
+        _revalidateInterval = revalidateInterval,
+        _clock = clock ?? DateTime.now;
 
   final Dio _dio;
   final AuthTokenStore _tokenStore;
@@ -31,12 +35,15 @@ class DeviceTokenRegistrar {
   final SharedPreferences _prefs;
   final Duration _retryInterval;
   final int _maxAttempts;
+  final Duration _revalidateInterval;
+  final DateTime Function() _clock;
 
   StreamSubscription<String>? _refreshSub;
   Timer? _retryTimer;
   String? _lastToken;
 
   String? _lastRegisteredKey;
+  DateTime? _lastRegisteredAt;
   bool _disposed = false;
 
   static String _key(String? userId, String token) => '${userId ?? ''}::$token';
@@ -48,73 +55,89 @@ class DeviceTokenRegistrar {
   Future<void> start() async {
     _refreshSub = _transport.onTokenRefresh.listen((fresh) {
       _lastToken = fresh;
-      unawaited(_register(reason: 'rotation'));
+      unawaited(() async {
+        if (!await _register(reason: 'rotation')) _attempt(0);
+      }());
     });
 
+    await _refreshLastToken();
+    _attempt(0);
+  }
+
+  Future<void> _refreshLastToken() async {
+    if (_lastToken != null && _lastToken!.isNotEmpty) return;
     try {
       _lastToken = await _transport.getToken();
     } catch (e) {
       if (kDebugMode) debugPrint('[push][register] getToken failed: $e');
     }
-    _attempt(0);
   }
 
   Future<void> notifyLogin() async {
     if (_disposed) return;
     // The cold-start poll may still be pending; cancel it so we don't race a
     _retryTimer?.cancel();
-    if (_lastToken == null || _lastToken!.isEmpty) {
-      try {
-        _lastToken = await _transport.getToken();
-      } catch (e) {
-        if (kDebugMode) {
-          debugPrint('[push][register] notifyLogin getToken failed: $e');
-        }
-      }
-    }
-    await _register(reason: 'login');
+    await _refreshLastToken();
+    // D3: a login whose register skipped (token not fetched yet) or failed
+    // (offline / 5xx) must not end here — re-arm the poll or we go dark.
+    if (!await _register(reason: 'login')) _attempt(0);
+  }
+
+  /// D3 self-heal: the server row can disappear while this process lives (the
+  /// device id re-owned elsewhere, an admin purge, a DB reset).
+  Future<void> revalidate() async {
+    if (_disposed) return;
+    final last = _lastRegisteredAt;
+    if (last != null && _clock().difference(last) < _revalidateInterval) return;
+    _lastRegisteredKey = null;
+    await notifyLogin();
   }
 
   /// user with zero tokens. There is no race: the DELETE runs during logout and
   void notifySignedOut() {
     if (_disposed) return;
     _lastRegisteredKey = null;
+    _lastRegisteredAt = null;
   }
 
   void _attempt(int n) {
     if (_disposed) return;
     unawaited(() async {
+      // The FCM token can land AFTER the first poll tick; re-ask every round or
+      // a null-at-start token would keep the device unreachable for this run.
+      await _refreshLastToken();
       final userId = await _safeUserId();
       if (userId != null && userId.isNotEmpty) {
-        await _register(reason: 'login', userId: userId);
-        return;
+        if (await _register(reason: 'login', userId: userId)) return;
       }
       if (n + 1 >= _maxAttempts) {
         if (kDebugMode) {
-          debugPrint('[push][register] gave up after $_maxAttempts attempts '
-              '(no userId — user never logged in)');
+          debugPrint('[push][register] gave up after $_maxAttempts attempts');
         }
         return;
       }
+      _retryTimer?.cancel();
       _retryTimer = Timer(_retryInterval, () => _attempt(n + 1));
     }());
   }
 
-  Future<void> _register({required String reason, String? userId}) async {
-    if (_disposed) return;
+  /// Returns true when this device is known-registered for the current
+  /// (user, token) — either the PUT succeeded or an earlier one already did.
+  Future<bool> _register({required String reason, String? userId}) async {
+    if (_disposed) return false;
     final token = _lastToken;
     if (token == null || token.isEmpty) {
       if (kDebugMode) {
         debugPrint('[push][register] skip ($reason): no FCM token yet');
       }
-      return;
+      return false;
     }
     final uid = userId ?? await _safeUserId();
     if (uid == null || uid.isEmpty) {
       if (kDebugMode) {
         debugPrint('[push][register] skip ($reason): no session yet');
       }
-      return;
+      return false;
     }
     final key = _key(uid, token);
     if (key == _lastRegisteredKey) {
@@ -122,7 +145,7 @@ class DeviceTokenRegistrar {
         debugPrint('[push][register] skip ($reason): already registered '
             'for this (user, token)');
       }
-      return;
+      return true;
     }
     try {
       final res = await _dio.put<dynamic>(
@@ -133,22 +156,27 @@ class DeviceTokenRegistrar {
         },
       );
       final code = res.statusCode ?? 0;
-      if (code >= 200 && code < 300) {
-        _lastRegisteredKey = key;
-        _retryTimer?.cancel();
-      }
       if (kDebugMode) {
         debugPrint('[push][register] ($reason) '
             'PUT $_registerPath -> $code');
       }
+      if (code >= 200 && code < 300) {
+        _lastRegisteredKey = key;
+        _lastRegisteredAt = _clock();
+        _retryTimer?.cancel();
+        return true;
+      }
+      return false;
     } on DioException catch (e) {
       if (kDebugMode) {
         debugPrint('[push][register] FAILED ($reason) '
             'PUT $_registerPath -> ${e.response?.statusCode} '
             'body=${e.response?.data}');
       }
+      return false;
     } catch (e) {
       if (kDebugMode) debugPrint('[push][register] FAILED ($reason): $e');
+      return false;
     }
   }
 

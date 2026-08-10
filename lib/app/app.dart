@@ -276,6 +276,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   NotificationDispatcher? _dispatcher;
   DeviceTokenRegistrar? _deviceRegistrar;
 
+  /// D3: bounded retries for the FCM transport build (see [_initPushChainAsync]).
+  static const int _pushTransportMaxAttempts = 4;
+  static const Duration _pushTransportRetryDelay = Duration(seconds: 2);
+
   /// BUG-1: subscription to the owned [SessionCubit] so a successful login
   /// (OTP verify / super-login calls `session.refresh()`, transitioning the
   /// session to authenticated) re-fires [RoleSync.sync] IMMEDIATELY — without
@@ -440,6 +444,9 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // the moment the jeeber returns. FeedResumeRefetcher then clears it if the
       // feed is the visible tab.
       unawaited(_badgeCount.hydrate());
+      // D3 self-heal: re-assert this device's push row on resume (rate-limited
+      // inside the registrar) so a row lost server-side recovers by itself.
+      unawaited(_deviceRegistrar?.revalidate() ?? Future<void>.value());
     });
   }
 
@@ -462,19 +469,33 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     if (override != null) {
       transport = override;
     } else {
-      PushTransport built;
-      try {
-        await (widget.firebaseInitializer ?? _defaultFirebaseInitializer)();
-        built = await (widget.fcmTransportBuilder ?? _defaultFcmTransportBuilder)();
-      } catch (error) {
-        // No Firebase config, or a real FCM/bridge failure. Degrade to the
-        // in-memory fake so the banner UI still works and cold start survives.
-        if (kDebugMode) {
-          debugPrint('[push] FCM transport unavailable; using fake: $error');
+      // D3: the plugin channel is not always up on the first post-frame try
+      // (`channel-error`), and a single failure used to strand the whole
+      // process on the fake — no FCM token, so no device registration at all.
+      final injectedSeam = widget.firebaseInitializer != null ||
+          widget.fcmTransportBuilder != null;
+      final attempts = injectedSeam ? 1 : _pushTransportMaxAttempts;
+      PushTransport? built;
+      for (var i = 0; i < attempts && built == null; i++) {
+        if (i > 0) await Future<void>.delayed(_pushTransportRetryDelay);
+        if (!mounted) return;
+        try {
+          await (widget.firebaseInitializer ?? _defaultFirebaseInitializer)();
+          built =
+              await (widget.fcmTransportBuilder ?? _defaultFcmTransportBuilder)();
+        } catch (error) {
+          // No Firebase config, or a real FCM/bridge failure. Degrade to the
+          // in-memory fake so the banner UI still works and cold start survives.
+          if (kDebugMode) {
+            debugPrint('[push] FCM transport attempt ${i + 1}/$attempts '
+                'failed: $error');
+          }
         }
-        built = FakePushTransport();
       }
-      transport = built;
+      if (built == null && kDebugMode) {
+        debugPrint('[push] FCM transport unavailable; using fake');
+      }
+      transport = built ?? FakePushTransport();
     }
     // A late unmount (dispose raced the await) must not leak the transport.
     if (!mounted) {

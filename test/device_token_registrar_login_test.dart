@@ -33,6 +33,57 @@ class _RecordingDio extends Fake implements Dio {
   }
 }
 
+/// D3: fails the first [failFirst] PUTs the way a live 5xx/offline gateway does,
+/// so a test can prove the registrar RETRIES instead of going dark.
+class _FlakyDio extends Fake implements Dio {
+  _FlakyDio({required this.failFirst});
+
+  final int failFirst;
+  final List<String> paths = <String>[];
+
+  @override
+  Future<Response<T>> put<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+  }) async {
+    paths.add(path);
+    if (paths.length <= failFirst) {
+      throw DioException(
+        requestOptions: RequestOptions(path: path),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: path),
+          statusCode: 503,
+        ),
+      );
+    }
+    return Response<T>(
+      requestOptions: RequestOptions(path: path),
+      statusCode: 201,
+    );
+  }
+}
+
+/// D3: hands out no FCM token until [availableAfter] `getToken` calls, modelling
+/// a cold start where Play Services has not minted the token yet.
+class _LateTokenTransport extends FakePushTransport {
+  _LateTokenTransport({required this.availableAfter, required this.token});
+
+  final int availableAfter;
+  final String token;
+  int calls = 0;
+
+  @override
+  Future<String?> getToken() async {
+    calls++;
+    return calls > availableAfter ? token : null;
+  }
+}
+
 class _FakeSecureStorage extends Fake implements FlutterSecureStorage {
   final Map<String, String> _data = {};
 
@@ -305,6 +356,109 @@ void main() {
     expect(dio.paths, [registerPath, registerPath],
         reason: 'a login after sign-out must re-register even for the same '
             'user, since DELETE /device dropped the token row');
+
+    await registrar.dispose();
+  });
+
+  test(
+      'D3: a login whose PUT FAILS re-arms the poll and registers on a later '
+      'attempt (was: one failure left the device unreachable forever)',
+      () async {
+    final storage = _FakeSecureStorage();
+    final tokenStore = AuthTokenStore(storage: storage);
+    final transport = FakePushTransport(token: 'fcm-flaky');
+    final dio = _FlakyDio(failFirst: 2);
+    final registrar = DeviceTokenRegistrar(
+      dio: dio,
+      tokenStore: tokenStore,
+      transport: transport,
+      prefs: prefs,
+      retryInterval: const Duration(milliseconds: 5),
+      maxAttempts: 10,
+    );
+
+    await tokenStore.save(
+      accessToken: 'mock-jwt-access-u1',
+      refreshToken: 'mock-refresh-u1',
+      userId: 'u1',
+    );
+    await registrar.notifyLogin();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    expect(dio.paths.length, 3,
+        reason: 'two 503s then a success — the retry must not stop at the '
+            'first failure');
+
+    await registrar.dispose();
+  });
+
+  test(
+      'D3: an FCM token that only arrives on a later poll tick still registers '
+      '(no onNewToken callback fires for an already-cached token)', () async {
+    final storage = _FakeSecureStorage();
+    final tokenStore = AuthTokenStore(storage: storage);
+    final transport = _LateTokenTransport(availableAfter: 2, token: 'fcm-late');
+    final dio = _RecordingDio();
+    final registrar = DeviceTokenRegistrar(
+      dio: dio,
+      tokenStore: tokenStore,
+      transport: transport,
+      prefs: prefs,
+      retryInterval: const Duration(milliseconds: 5),
+      maxAttempts: 10,
+    );
+
+    // Already signed in at cold start, but getToken() returns null twice.
+    await tokenStore.save(
+      accessToken: 'mock-jwt-access-u1',
+      refreshToken: 'mock-refresh-u1',
+      userId: 'u1',
+    );
+    await registrar.start();
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    expect(dio.paths, [registerPath]);
+    expect(dio.bodies.single['fcmToken'], 'fcm-late');
+
+    await registrar.dispose();
+  });
+
+  test(
+      'D3: revalidate() re-asserts the device row once the rate-limit window '
+      'has passed, and is a no-op inside it', () async {
+    final storage = _FakeSecureStorage();
+    final tokenStore = AuthTokenStore(storage: storage);
+    final transport = FakePushTransport(token: 'fcm-heal');
+    final dio = _RecordingDio();
+    var now = DateTime.utc(2026, 8, 10, 12);
+    final registrar = DeviceTokenRegistrar(
+      dio: dio,
+      tokenStore: tokenStore,
+      transport: transport,
+      prefs: prefs,
+      retryInterval: Duration.zero,
+      maxAttempts: 1,
+      revalidateInterval: const Duration(minutes: 30),
+      clock: () => now,
+    );
+
+    await tokenStore.save(
+      accessToken: 'mock-jwt-access-u1',
+      refreshToken: 'mock-refresh-u1',
+      userId: 'u1',
+    );
+    await registrar.notifyLogin();
+    expect(dio.paths.length, 1);
+
+    // Inside the window: a resume must not re-hit the gateway.
+    now = now.add(const Duration(minutes: 5));
+    await registrar.revalidate();
+    expect(dio.paths.length, 1);
+
+    // Past the window: re-assert, so a row deleted server-side comes back.
+    now = now.add(const Duration(minutes: 31));
+    await registrar.revalidate();
+    expect(dio.paths.length, 2);
 
     await registrar.dispose();
   });
