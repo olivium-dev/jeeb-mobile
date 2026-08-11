@@ -223,7 +223,7 @@ void main() {
       expect(pill, findsOneWidget);
       expect(
         tester.getSemantics(pill),
-        containsSemantics(
+        isSemantics(
           identifier: 'chat_dm_order_picked_button',
           isButton: true,
         ),

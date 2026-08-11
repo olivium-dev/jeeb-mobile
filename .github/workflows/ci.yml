@@ -11,7 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: '3.38.9'
+  # Must match the Mac Studio build machine (~/flutter-3.44) — the toolchain the
+  # APK that ships to the test phones is actually compiled with.
+  FLUTTER_VERSION: '3.44.2'
 
 jobs:
   analyze:
@@ -43,6 +45,9 @@ jobs:
       - name: Install dependencies
         id: pub_get
         run: flutter pub get
+
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
 
       - name: Analyze
         # `dart analyze` instead of `flutter analyze`: flutter analyze crashes
@@ -83,8 +88,13 @@ jobs:
         id: pub_get
         run: flutter pub get
 
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
+
       - name: Run tests
-        run: flutter test --reporter=expanded
+        # `capture` tags the two golden-PNG harnesses: review tooling, not gates,
+        # and host-rendered, so they cannot pass on a Linux runner.
+        run: flutter test --exclude-tags capture --reporter=expanded
 
   build-apk:
     name: Build APK (dev)
@@ -121,6 +131,9 @@ jobs:
       - name: Install dependencies
         id: pub_get
         run: flutter pub get
+
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
 
       - name: Validate Maps API key
         env:
