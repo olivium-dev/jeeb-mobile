@@ -107,7 +107,7 @@ void _expectTabSelected(
 }) {
   expect(
     tester.getSemantics(find.bySemanticsIdentifier('shell_tab_$tabId')),
-    containsSemantics(isSelected: selected),
+    isSemantics(isSelected: selected),
   );
 }
 
