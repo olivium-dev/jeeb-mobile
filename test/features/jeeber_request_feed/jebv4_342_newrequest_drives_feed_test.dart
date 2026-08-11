@@ -142,10 +142,8 @@ void main() {
       },
     );
 
-    // The delivery push DOES wake the bus now (close-out 2026-08-11 — the id
-    // guard was dropping status refreshes the pinned chat summary needed).
-    // What this negative control is really about is the FEED: a delivery push
-    // must not make the jeeber feed re-pull, and that is still true.
+    // Retargeted 2026-08-11: a delivery push now wakes the order topic, but
+    // what this control is about — it must not re-pull the FEED — still holds.
     test(
       'NEGATIVE: a delivery push does not wake the FEED topic',
       () async {

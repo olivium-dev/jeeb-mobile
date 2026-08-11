@@ -214,11 +214,8 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       NotificationCategory.offerAccepted,
       NotificationCategory.newRequest,
       NotificationCategory.chat,
-      // A delivery-status push is BY DEFINITION about the one order this
-      // device is on, and the bus it feeds is payload-less — the id was read
-      // and then thrown away. Dropping the signal over a missing/renamed id
-      // key is what left the pinned chat summary on "Matched" while tracking
-      // already read "In transit".
+      // Payload-less bus: the id was read then discarded, so guarding on it
+      // only stranded the pinned chat summary on a stale status.
       NotificationCategory.delivery,
       // F1 correction 4 — wallet pushes (guard-2 auto-withdraw) carry no
       // order/delivery/request id; without this they never reach _topicsFor.

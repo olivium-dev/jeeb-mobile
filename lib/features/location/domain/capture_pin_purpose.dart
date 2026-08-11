@@ -1,8 +1,7 @@
 import '../../../l10n/app_localizations.dart';
 
-/// What the capture-location pin is choosing. The screen is shared by the
-/// create-flow PICKUP leg, the saved-address/service-area pick and the
-/// drop-off leg; it used to claim "Drop-off here" on all three.
+/// What the shared capture-location screen is picking — it used to claim
+/// "Drop-off here" on every leg, pickup included.
 enum CapturePinPurpose {
   /// Create-request location leg — the point the jeeber collects from.
   pickup,

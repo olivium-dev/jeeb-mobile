@@ -27,9 +27,7 @@ class CaptureLocationPin extends StatelessWidget {
     this.purpose = CapturePinPurpose.dropOff,
   });
 
-  /// What the pin is choosing — drives the callout copy. The screen is shared
-  /// by the pickup leg and the saved-address pick, which both used to read
-  /// "Drop-off here".
+  /// What the pin is choosing — drives the callout copy.
   final CapturePinPurpose purpose;
 
   /// R11: `jFloat`/`jBreathe` both run at 2.6s here — much faster than the 4s

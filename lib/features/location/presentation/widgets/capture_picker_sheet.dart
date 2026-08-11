@@ -226,9 +226,7 @@ class _PinnedPointCard extends StatelessWidget {
                         style: context.jeebText.bodySmall
                             .copyWith(color: scheme.onSurfaceVariant),
                       ),
-                      // A latitude/longitude pair reorders inside an RTL
-                      // paragraph (the comma flips the two numbers), so the
-                      // whole run is pinned to LTR.
+                      // A lat/long pair reorders under RTL, so pin it to LTR.
                       Directionality(
                         textDirection: TextDirection.ltr,
                         child: Text(

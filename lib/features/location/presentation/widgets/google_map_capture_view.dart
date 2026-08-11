@@ -58,10 +58,8 @@ class GoogleMapCaptureView extends StatefulWidget {
   /// caller that renders the map full-height.
   final double bottomInset;
 
-  /// Centre the camera on the DEVICE once the map is created: the OS
-  /// last-known fix first (instant), then the live one-shot fix. Callers that
-  /// seed an explicit coordinate (editing a saved pin) leave it false — the
-  /// saved point is the answer, not the phone's current whereabouts.
+  /// Centre on the device once the map is created (cached fix, then live).
+  /// Callers seeding an explicit coordinate (saved-pin edit) leave it false.
   final bool centreOnDeviceLocation;
 
   /// Native +/- buttons. Off by default (the redesign board draws none).
@@ -106,6 +104,10 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
     super.dispose();
   }
 
+  /// Set once the user touches the map: a late live fix must never yank the
+  /// camera (and the pin) out from under a pan already in progress.
+  bool _userMovedMap = false;
+
   void _onCameraMove(CameraPosition position) {
     widget.controller.updateCenter(
       LocationPoint(
@@ -133,15 +135,14 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
     if (widget.centreOnDeviceLocation) unawaited(_centreOnDeviceLocation());
   }
 
-  /// The picker used to open on the Beirut seed whatever the phone knew. Move
-  /// to the cached OS fix at once, then to the live one when it lands; every
-  /// failure leaves the seed on screen, which is the previous behaviour.
+  /// Cached OS fix at once, then the live one; every failure path leaves the
+  /// seed on screen, which is the previous behaviour.
   Future<void> _centreOnDeviceLocation() async {
     final gateway = widget.gateway;
     if (gateway == null) return;
     try {
       final cached = await gateway.lastKnownFix();
-      if (cached != null && mounted) {
+      if (cached != null && mounted && !_userMovedMap) {
         await _map?.moveCamera(
           CameraUpdate.newLatLng(LatLng(cached.latitude, cached.longitude)),
         );
@@ -150,7 +151,7 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
       // No cached fix is not a failure state — the live read below still runs.
     }
     try {
-      if (!mounted) return;
+      if (!mounted || _userMovedMap) return;
       await _centreOnMe();
     } catch (_) {
       // Permission denied / services off: the seed stays, and the user can
@@ -163,21 +164,23 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        GoogleMap(
-          initialCameraPosition: CameraPosition(
-            target: LatLng(_initial.latitude, _initial.longitude),
-            zoom: widget.initialZoom,
+        Listener(
+          onPointerDown: (_) => _userMovedMap = true,
+          child: GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: LatLng(_initial.latitude, _initial.longitude),
+              zoom: widget.initialZoom,
+            ),
+            style: _mapStyle,
+            onMapCreated: _onMapCreated,
+            onCameraMove: _onCameraMove,
+            onCameraIdle: widget.onCameraSettled,
+            myLocationButtonEnabled: false,
+            // Never native: they sit under the docked sheet, and the `padding`
+            // that lifts them moves the camera target off the fixed pin.
+            zoomControlsEnabled: false,
+            mapToolbarEnabled: false,
           ),
-          style: _mapStyle,
-          onMapCreated: _onMapCreated,
-          onCameraMove: _onCameraMove,
-          onCameraIdle: widget.onCameraSettled,
-          myLocationButtonEnabled: false,
-          // NEVER the native controls: they sit under the docked sheet, and
-          // the `padding` that would lift them also moves the camera TARGET
-          // away from the widget centre the fixed pin is drawn at.
-          zoomControlsEnabled: false,
-          mapToolbarEnabled: false,
         ),
         if (!_styleSettled)
           Positioned.fill(
@@ -208,9 +211,8 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
 /// diameter plus one gap.
 const double _zoomControlsLift = Sizes.fourXLarge + Spacing.small;
 
-/// Manual zoom, drawn as the same glass discs as the recentre control so it
-/// clears the docked sheet — the native `zoomControlsEnabled` buttons cannot
-/// (see the GoogleMap note above).
+/// Manual zoom as the same glass discs as the recentre control, so it clears
+/// the docked sheet the native buttons cannot.
 class _ZoomControls extends StatelessWidget {
   const _ZoomControls({
     required this.onZoomIn,
@@ -265,8 +267,8 @@ class _GlassMapDisc extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final glass = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.midnight();
+    final glass =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     return Semantics(
       identifier: identifier,
       button: true,
@@ -302,10 +304,7 @@ class _GlassMapDisc extends StatelessWidget {
 /// (measured white 12%) + a 1px vivid glass stroke + `JeebShadows.overlay`,
 /// white glyph. Not a Material FAB: the board has no FAB shape anywhere.
 class _CentreOnMeButton extends StatelessWidget {
-  const _CentreOnMeButton({
-    required this.onPressed,
-    required this.bottomInset,
-  });
+  const _CentreOnMeButton({required this.onPressed, required this.bottomInset});
 
   /// R11 — 22px sits between `Sizes.large` (20) and `Sizes.xLarge` (24).
   static const double _glyphSize = 22;
@@ -320,8 +319,8 @@ class _CentreOnMeButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final glass = theme.extension<JeebSemanticColors>() ??
-        JeebSemanticColors.midnight();
+    final glass =
+        theme.extension<JeebSemanticColors>() ?? JeebSemanticColors.midnight();
     return PositionedDirectional(
       // The docked sheet ends at the safe-area edge, so the inset the caller
       // quotes is measured from there, not from the raw screen bottom.

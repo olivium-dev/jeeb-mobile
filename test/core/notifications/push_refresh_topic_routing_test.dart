@@ -202,11 +202,8 @@ void main() {
         reason: 'an undeclared call site must not silently stop refreshing');
   });
 
-  // INVERTED (close-out 2026-08-11). The id guard used to drop a delivery push
-  // that carried no id — but the bus is payload-less and the id was discarded
-  // after the guard read it, so the only effect was a live surface (the pinned
-  // chat summary) staying on a stale status. The guard still applies to the
-  // remaining orderish categories.
+  // INVERTED 2026-08-11: the id guard used to drop id-less delivery pushes,
+  // stranding the pinned chat summary. It still applies to the others.
   test('a delivery push with no id still wakes the order topic — and ONLY it',
       () async {
     await arrive(_message(

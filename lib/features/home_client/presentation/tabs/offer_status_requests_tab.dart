@@ -20,9 +20,7 @@ class OfferStatusRequestsTab extends StatelessWidget {
   final ClientOfferStatus status;
   final List<ClientHomeRequest> requests;
 
-  /// REPLACES the default navigation when provided (tests / dev seams). The
-  /// cards used to be inert: a customer filtering to "Accepted" could see the
-  /// order and had no way to open it.
+  /// REPLACES the default navigation when provided (tests / dev seams).
   final void Function(ClientHomeRequest request)? onOpenRequest;
 
   @override
@@ -111,11 +109,8 @@ class _OfferStatusRequestCard extends StatelessWidget {
   }
 }
 
-/// Opens the order behind a filtered offer-status card.
-///
-/// An accepted offer HAS a delivery, so it opens the live-tracking surface the
-/// In-Progress tab uses; anything still in the auction opens that request's
-/// offer list. Both are existing routes — no new destination.
+/// Accepted → the live-tracking surface the In-Progress tab uses; still in the
+/// auction → that request's offer list. Both existing routes.
 void openOfferStatusRequest(BuildContext context, ClientHomeRequest request) {
   if (request.id.isEmpty) return;
   final router = GoRouter.of(context);
