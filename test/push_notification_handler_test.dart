@@ -173,10 +173,8 @@ void main() {
       expect(await countSignalsFor(bare), 1);
     });
 
-    // WAS "does NOT signal". Inverted deliberately (close-out 2026-08-11): the
-    // bus is payload-less, the id was read and discarded, and dropping the
-    // signal over a missing/renamed id key is what left the pinned chat summary
-    // reading "Matched" while the tracking screen already read "In transit".
+    // WAS "does NOT signal", inverted deliberately: the bus is payload-less, so
+    // dropping the signal over a missing id key left the chat pin stale.
     test('a delivery push with no order/delivery/request id STILL signals',
         () async {
       final noId = NotificationMessage(

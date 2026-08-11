@@ -34,9 +34,7 @@ void main() {
     await tester.pump(); // start the push
     await tester.pump(const Duration(milliseconds: 350)); // route transition
 
-    // A saved address is neither a pickup nor a drop-off, so the CTA reads
-    // "Confirm location" (close-out 2026-08-11: the screen used to claim a
-    // drop-off on every leg that mounted it).
+    // A saved address is neither a pickup nor a drop-off, so the CTA is neutral.
     final cta = find.text('Confirm location');
     expect(cta, findsOneWidget);
     // The seed reaches the sheet's pinned-point card, so what the customer
