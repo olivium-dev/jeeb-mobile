@@ -80,7 +80,8 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
   /// Re-stamps server-side last_location on foreground so an idle-online
   /// jeeber stays visible to new-request fan-out without any polling.
   Future<void> refreshLocationOnResume() async {
-    if (!state.status.isOnline ||
+    if (isClosed ||
+        !state.status.isOnline ||
         state.isToggleInFlight ||
         _locationRefreshInFlight) {
       return;
@@ -88,6 +89,7 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
     _locationRefreshInFlight = true;
     try {
       final snapshot = await _gateway.fetch();
+      if (isClosed) return;
       emit(state.copyWith(status: snapshot));
       // Server may have auto-offlined us; refreshing would silently resurrect.
       if (!snapshot.isOnline) return;
@@ -106,9 +108,11 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
     ));
     try {
       final outcome = await _gateway.refreshLocation();
-      emit(state.copyWith(locationOutcome: outcome));
+      if (!isClosed) emit(state.copyWith(locationOutcome: outcome));
     } on AvailabilityGatewayException {
-      emit(state.copyWith(locationOutcome: GoOnlineLocationOutcome.fixFailed));
+      if (!isClosed) {
+        emit(state.copyWith(locationOutcome: GoOnlineLocationOutcome.fixFailed));
+      }
     }
   }
 

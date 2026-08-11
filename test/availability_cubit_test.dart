@@ -352,6 +352,23 @@ void main() {
       await cubit.close();
     });
 
+    test('a resume that lands after the tab is torn down does not emit',
+        () async {
+      final gate = Completer<AvailabilityStatus>();
+      when(() => gateway.fetch()).thenAnswer((_) => gate.future);
+      final cubit = build(resumeSignals: resumes.stream);
+      cubit.emit(const AvailabilityViewState(status: online));
+
+      resumes.add(null);
+      await pump();
+      await cubit.close();
+      gate.complete(online);
+
+      // Emitting on a closed cubit throws; the guard must swallow the race.
+      await expectLater(pump(), completes);
+      verifyNever(() => gateway.refreshLocation());
+    });
+
     test('retryLocationAttach is inert while offline', () async {
       final cubit = build();
       await cubit.retryLocationAttach();
