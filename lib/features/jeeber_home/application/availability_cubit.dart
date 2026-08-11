@@ -13,11 +13,16 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
     AvailabilityInactivityPolicy policy = const AvailabilityInactivityPolicy(),
     DateTime Function()? clock,
     Stream<DateTime> Function()? tickerFactory,
+    Stream<void>? resumeSignals,
   })  : _gateway = gateway,
         _policy = policy,
         _clock = clock ?? DateTime.now,
         _tickerFactory = tickerFactory ?? _defaultTickerFactory,
-        super(const AvailabilityViewState());
+        super(const AvailabilityViewState()) {
+    _resumeSub = resumeSignals?.listen(
+      (_) => unawaited(refreshLocationOnResume()),
+    );
+  }
 
   final AvailabilityGateway _gateway;
   final AvailabilityInactivityPolicy _policy;
@@ -25,6 +30,9 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
   final Stream<DateTime> Function() _tickerFactory;
 
   StreamSubscription<DateTime>? _idleTicker;
+  StreamSubscription<void>? _resumeSub;
+
+  bool _locationRefreshInFlight = false;
 
   static Stream<DateTime> _defaultTickerFactory() =>
       Stream<DateTime>.periodic(
@@ -54,15 +62,57 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
     final goOnline = !state.status.isOnline;
     emit(state.copyWith(isToggleInFlight: true, toggleError: false));
     try {
-      final snapshot = await _gateway.toggle(goOnline: goOnline);
+      final result = await _gateway.toggle(goOnline: goOnline);
       emit(state.copyWith(
         isToggleInFlight: false,
-        status: snapshot,
+        status: result.status,
         warningVisible: false,
+        locationOutcome: goOnline
+            ? result.location
+            : GoOnlineLocationOutcome.notApplicable,
       ));
       _restartIdleTickerIfOnline();
     } on AvailabilityGatewayException {
       emit(state.copyWith(isToggleInFlight: false, toggleError: true));
+    }
+  }
+
+  /// Re-stamps server-side last_location on foreground so an idle-online
+  /// jeeber stays visible to new-request fan-out without any polling.
+  Future<void> refreshLocationOnResume() async {
+    if (isClosed ||
+        !state.status.isOnline ||
+        state.isToggleInFlight ||
+        _locationRefreshInFlight) {
+      return;
+    }
+    _locationRefreshInFlight = true;
+    try {
+      final snapshot = await _gateway.fetch();
+      if (isClosed) return;
+      emit(state.copyWith(status: snapshot));
+      // Server may have auto-offlined us; refreshing would silently resurrect.
+      if (!snapshot.isOnline) return;
+      await _gateway.refreshLocation();
+    } on AvailabilityGatewayException {
+      // Best-effort: a failed resume refresh must not surface an error.
+    } finally {
+      _locationRefreshInFlight = false;
+    }
+  }
+
+  Future<void> retryLocationAttach() async {
+    if (!state.status.isOnline) return;
+    emit(state.copyWith(
+      locationOutcome: GoOnlineLocationOutcome.notApplicable,
+    ));
+    try {
+      final outcome = await _gateway.refreshLocation();
+      if (!isClosed) emit(state.copyWith(locationOutcome: outcome));
+    } on AvailabilityGatewayException {
+      if (!isClosed) {
+        emit(state.copyWith(locationOutcome: GoOnlineLocationOutcome.fixFailed));
+      }
     }
   }
 
@@ -106,6 +156,8 @@ class AvailabilityCubit extends Cubit<AvailabilityViewState> {
   Future<void> close() {
     _idleTicker?.cancel();
     _idleTicker = null;
+    _resumeSub?.cancel();
+    _resumeSub = null;
     return super.close();
   }
 }

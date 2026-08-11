@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../domain/entities/availability_status.dart';
+import '../domain/services/availability_gateway.dart';
 
 enum AvailabilityLoadPhase { initial, loading, ready, loadError }
 
@@ -11,6 +12,7 @@ class AvailabilityViewState extends Equatable {
     this.isToggleInFlight = false,
     this.toggleError = false,
     this.warningVisible = false,
+    this.locationOutcome = GoOnlineLocationOutcome.notApplicable,
   });
 
   final AvailabilityLoadPhase loadPhase;
@@ -23,12 +25,15 @@ class AvailabilityViewState extends Equatable {
 
   final bool warningVisible;
 
+  final GoOnlineLocationOutcome locationOutcome;
+
   AvailabilityViewState copyWith({
     AvailabilityLoadPhase? loadPhase,
     AvailabilityStatus? status,
     bool? isToggleInFlight,
     bool? toggleError,
     bool? warningVisible,
+    GoOnlineLocationOutcome? locationOutcome,
   }) {
     return AvailabilityViewState(
       loadPhase: loadPhase ?? this.loadPhase,
@@ -36,6 +41,7 @@ class AvailabilityViewState extends Equatable {
       isToggleInFlight: isToggleInFlight ?? this.isToggleInFlight,
       toggleError: toggleError ?? this.toggleError,
       warningVisible: warningVisible ?? this.warningVisible,
+      locationOutcome: locationOutcome ?? this.locationOutcome,
     );
   }
 
@@ -46,5 +52,6 @@ class AvailabilityViewState extends Equatable {
         isToggleInFlight,
         toggleError,
         warningVisible,
+        locationOutcome,
       ];
 }

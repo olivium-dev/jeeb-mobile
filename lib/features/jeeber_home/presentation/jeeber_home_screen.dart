@@ -16,6 +16,7 @@ import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../background_gps/data/geolocator_geocapture_gateway.dart';
 import '../../jeeber_request_feed/cubit/request_feed_cubit.dart';
 import '../../jeeber_request_feed/cubit/request_feed_state.dart';
 import '../../jeeber_request_feed/cubit/submitted_offers_cubit.dart';
@@ -25,6 +26,7 @@ import '../application/availability_cubit.dart';
 import '../application/availability_state.dart';
 import '../domain/entities/availability_status.dart';
 import '../domain/entities/feed_request.dart';
+import '../domain/services/availability_gateway.dart';
 import 'widgets/jeeber_active_deliveries_banner.dart';
 import 'widgets/jeeber_feed_tab_view.dart';
 import 'widgets/jeeber_no_requests_view.dart';
@@ -239,6 +241,7 @@ class _RegisteredBodyState extends State<_RegisteredBody> {
     return BlocConsumer<AvailabilityCubit, AvailabilityViewState>(
       listenWhen: (prev, curr) =>
           prev.toggleError != curr.toggleError ||
+          prev.locationOutcome != curr.locationOutcome ||
           (curr.loadPhase == AvailabilityLoadPhase.loadError &&
               prev.loadPhase != AvailabilityLoadPhase.loadError),
       listener: _onStateChange,
@@ -255,8 +258,39 @@ class _RegisteredBodyState extends State<_RegisteredBody> {
 
   void _onStateChange(BuildContext context, AvailabilityViewState view) {
     if (view.toggleError) _showToggleErrorSnackbar(context, view);
+    _showLocationOutcomeSnackbar(context, view);
     if (view.loadPhase == AvailabilityLoadPhase.loadError) {
       unawaited(_autoActivateJeeber());
+    }
+  }
+
+  /// Without coordinates the jeeber is silently dropped from new-request
+  /// fan-out, so a failed fix must be visible and recoverable.
+  void _showLocationOutcomeSnackbar(
+    BuildContext context,
+    AvailabilityViewState view,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    switch (view.locationOutcome) {
+      case GoOnlineLocationOutcome.permissionDenied:
+        showOmdsSnackbar(
+          context,
+          message: l10n.availabilityLocationPermissionBody,
+          actionLabel: l10n.availabilityLocationOpenSettings,
+          onAction: () =>
+              unawaited(GeolocatorGeocaptureGateway().openAppSettings()),
+        );
+      case GoOnlineLocationOutcome.fixFailed:
+        showOmdsSnackbar(
+          context,
+          message: l10n.availabilityLocationFixFailedBody,
+          actionLabel: l10n.availabilityLocationRetry,
+          onAction: () =>
+              unawaited(context.read<AvailabilityCubit>().retryLocationAttach()),
+        );
+      case GoOnlineLocationOutcome.attached:
+      case GoOnlineLocationOutcome.notApplicable:
+        break;
     }
   }
 

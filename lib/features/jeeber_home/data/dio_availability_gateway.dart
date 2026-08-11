@@ -12,6 +12,7 @@ class DioAvailabilityGateway implements AvailabilityGateway {
     this.jeeberId,
     this.tokenStore,
     this.locationFix,
+    this.lastKnownFix,
   });
 
   final Dio _dio;
@@ -19,7 +20,11 @@ class DioAvailabilityGateway implements AvailabilityGateway {
 
   final Future<GpsSample> Function()? locationFix;
 
+  final Future<GpsSample?> Function()? lastKnownFix;
+
   final String? jeeberId;
+
+  static const Duration _retryBackoff = Duration(milliseconds: 500);
 
   Future<String?> _id() async {
     final explicit = jeeberId;
@@ -48,30 +53,60 @@ class DioAvailabilityGateway implements AvailabilityGateway {
   }
 
   @override
-  Future<AvailabilityStatus> toggle({required bool goOnline}) async {
+  Future<AvailabilityToggleResult> toggle({required bool goOnline}) async {
     try {
-      final response = MockGatewayClient.useMockPrefixes
-          ? await _dio.post<Map<String, dynamic>>(
-              _mockBasePath,
-              data: {'userId': await _requiredId(), 'available': goOnline},
-            )
-          : await _dio.patch<Map<String, dynamic>>(
-              _livePath,
-              data: goOnline ? await _onlinePayload() : {'online': false},
-            );
-      return _parse(response.data ?? {});
+      if (MockGatewayClient.useMockPrefixes) {
+        final response = await _dio.post<Map<String, dynamic>>(
+          _mockBasePath,
+          data: {'userId': await _requiredId(), 'available': goOnline},
+        );
+        return AvailabilityToggleResult(status: _parse(response.data ?? {}));
+      }
+      if (!goOnline) {
+        final response = await _dio.patch<Map<String, dynamic>>(
+          _livePath,
+          data: {'online': false},
+        );
+        return AvailabilityToggleResult(status: _parse(response.data ?? {}));
+      }
+      final (fix, outcome) = await _captureFix();
+      final response = await _dio.patch<Map<String, dynamic>>(
+        _livePath,
+        data: _onlinePayload(fix),
+      );
+      return AvailabilityToggleResult(
+        status: _parse(response.data ?? {}),
+        location: outcome,
+      );
     } on DioException catch (e) {
       throw AvailabilityGatewayException(e.message ?? 'toggle failed');
     }
   }
 
-  Future<Map<String, dynamic>> _onlinePayload() async {
+  @override
+  Future<GoOnlineLocationOutcome> refreshLocation() async {
+    if (MockGatewayClient.useMockPrefixes) {
+      return GoOnlineLocationOutcome.notApplicable;
+    }
+    final (fix, outcome) = await _captureFix(attempts: 1);
+    if (fix == null) return outcome;
+    try {
+      await _dio.patch<Map<String, dynamic>>(
+        _livePath,
+        data: _onlinePayload(fix),
+      );
+      return GoOnlineLocationOutcome.attached;
+    } on DioException catch (e) {
+      throw AvailabilityGatewayException(e.message ?? 'refresh failed');
+    }
+  }
+
+  Map<String, dynamic> _onlinePayload(GpsSample? fix) {
     final payload = <String, dynamic>{
       'online': true,
       'vehicleType': 'car',
       'zone': 'default',
     };
-    final fix = await _tryLocationFix();
     if (fix != null) {
       payload['latitude'] = fix.latitude;
       payload['longitude'] = fix.longitude;
@@ -79,14 +114,34 @@ class DioAvailabilityGateway implements AvailabilityGateway {
     return payload;
   }
 
-  Future<GpsSample?> _tryLocationFix() async {
+  /// Retries a transient fix failure, then falls back to the cached OS fix;
+  /// a denied permission short-circuits because retrying cannot help.
+  Future<(GpsSample?, GoOnlineLocationOutcome)> _captureFix({
+    int attempts = 2,
+  }) async {
     final capture = locationFix;
-    if (capture == null) return null;
-    try {
-      return await capture();
-    } catch (_) {
-      return null;
+    if (capture == null) return (null, GoOnlineLocationOutcome.notApplicable);
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      try {
+        return (await capture(), GoOnlineLocationOutcome.attached);
+      } on LocationCaptureDeniedException {
+        return (null, GoOnlineLocationOutcome.permissionDenied);
+      } catch (_) {
+        if (attempt < attempts - 1) await Future<void>.delayed(_retryBackoff);
+      }
     }
+    final cached = lastKnownFix;
+    if (cached != null) {
+      try {
+        final sample = await cached();
+        if (sample != null) {
+          return (sample, GoOnlineLocationOutcome.attached);
+        }
+      } catch (_) {
+        // fall through to fixFailed
+      }
+    }
+    return (null, GoOnlineLocationOutcome.fixFailed);
   }
 
   Future<String> _fetchPath() async {
