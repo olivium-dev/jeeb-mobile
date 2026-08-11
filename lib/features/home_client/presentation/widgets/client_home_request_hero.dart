@@ -151,19 +151,14 @@ class ClientHomeRequestHero extends StatelessWidget {
                 // run a node of its own reads the same words twice — and the
                 // hint rotates, so it is never the accessible name.
                 child: ExcludeSemantics(
-                  child: firstRequest
-                      ? Text(
-                          title,
-                          style: titleStyle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      : ClientHomeTypedHint(
-                          examples: _hintExamples(l10n),
-                          restLabel: title,
-                          style: titleStyle,
-                          caretColor: context.jeebRoles.accent,
-                        ),
+                  // Empty state animates too: typed hints entice the first order;
+                  // restLabel keeps the reduce-motion still + the a11y name.
+                  child: ClientHomeTypedHint(
+                    examples: _hintExamples(l10n),
+                    restLabel: title,
+                    style: titleStyle,
+                    caretColor: context.jeebRoles.accent,
+                  ),
                 ),
               ),
               if (showChevron) ...[
