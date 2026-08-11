@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:omds/omds.dart';
@@ -31,6 +33,8 @@ class GoogleMapCaptureView extends StatefulWidget {
     this.onCameraSettled,
     this.initialZoom = 16,
     this.bottomInset = Spacing.large,
+    this.centreOnDeviceLocation = false,
+    this.showZoomControls = false,
   });
 
   /// Two-way seam for the centre coordinate. The launcher owns it.
@@ -53,6 +57,15 @@ class GoogleMapCaptureView extends StatefulWidget {
   /// has to clear it; the default keeps the pre-redesign placement for any
   /// caller that renders the map full-height.
   final double bottomInset;
+
+  /// Centre the camera on the DEVICE once the map is created: the OS
+  /// last-known fix first (instant), then the live one-shot fix. Callers that
+  /// seed an explicit coordinate (editing a saved pin) leave it false — the
+  /// saved point is the answer, not the phone's current whereabouts.
+  final bool centreOnDeviceLocation;
+
+  /// Native +/- buttons. Off by default (the redesign board draws none).
+  final bool showZoomControls;
 
   @override
   State<GoogleMapCaptureView> createState() => _GoogleMapCaptureViewState();
@@ -111,6 +124,40 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
     );
   }
 
+  Future<void> _zoomBy(double delta) async {
+    await _map?.animateCamera(CameraUpdate.zoomBy(delta));
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    _map = controller;
+    if (widget.centreOnDeviceLocation) unawaited(_centreOnDeviceLocation());
+  }
+
+  /// The picker used to open on the Beirut seed whatever the phone knew. Move
+  /// to the cached OS fix at once, then to the live one when it lands; every
+  /// failure leaves the seed on screen, which is the previous behaviour.
+  Future<void> _centreOnDeviceLocation() async {
+    final gateway = widget.gateway;
+    if (gateway == null) return;
+    try {
+      final cached = await gateway.lastKnownFix();
+      if (cached != null && mounted) {
+        await _map?.moveCamera(
+          CameraUpdate.newLatLng(LatLng(cached.latitude, cached.longitude)),
+        );
+      }
+    } catch (_) {
+      // No cached fix is not a failure state — the live read below still runs.
+    }
+    try {
+      if (!mounted) return;
+      await _centreOnMe();
+    } catch (_) {
+      // Permission denied / services off: the seed stays, and the user can
+      // still pan. The recovery surfaces own the permission conversation.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -122,10 +169,13 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
             zoom: widget.initialZoom,
           ),
           style: _mapStyle,
-          onMapCreated: (controller) => _map = controller,
+          onMapCreated: _onMapCreated,
           onCameraMove: _onCameraMove,
           onCameraIdle: widget.onCameraSettled,
           myLocationButtonEnabled: false,
+          // NEVER the native controls: they sit under the docked sheet, and
+          // the `padding` that would lift them also moves the camera TARGET
+          // away from the widget centre the fixed pin is drawn at.
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
         ),
@@ -138,12 +188,108 @@ class _GoogleMapCaptureViewState extends State<GoogleMapCaptureView> {
               ),
             ),
           ),
+        if (widget.showZoomControls)
+          _ZoomControls(
+            onZoomIn: () => _zoomBy(1),
+            onZoomOut: () => _zoomBy(-1),
+            bottomInset: widget.bottomInset + _zoomControlsLift,
+          ),
         if (widget.gateway != null)
           _CentreOnMeButton(
             onPressed: _centreOnMe,
             bottomInset: widget.bottomInset,
           ),
       ],
+    );
+  }
+}
+
+/// How far above the "centre on me" disc the zoom stack sits: the disc's own
+/// diameter plus one gap.
+const double _zoomControlsLift = Sizes.fourXLarge + Spacing.small;
+
+/// Manual zoom, drawn as the same glass discs as the recentre control so it
+/// clears the docked sheet — the native `zoomControlsEnabled` buttons cannot
+/// (see the GoogleMap note above).
+class _ZoomControls extends StatelessWidget {
+  const _ZoomControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.bottomInset,
+  });
+
+  final Future<void> Function() onZoomIn;
+  final Future<void> Function() onZoomOut;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    return PositionedDirectional(
+      bottom: bottomInset + MediaQuery.viewPaddingOf(context).bottom,
+      end: Spacing.large,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _GlassMapDisc(
+            identifier: 'capture_location_zoom_in',
+            icon: Icons.add,
+            onPressed: onZoomIn,
+          ),
+          const SizedBox(height: Spacing.small),
+          _GlassMapDisc(
+            identifier: 'capture_location_zoom_out',
+            icon: Icons.remove,
+            onPressed: onZoomOut,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The Ø48 glass disc the map's floating controls are all drawn as.
+class _GlassMapDisc extends StatelessWidget {
+  const _GlassMapDisc({
+    required this.identifier,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  static const double _glyphSize = 22;
+
+  final String identifier;
+  final IconData icon;
+  final Future<void> Function() onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final glass = theme.extension<JeebSemanticColors>() ??
+        JeebSemanticColors.midnight();
+    return Semantics(
+      identifier: identifier,
+      button: true,
+      child: Container(
+        width: Sizes.fourXLarge,
+        height: Sizes.fourXLarge,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: glass.glassFillEmphasis,
+          border: Border.all(color: glass.glassBorderVivid),
+          boxShadow: JeebShadows.overlay,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: Center(
+              child: Icon(icon, size: _glyphSize, color: scheme.onSurface),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

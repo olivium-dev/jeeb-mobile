@@ -74,9 +74,20 @@ class _ComposeTierSectionState extends State<ComposeTierSection> {
   }
 
   Future<void> _openPicker() async {
+    // The description field above is usually still focused; the sheet's modal
+    // route RESTORES that focus when it pops, and the re-raised keyboard hides
+    // the "Confirm location" CTA (two failed submits on device). Dropping focus
+    // before the push leaves nothing to restore; the post-pop unfocus covers
+    // the case where the framework re-focuses on the next frame.
+    FocusManager.instance.primaryFocus?.unfocus();
     final picked = await _ComposeTierSheet.show(context);
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FocusManager.instance.primaryFocus?.unfocus();
+    });
     final compose = _compose;
-    if (picked == null || compose == null || !mounted) return;
+    if (picked == null || compose == null) return;
     setState(() => compose.changeTier(picked));
   }
 }

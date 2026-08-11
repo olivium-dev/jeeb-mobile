@@ -202,15 +202,35 @@ void main() {
         reason: 'an undeclared call site must not silently stop refreshing');
   });
 
-  test('the id guard still applies to orderish pushes — a delivery push with '
-      'no id publishes nothing at all', () async {
+  // INVERTED (close-out 2026-08-11). The id guard used to drop a delivery push
+  // that carried no id — but the bus is payload-less and the id was discarded
+  // after the guard read it, so the only effect was a live surface (the pinned
+  // chat summary) staying on a stale status. The guard still applies to the
+  // remaining orderish categories.
+  test('a delivery push with no id still wakes the order topic — and ONLY it',
+      () async {
     await arrive(_message(
       'm-delivery-no-id',
       category: NotificationCategory.delivery,
       data: const <String, String>{},
     ));
 
+    expect(order.wakes, 1);
+    expect(chat.wakes, isZero);
+    expect(feed.wakes, isZero);
+    expect(offers.wakes, isZero);
+  });
+
+  test('the id guard still applies to the other orderish pushes — a newOffer '
+      'push with no id publishes nothing at all', () async {
+    await arrive(_message(
+      'm-newoffer-no-id',
+      category: NotificationCategory.newOffer,
+      data: const <String, String>{},
+    ));
+
     expect(order.wakes, isZero);
+    expect(offers.wakes, isZero);
     expect(unfiltered.wakes, isZero);
   });
 

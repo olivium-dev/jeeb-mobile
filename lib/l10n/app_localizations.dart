@@ -2978,6 +2978,16 @@ extension AppLocalizationsRestored on AppLocalizations {
       _get('captureLocationDropOffCallout');
   String get captureLocationConfirmDropOffCta =>
       _get('captureLocationConfirmDropOffCta');
+  String get captureLocationPickupCallout =>
+      _get('captureLocationPickupCallout');
+  String get captureLocationConfirmPickupCta =>
+      _get('captureLocationConfirmPickupCta');
+  String get captureLocationPlaceCallout =>
+      _get('captureLocationPlaceCallout');
+  String get captureLocationConfirmPlaceCta =>
+      _get('captureLocationConfirmPlaceCta');
+  String get captureLocationSelectedPoint =>
+      _get('captureLocationSelectedPoint');
 
   // MIDNIGHT R22 · settings
   String get settingsNotificationCategoryOffers =>

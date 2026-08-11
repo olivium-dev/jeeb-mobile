@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../domain/capture_pin_purpose.dart';
 import 'widgets/capture_location_pin.dart';
 import 'widgets/capture_map_viewport.dart';
 import 'widgets/capture_picker_sheet.dart';
@@ -27,6 +28,7 @@ class CaptureLocationScreen extends StatelessWidget {
     this.isConfirming = false,
     this.controller,
     this.showCentrePin = true,
+    this.purpose = CapturePinPurpose.dropOff,
   });
 
   /// Invoked when the user confirms the pinned point. When null the screen pops
@@ -50,6 +52,10 @@ class CaptureLocationScreen extends StatelessWidget {
   /// drawing the centre pin over the message would be a lie.
   final bool showCentrePin;
 
+  /// What this pick is FOR. Drives the pin callout and the confirm CTA so the
+  /// pickup leg no longer says "Drop-off here".
+  final CapturePinPurpose purpose;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -65,7 +71,11 @@ class CaptureLocationScreen extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            _MapStack(mapBuilder: mapBuilder, showCentrePin: showCentrePin),
+            _MapStack(
+              mapBuilder: mapBuilder,
+              showCentrePin: showCentrePin,
+              purpose: purpose,
+            ),
             PositionedDirectional(
               start: 0,
               end: 0,
@@ -84,6 +94,7 @@ class CaptureLocationScreen extends StatelessWidget {
                 onPin: () => _onPin(context),
                 isConfirming: isConfirming,
                 controller: controller,
+                purpose: purpose,
               ),
             ),
           ],
@@ -107,10 +118,15 @@ class CaptureLocationScreen extends StatelessWidget {
 /// The map viewport with the fixed centre pin layered on top. The pin never
 /// moves — the map pans underneath — so it sits in an [IgnorePointer] overlay.
 class _MapStack extends StatelessWidget {
-  const _MapStack({required this.mapBuilder, required this.showCentrePin});
+  const _MapStack({
+    required this.mapBuilder,
+    required this.showCentrePin,
+    required this.purpose,
+  });
 
   final WidgetBuilder? mapBuilder;
   final bool showCentrePin;
+  final CapturePinPurpose purpose;
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +139,8 @@ class _MapStack extends StatelessWidget {
           label: l10n.captureLocationMapSemantic,
           child: mapBuilder?.call(context) ?? const CaptureMapViewport(),
         ),
-        if (showCentrePin) const Center(child: CaptureLocationPin()),
+        if (showCentrePin)
+          Center(child: CaptureLocationPin(purpose: purpose)),
       ],
     );
   }

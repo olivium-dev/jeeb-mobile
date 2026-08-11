@@ -8,6 +8,7 @@ import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../core/widgets/jeeb/jeeb_cta_footer.dart';
 import '../../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../domain/capture_pin_purpose.dart';
 import 'map_capture_controller.dart';
 
 /// The frosted sheet docked over the capture map (MIDNIGHT R11): a grab handle,
@@ -27,6 +28,7 @@ class CapturePickerSheet extends StatelessWidget {
     required this.onPin,
     required this.isConfirming,
     this.controller,
+    this.purpose = CapturePinPurpose.dropOff,
   });
 
   /// Grab-handle geometry (R11: 44 × 5, white 20%).
@@ -41,8 +43,9 @@ class CapturePickerSheet extends StatelessWidget {
   /// controls clear of the sheet instead of hiding them behind it — the sheet
   /// owns its own composition, so it is the only honest source for this.
   ///
-  /// = top pad 12 + handle 5 + gap 16 + card ~60 + gap 16 + CTA 56 + pad 28.
-  static const double dockedClearance = 193;
+  /// = top pad 12 + handle 5 + gap 16 + card ~78 + gap 16 + CTA 56 + pad 28.
+  /// The card grew by one caption line ("Selected point") above the coordinate.
+  static const double dockedClearance = 211;
 
   /// Fires the "Pin Location" confirm.
   final VoidCallback onPin;
@@ -55,6 +58,10 @@ class CapturePickerSheet extends StatelessWidget {
   /// conditional: with no map there is no coordinate to show, and inventing one
   /// is the bug JEBV4-176 removed.
   final MapCaptureController? controller;
+
+  /// What the picked point is for — drives the CTA copy so the button does not
+  /// claim "Confirm drop-off" on the pickup leg.
+  final CapturePinPurpose purpose;
 
   @override
   Widget build(BuildContext context) {
@@ -108,12 +115,17 @@ class CapturePickerSheet extends StatelessWidget {
                   identifier: 'capture_location_pin_cta',
                   button: true,
                   child: live == null
-                      ? _ConfirmCta(enabled: !isConfirming, onPin: onPin)
+                      ? _ConfirmCta(
+                          enabled: !isConfirming,
+                          onPin: onPin,
+                          purpose: purpose,
+                        )
                       : ListenableBuilder(
                           listenable: live,
                           builder: (context, _) => _ConfirmCta(
                             enabled: !isConfirming && live.isReady,
                             onPin: onPin,
+                            purpose: purpose,
                           ),
                         ),
                 ),
@@ -130,10 +142,15 @@ class CapturePickerSheet extends StatelessWidget {
 /// be driven either statically ([CapturePickerSheet.isConfirming] alone, no
 /// map) or reactively (also gated on [MapCaptureController.isReady]).
 class _ConfirmCta extends StatelessWidget {
-  const _ConfirmCta({required this.enabled, required this.onPin});
+  const _ConfirmCta({
+    required this.enabled,
+    required this.onPin,
+    required this.purpose,
+  });
 
   final bool enabled;
   final VoidCallback onPin;
+  final CapturePinPurpose purpose;
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +162,7 @@ class _ConfirmCta extends StatelessWidget {
         boxShadow: enabled ? JeebShadows.ctaOrange : null,
       ),
       child: OmdsPrimaryButton(
-        text: l10n.captureLocationConfirmDropOffCta,
+        text: purpose.confirmCta(l10n),
         isEnabled: enabled,
         height: CapturePickerSheet.ctaHeight,
         borderRadius: OmdsBorderRadius.pill,
@@ -178,6 +195,7 @@ class _PinnedPointCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       identifier: 'capture_location_address_card',
       container: true,
@@ -199,17 +217,28 @@ class _PinnedPointCard extends StatelessWidget {
                 Icon(Icons.location_on, size: _pinSize, color: scheme.error),
                 const SizedBox(width: Spacing.small),
                 Expanded(
-                  // A latitude/longitude pair reorders inside an RTL paragraph
-                  // (the comma flips the two numbers), so the whole run is
-                  // pinned to LTR.
-                  child: Directionality(
-                    textDirection: TextDirection.ltr,
-                    child: Text(
-                      label,
-                      style: context.jeebText.cardTitle
-                          .copyWith(color: scheme.onSurface),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        l10n.captureLocationSelectedPoint,
+                        style: context.jeebText.bodySmall
+                            .copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                      // A latitude/longitude pair reorders inside an RTL
+                      // paragraph (the comma flips the two numbers), so the
+                      // whole run is pinned to LTR.
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          label,
+                          style: context.jeebText.cardTitle
+                              .copyWith(color: scheme.onSurface),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 // TODO(midnight): omitted — the board's "GPS · accurate to 8 m"

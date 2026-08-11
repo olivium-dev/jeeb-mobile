@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_text_styles.dart';
@@ -13,10 +14,16 @@ class OfferStatusRequestsTab extends StatelessWidget {
     super.key,
     required this.status,
     required this.requests,
+    this.onOpenRequest,
   });
 
   final ClientOfferStatus status;
   final List<ClientHomeRequest> requests;
+
+  /// REPLACES the default navigation when provided (tests / dev seams). The
+  /// cards used to be inert: a customer filtering to "Accepted" could see the
+  /// order and had no way to open it.
+  final void Function(ClientHomeRequest request)? onOpenRequest;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +50,11 @@ class OfferStatusRequestsTab extends StatelessWidget {
         children: [
           for (var index = 0; index < matching.length; index++) ...[
             if (index > 0) const SizedBox(height: Spacing.small),
-            _OfferStatusRequestCard(request: matching[index], status: status),
+            _OfferStatusRequestCard(
+              request: matching[index],
+              status: status,
+              onOpen: onOpenRequest ?? (r) => openOfferStatusRequest(context, r),
+            ),
           ],
         ],
       ),
@@ -52,10 +63,15 @@ class OfferStatusRequestsTab extends StatelessWidget {
 }
 
 class _OfferStatusRequestCard extends StatelessWidget {
-  const _OfferStatusRequestCard({required this.request, required this.status});
+  const _OfferStatusRequestCard({
+    required this.request,
+    required this.status,
+    required this.onOpen,
+  });
 
   final ClientHomeRequest request;
   final ClientOfferStatus status;
+  final void Function(ClientHomeRequest request) onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +79,7 @@ class _OfferStatusRequestCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return JeebGlassCard(
       identifier: 'offer_status_request_${request.id}',
+      onTap: request.id.isEmpty ? null : () => onOpen(request),
       semanticLabel:
           '${request.displayId ?? request.title}, '
           '${offerStatusTitle(l10n, status)}',
@@ -92,6 +109,28 @@ class _OfferStatusRequestCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Opens the order behind a filtered offer-status card.
+///
+/// An accepted offer HAS a delivery, so it opens the live-tracking surface the
+/// In-Progress tab uses; anything still in the auction opens that request's
+/// offer list. Both are existing routes — no new destination.
+void openOfferStatusRequest(BuildContext context, ClientHomeRequest request) {
+  if (request.id.isEmpty) return;
+  final router = GoRouter.of(context);
+  if (request.offerStatuses.contains(ClientOfferStatus.accepted)) {
+    router.pushNamed(
+      'live-tracking',
+      pathParameters: {'id': request.trackingId},
+      queryParameters: {
+        if (request.deliveryId != null && request.deliveryId!.isNotEmpty)
+          'deliveryId': request.deliveryId!,
+      },
+    );
+    return;
+  }
+  router.pushNamed('offer-review', pathParameters: {'id': request.id});
 }
 
 String offerStatusTitle(AppLocalizations l10n, ClientOfferStatus status) {
