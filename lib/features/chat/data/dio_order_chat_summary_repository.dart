@@ -51,6 +51,11 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
       final jeeberName = _str(delivery?['jeeberName']) ??
           _str(request?['jeeberName']) ??
           '';
+      // Counterparty identity is delivery-only on purpose: the jeeber leg never
+      // reads /v1/requests (owner-scoped), and both parties need the same source.
+      final jeeberAvatarUrl = _str(delivery?['jeeberAvatarUrl']) ?? '';
+      final clientName = _str(delivery?['clientName']) ?? '';
+      final clientAvatarUrl = _str(delivery?['clientAvatarUrl']) ?? '';
       final rating = _num(delivery?['jeeberRating']) ??
           _num(request?['jeeberRating']) ??
           0;
@@ -71,6 +76,9 @@ class DioOrderChatSummaryRepository implements OrderChatSummaryRepository {
         requestId: requestId,
         priceLabel: priceLabel,
         jeeberName: jeeberName,
+        jeeberAvatarUrl: jeeberAvatarUrl,
+        clientName: clientName,
+        clientAvatarUrl: clientAvatarUrl,
         rating: rating,
         etaMinutes: etaMinutes,
         tierId: tierId,

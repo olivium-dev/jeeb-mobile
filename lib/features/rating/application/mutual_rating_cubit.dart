@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../chat/domain/order_chat_summary.dart';
 import '../domain/rating_repository.dart';
 import 'mutual_rating_state.dart';
 
@@ -9,12 +10,35 @@ class MutualRatingCubit extends Cubit<MutualRatingState> {
     required RatingRepository repository,
     required this.deliveryId,
     required this.isClient,
+    OrderChatSummaryRepository? counterpartRepository,
   })  : _repository = repository,
+        _counterpartRepository = counterpartRepository,
         super(const MutualRatingState());
 
   final RatingRepository _repository;
+  final OrderChatSummaryRepository? _counterpartRepository;
   final String deliveryId;
   final bool isClient;
+
+  /// Resolves who is being rated so entry points that carry no counterpart data
+  /// (receipt confirm, OTP handover) still show a real name + photo.
+  /// Decoration only: it NEVER blocks, errors or delays the mandatory rating.
+  Future<void> loadCounterpart() async {
+    final repo = _counterpartRepository;
+    if (repo == null) return;
+    try {
+      final summary = await repo.fetchSummary(deliveryId);
+      if (isClosed) return;
+      emit(state.copyWith(
+        counterpartName:
+            isClient ? summary.jeeberName : summary.clientName,
+        counterpartAvatarUrl:
+            isClient ? summary.jeeberAvatarUrl : summary.clientAvatarUrl,
+      ));
+    } catch (_) {
+      // Identity is decoration; a miss leaves the role-aware fallback.
+    }
+  }
 
   void setStars(int stars) => emit(state.copyWith(stars: stars));
   void setComment(String comment) => emit(state.copyWith(comment: comment));
