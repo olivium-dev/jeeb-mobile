@@ -127,12 +127,8 @@ class _ShellScreenState extends State<ShellScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // White status glyphs over navy on EVERY tab, whatever a tab body does.
       value: AppTheme.systemOverlayStyle,
-      child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          _handleRootBack(landingIndex, safeIndex);
-        },
+      child: _RootBackHandler(
+        onRootBack: () => _handleRootBack(landingIndex, safeIndex),
         child: Scaffold(
           // The nav floats OVER the tab content, so the body runs full height and
           // Scaffold grows its bottom inset by the nav's painted height.
@@ -313,6 +309,36 @@ class _ShellScreenState extends State<ShellScreen> {
         ),
       ),
     ];
+  }
+}
+
+/// Hardware BACK at the shell root. go_router 13 never consults the LAST
+/// route's [PopScope], so the dispatcher is hooked ahead of the router.
+class _RootBackHandler extends StatelessWidget {
+  const _RootBackHandler({required this.onRootBack, required this.child});
+
+  final VoidCallback onRootBack;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scoped = PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        onRootBack();
+      },
+      child: child,
+    );
+    if (Router.maybeOf(context) == null) return scoped;
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
+        onRootBack();
+        return true;
+      },
+      child: scoped,
+    );
   }
 }
 

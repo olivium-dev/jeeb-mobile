@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:jeeb_mobile/core/di/injection_container.dart';
@@ -77,6 +78,49 @@ Widget _harness(SharedPreferences prefs, {required UserRole role}) =>
         home: const ShellScreen(),
       ),
     );
+
+/// The real app mounts the shell under `MaterialApp.router` + go_router, which
+/// is the only configuration in which the device BACK defect reproduces.
+Widget _routerHarness(SharedPreferences prefs, {required UserRole role}) {
+  final router = GoRouter(
+    routes: [
+      GoRoute(path: '/', builder: (_, __) => const ShellScreen()),
+      GoRoute(
+        path: '/pushed',
+        builder: (_, __) => const Scaffold(body: Text('pushed route')),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  return MultiBlocProvider(
+    providers: [
+      BlocProvider(
+        create: (_) => LocaleCubit(
+          prefs: prefs,
+          deviceLocaleProvider: () => const Locale('en'),
+        ),
+      ),
+      BlocProvider(create: (_) => RoleCubit(prefs: prefs, initialRole: role)),
+      BlocProvider(create: (_) => RoleEligibilityCubit()),
+      BlocProvider(
+        create: (_) =>
+            RoleAvailabilityCubit(const RoleAvailability(roles: ['client'])),
+      ),
+    ],
+    child: MaterialApp.router(
+      theme: AppTheme.midnight(),
+      locale: const Locale('en'),
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        SyncAppLocalizationsDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      routerConfig: router,
+    ),
+  );
+}
 
 void _reduceMotion(WidgetTester tester) {
   tester.platformDispatcher.accessibilityFeaturesTestValue =
@@ -192,6 +236,49 @@ void main() {
     await tester.pump();
 
     expect(find.text('Press back again to exit'), findsOneWidget);
+    expect(find.byType(ShellScreen), findsOneWidget);
+  });
+
+  testWidgets('under go_router, root BACK is intercepted and never exits',
+      (tester) async {
+    _reduceMotion(tester);
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(_routerHarness(prefs, role: UserRole.client));
+    await _settle(tester);
+
+    await tester.tap(find.bySemanticsIdentifier('shell_tab_profile'));
+    await _settle(tester);
+
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await _settle(tester);
+    expect(
+      tester.widget<JeebPillNav>(find.byType(JeebPillNav)).selectedIndex,
+      0,
+    );
+
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pump();
+    expect(find.text('Press back again to exit'), findsOneWidget);
+    expect(find.byType(ShellScreen), findsOneWidget);
+  });
+
+  testWidgets('a route pushed over the shell still pops normally on BACK',
+      (tester) async {
+    _reduceMotion(tester);
+    final prefs = await SharedPreferences.getInstance();
+    await tester.pumpWidget(_routerHarness(prefs, role: UserRole.client));
+    await _settle(tester);
+
+    final BuildContext ctx = tester.element(find.byType(ShellScreen));
+    GoRouter.of(ctx).push('/pushed');
+    await _settle(tester);
+    expect(find.text('pushed route'), findsOneWidget);
+
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await _settle(tester);
+
+    expect(find.text('pushed route'), findsNothing);
+    expect(find.text('Press back again to exit'), findsNothing);
     expect(find.byType(ShellScreen), findsOneWidget);
   });
 
