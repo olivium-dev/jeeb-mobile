@@ -142,9 +142,18 @@ void main() {
       },
     );
 
+    // The delivery push DOES wake the bus now (close-out 2026-08-11 — the id
+    // guard was dropping status refreshes the pinned chat summary needed).
+    // What this negative control is really about is the FEED: a delivery push
+    // must not make the jeeber feed re-pull, and that is still true.
     test(
-      'NEGATIVE: an unrelated category with no id does NOT fire the bus',
+      'NEGATIVE: a delivery push does not wake the FEED topic',
       () async {
+        final feedWakes = <void>[];
+        final feedSub = signals
+            .streamFor(const {RefreshTopic.feed})
+            .listen(feedWakes.add);
+        addTearDown(feedSub.cancel);
         final data = <String, String>{'type': 'delivery'};
         transport.emitForeground(NotificationMessage(
           id: 'delivery-no-id',
@@ -155,7 +164,7 @@ void main() {
           data: data,
         ));
         await Future<void>.delayed(Duration.zero);
-        expect(fired, isEmpty);
+        expect(feedWakes, isEmpty);
       },
     );
   });
