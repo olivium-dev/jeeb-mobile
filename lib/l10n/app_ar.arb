@@ -993,6 +993,7 @@
   "requestFeedDecline": "رفض",
   "requestFeedDeclining": "جارٍ الرفض…",
   "requestFeedDistance": "{distance} كم",
+  "requestFeedDistanceMeters": "{meters} م",
   "requestFeedDropoffLabel": "التسليم",
   "requestFeedEarnings": "≈ {amount} {currency}",
   "requestFeedEmptySubtitle": "اسحب للأسفل للتحديث، أو ابقَ متصلاً وسترد الطلبات الجديدة تلقائياً.",

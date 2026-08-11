@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_outlined_card.dart';
@@ -25,10 +26,11 @@ DeliveryRequest _request({
   JeeberRequestTier? tier = JeeberRequestTier.flash,
   String? itemsSummary = '1 kilo potato, water gallon, coffee blend',
   double? distanceFromYouKm = 3,
+  String pickup = 'Hamra',
 }) {
   return DeliveryRequest(
     id: id,
-    pickup: const RequestLocation(label: 'Hamra', latitude: 0, longitude: 0),
+    pickup: RequestLocation(label: pickup, latitude: 0, longitude: 0),
     dropoff: const RequestLocation(label: 'Verdun', latitude: 0, longitude: 0),
     tier: tier,
     estimatedDistanceKm: 3,
@@ -589,6 +591,81 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Just now'), findsOneWidget);
+    });
+  });
+
+  // D-V4 — measured on the S24 (411dp, 1.0x): the action pair was capped at
+  // 0.55 of the row and both labels clipped ("Ign..." / "Make of..."), while
+  // "0.089 km" lost its unit. Pinned to the real handset width.
+  group('D-V4 — the 411dp / 1.0x handset the defect was filmed on', () {
+    Future<void> pumpAt(
+      WidgetTester tester, {
+      required double width,
+      double textScale = 1.0,
+      double? distanceKm = 3,
+      String pickupLabel = 'Current location',
+    }) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _host(
+          MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+            child: JeeberFeedCard(
+              request: _request(
+                distanceFromYouKm: distanceKm,
+                pickup: pickupLabel,
+              ),
+              onOffer: () {},
+              onIgnore: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    bool clipped(WidgetTester tester, String label) => tester
+        .renderObject<RenderParagraph>(find.text(label))
+        .didExceedMaxLines;
+
+    testWidgets('both action labels render in full', (tester) async {
+      await pumpAt(tester, width: 411);
+
+      expect(find.text('Make offer'), findsOneWidget);
+      expect(find.text('Ignore'), findsOneWidget);
+      expect(clipped(tester, 'Make offer'), isFalse,
+          reason: 'the CTA read "Make of..." at maxActionFraction 0.55');
+      expect(clipped(tester, 'Ignore'), isFalse);
+    });
+
+    testWidgets('sub-kilometre distance reads in whole metres', (tester) async {
+      await pumpAt(tester, width: 411, distanceKm: 0.089);
+
+      expect(find.text('89 m'), findsOneWidget);
+      expect(find.text('0.089 km'), findsNothing);
+      expect(clipped(tester, '89 m'), isFalse,
+          reason: '"0.089 km" was long enough to ellipsize its own unit away');
+    });
+
+    testWidgets('a kilometre-scale distance keeps one decimal', (tester) async {
+      await pumpAt(tester, width: 411, distanceKm: 3.42);
+      expect(find.text('3.4 km'), findsOneWidget);
+    });
+
+    testWidgets('950 m is the metres/kilometres boundary', (tester) async {
+      await pumpAt(tester, width: 411, distanceKm: 0.94);
+      expect(find.text('940 m'), findsOneWidget);
+    });
+
+    testWidgets('2.0x text still lays out without a RenderFlex overflow', (
+      tester,
+    ) async {
+      await pumpAt(tester, width: 411, textScale: 2.0, distanceKm: 0.089);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(JeeberFeedCard), findsOneWidget);
     });
   });
 }

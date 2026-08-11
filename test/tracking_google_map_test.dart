@@ -10,12 +10,16 @@ import 'support/sync_app_localizations.dart';
 DeliveryTrackingInfo _info({
   GpsPoint? position,
   List<GpsPoint> polyline = const [],
+  GpsPoint? pickupPoint,
+  GpsPoint? dropoffPoint,
 }) {
   return DeliveryTrackingInfo(
     deliveryId: 'd-1',
     currentStage: TrackingStage.inTransit,
     stageTimestamps: const {},
     jeeberPosition: position,
+    pickupPoint: pickupPoint,
+    dropoffPoint: dropoffPoint,
     polyline: polyline,
   );
 }
@@ -106,6 +110,54 @@ void main() {
       final cam = trackingCamera(_info());
       expect(cam.target.latitude, closeTo(33.8938, 1e-6));
       expect(cam.target.longitude, closeTo(35.5018, 1e-6));
+    });
+
+    // D-V2: the Almere delivery opened on Beirut for the whole pre-pickup leg.
+    test('frames the drop-off before any fix or route exists', () {
+      final cam = trackingCamera(
+        _info(dropoffPoint: const GpsPoint(lat: 52.4002, lng: 5.2744)),
+      );
+      expect(cam.target, const LatLng(52.4002, 5.2744));
+    });
+
+    test('falls back to the pickup when only it is known', () {
+      final cam = trackingCamera(
+        _info(pickupPoint: const GpsPoint(lat: 52.3702, lng: 4.8952)),
+      );
+      expect(cam.target, const LatLng(52.3702, 4.8952));
+    });
+
+    test('a live courier fix still outranks the delivery coordinates', () {
+      final cam = trackingCamera(_info(
+        position: const GpsPoint(lat: 52.3900, lng: 5.2600),
+        dropoffPoint: const GpsPoint(lat: 52.4002, lng: 5.2744),
+      ));
+      expect(cam.target, const LatLng(52.3900, 5.2600));
+    });
+  });
+
+  group('trackingDestinationMarkers', () {
+    test('pins the delivery drop-off when no route is known yet', () {
+      final markers = trackingDestinationMarkers(
+        _info(dropoffPoint: const GpsPoint(lat: 52.4002, lng: 5.2744)),
+      );
+      expect(markers, hasLength(1));
+      expect(markers.single.position, const LatLng(52.4002, 5.2744));
+    });
+
+    test('a known route still wins over the raw drop-off coordinate', () {
+      final markers = trackingDestinationMarkers(_info(
+        polyline: const [
+          GpsPoint(lat: 52.3702, lng: 4.8952),
+          GpsPoint(lat: 52.3800, lng: 5.0000),
+        ],
+        dropoffPoint: const GpsPoint(lat: 52.4002, lng: 5.2744),
+      ));
+      expect(markers.single.position, const LatLng(52.3800, 5.0000));
+    });
+
+    test('stays empty when neither is known', () {
+      expect(trackingDestinationMarkers(_info()), isEmpty);
     });
   });
 

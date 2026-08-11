@@ -275,41 +275,66 @@ class _MetaRow extends StatelessWidget {
   /// card edge on a narrow handset or in a long-label locale. Capping it makes
   /// the label ellipsize instead — the row can no longer overflow, and the
   /// action still hugs the end edge because the meta line is `Expanded`.
-  static const double maxActionFraction = 0.55;
+  /// Applies to the single-action states only; 0.55 clipped the accepted-state
+  /// CTA at 1.0x on a 411dp handset (D-V4).
+  static const double maxActionFraction = 0.62;
+
+  /// The Ignore + Make-offer pair needs ~274dp at 1.0x EN, and a 411dp handset
+  /// leaves the footer only 329dp — so the pair takes its own line there.
+  bool get _actionsNeedOwnLine =>
+      !isExpired && request.feedStatus == JeeberFeedItemStatus.incoming;
 
   @override
   Widget build(BuildContext context) {
     final showTier =
         MediaQuery.textScalerOf(context).scale(1) <= largeTextScaleThreshold;
+    final action = isExpired
+        ? _ExpiredStatus(requestId: request.id)
+        : _ActionArea(
+            request: request,
+            onIgnore: onIgnore,
+            onOffer: onOffer,
+            onAdvanceStatus: onAdvanceStatus,
+            isActionBusy: isActionBusy,
+            exposeMakeOfferId: exposeMakeOfferId,
+            isFreshest: isFreshest,
+          );
+    final meta = <Widget>[
+      if (showTier && request.tier != null) ...[
+        _TierChip(tier: request.tier!),
+        const SizedBox(width: Spacing.xSmall),
+      ],
+      // Expanded (not Flexible + Spacer): the meta line hugs the start,
+      // the slack collects between it and the action, and the action
+      // stays flush with the end gutter in both directions.
+      Expanded(child: _MetaLine(request: request)),
+    ];
+
+    if (_actionsNeedOwnLine) {
+      return Column(
+        key: const Key('jeeber-feed-card-footer'),
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: meta),
+          const SizedBox(height: Spacing.xSmall),
+          Align(alignment: AlignmentDirectional.centerEnd, child: action),
+        ],
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return Row(
           key: const Key('jeeber-feed-card-footer'),
           children: [
-            if (showTier && request.tier != null) ...[
-              _TierChip(tier: request.tier!),
-              const SizedBox(width: Spacing.xSmall),
-            ],
-            // Expanded (not Flexible + Spacer): the meta line hugs the start,
-            // the slack collects between it and the action, and the action
-            // stays flush with the end gutter in both directions.
-            Expanded(child: _MetaLine(request: request)),
+            ...meta,
             const SizedBox(width: Spacing.xSmall),
             ConstrainedBox(
               constraints: BoxConstraints(
                 maxWidth: constraints.maxWidth * maxActionFraction,
               ),
-              child: isExpired
-                  ? _ExpiredStatus(requestId: request.id)
-                  : _ActionArea(
-                      request: request,
-                      onIgnore: onIgnore,
-                      onOffer: onOffer,
-                      onAdvanceStatus: onAdvanceStatus,
-                      isActionBusy: isActionBusy,
-                      exposeMakeOfferId: exposeMakeOfferId,
-                      isFreshest: isFreshest,
-                    ),
+              child: action,
             ),
           ],
         );
@@ -349,7 +374,7 @@ class _MetaLine extends StatelessWidget {
         if (hasDistance)
           Flexible(
             child: Text(
-              l10n.requestFeedDistance(_formatDistance(context, distance)),
+              _distanceLabel(context, l10n, distance),
               style: style,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -375,9 +400,23 @@ class _MetaLine extends StatelessWidget {
     );
   }
 
-  String _formatDistance(BuildContext context, double km) {
+  /// Sub-kilometre reads as metres: `0.089 km` was both absurd and long enough
+  /// that the unit itself ellipsized away on a 411dp handset (D-V4).
+  String _distanceLabel(
+    BuildContext context,
+    AppLocalizations l10n,
+    double km,
+  ) {
     final locale = Localizations.localeOf(context).toLanguageTag();
-    return NumberFormat.decimalPattern(locale).format(km);
+    if (km < 0.95) {
+      final metres = (km * 1000).round();
+      return l10n.requestFeedDistanceMeters(
+        NumberFormat.decimalPattern(locale).format(metres),
+      );
+    }
+    return l10n.requestFeedDistance(
+      NumberFormat('0.#', locale).format(km),
+    );
   }
 }
 

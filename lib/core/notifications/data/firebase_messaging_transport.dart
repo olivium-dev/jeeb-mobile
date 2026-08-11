@@ -292,19 +292,24 @@ const List<String> kNestedRoutingKeys = <String>[
   'ticketId',
   'ticket_id',
   'support_ticket_id',
+  'offerId',
+  'offer_id',
 ];
 
 void hoistNestedRoutingFields(Map<String, String> data) {
-  final blob = data['data'];
-  if (blob == null || blob.isEmpty || !blob.contains(':')) return;
-  for (final key in kNestedRoutingKeys) {
-    if ((data[key] ?? '').isNotEmpty) continue; // a real flat field wins
-    final m = RegExp(
-      '''["']?$key["']?\\s*:\\s*["']?([^,"'}\\s]+)["']?''',
-    ).firstMatch(blob);
-    final value = m?.group(1);
-    if (value != null && value.isNotEmpty && value != 'null') {
-      data[key] = value;
+  // `payload` is the notification-service lane's blob; `data` the gateway one.
+  for (final blobKey in const <String>['data', 'payload']) {
+    final blob = data[blobKey];
+    if (blob == null || blob.isEmpty || !blob.contains(':')) continue;
+    for (final key in kNestedRoutingKeys) {
+      if ((data[key] ?? '').isNotEmpty) continue; // a real flat field wins
+      final m = RegExp(
+        '''["']?$key["']?\\s*:\\s*["']?([^,"'}\\s]+)["']?''',
+      ).firstMatch(blob);
+      final value = m?.group(1);
+      if (value != null && value.isNotEmpty && value != 'null') {
+        data[key] = value;
+      }
     }
   }
 }

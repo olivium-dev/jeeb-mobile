@@ -218,17 +218,53 @@ void main() {
     expect(offers.wakes, isZero);
   });
 
-  test('the id guard still applies to the other orderish pushes — a newOffer '
-      'push with no id publishes nothing at all', () async {
+  // INVERTED 2026-08-11 (D-V1): the live offer_received push carries no
+  // request/order id, so this guard is what left "Finding a Jeeber" parked.
+  test('a newOffer push with no id still wakes order and offers', () async {
     await arrive(_message(
       'm-newoffer-no-id',
       category: NotificationCategory.newOffer,
       data: const <String, String>{},
     ));
 
-    expect(order.wakes, isZero);
-    expect(offers.wakes, isZero);
+    expect(order.wakes, 1);
+    expect(offers.wakes, 1);
+    expect(chat.wakes, isZero);
+    expect(feed.wakes, isZero);
+  });
+
+  test('the id guard still applies to requestExpired', () async {
+    await arrive(_message(
+      'm-expired-no-id',
+      category: NotificationCategory.requestExpired,
+      data: const <String, String>{},
+    ));
+
     expect(unfiltered.wakes, isZero);
+  });
+
+  // D-V1 end-to-end: the EXACT key set the notification-service lane delivered
+  // to the client on 2026-08-11 (no flat type/category, no ids).
+  test('the live jeeb.offer_received payload wakes order and offers', () async {
+    final data = <String, String>{
+      'notification_type': 'jeeb.offer_received',
+      'payload': "{'user_id': 'u-1', 'offer_id': 'o-9', 'delivery_fee': '5'}",
+      'metadata': '{}',
+      'title': 'New offer',
+    };
+    await arrive(NotificationMessage(
+      id: 'm-live-offer',
+      category: NotificationCategory.fromData(data),
+      title: 'New offer',
+      body: 'A Jeeber replied',
+      receivedAt: DateTime.utc(2026, 8, 11),
+      data: data,
+    ));
+
+    expect(order.wakes, 1);
+    expect(offers.wakes, 1);
+    expect(chat.wakes, isZero);
+    expect(feed.wakes, isZero);
   });
 
   test('signalStatusChange still publishes on every topic (the cancel-request '
