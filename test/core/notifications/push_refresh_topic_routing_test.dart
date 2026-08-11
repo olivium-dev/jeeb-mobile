@@ -202,15 +202,32 @@ void main() {
         reason: 'an undeclared call site must not silently stop refreshing');
   });
 
-  test('the id guard still applies to orderish pushes — a delivery push with '
-      'no id publishes nothing at all', () async {
+  // INVERTED 2026-08-11: the id guard used to drop id-less delivery pushes,
+  // stranding the pinned chat summary. It still applies to the others.
+  test('a delivery push with no id still wakes the order topic — and ONLY it',
+      () async {
     await arrive(_message(
       'm-delivery-no-id',
       category: NotificationCategory.delivery,
       data: const <String, String>{},
     ));
 
+    expect(order.wakes, 1);
+    expect(chat.wakes, isZero);
+    expect(feed.wakes, isZero);
+    expect(offers.wakes, isZero);
+  });
+
+  test('the id guard still applies to the other orderish pushes — a newOffer '
+      'push with no id publishes nothing at all', () async {
+    await arrive(_message(
+      'm-newoffer-no-id',
+      category: NotificationCategory.newOffer,
+      data: const <String, String>{},
+    ));
+
     expect(order.wakes, isZero);
+    expect(offers.wakes, isZero);
     expect(unfiltered.wakes, isZero);
   });
 

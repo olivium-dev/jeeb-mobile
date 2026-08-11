@@ -173,7 +173,9 @@ void main() {
       expect(await countSignalsFor(bare), 1);
     });
 
-    test('a delivery push with no order/delivery/request id does NOT signal',
+    // WAS "does NOT signal", inverted deliberately: the bus is payload-less, so
+    // dropping the signal over a missing id key left the chat pin stale.
+    test('a delivery push with no order/delivery/request id STILL signals',
         () async {
       final noId = NotificationMessage(
         id: 's3',
@@ -182,7 +184,20 @@ void main() {
         body: 'B',
         receivedAt: DateTime.utc(2026, 5, 17),
       );
-      expect(await countSignalsFor(noId), 0);
+      expect(await countSignalsFor(noId), 1);
+    });
+
+    test('a delivery push keyed on camelCase deliveryId signals a status '
+        'change (the wire spelling must not decide)', () async {
+      final camel = NotificationMessage(
+        id: 's3b',
+        category: NotificationCategory.delivery,
+        title: 'T',
+        body: 'B',
+        receivedAt: DateTime.utc(2026, 8, 11),
+        data: const {'deliveryId': 'delivery-1'},
+      );
+      expect(await countSignalsFor(camel), 1);
     });
 
     // PUSH-UI-REACTION (2026-07-05): a foreground `offer_accepted` push means

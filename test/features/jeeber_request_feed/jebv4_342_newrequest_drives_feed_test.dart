@@ -142,9 +142,16 @@ void main() {
       },
     );
 
+    // Retargeted 2026-08-11: a delivery push now wakes the order topic, but
+    // what this control is about — it must not re-pull the FEED — still holds.
     test(
-      'NEGATIVE: an unrelated category with no id does NOT fire the bus',
+      'NEGATIVE: a delivery push does not wake the FEED topic',
       () async {
+        final feedWakes = <void>[];
+        final feedSub = signals
+            .streamFor(const {RefreshTopic.feed})
+            .listen(feedWakes.add);
+        addTearDown(feedSub.cancel);
         final data = <String, String>{'type': 'delivery'};
         transport.emitForeground(NotificationMessage(
           id: 'delivery-no-id',
@@ -155,7 +162,7 @@ void main() {
           data: data,
         ));
         await Future<void>.delayed(Duration.zero);
-        expect(fired, isEmpty);
+        expect(feedWakes, isEmpty);
       },
     );
   });

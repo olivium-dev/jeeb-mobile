@@ -74,9 +74,17 @@ class _ComposeTierSectionState extends State<ComposeTierSection> {
   }
 
   Future<void> _openPicker() async {
+    // The sheet's modal route restores the description field's focus on pop,
+    // re-raising the keyboard over "Confirm location". Leave nothing to restore.
+    FocusManager.instance.primaryFocus?.unfocus();
     final picked = await _ComposeTierSheet.show(context);
+    if (!mounted) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FocusManager.instance.primaryFocus?.unfocus();
+    });
     final compose = _compose;
-    if (picked == null || compose == null || !mounted) return;
+    if (picked == null || compose == null) return;
     setState(() => compose.changeTier(picked));
   }
 }

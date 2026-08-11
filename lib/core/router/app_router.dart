@@ -72,6 +72,7 @@ import '../../features/live_tracking/data/demo_live_tracking_repository.dart';
 import '../../features/live_tracking/domain/live_tracking_repository.dart';
 import '../../features/live_tracking/presentation/live_tracking_screen.dart';
 import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dart';
+import '../../features/location/domain/capture_pin_purpose.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
 import '../../features/location/data/location_repository.dart' show LocationPoint;
@@ -140,7 +141,15 @@ import '../onboarding/onboarding_cubit.dart';
 /// coordinate, so the seed can never masquerade as the customer's choice.
 @visibleForTesting
 class CaptureLocationRoute extends StatefulWidget {
-  const CaptureLocationRoute({super.key, this.mapBuilderOverride});
+  const CaptureLocationRoute({
+    super.key,
+    this.mapBuilderOverride,
+    this.purpose = CapturePinPurpose.place,
+  });
+
+  /// What the caller is picking (`?purpose=pickup`). The create-request leg
+  /// picks a PICKUP point; the screen used to label every pick "Drop-off here".
+  final CapturePinPurpose purpose;
 
   /// Camera seed — Beirut downtown, the same point the launcher starts from.
   /// It is a VIEWPORT seed, never a returned answer: the map reports its own
@@ -176,6 +185,7 @@ class _CaptureLocationRouteState extends State<CaptureLocationRoute> {
   Widget build(BuildContext context) {
     return CaptureLocationScreen(
       controller: _controller,
+      purpose: widget.purpose,
       mapBuilder: (_) =>
           widget.mapBuilderOverride?.call(_controller) ??
           GoogleMapCaptureView(
@@ -183,6 +193,10 @@ class _CaptureLocationRouteState extends State<CaptureLocationRoute> {
             gateway: _gateway,
             onCameraSettled: _controller.markReady,
             bottomInset: CapturePickerSheet.dockedClearance + Spacing.large,
+            // The seed below is a viewport start, not an answer: move to the
+            // device's own location as soon as the map can.
+            centreOnDeviceLocation: true,
+            showZoomControls: true,
           ),
       onPinned: () {
         if (!context.canPop()) return;
@@ -1212,7 +1226,11 @@ class AppRouter {
         GoRoute(
           path: '/capture-location',
           name: 'capture-location',
-          builder: (context, state) => const CaptureLocationRoute(),
+          builder: (context, state) => CaptureLocationRoute(
+            purpose: CapturePinPurpose.parse(
+              state.uri.queryParameters['purpose'],
+            ),
+          ),
         ),
         GoRoute(
           path: '/voice-request/transcription',

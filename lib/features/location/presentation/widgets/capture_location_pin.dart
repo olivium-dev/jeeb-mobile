@@ -7,6 +7,7 @@ import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_shadows.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../domain/capture_pin_purpose.dart';
 
 /// Fixed centre pin for the Capture Location map (MIDNIGHT R11).
 ///
@@ -21,7 +22,13 @@ import '../../../../l10n/app_localizations.dart';
 /// 2.6s period with no delay, so the shadow fades exactly as the pin lifts.
 /// The callout does not move.
 class CaptureLocationPin extends StatelessWidget {
-  const CaptureLocationPin({super.key});
+  const CaptureLocationPin({
+    super.key,
+    this.purpose = CapturePinPurpose.dropOff,
+  });
+
+  /// What the pin is choosing — drives the callout copy.
+  final CapturePinPurpose purpose;
 
   /// R11: `jFloat`/`jBreathe` both run at 2.6s here — much faster than the 4s
   /// card-art float.
@@ -48,6 +55,7 @@ class CaptureLocationPin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final callout = purpose.callout(l10n);
     return IgnorePointer(
       // Tip-anchoring, resolved from the column's OWN height so the variable
       // callout text cannot push the pin off the coordinate.
@@ -63,9 +71,9 @@ class CaptureLocationPin extends StatelessWidget {
               Semantics(
                 identifier: 'capture_location_pin_callout',
                 image: true,
-                label: l10n.captureLocationDropOffCallout,
+                label: callout,
                 child: _Callout(
-                  text: l10n.captureLocationDropOffCallout,
+                  text: callout,
                   verticalPadding: _calloutPadV,
                 ),
               ),

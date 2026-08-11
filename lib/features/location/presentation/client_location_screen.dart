@@ -537,7 +537,11 @@ class _Body extends StatelessWidget {
     // coordinate and thread it into `markPinned` so the REAL pin reaches the
     // create draft — it used to be discarded here, collapsing every pinned
     // pickup to the Beirut fallback.
-    final result = await context.pushNamed<Object?>('capture-location');
+    // This leg picks the PICKUP point; the shared screen defaults to neutral.
+    final result = await context.pushNamed<Object?>(
+      'capture-location',
+      queryParameters: const {'purpose': 'pickup'},
+    );
     // The route only ever pops a LocationPoint (confirmed) or null (user
     // backed out — a legitimate cancel, left silent). Anything else is a
     // contract violation, not a cancel, so it gets user-visible feedback

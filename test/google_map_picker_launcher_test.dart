@@ -34,8 +34,8 @@ void main() {
     await tester.pump(); // start the push
     await tester.pump(const Duration(milliseconds: 350)); // route transition
 
-    // The "Confirm drop-off" CTA is on the pushed capture screen.
-    final cta = find.text('Confirm drop-off');
+    // A saved address is neither a pickup nor a drop-off, so the CTA is neutral.
+    final cta = find.text('Confirm location');
     expect(cta, findsOneWidget);
     // The seed reaches the sheet's pinned-point card, so what the customer
     // reads is the coordinate the launcher handed the map.
@@ -59,7 +59,8 @@ void main() {
     expect(await future, isNull);
   });
 
-  testWidgets('pickOnMap seeds Beirut downtown when no initial given',
+  testWidgets('pickOnMap seeds Beirut downtown when no initial given (a '
+      'VIEWPORT seed — the live map moves to the device fix once created)',
       (tester) async {
     late BuildContext capturedContext;
     await tester.pumpWidget(
@@ -78,7 +79,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
 
-    expect(find.text('Confirm drop-off'), findsOneWidget);
+    expect(find.text('Confirm location'), findsOneWidget);
     expect(find.text('33.8938, 35.5018'), findsOneWidget);
 
     // Camera never settled: the CTA is disabled, so back out to resolve.

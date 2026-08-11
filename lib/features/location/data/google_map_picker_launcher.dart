@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:omds/omds.dart';
 
 import '../../background_gps/data/geolocator_geocapture_gateway.dart';
+import '../domain/capture_pin_purpose.dart';
 import '../presentation/capture_location_screen.dart';
 import '../presentation/widgets/capture_picker_sheet.dart';
 import '../presentation/widgets/google_map_capture_view.dart';
@@ -25,11 +26,16 @@ class GoogleMapPickerLauncher implements MapPickerLauncher {
 
   @override
   Future<LocationPoint?> pickOnMap({LocationPoint? initial}) {
+    // No saved pin to edit → the camera moves to the device's own location as
+    // soon as the map exists; the Beirut constant is only the pre-fix seed.
+    final centreOnDevice = initial == null;
     final controller = MapCaptureController(initial: initial ?? _defaultCenter);
     return Navigator.of(_context).push<LocationPoint>(
       MaterialPageRoute<LocationPoint>(
         fullscreenDialog: true,
         builder: (routeContext) => CaptureLocationScreen(
+          // A saved address is neither a pickup nor a drop-off.
+          purpose: CapturePinPurpose.place,
           // The sheet reads the same controller the map writes, so the pinned
           // coordinate the CTA returns is the one the customer can see.
           controller: controller,
@@ -42,6 +48,8 @@ class GoogleMapPickerLauncher implements MapPickerLauncher {
             // Lift the recentre control clear of the docked picker sheet —
             // the map runs full-bleed underneath it now.
             bottomInset: CapturePickerSheet.dockedClearance + Spacing.large,
+            centreOnDeviceLocation: centreOnDevice,
+            showZoomControls: true,
           ),
           onPinned: () => Navigator.of(routeContext).pop<LocationPoint>(
             controller.isReady ? controller.center : null,

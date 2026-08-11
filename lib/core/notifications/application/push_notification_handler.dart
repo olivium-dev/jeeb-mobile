@@ -214,6 +214,9 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       NotificationCategory.offerAccepted,
       NotificationCategory.newRequest,
       NotificationCategory.chat,
+      // Payload-less bus: the id was read then discarded, so guarding on it
+      // only stranded the pinned chat summary on a stale status.
+      NotificationCategory.delivery,
       // F1 correction 4 — wallet pushes (guard-2 auto-withdraw) carry no
       // order/delivery/request id; without this they never reach _topicsFor.
       NotificationCategory.wallet,
@@ -223,7 +226,6 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       return;
     }
     const orderish = <NotificationCategory>{
-      NotificationCategory.delivery,
       NotificationCategory.newOffer,
       NotificationCategory.requestExpired,
     };
