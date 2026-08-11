@@ -734,19 +734,33 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('the first-run capsule keeps its static title, no ticker', (
+  testWidgets('the first-run capsule animates the typed hints too', (
     tester,
   ) async {
     await tester.pumpWidget(_heroOnly(firstRequest: true));
-    // It settles, which is the pin: E1's title never rotates.
-    await tester.pumpAndSettle();
+    // NEVER pumpAndSettle: with motion on the hint loops forever.
+    await tester.pump();
 
-    expect(find.text('First order'), findsOneWidget);
-    expect(find.byType(ClientHomeTypedHint), findsNothing);
+    expect(find.byType(ClientHomeTypedHint), findsOneWidget);
+    final String first = _capsuleRun(tester);
+    await tester.pump(const Duration(milliseconds: 280));
+    expect(_capsuleRun(tester).length, greaterThan(first.length));
     expect(
       find.bySemanticsIdentifier('_request_empty_state_new_order_button'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('the first-run capsule pins its title under reduce motion', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _heroOnly(firstRequest: true, disableAnimations: true),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('First order'), findsOneWidget);
+    expect(find.byType(ClientHomeTypedHint), findsOneWidget);
   });
 
   testWidgets('reduce motion pins the stable label, not an example', (
