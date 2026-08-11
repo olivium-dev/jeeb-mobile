@@ -84,10 +84,10 @@ Widget _harness(SharedPreferences prefs, {required UserRole role}) =>
 Widget _routerHarness(SharedPreferences prefs, {required UserRole role}) {
   final router = GoRouter(
     routes: [
-      GoRoute(path: '/', builder: (_, __) => const ShellScreen()),
+      GoRoute(path: '/', builder: (_, _) => const ShellScreen()),
       GoRoute(
         path: '/pushed',
-        builder: (_, __) => const Scaffold(body: Text('pushed route')),
+        builder: (_, _) => const Scaffold(body: Text('pushed route')),
       ),
     ],
   );
