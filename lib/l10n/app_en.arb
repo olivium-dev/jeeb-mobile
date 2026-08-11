@@ -2973,6 +2973,7 @@
   "requestFeedDecline": "Decline",
   "requestFeedDeclining": "Declining…",
   "requestFeedDistance": "{distance} km",
+  "requestFeedDistanceMeters": "{meters} m",
   "requestFeedDropoffLabel": "Dropoff",
   "requestFeedEarnings": "≈ {amount} {currency}",
   "requestFeedEmptySubtitle": "Pull down to refresh, or stay online and new requests will arrive automatically.",

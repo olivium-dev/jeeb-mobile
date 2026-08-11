@@ -109,6 +109,8 @@ class DeliveryTrackingInfo extends Equatable {
     this.etaMinutes,
     this.deadline,
     this.jeeberPosition,
+    this.pickupPoint,
+    this.dropoffPoint,
     this.polyline = const [],
     this.jeeber,
     this.requestId,
@@ -202,6 +204,10 @@ class DeliveryTrackingInfo extends Equatable {
       distanceLabel: _str(json['distanceLabel']),
       etaMinutes: (json['etaMinutes'] as num?)?.toInt(),
       deadline: _parseDeadline(json),
+      pickupPoint:
+          _parsePoint(json['pickupLocation'] ?? json['pickup_location']),
+      dropoffPoint:
+          _parsePoint(json['dropoffLocation'] ?? json['dropoff_location']),
       jeeber: _parseJeeber(json),
       requestId: _str(json['requestId'] ?? json['request_id']),
       conversationId:
@@ -213,6 +219,15 @@ class DeliveryTrackingInfo extends Equatable {
       itemSummary:
           _str(json['title'] ?? json['itemSummary'] ?? json['description']),
     );
+  }
+
+  static GpsPoint? _parsePoint(Object? raw) {
+    if (raw is! Map) return null;
+    final lat = raw['lat'] ?? raw['latitude'];
+    final lng = raw['lng'] ?? raw['lon'] ?? raw['longitude'];
+    if (lat is! num || lng is! num) return null;
+    if (lat == 0 && lng == 0) return null;
+    return GpsPoint(lat: lat.toDouble(), lng: lng.toDouble());
   }
 
   static String? _str(Object? raw) {
@@ -327,6 +342,12 @@ class DeliveryTrackingInfo extends Equatable {
   final DateTime? deadline;
 
   final GpsPoint? jeeberPosition;
+
+  /// Route endpoints from the delivery record: they seed the map camera before
+  /// the courier's first GPS fix exists (D-V2 — map used to open on Beirut).
+  final GpsPoint? pickupPoint;
+
+  final GpsPoint? dropoffPoint;
 
   final List<GpsPoint> polyline;
 
@@ -451,6 +472,8 @@ class DeliveryTrackingInfo extends Equatable {
       etaMinutes: etaMinutes,
       deadline: deadline,
       jeeberPosition: jeeberPosition ?? this.jeeberPosition,
+      pickupPoint: pickupPoint,
+      dropoffPoint: dropoffPoint,
       polyline: polyline.isNotEmpty ? polyline : this.polyline,
       jeeber: jeeber,
       requestId: requestId,
@@ -476,6 +499,8 @@ class DeliveryTrackingInfo extends Equatable {
         etaMinutes,
         deadline,
         jeeberPosition,
+        pickupPoint,
+        dropoffPoint,
         polyline,
         jeeber,
         requestId,

@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/di/injection_container.dart';
 import '../../../core/layout/bottom_inset.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../rate_app/domain/app_review_launcher.dart';
+import '../../settings/data/shared_prefs_profile_repository.dart';
 import '../../settings/presentation/widgets/logout_delete_confirm_sheet.dart';
 import '../application/customer_profile_cubit.dart';
 import '../application/customer_profile_state.dart';
@@ -55,9 +57,20 @@ class CustomerProfileScreen extends StatelessWidget {
   CustomerProfileRepository? _resolveRepository() {
     if (repository != null) return repository;
     if (sl.isRegistered<Dio>()) {
-      return DioCustomerProfileRepository(sl<Dio>());
+      return DioCustomerProfileRepository(
+        sl<Dio>(),
+        phoneFallback: _storedPhone,
+      );
     }
     return null;
+  }
+
+  static Future<String?> _storedPhone() async {
+    if (!sl.isRegistered<SharedPreferences>()) return null;
+    final profile =
+        await SharedPrefsProfileRepository(prefs: sl<SharedPreferences>())
+            .load();
+    return profile?.phoneE164;
   }
 
   AppReviewLauncher _resolveReviewLauncher() {

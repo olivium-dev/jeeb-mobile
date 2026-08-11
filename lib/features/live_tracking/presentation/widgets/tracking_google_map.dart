@@ -215,10 +215,13 @@ class _TrackingGoogleMapState extends State<TrackingGoogleMap> {
 }
 
 /// Initial camera: the courier fix when known, else the polyline's first point,
-/// else Beirut downtown. Pure so it is unit-testable without a platform view.
+/// else the delivery's own drop-off/pickup coordinate, else Beirut downtown.
+/// Pure so it is unit-testable without a platform view.
 CameraPosition trackingCamera(DeliveryTrackingInfo info) {
   final point = info.jeeberPosition ??
-      (info.polyline.isNotEmpty ? info.polyline.first : null);
+      (info.polyline.isNotEmpty ? info.polyline.first : null) ??
+      info.dropoffPoint ??
+      info.pickupPoint;
   final target = point != null
       ? LatLng(point.lat, point.lng)
       : const LatLng(33.8938, 35.5018);
@@ -277,8 +280,12 @@ Set<Marker> trackingDestinationMarkers(
   DeliveryTrackingInfo info, {
   BitmapDescriptor? destinationIcon,
 }) {
-  if (info.polyline.length < 2) return const <Marker>{};
-  final destination = info.polyline.last;
+  // With no route yet the delivery's own drop-off coordinate is authoritative,
+  // and unlike `polyline.last` it is not an assumption (§F-2).
+  final destination = info.polyline.length >= 2
+      ? info.polyline.last
+      : (info.polyline.isEmpty ? info.dropoffPoint : null);
+  if (destination == null) return const <Marker>{};
   return {
     Marker(
       markerId: const MarkerId(TrackingGoogleMap.destinationMarkerId),

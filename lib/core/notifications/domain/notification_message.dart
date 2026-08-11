@@ -39,6 +39,8 @@ enum NotificationCategory {
       case 'accept':
         return NotificationCategory.delivery;
       case 'offer':
+      case 'offer_received':
+      case 'offerreceived':
         return NotificationCategory.newOffer;
       case 'chat':
         return NotificationCategory.chat;
@@ -79,10 +81,14 @@ enum NotificationCategory {
   }
 
   /// legacy `category` must NOT win, or a `new_request` tap mis-routes to the
+  /// `notification_type` is last: the notification-service lane carries only it,
+  /// while delivery/chat pushes carry it alongside a flat `type` that must win.
   static NotificationCategory fromData(Map<String, String> data) {
     final byType = fromKey(data['type']);
     if (byType != NotificationCategory.other) return byType;
-    return fromKey(data['category']);
+    final byCategory = fromKey(data['category']);
+    if (byCategory != NotificationCategory.other) return byCategory;
+    return fromKey(data['notification_type']);
   }
 }
 

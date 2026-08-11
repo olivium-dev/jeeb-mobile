@@ -220,13 +220,15 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
       // F1 correction 4 — wallet pushes (guard-2 auto-withdraw) carry no
       // order/delivery/request id; without this they never reach _topicsFor.
       NotificationCategory.wallet,
+      // D-V1: the live offer_received payload carries no request/order id, so
+      // the id guard stranded the client waiting screen on "no offers yet".
+      NotificationCategory.newOffer,
     };
     if (idless.contains(message.category)) {
       _refreshSignals.signal(_topicsFor(message.category));
       return;
     }
     const orderish = <NotificationCategory>{
-      NotificationCategory.newOffer,
       NotificationCategory.requestExpired,
     };
     if (!orderish.contains(message.category)) return;

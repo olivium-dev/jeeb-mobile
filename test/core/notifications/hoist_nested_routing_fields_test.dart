@@ -102,5 +102,54 @@ void main() {
       expect(data.length, 2);
       expect(data['conversationId'], 'abc-123');
     });
+
+    // D-V1: the notification-service lane names its blob `payload`, not `data`.
+    test('hoists offer_id out of the notification-service payload blob', () {
+      final data = <String, String>{
+        'notification_type': 'jeeb.offer_received',
+        'payload':
+            "{'user_id': 'u-1', 'offer_id': '15f6be48-1111-2222-3333-444455556666'}",
+      };
+      hoistNestedRoutingFields(data);
+
+      expect(data['offer_id'], '15f6be48-1111-2222-3333-444455556666');
+    });
+  });
+
+  group('NotificationCategory.fromData — svc-lane fallback (D-V1)', () {
+    test('classifies the live offer_received payload as newOffer', () {
+      final category = NotificationCategory.fromData(const <String, String>{
+        'notification_type': 'jeeb.offer_received',
+        'payload': "{'offer_id': 'o-1'}",
+      });
+
+      expect(category, NotificationCategory.newOffer);
+    });
+
+    test('classifies the svc-lane offer_accepted push', () {
+      final category = NotificationCategory.fromData(const <String, String>{
+        'notification_type': 'jeeb.offer_accepted',
+      });
+
+      expect(category, NotificationCategory.offerAccepted);
+    });
+
+    test('a flat type still wins over notification_type', () {
+      final category = NotificationCategory.fromData(const <String, String>{
+        'type': 'chat',
+        'notification_type': 'jeeb.offer_received',
+      });
+
+      expect(category, NotificationCategory.chat);
+    });
+
+    test('a flat category still wins over notification_type', () {
+      final category = NotificationCategory.fromData(const <String, String>{
+        'category': 'delivery',
+        'notification_type': 'jeeb.offer_received',
+      });
+
+      expect(category, NotificationCategory.delivery);
+    });
   });
 }

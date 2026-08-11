@@ -4,17 +4,30 @@ import '../domain/customer_profile_repository.dart';
 import '../domain/customer_profile_view_data.dart';
 
 class DioCustomerProfileRepository implements CustomerProfileRepository {
-  const DioCustomerProfileRepository(this._dio);
+  const DioCustomerProfileRepository(this._dio, {this.phoneFallback});
 
   final Dio _dio;
 
+  /// Supplies the locally stored E.164 phone for phone-only accounts, whose
+  /// server "email" is a synthetic handle no user should ever be shown (D-V5).
+  final Future<String?> Function()? phoneFallback;
+
   static const String _path = '/v1/users/me';
+
+  /// `phone-only+<hex>@jeeb.internal` — user-management's placeholder handle.
+  static final RegExp _syntheticEmail = RegExp(
+    r'^phone-only\+[0-9a-fA-F-]+@|@jeeb\.internal$',
+  );
 
   @override
   Future<CustomerProfileViewData> fetchProfile() async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(_path);
-      return _parse(response.data ?? const <String, dynamic>{});
+      final parsed = _parse(response.data ?? const <String, dynamic>{});
+      if (parsed.email != null) return parsed;
+      final phone = await phoneFallback?.call();
+      if (phone == null || phone.trim().isEmpty) return parsed;
+      return parsed.copyWith(email: phone.trim());
     } on DioException catch (e) {
       throw CustomerProfileRepositoryException(_map(e), e.message);
     }
@@ -42,7 +55,7 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
 
     return CustomerProfileViewData(
       name: _str(json['name'] ?? json['fullName'] ?? json['displayName']),
-      email: _str(json['email']),
+      email: _publicEmail(json['email']),
       avatarUrl: _str(
         json['avatarUrl'] ?? json['avatar_url'] ?? json['photoUrl'],
       ),
@@ -78,6 +91,12 @@ class DioCustomerProfileRepository implements CustomerProfileRepository {
         normalized == 'delivery' ||
         normalized == 'deliveryman' ||
         normalized == 'delivery_man';
+  }
+
+  String? _publicEmail(Object? value) {
+    final email = _str(value);
+    if (email == null || _syntheticEmail.hasMatch(email)) return null;
+    return email;
   }
 
   String? _str(Object? value) {

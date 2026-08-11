@@ -275,7 +275,10 @@ class _MetaRow extends StatelessWidget {
   /// card edge on a narrow handset or in a long-label locale. Capping it makes
   /// the label ellipsize instead — the row can no longer overflow, and the
   /// action still hugs the end edge because the meta line is `Expanded`.
-  static const double maxActionFraction = 0.55;
+  /// 0.55 clipped BOTH labels ("Ign…" / "Make of…") at 1.0× on a 411dp handset
+  /// (D-V4); 0.62 clears their ~190dp intrinsic and still ellipsizes, never
+  /// overflows, in a pathological locale.
+  static const double maxActionFraction = 0.62;
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +352,7 @@ class _MetaLine extends StatelessWidget {
         if (hasDistance)
           Flexible(
             child: Text(
-              l10n.requestFeedDistance(_formatDistance(context, distance)),
+              _distanceLabel(context, l10n, distance),
               style: style,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -375,9 +378,23 @@ class _MetaLine extends StatelessWidget {
     );
   }
 
-  String _formatDistance(BuildContext context, double km) {
+  /// Sub-kilometre reads as metres: `0.089 km` was both absurd and long enough
+  /// that the unit itself ellipsized away on a 411dp handset (D-V4).
+  String _distanceLabel(
+    BuildContext context,
+    AppLocalizations l10n,
+    double km,
+  ) {
     final locale = Localizations.localeOf(context).toLanguageTag();
-    return NumberFormat.decimalPattern(locale).format(km);
+    if (km < 0.95) {
+      final metres = (km * 1000).round();
+      return l10n.requestFeedDistanceMeters(
+        NumberFormat.decimalPattern(locale).format(metres),
+      );
+    }
+    return l10n.requestFeedDistance(
+      NumberFormat('0.#', locale).format(km),
+    );
   }
 }
 
