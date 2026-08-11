@@ -98,8 +98,9 @@ void main() {
       expect(find.text('Delivery'), findsWidgets);
       expect(find.text('Profile'), findsWidgets);
       // UX LAW (S0-E2E-08): the jeeber tabs are additive — present for every
-      expect(find.text('Dashboard'), findsWidgets);
-      expect(find.text('Earnings'), findsWidgets);
+      // user; the close-out ruling only changes their WORDING per active role.
+      expect(find.text('Deliver'), findsWidgets);
+      expect(find.text('Earn'), findsWidgets);
     });
 
     testWidgets('OMDS light theme has useMaterial3 enabled', (_) async {
@@ -130,7 +131,8 @@ void main() {
       expect(codes, contains('ar'));
     });
 
-    testWidgets('non-jeeber still sees the additive jeeber tab labels',
+    testWidgets('non-jeeber still sees the additive jeeber tabs, in client '
+        'wording',
         (tester) async {
       final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(_shellHarness(prefs));
@@ -140,8 +142,9 @@ void main() {
       expect(find.text('Delivery'), findsWidgets);
       expect(find.text('Profile'), findsWidgets);
       // No RoleAvailabilityCubit in this harness → non-jeeber, but the jeeber
-      expect(find.text('Dashboard'), findsWidgets);
-      expect(find.text('Earnings'), findsWidgets);
+      expect(find.text('Deliver'), findsWidgets);
+      expect(find.text('Earn'), findsWidgets);
+      expect(find.text('Dashboard'), findsNothing);
     });
 
     testWidgets('Arabic locale renders RTL with Arabic labels',

@@ -20,9 +20,8 @@ import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/features/shell/widgets/jeeber_tab_empty_state.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
-/// UX LAW (S0-E2E-08): the shell is ADDITIVE, not role-gated. Every user sees
-/// the same five destinations — Requests / Delivery / Dashboard / Earnings /
-/// Profile. A non-jeeber sees the jeeber tabs with EMPTY STATES; a jeeber sees
+/// UX LAW (S0-E2E-08): the shell STRUCTURE stays additive — five destinations,
+/// fixed order, empty states for a non-jeeber. Only the LABELS follow the role.
 
 class _StubEarningsRepository implements EarningsRepository {
   @override
@@ -150,8 +149,10 @@ void main() {
     expect(find.text('Delivery'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
     // The ADDITIVE jeeber tabs are present for a regular user too (UX LAW),
-    expect(find.text('Dashboard'), findsWidgets);
-    expect(find.text('Earnings'), findsWidgets);
+    // labelled as invitations rather than with the jeeber words.
+    expect(find.text('Deliver'), findsWidgets);
+    expect(find.text('Earn'), findsWidgets);
+    expect(find.text('Dashboard'), findsNothing);
   });
 
   testWidgets('non-jeeber sees the jeeber tabs as EMPTY STATES (no live body)',
@@ -191,9 +192,11 @@ void main() {
       find.byType(JeeberTabEmptyState, skipOffstage: false),
       findsNothing,
     );
-    // The tab set is unchanged — all five destinations are still present.
+    // The tab set is unchanged — all five destinations are still present,
+    // under the jeeber label set.
+    expect(find.text('My Requests'), findsWidgets);
+    expect(find.text('Deliveries'), findsWidgets);
     expect(find.text('Requests'), findsWidgets);
-    expect(find.text('Dashboard'), findsWidgets);
     expect(find.text('Earnings'), findsWidgets);
   });
 
@@ -203,15 +206,15 @@ void main() {
     await tester.pumpWidget(_harness(prefs: prefs));
     await tester.pumpAndSettle();
 
-    // Tap the additive Dashboard destination (index 2).
-    await tester.tap(find.text('Dashboard').last);
+    // Tap the additive jeeber destination (index 2).
+    await tester.tap(find.text('Deliver').last);
     await tester.pumpAndSettle();
 
     // All five destinations are still present — additive, never swapped.
     expect(find.text('Requests'), findsWidgets);
     expect(find.text('Delivery'), findsWidgets);
-    expect(find.text('Dashboard'), findsWidgets);
-    expect(find.text('Earnings'), findsWidgets);
+    expect(find.text('Deliver'), findsWidgets);
+    expect(find.text('Earn'), findsWidgets);
     expect(find.text('Profile'), findsWidgets);
   });
 

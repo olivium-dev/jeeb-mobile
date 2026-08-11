@@ -212,6 +212,14 @@ class BackgroundGpsCubit extends Cubit<BackgroundGpsState> {
             uploadedCount: state.uploadedCount + 1,
           ),
         );
+        // `bg_gps_phase` only fires when the PHASE changes, i.e. before the
+        // first upload — which is why its `uploaded` always read 0.
+        Diag.event('bg_gps_upload', <String, Object?>{
+          'deliveryId': delivery,
+          'uploaded': state.uploadedCount,
+          'discarded': state.discardedCount,
+          'stationary': stationary,
+        });
       case LocationUploadOutcome.transientFailure:
         _onUploadFailure(stationary);
       case LocationUploadOutcome.permanentFailure:

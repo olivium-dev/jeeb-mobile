@@ -7,6 +7,8 @@ import 'package:omds/omds.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/motion/jeeb_motion_primitives.dart';
+import '../../../core/role/role_cubit.dart';
+import '../../../core/role/user_role.dart';
 import '../../../core/motion/jeeb_motion_tokens.dart';
 import '../../../core/widgets/jeeb/jeeb_chat_bubble.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
@@ -1093,7 +1095,11 @@ class _ChatEmptyState extends StatelessWidget {
     final (title, subtitle) = switch (phase) {
       ConversationPhase.unknown => (
         l10n.chatNoConversationTitle,
-        l10n.chatNoConversationSubtitle,
+        // The client-side wording ("once a Jeeber is assigned") is nonsense for
+        // the assigned jeeber, who IS that Jeeber.
+        context.read<RoleCubit?>()?.state == UserRole.jeeber
+            ? l10n.chatNoConversationSubtitleJeeber
+            : l10n.chatNoConversationSubtitle,
       ),
       ConversationPhase.broadcasting => (
         l10n.chatBroadcastingTitle,

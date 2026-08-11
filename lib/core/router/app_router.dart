@@ -517,7 +517,8 @@ class AppRouter {
   /// EXCLUSIONS — routes deliberately ABSENT here (never wrapped), and why:
   ///   * tab/home + first-run roots (`shell`, `onboarding`, `register`):
   ///     BACK there legitimately exits the app; wrapping would trap the user
-  ///     (BACK could never leave).
+  ///     (BACK could never leave). `ShellScreen` owns its own root-back
+  ///     handling (return to the landing tab, then confirm-to-exit).
   ///   * gate screens (`biometric-lock`, `account-status`): BACK must not
   ///     bypass the lock / blocked-account gate.
   ///   * mandatory blind-rating screens (`feedback`, `mutual-rating`): they
@@ -687,6 +688,11 @@ class AppRouter {
           _BlocRefreshListenable(accountStatusBloc),
       ]),
       redirect: (context, state) {
+        // `/devtool` is consumed by main.dart BEFORE the product app boots, so
+        // anything reaching the router here is a Dev-Tool-less build launched
+        // via the alias — which used to paint go_router's error page.
+        if (state.matchedLocation == '/devtool') return '/';
+
         // S007-P1B: a custom-scheme VIEW intent `jeeb://chat/<id>` arrives with
         // the chat id as the URI host+segment; normalize it to `/chat/:id` so
         // `chat-detail` resolves the accepted conversation in-app. Inert for

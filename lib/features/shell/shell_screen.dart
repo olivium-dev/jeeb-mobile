@@ -8,6 +8,8 @@ import '../../core/dev_seam/dev_seam.dart';
 import '../../core/lifecycle/route_visibility.dart';
 import '../../core/notifications/application/badge_count_cubit.dart';
 import '../../core/role/role_availability_cubit.dart';
+import '../../core/role/role_cubit.dart';
+import '../../core/role/user_role.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/jeeb/jeeb_pill_nav.dart';
 import '../../l10n/app_localizations.dart';
@@ -92,6 +94,11 @@ class _ShellScreenState extends State<ShellScreen> {
   /// resolution (async getMe) never moves them.
   int? _selectedIndex;
 
+  /// Window in which a second root BACK actually exits.
+  static const Duration _exitConfirmWindow = Duration(seconds: 2);
+
+  DateTime? _lastBackAt;
+
   @override
   Widget build(BuildContext context) {
     // The tab SET never changes — additive, not role-gated. Only the jeeber
@@ -106,59 +113,92 @@ class _ShellScreenState extends State<ShellScreen> {
     // viewed, so it never shows while the jeeber is already looking.
     final requestBadgeCount =
         context.watch<BadgeCountCubit?>()?.state.newRequests ?? 0;
+    // Close-out ruling: nav LABELS follow the role so a client never reads
+    // jeeber words. Content gating is untouched — still `available_roles`.
+    final activeRoleIsJeeber =
+        context.watch<RoleCubit?>()?.state == UserRole.jeeber;
     final tabs = _tabs(
       showJeeberContent: showJeeberContent,
       requestBadgeCount: requestBadgeCount,
+      jeeberLabels: activeRoleIsJeeber || showJeeberContent,
     );
     final landingIndex = _landingIndex(tabs, isJeeber: showJeeberContent);
     final safeIndex = (_selectedIndex ?? landingIndex).clamp(0, tabs.length - 1);
     return AnnotatedRegion<SystemUiOverlayStyle>(
       // White status glyphs over navy on EVERY tab, whatever a tab body does.
       value: AppTheme.systemOverlayStyle,
-      child: Scaffold(
-        // The nav floats OVER the tab content, so the body runs full height and
-        // Scaffold grows its bottom inset by the nav's painted height.
-        extendBody: true,
-        body: SafeArea(
-          bottom: false,
-          // b02 READ ECONOMICS — [RouteVisibilityScope]. `TabVisibility` answers
-          // "am I the selected tab", which is NOT the same as "can the user see
-          // me": pushing `/delivery/:id` or `/chat/:id` on top of the shell leaves
-          // every tab mounted and still selected, so their push-bus subscribers
-          // kept reading underneath the pushed route. That was seven of the ten
-          // wire reads one `delivery` push produced on the customer phone. ONE
-          // scope, mounted on the shell's own route, so every tab can AND
-          // route-visibility into its own gate.
-          child: RouteVisibilityScope(
-            child: _NavBarContentInset(
-              child: IndexedStack(
-                index: safeIndex,
-                // Wrap each child in a TabVisibility so a tab body can react to
-                // (re)becoming the selected page even though IndexedStack keeps
-                // every child mounted. Used by ClientHomeScreen to silently
-                // re-pull on refocus. updateShouldNotify only fires for the tab
-                // whose visibility actually flips.
-                children: [
-                  for (var i = 0; i < tabs.length; i++)
-                    TabVisibility(
-                      isVisible: i == safeIndex,
-                      child: tabs[i].page,
-                    ),
-                ],
+      child: _RootBackHandler(
+        onRootBack: () => _handleRootBack(landingIndex, safeIndex),
+        child: Scaffold(
+          // The nav floats OVER the tab content, so the body runs full height and
+          // Scaffold grows its bottom inset by the nav's painted height.
+          extendBody: true,
+          body: SafeArea(
+            bottom: false,
+            // b02 READ ECONOMICS — [RouteVisibilityScope]. `TabVisibility` answers
+            // "am I the selected tab", which is NOT the same as "can the user see
+            // me": pushing `/delivery/:id` or `/chat/:id` on top of the shell leaves
+            // every tab mounted and still selected, so their push-bus subscribers
+            // kept reading underneath the pushed route. That was seven of the ten
+            // wire reads one `delivery` push produced on the customer phone. ONE
+            // scope, mounted on the shell's own route, so every tab can AND
+            // route-visibility into its own gate.
+            child: RouteVisibilityScope(
+              child: _NavBarContentInset(
+                child: IndexedStack(
+                  index: safeIndex,
+                  // Wrap each child in a TabVisibility so a tab body can react to
+                  // (re)becoming the selected page even though IndexedStack keeps
+                  // every child mounted. Used by ClientHomeScreen to silently
+                  // re-pull on refocus. updateShouldNotify only fires for the tab
+                  // whose visibility actually flips.
+                  children: [
+                    for (var i = 0; i < tabs.length; i++)
+                      TabVisibility(
+                        isVisible: i == safeIndex,
+                        child: tabs[i].page,
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: _FloatingTabNav(
-            tabs: tabs,
-            selectedIndex: safeIndex,
-            onSelected: (i) => setState(() => _selectedIndex = i),
+          bottomNavigationBar: SafeArea(
+            top: false,
+            child: _FloatingTabNav(
+              tabs: tabs,
+              selectedIndex: safeIndex,
+              onSelected: (i) => setState(() => _selectedIndex = i),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  /// Standard Android root back: off the landing tab it returns there; on it,
+  /// the first press only warns — a single stray BACK used to destroy the task.
+  void _handleRootBack(int landingIndex, int currentIndex) {
+    if (currentIndex != landingIndex) {
+      setState(() => _selectedIndex = landingIndex);
+      return;
+    }
+    final now = DateTime.now();
+    final last = _lastBackAt;
+    if (last != null && now.difference(last) <= _exitConfirmWindow) {
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBackAt = now;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).shellExitConfirm),
+          duration: _exitConfirmWindow,
+        ),
+      );
   }
 
   /// BUG-1: the tab the shell lands on before the user navigates. A jeeber (by
@@ -199,12 +239,13 @@ class _ShellScreenState extends State<ShellScreen> {
   List<_Tab> _tabs({
     required bool showJeeberContent,
     required int requestBadgeCount,
+    required bool jeeberLabels,
   }) {
     final l10n = AppLocalizations.of(context);
     return [
       _Tab(
         id: 'requests',
-        label: l10n.navRequests,
+        label: jeeberLabels ? l10n.navMyRequests : l10n.navRequests,
         icon: Icons.move_to_inbox,
         // Persistent header wallet chip + bell on the Requests header
         // (`orders_home_wallet_chip`/`orders_home_bell`), overlaid by the shell
@@ -219,7 +260,7 @@ class _ShellScreenState extends State<ShellScreen> {
       ),
       _Tab(
         id: 'delivery',
-        label: l10n.navDelivery,
+        label: jeeberLabels ? l10n.navDeliveries : l10n.navDelivery,
         icon: Icons.local_shipping,
         page: OrdersTab(repository: widget.ordersRepository),
       ),
@@ -228,7 +269,9 @@ class _ShellScreenState extends State<ShellScreen> {
       // actions); a regular user sees the [JeeberTabEmptyState] invitation.
       _Tab(
         id: _jeeberLandingTabId,
-        label: l10n.navDashboard,
+        // A jeeber calls the incoming feed "Requests"; a client sees the
+        // become-a-jeeber invitation, never the jeeber word "Dashboard".
+        label: jeeberLabels ? l10n.navRequests : l10n.navDeliverInvite,
         icon: Icons.dashboard,
         // G3: unseen open requests badge the tab icon so a dismissed push
         // still leaves a visible trail to the feed.
@@ -244,7 +287,7 @@ class _ShellScreenState extends State<ShellScreen> {
       // dashboard; a regular user sees the same become-a-jeeber empty state.
       _Tab(
         id: 'earnings',
-        label: l10n.navEarnings,
+        label: jeeberLabels ? l10n.navEarnings : l10n.navEarnInvite,
         icon: Icons.payments,
         page: showJeeberContent
             ? const EarningsTab()
@@ -266,6 +309,36 @@ class _ShellScreenState extends State<ShellScreen> {
         ),
       ),
     ];
+  }
+}
+
+/// Hardware BACK at the shell root. go_router 13 never consults the LAST
+/// route's [PopScope], so the dispatcher is hooked ahead of the router.
+class _RootBackHandler extends StatelessWidget {
+  const _RootBackHandler({required this.onRootBack, required this.child});
+
+  final VoidCallback onRootBack;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scoped = PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        onRootBack();
+      },
+      child: child,
+    );
+    if (Router.maybeOf(context) == null) return scoped;
+    return BackButtonListener(
+      onBackButtonPressed: () async {
+        if (!(ModalRoute.of(context)?.isCurrent ?? true)) return false;
+        onRootBack();
+        return true;
+      },
+      child: scoped,
+    );
   }
 }
 

@@ -1,20 +1,26 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/dev_seam/dev_seam.dart';
 import '../../../core/di/injection_container.dart';
 import '../../../core/lifecycle/app_resume_signals.dart';
 import '../../../core/lifecycle/polling_visibility_gate.dart';
 import '../../../core/lifecycle/route_visibility.dart';
+import '../../../core/power/battery_optimization.dart';
 import '../../../core/session/greeting_profile_cubit.dart';
 import '../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../core/session/profile_refresh_signals.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../customer_profile/data/dio_customer_profile_repository.dart';
 import '../../customer_profile/domain/customer_profile_repository.dart';
 import '../../jeeber_home/application/availability_cubit.dart';
+import '../../jeeber_home/application/availability_state.dart';
 import '../../jeeber_home/domain/entities/availability_status.dart';
 import '../../jeeber_home/domain/entities/feed_request.dart';
 import '../../jeeber_home/domain/services/availability_gateway.dart';
@@ -137,7 +143,9 @@ class _JeeberHomeHost extends StatelessWidget {
         ),
       ],
       child: Builder(
-        builder: (context) => _MaybeResumeRefetch(
+        builder: (context) => _BatteryOptimizationPrompt(
+          enabled: !_unregistered,
+          child: _MaybeResumeRefetch(
           enabled: !_unregistered,
           child: _GateScoped(
             destination: destination,
@@ -165,8 +173,85 @@ class _JeeberHomeHost extends StatelessWidget {
             ),
           ),
         ),
+        ),
       ),
     );
+  }
+}
+
+/// Samsung app-sleep withholds FCM from a battery-restricted app, so a jeeber
+/// who just went ONLINE gets no new-request push. Asked once per install.
+class _BatteryOptimizationPrompt extends StatefulWidget {
+  const _BatteryOptimizationPrompt({required this.enabled, required this.child});
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  State<_BatteryOptimizationPrompt> createState() =>
+      _BatteryOptimizationPromptState();
+}
+
+class _BatteryOptimizationPromptState
+    extends State<_BatteryOptimizationPrompt> {
+  static const BatteryOptimization _power = BatteryOptimization();
+
+  bool _wasOnline = false;
+  bool _inFlight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _wasOnline = context.read<AvailabilityCubit>().state.status.isOnline;
+    if (widget.enabled && _wasOnline) unawaited(_maybePrompt());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<AvailabilityCubit, AvailabilityViewState>(
+      listenWhen: (previous, current) =>
+          previous.status.isOnline != current.status.isOnline,
+      listener: (context, state) {
+        final wentOnline = !_wasOnline && state.status.isOnline;
+        _wasOnline = state.status.isOnline;
+        if (!widget.enabled || !wentOnline) return;
+        unawaited(_maybePrompt());
+      },
+      child: widget.child,
+    );
+  }
+
+  Future<void> _maybePrompt() async {
+    if (_inFlight || !sl.isRegistered<SharedPreferences>()) return;
+    _inFlight = true;
+    try {
+      final prefs = sl<SharedPreferences>();
+      if (!await _power.shouldPrompt(prefs)) return;
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
+      await _power.markPrompted(prefs);
+      if (!mounted) return;
+      final open = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.batteryOptimizationTitle),
+          content: Text(l10n.batteryOptimizationBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.batteryOptimizationDismiss),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.batteryOptimizationAction),
+            ),
+          ],
+        ),
+      );
+      if (open ?? false) await _power.openSettings();
+    } finally {
+      _inFlight = false;
+    }
   }
 }
 

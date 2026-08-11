@@ -393,4 +393,23 @@ void main() {
     await tester.pumpWidget(wrapNav(themeOverride: ThemeData.light()));
     expect(tester.takeException(), isNull);
   });
+
+  // Close-out 2026-08-11: five fixed-width slots cannot grow, so an unclamped
+  // 2.0 accessibility scale ellipsized every label down to nothing.
+  testWidgets('nav labels clamp their text scale so they degrade, not vanish',
+      (tester) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+        child: wrapNav(),
+      ),
+    );
+
+    final Text label = tester.widget<Text>(find.text('Requests'));
+    expect(
+      label.textScaler?.scale(10),
+      10 * JeebPillNav.maxLabelTextScale,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

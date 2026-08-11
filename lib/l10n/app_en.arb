@@ -36,6 +36,37 @@
   "@navDelivery": {
     "description": "Client bottom tab: Delivery"
   },
+  "navMyRequests": "My Requests",
+  "@navMyRequests": {
+    "description": "Bottom tab label for the client compose/my-requests surface when the ACTIVE ROLE is jeeber (the plain 'Requests' label then names the incoming feed)."
+  },
+  "navDeliveries": "Deliveries",
+  "@navDeliveries": {
+    "description": "Bottom tab label for the jeeber's own delivery list when the ACTIVE ROLE is jeeber."
+  },
+  "navDeliverInvite": "Deliver",
+  "@navDeliverInvite": {
+    "description": "Bottom tab label a CLIENT sees over the become-a-jeeber invitation surface (never the jeeber word 'Dashboard')."
+  },
+  "navEarnInvite": "Earn",
+  "@navEarnInvite": {
+    "description": "Bottom tab label a CLIENT sees over the become-a-jeeber earnings invitation surface."
+  },
+  "shellExitConfirm": "Press back again to exit",
+  "@shellExitConfirm": {
+    "description": "Snackbar shown on the first hardware BACK at the shell's root tab; a second BACK within the window exits."
+  },
+  "shellSettingsLabel": "Settings",
+  "@shellSettingsLabel": {
+    "description": "Profile-tab header gear that opens the /settings hub."
+  },
+  "batteryOptimizationTitle": "Keep delivery alerts coming",
+  "@batteryOptimizationTitle": {
+    "description": "One-time jeeber prompt shown after going online; Samsung app-sleep silently drops new-request pushes."
+  },
+  "batteryOptimizationBody": "Your phone can put Jeeb to sleep and hold back new-request notifications. Allow Jeeb to run without battery restrictions to keep receiving them.",
+  "batteryOptimizationAction": "Open settings",
+  "batteryOptimizationDismiss": "Not now",
   "homeTitle": "Welcome to Jeeb",
   "homeEmptyTitle": "What do you need?",
   "homeEmptyCta": "Create your first request",
@@ -3016,6 +3047,10 @@
   "chatPendingMessages": "Pending messages",
   "chatNoConversationTitle": "No conversation yet",
   "chatNoConversationSubtitle": "This delivery doesn't have a chat thread. Check back once a Jeeber is assigned.",
+  "chatNoConversationSubtitleJeeber": "This delivery doesn't have a chat thread yet. It opens as soon as the client starts one.",
+  "@chatNoConversationSubtitleJeeber": {
+    "description": "Jeeber-side wording of the no-conversation (404) chat empty state; the client-side string tells the reader to wait for a Jeeber to be assigned, which is nonsense for the assigned jeeber."
+  },
   "chatHistoryErrorTitle": "Couldn't load this chat",
   "@chatHistoryErrorTitle": {
     "description": "b02: heading on the chat body when the HISTORY READ FAILED (500 / transport / store down). Deliberately not the empty-thread copy — a Jeeber may well be assigned and in transit."

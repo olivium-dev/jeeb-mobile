@@ -294,4 +294,38 @@ void main() {
       await shared.close();
     });
   });
+  // Close-out 2026-08-11: the uploader is an APP-WIDE SINGLETON, so its state
+  // survives the delivery it was started for.
+  group('stale uploader phase never leaks into another delivery', () {
+    test('a permissionDenied phase pinned to DLV-A leaves DLV-B unblocked',
+        () async {
+      final gateway = FakeGeocaptureGateway(
+        initialPermission: LocationPermission.deniedForever,
+      );
+      final gps = BackgroundGpsCubit(
+        gateway: gateway,
+        uploader: InMemoryLocationUploader(),
+      );
+      await gps.start('DLV-A');
+      await pumpEventQueue();
+      expect(gps.state.phase, BackgroundGpsPhase.permissionDenied);
+      expect(gps.state.deliveryId, 'DLV-A');
+
+      final other = ActiveDeliveryCubit(
+        repository: _FakeRepo(JeeberDeliveryStatus.picked, id: 'DLV-B'),
+        deliveryId: 'DLV-B',
+        gpsUploader: gps,
+        refreshSignals: const Stream<void>.empty(),
+      );
+      await pumpEventQueue();
+
+      expect(other.state.gpsPhase, BackgroundGpsPhase.idle);
+      expect(other.state.isGpsBlocked, isFalse);
+      expect(other.state.gpsNeedsSystemSettings, isFalse);
+
+      await other.close();
+      await gps.close();
+    });
+  });
+
 }
