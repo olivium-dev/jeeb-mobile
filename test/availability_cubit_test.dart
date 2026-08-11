@@ -29,14 +29,25 @@ void main() {
 
   AvailabilityCubit build({
     AvailabilityInactivityPolicy policy = const AvailabilityInactivityPolicy(),
+    Stream<void>? resumeSignals,
   }) {
     return AvailabilityCubit(
       gateway: gateway,
       policy: policy,
       clock: () => now,
       tickerFactory: () => ticker.stream,
+      resumeSignals: resumeSignals,
     );
   }
+
+  const online = AvailabilityStatus(
+    state: AvailabilityState.online,
+    activeDeliveryCount: 0,
+  );
+  const offline = AvailabilityStatus(
+    state: AvailabilityState.offline,
+    activeDeliveryCount: 0,
+  );
 
   group('load', () {
     blocTest<AvailabilityCubit, AvailabilityViewState>(
@@ -86,10 +97,13 @@ void main() {
       ),
       setUp: () => when(() => gateway.toggle(goOnline: any(named: 'goOnline')))
           .thenAnswer(
-        (_) async => AvailabilityStatus(
-          state: AvailabilityState.online,
-          activeDeliveryCount: 0,
-          lastActivityAt: DateTime.utc(2026, 5, 17, 9, 0, 0),
+        (_) async => AvailabilityToggleResult(
+          status: AvailabilityStatus(
+            state: AvailabilityState.online,
+            activeDeliveryCount: 0,
+            lastActivityAt: DateTime.utc(2026, 5, 17, 9, 0, 0),
+          ),
+          location: GoOnlineLocationOutcome.attached,
         ),
       ),
       act: (c) => c.toggle(),
@@ -124,7 +138,7 @@ void main() {
     );
 
     test('blocks concurrent toggles', () async {
-      final completer = Completer<AvailabilityStatus>();
+      final completer = Completer<AvailabilityToggleResult>();
       when(() => gateway.toggle(goOnline: any(named: 'goOnline')))
           .thenAnswer((_) => completer.future);
       final cubit = build();
@@ -133,10 +147,12 @@ void main() {
       final second = cubit.toggle();
       expect(cubit.state.isToggleInFlight, isTrue);
       completer.complete(
-        AvailabilityStatus(
-          state: AvailabilityState.online,
-          activeDeliveryCount: 0,
-          lastActivityAt: now,
+        AvailabilityToggleResult(
+          status: AvailabilityStatus(
+            state: AvailabilityState.online,
+            activeDeliveryCount: 0,
+            lastActivityAt: now,
+          ),
         ),
       );
       await Future.wait([first, second]);
@@ -148,10 +164,12 @@ void main() {
   group('inactivity ticker', () {
     test('surfaces the warning once elapsed >= 7h30 and < 8h', () async {
       when(() => gateway.toggle(goOnline: any(named: 'goOnline'))).thenAnswer(
-        (_) async => AvailabilityStatus(
-          state: AvailabilityState.online,
-          activeDeliveryCount: 0,
-          lastActivityAt: now,
+        (_) async => AvailabilityToggleResult(
+          status: AvailabilityStatus(
+            state: AvailabilityState.online,
+            activeDeliveryCount: 0,
+            lastActivityAt: now,
+          ),
         ),
       );
       final cubit = build();
@@ -177,10 +195,12 @@ void main() {
 
     test('flips to autoOffline once elapsed >= 8h', () async {
       when(() => gateway.toggle(goOnline: any(named: 'goOnline'))).thenAnswer(
-        (_) async => AvailabilityStatus(
-          state: AvailabilityState.online,
-          activeDeliveryCount: 0,
-          lastActivityAt: now,
+        (_) async => AvailabilityToggleResult(
+          status: AvailabilityStatus(
+            state: AvailabilityState.online,
+            activeDeliveryCount: 0,
+            lastActivityAt: now,
+          ),
         ),
       );
       final cubit = build();
@@ -195,10 +215,12 @@ void main() {
 
     test('extendActivity resets the timer so the warning clears', () async {
       when(() => gateway.toggle(goOnline: any(named: 'goOnline'))).thenAnswer(
-        (_) async => AvailabilityStatus(
-          state: AvailabilityState.online,
-          activeDeliveryCount: 0,
-          lastActivityAt: now,
+        (_) async => AvailabilityToggleResult(
+          status: AvailabilityStatus(
+            state: AvailabilityState.online,
+            activeDeliveryCount: 0,
+            lastActivityAt: now,
+          ),
         ),
       );
       final cubit = build();
@@ -212,6 +234,128 @@ void main() {
       expect(cubit.state.warningVisible, isFalse);
       // After reset, last activity timestamp moves forward.
       expect(cubit.state.status.lastActivityAt, now);
+      await cubit.close();
+    });
+  });
+
+  group('D2 location freshness', () {
+    late StreamController<void> resumes;
+
+    setUp(() {
+      resumes = StreamController<void>.broadcast();
+      when(() => gateway.refreshLocation())
+          .thenAnswer((_) async => GoOnlineLocationOutcome.attached);
+    });
+
+    tearDown(() async => resumes.close());
+
+    Future<void> pump() => Future<void>.delayed(Duration.zero);
+
+    test('toggle surfaces the go-online location outcome on the state',
+        () async {
+      when(() => gateway.toggle(goOnline: any(named: 'goOnline'))).thenAnswer(
+        (_) async => const AvailabilityToggleResult(
+          status: online,
+          location: GoOnlineLocationOutcome.fixFailed,
+        ),
+      );
+      final cubit = build();
+      await cubit.toggle();
+      expect(cubit.state.locationOutcome, GoOnlineLocationOutcome.fixFailed);
+      await cubit.close();
+    });
+
+    test('going offline never carries a stale location outcome', () async {
+      when(() => gateway.toggle(goOnline: any(named: 'goOnline'))).thenAnswer(
+        (_) async => const AvailabilityToggleResult(
+          status: offline,
+          location: GoOnlineLocationOutcome.attached,
+        ),
+      );
+      final cubit = build();
+      cubit.emit(const AvailabilityViewState(
+        status: online,
+        locationOutcome: GoOnlineLocationOutcome.fixFailed,
+      ));
+      await cubit.toggle();
+      expect(
+        cubit.state.locationOutcome,
+        GoOnlineLocationOutcome.notApplicable,
+      );
+      await cubit.close();
+    });
+
+    test('a resume while online re-stamps last_location after syncing state',
+        () async {
+      when(() => gateway.fetch()).thenAnswer((_) async => online);
+      final cubit = build(resumeSignals: resumes.stream);
+      cubit.emit(const AvailabilityViewState(status: online));
+
+      resumes.add(null);
+      await pump();
+
+      verify(() => gateway.fetch()).called(1);
+      verify(() => gateway.refreshLocation()).called(1);
+      await cubit.close();
+    });
+
+    test('a resume while offline touches the network not at all', () async {
+      final cubit = build(resumeSignals: resumes.stream);
+
+      resumes.add(null);
+      await pump();
+
+      verifyNever(() => gateway.fetch());
+      verifyNever(() => gateway.refreshLocation());
+      await cubit.close();
+    });
+
+    test('a server auto-offline is adopted, NOT resurrected by the refresh',
+        () async {
+      when(() => gateway.fetch()).thenAnswer((_) async => offline);
+      final cubit = build(resumeSignals: resumes.stream);
+      cubit.emit(const AvailabilityViewState(status: online));
+
+      resumes.add(null);
+      await pump();
+
+      expect(cubit.state.status.isOnline, isFalse);
+      verifyNever(() => gateway.refreshLocation());
+      await cubit.close();
+    });
+
+    test('a failing resume refresh stays silent', () async {
+      when(() => gateway.fetch())
+          .thenThrow(const AvailabilityGatewayException('offline'));
+      final cubit = build(resumeSignals: resumes.stream);
+      cubit.emit(const AvailabilityViewState(status: online));
+
+      resumes.add(null);
+      await pump();
+
+      expect(cubit.state.toggleError, isFalse);
+      expect(cubit.state.status.isOnline, isTrue);
+      await cubit.close();
+    });
+
+    test('retryLocationAttach clears the warning once a fix lands', () async {
+      final cubit = build();
+      cubit.emit(const AvailabilityViewState(
+        status: online,
+        locationOutcome: GoOnlineLocationOutcome.fixFailed,
+      ));
+
+      await cubit.retryLocationAttach();
+
+      expect(cubit.state.locationOutcome, GoOnlineLocationOutcome.attached);
+      verify(() => gateway.refreshLocation()).called(1);
+      await cubit.close();
+    });
+
+    test('retryLocationAttach is inert while offline', () async {
+      final cubit = build();
+      await cubit.retryLocationAttach();
+      verifyNever(() => gateway.refreshLocation());
       await cubit.close();
     });
   });

@@ -346,11 +346,14 @@ void configureDependencies({
             permission == LocationPermission.notDetermined) {
           permission = await gateway.requestAlwaysPermission();
         }
-        if (permission == LocationPermission.denied) {
-          throw StateError('location-permission-denied');
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
+          throw const LocationCaptureDeniedException();
         }
-        return gateway.currentFix();
+        // Indoors getCurrentPosition can hang forever; bound it so go-online returns.
+        return gateway.currentFix().timeout(const Duration(seconds: 8));
       },
+      lastKnownFix: () => GeolocatorGeocaptureGateway().lastKnownFix(),
     ),
   );
 

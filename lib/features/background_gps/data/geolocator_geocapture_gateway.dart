@@ -122,6 +122,12 @@ class GeolocatorGeocaptureGateway implements GeocaptureGateway {
     return _toSample(position);
   }
 
+  /// Cached OS fix; last resort when a live fix times out (indoors, cold GPS).
+  Future<GpsSample?> lastKnownFix() async {
+    final position = await geo.Geolocator.getLastKnownPosition();
+    return position == null ? null : _toSample(position);
+  }
+
   /// OS-level GPS toggle status; distinct from app permission (routes to different recovery UI).
   Future<bool> isLocationServiceEnabled() =>
       geo.Geolocator.isLocationServiceEnabled();

@@ -107,7 +107,10 @@ class _JeeberHomeHost extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<AvailabilityCubit>(
-          create: (_) => AvailabilityCubit(gateway: sl<AvailabilityGateway>()),
+          create: (_) => AvailabilityCubit(
+            gateway: sl<AvailabilityGateway>(),
+            resumeSignals: AppResumeSignals.instance.stream,
+          ),
         ),
         BlocProvider<RequestFeedCubit>(
           create: (_) => RequestFeedCubit(
