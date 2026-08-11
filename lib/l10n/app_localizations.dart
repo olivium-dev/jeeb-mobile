@@ -59,6 +59,16 @@ class AppLocalizations {
   String get navEarnings => _get('navEarnings');
   String get navRequests => _get('navRequests');
   String get navDelivery => _get('navDelivery');
+  String get navMyRequests => _get('navMyRequests');
+  String get navDeliveries => _get('navDeliveries');
+  String get navDeliverInvite => _get('navDeliverInvite');
+  String get navEarnInvite => _get('navEarnInvite');
+  String get shellExitConfirm => _get('shellExitConfirm');
+  String get shellSettingsLabel => _get('shellSettingsLabel');
+  String get batteryOptimizationTitle => _get('batteryOptimizationTitle');
+  String get batteryOptimizationBody => _get('batteryOptimizationBody');
+  String get batteryOptimizationAction => _get('batteryOptimizationAction');
+  String get batteryOptimizationDismiss => _get('batteryOptimizationDismiss');
 
   String get homeTitle => _get('homeTitle');
   String get homeEmptyTitle => _get('homeEmptyTitle');
@@ -1482,6 +1492,8 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get chatPendingMessagesLabel => _get('chatPendingMessages');
   String get chatNoConversationTitle => _get('chatNoConversationTitle');
   String get chatNoConversationSubtitle => _get('chatNoConversationSubtitle');
+  String get chatNoConversationSubtitleJeeber =>
+      _get('chatNoConversationSubtitleJeeber');
   String get chatHistoryErrorTitle => _get('chatHistoryErrorTitle');
   String get chatHistoryErrorMessage => _get('chatHistoryErrorMessage');
   String get chatHistoryErrorRetry => _get('chatHistoryErrorRetry');

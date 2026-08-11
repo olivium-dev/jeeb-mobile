@@ -22,6 +22,10 @@ class ShellHeaderActions extends StatelessWidget {
   /// Circle diameter, and the tap target (≥44).
   static const double buttonSize = 44;
 
+  /// Tab whose header carries the settings gear (the `/settings` hub's only
+  /// in-app entry point).
+  static const String settingsHostIdPrefix = 'customer_profile';
+
   final String idPrefix;
 
   @override
@@ -30,6 +34,16 @@ class ShellHeaderActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (idPrefix == settingsHostIdPrefix) ...[
+          _circle(
+            context,
+            identifier: '${idPrefix}_settings',
+            label: l10n.shellSettingsLabel,
+            icon: Icons.settings_outlined,
+            onTap: () => context.pushNamed('settings'),
+          ),
+          const SizedBox(width: Spacing.xSmall),
+        ],
         _circle(
           context,
           identifier: '${idPrefix}_wallet_chip',

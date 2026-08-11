@@ -80,6 +80,11 @@ android {
         manifestPlaceholders += [MAPS_API_KEY: mapsApiKey ?: 'MISSING_MAPS_API_KEY']
     }
 
+    // The Dev Tool second launcher icon is opt-in even on dev/staging:
+    // `flutter build apk --flavor dev -Pjeeb.devtool=true`.
+    def devToolLauncherEnabled =
+        (project.findProperty('jeeb.devtool') ?: 'false').toString()
+
     // ─── Flavor Configuration ────────────────────────────────────────────────
     flavorDimensions "environment"
 
@@ -89,15 +94,16 @@ android {
             applicationIdSuffix ".dev"
             versionNameSuffix "-dev"
             resValue "string", "app_name", "Jeeb Dev"
-            // Enables the Jeeber Dev Tool second-launcher activity-alias.
-            resValue "bool", "jeeb_devtool_enabled", "true"
+            // Opt-IN (-Pjeeb.devtool=true): a normal dev build must ship ONE
+            // launcher, or the launcher/monkey can open the Dev Tool alias.
+            resValue "bool", "jeeb_devtool_enabled", devToolLauncherEnabled
         }
         staging {
             dimension "environment"
             applicationIdSuffix ".staging"
             versionNameSuffix "-stg"
             resValue "string", "app_name", "Jeeb Staging"
-            resValue "bool", "jeeb_devtool_enabled", "true"
+            resValue "bool", "jeeb_devtool_enabled", devToolLauncherEnabled
         }
         production {
             dimension "environment"

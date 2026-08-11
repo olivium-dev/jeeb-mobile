@@ -139,14 +139,15 @@ void main() {
       nav.items.map((JeebPillNavItem i) => i.identifier),
       _kSlots.map((String id) => 'shell_tab_$id'),
     );
-    // Labels are the tile literals, wired through the existing l10n keys.
+    // Close-out ruling: labels follow the ACTIVE ROLE — a client role never
+    // reads the jeeber words "Dashboard"/"Earnings" over its invitations.
     expect(
       nav.items.map((JeebPillNavItem i) => i.label),
       const <String>[
         'Requests',
         'Delivery',
-        'Dashboard',
-        'Earnings',
+        'Deliver',
+        'Earn',
         'Profile',
       ],
     );

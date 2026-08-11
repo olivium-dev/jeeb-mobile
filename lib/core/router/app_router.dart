@@ -679,6 +679,11 @@ class AppRouter {
           _BlocRefreshListenable(accountStatusBloc),
       ]),
       redirect: (context, state) {
+        // `/devtool` is consumed by main.dart BEFORE the product app boots, so
+        // anything reaching the router here is a Dev-Tool-less build launched
+        // via the alias — which used to paint go_router's error page.
+        if (state.matchedLocation == '/devtool') return '/';
+
         // S007-P1B: a custom-scheme VIEW intent `jeeb://chat/<id>` arrives with
         // the chat id as the URI host+segment; normalize it to `/chat/:id` so
         // `chat-detail` resolves the accepted conversation in-app. Inert for

@@ -1,7 +1,11 @@
 package app.jeeb.mobile
 
+import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.core.view.WindowCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -16,6 +20,9 @@ import java.io.File
 // configureFlutterEngine / getInitialRoute / onCreate seam wiring below intact.
 class MainActivity : FlutterFragmentActivity() {
     private val seamChannelName = "app.jeeb.mobile/dev_seam"
+
+    // Samsung app-sleep silently drops FCM while the app is battery-restricted.
+    private val powerChannelName = "app.jeeb.mobile/power"
 
     // Debug-only seam keys read from `adb shell am start … -e <key> <value>`.
     private val seamKeys = listOf(
@@ -92,6 +99,41 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, powerChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isIgnoringBatteryOptimizations" ->
+                        result.success(isIgnoringBatteryOptimizations())
+                    "openBatteryOptimizationSettings" ->
+                        result.success(openBatteryOptimizationSettings())
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    // PowerManager query needs no permission; false on the pre-M path.
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        return try {
+            val power = getSystemService(Context.POWER_SERVICE) as PowerManager
+            power.isIgnoringBatteryOptimizations(packageName)
+        } catch (error: Exception) {
+            false
+        }
+    }
+
+    // The SETTINGS list, not ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS: the
+    // request intent needs a Play-policy-declared permission, the list needs none.
+    private fun openBatteryOptimizationSettings(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        return try {
+            startActivity(
+                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            )
+            true
+        } catch (error: Exception) {
+            false
+        }
     }
 
     // Extracts only the recognised jeeb.* extras from the launch intent.

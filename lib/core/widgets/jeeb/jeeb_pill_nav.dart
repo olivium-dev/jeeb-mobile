@@ -99,6 +99,10 @@ class JeebPillNav extends StatelessWidget {
   /// layout minimum (Pattern E).
   static const double minTapTarget = 48;
 
+  /// Ceiling on the nav labels' text scale — the slots are fixed-width, so past
+  /// this every label ellipsizes away. Icons + a readable label beat neither.
+  static const double maxLabelTextScale = 1.3;
+
   /// Exactly [slotCount] entries, in visual order.
   final List<JeebPillNavItem> items;
 
@@ -207,6 +211,11 @@ class _JeebPillNavSlot extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
+                  // Five fixed slots cannot grow, so an unclamped 2.0 scale
+                  // ellipsizes every label to one glyph; degrade, don't erase.
+                  textScaler: MediaQuery.textScalerOf(
+                    context,
+                  ).clamp(maxScaleFactor: JeebPillNav.maxLabelTextScale),
                   // Ramp `label` is 10.5/w700; the board drops resting labels to
                   // w600 so only the selected one carries full weight.
                   style: context.jeebText.label.copyWith(
