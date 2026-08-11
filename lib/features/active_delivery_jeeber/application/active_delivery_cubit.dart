@@ -183,10 +183,14 @@ class ActiveDeliveryCubit extends Cubit<ActiveDeliveryState> {
 
   void _mirrorGpsState(BackgroundGpsState gpsState) {
     if (isClosed) return;
+    // The uploader is an app-wide singleton: mirroring it unfiltered showed a
+    // PREVIOUS delivery's permission banner on a freshly opened one.
+    final isOurs = gpsState.deliveryId == null ||
+        gpsState.deliveryId == deliveryId;
     emit(
       state.copyWith(
-        gpsPhase: gpsState.phase,
-        gpsNeedsSystemSettings: gpsState.needsSystemSettings,
+        gpsPhase: isOurs ? gpsState.phase : BackgroundGpsPhase.idle,
+        gpsNeedsSystemSettings: isOurs && gpsState.needsSystemSettings,
       ),
     );
   }

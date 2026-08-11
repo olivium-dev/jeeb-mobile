@@ -8,6 +8,13 @@ import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'package:jeeb_mobile/core/previews/jeeb_preview.dart';
 
+/// Skip reason for a11y expectations locking `AppTheme.light()`/`dark()` facts.
+/// `app.dart` ships midnight in both slots; those schemes are preview-only now.
+const String kStalePaletteLockSkip =
+    'Locks AppTheme.light()/dark() palette facts that MIDNIGHT superseded; '
+    'those schemes are preview/Dev-Tool only. Owner follow-up: re-point at '
+    'AppTheme.midnight() or delete.';
+
 /// The real `AppLocalizations.delegate` reads its ARB from the asset bundle,
 class _SyncArbDelegate extends LocalizationsDelegate<AppLocalizations> {
   const _SyncArbDelegate(this._arbByTag);

@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/features/support/domain/support_contact.dart';
 import 'package:jeeb_mobile/features/wallet/presentation/wallet_charge_info_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
@@ -52,10 +53,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('empty number (shipped default): the whole block is hidden', (
-    tester,
-  ) async {
-    await pump(tester, const WalletChargeInfoScreen());
+  testWidgets('empty number: the whole block is hidden', (tester) async {
+    // The shipped default became a live number in 5374575f, so the hidden
+    // branch has to be requested explicitly rather than inherited.
+    await pump(
+      tester,
+      const WalletChargeInfoScreen(supportWhatsAppNumberE164: ''),
+    );
 
     expect(
       find.bySemanticsIdentifier('charge_info_whatsapp_note'),
@@ -73,6 +77,22 @@ void main() {
     for (final id in _forbiddenIds) {
       expect(find.bySemanticsIdentifier(id), findsNothing, reason: id);
     }
+  });
+
+  testWidgets('shipped default is live, so the block renders out of the box', (
+    tester,
+  ) async {
+    expect(kSupportWhatsAppNumberE164, isNotEmpty);
+    await pump(tester, const WalletChargeInfoScreen());
+
+    expect(
+      find.bySemanticsIdentifier('charge_info_whatsapp_note'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('charge_info_whatsapp_cta'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('populated number: note+CTA render and existing ids survive', (

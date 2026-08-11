@@ -67,10 +67,10 @@ class BackgroundGpsState extends Equatable {
   /// Streak of consecutive transient upload failures; reset to 0 on first success.
   final int consecutiveFailures;
 
-  /// Lifetime counter of accepted uploads for QA overlay + tests.
+  /// Accepted uploads for THIS tracking session (`start` resets it).
   final int uploadedCount;
 
-  /// Lifetime counter of samples discarded by accuracy/throttle.
+  /// Samples discarded by accuracy/throttle in this session.
   final int discardedCount;
 
   /// True when uploader is parked on missing background-location grant (customer's live-tracking map receives nothing).

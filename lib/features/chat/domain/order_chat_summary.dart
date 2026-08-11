@@ -9,6 +9,9 @@ class OrderChatSummary extends Equatable {
     this.requestId = '',
     this.priceLabel = '',
     this.jeeberName = '',
+    this.jeeberAvatarUrl = '',
+    this.clientName = '',
+    this.clientAvatarUrl = '',
     this.rating = 0,
     this.etaMinutes,
     this.tierId = '',
@@ -28,6 +31,15 @@ class OrderChatSummary extends Equatable {
 
   /// Winning Jeeber display name. Empty falls back to chat counterpart.
   final String jeeberName;
+
+  /// Winning Jeeber avatar (absolute, loadable). Empty falls back to the letter placeholder.
+  final String jeeberAvatarUrl;
+
+  /// Ordering client's display name — the JEEBER leg's counterpart. Empty falls back to the role generic.
+  final String clientName;
+
+  /// Ordering client's avatar (absolute, loadable). Empty falls back to the letter placeholder.
+  final String clientAvatarUrl;
 
   /// Winning Jeeber rating (0 when unrated / cold-start).
   final double rating;
@@ -62,6 +74,9 @@ class OrderChatSummary extends Equatable {
         requestId,
         priceLabel,
         jeeberName,
+        jeeberAvatarUrl,
+        clientName,
+        clientAvatarUrl,
         rating,
         etaMinutes,
         tierId,

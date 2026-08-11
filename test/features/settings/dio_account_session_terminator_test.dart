@@ -2,7 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
+import 'package:jeeb_mobile/core/role/role_availability_cubit.dart';
+import 'package:jeeb_mobile/core/role/role_cubit.dart';
+import 'package:jeeb_mobile/features/settings/data/shared_prefs_profile_repository.dart';
 import 'package:jeeb_mobile/features/settings/data/dio_account_session_terminator.dart';
 
 /// Records every write verb so the test can assert the exact gateway contract
@@ -103,6 +108,8 @@ class _FakeSecureStorage extends Fake implements FlutterSecureStorage {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late _RecordingDio dio;
   late _FakeSecureStorage storage;
   late AuthTokenStore tokenStore;
@@ -111,6 +118,7 @@ void main() {
     dio = _RecordingDio();
     storage = _FakeSecureStorage();
     tokenStore = AuthTokenStore(storage: storage);
+    SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
   DioAccountSessionTerminator build({String? deviceId = 'dev-abc'}) =>
@@ -171,5 +179,28 @@ void main() {
 
     expect(dio.deletePaths, contains('/api/PushNotification/device'));
     expect(dio.deleteBodies.single?['deviceId'], 'dev-abc');
+  });
+
+  // Close-out 2026-08-11: the cached profile/role snapshots outlived the token,
+  // so the NEXT account opened Edit Profile on the previous one's name.
+  test('logout drops the cached profile + role snapshots', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      SharedPrefsProfileRepository.profilePrefsKey,
+      '{"phoneE164":"+96170000001","name":"Previous Account"}',
+    );
+    await prefs.setStringList(
+      RoleAvailabilityCubit.availableRolesPrefKey,
+      <String>['client', 'jeeber'],
+    );
+    await prefs.setString(RoleCubit.rolePrefKey, 'jeeber');
+
+    await build().logout();
+
+    expect(prefs.getString(SharedPrefsProfileRepository.profilePrefsKey),
+        isNull);
+    expect(prefs.getStringList(RoleAvailabilityCubit.availableRolesPrefKey),
+        isNull);
+    expect(prefs.getString(RoleCubit.rolePrefKey), isNull);
   });
 }

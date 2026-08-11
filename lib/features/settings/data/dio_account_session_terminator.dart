@@ -2,8 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/network/auth_token_store.dart';
+import '../../../core/role/role_availability_cubit.dart';
+import '../../../core/role/role_cubit.dart';
 import '../../../core/session/firebase_identity_teardown.dart';
 import '../domain/account_session_terminator.dart';
+import 'shared_prefs_profile_repository.dart';
 
 class DioAccountSessionTerminator implements AccountSessionTerminator {
   DioAccountSessionTerminator(
@@ -88,8 +91,25 @@ class DioAccountSessionTerminator implements AccountSessionTerminator {
     } catch (_) {
     }
     try {
+      await _clearCachedIdentity();
+    } catch (_) {
+    }
+    try {
       await _firebaseSignOut();
     } catch (_) {
+    }
+  }
+
+  /// The profile/role snapshots outlive the token unless dropped here, so the
+  /// next account lands on the previous one's name, avatar and role surfaces.
+  Future<void> _clearCachedIdentity() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final key in const <String>[
+      SharedPrefsProfileRepository.profilePrefsKey,
+      RoleAvailabilityCubit.availableRolesPrefKey,
+      RoleCubit.rolePrefKey,
+    ]) {
+      await prefs.remove(key);
     }
   }
 }

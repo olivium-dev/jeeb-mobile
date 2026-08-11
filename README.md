@@ -85,10 +85,25 @@ the default simulator. The Dev Tool is available only in debug builds.
 
 ## CI
 
-GitHub Actions workflow at `.github/workflows/flutter-ci.yml` runs:
-- `flutter analyze`
-- `flutter test --coverage`
-- `flutter build apk --debug`
+Three GitHub Actions workflows gate `main`: `ci.yml` (analyze → test → build APK),
+`flutter-ci.yml` (the same plus coverage) and `mobile-ci.yml` (the l10n parity gate).
+
+**CI is expected green. There is no standing waiver** — a red run is a real
+failure, not inherited noise. If a check cannot pass, fix it or skip the single
+expectation with a written reason; do not merge on red.
+
+- **Flutter is pinned to 3.44.2**, the version the Mac Studio builds the phone
+  APKs with. CI used to sit on 3.38.9, two minor versions behind every dev
+  machine, which is what made `main` permanently red: ~21 tests asserted
+  behaviour only the newer framework produces.
+- **`--exclude-tags capture`**: `test/tools/catalog_capture_test.dart` and
+  `m6_jeeber_orange_budget_capture_test.dart` are golden-PNG *review* harnesses,
+  not gates. Their goldens are host-rendered and cannot match a Linux runner.
+  Run them locally: `flutter test --tags capture`.
+- **`tool/check_firebase_core_pin.sh`** runs after every `flutter pub get` and
+  fails if the resolved `firebase_core` leaves `>=3.13.1 <3.15.0`. `pubspec.lock`
+  is gitignored, so without this gate each machine silently resolves its own —
+  and 3.15.0 kills push registration and Firestore chat on Android with no error.
 
 ## License
 

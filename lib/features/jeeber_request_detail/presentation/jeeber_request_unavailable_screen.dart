@@ -89,12 +89,7 @@ const Size _jeeberRequestUnavailableScreenCompactCanvas = Size(332, 612);
 
 /// Taps on the "Browse other requests" CTA.
 /// A dead end whose only forward affordance does nothing reviews nothing, and
-int jeeberRequestUnavailableScreenBrowseTaps = 0;
-
-/// Resets [jeeberRequestUnavailableScreenBrowseTaps]; the counter is top-level,
-/// so one test's taps would otherwise leak into the next.
-void jeeberRequestUnavailableScreenResetTaps() =>
-    jeeberRequestUnavailableScreenBrowseTaps = 0;
+int _jeeberRequestUnavailableScreenBrowseTaps = 0;
 
 /// Builds the screen for [fixture] and hands it to the shared host.
 /// The `JeeberRequestUnavailableScreen(...)` is constructed HERE rather than
@@ -105,7 +100,7 @@ Widget _jeeberRequestUnavailableScreenHosted(
       fixture: fixture,
       screen: JeeberRequestUnavailableScreen(
         requestId: fixture.requestId,
-        onBack: () => jeeberRequestUnavailableScreenBrowseTaps++,
+        onBack: () => _jeeberRequestUnavailableScreenBrowseTaps++,
       ),
     );
 

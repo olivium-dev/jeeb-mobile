@@ -70,6 +70,12 @@ class SettingsCubit extends Cubit<SettingsState> {
         if (remoteAvatar != null && remoteAvatar.isNotEmpty) {
           resolved = resolved.copyWith(photoUrl: remoteAvatar);
         }
+        // `/v1/users/me` is authoritative for the SIGNED-IN account; a local
+        // cache written by a previous account otherwise leaks its name here.
+        final remoteName = remote.name;
+        if (remoteName != null && remoteName.trim().isNotEmpty) {
+          resolved = resolved.copyWith(name: remoteName.trim());
+        }
       } on Object {
         // Best-effort — the local/fallback profile above still renders.
       }

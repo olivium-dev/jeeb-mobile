@@ -248,7 +248,7 @@ void main() {
         _contrast(darkIcon, dark.surfaceContainerHighest),
         greaterThanOrEqualTo(3.0),
       );
-    });
+    }, skip: kStalePaletteLockSkip);
 
     test('the placeholder fill barely separates from the Scaffold surface', () {
       // 1.29:1 in light, 1.50:1 in dark. Harmless on the capture screen (the

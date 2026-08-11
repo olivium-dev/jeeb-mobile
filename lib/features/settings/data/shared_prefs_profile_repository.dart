@@ -9,13 +9,15 @@ class SharedPrefsProfileRepository implements ProfileRepository {
   const SharedPrefsProfileRepository({required SharedPreferences prefs})
       : _prefs = prefs;
 
-  static const String _kProfileKey = 'settings.profile.v1';
+  /// Public so sign-out can drop the cache with the rest of the session —
+  /// a surviving record leaks the previous account's name into Edit Profile.
+  static const String profilePrefsKey = 'settings.profile.v1';
 
   final SharedPreferences _prefs;
 
   @override
   Future<UserProfile?> load() async {
-    final raw = _prefs.getString(_kProfileKey);
+    final raw = _prefs.getString(profilePrefsKey);
     if (raw == null) return null;
     final decoded = jsonDecode(raw);
     if (decoded is! Map<String, dynamic>) return null;
@@ -35,11 +37,11 @@ class SharedPrefsProfileRepository implements ProfileRepository {
       'name': profile.name,
       'photoUrl': profile.photoUrl,
     });
-    await _prefs.setString(_kProfileKey, encoded);
+    await _prefs.setString(profilePrefsKey, encoded);
   }
 
   @override
   Future<void> clear() async {
-    await _prefs.remove(_kProfileKey);
+    await _prefs.remove(profilePrefsKey);
   }
 }

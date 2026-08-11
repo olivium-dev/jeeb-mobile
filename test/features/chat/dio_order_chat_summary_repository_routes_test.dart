@@ -114,6 +114,46 @@ void main() {
     expect(adapter.getPaths, contains('/v1/offers'));
   });
 
+  // --- counterparty identity (chat header + rating avatar) ----------------
+
+  test('counterparty: reads jeeberAvatarUrl/clientName/clientAvatarUrl from '
+      'the DELIVERY row on BOTH legs', () async {
+    adapter.bodies['/v1/deliveries/$_deliveryId'] = const {
+      'jeeberName': 'Karim',
+      'jeeberAvatarUrl': 'http://gw.test/api/users/j-1/avatar?v=abc',
+      'clientName': 'Nour',
+      'clientAvatarUrl': 'http://gw.test/api/users/c-1/avatar?v=def',
+    };
+
+    final client = await originRepo().fetchSummary(_deliveryId);
+    expect(client.jeeberName, 'Karim');
+    expect(client.jeeberAvatarUrl, 'http://gw.test/api/users/j-1/avatar?v=abc');
+    expect(client.clientName, 'Nour');
+    expect(client.clientAvatarUrl, 'http://gw.test/api/users/c-1/avatar?v=def');
+
+    // The jeeber leg reads the SAME delivery row (no owner-scoped hop).
+    final jeeber = await DioOrderChatSummaryRepository(
+      dio,
+      originGateway: true,
+      ownerScopedReads: false,
+    ).fetchSummary(_deliveryId);
+    expect(jeeber.clientName, 'Nour');
+    expect(jeeber.clientAvatarUrl, 'http://gw.test/api/users/c-1/avatar?v=def');
+  });
+
+  test('counterparty: keys ABSENT (old gateway) ⇒ empty, never a throw',
+      () async {
+    adapter.bodies['/v1/deliveries/$_deliveryId'] = const {
+      'jeeberName': 'Karim',
+    };
+
+    final summary = await originRepo().fetchSummary(_deliveryId);
+
+    expect(summary.jeeberAvatarUrl, '');
+    expect(summary.clientName, '');
+    expect(summary.clientAvatarUrl, '');
+  });
+
   test('P3/M6: no description anywhere ⇒ empty, no throw', () async {
     adapter.bodies['/v1/deliveries/$_deliveryId'] = const <String, Object?>{};
     adapter.bodies['/v1/requests/$_deliveryId'] = const <String, Object?>{};
