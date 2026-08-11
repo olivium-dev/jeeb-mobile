@@ -181,7 +181,7 @@ void main() {
       expect(ctaFinder, findsOneWidget);
       expect(
         tester.getSemantics(ctaFinder),
-        containsSemantics(
+        isSemantics(
           identifier: 'confirm_delivery_confirm_button',
           isButton: true,
           hasTapAction: true,

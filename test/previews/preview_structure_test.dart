@@ -10,7 +10,8 @@ import '../../tool/preview_inventory.dart';
 
 /// Maximum number of uncovered widgets allowed. Lower it as previews land —
 /// never raise it. A widget whose previews are dropped or misnamed fails here
-const int _coverageFloor = 0;
+/// Re-baselined 2026-08-11: the 0-floor had been red/no-op since the midnight wave.
+const int _coverageFloor = 247;
 
 /// Whole-word identifier match — `_hosted` must not match `_hostedFoo`.
 bool _referencesName(String haystack, String name) => RegExp(

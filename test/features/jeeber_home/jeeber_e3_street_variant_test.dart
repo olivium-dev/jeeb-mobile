@@ -34,8 +34,12 @@ class _HangingAvailabilityGateway implements AvailabilityGateway {
   Future<AvailabilityStatus> fetch() => Completer<AvailabilityStatus>().future;
 
   @override
-  Future<AvailabilityStatus> toggle({required bool goOnline}) =>
-      Completer<AvailabilityStatus>().future;
+  Future<AvailabilityToggleResult> toggle({required bool goOnline}) =>
+      Completer<AvailabilityToggleResult>().future;
+
+  @override
+  Future<GoOnlineLocationOutcome> refreshLocation() =>
+      Completer<GoOnlineLocationOutcome>().future;
 }
 
 Widget _app(Widget home, {Locale locale = const Locale('en')}) {

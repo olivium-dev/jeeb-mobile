@@ -31,13 +31,17 @@ import '../application/mutual_rating_state.dart';
 /// AC4: `rating_root` is the signature id present on this canonical terminal
 /// (the legacy `/feedback` `RatingScreen` exposes the same id).
 class MutualRatingScreen extends StatelessWidget {
-  const MutualRatingScreen({super.key, this.rateeName = ''});
+  const MutualRatingScreen({super.key, this.rateeName = '', this.rateeAvatarUrl});
 
   /// Display name of the counterpart being rated, forwarded by the router from
   /// `?name=`. Empty is the supported default — the headline, the avatar
   /// initial and the blind-reveal note each carry a finished role-aware
   /// fallback, so nothing is ever fabricated.
   final String rateeName;
+
+  /// Counterpart photo forwarded from `?avatar=`. Null/empty falls back to the
+  /// cubit's self-resolved value, then to the letter initial.
+  final String? rateeAvatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -108,9 +112,17 @@ class MutualRatingScreen extends StatelessWidget {
   }
 
   Widget _buildBody(BuildContext context, MutualRatingState state) {
+    // The route param wins; the cubit's self-resolved identity fills the entry
+    // points that carry none (receipt confirm, OTP handover) on BOTH roles.
+    final name = rateeName.trim().isNotEmpty ? rateeName : state.counterpartName;
+    final avatar = (rateeAvatarUrl?.isNotEmpty ?? false)
+        ? rateeAvatarUrl
+        : (state.counterpartAvatarUrl.isEmpty
+            ? null
+            : state.counterpartAvatarUrl);
     switch (state.phase) {
       case MutualRatingPhase.inputting:
-        return _InputView(state: state, rateeName: rateeName);
+        return _InputView(state: state, rateeName: name, rateeAvatarUrl: avatar);
       case MutualRatingPhase.submitting:
       case MutualRatingPhase.submitted:
         return const _SubmittingView();
@@ -123,15 +135,20 @@ class MutualRatingScreen extends StatelessWidget {
       case MutualRatingPhase.polling:
       case MutualRatingPhase.revealed:
       case MutualRatingPhase.autoRevealed:
-        return _InputView(state: state, rateeName: rateeName);
+        return _InputView(state: state, rateeName: name, rateeAvatarUrl: avatar);
     }
   }
 }
 
 class _InputView extends StatelessWidget {
-  const _InputView({required this.state, required this.rateeName});
+  const _InputView({
+    required this.state,
+    required this.rateeName,
+    this.rateeAvatarUrl,
+  });
   final MutualRatingState state;
   final String rateeName;
+  final String? rateeAvatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +158,13 @@ class _InputView extends StatelessWidget {
       // the scroll column (which would overflow the 800×600 widget tests).
       child: Column(
         children: [
-          Expanded(child: _InputScrollArea(state: state, rateeName: rateeName)),
+          Expanded(
+            child: _InputScrollArea(
+              state: state,
+              rateeName: rateeName,
+              rateeAvatarUrl: rateeAvatarUrl,
+            ),
+          ),
           _SubmitButton(stars: state.stars),
         ],
       ),
@@ -150,9 +173,14 @@ class _InputView extends StatelessWidget {
 }
 
 class _InputScrollArea extends StatelessWidget {
-  const _InputScrollArea({required this.state, required this.rateeName});
+  const _InputScrollArea({
+    required this.state,
+    required this.rateeName,
+    this.rateeAvatarUrl,
+  });
   final MutualRatingState state;
   final String rateeName;
+  final String? rateeAvatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -168,7 +196,7 @@ class _InputScrollArea extends StatelessWidget {
         children: [
           _RatingHeadline(rateeName: rateeName),
           const SizedBox(height: Spacing.large),
-          _RateeIdentity(rateeName: rateeName),
+          _RateeIdentity(rateeName: rateeName, rateeAvatarUrl: rateeAvatarUrl),
           const SizedBox(height: Spacing.large),
           _StarSection(stars: state.stars),
           const SizedBox(height: Spacing.xSmall),
@@ -215,8 +243,9 @@ class _RatingHeadline extends StatelessWidget {
 
 /// Ø74 disc + the Ø26 corner mark, centred under the headline.
 class _RateeIdentity extends StatelessWidget {
-  const _RateeIdentity({required this.rateeName});
+  const _RateeIdentity({required this.rateeName, this.rateeAvatarUrl});
   final String rateeName;
+  final String? rateeAvatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -241,6 +270,7 @@ class _RateeIdentity extends StatelessWidget {
         tone: JeebSurfaceToneData.navy(context),
         child: JeebAvatar.hero(
           initial: name,
+          imageUrl: rateeAvatarUrl,
           badge: JeebAvatarBadge.completed,
           identifier: 'mutual_rating_ratee_avatar',
           semanticLabel: name.isEmpty ? l10n.mutualRatingTitle : name,

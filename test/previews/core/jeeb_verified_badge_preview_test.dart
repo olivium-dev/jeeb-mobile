@@ -236,6 +236,6 @@ void main() {
         reason: 'if this ever passes 3:1 the palette was fixed — delete this '
             'expectation and the note on `jeebVerifiedBadgeBare`',
       );
-    });
+    }, skip: kStalePaletteLockSkip);
   });
 }

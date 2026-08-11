@@ -1440,6 +1440,14 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get availabilityLoadError => _get('availabilityLoadError');
   String get availabilityLoadRetry => _get('availabilityLoadRetry');
   String get availabilityToggleErrorBody => _get('availabilityToggleErrorBody');
+
+  String get availabilityLocationFixFailedBody => _get('availabilityLocationFixFailedBody');
+
+  String get availabilityLocationPermissionBody => _get('availabilityLocationPermissionBody');
+
+  String get availabilityLocationRetry => _get('availabilityLocationRetry');
+
+  String get availabilityLocationOpenSettings => _get('availabilityLocationOpenSettings');
   String get chatActiveDeliverySubtitle => _get('chatActiveDeliverySubtitle');
   String get chatActiveDeliveryTitle => _get('chatActiveDeliveryTitle');
   String get chatAttachTooltip => _get('chatAttachTooltip');

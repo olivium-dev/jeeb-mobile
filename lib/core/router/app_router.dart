@@ -23,6 +23,7 @@ import '../../features/auth/presentation/set_password_screen.dart';
 import '../../features/biometric_auth/application/biometric_lock_cubit.dart';
 import '../../features/biometric_auth/application/biometric_lock_state.dart';
 import '../../features/biometric_auth/presentation/biometric_lock_screen.dart';
+import '../../features/chat/data/dio_order_chat_summary_repository.dart';
 import '../../features/chat/presentation/dev_chat_preview_screen.dart';
 import '../../features/client_offers/presentation/client_offers_screen.dart';
 import '../../features/customer_profile/data/dev_customer_profile_fixtures.dart';
@@ -231,6 +232,10 @@ String? normalizeChatDeepLink(Uri uri) {
 /// The counterpart display name both rating terminals read off the URL.
 const String kRateeNameParam = 'name';
 
+/// The counterpart photo both rating terminals read off the URL. Optional —
+/// the screen self-resolves it when absent, and falls back to the initial.
+const String kRateeAvatarParam = 'avatar';
+
 /// Canonical location of the blind mutual-rating terminal (T-MOB-020).
 ///
 /// [counterpartName] is the person being rated. Passing it is what turns 15's
@@ -242,11 +247,14 @@ String mutualRatingLocation(
   String deliveryId, {
   required bool isClient,
   String? counterpartName,
+  String? counterpartAvatarUrl,
 }) {
   final String name = counterpartName?.trim() ?? '';
+  final String avatar = counterpartAvatarUrl?.trim() ?? '';
   final Map<String, String> query = <String, String>{
     if (!isClient) 'mode': 'jeeber',
     if (name.isNotEmpty) kRateeNameParam: name,
+    if (avatar.isNotEmpty) kRateeAvatarParam: avatar,
   };
   final String suffix =
       query.isEmpty ? '' : '?${Uri(queryParameters: query).query}';
@@ -1524,6 +1532,7 @@ class AppRouter {
               deliveryId: deliveryId,
               isClient: isClient,
               rateeName: state.uri.queryParameters[kRateeNameParam] ?? '',
+              rateeAvatarUrl: state.uri.queryParameters[kRateeAvatarParam],
             );
           },
         ),
@@ -1541,12 +1550,21 @@ class AppRouter {
                 repository: sl<RatingRepository>(),
                 deliveryId: deliveryId,
                 isClient: isClient,
-              ),
+                // Self-resolve the counterpart: the two most-travelled entry
+                // points (receipt confirm, OTP handover) hold no identity.
+                counterpartRepository: sl.isRegistered<Dio>()
+                    ? DioOrderChatSummaryRepository(
+                        sl<Dio>(),
+                        ownerScopedReads: false,
+                      )
+                    : null,
+              )..loadCounterpart(),
               // 15: optional `?name=` counterpart display name, built by
               // [mutualRatingLocation]. Absent → the screen's role-aware
               // fallback headline.
               child: MutualRatingScreen(
                 rateeName: state.uri.queryParameters[kRateeNameParam] ?? '',
+                rateeAvatarUrl: state.uri.queryParameters[kRateeAvatarParam],
               ),
             );
           },

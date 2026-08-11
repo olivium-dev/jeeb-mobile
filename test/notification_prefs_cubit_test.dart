@@ -53,6 +53,15 @@ class _FailingFetchRepo implements NotificationPrefsRepository {
 // Short debounce so PUTs land quickly under test.
 const _fastDebounce = Duration(milliseconds: 10);
 
+/// Waits for [ready] instead of sleeping a fixed multiple of the debounce — a
+/// loaded CI runner can overshoot a 40 ms budget and flake the assertion.
+Future<void> _settle(bool Function() ready) async {
+  final DateTime deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (!ready() && DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
+
 NotificationPrefsCubit _buildCubit({
   NotificationCategoryPrefs? initial,
   bool failSave = false,
@@ -127,7 +136,7 @@ void main() {
       await cubit.load();
 
       cubit.toggleCategory(NotificationCategory.marketing, true);
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await _settle(() => repo.lastSaved != null);
 
       final loaded = cubit.state as NotificationPrefsLoaded;
       expect(loaded.prefs.categories.marketing, isTrue);
@@ -149,7 +158,7 @@ void main() {
       cubit.toggleCategory(NotificationCategory.wallet, true);
       cubit.toggleCategory(NotificationCategory.wallet, false);
       // Only the last value should be PUT after the debounce window.
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await _settle(() => repo.lastSaved != null);
 
       expect(repo.lastSaved!.wallet, isFalse);
     });
@@ -164,7 +173,9 @@ void main() {
           (cubit.state as NotificationPrefsLoaded).prefs.categories.offers;
 
       cubit.toggleCategory(NotificationCategory.offers, !before);
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await _settle(
+        () => (cubit.state as NotificationPrefsLoaded).saveError,
+      );
 
       final loaded = cubit.state as NotificationPrefsLoaded;
       expect(loaded.prefs.categories.offers, before); // reverted
@@ -175,7 +186,9 @@ void main() {
       final cubit = _buildCubit(failSave: true);
       await cubit.load();
       cubit.toggleCategory(NotificationCategory.offers, false);
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await _settle(
+        () => (cubit.state as NotificationPrefsLoaded).saveError,
+      );
 
       expect((cubit.state as NotificationPrefsLoaded).saveError, isTrue);
 

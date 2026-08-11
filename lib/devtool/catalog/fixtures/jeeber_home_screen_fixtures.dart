@@ -25,8 +25,12 @@ class StalledAvailabilityGateway implements AvailabilityGateway {
   Future<AvailabilityStatus> fetch() => Completer<AvailabilityStatus>().future;
 
   @override
-  Future<AvailabilityStatus> toggle({required bool goOnline}) =>
-      Completer<AvailabilityStatus>().future;
+  Future<AvailabilityToggleResult> toggle({required bool goOnline}) =>
+      Completer<AvailabilityToggleResult>().future;
+
+  @override
+  Future<GoOnlineLocationOutcome> refreshLocation() =>
+      Completer<GoOnlineLocationOutcome>().future;
 }
 
 /// A submitted-offers fake that never lists anything.

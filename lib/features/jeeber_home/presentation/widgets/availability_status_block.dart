@@ -107,7 +107,7 @@ class _IdleHintLine extends StatelessWidget {
 /// Reference phone width, matching the rest of the preview folder.
 const double _availabilityStatusBlockPhoneWidth = 390;
 
-const double availabilityStatusBlockSlotWidth = 290;
+const double _availabilityStatusBlockSlotWidth = 290;
 
 /// Breathing room so the canvas shows the block's leading edge rather than the
 /// viewport's. Directional-neutral, so it does not mask an RTL defect.
@@ -141,7 +141,7 @@ Widget _availabilityStatusBlockHosted(AvailabilityViewState view) {
     child: Padding(
       padding: _availabilityStatusBlockHostPadding,
       child: SizedBox(
-        width: availabilityStatusBlockSlotWidth,
+        width: _availabilityStatusBlockSlotWidth,
         child: AvailabilityStatusBlock(view: view),
       ),
     ),
