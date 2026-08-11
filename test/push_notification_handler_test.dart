@@ -257,8 +257,9 @@ void main() {
       expect(await countSignalsFor(expired), 1);
     });
 
-    // B3 — matches the existing id-less `delivery` rule (no id → no signal).
-    test('a newOffer push with NO id does NOT signal', () async {
+    // B3, INVERTED 2026-08-11 (D-V1): the live jeeb.offer_received push has no
+    // id, and dropping it left the client's waiting screen never refetching.
+    test('a newOffer push with NO id still signals', () async {
       final noId = NotificationMessage(
         id: 'p2-3',
         category: NotificationCategory.newOffer,
@@ -266,7 +267,7 @@ void main() {
         body: 'B',
         receivedAt: DateTime.utc(2026, 7, 25),
       );
-      expect(await countSignalsFor(noId), 0);
+      expect(await countSignalsFor(noId), 1);
     });
 
     test('an unknown (other) push is a no-op: no signal, no crash', () async {
