@@ -6,7 +6,6 @@
 // own self-resolve for the entry points that carry none (receipt confirm, OTP
 // handover). The route param wins; empty falls back to the initial.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
