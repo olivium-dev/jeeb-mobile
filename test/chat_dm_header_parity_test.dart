@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_avatar.dart';
 import 'package:jeeb_mobile/features/chat/domain/delivery_chat_message.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_app_bar.dart';
 import 'package:jeeb_mobile/features/chat/presentation/widgets/chat_fee_banner.dart';
@@ -128,6 +129,25 @@ void main() {
       expect(find.bySemanticsIdentifier('chat_detail_avatar'), findsOneWidget);
       expect(find.text('S'), findsOneWidget);
     });
+
+    // mob-avatar: the header photo now arrives as a URL off the delivery read
+    // (`jeeberAvatarUrl` / `clientAvatarUrl`), not as bound bytes. Pin that the
+    // url path reaches JeebAvatar and displaces the letter placeholder.
+    testWidgets('a counterpart avatar URL renders the photo, not the initial',
+        (tester) async {
+      await tester.pumpWidget(_scaffold(
+        const ChatAppBar(
+          title: 'Sami Fawaz',
+          avatarUrl: 'http://gw.test/api/users/u-1/avatar?v=abc',
+          showAvatar: true,
+        ),
+        locale: const Locale('en'),
+      ));
+      await tester.pump();
+
+      final avatar = tester.widget<JeebAvatar>(find.byType(JeebAvatar));
+      expect(avatar.imageUrl, 'http://gw.test/api/users/u-1/avatar?v=abc');
+    });
   });
 
   group('ChatAppBar — D2 RTL header', () {
@@ -203,7 +223,7 @@ void main() {
       expect(pill, findsOneWidget);
       expect(
         tester.getSemantics(pill),
-        containsSemantics(
+        isSemantics(
           identifier: 'chat_dm_order_picked_button',
           isButton: true,
         ),

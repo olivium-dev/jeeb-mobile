@@ -86,7 +86,7 @@ void main() {
       ]) {
         expect(
           tester.getSemantics(find.bySemanticsIdentifier(id)),
-          containsSemantics(identifier: id, isButton: true, hasTapAction: false),
+          isSemantics(identifier: id, isButton: true, hasTapAction: false),
           reason: '$id must be inert while state.isSubmitting',
         );
       }

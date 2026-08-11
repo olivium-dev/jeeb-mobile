@@ -1242,6 +1242,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         _deliveryId,
         isClient: !isJeeber,
         counterpartName: name,
+        counterpartAvatarUrl: _summary?.jeeberAvatarUrl,
       ),
     );
   }
@@ -1436,6 +1437,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   String _headerTitle(AppLocalizations l10n, bool isJeeber) {
     final resolved = displayNameOrNull(_counterpartName);
     if (resolved != null) return resolved;
+    // Same read the header photo comes from, so name and avatar never disagree.
+    final fromSummary = displayNameOrNull(
+      isJeeber ? _summary?.clientName : _summary?.jeeberName,
+    );
+    if (fromSummary != null) return fromSummary;
     if (_phase == ConversationPhase.accepted || _hasWinner) {
       return isJeeber
           ? l10n.chatPartyCustomerFallback
@@ -1446,6 +1452,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         : widget.chatId;
     if (id.isEmpty || id == kComposeConversationSentinel) return l10n.navChat;
     return friendlyReference(id);
+  }
+
+  /// Counterpart photo for the header, from the same summary read as the name.
+  /// Null (letter placeholder) until the summary lands or when unset.
+  String? _counterpartAvatarUrl(bool isJeeber) {
+    final url = isJeeber ? _summary?.clientAvatarUrl : _summary?.jeeberAvatarUrl;
+    return (url == null || url.isEmpty) ? null : url;
   }
 
   /// JM-025 AC1: compose state — a client thread that has NOT yet matched a
@@ -1741,6 +1754,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     return ChatScreen(
       deliveryId: _resolvedConversationId,
       counterpartName: _headerTitle(AppLocalizations.of(context), isJeeber),
+      counterpartAvatarUrl: _counterpartAvatarUrl(isJeeber),
       gateway: _gateway!,
       pickerService: _resolvePicker(),
       // JM-025: this is the customer order-chat surface → expose the

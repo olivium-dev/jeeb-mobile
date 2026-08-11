@@ -13,7 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FLUTTER_VERSION: '3.38.9'
+  # Keep in step with ci.yml and the Mac Studio build machine (~/flutter-3.44).
+  FLUTTER_VERSION: '3.44.2'
 
 jobs:
   l10n-parity:
@@ -49,6 +50,9 @@ jobs:
       - name: Install Flutter dependencies (needed for runtime parity tests)
         id: pub_get
         run: flutter pub get
+
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
 
       - name: Static 4-set parity (AC1, AC3, AC5) — static only when pub get unavailable
         env:
