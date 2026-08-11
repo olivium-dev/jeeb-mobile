@@ -79,6 +79,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSize,
     this.iconSpacing = 10,
     this.mirrorIcons = false,
+    this.shrinkLabelToFit = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -101,6 +102,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSize,
     this.iconSpacing = 10,
     this.mirrorIcons = false,
+    this.shrinkLabelToFit = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -125,6 +127,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSize,
     this.iconSpacing = 10,
     this.mirrorIcons = false,
+    this.shrinkLabelToFit = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -146,6 +149,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSize,
     this.iconSpacing = 10,
     this.mirrorIcons = false,
+    this.shrinkLabelToFit = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -170,6 +174,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSize,
     this.iconSpacing = 10,
     this.mirrorIcons = false,
+    this.shrinkLabelToFit = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -191,6 +196,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSize,
     this.iconSpacing = 10,
     this.mirrorIcons = false,
+    this.shrinkLabelToFit = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -212,6 +218,7 @@ class JeebCtaButton extends StatelessWidget {
     this.iconSize,
     this.iconSpacing = 10,
     this.mirrorIcons = false,
+    this.shrinkLabelToFit = false,
     this.contentPadding,
     this.identifier,
     this.semanticLabel,
@@ -307,6 +314,10 @@ class JeebCtaButton extends StatelessWidget {
   /// forward-arrow member. Set this for directional glyphs such as 01's arrow;
   /// leave it false for symmetric ones (`+`, `check`, `lock`).
   final bool mirrorIcons;
+
+  /// Scales the label down instead of ellipsizing it when the pill is too
+  /// narrow. Opt-in: only the split footers that halve the width need it.
+  final bool shrinkLabelToFit;
 
   /// Horizontal inset around the content. Defaults per [variant]; 01's `Skip`
   /// measures `0/22`.
@@ -443,13 +454,16 @@ class JeebCtaButton extends StatelessWidget {
   }
 
   Widget _label(BuildContext context, TextStyle style, Color ink) {
-    final Widget labelText = Text(
+    Widget labelText = Text(
       label,
       style: style,
       textAlign: TextAlign.center,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
+    if (shrinkLabelToFit) {
+      labelText = FittedBox(fit: BoxFit.scaleDown, child: labelText);
+    }
     if (leadingIcon == null && trailingIcon == null) {
       return labelText;
     }

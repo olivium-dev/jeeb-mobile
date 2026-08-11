@@ -722,6 +722,8 @@ class _TrackingActionBar extends StatelessWidget {
         child: JeebCtaButton.text(
           label: l10n.trackingNoShowCta,
           expand: true,
+          // 50/50 split halves the width; scale, never ellipsize (D-W4).
+          shrinkLabelToFit: true,
           onTap: () => TrackingNoShowSheet.show(
             context: context,
             // AC4a: reassign → offer-review-list.
@@ -742,6 +744,7 @@ class _TrackingActionBar extends StatelessWidget {
         button: true,
         child: JeebCtaButton.outline(
           label: l10n.trackingDisputeCta,
+          shrinkLabelToFit: true,
           // EDGE: tracking_dispute_cta → dispute-open-evidence
           // (`escalate` route, JM-060/W4). 21_NAV_PLAN §C.
           onTap: () => context.goNamed(
@@ -794,7 +797,8 @@ class _HandoverCodeRow extends StatelessWidget {
           l10n.trackingDoorCodeNote,
           style: context.jeebText.bodySmall
               .copyWith(color: semantics.mutedText),
-          maxLines: 1,
+          // The inflexible code strip squeezes this slot; wrap, don't clip.
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
         // Flexible: the note's trailing slot is inflexible, so an Arabic CTA at
