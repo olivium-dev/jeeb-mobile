@@ -1631,6 +1631,9 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get requestFeedDeclining => _get('requestFeedDeclining');
   String requestFeedDistance(String distance) =>
       _get('requestFeedDistance').replaceFirst('{distance}', distance);
+
+  String requestFeedDistanceMeters(String meters) =>
+      _get('requestFeedDistanceMeters').replaceFirst('{meters}', meters);
   String get requestFeedDropoffLabel => _get('requestFeedDropoffLabel');
   String requestFeedEarnings(String amount, String currency) => _get(
     'requestFeedEarnings',
