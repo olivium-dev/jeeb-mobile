@@ -2,12 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Android battery-restriction seam (`MainActivity`'s `power` channel).
-///
-/// Samsung's app-sleep parks a restricted app and silently withholds its FCM
-/// data messages, which is how a jeeber misses new-request pushes. There is no
-/// API to lift that from inside the app; the standard, permission-free
-/// mitigation is to ask once and send the user to the OS list.
+/// Android battery-restriction seam (`MainActivity`'s `power` channel): Samsung
+/// app-sleep withholds FCM, and only the OS list can lift it.
 class BatteryOptimization {
   const BatteryOptimization({MethodChannel channel = _defaultChannel})
       : _channel = channel;

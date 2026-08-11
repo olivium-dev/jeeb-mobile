@@ -1,11 +1,5 @@
-// Close-out small-defect batch (2026-08-11):
-//   * the pill-nav LABELS follow the ACTIVE ROLE (a client never reads the
-//     jeeber words; a jeeber's "Requests" names the incoming feed and the
-//     client compose surface becomes "My Requests");
-//   * hardware BACK at the shell root no longer destroys the task on the first
-//     press.
-// The frozen `shell_tab_*` identifiers and the slot ORDER are unchanged — those
-// stay locked by shell_tab_bar_redesign_test.dart.
+// Close-out batch (2026-08-11): pill-nav LABELS follow the ACTIVE ROLE, and
+// hardware BACK at the shell root no longer destroys the task on first press.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

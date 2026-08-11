@@ -80,10 +80,12 @@ android {
         manifestPlaceholders += [MAPS_API_KEY: mapsApiKey ?: 'MISSING_MAPS_API_KEY']
     }
 
-    // The Dev Tool second launcher icon is opt-in even on dev/staging:
+    // Dev Tool second launcher icon, opt-in even on dev/staging:
     // `flutter build apk --flavor dev -Pjeeb.devtool=true`.
     def devToolLauncherEnabled =
-        (project.findProperty('jeeb.devtool') ?: 'false').toString()
+        project.findProperty('jeeb.devtool')?.toString() == 'true'
+            ? 'true'
+            : 'false'
 
     // ─── Flavor Configuration ────────────────────────────────────────────────
     flavorDimensions "environment"

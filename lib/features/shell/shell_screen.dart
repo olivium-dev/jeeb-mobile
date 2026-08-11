@@ -113,11 +113,8 @@ class _ShellScreenState extends State<ShellScreen> {
     // viewed, so it never shows while the jeeber is already looking.
     final requestBadgeCount =
         context.watch<BadgeCountCubit?>()?.state.newRequests ?? 0;
-    // Close-out ruling: the nav LABELS follow the active role, so a plain
-    // client never reads jeeber words ("Dashboard"/"Earnings") over its
-    // become-a-jeeber invitations, and a jeeber's "Requests" names the incoming
-    // feed rather than the client compose surface (which becomes "My
-    // Requests"). Content gating is untouched — still `available_roles`.
+    // Close-out ruling: nav LABELS follow the role so a client never reads
+    // jeeber words. Content gating is untouched — still `available_roles`.
     final activeRoleIsJeeber =
         context.watch<RoleCubit?>()?.state == UserRole.jeeber;
     final tabs = _tabs(
