@@ -509,7 +509,8 @@ class AppRouter {
   /// EXCLUSIONS — routes deliberately ABSENT here (never wrapped), and why:
   ///   * tab/home + first-run roots (`shell`, `onboarding`, `register`):
   ///     BACK there legitimately exits the app; wrapping would trap the user
-  ///     (BACK could never leave).
+  ///     (BACK could never leave). `ShellScreen` owns its own root-back
+  ///     handling (return to the landing tab, then confirm-to-exit).
   ///   * gate screens (`biometric-lock`, `account-status`): BACK must not
   ///     bypass the lock / blocked-account gate.
   ///   * mandatory blind-rating screens (`feedback`, `mutual-rating`): they
