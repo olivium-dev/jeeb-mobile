@@ -92,9 +92,8 @@ jobs:
         run: bash tool/check_firebase_core_pin.sh
 
       - name: Run tests
-        # `capture` tags the two golden-PNG capture harnesses. They are review
-        # tooling, not gates (see the header of test/tools/catalog_capture_test.dart)
-        # and their goldens are host-rendered, so they cannot pass on a Linux runner.
+        # `capture` tags the two golden-PNG harnesses: review tooling, not gates,
+        # and host-rendered, so they cannot pass on a Linux runner.
         run: flutter test --exclude-tags capture --reporter=expanded
 
   build-apk:

@@ -1,22 +1,6 @@
 #!/usr/bin/env bash
-# firebase_core resolution gate.
-#
-# firebase_core 3.15.0 ships a pigeon channel signature that does not match the
-# Android plugin shipped alongside it: FirebaseApp initialisation silently
-# no-ops, so push registration and Firestore chat die with no error. The app
-# therefore pins `firebase_core: ">=3.13.1 <3.15.0"` in pubspec.yaml.
-#
-# pubspec.lock is gitignored, so the pin is only ever enforced at resolve time
-# and each machine resolves its own. This gate re-checks the RESOLVED version
-# after `flutter pub get` in CI, and also verifies the pubspec.yaml constraint
-# itself has not been widened.
-#
-# Run locally (after `flutter pub get`):
-#   bash tool/check_firebase_core_pin.sh
-#
-# Wire into CI (.github/workflows/<workflow>.yml), after `flutter pub get`:
-#   - name: firebase_core pin gate
-#     run: bash tool/check_firebase_core_pin.sh
+# Fails if the firebase_core pin is widened or resolves outside it (see README CI).
+# Run after `flutter pub get`:  bash tool/check_firebase_core_pin.sh
 
 set -euo pipefail
 

@@ -102,8 +102,8 @@ widgets, and before this rule 232 preview files each declared a `_hosted`.
 | private types | `_ClientHomeTierBadgeActiveHeader` |
 
 Everything below the banner should be **private**. The exception is a fixture the
-render test needs to reference — `notificationPermissionPromptTaps`,
-`jeeberRequestUnavailableScreenBrowseTaps`. Those stay public, still prefixed, and the structure test requires
+render test needs to reference — `notificationPermissionPromptTaps`. It stays
+public, still prefixed, and the structure test requires
 that every public non-preview name below a banner is actually used from `test/`.
 
 The SDK constrains preview functions themselves (`_PreviewVisitor.visitFunctionDeclaration`):

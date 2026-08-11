@@ -173,10 +173,8 @@ void main() {
     testWidgets(
         'a container boundary around a bare Semantics no longer folds it away, '
         'so the deepest exposed id wins', (tester) async {
-      // The real onboarding-Next topology. Flutter <=3.38 absorbed the inner
-      // annotation into the outer container node; since 3.40 an `identifier`
-      // always forces its own node, so BOTH ship to the platform a11y tree and
-      // this collapses onto the both-exposed rule below.
+      // Flutter <=3.38 absorbed the inner annotation into the outer container
+      // node; since 3.40 an `identifier` always forces its own node.
       await tester.pumpWidget(
         _harness(_buttonMergedIdentity(
           outer: 'onboarding_next_button',
