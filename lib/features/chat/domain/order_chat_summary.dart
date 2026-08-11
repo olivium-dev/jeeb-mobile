@@ -86,6 +86,20 @@ class OrderChatSummary extends Equatable {
       ];
 }
 
+/// Counterpart identity picked by viewer role — the ONE place the leg is chosen,
+/// so a header photo, header name and rating screen can never disagree.
+extension OrderChatSummaryCounterpart on OrderChatSummary {
+  /// The OTHER party's display name; empty when unset.
+  String counterpartName({required bool viewerIsJeeber}) =>
+      viewerIsJeeber ? clientName : jeeberName;
+
+  /// The OTHER party's avatar; null (letter placeholder) when unset.
+  String? counterpartAvatarUrl({required bool viewerIsJeeber}) {
+    final url = viewerIsJeeber ? clientAvatarUrl : jeeberAvatarUrl;
+    return url.isEmpty ? null : url;
+  }
+}
+
 /// Typed failure surface for order-chat summary fetch. Screen maps these to
 /// "summary unavailable" (strip doesn't render); fetch never blocks chat thread.
 enum OrderChatSummaryFailure { notFound, network, unknown }

@@ -549,15 +549,15 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   /// Canonical mutual-rating route via [mutualRatingLocation]. Both legs now
   /// carry a real counterpart: the delivery read serves client + jeeber identity.
   String _mutualRateLocation(BuildContext context) {
-    final bool isClient = !_viewerIsJeeber(context);
+    final bool isJeeber = _viewerIsJeeber(context);
     return mutualRatingLocation(
       widget.deliveryId,
-      isClient: isClient,
+      isClient: !isJeeber,
       counterpartName: displayNameOrNull(
-        isClient ? _summary?.jeeberName : _summary?.clientName,
+        _summary?.counterpartName(viewerIsJeeber: isJeeber),
       ),
       counterpartAvatarUrl:
-          isClient ? _summary?.jeeberAvatarUrl : _summary?.clientAvatarUrl,
+          _summary?.counterpartAvatarUrl(viewerIsJeeber: isJeeber),
     );
   }
 

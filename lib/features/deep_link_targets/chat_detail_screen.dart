@@ -1234,15 +1234,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // where the counterpart's name is in scope, so the rating screen finally
     // gets a real `?name=` instead of its role-generic fallback. Never faked —
     // an empty name is passed as null and the helper drops the param.
-    final name = _summary?.jeeberName.trim().isNotEmpty ?? false
-        ? _summary!.jeeberName
-        : displayNameOrNull(_counterpartName);
+    final name = displayNameOrNull(
+          _summary?.counterpartName(viewerIsJeeber: isJeeber),
+        ) ??
+        displayNameOrNull(_counterpartName);
     context.go(
       mutualRatingLocation(
         _deliveryId,
         isClient: !isJeeber,
         counterpartName: name,
-        counterpartAvatarUrl: _summary?.jeeberAvatarUrl,
+        counterpartAvatarUrl:
+            _summary?.counterpartAvatarUrl(viewerIsJeeber: isJeeber),
       ),
     );
   }
@@ -1439,7 +1441,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     if (resolved != null) return resolved;
     // Same read the header photo comes from, so name and avatar never disagree.
     final fromSummary = displayNameOrNull(
-      isJeeber ? _summary?.clientName : _summary?.jeeberName,
+      _summary?.counterpartName(viewerIsJeeber: isJeeber),
     );
     if (fromSummary != null) return fromSummary;
     if (_phase == ConversationPhase.accepted || _hasWinner) {
@@ -1456,10 +1458,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   /// Counterpart photo for the header, from the same summary read as the name.
   /// Null (letter placeholder) until the summary lands or when unset.
-  String? _counterpartAvatarUrl(bool isJeeber) {
-    final url = isJeeber ? _summary?.clientAvatarUrl : _summary?.jeeberAvatarUrl;
-    return (url == null || url.isEmpty) ? null : url;
-  }
+  String? _counterpartAvatarUrl(bool isJeeber) =>
+      _summary?.counterpartAvatarUrl(viewerIsJeeber: isJeeber);
 
   /// JM-025 AC1: compose state — a client thread that has NOT yet matched a
   /// Jeeber (broadcasting / unknown phase, no winner). The first message

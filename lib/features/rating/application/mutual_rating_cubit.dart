@@ -30,10 +30,9 @@ class MutualRatingCubit extends Cubit<MutualRatingState> {
       final summary = await repo.fetchSummary(deliveryId);
       if (isClosed) return;
       emit(state.copyWith(
-        counterpartName:
-            isClient ? summary.jeeberName : summary.clientName,
+        counterpartName: summary.counterpartName(viewerIsJeeber: !isClient),
         counterpartAvatarUrl:
-            isClient ? summary.jeeberAvatarUrl : summary.clientAvatarUrl,
+            summary.counterpartAvatarUrl(viewerIsJeeber: !isClient) ?? '',
       ));
     } catch (_) {
       // Identity is decoration; a miss leaves the role-aware fallback.
