@@ -119,8 +119,9 @@ class DioRequestFeedRepository implements RequestFeedRepository, PollingSource {
         _parseFeedLocation(json['dropoff']) ??
         _parseLiveLocation(json, 'dropoff') ??
         const RequestLocation(label: '', latitude: 0, longitude: 0);
+    // `tier` is the slug; `tierId` is a UUID that never parses. Slug must win.
     final tier = _parseTier(
-      json['tierId'] as String? ?? json['tier'] as String?,
+      json['tier'] as String? ?? json['tierId'] as String?,
     );
 
     final myOffer = json['myOffer'];

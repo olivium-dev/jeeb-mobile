@@ -921,6 +921,48 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  // D-W4 — the split footers halve the pill width; those two CTAs opt into
+  // scaling rather than ellipsizing. Every other screen keeps the ellipsis.
+  group('shrinkLabelToFit', () {
+    testWidgets('is OFF by default — the label still ellipsizes', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        wrapCta(const JeebCtaButton.text(label: 'Report no-show')),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(JeebCtaButton),
+          matching: find.byType(FittedBox),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('scales the label down when opted in', (tester) async {
+      await tester.pumpWidget(
+        wrapCta(
+          const JeebCtaButton.text(
+            label: 'Report no-show',
+            shrinkLabelToFit: true,
+          ),
+        ),
+      );
+
+      final FittedBox box = tester.widget<FittedBox>(
+        find
+            .descendant(
+              of: find.byType(JeebCtaButton),
+              matching: find.byType(FittedBox),
+            )
+            .first,
+      );
+      expect(box.fit, BoxFit.scaleDown);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
 
 /// True when the glyph is drawn through a horizontal flip.

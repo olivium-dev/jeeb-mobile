@@ -527,6 +527,11 @@ class _WaitingLoaded extends StatelessWidget {
                   _BroadcastBlock(
                     notifiedCount: notifiedCount,
                     remaining: state.remaining,
+                    // Offers-arrived grows the footer by the review pill; the
+                    // radar gives that height back so the echo card still fits.
+                    illustrationSize: showReviewOffers
+                        ? JeebEmptyState.compactIllustrationSize
+                        : JeebEmptyState.defaultIllustrationSize,
                   ),
                 // G1 (sprint-009 P0): echo the customer's own request content
                 // while they wait — the same text the jeeber feed is showing
@@ -549,6 +554,13 @@ class _WaitingLoaded extends StatelessWidget {
         //    board's footer keeps them off the scroll body so the cancel exit
         //    is never scrolled past.
         JeebCtaFooter.single(
+          // Top inset so a residual scroll-clip line never kisses the pill.
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            24,
+            Spacing.small,
+            24,
+            32,
+          ),
           // ── Cancel (free pre-accept, D69; AC4) ──────────────────────────
           below: Semantics(
             identifier: 'waiting_cancel_cta',
@@ -600,9 +612,17 @@ class _WaitingLoaded extends StatelessWidget {
 /// 09-MOTION-VALIDATION §7) and would be invisible on the Midnight field, and
 /// the board draws this subject as a vector radar the kit already ships.
 class _BroadcastBlock extends StatelessWidget {
-  const _BroadcastBlock({required this.notifiedCount, required this.remaining});
+  const _BroadcastBlock({
+    required this.notifiedCount,
+    required this.remaining,
+    this.illustrationSize = JeebEmptyState.defaultIllustrationSize,
+  });
 
   final int notifiedCount;
+
+  /// Radar width. Reduced in the offers-arrived state, where the footer's
+  /// review pill takes height off the scroll viewport.
+  final double illustrationSize;
 
   /// Time left on the server-anchored offer-wait window. NULL means the server
   /// says no countdown applies to this row — the capsule then says so honestly
@@ -626,6 +646,7 @@ class _BroadcastBlock extends StatelessWidget {
       // server window right beneath it (up to 23:59), so the honest hint wins.
       body: l10n.requestSummaryFindingHint,
       action: _CountdownCapsule(remaining: remaining),
+      illustrationSize: illustrationSize,
     );
   }
 }
