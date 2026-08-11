@@ -103,7 +103,7 @@ widgets, and before this rule 232 preview files each declared a `_hosted`.
 
 Everything below the banner should be **private**. The exception is a fixture the
 render test needs to reference — `notificationPermissionPromptTaps`,
-`repliesTabCardBox`. Those stay public, still prefixed, and the structure test requires
+`jeeberRequestUnavailableScreenBrowseTaps`. Those stay public, still prefixed, and the structure test requires
 that every public non-preview name below a banner is actually used from `test/`.
 
 The SDK constrains preview functions themselves (`_PreviewVisitor.visitFunctionDeclaration`):

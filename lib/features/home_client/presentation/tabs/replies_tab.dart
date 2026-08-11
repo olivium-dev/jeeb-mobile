@@ -222,7 +222,7 @@ class _RepliesList extends StatelessWidget {
 
 /// One reply row: header + two-line summary + the CTA row + divider. Phone
 /// width, because the CTA row is `MainAxisAlignment.end` and only overflows
-const Size repliesTabCardBox = Size(390, 200);
+const Size _repliesTabCardBox = Size(390, 200);
 
 /// The full-tab states (empty / error / loading) centre an icon + copy block,
 /// so they need the height a tab body actually gets.
@@ -306,7 +306,7 @@ ClientHomeRequest _repliesTabReply({
 @JeebPreview(
   group: 'home_client',
   name: 'Nine offers · +6',
-  size: repliesTabCardBox,
+  size: _repliesTabCardBox,
 )
 Widget repliesTabWithOverflowCount() => _repliesTabHosted(
       _RepliesTabSeededHomeRepository(<ClientHomeRequest>[
@@ -319,7 +319,7 @@ Widget repliesTabWithOverflowCount() => _repliesTabHosted(
 @JeebPreview(
   group: 'home_client',
   name: 'Long content · +117',
-  size: repliesTabCardBox,
+  size: _repliesTabCardBox,
 )
 Widget repliesTabLongContent() => _repliesTabHosted(
       _RepliesTabSeededHomeRepository(<ClientHomeRequest>[

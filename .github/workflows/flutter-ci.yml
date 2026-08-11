@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 env:
-  FLUTTER_VERSION: '3.38.9'
+  # Keep in step with ci.yml and the Mac Studio build machine (~/flutter-3.44).
+  FLUTTER_VERSION: '3.44.2'
 
 jobs:
   analyze-test-build:
@@ -38,6 +39,9 @@ jobs:
         id: pub_get
         run: flutter pub get
 
+      - name: firebase_core pin gate
+        run: bash tool/check_firebase_core_pin.sh
+
       - name: Analyze
         # `dart analyze` avoids the `flutter analyze` exit-code-64 crash that
         # happens while bootstrapping native-assets in CI. --fatal-infos keeps
@@ -45,7 +49,8 @@ jobs:
         run: dart analyze --fatal-infos .
 
       - name: Run tests
-        run: flutter test --coverage
+        # See ci.yml — the `capture` harnesses are host-rendered golden tooling.
+        run: flutter test --exclude-tags capture --coverage
 
       - name: Coverage summary (lcov)
         # Surfaces aggregate line coverage from coverage/lcov.info produced above.

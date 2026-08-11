@@ -240,8 +240,8 @@ const Size _orderSummaryScreenCompactBox = Size(320, 568);
 
 /// The caption each preview is pinned by.
 /// Public because the render test's `expectedText` map reads the four that pin
-final class OrderSummaryScreenCaptions {
-  OrderSummaryScreenCaptions._();
+final class _OrderSummaryScreenCaptions {
+  _OrderSummaryScreenCaptions._();
 
   /// The reference reading: an accepted order with every field populated.
   static const String loaded = 'preview · loaded · every field populated';
@@ -337,7 +337,7 @@ class _OrderSummaryScreenCaption extends StatelessWidget {
 )
 Widget orderSummaryScreenLoaded() => _orderSummaryScreenHosted(
       OrderSummaryScreenFixtures.loaded,
-      OrderSummaryScreenCaptions.loaded,
+      _OrderSummaryScreenCaptions.loaded,
     );
 
 /// CATALOG · "Loading". Cold start: the fetch is in flight and nothing has come
@@ -349,7 +349,7 @@ Widget orderSummaryScreenLoaded() => _orderSummaryScreenHosted(
 )
 Widget orderSummaryScreenColdRead() => _orderSummaryScreenHosted(
       OrderSummaryScreenFixtures.coldRead,
-      OrderSummaryScreenCaptions.coldRead,
+      _OrderSummaryScreenCaptions.coldRead,
     );
 
 /// CATALOG · "Failed — Not Found". The accepted order is gone, or the deep link
@@ -361,7 +361,7 @@ Widget orderSummaryScreenColdRead() => _orderSummaryScreenHosted(
 )
 Widget orderSummaryScreenNotFound() => _orderSummaryScreenHosted(
       OrderSummaryScreenFixtures.notFound,
-      OrderSummaryScreenCaptions.notFound,
+      _OrderSummaryScreenCaptions.notFound,
     );
 
 /// The offline failure — the one where Retry could actually work, and the one
@@ -373,7 +373,7 @@ Widget orderSummaryScreenNotFound() => _orderSummaryScreenHosted(
 )
 Widget orderSummaryScreenNetworkFailure() => _orderSummaryScreenHosted(
       OrderSummaryScreenFixtures.networkFailure,
-      OrderSummaryScreenCaptions.networkFailure,
+      _OrderSummaryScreenCaptions.networkFailure,
     );
 
 /// The emptiest LOADED body this screen can reach: every optional field absent
@@ -385,7 +385,7 @@ Widget orderSummaryScreenNetworkFailure() => _orderSummaryScreenHosted(
 )
 Widget orderSummaryScreenMinimalPayload() => _orderSummaryScreenHosted(
       OrderSummaryScreenFixtures.minimalPayload,
-      OrderSummaryScreenCaptions.minimalPayload,
+      _OrderSummaryScreenCaptions.minimalPayload,
     );
 
 /// The ceiling on every axis at once: a seven-digit SYP price, a three-part
@@ -398,7 +398,7 @@ Widget orderSummaryScreenMinimalPayload() => _orderSummaryScreenHosted(
 )
 Widget orderSummaryScreenLongestContent() => _orderSummaryScreenHosted(
       OrderSummaryScreenFixtures.longestContent,
-      OrderSummaryScreenCaptions.longestContent,
+      _OrderSummaryScreenCaptions.longestContent,
     );
 
 /// The reference order on the narrowest viewport the app supports.
@@ -410,7 +410,7 @@ Widget orderSummaryScreenLongestContent() => _orderSummaryScreenHosted(
 )
 Widget orderSummaryScreenCompact() => _orderSummaryScreenHosted(
       OrderSummaryScreenFixtures.loaded,
-      OrderSummaryScreenCaptions.compact,
+      _OrderSummaryScreenCaptions.compact,
       box: _orderSummaryScreenCompactBox,
     );
 
@@ -423,5 +423,5 @@ Widget orderSummaryScreenCompact() => _orderSummaryScreenHosted(
 )
 Widget orderSummaryScreenUnconfiguredDi() => _orderSummaryScreenHosted(
       OrderSummaryScreenFixtures.unconfiguredDi,
-      OrderSummaryScreenCaptions.unconfiguredDi,
+      _OrderSummaryScreenCaptions.unconfiguredDi,
     );

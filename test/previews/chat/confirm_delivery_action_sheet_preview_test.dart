@@ -78,7 +78,7 @@ void main() {
       expect(cta, findsOneWidget);
       expect(
         tester.getSemantics(cta),
-        containsSemantics(
+        isSemantics(
           identifier: 'confirm_delivery_confirm_button',
           isButton: true,
           isEnabled: false,

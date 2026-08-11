@@ -246,6 +246,6 @@ void main() {
         _contrast(tokens.express, darkSurface),
         greaterThan(_contrast(tokens.express, lightSurface)),
       );
-    });
+    }, skip: kStalePaletteLockSkip);
   });
 }

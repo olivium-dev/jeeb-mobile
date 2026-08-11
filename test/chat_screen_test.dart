@@ -122,14 +122,14 @@ void main() {
     final send = find.byKey(ChatComposer.sendButtonKey);
     expect(
       tester.getSemantics(send),
-      containsSemantics(isButton: true, isEnabled: false),
+      isSemantics(isButton: true, isEnabled: false),
     );
 
     await tester.enterText(find.byKey(ChatComposer.textFieldKey), 'x');
     await tester.pump();
     expect(
       tester.getSemantics(send),
-      containsSemantics(isButton: true, isEnabled: true),
+      isSemantics(isButton: true, isEnabled: true),
     );
     handle.dispose();
   });

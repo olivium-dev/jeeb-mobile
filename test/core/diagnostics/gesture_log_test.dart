@@ -171,9 +171,12 @@ void main() {
     });
 
     testWidgets(
-        'button-merged nested Semantics records the OUTER exposed id, not inner',
-        (tester) async {
-      // The real onboarding-Next topology: the inner id is ABSORBED into the
+        'a container boundary around a bare Semantics no longer folds it away, '
+        'so the deepest exposed id wins', (tester) async {
+      // The real onboarding-Next topology. Flutter <=3.38 absorbed the inner
+      // annotation into the outer container node; since 3.40 an `identifier`
+      // always forces its own node, so BOTH ship to the platform a11y tree and
+      // this collapses onto the both-exposed rule below.
       await tester.pumpWidget(
         _harness(_buttonMergedIdentity(
           outer: 'onboarding_next_button',
@@ -185,12 +188,10 @@ void main() {
       await tester.pump();
 
       final line = gestureLine();
-      // The recorded id is the OUTER one Maestro/uiautomator can actually match…
-      expect(line, contains('"id":"onboarding_next_button"'));
-      // …never the inner one the platform folds away (the original bug).
-      expect(line, isNot(contains('"id":"walkthrough_next_cta"')));
-      // The inner id survives only as a debugging breadcrumb.
-      expect(line, contains('"idInner":"walkthrough_next_cta"'));
+      expect(line, contains('"id":"walkthrough_next_cta"'));
+      expect(line, isNot(contains('"id":"onboarding_next_button"')));
+      // id already IS the innermost annotation, so the breadcrumb is dropped.
+      expect(line, isNot(contains('"idInner"')));
     });
 
     testWidgets(

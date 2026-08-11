@@ -82,7 +82,7 @@ void main() {
       expect(pill, findsOneWidget);
       expect(
         tester.getSemantics(pill),
-        containsSemantics(identifier: _trackCta, isButton: true),
+        isSemantics(identifier: _trackCta, isButton: true),
       );
       // 48 dp floor: the visible pill is ~26 dp tall, the TARGET is not.
       expect(tester.getSize(pill).height, greaterThanOrEqualTo(48));

@@ -80,7 +80,9 @@ void main() {
       expect(tiers.length, 3);
       expect(tiers[0].id, TierId.flash);
       expect(tiers[0].slaMinutes, 60);
-      expect(tiers[0].recommended, isTrue);
+      // 7f570093 (R9 / doc-13 P0-4) moved the badge from Flash to Standard.
+      expect(tiers[0].recommended, isFalse);
+      expect(tiers[2].recommended, isTrue);
       expect(tiers[1].id, TierId.express);
       expect(tiers[1].slaMinutes, 120);
       expect(tiers[2].id, TierId.standard);
@@ -169,7 +171,7 @@ void main() {
       // The gateway UUID is preserved verbatim for POST /requests → tierId.
       expect(tiers[0].serverId, '0be308ce-01b5-5cb9-a3e8-9adb60668d9c');
       expect(tiers[1].serverId, 'efe0629b-0b50-555c-b182-4bd41fcd6507');
-      expect(tiers[0].recommended, isTrue);
+      expect(tiers[2].recommended, isTrue);
     });
 
     test('accepts bare array response', () async {
