@@ -11,7 +11,7 @@ enum RegistrationStep {
 
 enum RegistrationPhoneError { invalid, networkError, rateLimited }
 
-enum RegistrationOtpError { invalid, expired, networkError }
+enum RegistrationOtpError { invalid, expired, accountSuspended, networkError }
 
 class RegistrationState extends Equatable {
   const RegistrationState({

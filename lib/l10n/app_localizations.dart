@@ -555,6 +555,10 @@ class AppLocalizations {
   String get registrationOtpVerifying => _get('registrationOtpVerifying');
   String get registrationOtpExpired => _get('registrationOtpExpired');
   String get registrationOtpInvalid => _get('registrationOtpInvalid');
+  String get registrationOtpAccountSuspended =>
+      _get('registrationOtpAccountSuspended');
+  String get registrationOtpNetworkError =>
+      _get('registrationOtpNetworkError');
   String get registrationOtpResend => _get('registrationOtpResend');
   String registrationOtpResendIn(int seconds) =>
       _get('registrationOtpResendIn').replaceFirst('{seconds}', '$seconds');

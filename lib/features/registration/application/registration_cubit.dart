@@ -144,6 +144,15 @@ class RegistrationCubit extends Cubit<RegistrationState> {
           isVerifying: false,
           otpError: RegistrationOtpError.expired,
         ));
+      case OtpVerifyOutcome.accountSuspended:
+        // Never counts as a failed attempt: the code was accepted, the account
+        // was refused. Burning attempts here would lock out a user who did
+        // nothing wrong, on top of showing them the wrong reason.
+        _stopResendCountdown();
+        emit(state.copyWith(
+          isVerifying: false,
+          otpError: RegistrationOtpError.accountSuspended,
+        ));
       case OtpVerifyOutcome.networkError:
         emit(state.copyWith(
           isVerifying: false,

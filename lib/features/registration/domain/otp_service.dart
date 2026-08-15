@@ -12,6 +12,11 @@ enum OtpVerifyOutcome {
 
   rateLimited,
   expired,
+
+  /// Gateway 403 account_suspended. Distinct from [invalidCode]: the code was
+  /// fine, the account is not. Telling the user "wrong code" sends them to
+  /// re-enter a correct code forever.
+  accountSuspended,
   networkError,
 }
 
