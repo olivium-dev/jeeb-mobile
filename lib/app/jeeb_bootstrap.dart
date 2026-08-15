@@ -21,13 +21,15 @@ bool get _holdSplash => kDebugMode && DevSeam.current.holdSplash;
 
 String get _forcedLocale => kDebugMode ? DevSeam.current.forcedLocale : '';
 
+const Duration _startupTransitionDuration = Duration(milliseconds: 350);
+
 class JeebBootstrap extends StatefulWidget {
   const JeebBootstrap({
     super.key,
     Future<BootstrapResult>? bootstrapFuture,
     Duration? minSplashHold,
-  })  : _override = bootstrapFuture,
-        _minSplashHold = minSplashHold;
+  }) : _override = bootstrapFuture,
+       _minSplashHold = minSplashHold;
 
   final Future<BootstrapResult>? _override;
 
@@ -42,7 +44,12 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
       widget._override ?? Bootstrap.minimal();
 
   bool _minHoldElapsed = false;
+  bool _entranceElapsed = false;
+  bool _revealed = false;
+  bool _overlayMounted = true;
+  bool _revealScheduled = false;
   Timer? _holdTimer;
+  Timer? _entranceTimer;
 
   bool _deferredScheduled = false;
 
@@ -58,11 +65,16 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
         setState(() => _minHoldElapsed = true);
       });
     }
+    _entranceTimer = Timer(BrandedSplash.entranceDuration, () {
+      if (!mounted) return;
+      setState(() => _entranceElapsed = true);
+    });
   }
 
   @override
   void dispose() {
     _holdTimer?.cancel();
+    _entranceTimer?.cancel();
     super.dispose();
   }
 
@@ -74,6 +86,30 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
     });
   }
 
+  bool get _reduceMotion => WidgetsBinding
+      .instance
+      .platformDispatcher
+      .accessibilityFeatures
+      .disableAnimations;
+
+  void _scheduleReveal() {
+    if (_revealed || _revealScheduled) return;
+    _revealScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _revealed = true;
+        if (_reduceMotion) {
+          _overlayMounted = false;
+        }
+      });
+    });
+  }
+
+  void _removeOverlay() {
+    if (_revealed && mounted) setState(() => _overlayMounted = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<BootstrapResult>(
@@ -82,16 +118,52 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
         if (snapshot.hasError) {
           return _BootstrapErrorApp(error: snapshot.error!);
         }
-        final bootstrapping =
-            snapshot.connectionState != ConnectionState.done;
-        if (bootstrapping || !_minHoldElapsed || _holdSplash) {
-          return const _SplashApp();
-        }
-        final result = snapshot.requireData;
-        _scheduleDeferred(result);
-        return JeebApp(
-          preferences: result.preferences,
-          crashReporter: result.crashReporter,
+
+        final bootstrapping = snapshot.connectionState != ConnectionState.done;
+        final result = bootstrapping ? null : snapshot.requireData;
+        if (result != null) _scheduleDeferred(result);
+
+        final readyToReveal =
+            result != null &&
+            (_reduceMotion || _entranceElapsed) &&
+            _minHoldElapsed &&
+            !_holdSplash;
+        if (readyToReveal) _scheduleReveal();
+
+        return Stack(
+          fit: StackFit.expand,
+          alignment: Alignment.center,
+          children: <Widget>[
+            if (result == null)
+              const SizedBox.expand()
+            else
+              IgnorePointer(
+                ignoring: !_revealed,
+                child: ExcludeSemantics(
+                  excluding: !_revealed,
+                  child: JeebApp(
+                    preferences: result.preferences,
+                    crashReporter: result.crashReporter,
+                  ),
+                ),
+              ),
+            if (_overlayMounted)
+              AnimatedOpacity(
+                opacity: _revealed ? 0 : 1,
+                duration: _reduceMotion
+                    ? Duration.zero
+                    : _startupTransitionDuration,
+                curve: Curves.easeInOut,
+                onEnd: _removeOverlay,
+                child: IgnorePointer(
+                  ignoring: _revealed,
+                  child: ExcludeSemantics(
+                    excluding: _revealed,
+                    child: const _SplashApp(key: ValueKey<String>('splash')),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -99,15 +171,16 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
 }
 
 class _SplashApp extends StatelessWidget {
-  const _SplashApp();
+  const _SplashApp({super.key});
 
   static Locale _initialLocale() {
     final forced = _forcedLocale;
     final candidate = forced.isNotEmpty
         ? forced
         : PlatformDispatcher.instance.locale.languageCode;
-    final supported =
-        AppLocalizations.supportedLocales.any((l) => l.languageCode == candidate);
+    final supported = AppLocalizations.supportedLocales.any(
+      (l) => l.languageCode == candidate,
+    );
     return supported ? Locale(candidate) : const Locale('en');
   }
 
@@ -193,41 +266,67 @@ final Object jeebBootstrapMissingPluginError = MissingPluginException(
 /// The payload behind [jeebBootstrapFailedVerbose].
 final Object jeebBootstrapVerboseError = PlatformException(
   code: 'channel-error',
-  message: 'Unable to establish connection on channel: '
+  message:
+      'Unable to establish connection on channel: '
       '"dev.flutter.pigeon.shared_preferences_android'
       '.SharedPreferencesApi.getAll".',
   details: 'Lost connection to device before the reply was received.',
-  stacktrace: 'java.lang.IllegalStateException: Reply already submitted\n'
+  stacktrace:
+      'java.lang.IllegalStateException: Reply already submitted\n'
       '\tat io.flutter.plugin.common.BasicMessageChannel.reply\n'
       '\tat io.flutter.embedding.engine.dart.DartMessenger.handleMessage',
 );
 
 /// The payload behind [jeebBootstrapFailedArabicPayload].
-final Object jeebBootstrapArabicError =
-    Exception('تعذّر الوصول إلى مساحة التخزين المحلية');
+final Object jeebBootstrapArabicError = Exception(
+  'تعذّر الوصول إلى مساحة التخزين المحلية',
+);
 
 /// Cold start: the branded splash, held while `Bootstrap.minimal()` runs.
 /// The state every launch passes through. Worth a preview because the splash
-@JeebPreview(group: 'app', name: 'Cold start (splash)', size: jeebBootstrapPreviewBox)
+@JeebPreview(
+  group: 'app',
+  name: 'Cold start (splash)',
+  size: jeebBootstrapPreviewBox,
+)
 Widget jeebBootstrapColdStart() => _jeebBootstrapBootstrapping();
 
 /// Shortest plausible failure: something threw a bare `Exception`.
 /// Renders "App failed to start: Exception" — a dead end with no cause, no
-@JeebPreview(group: 'app', name: 'Boot failed · opaque', size: jeebBootstrapPreviewBox)
-Widget jeebBootstrapFailedOpaque() => _jeebBootstrapFailed(jeebBootstrapOpaqueError);
+@JeebPreview(
+  group: 'app',
+  name: 'Boot failed · opaque',
+  size: jeebBootstrapPreviewBox,
+)
+Widget jeebBootstrapFailedOpaque() =>
+    _jeebBootstrapFailed(jeebBootstrapOpaqueError);
 
 /// The documented failure mode: the `SharedPreferences` platform channel is
 /// gone, so `Bootstrap.minimal()` rejects.
-@JeebPreview(group: 'app', name: 'Boot failed · plugin missing', size: jeebBootstrapPreviewBox)
+@JeebPreview(
+  group: 'app',
+  name: 'Boot failed · plugin missing',
+  size: jeebBootstrapPreviewBox,
+)
 Widget jeebBootstrapFailedMissingPlugin() =>
     _jeebBootstrapFailed(jeebBootstrapMissingPluginError);
 
 /// Longest plausible content: a native `PlatformException` carrying details AND
 /// a stack trace, which is what the platform actually hands back on a failed
-@JeebPreview(group: 'app', name: 'Boot failed · verbose', size: jeebBootstrapPreviewBox)
-Widget jeebBootstrapFailedVerbose() => _jeebBootstrapFailed(jeebBootstrapVerboseError);
+@JeebPreview(
+  group: 'app',
+  name: 'Boot failed · verbose',
+  size: jeebBootstrapPreviewBox,
+)
+Widget jeebBootstrapFailedVerbose() =>
+    _jeebBootstrapFailed(jeebBootstrapVerboseError);
 
 /// A failure whose message is not Latin script.
 /// Native layers localize their own messages, so an Arabic device can put
-@JeebPreview(group: 'app', name: 'Boot failed · Arabic payload', size: jeebBootstrapPreviewBox)
-Widget jeebBootstrapFailedArabicPayload() => _jeebBootstrapFailed(jeebBootstrapArabicError);
+@JeebPreview(
+  group: 'app',
+  name: 'Boot failed · Arabic payload',
+  size: jeebBootstrapPreviewBox,
+)
+Widget jeebBootstrapFailedArabicPayload() =>
+    _jeebBootstrapFailed(jeebBootstrapArabicError);

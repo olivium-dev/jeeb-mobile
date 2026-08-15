@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:omds/omds.dart';
 
 import '../core/theme/app_theme.dart';
-import '../core/theme/jeeb_text_styles.dart';
-import '../core/widgets/jeeb/jeeb_midnight_field.dart';
+import '../core/theme/jeeb_midnight_palette.dart';
 import '../l10n/app_localizations.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -15,6 +13,7 @@ class BrandedSplash extends StatelessWidget {
   const BrandedSplash({super.key});
 
   static const String _logoAsset = 'assets/brand/jeeb_logo.svg';
+  static const Duration entranceDuration = Duration(milliseconds: 450);
 
   @override
   Widget build(BuildContext context) {
@@ -23,32 +22,11 @@ class BrandedSplash extends StatelessWidget {
       child: Semantics(
         identifier: '_splash_screen',
         container: true,
-        // §8 base wash, no orange: the splash has no tile, so it spends no
-        // accent budget and runs still — it is the first frame of a cold start.
-        child: const JeebMidnightField(
-          variant: JeebFieldVariant.content,
-          glowColor: Colors.transparent,
-          animateDecor: false,
-          child: SafeArea(child: _SplashBody()),
+        child: const ColoredBox(
+          color: JeebMidnight.surface,
+          child: SafeArea(child: Center(child: _SplashLogo())),
         ),
       ),
-    );
-  }
-}
-
-class _SplashBody extends StatelessWidget {
-  const _SplashBody();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      children: [
-        Spacer(flex: 10),
-        _SplashLogo(),
-        Spacer(flex: 9),
-        _SplashTagline(),
-        SizedBox(height: Spacing.fourXLarge),
-      ],
     );
   }
 }
@@ -59,40 +37,109 @@ class _SplashLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final double logoWidth = (MediaQuery.sizeOf(context).width * 0.42)
+        .clamp(152.0, 184.0)
+        .toDouble();
     return Semantics(
       identifier: '_splash_logo',
       label: l10n.splashLogoSemantic,
       image: true,
       container: true,
       child: Center(
-        child: SvgPicture.asset(
-          BrandedSplash._logoAsset,
-          width: Sizes.twoHundredLarge,
-          fit: BoxFit.contain,
+        child: _SplashLogoEntrance(
+          child: SvgPicture.asset(
+            BrandedSplash._logoAsset,
+            width: logoWidth,
+            fit: BoxFit.contain,
+          ),
         ),
       ),
     );
   }
 }
 
-class _SplashTagline extends StatelessWidget {
-  const _SplashTagline();
+class _SplashLogoEntrance extends StatefulWidget {
+  const _SplashLogoEntrance({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SplashLogoEntrance> createState() => _SplashLogoEntranceState();
+}
+
+class _SplashLogoEntranceState extends State<_SplashLogoEntrance>
+    with SingleTickerProviderStateMixin {
+  static const Curve _entranceCurve = Cubic(0.2, 0.4, 0.4, 1);
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: BrandedSplash.entranceDuration,
+  );
+  late final Animation<double> _opacity = _controller.drive(
+    TweenSequence<double>(<TweenSequenceItem<double>>[
+      TweenSequenceItem<double>(
+        tween: Tween<double>(
+          begin: 1,
+          end: 0.86,
+        ).chain(CurveTween(curve: const Cubic(0.4, 0, 0.6, 1))),
+        weight: 42,
+      ),
+      TweenSequenceItem<double>(
+        tween: Tween<double>(
+          begin: 0.86,
+          end: 1,
+        ).chain(CurveTween(curve: _entranceCurve)),
+        weight: 58,
+      ),
+    ]),
+  );
+  late final Animation<double> _scale = _controller.drive(
+    TweenSequence<double>(<TweenSequenceItem<double>>[
+      TweenSequenceItem<double>(
+        tween: Tween<double>(
+          begin: 1,
+          end: 1.08,
+        ).chain(CurveTween(curve: const Cubic(0.2, 0, 0.4, 1))),
+        weight: 48,
+      ),
+      TweenSequenceItem<double>(
+        tween: Tween<double>(
+          begin: 1.08,
+          end: 1,
+        ).chain(CurveTween(curve: _entranceCurve)),
+        weight: 52,
+      ),
+    ]),
+  );
+
+  bool? _reduceMotion;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion == reduceMotion) return;
+    _reduceMotion = reduceMotion;
+    if (reduceMotion) {
+      _controller
+        ..stop()
+        ..value = 1;
+    } else {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    return Semantics(
-      identifier: '_splash_tagline',
-      container: true,
-      child: Text(
-        l10n.splashTagline,
-        textAlign: TextAlign.center,
-        // `onSecondary` is page navy — on the field it measured 1.17:1.
-        style: context.jeebText.titleProminent.copyWith(
-          color: theme.colorScheme.onSecondaryContainer,
-        ),
-      ),
+    return FadeTransition(
+      opacity: _opacity,
+      child: ScaleTransition(scale: _scale, child: widget.child),
     );
   }
 }
@@ -118,7 +165,10 @@ const Size _brandedSplashLandscapeFrame = Size(852, 393);
 const Size _brandedSplashTabletFrame = Size(834, 1194);
 
 /// Status-bar + home-indicator insets of a notched phone in portrait.
-const EdgeInsets _brandedSplashNotchInsets = EdgeInsets.only(top: 59, bottom: 34);
+const EdgeInsets _brandedSplashNotchInsets = EdgeInsets.only(
+  top: 59,
+  bottom: 34,
+);
 
 /// Rotated: the notch moves to a side, the home indicator thins out.
 const EdgeInsets _brandedSplashLandscapeInsets = EdgeInsets.only(
@@ -170,10 +220,7 @@ class _BrandedSplashDeviceFrame extends StatelessWidget {
               viewPadding: insets,
               viewInsets: EdgeInsets.zero,
             ),
-            child: SizedBox.fromSize(
-              size: frame,
-              child: const BrandedSplash(),
-            ),
+            child: SizedBox.fromSize(size: frame, child: const BrandedSplash()),
           ),
         ),
       ],
@@ -187,52 +234,59 @@ Widget _brandedSplashHosted({
   required String label,
   required Size frame,
   EdgeInsets insets = EdgeInsets.zero,
-}) =>
-    SingleChildScrollView(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: _BrandedSplashDeviceFrame(label: label, frame: frame, insets: insets),
-      ),
-    );
+}) => SingleChildScrollView(
+  child: SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: _BrandedSplashDeviceFrame(
+      label: label,
+      frame: frame,
+      insets: insets,
+    ),
+  ),
+);
 
 /// The reference reading: the exact Figma frame the widget is specified
 /// against, with no system chrome claimed.
 @JeebPreview(group: 'app', name: 'Figma frame 440 × 956', size: Size(452, 1000))
 Widget brandedSplashFigmaFrame() => _brandedSplashHosted(
-      label: 'Figma frame · 440 × 956 · no insets',
-      frame: _brandedSplashFigmaFrame,
-    );
+  label: 'Figma frame · 440 × 956 · no insets',
+  frame: _brandedSplashFigmaFrame,
+);
 
 /// The small end of the range: a 360 pt phone.
-/// `Sizes.twoHundredLarge` is a fixed 200 pt, so the wordmark is now **55.6 %**
+/// The responsive wordmark stays compact enough to leave a calm navy field.
 @JeebPreview(group: 'app', name: 'Compact 360 × 640', size: Size(372, 684))
 Widget brandedSplashCompactPhone() => _brandedSplashHosted(
-      label: 'Compact phone · 360 × 640 · no insets',
-      frame: _brandedSplashCompactFrame,
-    );
+  label: 'Compact phone · 360 × 640 · no insets',
+  frame: _brandedSplashCompactFrame,
+);
 
 /// The state ~every iOS user actually sees: a notched phone with a 59 pt status
 /// bar and a 34 pt home indicator.
-@JeebPreview(group: 'app', name: 'Notched 393 × 852 · inset 59/34', size: Size(405, 896))
+@JeebPreview(
+  group: 'app',
+  name: 'Notched 393 × 852 · inset 59/34',
+  size: Size(405, 896),
+)
 Widget brandedSplashNotchedPhone() => _brandedSplashHosted(
-      label: 'Notched phone · 393 × 852 · inset 59/34',
-      frame: _brandedSplashNotchedFrame,
-      insets: _brandedSplashNotchInsets,
-    );
+  label: 'Notched phone · 393 × 852 · inset 59/34',
+  frame: _brandedSplashNotchedFrame,
+  insets: _brandedSplashNotchInsets,
+);
 
 /// The short viewport: the same device rotated, launched cold.
 /// This is the state the vertical composition was never drawn for. `_SplashBody`
 @JeebPreview(group: 'app', name: 'Landscape 852 × 393', size: Size(864, 438))
 Widget brandedSplashLandscape() => _brandedSplashHosted(
-      label: 'Landscape · 852 × 393 · inset 59/59/21',
-      frame: _brandedSplashLandscapeFrame,
-      insets: _brandedSplashLandscapeInsets,
-    );
+  label: 'Landscape · 852 × 393 · inset 59/59/21',
+  frame: _brandedSplashLandscapeFrame,
+  insets: _brandedSplashLandscapeInsets,
+);
 
 /// The large end of the range: a tablet in portrait.
-/// The other half of the fixed-token problem. The wordmark is still 200 pt, so
+/// The wordmark caps at 184 pt instead of growing into a tablet-sized billboard.
 @JeebPreview(group: 'app', name: 'Tablet 834 × 1194', size: Size(846, 1238))
 Widget brandedSplashTablet() => _brandedSplashHosted(
-      label: 'Tablet portrait · 834 × 1194 · no insets',
-      frame: _brandedSplashTabletFrame,
-    );
+  label: 'Tablet portrait · 834 × 1194 · no insets',
+  frame: _brandedSplashTabletFrame,
+);
