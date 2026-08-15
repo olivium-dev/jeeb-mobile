@@ -391,6 +391,56 @@ class DeliveryChatMessage extends Equatable {
   bool get isSystemNotice => kind.isSystemNotice;
   bool get isOfferCard => kind == MessageKind.offerCard;
 
+  // ---------------------------------------------------------------------------
+  // Missing-server-timestamp anchor
+  // ---------------------------------------------------------------------------
+  //
+  // A history row is a REAL message even when the wire carries no usable
+  // timestamp. The decoder used to reject such a row outright, which turned a
+  // full thread into a rendered empty state (bilateral empty-thread). It now
+  // decodes the row and anchors [sentAt] here instead.
+  //
+  // The anchor has to satisfy two things at once:
+  //   * ORDER — the timeline is sorted by [sentAt] (`ChatCubit._ordered`), so an
+  //     anchor derived from the row's position in the server array is the only
+  //     way to keep the server's own sequence. Deriving it from the local clock
+  //     would scramble the thread: every row would land at ~the same instant and
+  //     the tie-break would fall through to the (random UUID) message id, and a
+  //     history block stamped "now" would sort AFTER a bubble the user composed
+  //     a minute ago.
+  //   * HONESTY — an anchor is not a send time, so nothing may render it as one.
+  //     [hasServerTimestamp] is the discriminator every consumer checks before
+  //     showing a clock or a date divider.
+  //
+  // Anchors live inside 1970-01-01 UTC, decades below any real chat timestamp,
+  // so they always sort ahead of dated rows and of optimistic local bubbles.
+
+  /// Exclusive upper bound of the synthetic-anchor window.
+  static final DateTime _syntheticSentAtCeiling = DateTime.utc(1971);
+
+  /// Last millisecond offset that still lands inside 1970-01-01 UTC.
+  static const int _maxSyntheticWireIndex = Duration.millisecondsPerDay - 1;
+
+  /// Ordering-only [sentAt] for the [wireIndex]-th row of a server history
+  /// response that carried no usable timestamp. Strictly increasing in
+  /// [wireIndex], so decoding preserves the server's array order, and stable
+  /// across re-reads of the same (append-only) thread.
+  static DateTime syntheticSentAt(int wireIndex) =>
+      DateTime.fromMillisecondsSinceEpoch(
+        wireIndex.clamp(0, _maxSyntheticWireIndex),
+        isUtc: true,
+      );
+
+  /// True when [candidate] is a real server/client send time rather than a
+  /// [syntheticSentAt] ordering anchor.
+  static bool isServerSentAt(DateTime candidate) =>
+      !candidate.isBefore(_syntheticSentAtCeiling);
+
+  /// True when this message's [sentAt] is a real send time. False for a row the
+  /// server returned with no usable timestamp — such a message still renders,
+  /// but no surface may present its [sentAt] as a clock, a date, or a TTL base.
+  bool get hasServerTimestamp => isServerSentAt(sentAt);
+
   DeliveryChatMessage copyWith({
     MessageStatus? status,
     String? voiceTranscription,
