@@ -94,5 +94,11 @@
 	<array>
 		<string>whatsapp</string>
 	</array>
+	<!-- F2: whatsapp:// scheme for canOpenURL/launchUrl resolution; wa.me
+	     itself needs no entry (universal link). -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+	</array>
 </dict>
 </plist>
