@@ -7,6 +7,7 @@ import 'auth_interceptor.dart';
 import 'auth_token_store.dart';
 import 'rate_limit_interceptor.dart';
 import 'redacting_log_interceptor.dart';
+import 'unversioned_path_fallback_interceptor.dart';
 
 class DioClient {
   DioClient._();
@@ -55,6 +56,9 @@ class DioClient {
         onUnauthenticated: onUnauthenticated,
       ),
     );
+
+    // W6-02 compat window: a 404/405 on `/v1/...` is retried unversioned.
+    dio.interceptors.add(UnversionedPathFallbackInterceptor(dio));
 
     dio.interceptors.add(const DiagDioInterceptor());
 
