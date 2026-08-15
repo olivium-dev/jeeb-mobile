@@ -92,6 +92,9 @@ docs/figma-cache/
 # without a skip-worktree overlay. google-services.json holds Firebase *client*
 # config (public by design), not a private key. iOS + generated options stay
 # ignored below; copy the committed *.template or run `flutterfire configure`.
+# The dev flavor is stricter: its real config is injected from the protected
+# DEV_GOOGLE_SERVICES_JSON_B64 CI secret. Only the placeholder template is VCS.
+android/app/src/dev/google-services.json
 ios/Runner/GoogleService-Info.plist
 # FlutterFire-generated real options (placeholder template stays committed).
 lib/core/firebase/firebase_options.g.dart
