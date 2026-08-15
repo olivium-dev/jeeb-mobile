@@ -68,6 +68,8 @@ class ChatState extends Equatable {
     return firstOffer.sentAt.add(const Duration(minutes: 5));
   }
 
+  /// "No offer card" sentinel for a `firstWhere` lookup — never rendered.
+  /// Flagged undated so no surface can derive a window from it.
   static final DeliveryChatMessage _never = DeliveryChatMessage.system(
     id: '__never__',
     sentAt: DateTime.fromMillisecondsSinceEpoch(0),
