@@ -54,6 +54,9 @@ class DioOtpService implements OtpService {
       if (status == 401) return OtpVerifyOutcome.invalidCode;
       if (status == 429) return OtpVerifyOutcome.rateLimited;
       if (status == 410) return OtpVerifyOutcome.expired;
+      if (status == 403 && _isAccountSuspended(e.response?.data)) {
+        return OtpVerifyOutcome.accountSuspended;
+      }
       return OtpVerifyOutcome.networkError;
     }
   }
@@ -86,4 +89,16 @@ class DioOtpService implements OtpService {
     } catch (_) {
     }
   }
+}
+
+/// The gateway's suspended-login problem, per OtpSignInProblems:
+///   type = https://problems.jeeb.lb/auth/account_suspended
+///   accountStatus = "suspended"
+/// Either field is sufficient; a bare 403 without them is NOT treated as a
+/// suspension, so an unrelated forbidden never renders as one.
+bool _isAccountSuspended(Object? body) {
+  if (body is! Map) return false;
+  final type = body['type'];
+  if (type is String && type.endsWith('/account_suspended')) return true;
+  return body['accountStatus'] == 'suspended';
 }

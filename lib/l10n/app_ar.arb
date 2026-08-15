@@ -409,6 +409,8 @@
   "registrationOtpVerifying": "جارٍ التحقّق…",
   "registrationOtpExpired": "انتهت صلاحية الرمز. اضغط إعادة الإرسال للحصول على رمز جديد.",
   "registrationOtpInvalid": "رمز غير صحيح. حاول مرة أخرى.",
+  "registrationOtpAccountSuspended": "هذا الحساب موقوف. تواصل مع الدعم.",
+  "registrationOtpNetworkError": "تعذّر الاتصال بجيب. تحقق من اتصالك وحاول مرة أخرى.",
   "registrationOtpResend": "إعادة إرسال الرمز",
   "registrationOtpResendIn": "إعادة الإرسال خلال {seconds}ث",
   "registrationOtpAttemptsRemaining": "{remaining} محاولات متبقية",

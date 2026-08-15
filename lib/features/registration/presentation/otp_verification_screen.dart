@@ -554,7 +554,9 @@ String _otpErrorCopy(RegistrationOtpError error, AppLocalizations l10n) {
       return l10n.registrationOtpInvalid;
     case RegistrationOtpError.expired:
       return l10n.registrationOtpExpired;
+    case RegistrationOtpError.accountSuspended:
+      return l10n.registrationOtpAccountSuspended;
     case RegistrationOtpError.networkError:
-      return l10n.registrationOtpInvalid;
+      return l10n.registrationOtpNetworkError;
   }
 }

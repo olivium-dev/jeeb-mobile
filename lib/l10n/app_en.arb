@@ -1125,6 +1125,8 @@
     "description": "Inline message when the 60s countdown reaches zero"
   },
   "registrationOtpInvalid": "Wrong code. Try again.",
+  "registrationOtpAccountSuspended": "This account is suspended. Contact support.",
+  "registrationOtpNetworkError": "Couldn't reach Jeeb. Check your connection and try again.",
   "@registrationOtpInvalid": {
     "description": "Inline error after a failed verification attempt"
   },

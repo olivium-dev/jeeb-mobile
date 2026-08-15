@@ -171,6 +171,69 @@ void main() {
           )).called(1);
     });
 
+    // A suspended account used to fall through to networkError, which the OTP
+    // screen renders as "Wrong code. Try again." — sending a suspended user to
+    // re-enter a code that was already correct.
+    test('returns accountSuspended on 403 with the problem type', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 403,
+          data: const {
+            'type': 'https://problems.jeeb.lb/auth/account_suspended',
+            'title': 'Account is suspended.',
+            'accountStatus': 'suspended',
+          },
+        ),
+      );
+
+      final outcome = await sut.verifyCode(
+        e164Phone: '+96170000001',
+        code: '123456',
+      );
+
+      expect(outcome, OtpVerifyOutcome.accountSuspended);
+    });
+
+    test('returns accountSuspended on 403 carrying only accountStatus', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 403,
+          data: const {'accountStatus': 'suspended'},
+        ),
+      );
+
+      final outcome = await sut.verifyCode(
+        e164Phone: '+96170000001',
+        code: '123456',
+      );
+
+      expect(outcome, OtpVerifyOutcome.accountSuspended);
+    });
+
+    // A forbidden that is NOT a suspension must not be relabelled as one.
+    test('a bare 403 is not treated as a suspension', () async {
+      dio.nextError = DioException(
+        requestOptions: RequestOptions(path: ''),
+        response: Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 403,
+          data: const {'type': 'https://problems.jeeb.lb/auth/forbidden'},
+        ),
+      );
+
+      final outcome = await sut.verifyCode(
+        e164Phone: '+96170000001',
+        code: '123456',
+      );
+
+      expect(outcome, OtpVerifyOutcome.networkError);
+      expect(outcome, isNot(OtpVerifyOutcome.accountSuspended));
+    });
+
     test('returns invalidCode on 401', () async {
       dio.nextError = DioException(
         requestOptions: RequestOptions(path: ''),
