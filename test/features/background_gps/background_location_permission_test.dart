@@ -165,6 +165,30 @@ void main() {
             'the instant the jeeber backgrounds the app.',
       );
     });
+
+    // P1, 2026-08-01. `always` makes the permission REACHABLE; it does not keep
+    // the stream alive once the app is no longer visible. A plain position
+    // stream belongs to the activity, so Android's background-location
+    // throttling (API 26+) starves it while the cubit still reports
+    // `phase:"tracking"`. The gateway now asks geolocator for a foreground
+    // service (`AndroidSettings.foregroundNotificationConfig`), and these two
+    // permissions are what make that service legal to start.
+    test('the foreground-service permissions backing background streaming are '
+        'declared', () {
+      expect(
+        manifest.contains('android.permission.FOREGROUND_SERVICE'),
+        isTrue,
+        reason: 'startForeground() requires it from API 28.',
+      );
+      expect(
+        manifest.contains('android.permission.FOREGROUND_SERVICE_LOCATION'),
+        isTrue,
+        reason: 'This app targets SDK 34, where a `location`-typed foreground '
+            'service ALSO needs the typed permission — without it '
+            'startForeground() throws SecurityException and the uploader dies '
+            'the instant the jeeber backgrounds the app.',
+      );
+    });
   });
 
   group('§2 runtime flow — permission capability semantics', () {
