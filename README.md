@@ -83,6 +83,21 @@ tool/run_ios_devtool.sh "iPhone 15"
 Set `JEEB_IOS_BASE_URL` to change the gateway, or `JEEB_IOS_DEVICE` to change
 the default simulator. The Dev Tool is available only in debug builds.
 
+## Backend route compatibility (`/v1` de-versioning)
+
+The gateway is dropping the `/v1` prefix. `UnversionedPathFallbackInterceptor`
+replays a `404`/`405` on `/v1/...` once against the unversioned twin, so the app
+keeps working mid-migration — including on the token-refresh client, which is
+otherwise interceptor-free.
+
+**Read `docs/adr/0002-v1-unversioned-compat-window.md` before removing any
+`/v1/auth/*` route, or before deleting the gateway's `[Obsolete] AuthController`.**
+Refresh runs on token expiry, so getting the order wrong force-logs-out every
+installed app at once with no in-app recovery. The safe order is: ship a mobile
+build with unversioned auth paths, wait out the install tail, remove the server
+routes last. The ~310 `/v1` literals in `lib/` still need migrating — the
+interceptor is a safety net, not the migration.
+
 ## CI
 
 Three GitHub Actions workflows gate `main`: `ci.yml` (analyze → test → build APK),
