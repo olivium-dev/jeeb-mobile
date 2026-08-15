@@ -30,6 +30,8 @@ class TokenRefreshInterceptor extends QueuedInterceptor {
     required Dio retryClient,
     required Dio refreshClient,
     required AuthTokenStore tokenStore,
+    // FLAG-DAY: removing this route logs out every installed app on token
+    // expiry. Preconditions in docs/adr/0002-v1-unversioned-compat-window.md.
     this.refreshPath = '/v1/auth/refresh',
     Future<void> Function()? onUnauthenticated,
   })  : _retryClient = retryClient,

@@ -7,6 +7,7 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:jeeb_mobile/core/network/auth_interceptor.dart';
 import 'package:jeeb_mobile/core/network/auth_token_store.dart';
+import 'package:jeeb_mobile/core/network/unversioned_path_fallback_interceptor.dart';
 
 /// Lowest-level Dio adapter that returns scripted [ResponseBody]s per request,
 /// so the token-refresh flow can be exercised end-to-end without a real socket.
@@ -17,6 +18,10 @@ class _ScriptedAdapter implements HttpClientAdapter {
   final ResponseBody Function(RequestOptions options) _respond;
   final List<RequestOptions> requests = <RequestOptions>[];
 
+  /// Path snapshotted at call time: a replay MUTATES the RequestOptions it
+  /// reuses, so reading `requests.last.path` afterwards reads the final value.
+  final List<String> paths = <String>[];
+
   int get callCount => requests.length;
 
   @override
@@ -26,6 +31,7 @@ class _ScriptedAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+    paths.add(options.path);
     return _respond(options);
   }
 
@@ -74,6 +80,7 @@ void main() {
     required ResponseBody Function(RequestOptions) mainResponder,
     required ResponseBody Function(RequestOptions) retryResponder,
     required ResponseBody Function(RequestOptions) refreshResponder,
+    bool refreshFallback = false,
   }) {
     final mainAdapter = _ScriptedAdapter(mainResponder);
     final retryAdapter = _ScriptedAdapter(retryResponder);
@@ -82,6 +89,14 @@ void main() {
 
     final retryClient = Dio()..httpClientAdapter = retryAdapter;
     final refreshClient = Dio()..httpClientAdapter = refreshAdapter;
+    if (refreshFallback) {
+      refreshClient.interceptors.add(
+        UnversionedPathFallbackInterceptor(
+          refreshClient,
+          scopedToSubtrees: const <String>['/v1/auth'],
+        ),
+      );
+    }
 
     final mainDio = Dio(BaseOptions(baseUrl: 'http://localhost:4010'))
       ..httpClientAdapter = mainAdapter
@@ -256,5 +271,90 @@ void main() {
     expect(h.refreshAdapter.callCount, 0);
     expect(h.retryAdapter.callCount, 0);
     verifyNever(() => store.clear());
+  });
+
+  // R2-9: the /v1 flag-day guard on the refresh path. `/auth/refresh` is the
+  // legacy AuthController over the same ITokenService, so the twin is real.
+  group('refresh-path unversioned fallback (DioClient wiring)', () {
+    test('a 404 on /v1/auth/refresh rotates via the unversioned twin',
+        () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'data': 'fresh'}, 200),
+        refreshResponder: (options) => options.path == '/v1/auth/refresh'
+            ? _json({'error': 'not found'}, 404)
+            : _json(
+                {'accessToken': 'new-access', 'refreshToken': 'new-refresh'},
+                200,
+              ),
+        refreshFallback: true,
+      );
+
+      final res = await h.mainDio.get<dynamic>('/v1/jeeb/wallet');
+
+      expect(res.statusCode, 200);
+      expect(res.data, {'data': 'fresh'});
+
+      // Versioned first, then the twin — exactly two refresh calls, no more.
+      expect(h.refreshAdapter.paths, ['/v1/auth/refresh', '/auth/refresh']);
+
+      expect(h.retryAdapter.callCount, 1);
+      expect(
+        h.retryAdapter.requests.single.headers['Authorization'],
+        'Bearer new-access',
+      );
+      verify(
+        () => store.save(
+          accessToken: 'new-access',
+          refreshToken: 'new-refresh',
+          userId: 'user-1',
+        ),
+      ).called(1);
+      expect(h.logoutCalls, isEmpty);
+      verifyNever(() => store.clear());
+    });
+
+    test('when neither refresh path exists, behaviour is unchanged', () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'error': 'not found'}, 404),
+        refreshFallback: true,
+      );
+
+      await expectLater(
+        h.mainDio.get<dynamic>('/v1/jeeb/wallet'),
+        throwsA(
+          isA<DioException>()
+              .having((e) => e.response?.statusCode, 'statusCode', 401),
+        ),
+      );
+
+      // One replay, then the original 401 surfaces — today's logout, unchanged.
+      expect(h.refreshAdapter.paths, ['/v1/auth/refresh', '/auth/refresh']);
+      expect(h.retryAdapter.callCount, 0);
+      verify(() => store.clear()).called(1);
+      expect(h.logoutCalls, ['logout']);
+    });
+
+    test('a 401 from refresh is never replayed unversioned', () async {
+      final h = buildHarness(
+        mainResponder: (_) => _json({'error': 'unauthorized'}, 401),
+        retryResponder: (_) => _json({'should': 'never-run'}, 200),
+        refreshResponder: (_) => _json({'error': 'expired'}, 401),
+        refreshFallback: true,
+      );
+
+      await expectLater(
+        h.mainDio.get<dynamic>('/v1/jeeb/wallet'),
+        throwsA(isA<DioException>()),
+      );
+
+      // Inert on every status the live gateway actually returns today.
+      expect(h.refreshAdapter.paths, ['/v1/auth/refresh']);
+      expect(h.retryAdapter.callCount, 0);
+      verify(() => store.clear()).called(1);
+      expect(h.logoutCalls, ['logout']);
+    });
   });
 }

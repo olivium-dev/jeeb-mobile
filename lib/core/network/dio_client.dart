@@ -45,6 +45,15 @@ class DioClient {
       ),
     );
 
+    // The refresh Dio carries no auth interceptors, so this replay can never
+    // start a second refresh; scoped to `/v1/auth`, single-shot, revert-safe.
+    refreshClient.interceptors.add(
+      UnversionedPathFallbackInterceptor(
+        refreshClient,
+        scopedToSubtrees: const <String>['/v1/auth'],
+      ),
+    );
+
     dio.interceptors.add(RateLimitInterceptor());
 
     dio.interceptors.add(BearerAuthInterceptor(store));

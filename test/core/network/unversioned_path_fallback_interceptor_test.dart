@@ -39,12 +39,15 @@ ResponseBody _json(Map<String, dynamic> body, int status) =>
     );
 
 ({Dio dio, _ScriptedAdapter adapter}) _harness(
-  ResponseBody Function(RequestOptions options) responder,
-) {
+  ResponseBody Function(RequestOptions options) responder, {
+  List<String> scopedToSubtrees = const <String>[],
+}) {
   final adapter = _ScriptedAdapter(responder);
   final dio = Dio(BaseOptions(baseUrl: 'http://localhost:10090'))
     ..httpClientAdapter = adapter;
-  dio.interceptors.add(UnversionedPathFallbackInterceptor(dio));
+  dio.interceptors.add(
+    UnversionedPathFallbackInterceptor(dio, scopedToSubtrees: scopedToSubtrees),
+  );
   return (dio: dio, adapter: adapter);
 }
 
@@ -179,5 +182,63 @@ void main() {
     expect(strip('/requests'), isNull);
     expect(strip('/v1'), isNull);
     expect(strip('/api/v1/requests'), isNull);
+  });
+
+  test('a scoped instance replays only inside its subtrees', () async {
+    final harness = _harness(
+      (options) =>
+          options.path.startsWith('/v1/') ? _json({}, 404) : _json({}, 200),
+      scopedToSubtrees: const <String>['/v1/auth'],
+    );
+
+    final inside = await harness.dio.post<Map<String, dynamic>>(
+      '/v1/auth/refresh',
+      data: <String, Object?>{'refreshToken': 'r'},
+    );
+    expect(inside.statusCode, 200);
+
+    // Outside the scope the error is passed straight through, unreplayed.
+    await expectLater(
+      harness.dio.get<dynamic>('/v1/jeeb/wallet'),
+      throwsA(isA<DioException>()),
+    );
+
+    expect(harness.adapter.paths, [
+      '/v1/auth/refresh',
+      '/auth/refresh',
+      '/v1/jeeb/wallet',
+    ]);
+  });
+
+  test('a scoped instance replays at most once', () async {
+    final harness = _harness(
+      (_) => _json({}, 404),
+      scopedToSubtrees: const <String>['/v1/auth'],
+    );
+
+    await expectLater(
+      harness.dio.post<dynamic>('/v1/auth/refresh', data: <String, Object?>{}),
+      throwsA(
+        isA<DioException>()
+            .having((e) => e.response?.statusCode, 'statusCode', 404),
+      ),
+    );
+
+    expect(harness.adapter.paths, ['/v1/auth/refresh', '/auth/refresh']);
+  });
+
+  test('inScope() is exact-or-descendant, never a bare prefix', () {
+    final open = UnversionedPathFallbackInterceptor(Dio());
+    final scoped = UnversionedPathFallbackInterceptor(
+      Dio(),
+      scopedToSubtrees: const <String>['/v1/auth'],
+    );
+
+    expect(open.inScope('/v1/anything'), isTrue);
+    expect(scoped.inScope('/v1/auth'), isTrue);
+    expect(scoped.inScope('/v1/auth/refresh'), isTrue);
+    expect(scoped.inScope('/v1/auth/refresh?x=1'), isTrue);
+    expect(scoped.inScope('/v1/authz/refresh'), isFalse);
+    expect(scoped.inScope('/v1/jeeb/wallet'), isFalse);
   });
 }

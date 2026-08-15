@@ -3,9 +3,16 @@ import 'package:dio/dio.dart';
 /// W6-02 compat window: the fleet is dropping the `/v1` prefix, so a versioned
 /// call that comes back route-not-found is replayed once on its unversioned twin.
 class UnversionedPathFallbackInterceptor extends Interceptor {
-  UnversionedPathFallbackInterceptor(this._retryClient);
+  UnversionedPathFallbackInterceptor(
+    this._retryClient, {
+    this.scopedToSubtrees = const <String>[],
+  });
 
   final Dio _retryClient;
+
+  /// Empty means every versioned path is eligible. A non-empty list narrows the
+  /// replay to those subtrees, so a client can opt in with a small blast radius.
+  final List<String> scopedToSubtrees;
 
   static const String versionPrefix = '/v1';
 
@@ -35,14 +42,22 @@ class UnversionedPathFallbackInterceptor extends Interceptor {
     return path.substring(versionPrefix.length);
   }
 
+  /// Exact match or a `/`-delimited descendant, so `/v1/authz` never matches
+  /// the `/v1/auth` subtree.
+  static bool _under(String route, Iterable<String> prefixes) =>
+      prefixes.any((prefix) => route == prefix || route.startsWith('$prefix/'));
+
   /// True when the unversioned twin is already a DIFFERENT live route, where a
   /// replay would silently shadow it instead of reaching the same handler.
   static bool collides(String path) {
     final route = routePart(path);
     if (collidingPaths.contains(route)) return true;
-    return collidingSubtrees
-        .any((prefix) => route == prefix || route.startsWith('$prefix/'));
+    return _under(route, collidingSubtrees);
   }
+
+  /// True when this instance is allowed to replay [path] at all.
+  bool inScope(String path) =>
+      scopedToSubtrees.isEmpty || _under(routePart(path), scopedToSubtrees);
 
   static bool shouldReplay(RequestOptions options, int? status) {
     if (status == null || !replayStatuses.contains(status)) return false;
@@ -59,7 +74,8 @@ class UnversionedPathFallbackInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     final options = err.requestOptions;
-    if (!shouldReplay(options, err.response?.statusCode)) {
+    if (!inScope(options.path) ||
+        !shouldReplay(options, err.response?.statusCode)) {
       handler.next(err);
       return;
     }
