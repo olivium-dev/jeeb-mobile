@@ -232,6 +232,43 @@ void main() {
       await cubit.close();
     });
 
+    // b02 wave D: the poll and the push bus are two INDEPENDENTLY-timed
+    // triggers on one cubit, and only the poller ever coordinated with itself
+    // (LifecyclePoller skips a tick while the previous one is outstanding).
+    // `state.status == loading` is not this guard either — refresh() is the
+    // SILENT path and never sets `loading`, so it could not see itself.
+    test('SINGLE FLIGHT: two signals inside one round trip produce one read',
+        () async {
+      final gate = Completer<void>();
+      var calls = 0;
+      when(() => repo.loadSnapshot()).thenAnswer((_) async {
+        calls++;
+        await gate.future;
+        return const ClientHomeSnapshot();
+      });
+      final signals = StreamController<void>.broadcast();
+      addTearDown(signals.close);
+      final cubit = ClientHomeCubit(
+        repository: repo,
+        greetingNameProvider: () => null,
+        refreshSignals: signals.stream,
+      );
+
+      signals.add(null);
+      await Future<void>.delayed(Duration.zero);
+      signals.add(null);
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, 1, reason: 'the second signal must collapse onto the first');
+
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
+      // ...and the latch RELEASES: a later signal still reads.
+      signals.add(null);
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, 2);
+      await cubit.close();
+    });
+
     test('a push refresh signal triggers a silent re-pull', () async {
       when(() => repo.loadSnapshot())
           .thenAnswer((_) async => const ClientHomeSnapshot());
