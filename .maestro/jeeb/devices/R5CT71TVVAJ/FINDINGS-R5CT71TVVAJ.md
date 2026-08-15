@@ -128,7 +128,7 @@ OTP="$("$DIR/helpers/otp.sh" 76543201)"
 ```
 
 `helpers/otp.sh` runs (defaults target MSI):
-`PGHOST=192.168.2.20 PGPORT=5432 PGUSER=oudaykhaled PGDATABASE=jeeb-otpdb`
+`PGHOST=[decommissioned-host] PGPORT=5432 PGUSER=oudaykhaled PGDATABASE=jeeb-otpdb`
 -> `SELECT "OTP" FROM "Phones" WHERE "PhoneNumber" LIKE '%76543201%' ORDER BY "OTPSentDate" DESC LIMIT 1`.
 
 The all-in-one `fastest-path.yaml` is for when you **already hold** a valid latest

@@ -169,7 +169,7 @@ an unexpired code, or just for parse review).
 ## 7. How to run on THIS device
 
 Prereqs: `RFCX306JSRT` attached (`adb devices`), `psql` on PATH with line-of-sight to
-`192.168.2.20:5432`, `JAVA_HOME` set.
+`[decommissioned-host]:5432`, `JAVA_HOME` set.
 
 ```bash
 cd .maestro/jeeb/devices/RFCX306JSRT

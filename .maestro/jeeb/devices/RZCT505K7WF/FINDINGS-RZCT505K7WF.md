@@ -100,7 +100,7 @@ Total ~9s. Flow: `flows/journeys/fastest-path.yaml`.
    `{"phone":"+961XXXXXXXX"}` — field is **`phone`**, E.164 with `+961`. Returns
    `{"ttlSeconds":300}`.
 2. Read the real 4-digit OTP (1234 never works) from Postgres
-   `192.168.2.20:5432` db `jeeb-otpdb`:
+   `[decommissioned-host]:5432` db `jeeb-otpdb`:
    `SELECT "OTP" FROM "Phones" WHERE "PhoneNumber"='+961...' ORDER BY "ID" DESC LIMIT 1;`
    -> both steps wrapped in **`helpers/otp.sh`** (run from a LAN host, not the phone).
 3. In-app: type a number the CLIENT validator accepts (71888xxx passes; 71893001
