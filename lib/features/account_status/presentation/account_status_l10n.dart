@@ -42,6 +42,40 @@ class AccountStatusL10n {
             'أو سجّل الخروج.',
       );
 
+  /// Phase V D16 — localized copy for ban-service's own policy keys.
+  ///
+  /// ban-service is generic: it ships `Label{{Ban.Label.…}}` templates and has
+  /// neither a locale nor a string catalogue, so the KEY is the only thing it
+  /// can meaningfully hand a client. This is that lookup. Returns null for a
+  /// key this build does not know, so the caller falls back to
+  /// [defaultReason] rather than printing a raw key at the user.
+  String? reasonForCode(String? code) {
+    switch (code?.trim()) {
+      case 'Ban.Label.YOU_ARE_BANNED_FOR_3_DAYS':
+        return _isArabic
+            ? 'تم تعليق حسابك لمدة 3 أيام. تواصل مع الدعم، أو سجّل الخروج.'
+            : 'Your account is suspended for 3 days. Contact support, or '
+                'sign out.';
+      case 'Ban.Label.YOU_ARE_BANNED_FOR_1_HOUR':
+        return _isArabic
+            ? 'تم تعليق حسابك لمدة ساعة واحدة. تواصل مع الدعم، أو سجّل الخروج.'
+            : 'Your account is suspended for 1 hour. Contact support, or '
+                'sign out.';
+      case 'Ban.Label.YOU_ARE_BANNED':
+        return _isArabic
+            ? 'تم حظر حسابك نهائيًا. تواصل مع الدعم، أو سجّل الخروج.'
+            : 'Your account has been permanently banned. Contact support, or '
+                'sign out.';
+      case 'Ban.Label.YOU_WILL_BE_BANNED_AFTER_ONE_WARNING':
+        return _isArabic
+            ? 'هذا تحذير أخير: مخالفة أخرى تؤدي إلى حظر حسابك.'
+            : 'This is a final warning: one more violation will ban your '
+                'account.';
+      default:
+        return null;
+    }
+  }
+
   String get loadingHeadline => _l10n.accountStatusLoadingHeadline;
 
   /// The two halves of the shipped `loadError` sentence, split at its own full

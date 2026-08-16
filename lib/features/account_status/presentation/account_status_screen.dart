@@ -162,6 +162,7 @@ class _AccountStatusView extends StatelessWidget {
                           return _BlockedBody(
                             value: state.value,
                             serverReason: state.reason,
+                            serverReasonCode: state.reasonCode,
                             copy: copy,
                           );
                       }
@@ -269,18 +270,24 @@ class _BlockedBody extends StatelessWidget {
   const _BlockedBody({
     required this.value,
     required this.serverReason,
+    required this.serverReasonCode,
     required this.copy,
   });
 
   final AccountStatusValue value;
   final String? serverReason;
+  final String? serverReasonCode;
   final AccountStatusL10n copy;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    // Prefer a server-supplied reason; else localized per-state copy.
-    final reason = serverReason ?? copy.defaultReason(value);
+    // D16 precedence: an operator's typed prose (already human-safe) wins;
+    // else the ban-policy key looked up in the viewer's language; else the
+    // localized per-state copy. A raw `Label{{...}}` never reaches here.
+    final reason = serverReason ??
+        copy.reasonForCode(serverReasonCode) ??
+        copy.defaultReason(value);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -304,7 +311,7 @@ class _BlockedBody extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: Spacing.small),
-              // Reason — server reason verbatim, else localized per-state copy,
+              // Reason — operator prose verbatim, else the localized lookup,
               // on R23's glass info strip.
               Semantics(
                 identifier: 'account_status_reason',

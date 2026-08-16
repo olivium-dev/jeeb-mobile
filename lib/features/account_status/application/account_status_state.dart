@@ -20,6 +20,8 @@ class AccountStatusState extends Equatable {
 
   String? get reason => info?.reason;
 
+  String? get reasonCode => info?.reasonCode;
+
   AccountStatusState copyWith({
     AccountStatusScreenStatus? status,
     AccountStatusInfo? info,
@@ -33,5 +35,6 @@ class AccountStatusState extends Equatable {
       );
 
   @override
-  List<Object?> get props => [status, info?.value, info?.reason, error];
+  List<Object?> get props =>
+      [status, info?.value, info?.reason, info?.reasonCode, error];
 }

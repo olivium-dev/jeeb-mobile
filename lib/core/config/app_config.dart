@@ -18,9 +18,16 @@ class AppConfig {
   );
 
   /// Whether the customer's tracking map subscribes to realtime courier position.
+  ///
+  /// DEFAULT-ON since Phase V D14. Off-by-default meant no shipped build ever
+  /// subscribed — only the two dev scripts passed the define — so the map moved
+  /// only on push or re-open and a customer watched a frozen courier. The
+  /// subscription degrades to exactly that old behaviour whenever the gateway
+  /// cannot hand out a usable descriptor, so ON is the safe default.
+  /// Kill switch: `--dart-define=JEEB_REALTIME_TRACKING=false`.
   static const bool realtimeCourierPositionEnabled = bool.fromEnvironment(
     'JEEB_REALTIME_TRACKING',
-    defaultValue: false,
+    defaultValue: true,
   );
 
   /// Build-time override. Supplied via `--dart-define=JEEB_SUPERADMIN_PASSCODE=<value>`.

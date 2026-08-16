@@ -16,11 +16,18 @@ class DioAccountStatusRepository implements AccountStatusRepository {
       final rawReason = (data['statusReason'] ??
           data['status_reason'] ??
           data['reason']) as String?;
-      final reason =
-          (rawReason != null && rawReason.trim().isNotEmpty) ? rawReason : null;
+      // D16: the gateway now sends reasonCode; older builds still send only the
+      // raw template, so derive it here too rather than depend on the deploy.
+      final sentCode = (data['statusReasonCode'] ??
+          data['status_reason_code'] ??
+          data['reasonCode']) as String?;
+      final code = (sentCode != null && sentCode.trim().isNotEmpty)
+          ? sentCode.trim()
+          : ModerationReasonWire.codeOf(rawReason);
       return AccountStatusInfo(
         value: AccountStatusValue.fromWire(data['status'] as String?),
-        reason: reason,
+        reason: ModerationReasonWire.humanReason(rawReason),
+        reasonCode: code,
       );
     } on DioException catch (e) {
       throw AccountStatusRepositoryException(_map(e));

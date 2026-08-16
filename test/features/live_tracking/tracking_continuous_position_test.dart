@@ -67,15 +67,17 @@ class _FakeChannel implements CourierPositionChannel {
   final List<String> openedFor = <String>[];
   bool cancelled = false;
 
-  late final StreamController<CourierPositionFix> _controller =
-      StreamController<CourierPositionFix>(onCancel: () => cancelled = true);
+  /// Each open() mints a FRESH controller, exactly as the real channel mints a
+  /// fresh CourierPositionSocket. Reusing one made a re-open impossible to
+  /// test — a single-subscription stream throws on the second listen.
+  StreamController<CourierPositionFix>? _controller;
 
   void emit(double lat, double lng) =>
-      _controller.add(CourierPositionFix(lat: lat, lng: lng));
+      _controller?.add(CourierPositionFix(lat: lat, lng: lng));
 
-  void die() => unawaited(_controller.close());
+  void die() => unawaited(_controller?.close() ?? Future<void>.value());
 
-  void blowUp() => _controller.addError(StateError('socket died'));
+  void blowUp() => _controller?.addError(StateError('socket died'));
 
   @override
   Future<Stream<CourierPositionFix>?> open({required String deliveryId}) async {
@@ -84,7 +86,10 @@ class _FakeChannel implements CourierPositionChannel {
     final boom = failWith;
     if (boom != null) throw boom;
     if (returnsNull) return null;
-    return _controller.stream;
+    final controller =
+        StreamController<CourierPositionFix>(onCancel: () => cancelled = true);
+    _controller = controller;
+    return controller.stream;
   }
 }
 
@@ -306,6 +311,33 @@ void main() {
       await pumpEventQueue();
       expect(repo.statusReads, 2);
       expect(repo.positionReads, 2);
+      await cubit.close();
+    });
+
+    test('D14: a DROPPED leg re-opens on the next push/resume edge — the '
+        'symptom run 3 measured was a map frozen after the socket went away',
+        () async {
+      final repo = _Repo();
+      final channel = _FakeChannel();
+      final cubit = LiveTrackingCubit(
+        repository: repo,
+        deliveryId: _id,
+        positionChannel: channel,
+      );
+      await pumpEventQueue();
+      expect(channel.opens, 1);
+      expect(cubit.debugPositionStreamLegArmed, isTrue);
+
+      channel.die();
+      await pumpEventQueue();
+      expect(cubit.debugPositionStreamLegArmed, isFalse);
+
+      await cubit.refreshNow();
+      await pumpEventQueue();
+
+      expect(channel.opens, 2,
+          reason: 'a proven-good socket that dropped must be re-dialled on the '
+              'next event edge; leaving it dead is D14 all over again');
       await cubit.close();
     });
 

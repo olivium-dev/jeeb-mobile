@@ -16,6 +16,10 @@ const String kTrackingPositionEvent = 'tracking_position';
 
 const String kTrackingStreamPositionEvent = 'tracking_stream_position';
 
+const String kTrackingStreamUnavailableEvent = 'tracking_stream_unavailable';
+
+const String kTrackingStreamDroppedEvent = 'tracking_stream_dropped';
+
 enum LivePositionReadCause {
   screenOpen('open'),
 
@@ -236,20 +240,31 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     if (_positionStreamArmed || isClosed || _isTerminal) return;
     _positionStreamArmed = true;
     Stream<CourierPositionFix>? positions;
+    Object? failure;
     try {
       positions = await channel.open(deliveryId: deliveryId);
-    } catch (_) {
+    } catch (e) {
+      failure = e;
       positions = null;
     }
-    if (positions == null) return;
+    if (positions == null) {
+      // D14: an unsubscribable channel used to be indistinguishable from a
+      // healthy one that nobody published to. Both froze the map, silently.
+      Diag.event(kTrackingStreamUnavailableEvent, <String, Object?>{
+        'deliveryId': deliveryId,
+        'error': ?failure?.runtimeType.toString(),
+      });
+      return;
+    }
     if (isClosed || _isTerminal) {
       unawaited(positions.listen(null).cancel());
       return;
     }
     _streamedPositionLeg = positions.listen(
       _onStreamedPosition,
-      onError: (Object _, StackTrace _) => _retirePositionStream(),
-      onDone: _retirePositionStream,
+      onError: (Object _, StackTrace _) =>
+          _retirePositionStream(rearmable: true),
+      onDone: () => _retirePositionStream(rearmable: true),
       cancelOnError: false,
     );
   }
@@ -261,6 +276,7 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
       jeeberPosition: GpsPoint(lat: fix.lat, lng: fix.lng),
       stale: false,
       secondsSinceUpdate: 0,
+      status: PositionFreshness.live,
     ));
     Diag.event(kTrackingStreamPositionEvent, <String, Object?>{
       'deliveryId': deliveryId,
@@ -271,9 +287,18 @@ class LiveTrackingCubit extends Cubit<LiveTrackingState> {
     });
   }
 
-  void _retirePositionStream() {
+  /// D14: a leg that DIED (socket drop, backgrounding) may re-open on the next
+  /// push/resume edge. A channel that never opened stays at one attempt.
+  void _retirePositionStream({bool rearmable = false}) {
+    final wasArmed = _streamedPositionLeg != null;
     unawaited(_streamedPositionLeg?.cancel());
     _streamedPositionLeg = null;
+    if (!rearmable || !wasArmed) return;
+    _positionStreamArmed = false;
+    Diag.event(kTrackingStreamDroppedEvent, <String, Object?>{
+      'deliveryId': deliveryId,
+      'n': _streamedPositionCount,
+    });
   }
 
   void _retireWatchers() {
