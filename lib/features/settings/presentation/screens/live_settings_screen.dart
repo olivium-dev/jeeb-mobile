@@ -19,6 +19,7 @@ import '../../domain/avatar_repository.dart';
 import '../../domain/jeeber_unregister_service.dart';
 import '../../domain/profile_repository.dart';
 import '../../domain/user_profile.dart';
+import '../widgets/logout_delete_confirm_sheet.dart';
 import 'settings_screen.dart';
 
 /// The live `/settings` host (MIDNIGHT M3-37, ORPHAN ruling KEEP+restyle).
@@ -46,6 +47,10 @@ class LiveSettingsScreen extends StatefulWidget {
   static const String loadingIdentifier = 'live_settings_loading';
   static const String errorIdentifier = 'live_settings_error';
   static const String retryIdentifier = 'live_settings_retry_cta';
+
+  /// Phase V D5: the error frame's own sign-out, distinct from the loaded
+  /// body's `settings_sign_out_row` so neither can stand in for the other.
+  static const String signOutIdentifier = 'live_settings_sign_out_cta';
 
   @override
   State<LiveSettingsScreen> createState() => _LiveSettingsScreenState();
@@ -151,6 +156,12 @@ class _LiveSettingsLoading extends StatelessWidget {
 
 /// The failed read. Same illustration, danger-tinted centre (kit ruling 1), and
 /// the retry is the glass pill — never an orange act R22 does not draw.
+///
+/// Phase V D5: sign-out is docked here as well. `/v1/users/me` failing is
+/// exactly the state a user must be able to escape — the loaded body that hosts
+/// [SettingsFooter] never renders on this branch, and that body is the app's
+/// only in-UI sign-out for an un-suspended account, so a failed read used to
+/// trap the session until the app's data was cleared from outside the app.
 class _LiveSettingsError extends StatelessWidget {
   const _LiveSettingsError({required this.onRetry});
 
@@ -159,21 +170,45 @@ class _LiveSettingsError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
     return JeebEmptyState(
       variant: JeebEmptyStateVariant.radar,
       status: JeebEmptyStateStatus.error,
       medallions: const <JeebEmptyMedallion>[],
       identifier: LiveSettingsScreen.errorIdentifier,
       headline: l10n.settingsNetworkError,
-      action: Semantics(
-        identifier: LiveSettingsScreen.retryIdentifier,
-        button: true,
-        container: true,
-        child: JeebCtaButton.outline(
-          label: l10n.kycRetry,
-          expand: false,
-          onTap: onRetry,
-        ),
+      action: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Semantics(
+            identifier: LiveSettingsScreen.retryIdentifier,
+            button: true,
+            container: true,
+            child: JeebCtaButton.outline(
+              label: l10n.kycRetry,
+              expand: false,
+              onTap: onRetry,
+            ),
+          ),
+          Semantics(
+            identifier: LiveSettingsScreen.signOutIdentifier,
+            button: true,
+            container: true,
+            child: TextButton(
+              key: const Key('live-settings-error-sign-out'),
+              // MIDNIGHT `primary` IS #D73B00, so the default foreground would
+              // paint an orange act R22 does not draw.
+              style: TextButton.styleFrom(
+                foregroundColor: colorScheme.onSurface,
+              ),
+              onPressed: () => LogoutDeleteConfirmSheet.show(
+                context,
+                mode: LogoutDeleteMode.logout,
+              ),
+              child: Text(l10n.appBarSignOut),
+            ),
+          ),
+        ],
       ),
     );
   }
