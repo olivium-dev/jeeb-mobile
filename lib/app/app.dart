@@ -32,6 +32,7 @@ import '../core/notifications/data/push_device_registrar.dart';
 import '../core/notifications/data/push_transport.dart';
 import '../core/notifications/domain/local_push_inbox.dart';
 import '../core/notifications/domain/notification_deep_link.dart';
+import '../core/notifications/domain/push_audience.dart';
 import '../core/notifications/presentation/push_banner_host.dart';
 import '../core/observability/crash_context_bridge.dart';
 import '../core/observability/crash_reporter.dart';
@@ -532,10 +533,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
           ? sl<LocalPushInbox>()
           : null,
       // P1 defence-in-depth: drop a push whose audience_role is not a role
-      // this session holds. Prefer the server-published available_roles
-      // (RoleSync ← getMe); fall back to the active role only while that
-      // list is still empty. An empty set means "roles unknown" and the
-      // matcher fails OPEN, so a pre-getMe push is never suppressed.
+      // this session holds. The set is the server-published available_roles
+      // (RoleSync ← getMe) widened by the active role, and EMPTY while that
+      // list is unresolved — empty means "roles unknown" and the matcher fails
+      // OPEN, so a pre-getMe or degraded-getMe push is never suppressed (D2).
       localRoles: _sessionLocalRoles,
     );
     if (injectedRegistrar == null && transport is FirebaseMessagingTransport) {
@@ -581,14 +582,12 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     }
   }
 
-  /// Session roles for push-audience gating: server available_roles, else the
-  /// active role while that list is empty (the matcher fails OPEN on empty).
-  Set<String> _sessionLocalRoles() {
-    final available = _roleAvailability.state.roles.toSet();
-    return available.isNotEmpty
-        ? available
-        : <String>{_role.state.storageKey};
-  }
+  /// Session roles for push-audience gating: the server available_roles, widened
+  /// by the active role and EMPTY while unresolved so the matcher fails OPEN.
+  Set<String> _sessionLocalRoles() => sessionPushRoles(
+        availableRoles: _roleAvailability.state.roles,
+        activeRole: _role.state.storageKey,
+      );
 
   /// Default real-transport builder. `initialize()` wires the background
   /// handler, the Android channel, and the foreground listeners; the handler
