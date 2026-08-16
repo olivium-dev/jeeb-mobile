@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../diagnostics/diag.dart';
 import '../../observability/session_trace/session_trace.dart';
 import '../../role/role_availability_cubit.dart';
+import '../../role/role_cubit.dart';
 import '../domain/active_chat_thread.dart';
 import '../domain/foreground_push_display.dart';
 import '../domain/local_push_inbox.dart';
@@ -43,10 +44,15 @@ Future<void> persistNewRequestPush(RemoteMessage message) async {
       return;
     }
     final prefs = await SharedPreferences.getInstance();
-    // Absent snapshot fails OPEN (persist); never fall back to the active role.
-    final snapshot =
-        prefs.getStringList(RoleAvailabilityCubit.availableRolesPrefKey);
-    if (snapshot != null && !isPushAudienceMatch(data, snapshot.toSet())) {
+    // Same resolver as the foreground gate: an absent/empty snapshot is UNKNOWN
+    // and fails OPEN (persist); the active role only ever widens a resolved one.
+    final roles = sessionPushRoles(
+      availableRoles:
+          prefs.getStringList(RoleAvailabilityCubit.availableRolesPrefKey) ??
+              const <String>[],
+      activeRole: prefs.getString(RoleCubit.rolePrefKey) ?? '',
+    );
+    if (!isPushAudienceMatch(data, roles)) {
       Diag.event('push_inbox_suppressed', <String, Object?>{
         'id': message.messageId,
         'audience_role': data['audience_role'],

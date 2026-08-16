@@ -32,6 +32,30 @@ String? canonicalAudienceRole(Map<String, String> data) {
   return _canonicalRoleToken(data['audience']);
 }
 
+/// Session roles for the push-audience gate, resolved from the server
+/// `available_roles` and the role the session is actively operating as.
+///
+/// Returns the EMPTY set when [availableRoles] carries nothing usable. Empty is
+/// the "roles unknown" signal [isPushAudienceMatch] fails open on, so a push
+/// that arrives before getMe lands — or while it is degraded — is delivered
+/// rather than classified against a role the session never claimed. Callers
+/// must not substitute a placeholder role here: doing so turns "unknown" into
+/// "known and not this audience" and silently drops the push (D2).
+Set<String> sessionPushRoles({
+  required Iterable<String> availableRoles,
+  required String activeRole,
+}) {
+  final resolved = availableRoles
+      .map((role) => role.trim())
+      .where((role) => role.isNotEmpty)
+      .toSet();
+  if (resolved.isEmpty) return const <String>{};
+  // The session demonstrably holds the role it is operating as, so a degraded
+  // available_roles must never narrow the gate below it.
+  final active = activeRole.trim();
+  return active.isEmpty ? resolved : <String>{...resolved, active};
+}
+
 bool isPushAudienceMatch(Map<String, String> data, Set<String> localRoles) {
   final audience = canonicalAudienceRole(data);
   if (audience == null) return true;
