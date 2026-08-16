@@ -200,6 +200,25 @@ class _WizardScaffold extends StatelessWidget {
         ],
       );
     }
+    // D17: the ToS could not be loaded or signed, so nothing was submitted.
+    // Say so on the screen with a retry instead of returning a form that looks
+    // untouched.
+    final blocking = _tosBlockingMessage(l10n, state.error);
+    if (blocking != null) {
+      return Column(
+        children: [
+          bar,
+          Expanded(
+            child: _BlockingErrorView(
+              identifier: 'kyc_wizard_tos_error',
+              headline: blocking,
+              retryLabel: l10n.kycRetry,
+              onRetry: () => context.read<KycWizardCubit>().submit(),
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       children: [
         bar,
@@ -207,6 +226,20 @@ class _WizardScaffold extends StatelessWidget {
         const Expanded(child: KycIdentityStep()),
       ],
     );
+  }
+
+  static String? _tosBlockingMessage(
+    AppLocalizations l10n,
+    KycWizardError? error,
+  ) {
+    switch (error) {
+      case KycWizardError.contractLoadFailed:
+        return l10n.kycErrorContractLoadFailed;
+      case KycWizardError.signFailed:
+        return l10n.kycErrorSignFailed;
+      default:
+        return null;
+    }
   }
 
   /// Mirrors `AppRouter.backFallbacks['kyc-status'] == '/'`: the wizard is
@@ -220,10 +253,20 @@ class _WizardScaffold extends StatelessWidget {
     context.go('/');
   }
 
+  /// D17: errors that own a persistent view must NOT be consumed here — the
+  /// old unconditional `acknowledgeError()` wiped `state.error` on the very
+  /// next frame, so the only trace of a blocking failure was a 4-second
+  /// snackbar. A user who cannot become a jeeber has to still be told why.
+  static bool _isBlocking(KycWizardError error) =>
+      error == KycWizardError.schemaLoadFailed ||
+      error == KycWizardError.contractLoadFailed ||
+      error == KycWizardError.signFailed;
+
   void _surfaceError(BuildContext context, KycWizardState state) {
     final l10n = AppLocalizations.of(context);
     final error = state.error;
     if (error == null) return;
+    if (_isBlocking(error)) return;
     final cubit = context.read<KycWizardCubit>();
     final message = _messageFor(l10n, error);
     if (message != null) showOmdsSnackbar(context, message: message);
@@ -268,7 +311,12 @@ class _SchemaLoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasError = state.error == KycWizardError.schemaLoadFailed;
     if (hasError) {
-      return _SchemaErrorView(l10n: l10n);
+      return _BlockingErrorView(
+        identifier: 'kyc_wizard_schema_error',
+        headline: l10n.kycErrorSchemaLoadFailed,
+        retryLabel: l10n.kycRetry,
+        onRetry: () => context.read<KycWizardCubit>().loadSchema(),
+      );
     }
     return Center(
       child: SingleChildScrollView(
@@ -286,31 +334,40 @@ class _SchemaLoadingView extends StatelessWidget {
   }
 }
 
-class _SchemaErrorView extends StatelessWidget {
-  const _SchemaErrorView({required this.l10n});
+/// A dead-end the user cannot proceed past, with the reason and one retry.
+class _BlockingErrorView extends StatelessWidget {
+  const _BlockingErrorView({
+    required this.identifier,
+    required this.headline,
+    required this.retryLabel,
+    required this.onRetry,
+  });
 
-  final AppLocalizations l10n;
+  final String identifier;
+  final String headline;
+  final String retryLabel;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
         child: JeebEmptyState(
-          identifier: 'kyc_wizard_schema_error',
+          identifier: identifier,
           variant: kycStateVariant,
           medallions: kycStateMedallions,
           status: JeebEmptyStateStatus.error,
-          // TODO(midnight): l10n-queued — this one key carries both sentences,
-          // so it stands as the headline verbatim rather than being split here.
-          headline: l10n.kycErrorSchemaLoadFailed,
+          // TODO(midnight): l10n-queued — each key carries both sentences, so
+          // it stands as the headline verbatim rather than being split here.
+          headline: headline,
           action: Semantics(
             identifier: 'kyc_wizard_retry_cta',
             container: true,
             button: true,
             child: JeebCtaButton.outline(
-              label: l10n.kycRetry,
+              label: retryLabel,
               expand: false,
-              onTap: () => context.read<KycWizardCubit>().loadSchema(),
+              onTap: onRetry,
             ),
           ),
         ),

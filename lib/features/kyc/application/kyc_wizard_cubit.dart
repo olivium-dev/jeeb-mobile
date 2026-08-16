@@ -5,6 +5,7 @@ import '../../../core/text/digit_normalization.dart';
 import '../../photo_attachment/domain/photo_attachment.dart';
 import '../../photo_attachment/domain/photo_compressor.dart';
 import '../../photo_attachment/domain/photo_picker_service.dart';
+import '../domain/kyc_contract_template.dart';
 import '../domain/kyc_gateway.dart';
 import '../domain/kyc_submission.dart';
 import 'kyc_wizard_state.dart';
@@ -149,14 +150,40 @@ class KycWizardCubit extends Cubit<KycWizardState> {
       clearError: true,
       clearSubmitFieldError: true,
     ));
+    // D17: the three submit phases fail for different reasons and must say so.
+    // Collapsing them blamed the user's connection for a server-side missing
+    // ToS template, and left contractLoadFailed/signFailed unreachable.
+    final KycContractTemplate template;
     try {
-      final template = state.contractTemplate ??
-          await _gateway.fetchContractTemplate();
-      final stamp = await _gateway.signContract(
+      template =
+          state.contractTemplate ?? await _gateway.fetchContractTemplate();
+    } catch (_) {
+      Diag.event('kyc_contract_template_error');
+      emit(state.copyWith(
+        step: KycWizardStep.identity,
+        error: KycWizardError.contractLoadFailed,
+      ));
+      return;
+    }
+
+    final KycSignStamp stamp;
+    try {
+      stamp = await _gateway.signContract(
         templateId: template.templateId,
         tosVersion: template.tosVersion,
         signatureBlob: _tosAcceptanceBlob,
       );
+    } catch (_) {
+      Diag.event('kyc_tos_sign_error');
+      emit(state.copyWith(
+        step: KycWizardStep.identity,
+        contractTemplate: template,
+        error: KycWizardError.signFailed,
+      ));
+      return;
+    }
+
+    try {
       final updated = await _gateway.submit(
         state.submission.copyWith(
           status: KycStatus.notSubmitted,
