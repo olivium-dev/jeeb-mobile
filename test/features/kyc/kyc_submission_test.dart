@@ -54,7 +54,11 @@ void main() {
     });
   });
 
-  group('hasValidIdNumber — passport / residency (non-empty only)', () {
+  // JEBV4-256: passport and residency ARE shape-checked upstream
+  // (`^[A-Z0-9]{6,9}$` / `^[A-Z0-9]{6,12}$`). This group used to assert the
+  // opposite — that they were unconstrained — so the client accepted `R-88`
+  // and an 11-character passport, both of which the BFF answers 400 on.
+  group('hasValidIdNumber — passport / residency shapes', () {
     test('empty is invalid for every type (E3: id_number is a must)', () {
       for (final type in KycIdType.values) {
         expect(_draft(idType: type, idNumber: '').hasValidIdNumber, isFalse,
@@ -62,8 +66,7 @@ void main() {
       }
     });
 
-    test('passport accepts an alphanumeric document number (no shape rule)',
-        () {
+    test('passport accepts an alphanumeric document number in range', () {
       expect(
         _draft(idType: KycIdType.passport, idNumber: 'P1234567')
             .hasValidIdNumber,
@@ -71,20 +74,54 @@ void main() {
       );
     });
 
-    test('residency accepts a short document number (no 12-digit rule)', () {
+    test('the 12-digit national_id rule does NOT leak onto passport', () {
+      // 8 digits: rejected by the national_id rule, accepted for passport.
       expect(
-        _draft(idType: KycIdType.residency, idNumber: 'R-88')
-            .hasValidIdNumber,
+        _draft(idType: KycIdType.passport, idNumber: '12345678').hasValidIdNumber,
         isTrue,
       );
     });
 
-    test('the 12-digit rule does NOT leak onto passport (11 digits is fine)',
-        () {
+    test('passport rejects a value past its 9-character cap', () {
       expect(
         _draft(idType: KycIdType.passport, idNumber: '12345678901')
             .hasValidIdNumber,
+        isFalse,
+        reason: r'11 characters exceeds the upstream ^[A-Z0-9]{6,9}$ shape',
+      );
+    });
+
+    test('a punctuated document number is rejected, not silently sent', () {
+      expect(
+        _draft(idType: KycIdType.residency, idNumber: 'R-88').hasValidIdNumber,
+        isFalse,
+        reason: 'the hyphen is outside [A-Z0-9] and it is under the 6 minimum',
+      );
+    });
+
+    test('residency accepts 6 to 12 uppercase alphanumerics', () {
+      expect(
+        _draft(idType: KycIdType.residency, idNumber: 'RES123').hasValidIdNumber,
         isTrue,
+      );
+      expect(
+        _draft(idType: KycIdType.residency, idNumber: 'RES123456789')
+            .hasValidIdNumber,
+        isTrue,
+      );
+      expect(
+        _draft(idType: KycIdType.residency, idNumber: 'RES12').hasValidIdNumber,
+        isFalse,
+        reason: '5 characters is under the 6 minimum',
+      );
+    });
+
+    test('lowercase is rejected — the client must normalize before submit', () {
+      expect(
+        _draft(idType: KycIdType.passport, idNumber: 'p1234567')
+            .hasValidIdNumber,
+        isFalse,
+        reason: 'the BFF rejects rather than normalizes; the wizard uppercases',
       );
     });
   });

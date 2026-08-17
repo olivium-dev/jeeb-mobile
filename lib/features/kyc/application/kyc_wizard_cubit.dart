@@ -110,17 +110,34 @@ class KycWizardCubit extends Cubit<KycWizardState> {
   Future<void> captureIdBack() => _capture(KycCaptureSlot.idBack);
   Future<void> captureSelfie() => _capture(KycCaptureSlot.selfie);
 
+  /// national_id is digits-only; passport/residency are `[A-Z0-9]` upstream.
+  static String _normalizeIdNumber(String value, KycIdType type) =>
+      type == KycIdType.nationalId ? value : value.toUpperCase();
+
   void setIdType(KycIdType type) {
     if (type == state.submission.idType) return;
+    // Re-normalize the value already typed under the OLD type, so switching
+    // national_id -> passport does not leave a value the new shape rejects
+    // without the user touching the field again.
+    final current = state.submission.idNumber;
     emit(state.copyWith(
-      submission: state.submission.copyWith(idType: type),
+      submission: state.submission.copyWith(
+        idType: type,
+        idNumber: current == null ? null : _normalizeIdNumber(current, type),
+      ),
       clearError: true,
       clearSubmitFieldError: true,
     ));
   }
 
   void setIdNumber(String value) {
-    final trimmed = normalizeArabicIndicDigits(value).trim();
+    // The BFF rejects rather than normalizes (JEBV4-256) and documents that the
+    // client normalizes — so uppercase here, or a lowercase passport number the
+    // user reasonably typed would 400 at submit.
+    final trimmed = _normalizeIdNumber(
+      normalizeArabicIndicDigits(value).trim(),
+      state.submission.idType,
+    );
     if (trimmed == (state.submission.idNumber ?? '')) return;
     emit(state.copyWith(
       submission: state.submission.copyWith(idNumber: trimmed),

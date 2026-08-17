@@ -25,6 +25,23 @@ String normalizeArabicIndicDigits(String input) {
   return out?.toString() ?? input;
 }
 
+/// Uppercases as the user types, preserving the caret. Used where an upstream
+/// contract enforces an `[A-Z0-9]` shape and rejects rather than normalizes.
+class UpperCaseTextFormatter extends TextInputFormatter {
+  const UpperCaseTextFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final upper = newValue.text.toUpperCase();
+    if (upper == newValue.text) return newValue;
+    // Same length, so the existing selection stays valid.
+    return newValue.copyWith(text: upper);
+  }
+}
+
 class ArabicIndicDigitsFormatter extends TextInputFormatter {
   const ArabicIndicDigitsFormatter();
 

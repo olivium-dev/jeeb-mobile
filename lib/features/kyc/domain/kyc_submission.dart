@@ -71,6 +71,40 @@ class KycSubmission extends Equatable {
 
   static final RegExp nationalIdPattern = RegExp(r'^\d{12}$');
 
+  /// Server-enforced `id_number` shapes, per `id_type`. These MIRROR the
+  /// gateway BFF (JEBV4-256), which in turn mirrors the form-builder
+  /// `jeeb_jeeber_v1` flavor patterns — so a value this app accepts is a value
+  /// the BFF accepts. Until now only [nationalIdPattern] was checked here, on a
+  /// stale premise that passport/residency were unconstrained server-side; they
+  /// are not, so the client let users submit values the BFF 400s.
+  static final RegExp passportPattern = RegExp(r'^[A-Z0-9]{6,9}$');
+  static final RegExp residencyPattern = RegExp(r'^[A-Z0-9]{6,12}$');
+
+  /// The shape the BFF will enforce for [type]. Single source of truth for
+  /// validation, the character filter and the length cap.
+  static RegExp patternFor(KycIdType type) {
+    switch (type) {
+      case KycIdType.nationalId:
+        return nationalIdPattern;
+      case KycIdType.passport:
+        return passportPattern;
+      case KycIdType.residency:
+        return residencyPattern;
+    }
+  }
+
+  /// Longest value the BFF accepts for [type] — the field's `maxLength`.
+  static int maxLengthFor(KycIdType type) {
+    switch (type) {
+      case KycIdType.nationalId:
+        return 12;
+      case KycIdType.passport:
+        return 9;
+      case KycIdType.residency:
+        return 12;
+    }
+  }
+
   final KycStatus status;
 
   final KycIdType idType;
@@ -101,10 +135,7 @@ class KycSubmission extends Equatable {
   bool get hasValidIdNumber {
     final number = idNumber?.trim() ?? '';
     if (number.isEmpty) return false;
-    if (idType == KycIdType.nationalId) {
-      return nationalIdPattern.hasMatch(number);
-    }
-    return true;
+    return patternFor(idType).hasMatch(number);
   }
 
   KycSubmission copyWith({

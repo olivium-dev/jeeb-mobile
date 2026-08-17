@@ -78,16 +78,12 @@ class KycIdentityStep extends StatefulWidget {
   /// rows so the Step-1 block reads as one family (`22 tpl 1308`).
   static const double groupCardRadius = 18;
 
-  static const int _nationalIdLength = 12;
-
-  /// Sensible cap for passport/residency document numbers. No shape rule is
-  /// enforced server-side for these variants, so the client deliberately does
-  /// not over-validate — non-empty plus this length cap only.
-  static const int _documentNumberMaxLength = 24;
-
   /// Localized inline validation mirroring exactly what the live contract
-  /// enforces (E3/JEBV4-197): `id_number` is required for EVERY [KycIdType];
-  /// the `^\d{12}$` shape applies to `national_id` only.
+  /// enforces (E3/JEBV4-197 + JEBV4-256): `id_number` is required for EVERY
+  /// [KycIdType], and EVERY type carries a shape — `^\d{12}$` for national_id,
+  /// `^[A-Z0-9]{6,9}$` for passport, `^[A-Z0-9]{6,12}$` for residency. The
+  /// passport/residency shapes were previously unchecked here, so the field
+  /// accepted values the BFF answers 400 on.
   static String? _idNumberError(
     AppLocalizations l10n,
     KycIdType type,
@@ -95,8 +91,7 @@ class KycIdentityStep extends StatefulWidget {
   ) {
     final trimmed = normalizeArabicIndicDigits(value ?? '').trim();
     if (trimmed.isEmpty) return l10n.kycIdNumberRequired;
-    if (type == KycIdType.nationalId &&
-        !KycSubmission.nationalIdPattern.hasMatch(trimmed)) {
+    if (!KycSubmission.patternFor(type).hasMatch(trimmed)) {
       return l10n.kycIdNumberInvalid;
     }
     return null;
@@ -421,16 +416,23 @@ class _KycIdentityStepState extends State<KycIdentityStep> {
                               keyboardType: isNationalId
                                   ? TextInputType.number
                                   : TextInputType.text,
-                              maxLength: isNationalId
-                                  ? KycIdentityStep._nationalIdLength
-                                  : KycIdentityStep._documentNumberMaxLength,
+                              maxLength: KycSubmission.maxLengthFor(idType),
                               inputFormatters: [
                                 // Map Eastern Arabic-Indic digits to ASCII
                                 // BEFORE any digit filter, so Arabic-keyboard
                                 // keystrokes are normalized, not swallowed.
                                 const ArabicIndicDigitsFormatter(),
                                 if (isNationalId)
-                                  FilteringTextInputFormatter.digitsOnly,
+                                  FilteringTextInputFormatter.digitsOnly
+                                else ...[
+                                  // The BFF rejects rather than normalizes, so
+                                  // uppercase as typed and drop characters its
+                                  // [A-Z0-9] shape would refuse.
+                                  const UpperCaseTextFormatter(),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'[A-Za-z0-9]'),
+                                  ),
+                                ],
                               ],
                               onChanged: cubit.setIdNumber,
                               validator: (value) =>
