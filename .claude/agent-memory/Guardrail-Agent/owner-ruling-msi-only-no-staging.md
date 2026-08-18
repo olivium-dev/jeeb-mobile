@@ -1,16 +1,34 @@
 ---
 name: owner-ruling-msi-only-no-staging
-description: Owner ruling 2026-07-26 — never use the staging/production server; MSI 192.168.2.39 is the only backend any lane may touch
+description: Historical owner ruling from 2026-07-26, superseded for approved Jeeb staging operations on 2026-08-18
 metadata:
   type: project
 ---
 
-Owner ruling relayed by the Lane Governor on **2026-07-26**: **never use the staging server — MSI `192.168.2.39` only, for now.** No agent may deploy to, read from, point a build at, seed data into, run a test against, or fetch a credential/bearer from a staging or production host. Covers builds/APKs with a non-MSI `GATEWAY_BASE_URL`/`--dart-define`, integration checks, seeded test data, device runs, and credential fetches.
+## Status: superseded for approved staging operations
+
+This ruling governed the 2026-07-26 b02 evidence batch. On **2026-08-18**, the owner
+reactivated `192.168.2.20` (`olivium-ephemerals`) as the authoritative Jeeb staging
+host and approved deployments through the `jeeb-staging-deploy` GitHub Actions
+pipelines and Cloudflare SSH tunnel. Do not cite this historical ruling to block
+those approved staging operations.
+
+The original ruling required MSI `192.168.2.39` for that evidence batch and prohibited
+ad hoc access to staging or production. Direct database access, unreviewed destructive
+operations, and credentials copied into mobile tooling remain prohibited; use the
+staging pipeline and its health gates.
 
 **Why:** the owner wants exactly one backend surface of record for the b02 "Polling → Push" batch so that acceptance evidence is comparable and no lane can drift onto a different baseline. MSI is dev/staging for Jeeb; a *deploy* there is still an integration-orchestrator action, never a feature lane's.
 
-**How to apply:** put it in every guardrail brief as a BLOCKING guardrail with an objectively checkable line ("no non-MSI host in any changed file, dart-define, test config, or command in the execution log"). If a lane claims its work cannot be validated on MSI alone, that is a BLOCKER to escalate upward — never a local decision to reach for staging. Recorded durably in `/Users/oudaykhaled/Desktop/claude-ui/guardrails/15-workspace-rules.md` Rule 7 **and** `07-deploy-and-migration.md` ("MSI Is the ONLY Backend Environment"). See [[guardrails-kb-location]].
+**How to apply now:** retain MSI-only labels on historical b02 evidence. For current
+work, distinguish ordinary feature-lane validation from owner-approved staging
+deployments. Only the latter may target `192.168.2.20`, through the staging GitHub
+Actions workflow with target-attestation and health gates. See [[guardrails-kb-location]].
 
 **Companion rule — the config file is a trap (verified live, twice).** A committed config is NOT evidence of which backend is live: `jeeb-gateway/appsettings.Production.json` names `PushNotificationServiceApi:BaseUrl = http://192.168.2.50:10040`, which is "No route to host" from MSI (all `.50` ports → `000`); the effective value is `PushNotificationServiceApi__BaseUrl=http://127.0.0.1:10040` from `/home/ec2-user/iter5-native/env/gateway.env`. Always resolve the effective backend from the **running process's environment** — a topology claim derived from a config file alone is inadmissible.
 
-**How an agent PROVES a probe was MSI-only** (the enforcement answer, asked by the Lane Governor 2026-07-26): three layers, all required — (1) single chokepoint: every backend command goes through `docs/agents/scripts/msi.sh` or `adb -s <serial>`, never a bare remote `curl`; (2) target attestation: each evidence file's manifest line records the full command as issued plus a resolved `target=`, and any host token that is not `192.168.2.39` / `127.0.0.1` / a device serial is an audit failure (**including `192.168.2.50` and the `[decommissioned-host]` DB box**); (3) self-identifying probes: run `hostname` inside the *same* invocation so the captured output carries the host identity rather than the agent asserting it. Evidence that fails layer 2 is inadmissible regardless of how correct the result looks.
+**How an agent proves a probe was MSI-only** for historical or explicitly MSI-scoped
+work: preserve the original three-layer evidence rule — use the MSI wrapper or a named
+device, record the resolved target, and capture host identity in the same invocation.
+For an approved staging deployment, the equivalent attestation is the workflow's exact
+`olivium-ephemerals` plus `192.168.2.20` assertion.
