@@ -9,7 +9,7 @@ metadata:
 
 `PUT /api/v1/register` · `DELETE /api/v1/register/by-device-and-user` · `DELETE /api/v1/register/by-user` · `POST /api/v1/sent-payload/{broadcast,device/{id},topic/{name},user/{id}}` · `GET /health`
 
-**There is no GET on `/register`.** Device rows therefore cannot be enumerated, snapshotted, or verified after deletion — and MSI has no `psql`, and direct access to the `[decommissioned-host]` DB box is banned by standing policy. DB name is `jeeb-push-notifications` (Jeeb-scoped data on the shared `[decommissioned-host]` host), so a delete cannot reach a sibling product — but it can reach any Jeeb user's rows, invisibly.
+**There is no GET on `/register`.** Device rows therefore cannot be enumerated, snapshotted, or verified after deletion. `192.168.2.20` is active Jeeb staging again as of 2026-08-18, but direct database access from mobile tooling remains prohibited; approved operations use the staging pipeline. DB name is `jeeb-push-notifications` (Jeeb-scoped data on the shared staging host), so a delete cannot reach a sibling product — but it can reach any Jeeb user's rows, invisibly.
 
 **Why it matters:** `DELETE /api/v1/register/by-user` is a blind, unbounded, irreversible destructive operation. "Snapshot before you delete" is *impossible* to satisfy here — any plan claiming to snapshot device rows is claiming something the API cannot do.
 
