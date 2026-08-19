@@ -38,7 +38,11 @@ enum DevToolSection {
     'Move an assigned Jeeber through a delivery route',
     Icons.route,
   ),
-  serverUrl('Server URL', 'Point the app at a different backend', Icons.dns),
+  serverUrl(
+    'Environment',
+    'Switch between development and staging backends',
+    Icons.swap_horiz,
+  ),
   clearData(
     'Clear Local Data',
     'Factory-reset this device',

@@ -26,13 +26,12 @@ class ChatRealtimeResolver {
     required Dio dio,
     required this.currentUserId,
     Uri? socketBaseUri,
-  })  : _dio = dio,
-        _socketBaseUri =
-            socketBaseUri ?? Uri.parse(MockGatewayClient.webSocketUrl);
+  }) : _dio = dio,
+       _socketBaseUri = socketBaseUri ?? _socketUriFor(dio);
 
   final Dio _dio;
   final String currentUserId;
-  final Uri _socketBaseUri;
+  final Uri? _socketBaseUri;
 
   Future<RealtimeChannelDescriptor?> resolve(String conversationId) async {
     try {
@@ -46,11 +45,10 @@ class ChatRealtimeResolver {
       return RealtimeChannelDescriptor(
         conversationId:
             (data['conversationId'] ?? data['conversation_id']) as String? ??
-                conversationId,
+            conversationId,
         topic: topic,
         ticket: (data['ticket'] ?? data['Ticket']) as String? ?? '',
-        roleInConvo:
-            (data['roleInConvo'] ?? data['role_in_convo']) as String?,
+        roleInConvo: (data['roleInConvo'] ?? data['role_in_convo']) as String?,
       );
     } on DioException {
       return null;
@@ -60,6 +58,8 @@ class ChatRealtimeResolver {
   }
 
   Future<ChatSocket?> connect(String conversationId) async {
+    final socketBaseUri = _socketBaseUri;
+    if (socketBaseUri == null) return null;
     final descriptor = await resolve(conversationId);
     if (descriptor == null) return null;
     final token = await _mintConnectToken();
@@ -69,7 +69,7 @@ class ChatRealtimeResolver {
       topic: _bridgedTopicFor(descriptor.topic, conversationId),
       ticket: descriptor.ticket,
       connectToken: token,
-      wsUri: _socketBaseUri,
+      wsUri: socketBaseUri,
     );
   }
 
@@ -85,7 +85,11 @@ class ChatRealtimeResolver {
 
   Future<String> _mintConnectToken() async {
     try {
-      final base = MockGatewayClient.realtimeHttpBase;
+      final base = MockGatewayClient.resolveRealtimeHttpBase(
+        mockMode: MockGatewayClient.useMockPrefixes,
+        gatewayBaseUrl: _dio.options.baseUrl,
+      );
+      if (base == null) return '';
       final url = base.replace(path: '/api/auth/token').toString();
       final resp = await Dio().post<Map<String, dynamic>>(
         url,
@@ -106,4 +110,12 @@ class ChatRealtimeResolver {
       return '';
     }
   }
+}
+
+Uri? _socketUriFor(Dio dio) {
+  final value = MockGatewayClient.resolveWebSocketUrl(
+    mockMode: MockGatewayClient.useMockPrefixes,
+    gatewayBaseUrl: dio.options.baseUrl,
+  );
+  return value == null ? null : Uri.parse(value);
 }

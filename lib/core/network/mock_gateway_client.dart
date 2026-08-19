@@ -16,15 +16,18 @@ class MockGatewayClient {
     return _releaseFallbackBaseUrl;
   }
 
-  static const String _baseUrlDefine =
-      String.fromEnvironment('JEEB_MOCK_BASE_URL');
+  static const String _baseUrlDefine = String.fromEnvironment(
+    'JEEB_MOCK_BASE_URL',
+  );
 
   static const String _devGatewayBaseUrl = 'http://192.168.2.39:10090';
 
   static const String _releaseFallbackBaseUrl = 'http://192.168.2.39:10090';
 
-  static const bool useMockPrefixes =
-      bool.fromEnvironment('JEEB_USE_MOCK_PREFIXES', defaultValue: false);
+  static const bool useMockPrefixes = bool.fromEnvironment(
+    'JEEB_USE_MOCK_PREFIXES',
+    defaultValue: false,
+  );
 
   static const Map<String, String> _pathToServicePrefix = {
     '/v1/auth/otp': '/auth-service/auth/otp',
@@ -136,12 +139,19 @@ class MockGatewayClient {
 
   static const int realtimePort = 5804;
 
-  static Uri get realtimeHttpBase =>
+  static Uri? get realtimeHttpBase =>
       resolveRealtimeHttpBase(mockMode: useMockPrefixes);
 
-  static Uri resolveRealtimeHttpBase({required bool mockMode}) {
+  static Uri? resolveRealtimeHttpBase({
+    required bool mockMode,
+    String? gatewayBaseUrl,
+  }) {
     if (realtimeBaseUrl.isNotEmpty) return Uri.parse(realtimeBaseUrl);
-    final base = Uri.parse(mockBaseUrl);
+    final base = Uri.parse(gatewayBaseUrl ?? mockBaseUrl);
+    // Never let a selected public environment fall back to a private LAN
+    // realtime host. Public realtime is disabled unless an explicit build-time
+    // URL was supplied and independently validated; polling/Firestore remains.
+    if (base.scheme == 'https') return null;
     if (mockMode) return base;
     return base.replace(port: realtimePort);
   }
@@ -153,14 +163,27 @@ class MockGatewayClient {
       ? '/realtime-comunication-service/socket/websocket'
       : '/socket/websocket';
 
-  static String get webSocketUrl =>
+  static String? get webSocketUrl =>
       resolveWebSocketUrl(mockMode: useMockPrefixes);
 
-  static String resolveWebSocketUrl({required bool mockMode}) {
-    final base = resolveRealtimeHttpBase(mockMode: mockMode);
+  static String? resolveWebSocketUrl({
+    required bool mockMode,
+    String? gatewayBaseUrl,
+  }) {
+    final base = resolveRealtimeHttpBase(
+      mockMode: mockMode,
+      gatewayBaseUrl: gatewayBaseUrl,
+    );
+    if (base == null) return null;
     final wsScheme = base.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${base.host}:${base.port}'
-        '${resolveWebSocketPath(mockMode: mockMode)}';
+    return base
+        .replace(
+          scheme: wsScheme,
+          path: resolveWebSocketPath(mockMode: mockMode),
+          query: null,
+          fragment: null,
+        )
+        .toString();
   }
 }
 

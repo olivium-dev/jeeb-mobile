@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/config/dev_base_url.dart';
 import 'package:jeeb_mobile/devtool/dev_settings_page.dart';
 
 /// Owner ruling 2026-07-31 (`OWNER-DECISIONS.md`, DEVICE-E2E ru
@@ -17,10 +18,22 @@ void main() {
       expect(Uri.parse(kMsiGatewayBaseUrl).host, '192.168.2.39');
     });
 
-    test('the two pre-existing presets are RETAINED, not replaced', () {
+    test('staging is a named, public, origin-only environment', () {
+      expect(
+        DevBackendEnvironment.staging.baseUrl,
+        'https://app.jeeb.fds-1.com',
+      );
+      expect(kDevServerUrlPresets, contains(kStagingGatewayBaseUrl));
+      expect(Uri.parse(kStagingGatewayBaseUrl).path, isEmpty);
+    });
+
+    test('the emulator preset is retained and pathful bases are rejected', () {
       expect(kDevServerUrlPresets, contains('http://10.0.2.2:4010'));
-      expect(kDevServerUrlPresets, contains('https://api.jeeb.app/v1'));
+      expect(kDevServerUrlPresets, isNot(contains('https://api.jeeb.app/v1')));
       expect(kDevServerUrlPresets, hasLength(3));
+      for (final preset in kDevServerUrlPresets) {
+        expect(DevBaseUrl.canonicalOrigin(preset), preset);
+      }
     });
 
     test('HARD RULE: no preset points at the banned .50 host', () {

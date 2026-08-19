@@ -7,12 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/config/dev_base_url.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
 import '../core/di/injection_container.dart';
 import '../core/diagnostics/diag.dart';
 import '../core/diagnostics/diag_file_sink.dart';
 import '../core/network/auth_token_store.dart';
+import '../core/network/mock_gateway_client.dart';
 import '../core/observability/crash_reporter.dart';
 import '../core/observability/crash_reporting_initializer.dart';
 import '../core/observability/firebase_crashlytics_reporter.dart';
@@ -30,10 +32,21 @@ class Bootstrap {
       GoogleFonts.config.allowRuntimeFetching = false;
       await DevSeam.resolve();
       final preferences = await SharedPreferences.getInstance();
-      await SessionSeamBootstrap.seed(
-        prefs: preferences,
-        awaitMockSeed: false,
+      await DevBaseUrl.activateForLaunch(
+        preferences,
+        defaultBaseUrl: MockGatewayClient.mockBaseUrl,
+        clearCredentials: AuthTokenStore().clear,
       );
+      final selectedBaseUrl =
+          DevBaseUrl.read(preferences) ?? MockGatewayClient.mockBaseUrl;
+      if (DevBackendEnvironment.fromBaseUrl(selectedBaseUrl) !=
+          DevBackendEnvironment.staging) {
+        await SessionSeamBootstrap.seed(
+          prefs: preferences,
+          mockSeedClient: MockGatewayClient.createDio(baseUrl: selectedBaseUrl),
+          awaitMockSeed: false,
+        );
+      }
       final reporter = SwappableCrashReporter();
       configureDependencies(
         sharedPreferences: preferences,
@@ -41,8 +54,9 @@ class Bootstrap {
       );
       CrashReportingInitializer(reporter).install();
       if (Diag.enabled) {
-        final role =
-            UserRole.fromStorage(preferences.getString(RoleCubit.rolePrefKey));
+        final role = UserRole.fromStorage(
+          preferences.getString(RoleCubit.rolePrefKey),
+        );
         unawaited(
           DiagFileSink.installAsGlobal(
             role: role.storageKey,
@@ -85,8 +99,7 @@ class Bootstrap {
     Future<CrashReporter> Function()? crashReporterFactory,
   ) async {
     if (crashReporter is! SwappableCrashReporter) return;
-    final real =
-        await (crashReporterFactory ?? _defaultCrashReporterFactory)();
+    final real = await (crashReporterFactory ?? _defaultCrashReporterFactory)();
     crashReporter.setDelegate(real);
   }
 

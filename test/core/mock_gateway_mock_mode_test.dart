@@ -13,19 +13,23 @@ void main() {
       // The correlationKey query the conversation-resolve fallback appends is
       expect(
         MockGatewayClient.mapToServicePrefix(
-            '/v1/conversations?correlationKey=req-1'),
+          '/v1/conversations?correlationKey=req-1',
+        ),
         '/chat-service/v1/conversations?correlationKey=req-1',
       );
     });
 
-    test('/v1/realtime/jeeb:chat:{id} rewrites to the realtime-service mount',
-        () {
-      expect(
-        MockGatewayClient.mapToServicePrefix(
-            '/v1/realtime/jeeb:chat:conv-accepted-001'),
-        '/realtime-comunication-service/v1/realtime/jeeb:chat:conv-accepted-001',
-      );
-    });
+    test(
+      '/v1/realtime/jeeb:chat:{id} rewrites to the realtime-service mount',
+      () {
+        expect(
+          MockGatewayClient.mapToServicePrefix(
+            '/v1/realtime/jeeb:chat:conv-accepted-001',
+          ),
+          '/realtime-comunication-service/v1/realtime/jeeb:chat:conv-accepted-001',
+        );
+      },
+    );
 
     test('/v1/chat/jeeb paths still rewrite to the chat-service mount', () {
       expect(
@@ -37,7 +41,7 @@ void main() {
     });
 
     test('realtimeHttpBase co-locates on the mock origin (NOT :5804)', () {
-      final base = MockGatewayClient.resolveRealtimeHttpBase(mockMode: true);
+      final base = MockGatewayClient.resolveRealtimeHttpBase(mockMode: true)!;
       final mock = Uri.parse(MockGatewayClient.mockBaseUrl);
       expect(base.host, mock.host);
       expect(base.port, mock.port); // :4010, not the live :5804
@@ -45,7 +49,7 @@ void main() {
     });
 
     test('webSocketUrl targets the service-prefixed mock socket endpoint', () {
-      final ws = MockGatewayClient.resolveWebSocketUrl(mockMode: true);
+      final ws = MockGatewayClient.resolveWebSocketUrl(mockMode: true)!;
       expect(ws, startsWith('ws://'));
       expect(ws, contains('/realtime-comunication-service/socket/websocket'));
       expect(ws, isNot(contains(':5804')));
@@ -57,8 +61,10 @@ void main() {
       // rewritePath delegates to mapToServicePrefix ONLY when useMockPrefixes is
       const path = '/v1/conversations';
       if (MockGatewayClient.useMockPrefixes) {
-        expect(MockGatewayClient.rewritePath(path),
-            MockGatewayClient.mapToServicePrefix(path));
+        expect(
+          MockGatewayClient.rewritePath(path),
+          MockGatewayClient.mapToServicePrefix(path),
+        );
       } else {
         expect(MockGatewayClient.rewritePath(path), path);
       }
@@ -67,12 +73,31 @@ void main() {
 
   group('MockGatewayClient — live-gateway mode (real gateway contract)', () {
     test('mockMode:false targets the live Phoenix realtime port :5804', () {
-      final base = MockGatewayClient.resolveRealtimeHttpBase(mockMode: false);
+      final base = MockGatewayClient.resolveRealtimeHttpBase(mockMode: false)!;
       expect(base.port, MockGatewayClient.realtimePort); // 5804
-      final ws = MockGatewayClient.resolveWebSocketUrl(mockMode: false);
+      final ws = MockGatewayClient.resolveWebSocketUrl(mockMode: false)!;
       expect(ws, contains('/socket/websocket'));
-      expect(ws,
-          isNot(contains('/realtime-comunication-service/socket/websocket')));
+      expect(
+        ws,
+        isNot(contains('/realtime-comunication-service/socket/websocket')),
+      );
+    });
+
+    test('public staging realtime fails closed without an explicit URL', () {
+      const staging = 'https://app.jeeb.fds-1.com';
+      for (final mockMode in <bool>[false, true]) {
+        final base = MockGatewayClient.resolveRealtimeHttpBase(
+          mockMode: mockMode,
+          gatewayBaseUrl: staging,
+        );
+        final ws = MockGatewayClient.resolveWebSocketUrl(
+          mockMode: mockMode,
+          gatewayBaseUrl: staging,
+        );
+
+        expect(base, isNull, reason: 'mockMode=$mockMode');
+        expect(ws, isNull, reason: 'mockMode=$mockMode');
+      }
     });
   });
 }

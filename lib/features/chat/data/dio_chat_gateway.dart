@@ -27,13 +27,12 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     Uri? socketBaseUri,
     HandoverCodeStore? handoverCodeStore,
     CdnAssetGateway? assetGateway,
-  })  : _dio = dio,
-        _correlationKey = conversationCorrelationKey,
-        _socketBaseUri = socketBaseUri ??
-            Uri.parse(MockGatewayClient.webSocketUrl),
-        _socketFactory = socketFactory,
-        _handoverCodeStore = handoverCodeStore,
-        _assetGateway = assetGateway;
+  }) : _dio = dio,
+       _correlationKey = conversationCorrelationKey,
+       _socketBaseUri = socketBaseUri ?? _socketUriFor(dio),
+       _socketFactory = socketFactory,
+       _handoverCodeStore = handoverCodeStore,
+       _assetGateway = assetGateway;
 
   final Dio _dio;
 
@@ -45,7 +44,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
 
   final String? _correlationKey;
 
-  final Uri _socketBaseUri;
+  final Uri? _socketBaseUri;
   final ChatSocket Function(String conversationId)? _socketFactory;
 
   late final String _fallbackSenderScope = _mintFallbackSenderScope();
@@ -225,7 +224,8 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     );
     final data = response.data;
     final serverId = data?['id'] as String?;
-    return message.copyWith(status: MessageStatus.sent).._serverIdProbe(serverId);
+    return message.copyWith(status: MessageStatus.sent)
+      .._serverIdProbe(serverId);
   }
 
   @override
@@ -249,9 +249,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
         'acceptedBy': currentUserId,
       },
       options: Options(
-        headers: <String, Object?>{
-          'Idempotency-Key': 'accept-$offerId',
-        },
+        headers: <String, Object?>{'Idempotency-Key': 'accept-$offerId'},
       ),
     );
     final deliveryId = _deliveryIdOf(response.data);
@@ -277,13 +275,13 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
   }
 
   bool _isUnresolvedConversation(String conversationId) =>
-      conversationId.isEmpty ||
-      conversationId == kComposeConversationSentinel;
+      conversationId.isEmpty || conversationId == kComposeConversationSentinel;
 
   /// Participant-scoped `Idempotency-Key` for a chat message POST (BUG-13).
   String _idempotencyKeyFor(DeliveryChatMessage message) {
-    final sender =
-        currentUserId.isNotEmpty ? currentUserId : _fallbackSenderScope;
+    final sender = currentUserId.isNotEmpty
+        ? currentUserId
+        : _fallbackSenderScope;
     return '${message.id}-u-$sender';
   }
 
@@ -331,8 +329,8 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     final body = response.data ?? const <String, dynamic>{};
     return VoiceUploadResult(
       url: body['url'] as String? ?? body['audioUrl'] as String? ?? '',
-      transcription: body['transcript'] as String? ??
-          body['transcription'] as String?,
+      transcription:
+          body['transcript'] as String? ?? body['transcription'] as String?,
     );
   }
 
@@ -365,13 +363,17 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
   void _ensureSocket(String conversationId) {
     if (_socket != null) return;
     final socket =
-        _socketFactory?.call(conversationId) ?? _defaultSocketFor(conversationId);
+        _socketFactory?.call(conversationId) ??
+        _defaultSocketFor(conversationId);
+    if (socket == null) return;
     _socket = socket;
     unawaited(_connectAndJoin(socket, conversationId));
   }
 
-  ChatSocket _defaultSocketFor(String _) =>
-      WebSocketChatSocket(uri: _socketBaseUri);
+  ChatSocket? _defaultSocketFor(String _) {
+    final uri = _socketBaseUri;
+    return uri == null ? null : WebSocketChatSocket(uri: uri);
+  }
 
   Future<void> _connectAndJoin(ChatSocket socket, String conversationId) async {
     try {
@@ -383,8 +385,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
         'ref': '1',
       });
       socket.events.listen(_handleFrame);
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   void _handleFrame(Map<String, Object?> frame) {
@@ -396,8 +397,7 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
     try {
       final message = _parseMessage(payload.cast<String, dynamic>());
       _events.add(IncomingMessage(message));
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   Map<String, Object?> _bodyFor(DeliveryChatMessage message) {
@@ -433,9 +433,17 @@ class DioChatGateway implements ChatGateway, ChatDeltaReader {
   DeliveryChatMessage _parseMessage(
     Map<String, dynamic> json, {
     DateTime? fallbackSentAt,
-  }) =>
-      ChatMessageCodec(currentUserId)
-          .parse(json, fallbackSentAt: fallbackSentAt);
+  }) => ChatMessageCodec(
+    currentUserId,
+  ).parse(json, fallbackSentAt: fallbackSentAt);
+}
+
+Uri? _socketUriFor(Dio dio) {
+  final value = MockGatewayClient.resolveWebSocketUrl(
+    mockMode: MockGatewayClient.useMockPrefixes,
+    gatewayBaseUrl: dio.options.baseUrl,
+  );
+  return value == null ? null : Uri.parse(value);
 }
 
 extension on DeliveryChatMessage {

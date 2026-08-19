@@ -83,6 +83,16 @@ tool/run_ios_devtool.sh "iPhone 15"
 Set `JEEB_IOS_BASE_URL` to change the gateway, or `JEEB_IOS_DEVICE` to change
 the default simulator. The Dev Tool is available only in debug builds.
 
+The Dev Tool's **Environment** page switches between the local development
+gateway and public staging at `https://app.jeeb.fds-1.com`. Restart the app to
+apply the selection to every HTTP and realtime client. Authentication is
+cleared before the selection changes so credentials from one environment are
+never sent to the other; sign in again after restarting.
+
+Public Phoenix WebSockets remain disabled unless `JEEB_REALTIME_BASE_URL` is
+set to a separately smoke-tested endpoint. Staging therefore uses the existing
+Firestore/polling fallback instead of silently dialing the Development LAN.
+
 ## Backend route compatibility (`/v1` de-versioning)
 
 The gateway is dropping the `/v1` prefix. `UnversionedPathFallbackInterceptor`
