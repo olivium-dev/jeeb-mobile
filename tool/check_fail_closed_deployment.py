@@ -70,6 +70,8 @@ FORBIDDEN_CONTROLS = (
     "ghcr.io/olivium-dev/service:" + "latest",
     "c" + "p service.backup /srv/service/current",
     "l" + "n -sfn /srv/service/previous /srv/service/current",
+    "docker service \\  \n  r" + "m service",
+    '"$DOCKER_BIN" service \\  \n  roll' + "back service",
 )
 
 BENIGN_CONTROLS = (
@@ -83,6 +85,8 @@ MUTATION_CONTROLS = (
     "docker service create --name app image@sha256:" + "a" * 64,
     "docker service scale app=0",
     "docker stack deploy -c compose.yml app",
+    "docker service \\  \n  update --image repo@sha256:" + "a" * 64 + " app",
+    'ENGINE=docker\n"$ENGINE" service \\  \n  update --image "$IMAGE" app',
 )
 
 
@@ -104,9 +108,14 @@ def tracked_utf8():
             continue
 
 
+def normalize_shell_continuations(source: str) -> str:
+    return re.sub(r"\\[ \t]*\r?\n[ \t]*", " ", source)
+
+
 def main() -> int:
     for control in FORBIDDEN_CONTROLS:
-        if not any(pattern.search(control) for _, pattern in PATTERNS):
+        normalized = normalize_shell_continuations(control)
+        if not any(pattern.search(normalized) for _, pattern in PATTERNS):
             print(f"policy negative control was not rejected: {control}")
             return 2
     for control in BENIGN_CONTROLS:
@@ -117,10 +126,10 @@ def main() -> int:
     files = list(tracked_utf8())
     findings = []
     for path, source in files:
-        for line_number, line in enumerate(source.splitlines(), 1):
-            for label, pattern in PATTERNS:
-                if pattern.search(line):
-                    findings.append(f"{path}:{line_number}:{label}:{line.strip()}")
+        normalized = normalize_shell_continuations(source)
+        for label, pattern in PATTERNS:
+            if pattern.search(normalized):
+                findings.append(f"{path}:{label}")
     if findings:
         print("Forward-only policy violations:")
         print("\n".join(findings))
@@ -131,14 +140,14 @@ def main() -> int:
         re.I,
     )
     for control in MUTATION_CONTROLS:
-        if not mutation_command.search(control):
+        if not mutation_command.search(normalize_shell_continuations(control)):
             print(f"mutation inventory negative control was not rejected: {control}")
             return 2
     executable_mutations = [
         path
         for path, source in files
         if path.suffix.lower() in {".sh", ".yml", ".yaml"}
-        and mutation_command.search(source)
+        and mutation_command.search(normalize_shell_continuations(source))
     ]
     if executable_mutations:
         print(
