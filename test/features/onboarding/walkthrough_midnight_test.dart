@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -118,8 +116,8 @@ void main() {
     });
   });
 
-  group('sheet — a frosted navy panel, not a flat white one', () {
-    testWidgets('fills surface at 70% behind an outline hairline', (
+  group('panel — a raised card, visually distinct from the navy field', () {
+    testWidgets('uses a high-contrast tonal gradient, border, and shadow', (
       tester,
     ) async {
       await tester.pumpWidget(harness());
@@ -127,39 +125,39 @@ void main() {
 
       final scheme = AppTheme.midnight().colorScheme;
       final box = tester.widget<DecoratedBox>(
-        find
-            .descendant(
-              of: find.byType(BackdropFilter),
-              matching: find.byType(DecoratedBox),
-            )
-            .first,
+        find.byKey(const Key('onboarding.panel')),
       );
       final decoration = box.decoration as BoxDecoration;
-      expect(decoration.color, scheme.surface.withValues(alpha: 0.7));
-      expect((decoration.border! as BorderDirectional).top.color,
-          scheme.outline);
+      final gradient = decoration.gradient! as LinearGradient;
+      expect(gradient.colors, <Color>[
+        scheme.surfaceContainerHighest.withValues(alpha: 0.98),
+        scheme.surfaceContainerHigh.withValues(alpha: 0.94),
+      ]);
+      expect(
+        (decoration.border! as Border).top.color,
+        scheme.onSurface.withValues(alpha: 0.20),
+      );
       expect(
         decoration.borderRadius,
-        const BorderRadius.vertical(top: Radius.circular(JeebRadii.hero)),
+        const BorderRadius.all(Radius.circular(JeebRadii.xl)),
       );
+      expect(decoration.boxShadow, isNotEmpty);
     });
 
-    testWidgets('spends exactly ONE real BackdropFilter (§4 budget ≤2)', (
+    testWidgets('does not blur the stage behind the opaque panel', (
       tester,
     ) async {
       await tester.pumpWidget(harness());
       await tester.pump();
 
-      expect(find.byType(BackdropFilter), findsOneWidget);
-      final blur = tester.widget<BackdropFilter>(find.byType(BackdropFilter));
-      expect(blur.filter, isA<ui.ImageFilter>());
+      expect(find.byType(BackdropFilter), findsNothing);
     });
 
     testWidgets('nothing in the sheet moves', (tester) async {
       await tester.pumpWidget(harness());
       await tester.pump();
 
-      final sheet = find.byType(BackdropFilter);
+      final panel = find.byKey(const Key('onboarding.panel'));
       for (final matcher in <Finder>[
         find.byType(JFloat),
         find.byType(JBreathe),
@@ -170,7 +168,7 @@ void main() {
         find.byType(JBlink),
       ]) {
         expect(
-          find.descendant(of: sheet, matching: matcher),
+          find.descendant(of: panel, matching: matcher),
           findsNothing,
           reason: 'the eyebrow, headline, dots and CTAs are all still',
         );
@@ -199,16 +197,19 @@ void main() {
       // Drive the pager frame by frame: a cross-fade would mount BOTH copy
       // blocks for the length of its transition.
       await tester.tap(find.byKey(const Key('onboarding.next')));
-      for (var elapsed = Duration.zero;
-          elapsed < const Duration(milliseconds: 900);
-          elapsed += const Duration(milliseconds: 16)) {
+      for (
+        var elapsed = Duration.zero;
+        elapsed < const Duration(milliseconds: 900);
+        elapsed += const Duration(milliseconds: 16)
+      ) {
         await tester.pump(const Duration(milliseconds: 16));
         final outgoing = find.text(l10n.onboardingSlide1Body).evaluate().length;
         final incoming = find.text(l10n.onboardingSlide2Body).evaluate().length;
         expect(
           outgoing + incoming,
           1,
-          reason: 'exactly one copy block is mounted at every frame of the swap',
+          reason:
+              'exactly one copy block is mounted at every frame of the swap',
         );
       }
       await tester.pumpAndSettle();
@@ -255,10 +256,7 @@ void main() {
       final scheme = AppTheme.midnight().colorScheme;
       final pill = tester.widget<Container>(
         find
-            .ancestor(
-              of: find.text('EN'),
-              matching: find.byType(Container),
-            )
+            .ancestor(of: find.text('EN'), matching: find.byType(Container))
             .first,
       );
       expect((pill.decoration! as BoxDecoration).color, scheme.onSurface);
@@ -268,7 +266,8 @@ void main() {
           matching: find.byType(AnimatedContainer),
         ),
         findsNothing,
-        reason: 'M5 B5: R5/W1 list the language pill under "does not move" — '
+        reason:
+            'M5 B5: R5/W1 list the language pill under "does not move" — '
             'selection swaps the fill, it does not tween it',
       );
       final label = tester.widget<Text>(find.text('EN'));
@@ -278,7 +277,7 @@ void main() {
         reason: 'the pre-Midnight ink resolved to ORANGE once primary flipped',
       );
       // The idle segment stays periwinkle.
-      final idle = tester.widget<Text>(find.text('عربي'));
+      final idle = tester.widget<Text>(find.text('AR'));
       expect(idle.style!.color, scheme.onSurfaceVariant);
     });
   });

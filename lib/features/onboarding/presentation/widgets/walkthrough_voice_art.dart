@@ -188,7 +188,7 @@ class _MicWithHalo extends StatelessWidget {
   }
 }
 
-/// Bubble A — the recorded ask, transcribed in Lebanese Arabic.
+/// Bubble A — the recorded ask, localized with the selected walkthrough locale.
 class _VoiceNoteBubble extends StatelessWidget {
   const _VoiceNoteBubble();
 
@@ -224,14 +224,11 @@ class _VoiceNoteBubble extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Spacing.twoXSmall),
-          Directionality(
-            textDirection: TextDirection.rtl,
-            child: Text(
-              l10n.onboardingPreviewVoiceTranscript,
-              style: context.jeebText.body.copyWith(
-                fontWeight: FontWeight.w700,
-                color: scheme.onSurface,
-              ),
+          Text(
+            l10n.onboardingPreviewVoiceTranscript,
+            style: context.jeebText.body.copyWith(
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface,
             ),
           ),
         ],

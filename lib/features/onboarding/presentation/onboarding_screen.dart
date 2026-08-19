@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,7 +14,6 @@ import '../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../core/theme/jeeb_text_styles.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../core/widgets/jeeb/jeeb_cta_footer.dart';
-import '../../../core/widgets/jeeb/jeeb_glass_card.dart';
 import '../../../core/widgets/jeeb/jeeb_midnight_field.dart';
 import '../../../core/widgets/jeeb/jeeb_page_dots.dart';
 import '../../../l10n/app_localizations.dart';
@@ -29,9 +26,9 @@ import 'widgets/walkthrough_voice_art.dart';
 ///
 /// Structure is a three-band column on the Midnight field: the wordmark +
 /// EN/عربي toggle ([_OnboardingTopBar]), the swipeable [_WalkthroughStage], and
-/// a **frosted navy sheet** ([_OnboardingSheet]) carrying the Arabic eyebrow,
-/// the step copy, the page dots and the `Skip` / `Next →` footer. The stage is
-/// deliberately ~40% empty — that emptiness is the design.
+/// a **raised walkthrough card** ([_OnboardingSheet]) carrying localized
+/// eyebrow, step copy, page dots, and a clear primary/secondary navigation
+/// stack. The stage is deliberately ~40% empty — that emptiness is the design.
 ///
 /// The field changes with the slide, because the tiles do: W1 draws an ORANGE
 /// glow at centre-upper, W2 a PERIWINKLE wash at the same anchor and no orange
@@ -210,14 +207,23 @@ const double _kAccentGlowAlpha = 0.30;
 /// W2's `rgba(119,127,192,.28)`, clamped to the ratified .18–.22 wash band.
 const double _kWashAlpha = 0.22;
 
-/// Board sheet: `rgba(13,19,74,.7)` over a `1px rgba(255,255,255,.14)` hairline,
-/// `border-radius:34px 34px 0 0`, `padding:30px 32px 28px`.
-const double _kSheetFillOpacity = 0.7;
+/// The floating panel is deliberately lighter than the page field so its
+/// boundary remains clear over every slide illustration.
+const double _kSheetTopOpacity = 0.98;
+const double _kSheetBottomOpacity = 0.94;
+const double _kSheetBorderOpacity = 0.20;
+const double _kSheetBottomGap = 12;
+const EdgeInsetsGeometry _kSheetMargin = EdgeInsetsDirectional.fromSTEB(
+  Spacing.medium,
+  0,
+  Spacing.medium,
+  _kSheetBottomGap,
+);
 const EdgeInsetsGeometry _kSheetPadding = EdgeInsetsDirectional.fromSTEB(
-  Spacing.twoXLarge,
-  30,
-  Spacing.twoXLarge,
-  28,
+  Spacing.xLarge,
+  Spacing.xLarge,
+  Spacing.xLarge,
+  Spacing.large,
 );
 
 /// Which radial the slide's tile draws over the base wash.
@@ -268,7 +274,7 @@ class _OnboardingPage {
   final String title;
   final String body;
 
-  /// The Arabic brand eyebrow above the headline; Arabic in both locales.
+  /// Short, localized eyebrow above the headline.
   final String tagline;
 
   /// Localized screen-reader alt text for the slide art.
@@ -490,11 +496,9 @@ class _WalkthroughStage extends StatelessWidget {
   }
 }
 
-/// Band 3: the frosted navy sheet — Arabic eyebrow, step copy, page dots and
-/// the `Skip` / `Next →` split footer.
-///
-/// This is the ONE surface on the screen that spends a real `BackdropFilter`
-/// (§4 budgets ≤2); the floating art all ships pre-baked translucency.
+/// Band 3: a raised, fully rounded panel that separates the copy and actions
+/// from the navy stage. It uses an opaque tonal gradient rather than a blur,
+/// which creates a distinct boundary without competing with the artwork.
 class _OnboardingSheet extends StatelessWidget {
   const _OnboardingSheet({
     required this.pages,
@@ -515,80 +519,96 @@ class _OnboardingSheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final isLast = currentPage >= pages.length - 1;
-    const BorderRadius radius = BorderRadius.vertical(
-      top: Radius.circular(JeebRadii.hero),
-    );
-    return ClipRRect(
-      borderRadius: radius,
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(
-          sigmaX: JeebGlassCapsule.heroBlur,
-          sigmaY: JeebGlassCapsule.heroBlur,
-        ),
+    const BorderRadius radius = BorderRadius.all(Radius.circular(JeebRadii.xl));
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: _kSheetMargin,
         child: DecoratedBox(
+          key: const Key('onboarding.panel'),
           decoration: BoxDecoration(
-            color: scheme.surface.withValues(alpha: _kSheetFillOpacity),
-            borderRadius: radius,
-            border: BorderDirectional(
-              top: BorderSide(color: scheme.outline),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                scheme.surfaceContainerHighest.withValues(
+                  alpha: _kSheetTopOpacity,
+                ),
+                scheme.surfaceContainerHigh.withValues(
+                  alpha: _kSheetBottomOpacity,
+                ),
+              ],
             ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight:
-                    MediaQuery.sizeOf(context).height * _kSheetMaxHeightFactor,
+            borderRadius: radius,
+            border: Border.all(
+              color: scheme.onSurface.withValues(alpha: _kSheetBorderOpacity),
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: scheme.shadow.withValues(alpha: 0.32),
+                blurRadius: 24,
+                offset: const Offset(0, 12),
               ),
-              child: SingleChildScrollView(
-                // The sheet never scrolls at 1.0x text scale; this only rescues
-                // very large accessibility scales.
-                physics: const ClampingScrollPhysics(),
-                child: Padding(
-                  padding: _kSheetPadding,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Semantics(
-                        // PoC Maestro identifier: the animated step copy is the
-                        // screen's headline, asserted by id (i18n-safe).
-                        identifier: 'onboarding_headline',
-                        child: _SlideCopy(
-                          key: const Key('onboarding.slideCopy'),
-                          pages: pages,
-                          currentPage: currentPage,
-                        ),
+            ],
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight:
+                  MediaQuery.sizeOf(context).height * _kSheetMaxHeightFactor,
+            ),
+            child: SingleChildScrollView(
+              // The card never scrolls at 1.0x text scale; this only rescues
+              // very large accessibility scales.
+              physics: const ClampingScrollPhysics(),
+              child: Padding(
+                padding: _kSheetPadding,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Semantics(
+                      // PoC Maestro identifier: the animated step copy is the
+                      // screen's headline, asserted by id (i18n-safe).
+                      identifier: 'onboarding_headline',
+                      child: _SlideCopy(
+                        key: const Key('onboarding.slideCopy'),
+                        pages: pages,
+                        currentPage: currentPage,
                       ),
-                      const SizedBox(height: Spacing.medium),
-                      JeebPageDots(
-                        key: const Key('onboarding.dots'),
-                        count: pages.length,
-                        activeIndex: currentPage,
-                        identifier: 'onboarding_page_dots',
-                        semanticLabel: l10n.onboardingPageIndicator(
-                          currentPage + 1,
-                          pages.length,
-                        ),
+                    ),
+                    const SizedBox(height: Spacing.medium),
+                    JeebPageDots(
+                      key: const Key('onboarding.dots'),
+                      count: pages.length,
+                      activeIndex: currentPage,
+                      identifier: 'onboarding_page_dots',
+                      semanticLabel: l10n.onboardingPageIndicator(
+                        currentPage + 1,
+                        pages.length,
                       ),
-                      const SizedBox(height: Spacing.large),
-                      JeebCtaFooter.split(
-                        // The sheet already owns the 32px gutters.
-                        padding: EdgeInsetsDirectional.zero,
-                        leading: _OnboardingSkipButton(
+                    ),
+                    const SizedBox(height: Spacing.large),
+                    JeebCtaFooter.single(
+                      // One unambiguous primary action, then the secondary
+                      // Skip action beneath it, works identically in LTR/RTL.
+                      padding: EdgeInsetsDirectional.zero,
+                      spacing: Spacing.twoXSmall,
+                      below: Align(
+                        alignment: AlignmentDirectional.center,
+                        child: _OnboardingSkipButton(
                           label: l10n.onboardingSkip,
                           onTap: onSkip,
                         ),
-                        trailing: _OnboardingCtaButton(
-                          isLast: isLast,
-                          nextLabel: l10n.onboardingNext,
-                          getStartedLabel: l10n.onboardingGetStarted,
-                          onNext: onNext,
-                          onGetStarted: onGetStarted,
-                        ),
                       ),
-                    ],
-                  ),
+                      child: _OnboardingCtaButton(
+                        isLast: isLast,
+                        nextLabel: l10n.onboardingNext,
+                        getStartedLabel: l10n.onboardingGetStarted,
+                        onNext: onNext,
+                        onGetStarted: onGetStarted,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -599,14 +619,10 @@ class _OnboardingSheet extends StatelessWidget {
   }
 }
 
-/// The sheet's copy block: Arabic eyebrow over the slide headline + body.
+/// The panel's localized eyebrow over the slide headline + body.
 /// M5: R5/W1–W3 all list the headline as still, so it swaps, never fades.
 class _SlideCopy extends StatelessWidget {
-  const _SlideCopy({
-    super.key,
-    required this.pages,
-    required this.currentPage,
-  });
+  const _SlideCopy({super.key, required this.pages, required this.currentPage});
 
   final List<_OnboardingPage> pages;
   final int currentPage;
@@ -621,25 +637,19 @@ class _SlideCopy extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Directionality(
-            // The brand slogan is Arabic in both locales, like the wordmark.
-            textDirection: TextDirection.rtl,
-            child: Text(
-              page.tagline,
-              textAlign: TextAlign.center,
-              style: context.jeebText.titleProminent.copyWith(
-                fontWeight: FontWeight.w700,
-                color: context.jeebRoles.accent,
-              ),
+          Text(
+            page.tagline,
+            textAlign: TextAlign.center,
+            style: context.jeebText.titleProminent.copyWith(
+              fontWeight: FontWeight.w700,
+              color: context.jeebRoles.accent,
             ),
           ),
           const SizedBox(height: Spacing.twoXSmall),
           OmdsWalkthroughStep(
             label: page.title,
             description: page.body,
-            labelStyle: context.jeebText.h1.copyWith(
-              color: scheme.onSurface,
-            ),
+            labelStyle: context.jeebText.h1.copyWith(color: scheme.onSurface),
             descriptionStyle: context.jeebText.body.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -683,8 +693,9 @@ class _OnboardingCtaButton extends StatelessWidget {
     return Semantics(
       identifier: 'onboarding_next_button',
       child: Semantics(
-        identifier:
-            isLast ? 'walkthrough_get_started_cta' : 'walkthrough_next_cta',
+        identifier: isLast
+            ? 'walkthrough_get_started_cta'
+            : 'walkthrough_next_cta',
         button: true,
         child: JeebCtaButton.accent(
           key: Key(isLast ? 'onboarding.getStarted' : 'onboarding.next'),

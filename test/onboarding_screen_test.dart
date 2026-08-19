@@ -74,8 +74,9 @@ void main() {
     await localeCubit.close();
   });
 
-  testWidgets('renders all 3 onboarding slides and the Skip CTA',
-      (tester) async {
+  testWidgets('renders all 3 onboarding slides and the Skip CTA', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
@@ -87,42 +88,44 @@ void main() {
   // ---- Status-bar contrast: LIGHT icons over the navy hero ----
 
   testWidgets(
-      'sets LIGHT status-bar icons so they stay legible on the navy hero',
-      (tester) async {
-    // The global overlay set in main() is Brightness.dark (for the light auth
-    // screens); the walkthrough hero is brand-navy and must override to light
-    // icons, scoped via an AnnotatedRegion so it never forces light icons on
-    // the light screens elsewhere in the app.
-    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
-    await tester.pump();
+    'sets LIGHT status-bar icons so they stay legible on the navy hero',
+    (tester) async {
+      // The global overlay set in main() is Brightness.dark (for the light auth
+      // screens); the walkthrough hero is brand-navy and must override to light
+      // icons, scoped via an AnnotatedRegion so it never forces light icons on
+      // the light screens elsewhere in the app.
+      await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+      await tester.pump();
 
-    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
-      find.descendant(
-        of: find.byType(OnboardingScreen),
-        matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
-      ),
-    );
-    expect(
-      region.value.statusBarIconBrightness,
-      Brightness.light,
-      reason: 'walkthrough status-bar icons must be light on the navy hero',
-    );
-    // statusBarBrightness is the iOS counterpart of the same intent: a DARK
-    // bar background expects light content.
-    expect(region.value.statusBarBrightness, Brightness.dark);
+      final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+        find.descendant(
+          of: find.byType(OnboardingScreen),
+          matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+        ),
+      );
+      expect(
+        region.value.statusBarIconBrightness,
+        Brightness.light,
+        reason: 'walkthrough status-bar icons must be light on the navy hero',
+      );
+      // statusBarBrightness is the iOS counterpart of the same intent: a DARK
+      // bar background expects light content.
+      expect(region.value.statusBarBrightness, Brightness.dark);
 
-    // M6 L14: this used to be a raw `.light` + copyWith. The one ratified
-    // style is what both bands take now.
-    expect(region.value, AppTheme.systemOverlayStyle);
-    expect(region.value.systemNavigationBarColor, JeebMidnight.page);
-    expect(
-      region.value.systemNavigationBarColor,
-      isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
-    );
-  });
+      // M6 L14: this used to be a raw `.light` + copyWith. The one ratified
+      // style is what both bands take now.
+      expect(region.value, AppTheme.systemOverlayStyle);
+      expect(region.value.systemNavigationBarColor, JeebMidnight.page);
+      expect(
+        region.value.systemNavigationBarColor,
+        isNot(SystemUiOverlayStyle.light.systemNavigationBarColor),
+      );
+    },
+  );
 
-  testWidgets('slide copy + Skip flow through OMDS components (OMDS upgrade)',
-      (tester) async {
+  testWidgets('slide copy + Skip flow through OMDS components (OMDS upgrade)', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
@@ -155,9 +158,12 @@ void main() {
 
     // The Arabic slide-1 title renders (proves ARB ar parity + RTL tree).
     // OmdsWalkthroughStep draws the label via RichText, so findRichText.
+    expect(find.text('خبر جيب شو بدك', findRichText: true), findsWidgets);
     expect(
-      find.text('قول شو بدك', findRichText: true),
-      findsWidgets,
+      find.text(
+        'كبِس عالمايك واحكي بطريقتك — بالعربي، بالإنكليزي، أو بالاتنين.',
+      ),
+      findsOneWidget,
     );
     expect(
       Directionality.of(
@@ -167,9 +173,9 @@ void main() {
     );
   });
 
-  testWidgets(
-      'Next CTA advances to the last slide and becomes Get Started',
-      (tester) async {
+  testWidgets('Next CTA advances to the last slide and becomes Get Started', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
@@ -184,32 +190,52 @@ void main() {
     expect(find.byKey(const Key('onboarding.getStarted')), findsOneWidget);
   });
 
-  testWidgets(
-      'tapping Skip marks onboarding as complete in SharedPreferences',
-      (tester) async {
-    expect(cubit.state, isFalse);
-    var navigated = false;
-
-    await tester.pumpWidget(
-      _harness(
-        cubit: cubit,
-        localeCubit: localeCubit,
-        onComplete: () => navigated = true,
-      ),
-    );
+  testWidgets('English walkthrough contains only English visible copy', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('onboarding.skip')));
-    await tester.pump(); // allow async complete() to run
-
-    expect(cubit.state, isTrue);
-    expect(navigated, isTrue);
+    expect(find.text('Jeeb it by voice'), findsOneWidget);
+    expect(
+      find.text('Tell Jeeb what you need', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.text('Bring me medicine from the pharmacy'), findsOneWidget);
+    expect(find.text('AR'), findsOneWidget);
+    expect(find.text('جيبها بصوتك'), findsNothing);
+    expect(find.text('جيب لي دوا من الفرماشية'), findsNothing);
+    expect(find.text('عربي'), findsNothing);
   });
+
+  testWidgets(
+    'tapping Skip marks onboarding as complete in SharedPreferences',
+    (tester) async {
+      expect(cubit.state, isFalse);
+      var navigated = false;
+
+      await tester.pumpWidget(
+        _harness(
+          cubit: cubit,
+          localeCubit: localeCubit,
+          onComplete: () => navigated = true,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('onboarding.skip')));
+      await tester.pump(); // allow async complete() to run
+
+      expect(cubit.state, isTrue);
+      expect(navigated, isTrue);
+    },
+  );
 
   // ---- FR-P1-1: real slide illustrations wired ----
 
-  testWidgets('slide 1 renders the decorative marketplace-preview collage',
-      (tester) async {
+  testWidgets('slide 1 renders the decorative marketplace-preview collage', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
@@ -231,8 +257,9 @@ void main() {
     expect(semantics.properties.label, isNotEmpty);
   });
 
-  testWidgets('slide 3 renders W3 night-map art, not an exported SVG',
-      (tester) async {
+  testWidgets('slide 3 renders W3 night-map art, not an exported SVG', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
@@ -253,8 +280,9 @@ void main() {
     );
   });
 
-  testWidgets('slide 2 renders W2 trust art, not an exported SVG',
-      (tester) async {
+  testWidgets('slide 2 renders W2 trust art, not an exported SVG', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
@@ -280,70 +308,71 @@ void main() {
 
   // ---- FR-P1-2: EN/AR language toggle ----
 
-  testWidgets('renders the EN/AR language toggle on onboarding',
-      (tester) async {
+  testWidgets('renders the EN/AR language toggle on onboarding', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
 
     final toggle = find.byKey(const Key('onboarding.languageToggle'));
     expect(toggle, findsOneWidget);
-    expect(
-      tester.widget(toggle),
-      isA<OnboardingLanguageToggle>(),
-    );
+    expect(tester.widget(toggle), isA<OnboardingLanguageToggle>());
     // Both segments are present (short labels on the navy top bar).
     expect(find.text('EN'), findsOneWidget);
-    expect(find.text('عربي'), findsOneWidget);
+    expect(find.text('AR'), findsOneWidget);
   });
 
   testWidgets(
-      'selecting Arabic drives LocaleCubit.setLocale and persists the choice',
-      (tester) async {
-    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
-    await tester.pump();
+    'selecting Arabic drives LocaleCubit.setLocale and persists the choice',
+    (tester) async {
+      await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+      await tester.pump();
 
-    expect(localeCubit.state.languageCode, 'en');
+      expect(localeCubit.state.languageCode, 'en');
 
-    // Tap the Arabic segment.
-    await tester.tap(find.text('عربي'));
-    await tester.pumpAndSettle();
+      // Tap the Arabic segment.
+      await tester.tap(find.text('AR'));
+      await tester.pumpAndSettle();
 
-    // The toggle's contract: it flips the LocaleCubit + persists the choice.
-    // In production app.dart binds MaterialApp.locale to this cubit via a
-    // BlocBuilder, so the whole tree re-lays-out RTL live (no restart). The
-    // 'localizes slide copy under Arabic (RTL-safe)' test above proves the
-    // RTL render path itself under Locale('ar').
-    expect(localeCubit.state.languageCode, 'ar');
-    expect(prefs.getString('app.locale.languageCode'), 'ar');
-  });
+      // The toggle's contract: it flips the LocaleCubit + persists the choice.
+      // In production app.dart binds MaterialApp.locale to this cubit via a
+      // BlocBuilder, so the whole tree re-lays-out RTL live (no restart). The
+      // 'localizes slide copy under Arabic (RTL-safe)' test above proves the
+      // RTL render path itself under Locale('ar').
+      expect(localeCubit.state.languageCode, 'ar');
+      expect(prefs.getString('app.locale.languageCode'), 'ar');
+    },
+  );
 
   testWidgets(
-      'language toggle reflects the active locale as the selected chip',
-      (tester) async {
-    // The toggle's selection tracks the LocaleCubit (the source of truth that
-    // drives MaterialApp.locale in production), so seed it to Arabic.
-    await localeCubit.setLocale(const Locale('ar'));
+    'language toggle reflects the active locale as the selected chip',
+    (tester) async {
+      // The toggle's selection tracks the LocaleCubit (the source of truth that
+      // drives MaterialApp.locale in production), so seed it to Arabic.
+      await localeCubit.setLocale(const Locale('ar'));
 
-    await tester.pumpWidget(
-      _harness(
-        cubit: cubit,
-        localeCubit: localeCubit,
-        locale: const Locale('ar'),
-      ),
-    );
-    await tester.pump();
+      await tester.pumpWidget(
+        _harness(
+          cubit: cubit,
+          localeCubit: localeCubit,
+          locale: const Locale('ar'),
+        ),
+      );
+      await tester.pump();
 
-    final toggle = tester.widget<OnboardingLanguageToggle>(
-      find.byKey(const Key('onboarding.languageToggle')),
-    );
-    // The segment bound to the active locale is the selected one.
-    expect(toggle.selectedValue, 'ar');
-  });
+      final toggle = tester.widget<OnboardingLanguageToggle>(
+        find.byKey(const Key('onboarding.languageToggle')),
+      );
+      // The segment bound to the active locale is the selected one.
+      expect(toggle.selectedValue, 'ar');
+    },
+  );
 
   // ---- Redesign 01: the rebuilt three-band layout ----
 
-  testWidgets('emits the redesign Semantics identifiers for the new chrome',
-      (tester) async {
+  testWidgets('emits the redesign Semantics identifiers for the new chrome', (
+    tester,
+  ) async {
     final handle = tester.ensureSemantics();
     await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
     await tester.pump();
@@ -355,8 +384,14 @@ void main() {
       find.bySemanticsIdentifier('onboarding_language_toggle'),
       findsOneWidget,
     );
-    expect(find.bySemanticsIdentifier('onboarding_language_en'), findsOneWidget);
-    expect(find.bySemanticsIdentifier('onboarding_language_ar'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('onboarding_language_en'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsIdentifier('onboarding_language_ar'),
+      findsOneWidget,
+    );
     // The dots carry the only "step N of M" announcement on the screen.
     expect(find.bySemanticsIdentifier('onboarding_page_dots'), findsOneWidget);
     // The screen root is unchanged by the rebuild. (The CTA/headline/skip ids
@@ -370,22 +405,24 @@ void main() {
   });
 
   testWidgets(
-      'slide 2 swaps the collage for its SVG (collage is slide 1 only)',
-      (tester) async {
-    await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
-    await tester.pump();
+    'slide 2 swaps the collage for its SVG (collage is slide 1 only)',
+    (tester) async {
+      await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+      await tester.pump();
 
-    expect(find.byKey(const Key('onboarding.preview')), findsOneWidget);
+      expect(find.byKey(const Key('onboarding.preview')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('onboarding.next')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('onboarding.next')));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('onboarding.preview')), findsNothing);
-    expect(find.byType(WalkthroughTrustArt), findsOneWidget);
-  });
+      expect(find.byKey(const Key('onboarding.preview')), findsNothing);
+      expect(find.byType(WalkthroughTrustArt), findsOneWidget);
+    },
+  );
 
-  testWidgets('mirrors the CTA arrow and keeps the toggle live under RTL',
-      (tester) async {
+  testWidgets('mirrors the CTA arrow and keeps the toggle live under RTL', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _harness(
         cubit: cubit,
@@ -403,12 +440,14 @@ void main() {
     );
     expect(cta.trailingIcon, Icons.arrow_forward);
     expect(cta.mirrorIcons, isTrue);
-    final flip = tester.widgetList<Transform>(
-      find.descendant(
-        of: find.byKey(const Key('onboarding.next')),
-        matching: find.byType(Transform),
-      ),
-    ).where((t) => t.transform.storage[0] == -1.0);
+    final flip = tester
+        .widgetList<Transform>(
+          find.descendant(
+            of: find.byKey(const Key('onboarding.next')),
+            matching: find.byType(Transform),
+          ),
+        )
+        .where((t) => t.transform.storage[0] == -1.0);
     expect(
       flip,
       isNotEmpty,
@@ -416,19 +455,41 @@ void main() {
     );
 
     // The mirrored top bar still drives the locale.
-    await tester.tap(find.text('EN'));
+    await tester.tap(find.text('إنجليزي'));
     await tester.pumpAndSettle();
     expect(localeCubit.state.languageCode, 'en');
   });
 
-  testWidgets('survives a 200% text scale with the CTA still tappable',
-      (tester) async {
+  testWidgets('Arabic keeps Next primary and Skip secondary in reading order', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _harness(
         cubit: cubit,
         localeCubit: localeCubit,
-        textScale: 2.0,
+        locale: const Locale('ar'),
       ),
+    );
+    await tester.pump();
+
+    final primary = tester.getRect(find.byKey(const Key('onboarding.next')));
+    final skip = tester.getRect(find.byKey(const Key('onboarding.skip')));
+    expect(
+      skip.top,
+      greaterThan(primary.bottom),
+      reason: 'Skip is the secondary action below the full-width Next action.',
+    );
+    expect(
+      Directionality.of(tester.element(find.text('تخطّي'))),
+      TextDirection.rtl,
+    );
+  });
+
+  testWidgets('survives a 200% text scale with the CTA still tappable', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _harness(cubit: cubit, localeCubit: localeCubit, textScale: 2.0),
     );
     await tester.pump();
 

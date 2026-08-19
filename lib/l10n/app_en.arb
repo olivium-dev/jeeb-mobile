@@ -606,21 +606,21 @@
   "@onboardingChooseLanguage": {
     "description": "Header above the language toggle on the onboarding screen"
   },
-  "onboardingSlide1Title": "Say what you need",
+  "onboardingSlide1Title": "Tell Jeeb what you need",
   "@onboardingSlide1Title": {
     "description": "MIDNIGHT W1 walkthrough headline (M2-21); replaces the pass-1 'Voice-first deliveries'."
   },
-  "onboardingSlide1Body": "Hold the mic and ask in your own words — Arabic, English, or both.",
-  "onboardingSlide2Title": "Neighbours you can trust",
+  "onboardingSlide1Body": "Hold the mic and say it your way — in Arabic, English, or both.",
+  "onboardingSlide2Title": "A Jeeber you can count on",
   "@onboardingSlide2Title": {
     "description": "MIDNIGHT W2 walkthrough headline (M2-21); replaces the pass-1 'Trusted Jeebers, every time'."
   },
-  "onboardingSlide2Body": "Every Jeeber is ID-verified and rated after every single delivery.",
-  "onboardingSlide3Title": "Watch it come to you",
+  "onboardingSlide2Body": "Every Jeeber is identity-verified and rated after each delivery.",
+  "onboardingSlide3Title": "Know where your order is",
   "@onboardingSlide3Title": {
     "description": "MIDNIGHT W3 walkthrough headline (M2-21); replaces the pass-1 'Live tracking, end to end', so the non-breaking-space binding retired with that phrase."
   },
-  "onboardingSlide3Body": "Follow your Jeeber on the map, door to door — then pay cash. That's it.",
+  "onboardingSlide3Body": "Track your Jeeber live from pickup to your door, then pay cash.",
   "onboardingNext": "Next",
   "onboardingGetStarted": "Get Started",
   "onboardingSkip": "Skip",
@@ -631,7 +631,7 @@
   "@onboardingLanguageEnglish": {
     "description": "English option in the EN/AR language toggle on the onboarding screen (FR-WALKTHROUGH / FR-P1-2)."
   },
-  "onboardingLanguageArabic": "العربية",
+  "onboardingLanguageArabic": "Arabic",
   "@onboardingLanguageArabic": {
     "description": "Arabic option in the EN/AR language toggle on the onboarding screen. Always shown in its native script in both locales (FR-WALKTHROUGH / FR-P1-2)."
   },
@@ -4797,12 +4797,12 @@
   "orderChatFieldTier": "Service tier",
   "orderChatFieldValueA11y": "{field}: {value}",
 
-  "onboardingTagline": "Jeeb me anything",
-  "@onboardingTagline": {"description": "Brand slogan eyebrow above the onboarding headline; English here, ar keeps the Arabic slogan."},
+  "onboardingTagline": "Jeeb it by voice",
+  "@onboardingTagline": {"description": "Localized eyebrow above the onboarding headline."},
   "onboardingPreviewVoiceDuration": "0:04",
   "@onboardingPreviewVoiceDuration": {"description": "Decorative voice-note duration on the onboarding marketplace preview."},
-  "onboardingPreviewVoiceTranscript": "جيب لي دوا من الفرماشية",
-  "@onboardingPreviewVoiceTranscript": {"description": "Decorative Lebanese-Arabic voice transcript on the preview card; Arabic in both locales."},
+  "onboardingPreviewVoiceTranscript": "Bring me medicine from the pharmacy",
+  "@onboardingPreviewVoiceTranscript": {"description": "Decorative, localized voice transcript on the preview card."},
   "onboardingPreviewRequestTitle": "Groceries — Spinneys",
   "@onboardingPreviewRequestTitle": {"description": "Decorative request title on the onboarding preview card."},
   "onboardingPreviewOfferQuote": "\"I can bring it in 40 mins — $8\"",
@@ -4811,7 +4811,7 @@
   "@onboardingPreviewOfferMeta": {"description": "Decorative Jeeber name/rating/distance on the onboarding preview card; the star inherits the text ink."},
   "onboardingLanguageEnShort": "EN",
   "@onboardingLanguageEnShort": {"description": "Short EN segment label on the onboarding language toggle."},
-  "onboardingLanguageArShort": "عربي",
+  "onboardingLanguageArShort": "AR",
   "@onboardingLanguageArShort": {"description": "Short Arabic segment label on the onboarding language toggle."},
   "onboardingPageIndicator": "Step {current} of {total}",
   "@onboardingPageIndicator": {"description": "Screen-reader label for the onboarding page dots.", "placeholders": {"current": {}, "total": {}}},
@@ -5385,10 +5385,10 @@
   "settingsNotificationCategoryOffers": "New offers",
   "@settingsNotificationCategoryOffers": {"description": "R22 settings-scoped label for the new-offer push category. Do NOT reuse notificationCategoryOffers — the notification-preferences sub-screen renders that one and a test pins its value."},
 
-  "walkthroughSlide2Tagline": "جيران تثق فيهم",
-  "@walkthroughSlide2Tagline": {"description": "W2 Arabic brand eyebrow above the slide headline. Deliberately Arabic in the English locale too, like the wordmark; do NOT translate to English."},
-  "walkthroughSlide3Tagline": "تابعها لعندك",
-  "@walkthroughSlide3Tagline": {"description": "W3 Arabic brand eyebrow above the slide headline. Deliberately Arabic in the English locale too, like the wordmark; do NOT translate to English."},
+  "walkthroughSlide2Tagline": "Delivery you can trust",
+  "@walkthroughSlide2Tagline": {"description": "Localized W2 eyebrow above the slide headline."},
+  "walkthroughSlide3Tagline": "From pickup to your door",
+  "@walkthroughSlide3Tagline": {"description": "Localized W3 eyebrow above the slide headline."},
   "walkthroughTrustName": "Karim",
   "@walkthroughTrustName": {"description": "W2 walkthrough art — decorative sample Jeeber name; also the avatar initial. Nothing is wired to a real Jeeber. Keep it short: it lives in a single-line ellipsising row."},
   "walkthroughTrustRoleLine": "Jeeber · Achrafieh",
