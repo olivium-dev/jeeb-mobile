@@ -195,14 +195,12 @@
         </activity>
 
         <!--
-            Jeeber Dev Tool second launcher icon. This activity-alias reuses the
-            SAME MainActivity (same process, DI, session, storage — full access),
-            but launching via this icon makes MainActivity.getInitialRoute()
-            return "/devtool", so lib/main.dart boots the Dev Tool shell instead
-            of the product app. Gated by @bool/jeeb_devtool_enabled (resValue in
-            build.gradle: true on dev/staging, false on production), so the icon
-            only appears on non-production builds — defence-in-depth alongside
-            the compile-time kDevToolEnabled dart-define.
+            Jeeber Dev Tool second launcher icon. A dedicated activity/task is
+            required so tapping either launcher works while the other Flutter
+            surface is already alive. Both activities still share the same app
+            package, preferences, and secure session storage. Gated by
+            @bool/jeeb_devtool_enabled (resValue in build.gradle: true only when
+            explicitly requested on dev/staging, always false on production).
         -->
         <!-- F5: image_cropper (uCrop) needs its host activity registered;
              portrait-locked to match F4's app-wide lock. -->
@@ -211,18 +209,24 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
 
-        <activity-alias
-            android:name=".DevToolLauncher"
-            android:targetActivity=".MainActivity"
+        <activity
+            android:name=".DevToolActivity"
             android:exported="true"
             android:enabled="@bool/jeeb_devtool_enabled"
             android:label="Jeeber Dev Tool"
-            android:icon="@mipmap/ic_launcher">
+            android:icon="@mipmap/ic_launcher"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.devtool"
+            android:theme="@style/LaunchTheme"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity-alias>
+        </activity>
 
         <!--
             S007-P1B: enable Flutter's built-in deep linking so the VIEW

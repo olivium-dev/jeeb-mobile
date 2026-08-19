@@ -18,7 +18,7 @@ import java.io.File
 // throws `local_auth plugin requires activity to be a FragmentActivity` at
 // runtime. FlutterFragmentActivity is a drop-in replacement that keeps the same
 // configureFlutterEngine / getInitialRoute / onCreate seam wiring below intact.
-class MainActivity : FlutterFragmentActivity() {
+open class MainActivity : FlutterFragmentActivity() {
     private val seamChannelName = "app.jeeb.mobile/dev_seam"
 
     // Samsung app-sleep silently drops FCM while the app is battery-restricted.
@@ -75,18 +75,6 @@ class MainActivity : FlutterFragmentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
         super.onCreate(savedInstanceState)
-    }
-
-    // Jeeber Dev Tool launcher routing: when this activity was started via the
-    // `.DevToolLauncher` activity-alias (the Dev Tool icon), hand Flutter the
-    // "/devtool" initial route so lib/main.dart boots the Dev Tool shell instead
-    // of the product app. Any other launch (the normal app icon, a deep link)
-    // falls through to the default FlutterActivity behaviour.
-    override fun getInitialRoute(): String? {
-        if (componentName?.className == "app.jeeb.mobile.DevToolLauncher") {
-            return "/devtool"
-        }
-        return super.getInitialRoute()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
