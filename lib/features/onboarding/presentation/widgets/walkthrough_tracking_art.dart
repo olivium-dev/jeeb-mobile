@@ -47,26 +47,31 @@ class WalkthroughTrackingArt extends StatelessWidget {
   /// stage above the onboarding sheet. This keeps the complete route and its
   /// two status chips visible on compact devices.
   static const double designWidth = 440;
-  static const double designHeight = 510;
+  static const double designHeight = 400;
+  static const double _originalDesignHeight = 510;
+  static const double _verticalCompression =
+      designHeight / _originalDesignHeight;
 
-  /// Courier: ring Ø54, disc Ø38, glyph 21, centre `(235, 291)` in map space.
+  /// Courier: ring Ø54, disc Ø38, glyph 21, centre `(235, 228)` in the
+  /// compact map space.
   static const double courierRing = 54;
   static const double courierDisc = 38;
   static const double courierGlyph = 21;
   static const double courierCentreX = 235;
-  static const double courierCentreY = 291;
+  static const double courierCentreY = 228;
 
   /// Pin: 28dp marker with a `0 0 14 rgba(255,82,82,.6)` bloom.
   static const double pinSize = 28;
   static const double pinGlowBlur = 14;
   static const double pinGlowAlpha = 0.6;
   static const double pinEndInset = 62;
-  static const double pinTopY = 112;
+  static const double pinTopY = 88;
 
-  /// Chips: `left:24/top:400` and `right:24/top:452` in map space.
+  /// Chips sit in the compact map's lower band without taking space from the
+  /// onboarding panel.
   static const double chipInset = Spacing.xLarge;
-  static const double etaChipTopY = 400;
-  static const double cashChipTopY = 452;
+  static const double etaChipTopY = 314;
+  static const double cashChipTopY = 354;
 
   @override
   Widget build(BuildContext context) {
@@ -172,13 +177,15 @@ class WalkthroughTrackingArt extends StatelessWidget {
     );
   }
 
-  /// The board's `M80 470 C 150 420, 160 330, 240 290 S 350 210, 360 140`.
+  /// The board's route is vertically compacted so a 360dp wide S24 stage can
+  /// render it at a readable, width-led scale instead of shrinking the whole
+  /// map to fit its former 510dp height.
   /// The fitted canvas scales this path uniformly, preserving the route's
   /// relation to the courier on both tall and compact screens.
   static Path _routePath(Size size, bool mirror) {
     final double sx = size.width / designWidth;
     Offset p(double x, double y) =>
-        Offset(mirror ? size.width - x * sx : x * sx, y);
+        Offset(mirror ? size.width - x * sx : x * sx, y * _verticalCompression);
     final Offset start = p(80, 470);
     // The `S` command reflects the previous control point: 240+(240-160)=320.
     return Path()
@@ -321,7 +328,7 @@ class _NightMapPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final double sx = size.width / WalkthroughTrackingArt.designWidth;
     double x(double v) => mirror ? size.width - v * sx : v * sx;
-    double y(double v) => v;
+    double y(double v) => v * WalkthroughTrackingArt._verticalCompression;
     final Paint roadPaint = Paint()..color = road;
     final Paint blockPaint = Paint()..color = block;
     final double roadTop = y(verticalTopY);

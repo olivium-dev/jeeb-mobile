@@ -54,6 +54,20 @@ Widget _harness({
   );
 }
 
+/// The physical S24 viewport: 1080×2340 at 3×, including its status and
+/// navigation insets. Keeping this explicit catches a tall bottom sheet before
+/// it shrinks the animated onboarding stage in a release build.
+void _useS24Viewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1080, 2340);
+  tester.view.devicePixelRatio = 3;
+  tester.view.viewPadding = const FakeViewPadding(top: 72, bottom: 96);
+  tester.view.padding = const FakeViewPadding(top: 72, bottom: 96);
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetViewPadding);
+  addTearDown(tester.view.resetPadding);
+}
+
 void main() {
   late SharedPreferences prefs;
   late OnboardingCubit cubit;
@@ -84,6 +98,45 @@ void main() {
     expect(find.byKey(const Key('onboarding.next')), findsOneWidget);
     expect(find.byKey(const Key('onboarding.dots')), findsOneWidget);
   });
+
+  testWidgets(
+    'S24 keeps the sheet compact and all three illustrations readable',
+    (tester) async {
+      _useS24Viewport(tester);
+      await tester.pumpWidget(_harness(cubit: cubit, localeCubit: localeCubit));
+      await tester.pump();
+
+      final stage = tester.getRect(find.byKey(const Key('onboarding.stage')));
+      final sheet = tester.getRect(find.byKey(const Key('onboarding.sheet')));
+      expect(stage.bottom, lessThanOrEqualTo(sheet.top));
+      expect(stage.height, greaterThanOrEqualTo(270));
+      expect(sheet.height, lessThanOrEqualTo(380));
+      expect(
+        tester.getRect(find.byKey(const Key('onboarding.mic'))).height,
+        greaterThanOrEqualTo(110),
+      );
+
+      await tester.tap(find.byKey(const Key('onboarding.next')));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const Key('onboarding.trustCard'))).width,
+        greaterThanOrEqualTo(210),
+      );
+
+      await tester.tap(find.byKey(const Key('onboarding.next')));
+      await tester.pumpAndSettle();
+      final tracking = tester.getRect(
+        find.byKey(const Key('onboarding.trackingMap')),
+      );
+      final courier = tester.getRect(
+        find.byKey(const Key('onboarding.courier')),
+      );
+      final cash = tester.getRect(find.byKey(const Key('onboarding.cashChip')));
+      expect(courier.height, greaterThanOrEqualTo(44));
+      expect(cash.bottom, lessThanOrEqualTo(tracking.bottom));
+      expect(tracking.bottom, lessThanOrEqualTo(sheet.top));
+    },
+  );
 
   // ---- Status-bar contrast: LIGHT icons over the navy hero ----
 

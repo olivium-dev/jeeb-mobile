@@ -53,7 +53,8 @@ class WalkthroughTrustArt extends StatelessWidget {
   /// above the onboarding sheet. Keeping the composition in one coordinate
   /// space prevents the floating chips from crossing the identity card on a
   /// short phone.
-  static const double designSize = 360;
+  static const double designWidth = 360;
+  static const double designHeight = 320;
 
   @override
   Widget build(BuildContext context) {
@@ -68,8 +69,8 @@ class WalkthroughTrustArt extends StatelessWidget {
             fit: BoxFit.contain,
             alignment: Alignment.topCenter,
             child: SizedBox(
-              width: designSize,
-              height: designSize,
+              width: designWidth,
+              height: designHeight,
               child: Stack(
                 clipBehavior: Clip.hardEdge,
                 children: <Widget>[
@@ -134,7 +135,7 @@ class WalkthroughTrustArt extends StatelessWidget {
                     ),
                   ),
                   Positioned(
-                    top: 292,
+                    top: 276,
                     left: 0,
                     right: 0,
                     child: Center(

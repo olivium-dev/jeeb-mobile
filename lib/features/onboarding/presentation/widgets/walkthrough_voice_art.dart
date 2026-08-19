@@ -116,7 +116,7 @@ class WalkthroughVoiceArt extends StatelessWidget {
             ? 8
             : stage * placement.voiceTopFraction;
         final double offerTop = compact
-            ? stage * 0.38
+            ? stage * 0.34
             : stage * placement.offerTopFraction;
         final double micCentre = compact
             ? stage * 0.78

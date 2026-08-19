@@ -193,7 +193,7 @@ const String _kWordmarkAsset = 'assets/brand/jeeb_logo.svg';
 
 /// Minimum height reserved for the animated slide copy, so the docked sheet
 /// does not change height as the pager advances.
-const double _kSlideCopyMinHeight = 120.0;
+const double _kSlideCopyMinHeight = 96.0;
 
 /// The sheet never grows past this fraction of the viewport — the guard that
 /// keeps a 200% text scale scrolling inside the sheet instead of squeezing the
@@ -221,9 +221,9 @@ const EdgeInsetsGeometry _kSheetMargin = EdgeInsetsDirectional.fromSTEB(
 );
 const EdgeInsetsGeometry _kSheetPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
-  Spacing.xLarge,
-  Spacing.xLarge,
   Spacing.large,
+  Spacing.xLarge,
+  Spacing.medium,
 );
 
 /// Which radial the slide's tile draws over the base wash.
@@ -592,10 +592,10 @@ class _OnboardingSheet extends StatelessWidget {
                           pages.length,
                         ),
                       ),
-                      const SizedBox(height: Spacing.large),
+                      const SizedBox(height: Spacing.medium),
                       JeebCtaFooter.single(
-                        // One unambiguous primary action, then the secondary
-                        // Skip action beneath it, works identically in LTR/RTL.
+                        // The primary CTA remains full-width, followed by its
+                        // secondary action in reading order.
                         padding: EdgeInsetsDirectional.zero,
                         spacing: Spacing.twoXSmall,
                         below: Align(
@@ -728,10 +728,11 @@ class _OnboardingCtaButton extends StatelessWidget {
 class _OnboardingSkipButton extends StatelessWidget {
   const _OnboardingSkipButton({required this.label, required this.onTap});
 
-  /// Board `padding:0 22px`, `height:56`, `15.5px / w600 / #8A93D8`.
+  /// Compact 44dp hit target below the primary action, preserving the
+  /// walkthrough's visual hierarchy while prioritising the illustration area.
   static const EdgeInsetsGeometry padding = EdgeInsetsDirectional.symmetric(
-    horizontal: 22,
-    vertical: Spacing.medium,
+    horizontal: Spacing.medium,
+    vertical: Spacing.small,
   );
 
   final String label;
