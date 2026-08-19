@@ -109,8 +109,8 @@ void main() {
       final stage = tester.getRect(find.byKey(const Key('onboarding.stage')));
       final sheet = tester.getRect(find.byKey(const Key('onboarding.sheet')));
       expect(stage.bottom, lessThanOrEqualTo(sheet.top));
-      expect(stage.height, greaterThanOrEqualTo(270));
-      expect(sheet.height, lessThanOrEqualTo(380));
+      expect(stage.height, greaterThanOrEqualTo(310));
+      expect(sheet.height, lessThanOrEqualTo(344));
       expect(
         tester.getRect(find.byKey(const Key('onboarding.mic'))).height,
         greaterThanOrEqualTo(110),

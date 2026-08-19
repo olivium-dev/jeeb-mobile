@@ -193,7 +193,7 @@ const String _kWordmarkAsset = 'assets/brand/jeeb_logo.svg';
 
 /// Minimum height reserved for the animated slide copy, so the docked sheet
 /// does not change height as the pager advances.
-const double _kSlideCopyMinHeight = 96.0;
+const double _kSlideCopyMinHeight = 80.0;
 
 /// The sheet never grows past this fraction of the viewport — the guard that
 /// keeps a 200% text scale scrolling inside the sheet instead of squeezing the
@@ -221,9 +221,9 @@ const EdgeInsetsGeometry _kSheetMargin = EdgeInsetsDirectional.fromSTEB(
 );
 const EdgeInsetsGeometry _kSheetPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
-  Spacing.large,
-  Spacing.xLarge,
   Spacing.medium,
+  Spacing.xLarge,
+  Spacing.xSmall,
 );
 
 /// Which radial the slide's tile draws over the base wash.
@@ -581,7 +581,7 @@ class _OnboardingSheet extends StatelessWidget {
                           currentPage: currentPage,
                         ),
                       ),
-                      const SizedBox(height: Spacing.medium),
+                      const SizedBox(height: Spacing.xSmall),
                       JeebPageDots(
                         key: const Key('onboarding.dots'),
                         count: pages.length,
@@ -592,7 +592,7 @@ class _OnboardingSheet extends StatelessWidget {
                           pages.length,
                         ),
                       ),
-                      const SizedBox(height: Spacing.medium),
+                      const SizedBox(height: Spacing.xSmall),
                       JeebCtaFooter.single(
                         // The primary CTA remains full-width, followed by its
                         // secondary action in reading order.
@@ -707,6 +707,9 @@ class _OnboardingCtaButton extends StatelessWidget {
           key: Key(isLast ? 'onboarding.getStarted' : 'onboarding.next'),
           label: isLast ? getStartedLabel : nextLabel,
           onTap: isLast ? onGetStarted : onNext,
+          // A 48dp control remains comfortably tappable while releasing 8dp
+          // to the three animated walkthrough stages on compact phones.
+          height: JeebCtaButton.textHeight,
           // The last slide's CTA is a bare label on the tile — the arrow is the
           // advance affordance only.
           trailingIcon: isLast ? null : Icons.arrow_forward,
