@@ -109,13 +109,27 @@ void main() {
       final stage = tester.getRect(find.byKey(const Key('onboarding.stage')));
       final sheet = tester.getRect(find.byKey(const Key('onboarding.sheet')));
       expect(stage.bottom, lessThanOrEqualTo(sheet.top));
-      expect(stage.height, greaterThanOrEqualTo(326));
-      expect(sheet.height, lessThanOrEqualTo(328));
-      final step = tester.widget<OmdsWalkthroughStep>(
-        find.byType(OmdsWalkthroughStep).first,
-      );
-      expect(step.labelStyle!.fontSize, greaterThanOrEqualTo(14));
-      expect(step.descriptionStyle!.fontSize, greaterThanOrEqualTo(12));
+      expect(stage.height, greaterThanOrEqualTo(330));
+      expect(sheet.height, lessThanOrEqualTo(324));
+      void expectCopyTypography() {
+        final step = tester.widget<OmdsWalkthroughStep>(
+          find.byType(OmdsWalkthroughStep).first,
+        );
+        expect(step.labelStyle!.fontSize, greaterThanOrEqualTo(16));
+        expect(step.descriptionStyle!.fontSize, greaterThanOrEqualTo(12));
+        final copyText = tester.widgetList<Text>(
+          find.descendant(
+            of: find.byKey(const Key('onboarding.slideCopy')),
+            matching: find.byType(Text),
+          ),
+        );
+        expect(
+          copyText.every((text) => (text.style?.fontSize ?? 0) >= 12),
+          isTrue,
+        );
+      }
+
+      expectCopyTypography();
       final copy = tester.getRect(
         find.byKey(const Key('onboarding.slideCopy')),
       );
@@ -136,6 +150,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('onboarding.next')));
       await tester.pumpAndSettle();
+      expectCopyTypography();
       expect(
         tester.getRect(find.byKey(const Key('onboarding.trustCard'))).width,
         greaterThanOrEqualTo(210),
@@ -143,6 +158,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('onboarding.next')));
       await tester.pumpAndSettle();
+      expectCopyTypography();
       final tracking = tester.getRect(
         find.byKey(const Key('onboarding.trackingMap')),
       );

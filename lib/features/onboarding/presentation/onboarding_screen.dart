@@ -193,13 +193,13 @@ const String _kWordmarkAsset = 'assets/brand/jeeb_logo.svg';
 
 /// Minimum height reserved for the animated slide copy, so the docked sheet
 /// does not change height as the pager advances.
-const double _kSlideCopyMinHeight = 76.0;
+const double _kSlideCopyMinHeight = 72.0;
 
 /// A compact local type hierarchy preserves legibility while the walkthrough
 /// releases a little more room for the animation.  These values are scoped to
 /// the onboarding panel; they do not change the app-wide type ramp.
-const double _kOnboardingSupportingTextSize = 13.0;
-const double _kOnboardingTitleSize = 18.0;
+const double _kOnboardingSupportingTextSize = 12.0;
+const double _kOnboardingTitleSize = 16.0;
 const double _kOnboardingCtaSize = 14.0;
 
 /// The sheet never grows past this fraction of the viewport — the guard that
@@ -754,7 +754,7 @@ class _OnboardingSkipButton extends StatelessWidget {
   /// walkthrough's visual hierarchy while prioritising the illustration area.
   static const EdgeInsetsGeometry padding = EdgeInsetsDirectional.symmetric(
     horizontal: Spacing.medium,
-    vertical: 13,
+    vertical: 14,
   );
 
   final String label;
