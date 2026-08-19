@@ -89,7 +89,7 @@ Not DB-confirmed:
 
 Searches performed for the request markers:
 
-- All non-template Postgres DBs via `pg_dump --data-only --inserts | grep`.
+- All non-template Postgres DBs via read-only aggregate queries against the live schema.
 - Redis `--scan` across string/hash/list/set/zset values.
 - Mongo dbpath string search under `/Users/oudaykhaled/mongodb-data`.
 
