@@ -43,10 +43,11 @@ class WalkthroughTrackingArt extends StatelessWidget {
   /// Board `rgba(215,59,0,.9)`.
   static const double routeAlpha = 0.9;
 
-  /// The board lays the map out in a 440×560 zone anchored to the canvas top;
-  /// the stage band this widget fills starts 51dp lower.
+  /// The map is composed on this fixed board then fitted as one unit into the
+  /// stage above the onboarding sheet. This keeps the complete route and its
+  /// two status chips visible on compact devices.
   static const double designWidth = 440;
-  static const double stageOriginY = -51;
+  static const double designHeight = 510;
 
   /// Courier: ring Ø54, disc Ø38, glyph 21, centre `(235, 291)` in map space.
   static const double courierRing = 54;
@@ -77,84 +78,107 @@ class WalkthroughTrackingArt extends StatelessWidget {
     final bool rtl = Directionality.of(context) == TextDirection.rtl;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        // `PositionedDirectional.start` already measures from the reading edge,
-        // so the board's LTR x mirrors for free — only the painters need told.
-        final double sx = constraints.maxWidth / designWidth;
-        return Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _NightMapPainter(
-                  road: semantics.glassFill,
-                  block: semantics.mutedSurface,
-                  mirror: rtl,
+        // `PositionedDirectional.start` already measures from the reading
+        // edge, so the board's LTR x mirrors for free — only the painters need
+        // told. Fitting the whole board (rather than just its x coordinates)
+        // means its bottom route and chips cannot disappear behind the sheet.
+        return KeyedSubtree(
+          key: const Key('onboarding.trackingMap'),
+          child: SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.contain,
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: designWidth,
+                height: designHeight,
+                child: Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: <Widget>[
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _NightMapPainter(
+                          road: semantics.glassFill,
+                          block: semantics.mutedSurface,
+                          mirror: rtl,
+                        ),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: JDashedPath(
+                        pathBuilder: (Size size) => _routePath(size, rtl),
+                        color: roles.accent.withValues(alpha: routeAlpha),
+                        strokeWidth: routeStroke,
+                        dashLength: routeDash,
+                        gapLength: routeGap,
+                        duration: routeDuration,
+                        travel: routeTravel,
+                      ),
+                    ),
+                    const PositionedDirectional(
+                      start:
+                          courierCentreX -
+                          courierRing / JeebMotion.haloStartScale / 2,
+                      top:
+                          courierCentreY -
+                          courierRing / JeebMotion.haloStartScale / 2,
+                      child: KeyedSubtree(
+                        key: Key('onboarding.courier'),
+                        child: _CourierMark(),
+                      ),
+                    ),
+                    const PositionedDirectional(
+                      end: pinEndInset,
+                      top: pinTopY,
+                      child: KeyedSubtree(
+                        key: Key('onboarding.destinationPin'),
+                        child: JFloat(
+                          duration: pinDuration,
+                          child: _DestinationPin(),
+                        ),
+                      ),
+                    ),
+                    PositionedDirectional(
+                      start: chipInset,
+                      top: etaChipTopY,
+                      child: KeyedSubtree(
+                        key: const Key('onboarding.etaChip'),
+                        child: WalkthroughFloatChip(
+                          label: l10n.trackingArrivingIn(etaMinutes),
+                          tone: WalkthroughGlassTone.glass,
+                          duration: WalkthroughFloat.lead,
+                        ),
+                      ),
+                    ),
+                    PositionedDirectional(
+                      end: chipInset,
+                      top: cashChipTopY,
+                      child: KeyedSubtree(
+                        key: const Key('onboarding.cashChip'),
+                        child: WalkthroughFloatChip(
+                          label: l10n.walkthroughTrackingCashChip,
+                          tone: WalkthroughGlassTone.accent,
+                          duration: WalkthroughFloat.trail,
+                          delay: WalkthroughFloat.mapChipDelay,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            Positioned.fill(
-              child: JDashedPath(
-                pathBuilder: (Size size) => _routePath(size, rtl),
-                color: roles.accent.withValues(alpha: routeAlpha),
-                strokeWidth: routeStroke,
-                dashLength: routeDash,
-                gapLength: routeGap,
-                duration: routeDuration,
-                travel: routeTravel,
-              ),
-            ),
-            PositionedDirectional(
-              start:
-                  courierCentreX * sx -
-                  courierRing / JeebMotion.haloStartScale / 2,
-              top:
-                  courierCentreY +
-                  stageOriginY -
-                  courierRing / JeebMotion.haloStartScale / 2,
-              child: const _CourierMark(),
-            ),
-            const PositionedDirectional(
-              end: pinEndInset,
-              top: pinTopY + stageOriginY,
-              child: JFloat(
-                duration: pinDuration,
-                child: _DestinationPin(),
-              ),
-            ),
-            PositionedDirectional(
-              start: chipInset,
-              top: etaChipTopY + stageOriginY,
-              child: WalkthroughFloatChip(
-                label: l10n.trackingArrivingIn(etaMinutes),
-                tone: WalkthroughGlassTone.glass,
-                duration: WalkthroughFloat.lead,
-              ),
-            ),
-            PositionedDirectional(
-              end: chipInset,
-              top: cashChipTopY + stageOriginY,
-              child: WalkthroughFloatChip(
-                label: l10n.walkthroughTrackingCashChip,
-                tone: WalkthroughGlassTone.accent,
-                duration: WalkthroughFloat.trail,
-                delay: WalkthroughFloat.mapChipDelay,
-              ),
-            ),
-          ],
+          ),
         );
       },
     );
   }
 
   /// The board's `M80 470 C 150 420, 160 330, 240 290 S 350 210, 360 140`.
-  /// Horizontal is scaled to the box and mirrored under RTL; vertical is a pure
-  /// translation, because stretching it would bend the route off the courier.
+  /// The fitted canvas scales this path uniformly, preserving the route's
+  /// relation to the courier on both tall and compact screens.
   static Path _routePath(Size size, bool mirror) {
     final double sx = size.width / designWidth;
-    Offset p(double x, double y) => Offset(
-      mirror ? size.width - x * sx : x * sx,
-      y + stageOriginY,
-    );
+    Offset p(double x, double y) =>
+        Offset(mirror ? size.width - x * sx : x * sx, y);
     final Offset start = p(80, 470);
     // The `S` command reflects the previous control point: 240+(240-160)=320.
     return Path()
@@ -296,9 +320,8 @@ class _NightMapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final double sx = size.width / WalkthroughTrackingArt.designWidth;
-    double x(double v) =>
-        mirror ? size.width - v * sx : v * sx;
-    double y(double v) => v + WalkthroughTrackingArt.stageOriginY;
+    double x(double v) => mirror ? size.width - v * sx : v * sx;
+    double y(double v) => v;
     final Paint roadPaint = Paint()..color = road;
     final Paint blockPaint = Paint()..color = block;
     final double roadTop = y(verticalTopY);
@@ -337,9 +360,7 @@ class _NightMapPainter extends CustomPainter {
         blockTwoSize,
       ),
     ]) {
-      final double left = mirror
-          ? x(origin.dx) - box.width
-          : x(origin.dx);
+      final double left = mirror ? x(origin.dx) - box.width : x(origin.dx);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(left, y(origin.dy), box.width, box.height),

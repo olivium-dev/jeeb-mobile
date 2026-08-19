@@ -156,8 +156,9 @@ class JeebApp extends StatefulWidget {
 }
 
 class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
-  late final OnboardingCubit _onboarding =
-      OnboardingCubit(prefs: widget.preferences);
+  late final OnboardingCubit _onboarding = OnboardingCubit(
+    prefs: widget.preferences,
+  );
   late final RoleCubit _role = RoleCubit(
     prefs: widget.preferences,
     initialRole: _devSeamRole,
@@ -169,8 +170,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// dual-role jeeber on the Jeeber surface instead of the client surface.
   /// Empty until the first [RoleSync.sync] resolves, so a plain client never
   /// flashes jeeber content.
-  late final RoleAvailabilityCubit _roleAvailability =
-      RoleAvailabilityCubit(const RoleAvailability(), widget.preferences);
+  late final RoleAvailabilityCubit _roleAvailability = RoleAvailabilityCubit(
+    const RoleAvailability(),
+    widget.preferences,
+  );
 
   /// BUG-1: login→capability sync. Reads getMe and publishes `available_roles`
   /// (and the server `active_role`) to [_roleAvailability] / [_role]. Resolves
@@ -197,8 +200,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   // production DI graph still wires the same impls behind these interfaces;
   // this constructor just doesn't depend on it being initialized.
   late final BiometricLockCubit _biometricLock = BiometricLockCubit(
-    preference:
-        BiometricPreferenceRepositoryImpl(prefs: widget.preferences),
+    preference: BiometricPreferenceRepositoryImpl(prefs: widget.preferences),
     // This is the app-level cubit the router gate watches AND the one the
     // `/lock` screen consumes (BlocProvider.value) — the SAME instance whose
     // authenticate() must succeed for JM-005 to release to the shell. RC-3: in
@@ -209,7 +211,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // device-credential PIN/password fallback), replacing the inert
     // [UnavailableBiometricGateway]. kDebugMode is a const false in release, so
     // the DevBiometricGateway branch is tree-shaken out.
-    gateway: widget.biometricGateway ??
+    gateway:
+        widget.biometricGateway ??
         (kDebugMode
             ? const DevBiometricGateway()
             : LocalAuthBiometricGateway()),
@@ -221,8 +224,9 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// We hold a reference to the [SessionCubit] only when WE created it, so
   /// dispose closes exactly what we own. The router reads it as a [SessionGate];
   /// [_evaluateSession] kicks the first keystore read after first frame.
-  late final SessionCubit? _ownedSession =
-      widget.sessionGate == null ? SessionCubit(tokenStore: AuthTokenStore()) : null;
+  late final SessionCubit? _ownedSession = widget.sessionGate == null
+      ? SessionCubit(tokenStore: AuthTokenStore())
+      : null;
   late final SessionGate _session = widget.sessionGate ?? _ownedSession!;
 
   /// JEBV4-205 (E10): the app-language cubit, held as a member so the
@@ -276,6 +280,11 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   NotificationDispatcher? _dispatcher;
   DeviceTokenRegistrar? _deviceRegistrar;
 
+  /// Notification permission is deliberately requested only after the user has
+  /// finished the walkthrough. An operating-system dialog over the animated
+  /// onboarding pages makes their notification examples look broken.
+  StreamSubscription<bool>? _onboardingPushSub;
+
   /// D3: bounded retries for the FCM transport build (see [_initPushChainAsync]).
   static const int _pushTransportMaxAttempts = 4;
   static const Duration _pushTransportRetryDelay = Duration(seconds: 2);
@@ -306,6 +315,12 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _onboardingPushSub = _onboarding.stream
+        .where((bool completed) => completed)
+        .take(1)
+        .listen(
+          (_) => unawaited(_pushHandler?.bootstrap() ?? Future<void>.value()),
+        );
     // FR-P0-3: evaluate the session AFTER first frame. The cubit starts in the
     // `unknown` phase (router gate is a no-op) so we never flash `/register`
     // during the keystore read; once this resolves, an onboarded-but-tokenless
@@ -472,7 +487,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // D3: the plugin channel is not always up on the first post-frame try
       // (`channel-error`), and a single failure used to strand the whole
       // process on the fake — no FCM token, so no device registration at all.
-      final injectedSeam = widget.firebaseInitializer != null ||
+      final injectedSeam =
+          widget.firebaseInitializer != null ||
           widget.fcmTransportBuilder != null;
       final attempts = injectedSeam ? 1 : _pushTransportMaxAttempts;
       PushTransport? built;
@@ -482,13 +498,16 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
         try {
           await (widget.firebaseInitializer ?? _defaultFirebaseInitializer)();
           built =
-              await (widget.fcmTransportBuilder ?? _defaultFcmTransportBuilder)();
+              await (widget.fcmTransportBuilder ??
+                  _defaultFcmTransportBuilder)();
         } catch (error) {
           // No Firebase config, or a real FCM/bridge failure. Degrade to the
           // in-memory fake so the banner UI still works and cold start survives.
           if (kDebugMode) {
-            debugPrint('[push] FCM transport attempt ${i + 1}/$attempts '
-                'failed: $error');
+            debugPrint(
+              '[push] FCM transport attempt ${i + 1}/$attempts '
+              'failed: $error',
+            );
           }
         }
       }
@@ -558,6 +577,9 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // flip roles at runtime), so a jeeber-scoped destination is never handed
       // to a client (403 dead end — FIX-REQUESTS.md:35).
       roleResolver: () => _role.state,
+      // Build the push chain on cold start, but leave the platform permission
+      // prompt until onboarding has been completed.
+      bootstrap: _onboarding.isCompleted,
     );
     setState(() {
       _pushHandler = handler;
@@ -585,9 +607,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// active role while that list is empty (the matcher fails OPEN on empty).
   Set<String> _sessionLocalRoles() {
     final available = _roleAvailability.state.roles.toSet();
-    return available.isNotEmpty
-        ? available
-        : <String>{_role.state.storageKey};
+    return available.isNotEmpty ? available : <String>{_role.state.storageKey};
   }
 
   /// Default real-transport builder. `initialize()` wires the background
@@ -615,6 +635,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _roleAvailability.close();
     _role.close();
     _onboarding.close();
+    _onboardingPushSub?.cancel();
     _sessionSub?.cancel();
     _resumeSub?.cancel();
     _ownedSession?.close();
@@ -697,8 +718,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
                         onBannerTap: (message) {
                           // F5: same role guard as the dispatcher — a client
                           // must never be handed a jeeber-scoped destination.
-                          final path =
-                              deepLinkForMessage(message, role: _role.state);
+                          final path = deepLinkForMessage(
+                            message,
+                            role: _role.state,
+                          );
                           if (path != null) _router.go(path);
                         },
                         child: content,

@@ -105,43 +105,70 @@ class WalkthroughVoiceArt extends StatelessWidget {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double stage = constraints.maxHeight;
+        // The raised walkthrough sheet intentionally leaves a much shorter
+        // canvas on phones such as the S24. Keep the bubbles in separate bands
+        // and shrink the mic as a real layout box (rather than merely painting
+        // it smaller), so the animated halo can never collide with either
+        // notification.
+        final bool compact = stage < 425;
+        final double micScale = (stage / 425).clamp(0.64, 1.0);
+        final double voiceTop = compact
+            ? 8
+            : stage * placement.voiceTopFraction;
+        final double offerTop = compact
+            ? stage * 0.38
+            : stage * placement.offerTopFraction;
+        final double micCentre = compact
+            ? stage * 0.78
+            : stage * placement.micCentreFraction;
         return Stack(
-          clipBehavior: Clip.none,
+          clipBehavior: Clip.hardEdge,
           children: <Widget>[
             Positioned.fill(
               child: CustomPaint(
                 painter: _AccentRingsPainter(
                   color: context.jeebRoles.accent,
-                  centreFraction: placement.micCentreFraction,
-                  outerRadius: placement.outerRingRadius,
-                  innerRadius: placement.innerRingRadius,
+                  centreFraction: micCentre / stage,
+                  outerRadius: placement.outerRingRadius * micScale,
+                  innerRadius: placement.innerRingRadius * micScale,
                 ),
               ),
             ),
             PositionedDirectional(
               start: placement.voiceStartInset,
-              top: stage * placement.voiceTopFraction,
-              child: const JFloat(
-                duration: WalkthroughFloat.lead,
-                child: _VoiceNoteBubble(),
+              top: voiceTop,
+              child: const KeyedSubtree(
+                key: Key('onboarding.voiceNote'),
+                child: JFloat(
+                  duration: WalkthroughFloat.lead,
+                  child: _VoiceNoteBubble(),
+                ),
               ),
             ),
             PositionedDirectional(
               end: placement.offerEndInset,
-              top: stage * placement.offerTopFraction,
-              child: JFloat(
-                duration: WalkthroughFloat.trail,
-                delay: WalkthroughFloat.bubbleDelay,
-                child: _OfferBubble(placement: placement),
+              top: offerTop,
+              child: KeyedSubtree(
+                key: const Key('onboarding.offerNotification'),
+                child: JFloat(
+                  duration: WalkthroughFloat.trail,
+                  delay: WalkthroughFloat.bubbleDelay,
+                  child: _OfferBubble(placement: placement),
+                ),
               ),
             ),
             Positioned(
-              top: stage * placement.micCentreFraction,
+              top: micCentre,
               left: 0,
               right: 0,
               child: FractionalTranslation(
                 translation: const Offset(0, -0.5),
-                child: Center(child: _MicWithHalo(placement: placement)),
+                child: Center(
+                  child: KeyedSubtree(
+                    key: const Key('onboarding.mic'),
+                    child: _MicWithHalo(placement: placement, scale: micScale),
+                  ),
+                ),
               ),
             ),
           ],
@@ -155,9 +182,10 @@ class WalkthroughVoiceArt extends StatelessWidget {
 /// rule 2. The primitive's .75 rest scale is what lands the ring on the board's
 /// hairline, so the box is the ring diameter divided by that scale.
 class _MicWithHalo extends StatelessWidget {
-  const _MicWithHalo({required this.placement});
+  const _MicWithHalo({required this.placement, required this.scale});
 
   final WalkthroughVoicePlacement placement;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +193,7 @@ class _MicWithHalo extends StatelessWidget {
         Theme.of(context).extension<JeebSemanticColors>() ??
         JeebSemanticColors.midnight();
     final double haloBox =
-        placement.haloRingDiameter / JeebMotion.haloStartScale;
+        placement.haloRingDiameter / JeebMotion.haloStartScale * scale;
     return SizedBox.square(
       dimension: haloBox,
       child: Stack(
@@ -178,7 +206,7 @@ class _MicWithHalo extends StatelessWidget {
             child: SizedBox.square(dimension: haloBox),
           ),
           JeebMicHero.decorative(
-            size: placement.micSize,
+            size: placement.micSize * scale,
             halo: false,
             glow: JeebMicGlow.hero,
           ),

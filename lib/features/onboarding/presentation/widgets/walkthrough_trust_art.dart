@@ -49,6 +49,12 @@ class WalkthroughTrustArt extends StatelessWidget {
   static const double idChipStartInset = 22;
   static const double ratedChipEndInset = 20;
 
+  /// A self-contained board that can be uniformly fitted into the stage left
+  /// above the onboarding sheet. Keeping the composition in one coordinate
+  /// space prevents the floating chips from crossing the identity card on a
+  /// short phone.
+  static const double designSize = 360;
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -57,77 +63,97 @@ class WalkthroughTrustArt extends StatelessWidget {
         JeebSemanticColors.midnight();
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double stage = constraints.maxHeight;
-        return Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            // The .6s offset between the two rings IS the effect — the outer
-            // ring swells behind the inner one.
-            Positioned.fill(
-              child: JArcPulse(
-                duration: ringDuration,
-                delay: outerRingDelay,
-                child: _OrbitRing(
-                  colour: semantics.glassFill,
-                  radius: outerRingRadius,
-                  centreFraction: ringCentreFraction,
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: JArcPulse(
-                duration: ringDuration,
-                child: _OrbitRing(
-                  colour: semantics.glassBorder,
-                  radius: innerRingRadius,
-                  centreFraction: ringCentreFraction,
-                ),
-              ),
-            ),
-            Positioned(
-              top: stage * cardCentreFraction,
-              left: 0,
-              right: 0,
-              child: const FractionalTranslation(
-                translation: Offset(0, -0.5),
-                child: Center(child: _JeeberIdentityCard()),
-              ),
-            ),
-            PositionedDirectional(
-              start: idChipStartInset,
-              top: stage * idChipTopFraction,
-              child: WalkthroughFloatChip(
-                label: l10n.walkthroughTrustIdChip,
-                tone: WalkthroughGlassTone.glass,
-                duration: WalkthroughFloat.lead,
-                leading: Icons.shield_outlined,
-              ),
-            ),
-            PositionedDirectional(
-              end: ratedChipEndInset,
-              top: stage * ratedChipTopFraction,
-              child: WalkthroughFloatChip(
-                label: l10n.walkthroughTrustRatedChip,
-                tone: WalkthroughGlassTone.glass,
-                duration: WalkthroughFloat.trail,
-                delay: WalkthroughFloat.trustChipDelay,
-              ),
-            ),
-            Positioned(
-              top: stage * codeChipTopFraction,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: JBreathe(
-                  duration: accentChipDuration,
-                  child: WalkthroughStillChip(
-                    label: l10n.walkthroughTrustCodeChip,
-                    tone: WalkthroughGlassTone.accent,
+        return SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.contain,
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: designSize,
+              height: designSize,
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: <Widget>[
+                  // The .6s offset between the two rings IS the effect — the
+                  // outer ring swells behind the inner one.
+                  Positioned.fill(
+                    child: JArcPulse(
+                      duration: ringDuration,
+                      delay: outerRingDelay,
+                      child: _OrbitRing(
+                        colour: semantics.glassFill,
+                        radius: outerRingRadius,
+                        centreFraction: ringCentreFraction,
+                      ),
+                    ),
                   ),
-                ),
+                  Positioned.fill(
+                    child: JArcPulse(
+                      duration: ringDuration,
+                      child: _OrbitRing(
+                        colour: semantics.glassBorder,
+                        radius: innerRingRadius,
+                        centreFraction: ringCentreFraction,
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    top: 100,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: KeyedSubtree(
+                        key: Key('onboarding.trustCard'),
+                        child: _JeeberIdentityCard(),
+                      ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    start: idChipStartInset,
+                    top: 8,
+                    child: KeyedSubtree(
+                      key: const Key('onboarding.idChip'),
+                      child: WalkthroughFloatChip(
+                        label: l10n.walkthroughTrustIdChip,
+                        tone: WalkthroughGlassTone.glass,
+                        duration: WalkthroughFloat.lead,
+                        leading: Icons.shield_outlined,
+                      ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    end: ratedChipEndInset,
+                    top: 56,
+                    child: KeyedSubtree(
+                      key: const Key('onboarding.ratedChip'),
+                      child: WalkthroughFloatChip(
+                        label: l10n.walkthroughTrustRatedChip,
+                        tone: WalkthroughGlassTone.glass,
+                        duration: WalkthroughFloat.trail,
+                        delay: WalkthroughFloat.trustChipDelay,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 292,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: KeyedSubtree(
+                        key: const Key('onboarding.codeChip'),
+                        child: JBreathe(
+                          duration: accentChipDuration,
+                          child: WalkthroughStillChip(
+                            label: l10n.walkthroughTrustCodeChip,
+                            tone: WalkthroughGlassTone.accent,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         );
       },
     );

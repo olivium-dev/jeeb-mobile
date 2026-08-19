@@ -469,24 +469,27 @@ class _WalkthroughStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // MANDATORY: the Ø370 rings are wider than a 360dp device.
-    return ClipRect(
-      child: PageView.builder(
-        key: const Key('onboarding.pager'),
-        controller: controller,
-        itemCount: pages.length,
-        onPageChanged: onPageChanged,
-        itemBuilder: (_, i) => Semantics(
-          // walkthrough_slide_1 / _slide_2 / _slide_3 — per-slide root.
-          identifier: 'walkthrough_slide_${i + 1}',
-          container: true,
-          child: Semantics(
-            key: const Key('onboarding.illustration'),
-            image: true,
-            label: pages[i].semanticsLabel,
-            child: ExcludeSemantics(
-              child: KeyedSubtree(
-                key: i == 0 ? const Key('onboarding.preview') : null,
-                child: pages[i].art,
+    return KeyedSubtree(
+      key: const Key('onboarding.stage'),
+      child: ClipRect(
+        child: PageView.builder(
+          key: const Key('onboarding.pager'),
+          controller: controller,
+          itemCount: pages.length,
+          onPageChanged: onPageChanged,
+          itemBuilder: (_, i) => Semantics(
+            // walkthrough_slide_1 / _slide_2 / _slide_3 — per-slide root.
+            identifier: 'walkthrough_slide_${i + 1}',
+            container: true,
+            child: Semantics(
+              key: const Key('onboarding.illustration'),
+              image: true,
+              label: pages[i].semanticsLabel,
+              child: ExcludeSemantics(
+                child: KeyedSubtree(
+                  key: i == 0 ? const Key('onboarding.preview') : null,
+                  child: pages[i].art,
+                ),
               ),
             ),
           ),
@@ -524,91 +527,94 @@ class _OnboardingSheet extends StatelessWidget {
       top: false,
       child: Padding(
         padding: _kSheetMargin,
-        child: DecoratedBox(
-          key: const Key('onboarding.panel'),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[
-                scheme.surfaceContainerHighest.withValues(
-                  alpha: _kSheetTopOpacity,
-                ),
-                scheme.surfaceContainerHigh.withValues(
-                  alpha: _kSheetBottomOpacity,
+        child: KeyedSubtree(
+          key: const Key('onboarding.sheet'),
+          child: DecoratedBox(
+            key: const Key('onboarding.panel'),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  scheme.surfaceContainerHighest.withValues(
+                    alpha: _kSheetTopOpacity,
+                  ),
+                  scheme.surfaceContainerHigh.withValues(
+                    alpha: _kSheetBottomOpacity,
+                  ),
+                ],
+              ),
+              borderRadius: radius,
+              border: Border.all(
+                color: scheme.onSurface.withValues(alpha: _kSheetBorderOpacity),
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: scheme.shadow.withValues(alpha: 0.32),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
                 ),
               ],
             ),
-            borderRadius: radius,
-            border: Border.all(
-              color: scheme.onSurface.withValues(alpha: _kSheetBorderOpacity),
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: scheme.shadow.withValues(alpha: 0.32),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.sizeOf(context).height * _kSheetMaxHeightFactor,
               ),
-            ],
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight:
-                  MediaQuery.sizeOf(context).height * _kSheetMaxHeightFactor,
-            ),
-            child: SingleChildScrollView(
-              // The card never scrolls at 1.0x text scale; this only rescues
-              // very large accessibility scales.
-              physics: const ClampingScrollPhysics(),
-              child: Padding(
-                padding: _kSheetPadding,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Semantics(
-                      // PoC Maestro identifier: the animated step copy is the
-                      // screen's headline, asserted by id (i18n-safe).
-                      identifier: 'onboarding_headline',
-                      child: _SlideCopy(
-                        key: const Key('onboarding.slideCopy'),
-                        pages: pages,
-                        currentPage: currentPage,
-                      ),
-                    ),
-                    const SizedBox(height: Spacing.medium),
-                    JeebPageDots(
-                      key: const Key('onboarding.dots'),
-                      count: pages.length,
-                      activeIndex: currentPage,
-                      identifier: 'onboarding_page_dots',
-                      semanticLabel: l10n.onboardingPageIndicator(
-                        currentPage + 1,
-                        pages.length,
-                      ),
-                    ),
-                    const SizedBox(height: Spacing.large),
-                    JeebCtaFooter.single(
-                      // One unambiguous primary action, then the secondary
-                      // Skip action beneath it, works identically in LTR/RTL.
-                      padding: EdgeInsetsDirectional.zero,
-                      spacing: Spacing.twoXSmall,
-                      below: Align(
-                        alignment: AlignmentDirectional.center,
-                        child: _OnboardingSkipButton(
-                          label: l10n.onboardingSkip,
-                          onTap: onSkip,
+              child: SingleChildScrollView(
+                // The card never scrolls at 1.0x text scale; this only rescues
+                // very large accessibility scales.
+                physics: const ClampingScrollPhysics(),
+                child: Padding(
+                  padding: _kSheetPadding,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Semantics(
+                        // PoC Maestro identifier: the animated step copy is the
+                        // screen's headline, asserted by id (i18n-safe).
+                        identifier: 'onboarding_headline',
+                        child: _SlideCopy(
+                          key: const Key('onboarding.slideCopy'),
+                          pages: pages,
+                          currentPage: currentPage,
                         ),
                       ),
-                      child: _OnboardingCtaButton(
-                        isLast: isLast,
-                        nextLabel: l10n.onboardingNext,
-                        getStartedLabel: l10n.onboardingGetStarted,
-                        onNext: onNext,
-                        onGetStarted: onGetStarted,
+                      const SizedBox(height: Spacing.medium),
+                      JeebPageDots(
+                        key: const Key('onboarding.dots'),
+                        count: pages.length,
+                        activeIndex: currentPage,
+                        identifier: 'onboarding_page_dots',
+                        semanticLabel: l10n.onboardingPageIndicator(
+                          currentPage + 1,
+                          pages.length,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: Spacing.large),
+                      JeebCtaFooter.single(
+                        // One unambiguous primary action, then the secondary
+                        // Skip action beneath it, works identically in LTR/RTL.
+                        padding: EdgeInsetsDirectional.zero,
+                        spacing: Spacing.twoXSmall,
+                        below: Align(
+                          alignment: AlignmentDirectional.center,
+                          child: _OnboardingSkipButton(
+                            label: l10n.onboardingSkip,
+                            onTap: onSkip,
+                          ),
+                        ),
+                        child: _OnboardingCtaButton(
+                          isLast: isLast,
+                          nextLabel: l10n.onboardingNext,
+                          getStartedLabel: l10n.onboardingGetStarted,
+                          onNext: onNext,
+                          onGetStarted: onGetStarted,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

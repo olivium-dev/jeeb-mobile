@@ -15,9 +15,10 @@ class NotificationDispatcher {
     required GoRouter router,
     Future<NotificationMessage?>? initialMessage,
     UserRole Function()? roleResolver,
-  })  : _handler = handler,
-        _router = router,
-        _roleResolver = roleResolver {
+    bool bootstrap = true,
+  }) : _handler = handler,
+       _router = router,
+       _roleResolver = roleResolver {
     _sub = handler.opens.listen(_route);
     final initial = initialMessage;
     if (initial != null) {
@@ -25,7 +26,7 @@ class NotificationDispatcher {
         if (msg != null) _route(msg);
       });
     }
-    unawaited(_handler.bootstrap());
+    if (bootstrap) unawaited(_handler.bootstrap());
   }
 
   final PushNotificationHandler _handler;
