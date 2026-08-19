@@ -109,8 +109,13 @@ void main() {
       final stage = tester.getRect(find.byKey(const Key('onboarding.stage')));
       final sheet = tester.getRect(find.byKey(const Key('onboarding.sheet')));
       expect(stage.bottom, lessThanOrEqualTo(sheet.top));
-      expect(stage.height, greaterThanOrEqualTo(310));
-      expect(sheet.height, lessThanOrEqualTo(344));
+      expect(stage.height, greaterThanOrEqualTo(342));
+      expect(sheet.height, lessThanOrEqualTo(312));
+      final step = tester.widget<OmdsWalkthroughStep>(
+        find.byType(OmdsWalkthroughStep).first,
+      );
+      expect(step.labelStyle!.fontSize, greaterThanOrEqualTo(12));
+      expect(step.descriptionStyle!.fontSize, greaterThanOrEqualTo(12));
       expect(
         tester.getRect(find.byKey(const Key('onboarding.mic'))).height,
         greaterThanOrEqualTo(110),

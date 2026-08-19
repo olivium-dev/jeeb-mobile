@@ -193,7 +193,14 @@ const String _kWordmarkAsset = 'assets/brand/jeeb_logo.svg';
 
 /// Minimum height reserved for the animated slide copy, so the docked sheet
 /// does not change height as the pager advances.
-const double _kSlideCopyMinHeight = 80.0;
+const double _kSlideCopyMinHeight = 64.0;
+
+/// The compact walkthrough sheet must never render copy below this readable
+/// floor. The smaller local hierarchy releases space for its animation without
+/// changing the app-wide type ramp.
+const double _kOnboardingTextMinimum = 12.0;
+const double _kOnboardingTitleSize = 16.0;
+const double _kOnboardingCtaSize = 14.0;
 
 /// The sheet never grows past this fraction of the viewport — the guard that
 /// keeps a 200% text scale scrolling inside the sheet instead of squeezing the
@@ -212,7 +219,7 @@ const double _kWashAlpha = 0.22;
 const double _kSheetTopOpacity = 0.98;
 const double _kSheetBottomOpacity = 0.94;
 const double _kSheetBorderOpacity = 0.20;
-const double _kSheetBottomGap = 12;
+const double _kSheetBottomGap = Spacing.xSmall;
 const EdgeInsetsGeometry _kSheetMargin = EdgeInsetsDirectional.fromSTEB(
   Spacing.medium,
   0,
@@ -221,9 +228,9 @@ const EdgeInsetsGeometry _kSheetMargin = EdgeInsetsDirectional.fromSTEB(
 );
 const EdgeInsetsGeometry _kSheetPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
-  Spacing.medium,
-  Spacing.xLarge,
   Spacing.xSmall,
+  Spacing.xLarge,
+  Spacing.twoXSmall,
 );
 
 /// Which radial the slide's tile draws over the base wash.
@@ -581,7 +588,7 @@ class _OnboardingSheet extends StatelessWidget {
                           currentPage: currentPage,
                         ),
                       ),
-                      const SizedBox(height: Spacing.xSmall),
+                      const SizedBox(height: Spacing.twoXSmall),
                       JeebPageDots(
                         key: const Key('onboarding.dots'),
                         count: pages.length,
@@ -592,7 +599,7 @@ class _OnboardingSheet extends StatelessWidget {
                           pages.length,
                         ),
                       ),
-                      const SizedBox(height: Spacing.xSmall),
+                      const SizedBox(height: Spacing.twoXSmall),
                       JeebCtaFooter.single(
                         // The primary CTA remains full-width, followed by its
                         // secondary action in reading order.
@@ -647,6 +654,7 @@ class _SlideCopy extends StatelessWidget {
             page.tagline,
             textAlign: TextAlign.center,
             style: context.jeebText.titleProminent.copyWith(
+              fontSize: _kOnboardingTextMinimum,
               fontWeight: FontWeight.w700,
               color: context.jeebRoles.accent,
             ),
@@ -655,8 +663,13 @@ class _SlideCopy extends StatelessWidget {
           OmdsWalkthroughStep(
             label: page.title,
             description: page.body,
-            labelStyle: context.jeebText.h1.copyWith(color: scheme.onSurface),
+            spacing: Spacing.twoXSmall,
+            labelStyle: context.jeebText.h1.copyWith(
+              fontSize: _kOnboardingTitleSize,
+              color: scheme.onSurface,
+            ),
             descriptionStyle: context.jeebText.body.copyWith(
+              fontSize: _kOnboardingTextMinimum,
               color: scheme.onSurfaceVariant,
             ),
           ),
@@ -710,6 +723,10 @@ class _OnboardingCtaButton extends StatelessWidget {
           // A 48dp control remains comfortably tappable while releasing 8dp
           // to the three animated walkthrough stages on compact phones.
           height: JeebCtaButton.textHeight,
+          labelStyle: context.jeebText.button.copyWith(
+            fontSize: _kOnboardingCtaSize,
+            fontWeight: FontWeight.w700,
+          ),
           // The last slide's CTA is a bare label on the tile — the arrow is the
           // advance affordance only.
           trailingIcon: isLast ? null : Icons.arrow_forward,
@@ -735,7 +752,7 @@ class _OnboardingSkipButton extends StatelessWidget {
   /// walkthrough's visual hierarchy while prioritising the illustration area.
   static const EdgeInsetsGeometry padding = EdgeInsetsDirectional.symmetric(
     horizontal: Spacing.medium,
-    vertical: Spacing.small,
+    vertical: 14,
   );
 
   final String label;
@@ -753,6 +770,7 @@ class _OnboardingSkipButton extends StatelessWidget {
         padding: padding,
         onTap: onTap,
         textStyle: context.jeebText.cardTitle.copyWith(
+          fontSize: _kOnboardingTextMinimum,
           fontWeight: FontWeight.w600,
           color: scheme.onSurfaceVariant,
         ),
