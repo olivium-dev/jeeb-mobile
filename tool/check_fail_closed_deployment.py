@@ -1,15 +1,8 @@
+import subprocess
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCAN_ROOTS = (
-    ROOT / ".github",
-    ROOT / "scripts",
-    ROOT / "tool",
-    ROOT / "docs",
-    ROOT / ".claude" / "agent-memory",
-)
-SUFFIXES = {".md", ".sh", ".yml", ".yaml", ".py", ".js", ".mjs"}
 FORBIDDEN_FRAGMENTS = (
     ("docker service ", "roll", "back"),
     ("--update-failure-action ", "roll", "back"),
@@ -19,16 +12,31 @@ FORBIDDEN_FRAGMENTS = (
     ("roll", "back target"),
     ("roll", "back pointer"),
     ("prove ", "roll", "back"),
+    ("docker service ", "rm"),
+    ("git ", "re", "vert"),
+    ("alembic ", "down", "grade"),
+    ("mix ecto.", "roll", "back"),
+    ("goose ", "down"),
+    ("restore ", "previous image"),
+    ("restore ", "prior image"),
 )
 
 
 def sources():
-    for source_root in SCAN_ROOTS:
-        if not source_root.exists():
+    tracked = subprocess.check_output(
+        ["git", "ls-files", "-z"], cwd=ROOT
+    ).decode("utf-8")
+    for relative_path in tracked.split("\0"):
+        if not relative_path:
             continue
-        for path in source_root.rglob("*"):
-            if path.is_file() and path.suffix in SUFFIXES:
-                yield path, path.read_text(encoding="utf-8").lower()
+        path = ROOT / relative_path
+        if path.name.endswith(".lock"):
+            continue
+        try:
+            source = path.read_text(encoding="utf-8").lower()
+        except (UnicodeDecodeError, OSError):
+            continue
+        yield path, source
 
 
 violations = []
