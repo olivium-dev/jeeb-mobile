@@ -109,8 +109,26 @@ void main() {
       final stage = tester.getRect(find.byKey(const Key('onboarding.stage')));
       final sheet = tester.getRect(find.byKey(const Key('onboarding.sheet')));
       expect(stage.bottom, lessThanOrEqualTo(sheet.top));
-      expect(stage.height, greaterThanOrEqualTo(310));
-      expect(sheet.height, lessThanOrEqualTo(344));
+      expect(stage.height, greaterThanOrEqualTo(326));
+      expect(sheet.height, lessThanOrEqualTo(328));
+      final step = tester.widget<OmdsWalkthroughStep>(
+        find.byType(OmdsWalkthroughStep).first,
+      );
+      expect(step.labelStyle!.fontSize, greaterThanOrEqualTo(14));
+      expect(step.descriptionStyle!.fontSize, greaterThanOrEqualTo(12));
+      final copy = tester.getRect(
+        find.byKey(const Key('onboarding.slideCopy')),
+      );
+      final dots = tester.getRect(find.byKey(const Key('onboarding.dots')));
+      final primary = tester.getRect(find.byKey(const Key('onboarding.next')));
+      final skip = tester.getRect(find.byKey(const Key('onboarding.skip')));
+      expect(copy.top - sheet.top, greaterThanOrEqualTo(14));
+      expect(dots.top - copy.bottom, greaterThanOrEqualTo(8));
+      expect(primary.top - dots.bottom, greaterThanOrEqualTo(8));
+      expect(primary.height, greaterThanOrEqualTo(48));
+      expect(skip.height, greaterThanOrEqualTo(44));
+      expect(skip.top - primary.bottom, greaterThanOrEqualTo(4));
+      expect(sheet.bottom - skip.bottom, greaterThanOrEqualTo(6));
       expect(
         tester.getRect(find.byKey(const Key('onboarding.mic'))).height,
         greaterThanOrEqualTo(110),

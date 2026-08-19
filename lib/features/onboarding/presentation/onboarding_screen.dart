@@ -193,7 +193,14 @@ const String _kWordmarkAsset = 'assets/brand/jeeb_logo.svg';
 
 /// Minimum height reserved for the animated slide copy, so the docked sheet
 /// does not change height as the pager advances.
-const double _kSlideCopyMinHeight = 80.0;
+const double _kSlideCopyMinHeight = 76.0;
+
+/// A compact local type hierarchy preserves legibility while the walkthrough
+/// releases a little more room for the animation.  These values are scoped to
+/// the onboarding panel; they do not change the app-wide type ramp.
+const double _kOnboardingSupportingTextSize = 13.0;
+const double _kOnboardingTitleSize = 18.0;
+const double _kOnboardingCtaSize = 14.0;
 
 /// The sheet never grows past this fraction of the viewport — the guard that
 /// keeps a 200% text scale scrolling inside the sheet instead of squeezing the
@@ -212,7 +219,7 @@ const double _kWashAlpha = 0.22;
 const double _kSheetTopOpacity = 0.98;
 const double _kSheetBottomOpacity = 0.94;
 const double _kSheetBorderOpacity = 0.20;
-const double _kSheetBottomGap = 12;
+const double _kSheetBottomGap = 10;
 const EdgeInsetsGeometry _kSheetMargin = EdgeInsetsDirectional.fromSTEB(
   Spacing.medium,
   0,
@@ -221,9 +228,9 @@ const EdgeInsetsGeometry _kSheetMargin = EdgeInsetsDirectional.fromSTEB(
 );
 const EdgeInsetsGeometry _kSheetPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.xLarge,
-  Spacing.medium,
+  14,
   Spacing.xLarge,
-  Spacing.xSmall,
+  6,
 );
 
 /// Which radial the slide's tile draws over the base wash.
@@ -581,6 +588,8 @@ class _OnboardingSheet extends StatelessWidget {
                           currentPage: currentPage,
                         ),
                       ),
+                      // Preserve clear separation between copy, page state,
+                      // and actions; only the outer sheet is compacted.
                       const SizedBox(height: Spacing.xSmall),
                       JeebPageDots(
                         key: const Key('onboarding.dots'),
@@ -647,6 +656,7 @@ class _SlideCopy extends StatelessWidget {
             page.tagline,
             textAlign: TextAlign.center,
             style: context.jeebText.titleProminent.copyWith(
+              fontSize: _kOnboardingSupportingTextSize,
               fontWeight: FontWeight.w700,
               color: context.jeebRoles.accent,
             ),
@@ -655,8 +665,13 @@ class _SlideCopy extends StatelessWidget {
           OmdsWalkthroughStep(
             label: page.title,
             description: page.body,
-            labelStyle: context.jeebText.h1.copyWith(color: scheme.onSurface),
+            spacing: Spacing.xSmall,
+            labelStyle: context.jeebText.h1.copyWith(
+              fontSize: _kOnboardingTitleSize,
+              color: scheme.onSurface,
+            ),
             descriptionStyle: context.jeebText.body.copyWith(
+              fontSize: _kOnboardingSupportingTextSize,
               color: scheme.onSurfaceVariant,
             ),
           ),
@@ -710,6 +725,10 @@ class _OnboardingCtaButton extends StatelessWidget {
           // A 48dp control remains comfortably tappable while releasing 8dp
           // to the three animated walkthrough stages on compact phones.
           height: JeebCtaButton.textHeight,
+          labelStyle: context.jeebText.button.copyWith(
+            fontSize: _kOnboardingCtaSize,
+            fontWeight: FontWeight.w700,
+          ),
           // The last slide's CTA is a bare label on the tile — the arrow is the
           // advance affordance only.
           trailingIcon: isLast ? null : Icons.arrow_forward,
@@ -735,7 +754,7 @@ class _OnboardingSkipButton extends StatelessWidget {
   /// walkthrough's visual hierarchy while prioritising the illustration area.
   static const EdgeInsetsGeometry padding = EdgeInsetsDirectional.symmetric(
     horizontal: Spacing.medium,
-    vertical: Spacing.small,
+    vertical: 13,
   );
 
   final String label;
@@ -753,6 +772,7 @@ class _OnboardingSkipButton extends StatelessWidget {
         padding: padding,
         onTap: onTap,
         textStyle: context.jeebText.cardTitle.copyWith(
+          fontSize: _kOnboardingSupportingTextSize,
           fontWeight: FontWeight.w600,
           color: scheme.onSurfaceVariant,
         ),
