@@ -156,6 +156,17 @@ def main() -> int:
         )
         return 2
 
+    action_ref = re.compile(r"uses:\s*([^\s@]+)@([^\s#]+)")
+    for path, source in files:
+        if path.suffix.lower() not in {".yml", ".yaml"}:
+            continue
+        for action, ref in action_ref.findall(source):
+            if action.startswith("./"):
+                continue
+            if not re.fullmatch(r"[0-9a-f]{40}", ref):
+                print(f"GitHub Action is not pinned by commit: {path}: {action}@{ref}")
+                return 2
+
     print(f"Forward-only deployment policy verified across {len(files)} tracked UTF-8 files.")
     return 0
 
