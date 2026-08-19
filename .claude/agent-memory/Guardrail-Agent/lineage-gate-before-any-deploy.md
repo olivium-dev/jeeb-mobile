@@ -13,8 +13,8 @@ currently running, and deploying it silently regresses the service.
 
 A `health=200` / `unauth=401` deploy gate **cannot** detect this: a regressed build is
 perfectly healthy, it is merely old, and it passes every smoke test — which is exactly
-what makes it dangerous. Apply the same check to the rollback target; an armed rollback
-that is not an ancestor of the deployed SHA is not a rollback.
+what makes it dangerous. Only forward candidates descended from the deployed SHA are
+eligible; predecessor deployment targets are forbidden.
 
 Read the deployed SHA **from the live host**, never inferred from a branch name.
 
@@ -24,7 +24,7 @@ noticed until a jeeber could not see customer messages (one-way-chat P0). In b02
 shape appeared in jeeb-gateway: every b02 gateway lane sat 21 device-verified commits
 behind deployed `d883dfd` (including a P0 chat-payload fix and the whole P7 offer-wait
 contract), because b02 branched off `origin/main` while the deployed code lived on an
-unmerged `batch/b01-*` branch. The rollback target was not an ancestor either.
+unmerged `batch/b01-*` branch. A predecessor target was also incorrectly considered.
 
 **Count with `git rev-list --count A..B`, never `git log --oneline A..B | wc -l`.** They
 disagree: `git log` applies default history simplification and drops merge commits. On the

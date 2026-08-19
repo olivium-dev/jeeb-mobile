@@ -76,17 +76,15 @@ That is why this was corrected before any screen code was written.
 
 ---
 
-## Rollback (if ever needed)
+## Forward recovery
 
-```bash
-git -C /Users/oudaykhaled/Desktop/olivium/jeeb/omds-flutter switch iter5-flutter-blankscreen  # still exactly b445bb4
-cp /Users/oudaykhaled/Desktop/olivium/jeeb/pubspec.lock.jeeb-mobile.pre-dio-refresh \
-   /Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile/pubspec.lock
-cd /Users/oudaykhaled/Desktop/olivium/jeeb/jeeb-mobile && flutter pub get
-```
+If local dependency state drifts, fast-forward the OMDS checkout to its audited default
+branch, refresh the permitted dependency versions, and re-run the full verification gate.
+Do not switch to an older checkout or reinstate a predecessor lockfile.
 
-Neither change is part of this migration's diff: the OMDS checkout is outside the repo, and
-`pubspec.lock` is gitignored. `git status` shows no tracked-file change from either.
+Neither environment correction is part of this migration's diff: the OMDS checkout is
+outside the repo, and `pubspec.lock` is gitignored. `git status` shows no tracked-file
+change from either.
 
 ---
 
