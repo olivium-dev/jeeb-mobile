@@ -19,6 +19,7 @@ class DevGatewayClient {
   static const String _superLoginRosterPath = '/api/User/super-login/users';
   static const String _seedUserPath = '/dev/seed/user';
   static const String _mintPath = '/auth/tokens';
+  static const String _kycQueuePath = '/admin/kyc/queue';
 
   static const String _conversationsPath = '/v1/conversations';
 
@@ -139,6 +140,113 @@ class DevGatewayClient {
     }
   }
 
+  // Like mintTokenForUser but returns the refresh token too, so the caller
+  // can persist a full session (used to make a seeded jeeber online-ready).
+  Future<({String accessToken, String refreshToken})> mintSession(
+    String userId, {
+    List<String>? roles,
+  }) async {
+    final nonEmptyRoles = roles
+        ?.where((r) => r.trim().isNotEmpty)
+        .toList(growable: false);
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        _mintPath,
+        data: <String, dynamic>{
+          'userId': userId,
+          if (nonEmptyRoles != null && nonEmptyRoles.isNotEmpty)
+            'roles': nonEmptyRoles,
+        },
+      );
+      final access = response.data?['accessToken'] as String?;
+      final refresh = response.data?['refreshToken'] as String?;
+      if (access == null || access.isEmpty) {
+        throw const DevGatewayException(
+          'The token mint returned no accessToken.',
+        );
+      }
+      if (refresh == null || refresh.isEmpty) {
+        throw const DevGatewayException(
+          'The token mint returned no refreshToken — the session would be '
+          'non-refreshable and drop to logged-out on first token expiry.',
+        );
+      }
+      return (accessToken: access, refreshToken: refresh);
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(e, action: 'mint jeeber session');
+    }
+  }
+
+  // 200/404 => availability loads (404 = no row yet, mirrors production
+  // DioAvailabilityGateway); 403 => missing driver capability (not ready).
+  Future<bool> availabilityLoads(String accessToken) async {
+    try {
+      await _dio.get<Map<String, dynamic>>(
+        '/jeebers/me/availability',
+        options: _bearer(accessToken),
+      );
+      return true;
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 403) return false;
+      if (status == 404) return true;
+      throw DevGatewayException.fromDio(
+        e,
+        action: 'verify jeeber availability',
+      );
+    }
+  }
+
+  // Finds the pending KYC submission id for [userId] in the admin review
+  // queue, or null when the jeeber has no submission awaiting review.
+  Future<String?> findKycSubmissionId(String userId, String adminToken) async {
+    const pageSize = 100;
+    try {
+      for (var page = 1; page <= 50; page++) {
+        final response = await _dio.get<Map<String, dynamic>>(
+          _kycQueuePath,
+          queryParameters: <String, dynamic>{
+            'page': page,
+            'pageSize': pageSize,
+          },
+          options: _bearer(adminToken),
+        );
+        final data = response.data ?? const <String, dynamic>{};
+        final items = data['items'];
+        if (items is! List || items.isEmpty) return null;
+        for (final item in items.whereType<Map<String, dynamic>>()) {
+          if (item['userId'] == userId) {
+            final id = item['id'] as String?;
+            if (id != null && id.isNotEmpty) return id;
+          }
+        }
+        final total = (data['total'] as num?)?.toInt();
+        if (total == null || page * pageSize >= total) return null;
+      }
+      return null;
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(
+        e,
+        action: 'resolve the jeeber KYC submission',
+      );
+    }
+  }
+
+  // Approves the jeeber's KYC via the sanctioned admin review route;
+  // returns the gateway's roleGranted flag (driver capability granted).
+  Future<bool> approveKyc(String kycId, String adminToken) async {
+    try {
+      final response = await _dio.patch<Map<String, dynamic>>(
+        '/admin/kyc/$kycId/review',
+        data: <String, dynamic>{'action': 'approve'},
+        options: _bearer(adminToken),
+      );
+      return response.data?['roleGranted'] == true;
+    } on DioException catch (e) {
+      throw DevGatewayException.fromDio(e, action: 'approve jeeber KYC');
+    }
+  }
+
   Future<void> initiateOffer({
     required String asUserId,
     required String requestId,
@@ -254,6 +362,8 @@ class DevGatewayClient {
 
   static String _derivedDisplayName(String role) =>
       'devtool_${role}_${DateTime.now().millisecondsSinceEpoch}';
+
+  static String suggestedUsername(String role) => _derivedDisplayName(role);
 
   static List<String>? _roles(String? role) =>
       (role == null || role.trim().isEmpty) ? null : <String>[role.trim()];
