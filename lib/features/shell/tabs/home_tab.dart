@@ -68,7 +68,9 @@ class HomeTab extends StatelessWidget {
           target: innerContext.read<ClientHomeCubit>(),
           child: ClientHomeScreen(
             key: const Key('home-tab-root'),
-            initialTab: devTab ?? ClientHomeTab.pendingRequests,
+            // `all`, never a bucket: a bucket here reads as a filter the user
+            // never applied, pills and all, on every cold start.
+            initialTab: devTab ?? ClientHomeTab.all,
             onCreateRequest: (_) => _openCreateRequest(context),
             onOpenRequest: (request) => _openChat(context, request),
             onTrack: (request) => _openTracking(context, request),

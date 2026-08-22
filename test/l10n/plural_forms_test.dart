@@ -48,6 +48,12 @@ const _arabicCases = <_PluralCase>[
     'requestSummaryPhotosAttached',
     _photos,
   ),
+  _PluralCase('filterSheetApplyCta', 'filterSheetApplyCta', _filterApply),
+  _PluralCase(
+    'homeRequestsRepliesBadge',
+    'homeRequestsRepliesBadge',
+    _repliesBadge,
+  ),
 ];
 
 String _availability(AppLocalizations l, int n) =>
@@ -59,6 +65,9 @@ String _today(AppLocalizations l, int n) => l.dashboardTodayEarningsCompleted(n)
 String _finding(AppLocalizations l, int n) =>
     l.requestSummaryFindingNotifiedCount(n);
 String _photos(AppLocalizations l, int n) => l.requestSummaryPhotosAttached(n);
+String _filterApply(AppLocalizations l, int n) => l.filterSheetApplyCta(n);
+String _repliesBadge(AppLocalizations l, int n) =>
+    l.homeRequestsRepliesBadge(n);
 
 String _expectedForm(int n) {
   if (n == 0) return 'Zero';

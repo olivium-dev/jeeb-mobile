@@ -27,16 +27,28 @@ import '../widgets/client_home_tier_chip.dart';
 ///
 /// Mock endpoint: GET /v1/requests?status=pending  (Mockoon :3055)
 class PendingRequestsTab extends StatelessWidget {
-  const PendingRequestsTab({super.key, this.onTap});
+  const PendingRequestsTab({
+    super.key,
+    this.onTap,
+    this.hideWhenEmpty = false,
+  });
 
   /// Called when a card row is tapped. If null the tap is a no-op.
   final void Function(ClientHomeRequest request)? onTap;
+
+  /// Collapses to nothing instead of drawing an empty state — set when this
+  /// list is one section of the merged home list, which owns that state.
+  final bool hideWhenEmpty;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ClientHomeCubit, ClientHomeState>(
       buildWhen: _rebuildWhen,
-      builder: (context, state) => _PendingContent(state: state, onTap: onTap),
+      builder: (context, state) => _PendingContent(
+        state: state,
+        onTap: onTap,
+        hideWhenEmpty: hideWhenEmpty,
+      ),
     );
   }
 
@@ -45,10 +57,15 @@ class PendingRequestsTab extends StatelessWidget {
 }
 
 class _PendingContent extends StatelessWidget {
-  const _PendingContent({required this.state, required this.onTap});
+  const _PendingContent({
+    required this.state,
+    required this.onTap,
+    required this.hideWhenEmpty,
+  });
 
   final ClientHomeState state;
   final void Function(ClientHomeRequest)? onTap;
+  final bool hideWhenEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +76,11 @@ class _PendingContent extends StatelessWidget {
     }
     if (state.status == ClientHomeStatus.loading) {
       return const _PendingLoading();
+    }
+    // Collapse only AFTER the failed/loading branches: an empty list during a
+    // failed load still owes the reader a retry, not silence.
+    if (hideWhenEmpty && state.pending.isEmpty) {
+      return const SizedBox.shrink();
     }
     if (state.pending.isEmpty) {
       return const ClientHomeEmptyView(key: Key('pending-empty'));
@@ -121,6 +143,9 @@ class _PendingList extends StatelessWidget {
       ),
       child: Column(
         key: const Key('pending-requests-tab-list'),
+        // stretch, never the default centre: centre gives each card loose
+        // width, so it shrink-wraps to its text instead of filling the gutter.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < requests.length; i++) ...[
             if (i > 0) const SizedBox(height: Spacing.small),

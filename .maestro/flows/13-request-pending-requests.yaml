@@ -1,14 +1,19 @@
 # Jeeb mobile — 13 Request / Pending Requests [User].
-# Figma node 56535:1783 (client "My Orders", Pending Requests chip selected).
+# Figma node 56535:1783 (client "My Orders", narrowed to the pending bucket).
 #
 # WHAT THIS PROVES
 #   The client shell renders the Pending Requests list (lean rows: order id +
 #   items + tier, no avatar/progress/CTA), elements targeted BY SEMANTIC ID:
-#     orders_filter_pendingRequests    — Pending Requests chip (selected here)
-#     orders_filter_replies            — Replies chip
+#     orders_filter_open               — the filter disc in the section header
+#     orders_filter_pill_bucket        — the applied-bucket pill: the visible
+#                                        proof the list is narrowed to pending
 #     pending_requests_item_*           — a pending row (per-id)
 #     orders_search_bar                — absent (search was removed)
 #     orders_create_request_button     — filled "+" create-request CTA
+#
+#   The three-segment chip row is gone: the list is one merged list, narrowed
+#   through the sheet behind orders_filter_open. The seam stages that narrow
+#   for us, so the applied-filter pill stands in for the old "chip selected".
 #
 # PRIMARY INTERACTION
 #   The pending row is tappable (opens request detail in the full product). On
@@ -18,9 +23,9 @@
 #
 # BACKEND / SEAM
 #   Dev seam: jeeb.route=/ + jeeb.home_tab=pending → shell home tab seeded with
-#   DevClientHomeFixtures, Pending filter selected. No live gateway. UI parity
-#   only (UI-GUARDRAILS §6). Seam knobs via launchApp.arguments (intent extras,
-#   release-inert — dev-seam-runtime.md).
+#   DevClientHomeFixtures, opened on the pending bucket. No live gateway. UI
+#   parity only (UI-GUARDRAILS §6). Seam knobs via launchApp.arguments (intent
+#   extras, release-inert — dev-seam-runtime.md).
 #
 # MAESTRO 2.x: extendedWaitUntil for timed waits; waitForAnimationToEnd before
 #   screenshots; no fixed sleeps; no coordinate taps; id-based assertions.
@@ -36,19 +41,20 @@ appId: ${APP_ID}
       jeeb.route: "/"
       jeeb.home_tab: "pending"
 
-# Pending Requests chip — waited+asserted by id (cold launch + seeded load).
+# Filter disc — waited+asserted by id (cold launch + seeded load). It is
+# disclosed only once a request exists, so it doubles as the load gate.
 - extendedWaitUntil:
     visible:
-      id: "orders_filter_pendingRequests"
+      id: "orders_filter_open"
     timeout: 25000
 
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: 13_request_pending_requests
 
-# Both Requests filter chips + top create entry present; search absent.
+# The applied-bucket pill + top create entry present; search absent.
 - assertVisible:
-    id: "orders_filter_replies"
+    id: "orders_filter_pill_bucket"
 - assertNotVisible:
     id: "orders_search_bar"
 - assertVisible:

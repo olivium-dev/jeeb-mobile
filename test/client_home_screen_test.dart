@@ -160,9 +160,35 @@ ClientHomeRepository _threeTabRepo() {
   );
 }
 
+/// Opens the sheet, stages [status], commits it — the sequence that replaced
+/// the old "More segment pops with a status" shortcut.
+Future<void> _applyStatus(WidgetTester tester, ClientOfferStatus status) async {
+  await tester.tap(find.bySemanticsIdentifier('orders_filter_open'));
+  await tester.pumpAndSettle();
+  final row = find.bySemanticsIdentifier('offer_status_filter_${status.name}');
+  await tester.ensureVisible(row);
+  await tester.pumpAndSettle();
+  await tester.tap(row);
+  await tester.pumpAndSettle();
+  await tester.tap(find.bySemanticsIdentifier('orders_filter_apply'));
+  await tester.pumpAndSettle();
+}
+
 ClientHomeRepository _expiredStatusRepo() {
   return InMemoryClientHomeRepository.fromSnapshot(
     const ClientHomeSnapshot(
+      // One pending row so the filter chrome is disclosed at all.
+      pending: [
+        ClientHomeRequest(
+          id: 'pen-x',
+          title: 'ORD-90001',
+          displayId: 'ORD-90001',
+          destinationLabel: 'Hamra',
+          itemsSummary: 'Milk',
+          status: ClientRequestStatus.searching,
+          tier: ClientRequestTier.express,
+        ),
+      ],
       offerStatusRequests: [
         ClientHomeRequest(
           id: 'expired-short',
@@ -225,7 +251,7 @@ void main() {
           repo: repo,
           greetingName: 'Layla',
           onCreateRequest: (_) {},
-          initialTab: ClientHomeTab.pendingRequests,
+          initialTab: ClientHomeTab.all,
         ),
       );
       await tester.pumpAndSettle();
@@ -252,15 +278,13 @@ void main() {
       );
       // And the mic itself is its own, newly coined target.
       expect(find.bySemanticsIdentifier('client_home_mic_cta'), findsOneWidget);
+      // Progressive disclosure: nothing to filter, so the whole filter row is
+      // absent — the create hero owns the screen.
+      expect(find.bySemanticsIdentifier('orders_filter_open'), findsNothing);
       expect(
-        find.bySemanticsIdentifier('orders_filter_pendingRequests'),
-        findsOneWidget,
+        find.bySemanticsIdentifier('orders_home_replies_tab'),
+        findsNothing,
       );
-      expect(
-        find.bySemanticsIdentifier('orders_filter_replies'),
-        findsOneWidget,
-      );
-      expect(find.bySemanticsIdentifier('orders_filter_more'), findsOneWidget);
       expect(
         find.bySemanticsIdentifier('_request_empty_state_root'),
         findsOneWidget,
@@ -284,9 +308,9 @@ void main() {
       expect(find.bySemanticsIdentifier('orders_search_bar'), findsNothing);
       handle.dispose();
 
-      expect(find.text('Pending'), findsOneWidget);
-      expect(find.text('Replies'), findsOneWidget);
-      expect(find.text('More'), findsOneWidget);
+      expect(find.text('Your requests'), findsNothing);
+      expect(find.byKey(const Key('client-home-requests-header')), findsNothing);
+      expect(find.byKey(const Key('client-home-filter-pills')), findsNothing);
       // NOT the hero prompt's question: the prompt is permanent now, so an
       // E1 tile that repeated it would print the same words twice.
       expect(find.text('Ready when you are'), findsOneWidget);
@@ -546,44 +570,63 @@ void main() {
     );
 
     testWidgets(
-      'filter chips carry stable Semantics identifiers — Pending, Replies, More',
+      'the section header carries the filter disc and the frozen replies id',
       (tester) async {
         await tester.pumpWidget(
-          _harness(
-            repo: _threeTabRepo(),
-            initialTab: ClientHomeTab.pendingRequests,
-          ),
+          _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
         );
         await tester.pumpAndSettle();
 
         final handle = tester.ensureSemantics();
-        // E24/Q-086: the Requests tab is on-hold only. The accepted-onward
-        // In-Progress live-tracking chip is no longer part of this tab bar.
-        expect(
-          find.bySemanticsIdentifier('orders_filter_inProgress'),
-          findsNothing,
-        );
-        expect(
-          find.bySemanticsIdentifier('orders_filter_pendingRequests'),
-          findsOneWidget,
-        );
-        expect(
-          find.bySemanticsIdentifier('orders_filter_replies'),
-          findsOneWidget,
-        );
-        expect(
-          find.bySemanticsIdentifier('orders_filter_more'),
-          findsOneWidget,
-        );
-        // JM-027's coined alias, re-homed off the kit segment (which carries
-        // one identifier) onto its own node.
+        // The three shape-shifting segments are gone; one disc replaces them.
+        for (final id in const <String>[
+          'orders_filter_inProgress',
+          'orders_filter_pendingRequests',
+          'orders_filter_replies',
+          'orders_filter_more',
+        ]) {
+          expect(find.bySemanticsIdentifier(id), findsNothing);
+        }
+        expect(find.bySemanticsIdentifier('orders_filter_open'), findsOneWidget);
+        expect(find.text('Your requests'), findsOneWidget);
+        // JM-023 / JM-027's coined alias, re-homed onto the replies badge.
         expect(
           find.bySemanticsIdentifier('orders_home_replies_tab'),
           findsOneWidget,
         );
+        expect(find.text('1 reply'), findsOneWidget);
         handle.dispose();
       },
     );
+
+    testWidgets('the replies badge is tappable and applies the replies bucket', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
+      );
+      await tester.pumpAndSettle();
+
+      final badge = find.bySemanticsIdentifier('orders_home_replies_tab');
+      expect(
+        tester.getSemantics(badge).getSemanticsData().hasAction(
+          SemanticsAction.tap,
+        ),
+        isTrue,
+      );
+      // Both lists are on screen before the tap.
+      expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
+      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
+
+      await tester.tap(badge);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
+      expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
+      expect(find.text('Has replies'), findsOneWidget);
+      handle.dispose();
+    });
   });
 
   // JEBV4-298 (E24/Q-086): the Requests bottom-nav tab is the ON-HOLD surface
@@ -591,86 +634,69 @@ void main() {
   // to the Delivery tab (its Active order detail exposes map/ETA/Track via
   // `/orders/:id/tracking`). These lock the residual literal-DoD fix.
   group('ClientHomeScreen Requests = on-hold only (JEBV4-298)', () {
-    testWidgets('widget default landing tab is Pending Requests', (
+    testWidgets('widget default landing bucket is the merged list', (
       tester,
     ) async {
-      // The production host (HomeTab) leaves initialTab at the widget default;
-      // it must be Pending Requests, never the relocated In-Progress surface.
-      expect(
-        const ClientHomeScreen().initialTab,
-        ClientHomeTab.pendingRequests,
-      );
+      // One list means nothing to land on: the default is the merged bucket,
+      // never the relocated In-Progress surface.
+      expect(const ClientHomeScreen().initialTab, ClientHomeTab.all);
     });
 
     testWidgets(
-      'Requests tab bar omits the In-Progress chip and renders Pending first',
+      'the merged list renders replies above pending, with no legacy chips',
       (tester) async {
-        // Pump with the widget default (Pending) landing tab and a snapshot that
-        // populates all three underlying lists.
         await tester.pumpWidget(
-          _harness(
-            repo: _threeTabRepo(),
-            initialTab: ClientHomeTab.pendingRequests,
-          ),
+          _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
         );
         await tester.pumpAndSettle();
 
-        // No In-Progress chip on the Requests tab bar.
+        for (final key in const <Key>[
+          Key('client-home-tab-inProgress'),
+          Key('client-home-tab-pendingRequests'),
+          Key('client-home-tab-replies'),
+          Key('client-home-tab-more'),
+          Key('client-home-filter-row'),
+          Key('client-home-filter-clear'),
+        ]) {
+          expect(find.byKey(key), findsNothing);
+        }
+
+        // Both halves on one list, replies pinned first — they need action.
+        final replies = find.byKey(const Key('replies-card-rep-1'));
+        final pending = find.byKey(const Key('pending-requests-tab-list'));
+        expect(replies, findsOneWidget);
+        expect(pending, findsOneWidget);
         expect(
-          find.byKey(const Key('client-home-tab-inProgress')),
-          findsNothing,
+          tester.getRect(replies).top,
+          lessThan(tester.getRect(pending).top),
         );
-        // The two list filters and their More overflow filter are present.
-        expect(
-          find.byKey(const Key('client-home-tab-pendingRequests')),
-          findsOneWidget,
-        );
-        expect(
-          find.byKey(const Key('client-home-tab-replies')),
-          findsOneWidget,
-        );
-        expect(find.byKey(const Key('client-home-tab-more')), findsOneWidget);
-        // Default landing surface is the Pending list, NOT an active-request card.
-        expect(
-          find.byKey(const Key('pending-requests-tab-list')),
-          findsOneWidget,
-        );
+        // The accepted-onward surface still belongs to the Delivery tab.
         expect(find.byKey(const Key('active-request-card-ip-1')), findsNothing);
       },
     );
 
-    testWidgets('More filter opens the complete offer-status guide', (
+    testWidgets('the filter disc opens the complete offer-status guide', (
       tester,
     ) async {
+      final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        _harness(
-          repo: _threeTabRepo(),
-          initialTab: ClientHomeTab.pendingRequests,
-        ),
+        _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('client-home-tab-more')));
+      await tester.tap(find.bySemanticsIdentifier('orders_filter_open'));
       await tester.pumpAndSettle();
 
       expect(
         find.bySemanticsIdentifier('offer_status_info_sheet'),
         findsOneWidget,
       );
-      expect(
-        find.text('Choose a status to filter your requests.'),
-        findsOneWidget,
-      );
-      expect(
-        find.ancestor(
-          of: find.byKey(const Key('offer-status-sheet-intro')),
-          matching: find.byType(SingleChildScrollView),
-        ),
-        findsOneWidget,
-        reason:
-            'the intro belongs to the sheet scroll content, so scrolling cannot '
-            'leave a clipped orphan under a fixed intro copy',
-      );
+      expect(find.text('Filter requests'), findsWidgets);
+      // The bucket row sits above the unchanged status groups.
+      for (final label in <String>['All', 'Awaiting offers', 'Has replies']) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.text('Show'), findsOneWidget);
       for (final status in <String>[
         'Pending',
         'Submitted',
@@ -699,6 +725,15 @@ void main() {
       await tester.tap(withdrawn);
       await tester.pumpAndSettle();
 
+      // Staged, not committed: the sheet stays up until the apply CTA fires.
+      expect(
+        find.bySemanticsIdentifier('offer_status_info_sheet'),
+        findsOneWidget,
+      );
+      expect(find.text('Show 1 request'), findsOneWidget);
+      await tester.tap(find.bySemanticsIdentifier('orders_filter_apply'));
+      await tester.pumpAndSettle();
+
       expect(
         find.bySemanticsIdentifier('offer_status_info_sheet'),
         findsNothing,
@@ -708,11 +743,11 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Withdrawn'), findsWidgets);
-      expect(find.text('More'), findsNothing);
       expect(find.byKey(const Key('pending-requests-tab-list')), findsNothing);
 
+      // D7: the applied pill's ✕ is the always-visible way back out.
       await tester.tap(
-        find.byKey(const Key('client-home-tab-pendingRequests')),
+        find.bySemanticsIdentifier('orders_filter_pill_status_clear'),
       );
       await tester.pumpAndSettle();
       expect(
@@ -723,6 +758,7 @@ void main() {
         find.bySemanticsIdentifier('offer_status_request_status-1'),
         findsNothing,
       );
+      handle.dispose();
     });
 
     testWidgets('populated status lists reserve bottom navigation clearance', (
@@ -734,24 +770,14 @@ void main() {
       tester.view.padding = FakeViewPadding(bottom: navInset * dpr);
       addTearDown(tester.view.reset);
 
+      final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        _harness(
-          repo: _threeTabRepo(),
-          initialTab: ClientHomeTab.pendingRequests,
-        ),
+        _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('client-home-tab-more')));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.bySemanticsIdentifier('offer_status_filter_expired'),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.bySemanticsIdentifier('offer_status_filter_expired'),
-      );
-      await tester.pumpAndSettle();
+      await _applyStatus(tester, ClientOfferStatus.expired);
+      handle.dispose();
 
       final list = tester.widget<ListView>(
         find.byKey(const Key('client-home-ready-list')),
@@ -783,24 +809,13 @@ void main() {
     testWidgets('expired status cards stretch to consistent list width', (
       tester,
     ) async {
+      final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        _harness(
-          repo: _expiredStatusRepo(),
-          initialTab: ClientHomeTab.pendingRequests,
-        ),
+        _harness(repo: _expiredStatusRepo(), initialTab: ClientHomeTab.all),
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('client-home-tab-more')));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.bySemanticsIdentifier('offer_status_filter_expired'),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.bySemanticsIdentifier('offer_status_filter_expired'),
-      );
-      await tester.pumpAndSettle();
+      await _applyStatus(tester, ClientOfferStatus.expired);
 
       final widths = [
         for (final id in ['expired-short', 'expired-medium', 'expired-long'])
@@ -809,24 +824,26 @@ void main() {
               .width,
       ];
       expect(widths.toSet(), hasLength(1));
+      handle.dispose();
     });
 
     testWidgets(
-      'selected Not selected label stays inside S24 chip row in Arabic',
+      'the applied "Not selected" pill renders in full at 384dp in Arabic',
       (tester) async {
         await tester.binding.setSurfaceSize(const Size(384, 800));
         addTearDown(() => tester.binding.setSurfaceSize(null));
+        final handle = tester.ensureSemantics();
 
         await tester.pumpWidget(
           _harness(
             repo: _threeTabRepo(),
             locale: const Locale('ar'),
-            initialTab: ClientHomeTab.pendingRequests,
+            initialTab: ClientHomeTab.all,
           ),
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const Key('client-home-tab-more')));
+        await tester.tap(find.bySemanticsIdentifier('orders_filter_open'));
         await tester.pumpAndSettle();
         expect(find.text('غير مختار'), findsOneWidget);
         expect(
@@ -834,49 +851,48 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('مُستبدل'), findsNothing);
-        await tester.ensureVisible(
-          find.bySemanticsIdentifier('offer_status_filter_superseded'),
-        );
+        final row = find.bySemanticsIdentifier('offer_status_filter_superseded');
+        await tester.ensureVisible(row);
         await tester.pumpAndSettle();
-        await tester.tap(
-          find.bySemanticsIdentifier('offer_status_filter_superseded'),
-        );
+        await tester.tap(row);
+        await tester.pumpAndSettle();
+        await tester.tap(find.bySemanticsIdentifier('orders_filter_apply'));
         await tester.pumpAndSettle();
 
         final rowRect = tester.getRect(
-          find.byKey(const Key('client-home-filter-row')),
+          find.byKey(const Key('client-home-filter-pills')),
         );
-        final selectedRect = tester.getRect(
-          find.byKey(const Key('client-home-tab-more')),
-        );
-        final selectedLabel = find.descendant(
-          of: find.byKey(const Key('client-home-tab-more')),
+        final pillLabel = find.descendant(
+          of: find.bySemanticsIdentifier('orders_filter_pill_status'),
           matching: find.text('غير مختار'),
         );
-        final labelWidget = tester.widget<Text>(selectedLabel);
+        final labelWidget = tester.widget<Text>(pillLabel);
         final naturalLabel = TextPainter(
           text: TextSpan(text: labelWidget.data, style: labelWidget.style),
           textDirection: TextDirection.rtl,
           maxLines: 1,
         )..layout();
-        expect(selectedRect.left, greaterThanOrEqualTo(rowRect.left));
-        expect(selectedRect.right, lessThanOrEqualTo(rowRect.right));
+        final pillRect = tester.getRect(
+          find.bySemanticsIdentifier('orders_filter_pill_status'),
+        );
+        expect(pillRect.left, greaterThanOrEqualTo(rowRect.left));
+        expect(pillRect.right, lessThanOrEqualTo(rowRect.right));
         expect(
-          tester.getSize(selectedLabel).width,
+          tester.getSize(pillLabel).width,
           greaterThanOrEqualTo(naturalLabel.width),
-          reason: 'the selected status must render in full, without ellipsis',
+          reason: 'the applied status must render in full, without ellipsis',
         );
         expect(tester.takeException(), isNull);
+        handle.dispose();
       },
     );
 
     testWidgets(
-      'with an empty Pending list the Requests tab advances to Replies '
-      '(never to the relocated In-Progress surface)',
+      'with an empty Pending list the merged list still shows the replies '
+      '(never the relocated In-Progress surface, and with no tab hop)',
       (tester) async {
-        // Only In-Progress + Replies populated; Pending empty. The one-shot
-        // "land where the content is" affordance must pick Replies, not the
-        // relocated In-Progress surface.
+        // Pending empty: one merged list means there is nothing to advance
+        // to — the replies are simply there.
         final repo = InMemoryClientHomeRepository.fromSnapshot(
           const ClientHomeSnapshot(
             inProgress: [
@@ -906,14 +922,155 @@ void main() {
           latency: Duration.zero,
         );
         await tester.pumpWidget(
-          _harness(repo: repo, initialTab: ClientHomeTab.pendingRequests),
+          _harness(repo: repo, initialTab: ClientHomeTab.all),
         );
         await tester.pumpAndSettle();
 
         expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
         expect(find.byKey(const Key('active-request-card-ip-1')), findsNothing);
+        // No pending half at all, and no empty state standing in for it.
+        expect(find.byKey(const Key('pending-empty')), findsNothing);
+        expect(
+          find.byKey(const Key('pending-requests-tab-list')),
+          findsNothing,
+        );
       },
     );
+  });
+
+  // The headline rule: the filter only exists once there is something to
+  // filter.
+  group('ClientHomeScreen progressive disclosure', () {
+    testWidgets('nothing to list → no header, no disc, no pills', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(
+          repo: InMemoryClientHomeRepository(latency: Duration.zero),
+          initialTab: ClientHomeTab.all,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('client-home-requests-header')), findsNothing);
+      expect(find.bySemanticsIdentifier('orders_filter_open'), findsNothing);
+      expect(find.byKey(const Key('client-home-filter-pills')), findsNothing);
+      // The create hero owns the screen instead.
+      expect(
+        find.bySemanticsIdentifier('_request_empty_state_root'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('one request → header, total count and the disc appear', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('client-home-requests-header')),
+        findsOneWidget,
+      );
+      expect(find.text('Your requests'), findsOneWidget);
+      // One reply + one pending = two rows in the merged list.
+      expect(
+        tester.widget<Text>(find.byKey(const Key('client-home-requests-count'))).data,
+        '2',
+      );
+      expect(find.bySemanticsIdentifier('orders_filter_open'), findsOneWidget);
+      // Nothing applied yet, so the strip carries no pill at all.
+      expect(
+        find.bySemanticsIdentifier('orders_filter_pill_bucket'),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsIdentifier('orders_filter_pill_status'),
+        findsNothing,
+      );
+      handle.dispose();
+    });
+
+    testWidgets(
+      'orders_home_request_row_0 stays the FIRST PENDING row of the merged list',
+      (tester) async {
+        // Frozen QA contract (JM-023). Replies paint above it and must NOT
+        // renumber it.
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
+        );
+        await tester.pumpAndSettle();
+
+        final row0 = find.bySemanticsIdentifier('orders_home_request_row_0');
+        expect(row0, findsOneWidget);
+        expect(
+          find.descendant(
+            of: row0,
+            matching: find.bySemanticsIdentifier(
+              'pending_requests_item_pen-1',
+            ),
+          ),
+          findsOneWidget,
+          reason: 'row 0 must wrap the pending card, never the replies card',
+        );
+        expect(
+          find.descendant(
+            of: row0,
+            matching: find.byKey(const Key('replies-card-rep-1')),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.bySemanticsIdentifier('orders_home_request_row_1'),
+          findsNothing,
+          reason: 'the numbering is scoped to the pending slice alone',
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('a bucket filter narrows the list; its ✕ restores it', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(repo: _threeTabRepo(), initialTab: ClientHomeTab.all),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.bySemanticsIdentifier('orders_filter_open'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.bySemanticsIdentifier('orders_filter_bucket_pendingRequests'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Show 1 request'), findsOneWidget);
+      await tester.tap(find.bySemanticsIdentifier('orders_filter_apply'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
+      expect(find.byKey(const Key('replies-card-rep-1')), findsNothing);
+      expect(find.text('Awaiting offers'), findsOneWidget);
+
+      await tester.tap(
+        find.bySemanticsIdentifier('orders_filter_pill_bucket_clear'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
+      expect(find.byKey(const Key('replies-card-rep-1')), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('orders_filter_pill_bucket'),
+        findsNothing,
+      );
+      handle.dispose();
+    });
   });
 
   // UX-parity regressions for client-home screens 13/14/15 (Figma 56535:1783 /

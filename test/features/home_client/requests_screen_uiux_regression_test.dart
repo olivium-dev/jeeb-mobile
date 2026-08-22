@@ -294,7 +294,7 @@ void main() {
   });
 
   group('D7 — an applied filter can be cleared', () {
-    testWidgets('the clear button appears, clears, and the sheet reopens', (
+    testWidgets('the pill appears, reopens the sheet, and its ✕ clears', (
       tester,
     ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
@@ -306,55 +306,58 @@ void main() {
       );
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(
-        _screen(repo, initialTab: ClientHomeTab.pendingRequests),
+        _screen(repo, initialTab: ClientHomeTab.all),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('client-home-filter-clear')), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('orders_filter_pill_status'),
+        findsNothing,
+      );
 
-      await tester.tap(find.byKey(const Key('client-home-tab-more')));
+      await tester.tap(find.bySemanticsIdentifier('orders_filter_open'));
       await tester.pumpAndSettle();
       await tester.tap(
         find.bySemanticsIdentifier('offer_status_filter_submitted'),
       );
       await tester.pumpAndSettle();
+      // Clear is the sheet's own reset now, and it keeps its frozen id.
+      expect(find.bySemanticsIdentifier('orders_filter_clear'), findsOneWidget);
+      await tester.tap(find.bySemanticsIdentifier('orders_filter_apply'));
+      await tester.pumpAndSettle();
 
       expect(find.text('Submitted'), findsWidgets);
-      expect(find.byKey(const Key('client-home-filter-clear')), findsOneWidget);
-      expect(find.bySemanticsIdentifier('orders_filter_clear'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('orders_filter_pill_status'),
+        findsOneWidget,
+      );
 
-      // Re-tapping the already-selected segment reopens the picker.
-      await tester.tap(find.byKey(const Key('client-home-tab-more')));
+      // Tapping the pill BODY reopens the sheet on the applied selection.
+      await tester.tap(find.bySemanticsIdentifier('orders_filter_pill_status'));
       await tester.pumpAndSettle();
       expect(
         find.bySemanticsIdentifier('offer_status_info_sheet'),
         findsOneWidget,
       );
-      await tester.tap(find.byKey(const Key('offer-status-close')));
+      await tester.tap(find.byTooltip('Close'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('client-home-filter-clear')));
+      await tester.tap(
+        find.bySemanticsIdentifier('orders_filter_pill_status_clear'),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('client-home-filter-clear')), findsNothing);
-      expect(find.text('More'), findsOneWidget);
+      expect(
+        find.bySemanticsIdentifier('orders_filter_pill_status'),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('pending-requests-tab-list')), findsOneWidget);
       handle.dispose();
     });
   });
 
-  group('D8 — the filter segments fit a 320dp screen', () {
-    // The three pills now SHARE the row by flex, so the guarantee is a width
-    // floor per segment plus a label that scales down instead of truncating.
-    List<double> segmentWidths(WidgetTester tester) => <double>[
-      for (final key in const <Key>[
-        Key('client-home-tab-pendingRequests'),
-        Key('client-home-tab-replies'),
-        Key('client-home-tab-more'),
-      ])
-        tester.getSize(find.byKey(key)).width,
-    ];
-
-    testWidgets('"Pending" and "Replies" render in full at 320dp', (
+  group('D8 — the section header fits a 320dp screen', () {
+    testWidgets('the title, the count and the disc all fit at 320dp', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(320, 720);
@@ -362,50 +365,48 @@ void main() {
       addTearDown(tester.view.reset);
 
       final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(pending: [_pending()]),
+        ClientHomeSnapshot(pending: [_pending()], replies: [_reply()]),
         latency: Duration.zero,
       );
-      await tester.pumpWidget(
-        _screen(repo, initialTab: ClientHomeTab.pendingRequests),
-      );
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_screen(repo, initialTab: ClientHomeTab.all));
       await tester.pumpAndSettle();
 
-      final widths = segmentWidths(tester);
-      for (final width in widths) {
-        expect(width, closeTo(widths.first, 1));
-        expect(
-          width,
-          greaterThanOrEqualTo(80),
-          reason: '320dp must still give every pill a tappable share',
-        );
-      }
-      expect(
-        tester
-            .renderObject<RenderParagraph>(find.text('Pending'))
-            .didExceedMaxLines,
-        isFalse,
-        reason: 'the label scales down rather than ellipsizing',
+      final header = tester.getRect(
+        find.byKey(const Key('client-home-requests-header')),
       );
+      final disc = tester.getRect(
+        find.bySemanticsIdentifier('orders_filter_open'),
+      );
+      final badge = tester.getRect(
+        find.bySemanticsIdentifier('orders_home_replies_tab'),
+      );
+      // The title yields first (it ellipsizes); the two targets never clip.
+      expect(disc.right, lessThanOrEqualTo(header.right + 0.5));
+      expect(badge.left, greaterThanOrEqualTo(header.left));
+      expect(badge.right, lessThanOrEqualTo(disc.left));
+      expect(find.text('Your requests'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      handle.dispose();
     });
 
-    testWidgets('a roomy viewport keeps every segment above the 96dp target', (
+    testWidgets('the replies badge keeps a 48dp target beside the disc', (
       tester,
     ) async {
       final repo = InMemoryClientHomeRepository.fromSnapshot(
-        ClientHomeSnapshot(pending: [_pending()]),
+        ClientHomeSnapshot(pending: [_pending()], replies: [_reply()]),
         latency: Duration.zero,
       );
-      await tester.pumpWidget(
-        _screen(repo, initialTab: ClientHomeTab.pendingRequests),
-      );
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_screen(repo, initialTab: ClientHomeTab.all));
       await tester.pumpAndSettle();
 
-      final widths = segmentWidths(tester);
-      for (final width in widths) {
-        expect(width, closeTo(widths.first, 1));
-        expect(width, greaterThanOrEqualTo(96));
-      }
+      final badge = tester.getSize(
+        find.bySemanticsIdentifier('orders_home_replies_tab'),
+      );
+      expect(badge.height, greaterThanOrEqualTo(kMinInteractiveDimension));
+      expect(badge.width, greaterThanOrEqualTo(kMinInteractiveDimension));
+      handle.dispose();
     });
   });
 

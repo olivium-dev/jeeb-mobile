@@ -18,25 +18,37 @@ import 'package:jeeb_mobile/l10n/app_localizations.dart';
 import 'support/sync_app_localizations.dart';
 
 DeliveryRequest _req(String id) => DeliveryRequest(
-      id: id,
-      pickup: const RequestLocation(label: 'Pickup', latitude: 33.8, longitude: 35.5),
-      dropoff: const RequestLocation(label: 'Dropoff', latitude: 33.9, longitude: 35.6),
-      tier: JeeberRequestTier.flash,
-      estimatedDistanceKm: 1.2,
-      potentialEarnings: 5.0,
-      currency: 'USD',
-      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-      feedStatus: JeeberFeedItemStatus.incoming,
-    );
+  id: id,
+  pickup: const RequestLocation(
+    label: 'Pickup',
+    latitude: 33.8,
+    longitude: 35.5,
+  ),
+  dropoff: const RequestLocation(
+    label: 'Dropoff',
+    latitude: 33.9,
+    longitude: 35.6,
+  ),
+  tier: JeeberRequestTier.flash,
+  estimatedDistanceKm: 1.2,
+  potentialEarnings: 5.0,
+  currency: 'USD',
+  expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+  feedStatus: JeeberFeedItemStatus.incoming,
+);
 
 /// Directly squeezes [JeeberFeedTabView] into a shorter-than-natural-content
-/// box the way a keyboard opening on the search field does (Scaffold shrinks
+/// box, the way the keyboard used to when the feed still owned a search field.
+/// The field has since moved into a modal sheet, but short viewports and large
+/// text squeeze the same way — the sliver flattening is what absorbs it.
 Future<void> _pumpSqueezed(WidgetTester tester, double height) async {
   final ticker = StreamController<DateTime>.broadcast();
   addTearDown(ticker.close);
   final avCubit = AvailabilityCubit(
     gateway: InMemoryAvailabilityGateway(
-      initial: AvailabilityStatus.initial.copyWith(state: AvailabilityState.online),
+      initial: AvailabilityStatus.initial.copyWith(
+        state: AvailabilityState.online,
+      ),
     ),
     tickerFactory: () => ticker.stream,
   );
@@ -58,6 +70,10 @@ Future<void> _pumpSqueezed(WidgetTester tester, double height) async {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       home: Scaffold(
         body: Align(
           alignment: Alignment.topCenter,
@@ -84,28 +100,59 @@ Future<void> _pumpSqueezed(WidgetTester tester, double height) async {
 void main() {
   testWidgets(
     'JEBV4-284: JeeberFeedTabView squeezed below its header-stack height '
-    '(keyboard-open equivalent) does not RenderFlex-overflow',
+    'does not RenderFlex-overflow',
     (tester) async {
       // 220px is comfortably below the natural height of greeting +
+      // availability card + stage strip + the first card.
       await _pumpSqueezed(tester, 220);
 
-      // C8 (redesign-2026-08): the search field is collapsed behind the
-      // magnifier at rest, so the keyboard-open state this test reproduces is
-      // reachable only after the toggle — expanding it restores the exact
-      // header stack the repro is about (greeting + strip + search + chips).
-      await tester.tap(
-        find.bySemanticsIdentifier('jeeber_feed_search_toggle'),
-        warnIfMissed: false,
-      );
-      await tester.pumpAndSettle();
-
-      // No RenderFlex overflow reported.
       expect(tester.takeException(), isNull);
-      // The search bar is still mounted (built, no error) even though it may
+      // The board still renders its whole chrome inside the squeeze; the
+      // CustomScrollView absorbs the deficit instead of overflowing.
+      expect(find.byKey(JeeberFeedTabView.tabStripKey), findsOneWidget);
       expect(
-        find.byKey(JeeberFeedTabView.searchBarKey, skipOffstage: false),
+        find.bySemanticsIdentifier('jeeber_feed_filter_open'),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'the search field no longer rides the squeezed page — it is a facet of '
+    'the modal sheet, which owns its own viewport',
+    (tester) async {
+      await _pumpSqueezed(tester, 220);
+
+      expect(
+        find.byKey(JeeberFeedTabView.searchBarKey, skipOffstage: false),
+        findsNothing,
+      );
+
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_open'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(JeeberFeedTabView.searchBarKey), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'the applied-filter pill row does not reintroduce the overflow',
+    (tester) async {
+      await _pumpSqueezed(tester, 220);
+
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_tier_chip_1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_apply'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_filter_pill_tier'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 }

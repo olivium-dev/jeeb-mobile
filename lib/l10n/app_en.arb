@@ -5555,5 +5555,87 @@
   "jeeberUnregisterPositiveBalance": "Settle your Jeeber wallet balance before unregistering.",
   "@jeeberUnregisterPositiveBalance": {"description": "F3 snackbar banner for the gateway's 409 positive_wallet_balance guard."},
   "jeeberUnregisterUnavailable": "Unregistering is temporarily unavailable. Please try again later.",
-  "@jeeberUnregisterUnavailable": {"description": "F3 snackbar banner for the gateway's 502 upstream_fault (user-management has no revoke op yet) — an honest dark-path message, never a fake success."}
+  "@jeeberUnregisterUnavailable": {"description": "F3 snackbar banner for the gateway's 502 upstream_fault (user-management has no revoke op yet) — an honest dark-path message, never a fake success."},
+  "homeRequestsSectionTitle": "Your requests",
+  "@homeRequestsSectionTitle": { "description": "Section heading above the client's request list on the home screen." },
+  "homeRequestsRepliesBadgeZero": "No replies",
+  "@homeRequestsRepliesBadgeZero": { "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR zero branch." },
+  "homeRequestsRepliesBadgeOne": "1 reply",
+  "@homeRequestsRepliesBadgeOne": { "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR one branch." },
+  "homeRequestsRepliesBadgeTwo": "2 replies",
+  "@homeRequestsRepliesBadgeTwo": { "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR two branch." },
+  "homeRequestsRepliesBadgeFew": "{count} replies",
+  "@homeRequestsRepliesBadgeFew": {
+    "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR few branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "homeRequestsRepliesBadgeMany": "{count} replies",
+  "@homeRequestsRepliesBadgeMany": {
+    "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR many branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "homeRequestsRepliesBadgeOther": "{count} replies",
+  "@homeRequestsRepliesBadgeOther": {
+    "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR other branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "homeFilterOpenLabel": "Filter requests",
+  "@homeFilterOpenLabel": { "description": "Semantics label and tooltip on the icon button that opens the requests filter sheet, no filters applied." },
+  "homeFilterActiveA11yLabel": "Filter requests, filters active",
+  "@homeFilterActiveA11yLabel": { "description": "Semantics label on the filter icon button when at least one filter is applied, replacing homeFilterOpenLabel." },
+  "homeFilterSheetTitle": "Filter requests",
+  "@homeFilterSheetTitle": { "description": "Title of the bottom sheet opened from homeFilterOpenLabel." },
+  "homeFilterSheetSubtitle": "Every offer status the app can show, in one place.",
+  "@homeFilterSheetSubtitle": { "description": "Subtitle under homeFilterSheetTitle, explaining the sheet consolidates the tab and offer-status filters." },
+  "homeFilterShowGroup": "Show",
+  "@homeFilterShowGroup": { "description": "Group label above the bucket options (All / Awaiting offers / Has replies) in the requests filter sheet." },
+  "homeFilterBucketAll": "All",
+  "@homeFilterBucketAll": { "description": "Bucket option in the requests filter sheet: no filtering by offer state." },
+  "homeFilterBucketAwaiting": "Awaiting offers",
+  "@homeFilterBucketAwaiting": { "description": "Bucket option in the requests filter sheet: pending requests with no offers yet." },
+  "homeFilterBucketReplies": "Has replies",
+  "@homeFilterBucketReplies": { "description": "Bucket option in the requests filter sheet: requests with at least one offer." },
+  "filterSheetClearCta": "Clear",
+  "@filterSheetClearCta": { "description": "Shared filter-sheet footer CTA that resets every filter in the sheet to its default." },
+  "filterSheetApplyCtaZero": "Show no requests",
+  "@filterSheetApplyCtaZero": { "description": "Filter-sheet apply CTA carrying the live result count. CLDR zero branch." },
+  "filterSheetApplyCtaOne": "Show 1 request",
+  "@filterSheetApplyCtaOne": { "description": "Filter-sheet apply CTA carrying the live result count. CLDR one branch." },
+  "filterSheetApplyCtaTwo": "Show 2 requests",
+  "@filterSheetApplyCtaTwo": { "description": "Filter-sheet apply CTA carrying the live result count. CLDR two branch." },
+  "filterSheetApplyCtaFew": "Show {count} requests",
+  "@filterSheetApplyCtaFew": {
+    "description": "Filter-sheet apply CTA carrying the live result count. CLDR few branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "filterSheetApplyCtaMany": "Show {count} requests",
+  "@filterSheetApplyCtaMany": {
+    "description": "Filter-sheet apply CTA carrying the live result count. CLDR many branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "filterSheetApplyCtaOther": "Show {count} requests",
+  "@filterSheetApplyCtaOther": {
+    "description": "Filter-sheet apply CTA carrying the live result count. CLDR other branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "filterPillClearA11yLabel": "Clear {filter} filter",
+  "@filterPillClearA11yLabel": {
+    "description": "Semantics label on a removable active-filter pill; {filter} is the human-readable filter name shown on the pill.",
+    "placeholders": { "filter": { "type": "String" } }
+  },
+  "jeeberFeedFilterOpenLabel": "Filter requests",
+  "@jeeberFeedFilterOpenLabel": { "description": "Semantics label and tooltip on the icon button that opens the Nearby-list filter sheet on the jeeber feed." },
+  "jeeberFeedFilterSheetTitle": "Filter nearby requests",
+  "@jeeberFeedFilterSheetTitle": { "description": "Title of the bottom sheet opened from jeeberFeedFilterOpenLabel." },
+  "jeeberFeedFilterSheetSubtitle": "Applies to the Nearby list.",
+  "@jeeberFeedFilterSheetSubtitle": { "description": "Subtitle under jeeberFeedFilterSheetTitle, clarifying the filter does not affect the Pending or Replies tabs." },
+  "jeeberFeedFilterSearchGroup": "Search",
+  "@jeeberFeedFilterSearchGroup": { "description": "Group label above the search field inside the jeeber feed filter sheet." },
+  "jeeberFeedFilterTierGroup": "Tier",
+  "@jeeberFeedFilterTierGroup": { "description": "Group label above the delivery-tier options inside the jeeber feed filter sheet." },
+  "jeeberFeedSearchPillLabel": "“{query}”",
+  "@jeeberFeedSearchPillLabel": {
+    "description": "Active-filter pill echoing the current search text on the jeeber feed, quoted.",
+    "placeholders": { "query": { "type": "String" } }
+  }
 }

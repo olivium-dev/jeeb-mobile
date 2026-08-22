@@ -2118,5 +2118,64 @@
   "jeeberUnregisterSuccess": "لم تعد مسجلاً كـ Jeeber.",
   "jeeberUnregisterActiveDelivery": "لا يمكنك إلغاء التسجيل أثناء وجود توصيلة نشطة. أنهِها أولاً ثم أعد المحاولة.",
   "jeeberUnregisterPositiveBalance": "قم بتسوية رصيد محفظتك كـ Jeeber قبل إلغاء التسجيل.",
-  "jeeberUnregisterUnavailable": "إلغاء التسجيل غير متاح مؤقتًا. حاول مرة أخرى لاحقًا."
+  "jeeberUnregisterUnavailable": "إلغاء التسجيل غير متاح مؤقتًا. حاول مرة أخرى لاحقًا.",
+  "homeRequestsSectionTitle": "طلباتك",
+  "homeRequestsRepliesBadgeZero": "لا ردود",
+  "@homeRequestsRepliesBadgeZero": { "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR zero branch." },
+  "homeRequestsRepliesBadgeOne": "رد واحد",
+  "@homeRequestsRepliesBadgeOne": { "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR one branch." },
+  "homeRequestsRepliesBadgeTwo": "ردان",
+  "@homeRequestsRepliesBadgeTwo": { "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR two branch." },
+  "homeRequestsRepliesBadgeFew": "{count} ردود",
+  "@homeRequestsRepliesBadgeFew": {
+    "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR few branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "homeRequestsRepliesBadgeMany": "{count} رداً",
+  "@homeRequestsRepliesBadgeMany": {
+    "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR many branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "homeRequestsRepliesBadgeOther": "{count} رد",
+  "@homeRequestsRepliesBadgeOther": {
+    "description": "Accent badge in the requests section header; taps apply the has-replies bucket. CLDR other branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "homeFilterOpenLabel": "تصفية الطلبات",
+  "homeFilterActiveA11yLabel": "تصفية الطلبات، عوامل التصفية نشطة",
+  "homeFilterSheetTitle": "تصفية الطلبات",
+  "homeFilterSheetSubtitle": "كل حالات العروض التي يعرضها التطبيق في مكان واحد.",
+  "homeFilterShowGroup": "إظهار",
+  "homeFilterBucketAll": "الكل",
+  "homeFilterBucketAwaiting": "بانتظار العروض",
+  "homeFilterBucketReplies": "لديها ردود",
+  "filterSheetClearCta": "مسح",
+  "filterSheetApplyCtaZero": "لا توجد طلبات",
+  "@filterSheetApplyCtaZero": { "description": "Filter-sheet apply CTA carrying the live result count. CLDR zero branch." },
+  "filterSheetApplyCtaOne": "عرض طلب واحد",
+  "@filterSheetApplyCtaOne": { "description": "Filter-sheet apply CTA carrying the live result count. CLDR one branch." },
+  "filterSheetApplyCtaTwo": "عرض طلبين",
+  "@filterSheetApplyCtaTwo": { "description": "Filter-sheet apply CTA carrying the live result count. CLDR two branch." },
+  "filterSheetApplyCtaFew": "عرض {count} طلبات",
+  "@filterSheetApplyCtaFew": {
+    "description": "Filter-sheet apply CTA carrying the live result count. CLDR few branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "filterSheetApplyCtaMany": "عرض {count} طلباً",
+  "@filterSheetApplyCtaMany": {
+    "description": "Filter-sheet apply CTA carrying the live result count. CLDR many branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "filterSheetApplyCtaOther": "عرض {count} طلب",
+  "@filterSheetApplyCtaOther": {
+    "description": "Filter-sheet apply CTA carrying the live result count. CLDR other branch.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "filterPillClearA11yLabel": "إزالة عامل التصفية {filter}",
+  "jeeberFeedFilterOpenLabel": "تصفية الطلبات",
+  "jeeberFeedFilterSheetTitle": "تصفية الطلبات القريبة",
+  "jeeberFeedFilterSheetSubtitle": "تنطبق على قائمة الطلبات القريبة.",
+  "jeeberFeedFilterSearchGroup": "بحث",
+  "jeeberFeedFilterTierGroup": "الفئة",
+  "jeeberFeedSearchPillLabel": "«{query}»"
 }

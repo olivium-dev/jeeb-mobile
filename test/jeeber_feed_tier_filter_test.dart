@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
+import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_filter_pills.dart';
 import 'package:jeeb_mobile/features/jeeber_home/application/availability_cubit.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/entities/availability_status.dart';
 import 'package:jeeb_mobile/features/jeeber_home/domain/services/availability_gateway.dart';
@@ -46,7 +47,6 @@ DeliveryRequest _makeRequest({
 }
 
 Widget _host({
-  required List<DeliveryRequest> requests,
   required AvailabilityCubit avCubit,
   required RequestFeedCubit feedCubit,
 }) {
@@ -78,122 +78,178 @@ Widget _host({
   );
 }
 
+AvailabilityCubit _availability(WidgetTester tester, AvailabilityState state) {
+  final ticker = StreamController<DateTime>.broadcast();
+  addTearDown(ticker.close);
+  final cubit = AvailabilityCubit(
+    gateway: InMemoryAvailabilityGateway(
+      initial: AvailabilityStatus.initial.copyWith(state: state),
+    ),
+    tickerFactory: () => ticker.stream,
+  );
+  addTearDown(cubit.close);
+  return cubit;
+}
+
+Future<RequestFeedCubit> _pumpOnline(
+  WidgetTester tester,
+  List<DeliveryRequest> requests, {
+  Size size = const Size(400, 1400),
+}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  final avCubit = _availability(tester, AvailabilityState.online);
+  final feedCubit = RequestFeedCubit(
+    repository: SeededRequestFeedRepository(requests),
+  );
+  addTearDown(feedCubit.close);
+  await avCubit.load();
+  await tester.pumpWidget(_host(avCubit: avCubit, feedCubit: feedCubit));
+  await tester.pump();
+  await feedCubit.refresh();
+  await tester.pumpAndSettle();
+  return feedCubit;
+}
+
+Future<void> _openFilterSheet(WidgetTester tester) async {
+  await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_open'));
+  await tester.pumpAndSettle();
+}
+
+Finder _card(String id, {bool skipOffstage = true}) =>
+    find.byKey(Key('jeeber-feed-card-$id'), skipOffstage: skipOffstage);
+
 void main() {
-  group('JeeberFeedTabView – tier filter chips', () {
-    testWidgets(
-      'AC1: tier filter strip renders when Jeeber is online',
-      (tester) async {
-        final ticker = StreamController<DateTime>.broadcast();
-        addTearDown(ticker.close);
-        final avCubit = AvailabilityCubit(
-          gateway: InMemoryAvailabilityGateway(
-            initial: AvailabilityStatus.initial.copyWith(
-              state: AvailabilityState.online,
-            ),
-          ),
-          tickerFactory: () => ticker.stream,
-        );
-        addTearDown(avCubit.close);
-        final feedCubit = RequestFeedCubit(
-          repository: SeededRequestFeedRepository(
-            [_makeRequest(id: '1', tier: JeeberRequestTier.flash)],
-          ),
-        );
-        addTearDown(feedCubit.close);
+  group('JeeberFeedTabView – tier facet in the filter sheet', () {
+    testWidgets('AC1: the tier group lives in the sheet, not on the board', (
+      tester,
+    ) async {
+      await _pumpOnline(tester, [
+        _makeRequest(id: '1', tier: JeeberRequestTier.flash),
+      ]);
 
-        await avCubit.load();
-        await tester.pumpWidget(
-          _host(
-            requests: [],
-            avCubit: avCubit,
-            feedCubit: feedCubit,
-          ),
-        );
-        await tester.pump();
-        await feedCubit.refresh();
-        await tester.pumpAndSettle();
+      // The board is chrome-light at rest: no tier row above the first card.
+      expect(find.byKey(JeeberFeedTabView.tierStripKey), findsNothing);
 
-        expect(find.byKey(JeeberFeedTabView.tierStripKey), findsOneWidget);
-      },
-    );
+      await _openFilterSheet(tester);
 
-    testWidgets(
-      'AC2: Flash chip activates and filters requests by tier',
-      (tester) async {
-        final ticker = StreamController<DateTime>.broadcast();
-        addTearDown(ticker.close);
-        final avCubit = AvailabilityCubit(
-          gateway: InMemoryAvailabilityGateway(
-            initial: AvailabilityStatus.initial.copyWith(
-              state: AvailabilityState.online,
-            ),
-          ),
-          tickerFactory: () => ticker.stream,
-        );
-        addTearDown(avCubit.close);
-        final requests = [
-          _makeRequest(id: 'flash-1', tier: JeeberRequestTier.flash),
-          _makeRequest(id: 'std-1', tier: JeeberRequestTier.standard),
-        ];
-        final feedCubit = RequestFeedCubit(
-          repository: SeededRequestFeedRepository(requests),
-        );
-        addTearDown(feedCubit.close);
+      expect(find.byKey(JeeberFeedTabView.tierStripKey), findsOneWidget);
+      expect(find.byKey(JeeberFeedTabView.searchBarKey), findsOneWidget);
+    });
 
-        await avCubit.load();
-        await tester.pumpWidget(
-          _host(requests: requests, avCubit: avCubit, feedCubit: feedCubit),
-        );
-        await feedCubit.refresh();
-        await tester.pumpAndSettle();
+    testWidgets('AC2: staging Flash then applying narrows the list by tier', (
+      tester,
+    ) async {
+      await _pumpOnline(tester, [
+        _makeRequest(id: 'flash-1', tier: JeeberRequestTier.flash),
+        _makeRequest(id: 'std-1', tier: JeeberRequestTier.standard),
+      ]);
 
-        // Initially All selected — list is visible.
-        expect(find.byKey(JeeberFeedTabView.listKey), findsOneWidget);
+      expect(_card('flash-1'), findsOneWidget);
+      expect(_card('std-1'), findsOneWidget);
 
-        // Tap the full target rather than the compact visual label.
-        await tester.tap(find.bySemanticsIdentifier('jeeber_feed_tier_chip_1'));
-        await tester.pumpAndSettle();
-
-        // List still rendered (flash-1 matches).
-        expect(find.byKey(JeeberFeedTabView.listKey), findsOneWidget);
-      },
-    );
-
-    testWidgets('tab and tier chips expose tokenized minimum hit targets',
-        (tester) async {
-      tester.view.physicalSize = const Size(800, 1200);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final ticker = StreamController<DateTime>.broadcast();
-      addTearDown(ticker.close);
-      final avCubit = AvailabilityCubit(
-        gateway: InMemoryAvailabilityGateway(
-          initial: AvailabilityStatus.initial.copyWith(
-            state: AvailabilityState.online,
-          ),
-        ),
-        tickerFactory: () => ticker.stream,
-      );
-      addTearDown(avCubit.close);
-      final feedCubit = RequestFeedCubit(
-        repository: SeededRequestFeedRepository(
-          [_makeRequest(id: 'target', tier: JeeberRequestTier.flash)],
-        ),
-      );
-      addTearDown(feedCubit.close);
-
-      await avCubit.load();
-      await tester.pumpWidget(
-        _host(requests: const [], avCubit: avCubit, feedCubit: feedCubit),
-      );
-      await feedCubit.refresh();
+      await _openFilterSheet(tester);
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_tier_chip_1'));
       await tester.pumpAndSettle();
+
+      // Staged only: the feed behind the sheet is untouched until Apply.
+      expect(_card('std-1', skipOffstage: false), findsOneWidget);
+
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_apply'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(JeeberFeedTabView.listKey), findsOneWidget);
+      expect(_card('flash-1'), findsOneWidget);
+      expect(_card('std-1'), findsNothing);
+    });
+
+    testWidgets('the applied tier surfaces as a pill whose ✕ clears it', (
+      tester,
+    ) async {
+      await _pumpOnline(tester, [
+        _makeRequest(id: 'flash-1', tier: JeeberRequestTier.flash),
+        _makeRequest(id: 'std-1', tier: JeeberRequestTier.standard),
+      ]);
+
+      await _openFilterSheet(tester);
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_tier_chip_1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_apply'));
+      await tester.pumpAndSettle();
+
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(JeeberFeedTabView)),
+      );
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_filter_pill_tier'),
+        findsOneWidget,
+      );
+      final pill = tester.widget<JeebFilterPill>(find.byType(JeebFilterPill));
+      expect(pill.label, l10n.jeeberFeedTierFlash);
+
+      await tester.tap(
+        find.bySemanticsIdentifier('jeeber_feed_filter_pill_tier_clear'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_filter_pill_tier'),
+        findsNothing,
+      );
+      expect(_card('std-1'), findsOneWidget);
+    });
+
+    testWidgets('tapping a pill body reopens the sheet on the same facet', (
+      tester,
+    ) async {
+      await _pumpOnline(tester, [
+        _makeRequest(id: 'flash-1', tier: JeeberRequestTier.flash),
+      ]);
+
+      await _openFilterSheet(tester);
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_tier_chip_1'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_apply'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('jeeber_feed_filter_pill_tier'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_filter_sheet'),
+        findsOneWidget,
+      );
+      expect(find.byKey(JeeberFeedTabView.tierStripKey), findsOneWidget);
+    });
+
+    testWidgets('stage tabs and tier chips expose tokenized minimum targets', (
+      tester,
+    ) async {
+      await _pumpOnline(tester, [
+        _makeRequest(id: 'target', tier: JeeberRequestTier.flash),
+      ], size: const Size(800, 1200));
 
       for (final identifier in const [
         'jeeber_feed_requests_tab',
         'jeeber_feed_pending_tab',
         'jeeber_feed_replies_tab',
+      ]) {
+        final target = find.bySemanticsIdentifier(identifier);
+        expect(target, findsOneWidget);
+        expect(
+          tester.getSize(target).height,
+          greaterThanOrEqualTo(UIConstants.buttonHeight),
+          reason: '$identifier must expose the OMDS minimum target height',
+        );
+      }
+
+      await _openFilterSheet(tester);
+
+      for (final identifier in const [
         'jeeber_feed_tier_chip_0',
         'jeeber_feed_tier_chip_1',
         'jeeber_feed_tier_chip_2',
@@ -209,38 +265,32 @@ void main() {
       }
     });
 
-    testWidgets('server-closed request never renders actionable feed controls',
-        (tester) async {
-      final ticker = StreamController<DateTime>.broadcast();
-      addTearDown(ticker.close);
-      final avCubit = AvailabilityCubit(
-        gateway: InMemoryAvailabilityGateway(
-          initial: AvailabilityStatus.initial.copyWith(
-            state: AvailabilityState.online,
-          ),
-        ),
-        tickerFactory: () => ticker.stream,
-      );
-      addTearDown(avCubit.close);
-      final requests = [
+    testWidgets('the tier group is hidden on stages tier never applied to', (
+      tester,
+    ) async {
+      await _pumpOnline(tester, [
+        _makeRequest(id: 'flash-1', tier: JeeberRequestTier.flash),
+      ]);
+
+      await tester.tap(find.bySemanticsIdentifier('jeeber_feed_replies_tab'));
+      await tester.pumpAndSettle();
+      await _openFilterSheet(tester);
+
+      expect(find.byKey(JeeberFeedTabView.searchBarKey), findsOneWidget);
+      expect(find.byKey(JeeberFeedTabView.tierStripKey), findsNothing);
+    });
+
+    testWidgets('server-closed request never renders actionable feed controls', (
+      tester,
+    ) async {
+      await _pumpOnline(tester, [
         _makeRequest(
           id: 'server-closed',
           tier: JeeberRequestTier.flash,
           requestIsOpen: false,
         ),
         _makeRequest(id: 'server-live', tier: JeeberRequestTier.flash),
-      ];
-      final feedCubit = RequestFeedCubit(
-        repository: SeededRequestFeedRepository(requests),
-      );
-      addTearDown(feedCubit.close);
-
-      await avCubit.load();
-      await tester.pumpWidget(
-        _host(requests: requests, avCubit: avCubit, feedCubit: feedCubit),
-      );
-      await feedCubit.refresh();
-      await tester.pumpAndSettle();
+      ]);
 
       expect(
         find.bySemanticsIdentifier('jeeber_feed_request_card_server-closed'),
@@ -256,64 +306,44 @@ void main() {
       );
     });
 
-    testWidgets(
-      'AC3: offline banner is shown when Jeeber is offline',
-      (tester) async {
-        final avCubit = AvailabilityCubit(
-          gateway: InMemoryAvailabilityGateway(
-            initial: AvailabilityStatus.initial.copyWith(
-              state: AvailabilityState.offline,
-            ),
-          ),
-        );
-        addTearDown(avCubit.close);
-        final feedCubit = RequestFeedCubit(
-          repository: SeededRequestFeedRepository([]),
-        );
-        addTearDown(feedCubit.close);
+    testWidgets('AC3: offline banner is shown when Jeeber is offline', (
+      tester,
+    ) async {
+      final avCubit = _availability(tester, AvailabilityState.offline);
+      final feedCubit = RequestFeedCubit(
+        repository: SeededRequestFeedRepository([]),
+      );
+      addTearDown(feedCubit.close);
 
-        await avCubit.load();
-        await tester.pumpWidget(
-          _host(requests: [], avCubit: avCubit, feedCubit: feedCubit),
-        );
-        await tester.pumpAndSettle();
+      await avCubit.load();
+      await tester.pumpWidget(_host(avCubit: avCubit, feedCubit: feedCubit));
+      await tester.pumpAndSettle();
 
-        final l10n = AppLocalizations.of(
-          tester.element(find.byType(JeeberFeedTabView)),
-        );
-        expect(
-          find.text(l10n.jeeberFeedOfflineBannerTitle),
-          findsWidgets,
-        );
-        // Feed list should not be visible when offline.
-        expect(find.byKey(JeeberFeedTabView.listKey), findsNothing);
-      },
-    );
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(JeeberFeedTabView)),
+      );
+      expect(find.text(l10n.jeeberFeedOfflineBannerTitle), findsWidgets);
+      expect(find.byKey(JeeberFeedTabView.listKey), findsNothing);
+    });
 
-    testWidgets(
-      'tier filter strip is hidden when Jeeber is offline',
-      (tester) async {
-        final avCubit = AvailabilityCubit(
-          gateway: InMemoryAvailabilityGateway(
-            initial: AvailabilityStatus.initial.copyWith(
-              state: AvailabilityState.offline,
-            ),
-          ),
-        );
-        addTearDown(avCubit.close);
-        final feedCubit = RequestFeedCubit(
-          repository: SeededRequestFeedRepository([]),
-        );
-        addTearDown(feedCubit.close);
+    testWidgets('the filter disc is hidden when Jeeber is offline', (
+      tester,
+    ) async {
+      final avCubit = _availability(tester, AvailabilityState.offline);
+      final feedCubit = RequestFeedCubit(
+        repository: SeededRequestFeedRepository([]),
+      );
+      addTearDown(feedCubit.close);
 
-        await avCubit.load();
-        await tester.pumpWidget(
-          _host(requests: [], avCubit: avCubit, feedCubit: feedCubit),
-        );
-        await tester.pumpAndSettle();
+      await avCubit.load();
+      await tester.pumpWidget(_host(avCubit: avCubit, feedCubit: feedCubit));
+      await tester.pumpAndSettle();
 
-        expect(find.byKey(JeeberFeedTabView.tierStripKey), findsNothing);
-      },
-    );
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_filter_open'),
+        findsNothing,
+      );
+      expect(find.byKey(JeeberFeedTabView.tierStripKey), findsNothing);
+    });
   });
 }

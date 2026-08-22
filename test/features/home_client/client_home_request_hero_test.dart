@@ -92,7 +92,9 @@ Widget _harness({
           greetingNameProvider: () => 'Lina',
         ),
         child: ClientHomeScreen(
-          initialTab: ClientHomeTab.pendingRequests,
+          // What the shell mounts. `pendingRequests` here is a bucket, and a
+          // bucket now reads as an applied filter the user never chose.
+          initialTab: ClientHomeTab.all,
           onCreateRequest: onCreateRequest ?? (_) {},
         ),
       ),
@@ -523,35 +525,66 @@ void main() {
     );
   }
 
-  testWidgets('switching to an empty tab moves neither capsule nor headline', (
+  testWidgets('applying a filter moves neither capsule nor list header', (
     tester,
   ) async {
     final repo = InMemoryClientHomeRepository.fromSnapshot(
-      const ClientHomeSnapshot(replies: <ClientHomeRequest>[]),
+      const ClientHomeSnapshot(
+        pending: <ClientHomeRequest>[
+          ClientHomeRequest(
+            id: 'pen-1',
+            title: 'ORD-1',
+            displayId: 'ORD-1',
+            status: ClientRequestStatus.searching,
+            destinationLabel: 'Hamra',
+          ),
+        ],
+        replies: <ClientHomeRequest>[
+          ClientHomeRequest(
+            id: 'rep-1',
+            title: 'ORD-2',
+            displayId: 'ORD-2',
+            status: ClientRequestStatus.offersReceived,
+            destinationLabel: 'Hamra',
+            offerCount: 2,
+            offerAvatarUrls: <String>['a', 'b'],
+          ),
+        ],
+      ),
       latency: Duration.zero,
     );
+    final handle = tester.ensureSemantics();
     await tester.pumpWidget(_harness(repo: repo));
     await tester.pumpAndSettle();
 
-    // The time-of-day headline's own tagline — the en slogan; ar keeps its own.
-    final tagline = find.text('Jeeb me anything');
-    final taglineBefore = tester.getRect(tagline);
-    final capsuleBefore = tester.getRect(heroCapsule());
+    // The scrolling headline is deliberately absent once there is a list to
+    // show: 312px of prompt above it pushed content a third down the screen.
+    expect(find.text('Jeeb me anything'), findsNothing);
 
-    await tester.tap(find.text('Replies'));
+    // What must still not move. The capsule is the pinned create door; the
+    // section header is the new top of the list.
+    final header = find.byKey(const Key('client-home-requests-header'));
+    final capsuleBefore = tester.getRect(heroCapsule());
+    final headerBefore = tester.getRect(header);
+
+    await tester.tap(find.bySemanticsIdentifier('orders_home_replies_tab'));
     await tester.pumpAndSettle();
 
     expect(
-      tagline,
-      findsOneWidget,
-      reason: 'a filter tap used to vanish the headline with the capsule',
+      tester.getRect(heroCapsule()),
+      capsuleBefore,
+      reason: 'a filter tap used to vanish the create capsule',
     );
-    expect(tester.getRect(tagline), taglineBefore);
-    expect(tester.getRect(heroCapsule()), capsuleBefore);
+    expect(
+      tester.getRect(header),
+      headerBefore,
+      reason: 'a filter tap must not shift the list header under the finger',
+    );
     expect(
       find.bySemanticsIdentifier('orders_create_request_button'),
       findsOneWidget,
     );
+    handle.dispose();
   });
 
   testWidgets('the capsule height is invariant across locale and width', (

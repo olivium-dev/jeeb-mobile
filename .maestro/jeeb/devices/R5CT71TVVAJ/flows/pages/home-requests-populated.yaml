@@ -1,13 +1,14 @@
 # PAGE OBJECT: populated customer Requests screen.
 # Primary action: use the semantic header plus to start request creation.
 # Search, voice CTA, and the floating FAB are intentionally absent.
+# The three-segment chip row is gone: one merged list (replies over pending)
+# with one filter disc, disclosed because this page object is the populated
+# state. Pending rows are on screen at rest, so nothing has to be selected.
 ---
 - assertVisible:
     id: "orders_create_request_button"
 - assertVisible:
-    id: "orders_filter_pendingRequests"
-- assertVisible:
-    id: "orders_filter_replies"
+    id: "orders_filter_open"
 - assertNotVisible:
     id: "orders_search_bar"
 - assertNotVisible:
@@ -15,9 +16,7 @@
 - assertNotVisible:
     id: "orders_home_new_order_fab"
 
-# Select Pending and pin that the populated request list is reachable by id.
-- tapOn:
-    id: "orders_filter_pendingRequests"
+# Pin that the populated request list is reachable by id, with no filter step.
 - assertVisible:
     id: "orders_home_request_row_0"
 
