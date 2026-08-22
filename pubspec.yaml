@@ -154,7 +154,7 @@ dependencies:
   # `Firebase.initializeApp()` dies with `channel-error` and FCM never starts.
   # 3.15.2+ fixes it by requiring ^6.0.0, which the exact firebase_auth 5.4.2
   # pin below (Xcode 15.4 / Firebase iOS 11.4) forbids. pubspec.lock is
-  # gitignored here, so the range — not a lock — is what keeps this out.
+  # committed; this range + `tool/check_firebase_core_pin.sh` enforce it.
   firebase_core: ">=3.13.1 <3.15.0"
   firebase_crashlytics: ^4.1.3
 
