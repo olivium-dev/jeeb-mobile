@@ -491,9 +491,6 @@ class _OrdersEmptyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // The tile is the Active bucket: "your first request" is only honest when
-    // there is no order anywhere, so the other two keep their own line.
-    final bool isFirstRun = tab == OrderHistoryTab.active;
     return ListView(
       padding: EdgeInsetsDirectional.only(
         top: topGap,
@@ -506,14 +503,8 @@ class _OrdersEmptyView extends StatelessWidget {
           variant: JeebEmptyStateVariant.parcel,
           headline: l10n.orderHistoryEmptyTitle,
           body: _emptySubtitle(tab, l10n),
-          action: isFirstRun
-              ? JeebCtaButton.accent(
-                  label: l10n.orderHistoryEmptyCta,
-                  leadingIcon: Icons.mic,
-                  identifier: 'order_history_empty_cta',
-                  onTap: () => GoRouter.of(context).pushNamed('request-type'),
-                )
-              : null,
+          // Single door: creating a request lives on the mic in My Requests,
+          // so this tile stays text-only on every tab.
         ),
       ],
     );
