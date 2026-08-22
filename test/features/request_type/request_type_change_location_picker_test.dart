@@ -212,6 +212,51 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('the picked point reaches POST /requests — Continue must not '
+        'silently swap it for the device GPS fix', (tester) async {
+      final built = await _openRequestType(tester);
+
+      await tester.tap(find.bySemanticsIdentifier('request_type_flash_radio'));
+      await tester.pump();
+
+      await tester.tap(
+        find.bySemanticsIdentifier('request_type_change_location_button'),
+      );
+      await _pumpFrames(tester);
+      // Deliberately NOT the FakeCurrentLocationResolver fix (33.8959/35.4797).
+      built.router.pop(
+        const LocationPoint(latitude: 34.4367, longitude: 35.8497),
+      );
+      await _pumpFrames(tester);
+
+      final continueCta = find.bySemanticsIdentifier(
+        'request_type_continue_cta',
+      );
+      await tester.ensureVisible(continueCta);
+      await tester.tap(continueCta);
+      await tester.pumpAndSettle();
+      expect(find.byType(ClientLocationScreen), findsOneWidget);
+
+      final field = find.bySemanticsIdentifier('compose_description_input');
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'Two coffees from the corner shop');
+      await tester.pumpAndSettle();
+
+      final confirm = find.bySemanticsIdentifier('location_select_confirm_cta');
+      await tester.ensureVisible(confirm);
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+
+      expect(submission.submitCount, 1);
+      expect(
+        submission.lastDraft?.pickupLat,
+        34.4367,
+        reason: 'The pinned pickup the customer saw must be what is POSTed.',
+      );
+      expect(submission.lastDraft?.pickupLng, 35.8497);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('cancelling the picker leaves the row untouched',
         (tester) async {
       final built = await _openRequestType(tester);

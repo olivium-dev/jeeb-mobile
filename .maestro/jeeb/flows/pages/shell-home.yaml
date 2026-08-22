@@ -1,7 +1,7 @@
 # PAGE OBJECT — shell / "Everything, One Place" (Requests tab = authenticated home)
 # ─────────────────────────────────────────────────────────────────────────────
 # route: shell. Reached by: Skip for now / Continue from profile-name.
-# Default action: New Order => route client-location, tier seeded (S3). The bottom-nav taps are
+# Default action: New Order => route request-type (the single create door). The bottom-nav taps are
 # exposed as an ACTION param so the tour can jump straight to any tab.
 #
 # Coordinate fractions of the screen:

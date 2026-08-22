@@ -1189,7 +1189,11 @@ class AppRouter {
           // NO seams: "Change" is the screen's own picker edge, and Continue
           // goes to `client-location` — the ONE create path. The W0-era
           // `→ /request-summary` closures were dead and are gone.
-          builder: (context, state) => const RequestTypeScreen(),
+          // `?resume=1` marks an already-seeded session (the voice door), so
+          // Continue re-prices it instead of blanking the clip.
+          builder: (context, state) => RequestTypeScreen(
+            resumeSession: state.uri.queryParameters['resume'] == '1',
+          ),
         ),
         GoRoute(
           path: '/client-location',

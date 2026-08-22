@@ -1,15 +1,16 @@
 # PAGE OBJECT: request-type — "Choose your request" (Flash / Express / Standard).
-# Reached by: waiting-retarget or order-history reorder — NOT home New Order,
-# which goes straight to client-location since S3. Coordinate taps (no semantics).
+# Reached by: home New Order (the SINGLE create door), waiting-retarget, or
+# order-history reorder. Coordinate taps (no semantics).
 # Params:
-#   TIER_POINT — y-fraction point of the tier tile to select.
-#                Default "50%,23.2%" = Flash (already pre-selected).
-#                Express = "50%,35.7%" · Standard = "50%,48%".
+#   TIER_POINT — y-fraction point of the tier tile to select. Callers MUST pass
+#                it: Flash = "50%,23.2%" · Express = "50%,35.7%" ·
+#                Standard = "50%,48%".
 # Effect: taps the tier tile, then Continue -> client-location.
-# Other CTAs: Change Location 71.3%,65.9% · Back 8.3%,6.7%.
+# Other CTAs: Change Location 71.3%,65.9% (map picker, pops back here) ·
+#             Back 8.3%,6.7%.
 ---
 - tapOn:
-    point: "${TIER_POINT}"     # tier tile (default Flash 50%,23.2%)
+    point: "${TIER_POINT}"     # tier tile
 - waitForAnimationToEnd:
     timeout: 2000
 - tapOn:

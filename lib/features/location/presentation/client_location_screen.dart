@@ -178,12 +178,19 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
   late final CurrentLocationResolver _resolver;
   late final Future<String?> _userIdFuture;
 
+  /// The pickup the tier step's "Change" picker already produced. Read once so
+  /// the cubit opens pinned on it instead of silently re-resolving the GPS.
+  LocationPoint? _seededPickup;
+
   @override
   void initState() {
     super.initState();
     final config = widget.config;
     _repository = config.repository ?? config._resolveRepository();
     _resolver = config._resolveGpsResolver();
+    if (sl.isRegistered<ComposeRequestController>()) {
+      _seededPickup = sl<ComposeRequestController>().pickupPoint;
+    }
     // DEFECT A: never default to the mock `user-client-001`. An injected id
     // (tests / dev seams) wins; otherwise resolve the authenticated id from
     // [AuthTokenStore] — the REAL user, never a hardcoded mock. Computed once.
@@ -214,15 +221,29 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
         // resolves identity from the bearer token, so the list loads correctly.
         final resolvedId = snapshot.data ?? '';
         return BlocProvider<LocationSelectCubit>(
-          create: (_) => LocationSelectCubit(
-            repository: _repository,
-            userId: resolvedId,
-            currentLocationResolver: _resolver,
-          )..load(),
+          create: (_) => _buildCubit(resolvedId),
           child: scaffold,
         );
       },
     );
+  }
+
+  /// Pins the carried pickup BEFORE `load()`: `markPinned` leaves the status
+  /// `initial`, and a pinned choice keeps `load()` from resolving the GPS.
+  LocationSelectCubit _buildCubit(String resolvedId) {
+    final cubit = LocationSelectCubit(
+      repository: _repository,
+      userId: resolvedId,
+      currentLocationResolver: _resolver,
+    );
+    final pickup = _seededPickup;
+    if (pickup != null) {
+      cubit.markPinned(
+        latitude: pickup.latitude,
+        longitude: pickup.longitude,
+      );
+    }
+    return cubit..load();
   }
 }
 

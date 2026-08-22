@@ -9,10 +9,9 @@
 #   orders_filter_replies                    — Replies chip
 #   shell_tab_requests / delivery / profile  — client bottom navigation
 #
-# TIERS DEPENDENCY (S3): the create tap routes to client-location only when
-# `GET /tiers` has answered with at least one tier carrying a server id. With
-# no such tier the app falls back to `request-type`, so a missing or
-# wireId-less tiers mock fails this flow on an unrelated id.
+# TIERS DEPENDENCY: the create tap opens the tier screen, so `GET /tiers` must
+# answer with at least one tier carrying a server id — otherwise nothing is
+# selectable and Continue never enables.
 # Removed entry points stay absent: orders_home_new_order_fab,
 # client_home_voice_request, and orders_search_bar.
 #
@@ -62,13 +61,28 @@ appId: ${APP_ID}
 - assertVisible:
     id: "shell_tab_profile"
 
-# The empty-state CTA is a real create-flow entry.
+# The empty-state CTA is a real create-flow entry. SINGLE DOOR: it opens the
+# tier screen, then Continue advances to location-select.
 - tapOn:
     id: "_request_empty_state_new_order_button"
 - extendedWaitUntil:
     visible:
+      id: "request_type_continue_cta"
+    timeout: 30000
+- tapOn:
+    id: "request_type_standard_radio"
+- tapOn:
+    id: "request_type_continue_cta"
+- extendedWaitUntil:
+    visible:
       id: "location_select_confirm_cta"
     timeout: 15000
+# Two screens deep now — back out of location-select, then the tier screen.
+- back
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 10000
 - back
 - extendedWaitUntil:
     visible:

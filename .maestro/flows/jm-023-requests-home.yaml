@@ -6,14 +6,13 @@
 #        and orders_home_bell (→ notifications-list JM-057) are present.
 #   AC2: Given a pending request row, When tapped, Then route to waiting-no-coverage
 #        (waiting_notified_count visible, not chat) [JM-026].
-#   AC3: Given orders_create_request_button tapped, Then route to location-select
-#        (location_select_confirm_cta visible) with the recommended tier already
-#        seeded — S3 took the tier screen off the create path [JM-024 AC1a].
+#   AC3: Given orders_create_request_button tapped, Then route to the tier
+#        screen, and after request_type_continue_cta to location-select
+#        (location_select_confirm_cta visible) [JM-024 AC1a].
 #
-# TIERS DEPENDENCY (S3): the create tap routes to client-location only when
-# `GET /tiers` has answered with at least one tier carrying a server id. With
-# no such tier the app falls back to `request-type`, so a missing or
-# wireId-less tiers mock fails this flow on an unrelated id.
+# TIERS DEPENDENCY: `GET /tiers` must answer with at least one tier carrying a
+# server id, otherwise the tier screen has nothing selectable and Continue
+# stays disabled.
 # Mock: GET /delivery-service/v1/requests?status=pending|offers-received|active
 # Seam: jeeb.seam.session=customer_logged_in + jeeb.seam.journey=pending_request
 #       (seam key jeeb.seam.journey is FLAGGED — does not exist yet; backender/seam
@@ -157,6 +156,19 @@ appId: ${APP_ID}
 
 - tapOn:
     id: "orders_create_request_button"
+
+# SINGLE DOOR: the create button opens the tier screen — the one place a
+# delivery type is chosen. The location step only discloses what was picked.
+- extendedWaitUntil:
+    visible:
+      id: "request_type_continue_cta"
+    timeout: 30000
+
+- tapOn:
+    id: "request_type_standard_radio"
+
+- tapOn:
+    id: "request_type_continue_cta"
 
 - extendedWaitUntil:
     visible:
