@@ -561,7 +561,12 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
         _tierRetrying = false;
       });
     }
-    GoRouter.maybeOf(context)?.pushNamed('client-location');
+    // The voice door lands on the SAME tier screen as every other door;
+    // `resume=1` makes its Continue re-price instead of blanking the clip.
+    GoRouter.maybeOf(context)?.pushNamed(
+      'request-type',
+      queryParameters: const {'resume': '1'},
+    );
     if (transcript == null || transcript.isEmpty) {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()

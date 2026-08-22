@@ -2,6 +2,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jeeb_mobile/features/location/application/location_select_state.dart';
+import 'package:jeeb_mobile/features/location/data/location_repository.dart';
 import 'package:jeeb_mobile/features/location/domain/saved_location.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
@@ -50,6 +51,38 @@ void main() {
 
       expect(id, 'req-123');
       expect(submission.submitCount, 1);
+    });
+
+    test(
+        'a successful submit clears the session, so a later `?resume=1` entry '
+        'cannot re-open the order that was just sent', () async {
+      controller.setTier(_flash(wireId: '0be308ce-uuid'));
+      controller.setDescription('two kilos of apples');
+      controller.setVoiceNote(
+        transcription: 'two kilos of apples',
+        audioUrl: 'https://cdn/clip.m4a',
+      );
+      controller.setRecipientPhone('+9613000077');
+      controller.setPickupPoint(
+        const LocationPoint(latitude: 34.4367, longitude: 35.8497),
+      );
+
+      await controller.submitFromLocation(_currentLoaded());
+
+      expect(controller.description, isNull);
+      expect(controller.pickupPoint, isNull);
+      expect(controller.tier, isNotNull,
+          reason: 'only the order content is dropped — the tier survives');
+
+      // The proof that matters: none of it can ride along on the NEXT submit.
+      await controller.submitFromLocation(_currentLoaded());
+
+      expect(submission.lastDraft!.description, 'Delivery request');
+      expect(submission.lastDraft!.transcription, isNull);
+      expect(submission.lastDraft!.audioUrl, isNull);
+      expect(submission.lastDraft!.recipientPhone, isNull);
+      expect(submission.lastDraft!.pickupLat, _gpsLat,
+          reason: 'the stale pin must not survive either');
     });
 
     test('echoes the live tier UUID (Tier.wireId) verbatim as tierId', () async {

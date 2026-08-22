@@ -1,4 +1,5 @@
 import '../../location/application/location_select_state.dart';
+import '../../location/data/location_repository.dart' show LocationPoint;
 import '../../location/domain/saved_location.dart';
 import '../../tier_selection/domain/tier.dart';
 import '../domain/request_draft.dart';
@@ -18,19 +19,35 @@ class ComposeRequestController {
   String? _transcription;
   String? _audioUrl;
 
+  /// The point the tier step's "Change" picker returned, if any. Carried so the
+  /// location step pins what the customer already chose instead of dropping it.
+  LocationPoint? _pickupPoint;
+
   void setTier(Tier tier) {
     _tier = tier;
+    _clearSession();
+  }
+
+  /// Everything except the tier. A session must not outlive its own submit:
+  /// `?resume=1` would otherwise re-open the order that was just sent.
+  void _clearSession() {
     _recipientPhone = null;
     _description = null;
     _transcription = null;
     _audioUrl = null;
+    _pickupPoint = null;
   }
 
   Tier? get tier => _tier;
 
-  /// Re-prices an EXISTING session. Unlike [setTier] it keeps the description,
-  /// the voice note and the recipient — nothing about them depends on the tier.
-  void changeTier(Tier tier) => _tier = tier;
+  /// Re-picks the tier of a session seeded elsewhere (the voice door). Unlike
+  /// [setTier] it keeps the description, transcript and clip.
+  void chooseTier(Tier tier) => _tier = tier;
+
+  /// Set AFTER [setTier] (which starts a fresh session and clears it).
+  void setPickupPoint(LocationPoint? point) => _pickupPoint = point;
+
+  LocationPoint? get pickupPoint => _pickupPoint;
 
   /// Seeds a whole compose session atomically. The required tier makes
   /// [setTier]'s field-clearing impossible to trip over.
@@ -73,7 +90,9 @@ class ComposeRequestController {
 
   Future<String> _submitOnce(LocationSelectState location) async {
     try {
-      return await _submission.submit(_buildDraft(location));
+      final id = await _submission.submit(_buildDraft(location));
+      _clearSession();
+      return id;
     } finally {
       _inFlight = null;
     }

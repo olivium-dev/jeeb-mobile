@@ -54,6 +54,10 @@ tags:
 - runFlow:
     file: ../pages/shell-home.yaml
     env: { APP_ID: "${APP_ID}", ACTION: new_order }
+# SINGLE DOOR: New Order lands on request-type, not client-location.
+- runFlow:
+    file: ../pages/request-type.yaml
+    env: { APP_ID: "${APP_ID}" }
 - runFlow:
     file: ../pages/client-location.yaml
     env: { APP_ID: "${APP_ID}", DESC: "${DESC}" }

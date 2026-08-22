@@ -88,8 +88,13 @@ env:
 - pressKey: Back
 - waitForAnimationToEnd:
     timeout: 2000
-# Return to Requests/home tab and start a new order.
+# Return to Requests/home tab and start a new order. SINGLE DOOR: New Order
+# lands on the tier screen, not client-location.
 - runFlow: ../pages/home-requests-empty.yaml
+- runFlow:
+    file: ../pages/request-type.yaml
+    env:
+      TIER_POINT: "50%,23.2%"
 - runFlow: ../pages/location-permission.yaml
 - runFlow:
     file: ../pages/client-location-compose.yaml

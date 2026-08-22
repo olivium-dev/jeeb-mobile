@@ -4,7 +4,7 @@
 // without leaving `/`, and `ClientHomeVoiceDock` carries every state the disc
 // cannot say on its own. These pin the frozen ids through EVERY phase, the
 // permission-denied surface that would otherwise be silent, and the hand-off
-// that seeds the compose session before `/client-location`.
+// that seeds the compose session before `/request-type?resume=1`.
 //
 // NOTE on [_flush]: `StreamSubscription.cancel()` never completes under
 // `tester.pump()`, and `VoiceRecordingCubit.stopRecording()` awaits exactly

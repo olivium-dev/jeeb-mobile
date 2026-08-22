@@ -1,9 +1,8 @@
 // JM-024 AC1b — the request-type "Continue" CTA advances to `location-select`.
 //
-// S3 took this screen off the create path (the create tap now seeds the
-// recommended tier and opens location-select directly), so this file is the
-// regression guard for its SURVIVING entries: waiting-retarget, order-history
-// reorder, and the dev-seam route.
+// This screen is the SINGLE create door — every entry (the create capsule, the
+// voice hand-off, waiting-retarget, order-history reorder, the dev-seam route)
+// lands here, and Continue is the one edge onward.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

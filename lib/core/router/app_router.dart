@@ -1186,30 +1186,13 @@ class AppRouter {
         GoRoute(
           path: '/request-type',
           name: 'request-type',
+          // NO seams: "Change" is the screen's own picker edge, and Continue
+          // goes to `client-location` — the ONE create path. The W0-era
+          // `→ /request-summary` closures were dead and are gone.
+          // `?resume=1` marks an already-seeded session (the voice door), so
+          // Continue re-prices it instead of blanking the clip.
           builder: (context, state) => RequestTypeScreen(
-            onChangeLocation: () => context.push('/client-location'),
-            // A-P0: Continue producer. The screen owns the Continue CTA + tier
-            // selection; the router supplies the navigation closure that
-            // assembles a RequestDraft from the chosen [Tier] and pushes the
-            // summary step. The Tier carries no free-text description, so the
-            // draft description starts empty (the user fills it on the summary
-            // screen); the tier id/name seed the quote.
-            onTierSelected: (tier) => context.push(
-              '/request-summary',
-              extra: RequestDraft(
-                description: '',
-                tierId: tier.id.name,
-                tierName: tier.id.name,
-              ),
-            ),
-            // FIX-B: the sticky Continue CTA was a dead end — only the tier
-            // card tap navigated. The screen already assembles a complete
-            // [RequestDraft] (localized tier name + pickup) from the current
-            // selection and hands it here; forward it to the SAME destination
-            // the tier-card tap uses (`/request-summary`). No double-navigate:
-            // tapping a card and pressing Continue are distinct user actions.
-            onContinue: (draft) =>
-                context.push('/request-summary', extra: draft),
+            resumeSession: state.uri.queryParameters['resume'] == '1',
           ),
         ),
         GoRoute(

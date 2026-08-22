@@ -232,6 +232,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('order-history-empty-active')), findsOneWidget);
+    // Single door: the create CTA lives on the My Requests mic, not here.
+    expect(find.bySemanticsIdentifier('order_history_empty_cta'), findsNothing);
   });
 
   testWidgets('tapping a card navigates to /orders/:id', (tester) async {

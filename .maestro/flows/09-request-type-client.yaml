@@ -120,9 +120,9 @@ appId: ${APP_ID}
 - takeScreenshot: "09-request-type-standard-selected"
 
 # ── SECONDARY INTERACTION: Change Location is tappable and navigates ───────────
-# `request_type_change_location_button` is wired to context.push('/client-location')
-# (app_router.dart). Tapping it should leave the request-type screen and land on
-# the client-location screen. We prove the navigation by the request-type tier
+# `request_type_change_location_button` pushes the `capture-location` PICKER
+# (request_type_screen.dart). Tapping it should leave the request-type screen and
+# land on the map picker. We prove the navigation by the request-type tier
 # cards no longer being visible after the tap (we cannot assume the next screen's
 # ids in this flow's scope — screen 10 owns those). This asserts the CTA is live,
 # not a no-op.

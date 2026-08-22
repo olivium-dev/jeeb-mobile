@@ -1,9 +1,12 @@
-// The delivery tier is DISCLOSED on the last screen before POST /requests.
+// The delivery tier is DISCLOSED, READ-ONLY, on the last screen before
+// POST /requests. It is chosen once, on "Choose your request".
 //
 // The voice path picks the recommended tier for the customer so the mic can
 // reach a create in one hop. That hop is only legitimate if the price band the
-// order goes out at is visible and changeable first — these pin that, and that
-// changing it does not blank the recorded description the way `setTier` does.
+// order goes out at is VISIBLE first — these pin that, and pin that this screen
+// no longer offers a second picker (there is exactly one place to choose).
+
+import 'dart:ui' show CheckedState;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -125,7 +128,17 @@ void main() {
     expect(find.bySemanticsIdentifier('compose_tier_row'), findsOneWidget);
     expect(find.text('Standard'), findsOneWidget);
     expect(find.text('Delivery type'), findsOneWidget);
-    expect(find.bySemanticsIdentifier('compose_tier_change'), findsOneWidget);
+    // WAS findsOneWidget. The second picker is gone: one tier choice, on
+    // "Choose your request".
+    expect(find.bySemanticsIdentifier('compose_tier_change'), findsNothing);
+
+    // An inert row must not be announced as a selectable radio.
+    final node = tester.getSemantics(
+      find.bySemanticsIdentifier('compose_tier_row'),
+    );
+    expect(node.flagsCollection.isButton, isFalse);
+    expect(node.flagsCollection.isInMutuallyExclusiveGroup, isFalse);
+    expect(node.flagsCollection.isChecked, CheckedState.none);
   });
 
   testWidgets('no seeded session renders nothing at all', (tester) async {
@@ -136,7 +149,10 @@ void main() {
     expect(find.text('Delivery type'), findsNothing);
   });
 
-  testWidgets('changing the tier keeps the recorded description and clip', (
+  // WAS 'changing the tier keeps the recorded description and clip'. There is
+  // no second picker to change it with any more, so what is pinned is that the
+  // row is INERT: tapping it opens nothing and re-prices nothing.
+  testWidgets('the disclosure is read-only — tapping it changes no tier', (
     tester,
   ) async {
     final controller = _seed()
@@ -150,24 +166,23 @@ void main() {
     await tester.pumpWidget(_harness());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.bySemanticsIdentifier('compose_tier_change'));
-    await tester.pumpAndSettle();
-    expect(find.bySemanticsIdentifier('compose_tier_sheet'), findsOneWidget);
-
     await tester.tap(
-      find.bySemanticsIdentifier('compose_tier_option_flash'),
+      find.bySemanticsIdentifier('compose_tier_row'),
+      warnIfMissed: false,
     );
     await tester.pumpAndSettle();
 
-    expect(controller.tier, _flash);
-    // `setTier` would have blanked both — that is why `changeTier` exists.
+    expect(find.bySemanticsIdentifier('compose_tier_sheet'), findsNothing);
+    expect(find.bySemanticsIdentifier('compose_tier_option_flash'), findsNothing);
+    expect(controller.tier, _standard);
+    expect(find.text('Standard'), findsOneWidget);
+    // The seeded session is untouched by the disclosure.
     expect(controller.description, 'two kilos of apples');
-    expect(find.text('Flash'), findsOneWidget);
   });
 
-  // S3: the typed path seeds through `setTier` and shows no tier screen, so
-  // this section IS its disclosure — the Change row has to be the whole catalog.
-  testWidgets('a setTier-seeded typed session discloses and changes too', (
+  // The typed path now seeds through the tier screen's Continue, so this
+  // section is only its receipt — it must name the tier and offer no re-pick.
+  testWidgets('a setTier-seeded typed session is disclosed, not re-pickable', (
     tester,
   ) async {
     final controller = _seed()..setTier(_standard);
@@ -177,14 +192,10 @@ void main() {
 
     expect(find.bySemanticsIdentifier('compose_tier_row'), findsOneWidget);
     expect(find.text('Standard'), findsOneWidget);
-
-    await tester.tap(find.bySemanticsIdentifier('compose_tier_change'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.bySemanticsIdentifier('compose_tier_option_flash'));
-    await tester.pumpAndSettle();
-
-    expect(controller.tier, _flash);
-    expect(find.text('Flash'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('compose_tier_change'), findsNothing);
+    expect(find.bySemanticsIdentifier('compose_tier_sheet'), findsNothing);
+    expect(controller.tier, _standard);
+    expect(find.text('Flash'), findsNothing);
   });
 
   // Maestro's `assertVisible` does not scroll, and neither does a customer who
@@ -217,9 +228,8 @@ void main() {
       lessThan(854),
       reason: 'the seeded tier scrolled off the first screenful',
     );
-    expect(
-      tester.getRect(find.bySemanticsIdentifier('compose_tier_change')).bottom,
-      lessThan(854),
-    );
+    // WAS a second geometry pin on `compose_tier_change`, which no longer
+    // exists; the heading + row are the whole disclosure now.
+    expect(find.text('Delivery type'), findsOneWidget);
   });
 }

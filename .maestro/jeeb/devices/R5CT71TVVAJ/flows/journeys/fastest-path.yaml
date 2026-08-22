@@ -55,8 +55,12 @@ env:
 - runFlow: ../pages/name-capture.yaml
 - takeScreenshot: r5_home_shell
 
-# New Order -> client-location directly (S3: the tier screen left this path).
+# New Order -> request-type -> Continue -> client-location (the single door).
 - runFlow: ../pages/home-requests-empty.yaml
+- runFlow:
+    file: ../pages/request-type.yaml
+    env:
+      TIER_POINT: "50%,23.2%"
 
 # Location dialog (grant), then describe + Confirm (POST /v1/requests 201).
 - runFlow: ../pages/location-permission.yaml

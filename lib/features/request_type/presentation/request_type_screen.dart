@@ -14,12 +14,11 @@ import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_tier_row.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../location/data/location_repository.dart';
 import '../../tier_selection/cubit/tier_selection_cubit.dart';
 import '../../tier_selection/cubit/tier_selection_state.dart';
 import '../../tier_selection/data/tier_repository.dart';
-import '../../tier_selection/domain/tier.dart';
 import '../../request_summary/application/compose_request_controller.dart';
-import '../../request_summary/domain/request_draft.dart';
 import 'request_location_row.dart';
 import 'widgets/tier_catalog_section.dart';
 
@@ -32,8 +31,14 @@ import 'widgets/tier_catalog_section.dart';
 /// `/request-summary` card) — the blueprint create flow is
 /// tier → location-select → map-pin → order-chat. The screen owns its own
 /// forward navigation via GoRouter (40_GUARDRAILS_ARCH §5.4/§10.8 — the source
-/// screen wires its inbound edges); the optional [onContinue]/[onChangeLocation]
-/// callbacks are test/dev seams that, when provided, REPLACE the default nav.
+/// screen wires its inbound edges); the optional [onChangeLocation] callback is
+/// a test/dev seam that, when provided, REPLACES the default nav.
+///
+/// This is the ONE place the delivery tier is chosen: every create door lands
+/// here first, and the location step only discloses what was picked.
+///
+/// "Change" is a PICKER, not a second create door: it opens `capture-location`
+/// and renders the popped point in place — it used to push the compose screen.
 ///
 /// Reuses the existing [TierSelectionCubit] + [TierRepository] (the tier-catalog
 /// source of truth, fed by `GET /v1/tiers` → T1's 5-tier mock catalog).
@@ -47,31 +52,19 @@ class RequestTypeScreen extends StatelessWidget {
     this.cubit,
     this.repository,
     this.onChangeLocation,
-    this.onTierSelected,
-    this.onContinue,
+    this.resumeSession = false,
   });
 
   final TierSelectionCubit? cubit;
   final TierRepository? repository;
 
-  /// Test/dev seam. When provided it REPLACES the default `location-select`
-  /// navigation the "Change location" row triggers. (The W1 integrator's
-  /// router already supplies the correct `→ /client-location` closure here.)
+  /// Test/dev seam. When provided it REPLACES the default `capture-location`
+  /// picker nav. The router no longer supplies it; the screen owns that edge.
   final VoidCallback? onChangeLocation;
 
-  /// LEGACY (divergent) seam — see 50_ROUTE_REQUESTS JM-024. The W0-era router
-  /// passed a `→ /request-summary` closure here; JM-024 supersedes that edge
-  /// (the create flow now goes tier → location-select → order-chat, NOT the
-  /// summary card). The screen therefore NO LONGER invokes this for navigation
-  /// — the tier-card tap only selects. Kept (unused) so the integrator's router
-  /// builder compiles until it drops the arg.
-  final ValueChanged<Tier>? onTierSelected;
-
-  /// LEGACY (divergent) seam — see 50_ROUTE_REQUESTS JM-024. As above: the
-  /// Continue CTA now self-navigates to `location-select` (JM-024 AC1) and does
-  /// NOT invoke this `→ /request-summary` closure. Kept (unused) so the router
-  /// builder compiles until the integrator drops the arg.
-  final ValueChanged<RequestDraft>? onContinue;
+  /// True when the compose session was already seeded (the voice door). Continue
+  /// then RE-PICKS the tier instead of starting a session, keeping the clip.
+  final bool resumeSession;
 
   @override
   Widget build(BuildContext context) {
@@ -79,14 +72,20 @@ class RequestTypeScreen extends StatelessWidget {
     if (provided != null) {
       return BlocProvider<TierSelectionCubit>.value(
         value: provided,
-        child: _Scaffold(onChangeLocation: onChangeLocation),
+        child: _Scaffold(
+          onChangeLocation: onChangeLocation,
+          resumeSession: resumeSession,
+        ),
       );
     }
     return BlocProvider<TierSelectionCubit>(
       create: (_) =>
           TierSelectionCubit(repository: repository ?? _resolveRepository())
             ..load(),
-      child: _Scaffold(onChangeLocation: onChangeLocation),
+      child: _Scaffold(
+        onChangeLocation: onChangeLocation,
+        resumeSession: resumeSession,
+      ),
     );
   }
 
@@ -117,10 +116,20 @@ const _footerPadding = EdgeInsetsDirectional.fromSTEB(
   Spacing.twoXLarge,
 );
 
-class _Scaffold extends StatelessWidget {
-  const _Scaffold({this.onChangeLocation});
+class _Scaffold extends StatefulWidget {
+  const _Scaffold({this.onChangeLocation, this.resumeSession = false});
 
   final VoidCallback? onChangeLocation;
+  final bool resumeSession;
+
+  @override
+  State<_Scaffold> createState() => _ScaffoldState();
+}
+
+class _ScaffoldState extends State<_Scaffold> {
+  /// The point the picker handed back. Owned above BOTH the body (which draws
+  /// it) and the footer (which carries it forward), so Continue cannot drop it.
+  LocationPoint? _picked;
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +155,9 @@ class _Scaffold extends StatelessWidget {
                 child: BlocBuilder<TierSelectionCubit, TierSelectionState>(
                   builder: (context, state) => _Body(
                     state: state,
-                    onChangeLocation: onChangeLocation,
+                    picked: _picked,
+                    onPicked: (point) => setState(() => _picked = point),
+                    onChangeLocation: widget.onChangeLocation,
                   ),
                 ),
               ),
@@ -155,7 +166,11 @@ class _Scaffold extends StatelessWidget {
         ),
         bottomNavigationBar:
             BlocBuilder<TierSelectionCubit, TierSelectionState>(
-              builder: (context, state) => _ContinueFooter(state: state),
+              builder: (context, state) => _ContinueFooter(
+                state: state,
+                picked: _picked,
+                resumeSession: widget.resumeSession,
+              ),
             ),
       ),
     );
@@ -166,9 +181,17 @@ class _Scaffold extends StatelessWidget {
 /// [Scaffold.bottomNavigationBar] so it never scrolls away; enabled only once a
 /// tier is selected, then advances to `location-select` (JM-024 AC1).
 class _ContinueFooter extends StatelessWidget {
-  const _ContinueFooter({required this.state});
+  const _ContinueFooter({
+    required this.state,
+    this.picked,
+    this.resumeSession = false,
+  });
 
   final TierSelectionState state;
+
+  /// The pickup the "Change" picker returned, carried into the compose session.
+  final LocationPoint? picked;
+  final bool resumeSession;
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +231,11 @@ class _ContinueFooter extends StatelessWidget {
     // selection must be lifted into the singleton controller here.
     final tier = state.selectedTier;
     if (tier != null && sl.isRegistered<ComposeRequestController>()) {
-      sl<ComposeRequestController>().setTier(tier);
+      final compose = sl<ComposeRequestController>();
+      // A resumed session (the voice door) keeps its clip; a cold entry starts
+      // fresh. Either way the point picked on THIS screen is written after.
+      resumeSession ? compose.chooseTier(tier) : compose.setTier(tier);
+      compose.setPickupPoint(picked);
     }
     // EDGE: request-type-selection → location-select (21_NAV_PLAN.md §C,
     // JM-024 AC1 — replaces the divergent W0-era `→ /request-summary`). The
@@ -222,10 +249,14 @@ class _ContinueFooter extends StatelessWidget {
 class _Body extends StatelessWidget {
   const _Body({
     required this.state,
+    required this.onPicked,
+    this.picked,
     this.onChangeLocation,
   });
 
   final TierSelectionState state;
+  final LocationPoint? picked;
+  final ValueChanged<LocationPoint> onPicked;
   final VoidCallback? onChangeLocation;
 
   @override
@@ -244,6 +275,8 @@ class _Body extends StatelessWidget {
         }
         return _LoadedView(
           state: state,
+          picked: picked,
+          onPicked: onPicked,
           onChangeLocation: onChangeLocation,
         );
     }
@@ -368,10 +401,14 @@ class _UnavailableView extends StatelessWidget {
 class _LoadedView extends StatelessWidget {
   const _LoadedView({
     required this.state,
+    required this.onPicked,
+    this.picked,
     this.onChangeLocation,
   });
 
   final TierSelectionState state;
+  final LocationPoint? picked;
+  final ValueChanged<LocationPoint> onPicked;
   final VoidCallback? onChangeLocation;
 
   @override
@@ -401,7 +438,11 @@ class _LoadedView extends StatelessWidget {
                 // the pass-1 14/w700 navy heading.
                 JeebSectionLabel(l10n.requestTypeLocationHeading, small: true),
                 const SizedBox(height: Spacing.small),
-                _LocationSection(onChangeLocation: onChangeLocation),
+                _LocationSection(
+                  picked: picked,
+                  onPicked: onPicked,
+                  onChangeLocation: onChangeLocation,
+                ),
                 const Spacer(),
               ],
             ),
@@ -413,45 +454,67 @@ class _LoadedView extends StatelessWidget {
 }
 
 class _LocationSection extends StatelessWidget {
-  const _LocationSection({this.onChangeLocation});
+  const _LocationSection({
+    required this.onPicked,
+    this.picked,
+    this.onChangeLocation,
+  });
 
+  /// The point the picker handed back. Owned by the scaffold so the row updates
+  /// IN PLACE and the Continue footer can carry the same point forward.
+  final LocationPoint? picked;
+  final ValueChanged<LocationPoint> onPicked;
   final VoidCallback? onChangeLocation;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // TODO(midnight): the tile's "Home — Achrafieh, Beirut" + "Current
-    // location" pair needs a resolved destination. Omitted, not faked.
+    final point = picked;
     return RequestLocationRow(
       currentLabel: l10n.requestTypeCurrentLocation,
+      addressLabel: point == null ? null : _pickedLabel(point),
+      qualifierLabel: point == null ? null : l10n.captureLocationSelectedPoint,
       changeLabel: l10n.requestTypeChangeLocation,
       changeCtaLabel: l10n.requestTypeChangeCta,
       onChange: () => _onChange(context),
     );
   }
 
-  void _onChange(BuildContext context) {
-    // iter6 LIVE fix (tier-required): the "Change location" row jumps straight
-    // to `client-location`, the SAME destination the Continue CTA reaches — but
-    // unlike Continue it never recorded the chosen tier in the shared compose
-    // controller. So a customer who picks a tier then taps "Change location"
-    // (instead of Continue) lost `tierId`, and the location-confirm
-    // `POST /requests` came back 400 `tier-required` (surfaced as a misleading
-    // "Couldn't reach Jeeb"). Carry the selected tier through this path too, so
-    // both routes feed the create with a non-null tier.
-    final tier = context.read<TierSelectionCubit>().state.selectedTier;
-    if (tier != null && sl.isRegistered<ComposeRequestController>()) {
-      sl<ComposeRequestController>().setTier(tier);
-    }
-    // EDGE: request-type-selection → location-select (the same destination the
-    // Continue CTA uses, JM-024 AC1). The optional callback REPLACES the
-    // default nav for tests / the dev seam.
+  /// The picker pops coordinates, not a resolved street line — show exactly
+  /// what the capture sheet showed rather than invent an address.
+  String _pickedLabel(LocationPoint point) =>
+      point.address ??
+      '${point.latitude.toStringAsFixed(4)}, '
+          '${point.longitude.toStringAsFixed(4)}';
+
+  Future<void> _onChange(BuildContext context) async {
+    // Test/dev seam: when supplied it REPLACES the picker navigation.
     final handler = onChangeLocation;
     if (handler != null) {
       handler();
       return;
     }
-    context.pushNamed('client-location');
+    // EDGE: request-type-selection → location-map-pin (PICKER ONLY, was the
+    // compose screen). It pops a LocationPoint (or null) and cannot submit.
+    final result = await context.pushNamed<Object?>(
+      'capture-location',
+      queryParameters: const {'purpose': 'pickup'},
+    );
+    if (!context.mounted) return;
+    // Anything that is neither a point nor null is a contract violation, not a
+    // cancel — same handling as the location screen's pin edge.
+    if (result != null && result is! LocationPoint) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).captureLocationPinFailed),
+        ),
+      );
+      return;
+    }
+    final point = result as LocationPoint?;
+    // A cancel leaves the row on its previous value, silently.
+    if (point == null) return;
+    onPicked(point);
   }
 }
 

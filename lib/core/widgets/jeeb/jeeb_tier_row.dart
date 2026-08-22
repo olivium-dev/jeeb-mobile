@@ -156,8 +156,9 @@ class JeebTierRow extends StatelessWidget {
   /// Whether this tier is the chosen one.
   final bool selected;
 
-  /// Selection callback.
-  final VoidCallback onTap;
+  /// Selection callback. Null draws the row inert — a read-only disclosure of
+  /// a tier chosen elsewhere, with no ink and no tap target.
+  final VoidCallback? onTap;
 
   /// Frozen Maestro id — `request_type_flash_radio` (07),
   /// `tier_selection_card_<id>` (08). Applied via an explicit `Semantics`
@@ -217,15 +218,15 @@ class JeebTierRow extends StatelessWidget {
 
     switch (variant) {
       case JeebTierRowVariant.compact:
-        // Byte-identical to `RequestTierCard.build` — two tests read
-        // `flagsCollection.isChecked` off this node.
+        // `RequestTierCard.build`'s shape, minus the radio flags when the row
+        // is read-only (`onTap == null`) — an inert row is not selectable.
         return Semantics(
           identifier: identifier,
-          inMutuallyExclusiveGroup: true,
-          checked: selected,
+          inMutuallyExclusiveGroup: onTap != null,
+          checked: onTap == null ? null : selected,
           label: semanticLabel,
           hint: selected ? selectedHint : null,
-          button: true,
+          button: onTap != null,
           child: ExcludeSemantics(child: card),
         );
       case JeebTierRowVariant.catalog:

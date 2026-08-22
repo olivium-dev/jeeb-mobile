@@ -178,12 +178,19 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
   late final CurrentLocationResolver _resolver;
   late final Future<String?> _userIdFuture;
 
+  /// The pickup the tier step's "Change" picker already produced. Read once so
+  /// the cubit opens pinned on it instead of silently re-resolving the GPS.
+  LocationPoint? _seededPickup;
+
   @override
   void initState() {
     super.initState();
     final config = widget.config;
     _repository = config.repository ?? config._resolveRepository();
     _resolver = config._resolveGpsResolver();
+    if (sl.isRegistered<ComposeRequestController>()) {
+      _seededPickup = sl<ComposeRequestController>().pickupPoint;
+    }
     // DEFECT A: never default to the mock `user-client-001`. An injected id
     // (tests / dev seams) wins; otherwise resolve the authenticated id from
     // [AuthTokenStore] — the REAL user, never a hardcoded mock. Computed once.
@@ -214,15 +221,29 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
         // resolves identity from the bearer token, so the list loads correctly.
         final resolvedId = snapshot.data ?? '';
         return BlocProvider<LocationSelectCubit>(
-          create: (_) => LocationSelectCubit(
-            repository: _repository,
-            userId: resolvedId,
-            currentLocationResolver: _resolver,
-          )..load(),
+          create: (_) => _buildCubit(resolvedId),
           child: scaffold,
         );
       },
     );
+  }
+
+  /// Pins the carried pickup BEFORE `load()`: `markPinned` leaves the status
+  /// `initial`, and a pinned choice keeps `load()` from resolving the GPS.
+  LocationSelectCubit _buildCubit(String resolvedId) {
+    final cubit = LocationSelectCubit(
+      repository: _repository,
+      userId: resolvedId,
+      currentLocationResolver: _resolver,
+    );
+    final pickup = _seededPickup;
+    if (pickup != null) {
+      cubit.markPinned(
+        latitude: pickup.latitude,
+        longitude: pickup.longitude,
+      );
+    }
+    return cubit..load();
   }
 }
 
@@ -428,8 +449,8 @@ class _Body extends StatelessWidget {
         // G1 (sprint-009 P0) — "What do you need?" leads the confirm step: the
         // request CONTENT is the thing the jeeber prices, so it sits above the
         // location options on the same screen that submits POST /requests (all
-        // compose paths converge here, so the required-gate cannot be
-        // bypassed via the request-type "Change location" shortcut).
+        // compose paths converge here, so the required-gate has no bypass —
+        // request-type's "Change" is a picker and never reaches this screen).
         _DescriptionSection(
           controller: descriptionController,
           onDictate: onDictate,
@@ -437,8 +458,8 @@ class _Body extends StatelessWidget {
         // R12: sections breathe at 14–20, cards at 9–12. The old 24/20 rhythm
         // is off this board entirely.
         const SizedBox(height: Spacing.medium),
-        // Above the fold on purpose: the create door seeds a tier the customer
-        // never picked, so this screen has to SHOW it, not merely hold it.
+        // Above the fold on purpose, and READ-ONLY: the tier is chosen on
+        // "Choose your request"; this screen only has to SHOW what it will post.
         const ComposeTierSection(),
         _Heading(text: l10n.clientLocationHeading),
         const SizedBox(height: Spacing.small),

@@ -31,6 +31,11 @@ env:
 - runFlow: ../pages/name-capture.yaml
 - takeScreenshot: r5_home_shell
 - runFlow: ../pages/home-requests-empty.yaml
+# SINGLE DOOR: New Order lands on the tier screen, not client-location.
+- runFlow:
+    file: ../pages/request-type.yaml
+    env:
+      TIER_POINT: "50%,23.2%"
 - runFlow: ../pages/location-permission.yaml
 - runFlow:
     file: ../pages/client-location-compose.yaml
