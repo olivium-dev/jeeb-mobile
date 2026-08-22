@@ -1725,12 +1725,9 @@ class _ReadyLayout extends StatelessWidget {
             : null,
       ),
       const SizedBox(height: Spacing.medium),
-      // Unconditional: a filter tap must never rebuild the top of the screen.
-      const Padding(
-        padding: _kGutter,
-        child: ClientHomeRequestHero(showCapsule: false),
-      ),
-      const SizedBox(height: Spacing.large),
+      // Either the create prompt or the list chrome owns this slot, never both:
+      // the 312px prompt above a populated list pushed content a third of the
+      // way down the screen and re-said the greeting's own time-of-day line.
       if (_showFilterChrome) ...<Widget>[
         _ClientHomeRequestsHeader(
           state: state,
@@ -1744,6 +1741,12 @@ class _ReadyLayout extends StatelessWidget {
           onOpenFilterSheet: onOpenFilterSheet,
         ),
         const SizedBox(height: Spacing.medium),
+      ] else ...<Widget>[
+        const Padding(
+          padding: _kGutter,
+          child: ClientHomeRequestHero(showCapsule: false),
+        ),
+        const SizedBox(height: Spacing.large),
       ],
       _ReadyContent(state: state, filter: filter, onTrack: onTrack),
     ];
@@ -1805,6 +1808,9 @@ class _ReadyContent extends StatelessWidget {
       );
     }
     return Column(
+      // stretch, never the default centre: centre hands the sections loose
+      // width and every card shrink-wraps to its own text.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         const RepliesTab(hideWhenEmpty: true),
         if (hasReplies && hasPending) const SizedBox(height: Spacing.small),

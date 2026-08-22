@@ -210,6 +210,9 @@ class _RepliesList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       key: const Key('replies-tab-list'),
+      // stretch, never the default centre: centre gives each card loose width,
+      // so it shrink-wraps to its text instead of filling the gutter.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (var i = 0; i < requests.length; i++) ...[
           // Board gap 12 (02-PLAN R12). The cards used to end in a divider and

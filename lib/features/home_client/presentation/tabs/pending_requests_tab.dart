@@ -143,6 +143,9 @@ class _PendingList extends StatelessWidget {
       ),
       child: Column(
         key: const Key('pending-requests-tab-list'),
+        // stretch, never the default centre: centre gives each card loose
+        // width, so it shrink-wraps to its text instead of filling the gutter.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < requests.length; i++) ...[
             if (i > 0) const SizedBox(height: Spacing.small),
