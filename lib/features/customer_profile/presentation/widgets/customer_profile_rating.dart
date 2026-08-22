@@ -31,7 +31,8 @@ class CustomerProfileRating extends StatelessWidget {
   final double? rating;
   final int ratingCount;
 
-  bool get _hasRating => rating != null && ratingCount > 0;
+  bool get _hasReviews => ratingCount > 0;
+  bool get _hasAggregate => rating != null && _hasReviews;
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +41,10 @@ class CustomerProfileRating extends StatelessWidget {
     final muted = semantics?.mutedText;
 
     final ratingText = (rating ?? 0).toStringAsFixed(1);
-    final label = _hasRating
+    final label = _hasAggregate
         ? l10n.deliveryManProfileRatingSummary(ratingText, ratingCount)
+        : _hasReviews
+        ? l10n.deliveryManProfileReviewsCount(ratingCount)
         : l10n.deliveryManProfileEmptyReviewsTitle;
 
     // Identifier-only + `container: true`, mirroring the proven
@@ -58,10 +61,10 @@ class CustomerProfileRating extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            _hasRating ? Icons.star_rounded : Icons.star_border_rounded,
+            _hasAggregate ? Icons.star_rounded : Icons.star_border_rounded,
             size: Sizes.medium,
             // R15 draws the unearned star muted, never a dim amber.
-            color: _hasRating ? semantics?.amber : muted,
+            color: _hasAggregate ? semantics?.amber : muted,
           ),
           const SizedBox(width: Spacing.twoXSmall),
           Flexible(
