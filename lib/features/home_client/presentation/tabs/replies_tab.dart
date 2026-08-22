@@ -20,11 +20,20 @@ import '../../../../core/previews/jeeb_preview.dart';
 import '../../domain/client_home_repository.dart';
 
 class RepliesTab extends StatefulWidget {
-  const RepliesTab({super.key, this.onCheckOffers, this.onAccept});
+  const RepliesTab({
+    super.key,
+    this.onCheckOffers,
+    this.onAccept,
+    this.hideWhenEmpty = false,
+  });
 
   final void Function(ClientHomeRequest request)? onCheckOffers;
 
   final void Function(ClientHomeRequest request)? onAccept;
+
+  /// Collapses to nothing instead of drawing an empty state — set when this
+  /// list is one section of the merged home list, which owns that state.
+  final bool hideWhenEmpty;
 
   @override
   State<RepliesTab> createState() => _RepliesTabState();
@@ -39,6 +48,7 @@ class _RepliesTabState extends State<RepliesTab> {
       buildWhen: _rebuildWhen,
       builder: (context, state) => _RepliesContent(
         state: state,
+        hideWhenEmpty: widget.hideWhenEmpty,
         onCheckOffers:
             widget.onCheckOffers ?? (r) => _openOfferReview(context, r),
         onAccept: widget.onAccept ?? (r) => _openAcceptConfirm(context, r),
@@ -96,11 +106,13 @@ class _RepliesTabState extends State<RepliesTab> {
 class _RepliesContent extends StatelessWidget {
   const _RepliesContent({
     required this.state,
+    required this.hideWhenEmpty,
     required this.onCheckOffers,
     required this.onAccept,
   });
 
   final ClientHomeState state;
+  final bool hideWhenEmpty;
   final void Function(ClientHomeRequest) onCheckOffers;
   final void Function(ClientHomeRequest) onAccept;
 
@@ -113,6 +125,11 @@ class _RepliesContent extends StatelessWidget {
     }
     if (state.status == ClientHomeStatus.loading) {
       return const _RepliesLoading();
+    }
+    // Collapse only AFTER the failed/loading branches: an empty list during a
+    // failed load still owes the reader a retry, not silence.
+    if (hideWhenEmpty && state.replies.isEmpty) {
+      return const SizedBox.shrink();
     }
     if (state.replies.isEmpty) {
       return const _RepliesEmpty();

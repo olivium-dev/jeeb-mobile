@@ -5,20 +5,29 @@
 #   The deliveryman feed renders the pending-response card (avatar + name +
 #   rating + tier + items + distance + italic "Pending" status + 09:41
 #   timestamp), targeted BY SEMANTIC ID (verified in source on
-#   feat/jeeb-ui-parity-lane-b4):
+#   feat/request-filter-ux-20260822):
 #     jeeber_feed_request_card_dev-feed-pending — the pending card
 #                                                 jeeber_feed_card.dart (JeeberFeedCard)
-#     jeeber_feed_search_field                  — pill search bar
-#                                                 jeeber_feed_tab_view.dart (_FeedSearchBar)
+#     jeeber_feed_filter_open                   — the filter disc trailing the
+#                                                 stage strip
+#                                                 jeeber_feed_tab_view.dart (_feedControls)
+#     jeeber_feed_filter_sheet                  — the sheet it opens
+#     jeeber_feed_search_field                  — the search input, now a facet
+#                                                 INSIDE that sheet
+#                                                 jeeber_feed_filter_sheet.dart (_FeedSearchField)
+#     jeeber_feed_filter_apply                  — the sheet's commit CTA
 #   The italic "Pending" status (jeeber_feed_card.dart _PendingStatus, key
 #   jeeber-feed-pending-status) is the variant axis vs screen 24/26.
 #
 # PRIMARY INTERACTION
 #   The pending card has no per-card CTA in this Figma state (the jeeber is
-#   waiting on the client). The assertible interaction is the search field: it
-#   filters the feed and is the screen's only live control. We focus it and
-#   assert the card stays present + the app does not crash — an honest liveness
-#   check matched to what this state actually exposes (pilot-learning #7).
+#   waiting on the client). The assertible interaction is still the search
+#   field — but it now lives behind the filter disc instead of on the feed, so
+#   the flow opens the sheet, focuses the field there, and commits an unchanged
+#   selection. Nothing is staged, so the feed is left as it was and the card
+#   must still be present afterwards — an honest liveness check matched to what
+#   this state actually exposes (pilot-learning #7). On the Pending stage the
+#   sheet carries the search facet only; the tier chips belong to Nearby.
 #
 # BACKEND / SEAM
 #   Dev seam: jeeb.route=/ + jeeb.feed=pending → seam forces the jeeber role,
@@ -46,24 +55,39 @@ appId: ${APP_ID}
     visible:
       id: "jeeber_feed_request_card_dev-feed-pending"
     timeout: 25000
-# Redesign 16 / C8: the search field is collapsed behind a magnifier at rest.
-# Tap the toggle first so the field mounts; no identifier is renamed and no
-# assertion below is weakened.
-- tapOn:
-    id: "jeeber_feed_search_toggle"
-- waitForAnimationToEnd:
-    timeout: 3000
+# The magnifier disc is gone; the feed's only trailing control is the filter
+# disc, and it is always mounted (no progressive disclosure on this board).
 - assertVisible:
-    id: "jeeber_feed_search_field"
+    id: "jeeber_feed_filter_open"
 
+# Evidence frame is the FEED itself — the search bar no longer sits on it.
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: 25_iphone_16_17_pro_max_9_dm_request_pending
 
-# PRIMARY INTERACTION: focus the search field; assert card + field stay present.
+# PRIMARY INTERACTION: open the filter sheet and focus the search field there.
+- tapOn:
+    id: "jeeber_feed_filter_open"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible:
+    id: "jeeber_feed_filter_sheet"
+- assertVisible:
+    id: "jeeber_feed_search_field"
 - tapOn:
     id: "jeeber_feed_search_field"
 - waitForAnimationToEnd:
     timeout: 5000
+- takeScreenshot: 25_iphone_16_17_pro_max_9_dm_request_pending_filter_sheet
+
+# Commit an unchanged selection: the sheet closes and the card is still there.
+- assertVisible:
+    id: "jeeber_feed_search_field"
+- tapOn:
+    id: "jeeber_feed_filter_apply"
+- extendedWaitUntil:
+    notVisible:
+      id: "jeeber_feed_filter_sheet"
+    timeout: 10000
 - assertVisible:
     id: "jeeber_feed_request_card_dev-feed-pending"

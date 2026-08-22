@@ -11,7 +11,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:omds/omds.dart';
 
-import 'package:jeeb_mobile/core/accessibility/accessibility.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_midnight_palette.dart';
 import 'package:jeeb_mobile/features/jeeber_home/application/availability_cubit.dart';
@@ -205,8 +204,7 @@ void main() {
   });
 
   // L9: `OmdsSearchBar` inks its focused border from `colorScheme.primary`,
-  // which app_theme's periwinkle `focusedBorder` cannot reach — the decoration
-  // wins over the theme. The scoped re-point at the call site is what fixes it.
+  // which app_theme's periwinkle `focusedBorder` cannot reach.
   testWidgets('the feed search bar focuses periwinkle, not orange', (
     tester,
   ) async {
@@ -242,16 +240,11 @@ void main() {
     await feed.refresh();
     await tester.pump();
 
-    // The bar lives behind R16's search toggle; collapsed it renders nothing.
-    // `MinTapTarget` owns the gesture (it ignores pointers on its child), so
-    // the tap has to land on the wrapper, not the glyph.
-    await tester.tap(
-      find.ancestor(
-        of: find.byIcon(Icons.search),
-        matching: find.byType(MinTapTarget),
-      ),
-    );
+    // The bar is a facet of the filter sheet now; the disc opens it. Timed
+    // pumps, not pumpAndSettle: the availability strip animates forever.
+    await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_open'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     final field = tester.widget<TextField>(
       find.descendant(

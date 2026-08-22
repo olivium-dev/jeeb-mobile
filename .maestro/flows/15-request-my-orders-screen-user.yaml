@@ -1,16 +1,24 @@
-# Jeeb mobile — 15 Request / My Orders [User] — In Progress filter.
-# Figma node 56535:1525 (client "My Orders", In Progress chip selected).
+# Jeeb mobile — 15 Request / My Orders [User] — In Progress bucket.
+# Figma node 56535:1525 (client "My Orders", In Progress content).
 #
 # WHAT THIS PROVES
 #   The authenticated client shell renders the My Orders "In Progress" list and
 #   its interactive chrome is present in the LIVE hierarchy, targeted BY SEMANTIC
 #   ID (never localized text — AP-5; never coordinates — AP-1). Verified present
-#   in source on feat/jeeb-ui-parity-lane-b4:
-#     orders_filter_pendingRequests  — Pending Requests filter chip
-#     orders_filter_replies          — Replies filter chip
+#   in source on feat/request-filter-ux-20260822:
 #     orders_search_bar              — absent (search was removed)
 #     orders_create_request_button   — filled "+" create-request CTA
 #                                       client_home_greeting.dart:136
+#     orders_filter_open             — the requests filter disc: ABSENT here
+#
+#   NO FILTER CHROME IN THIS BUCKET: the three-segment chip row is gone, and its
+#   replacement — one filter disc over a merged requests list — belongs to the
+#   All / Awaiting offers / Has replies buckets only. In Progress is not one of
+#   them, so client_home_screen.dart (_ReadyLayout._showFilterChrome) unmounts
+#   the disc, the replies badge and the applied pills for the whole of this
+#   state. Asserting the disc ABSENT is the contract here; there is no in-app
+#   affordance to switch buckets from this state, so the flow no longer carries
+#   a filter-switching sub-check (it would target chrome that cannot exist).
 #
 #   SEMANTICS (recon KNOWN DEBT #1 — NOW CLOSED on this branch): the In Progress
 #   order card and its "Track my order" CTA now carry Semantics(identifier:)
@@ -20,12 +28,12 @@
 #   coordinate/label tap — AP-1/AP-5).
 #
 # PRIMARY INTERACTION
-#   The card's primary action ("Track my order") and the filter chips are both
-#   id-addressable. We assert the seeded trackable card + its Track CTA by id,
-#   tap the Track CTA by id, then exercise the Requests chips (Pending/Replies).
-#   All assertions are satisfied by the seeded dev fixtures
-#   (DevClientHomeFixtures), so this is a real pass — not an optimistic assertion
-#   (AP-9: no optional:true on the primary assertion).
+#   The card's primary action ("Track my order") is id-addressable. We assert the
+#   seeded trackable card + its Track CTA by id, tap the Track CTA by id, prove
+#   we left the list, then return and prove the list came back. All assertions
+#   are satisfied by the seeded dev fixtures (DevClientHomeFixtures), so this is
+#   a real pass — not an optimistic assertion (AP-9: no optional:true on the
+#   primary assertion).
 #
 # BACKEND / SEAM (runtime, no rebuild — dev-seam-runtime.md)
 #   Dev seam only: launchApp.arguments pass jeeb.route=/ + jeeb.home_tab=in_progress
@@ -51,8 +59,8 @@ appId: ${APP_ID}
       jeeb.home_tab: "in_progress"
 
 # Top create entry — waited+asserted by id (cold launch through the authed shell
-# + seeded fixtures load). The debug seam may pin In Progress content, while the
-# Requests screen exposes only Pending and Replies chips.
+# + seeded fixtures load). The debug seam pins In Progress content, a state the
+# merged requests list does not filter — so no filter chrome is mounted.
 - extendedWaitUntil:
     visible:
       id: "orders_create_request_button"
@@ -63,11 +71,9 @@ appId: ${APP_ID}
     timeout: 5000
 - takeScreenshot: 15_request_my_orders_screen_user
 
-# Both Requests filter chips present.
-- assertVisible:
-    id: "orders_filter_pendingRequests"
-- assertVisible:
-    id: "orders_filter_replies"
+# The filter disc is unmounted while In Progress is showing (see header).
+- assertNotVisible:
+    id: "orders_filter_open"
 # Search is intentionally absent; the header plus remains the create entry.
 - assertNotVisible:
     id: "orders_search_bar"
@@ -91,24 +97,17 @@ appId: ${APP_ID}
 # an optimistic no-op assertion (AP-9).
 - assertNotVisible:
     id: "orders_create_request_button"
-# Return to the orders list for the filter-switching sub-checks.
+# Return to the orders list.
 - back
 
-# ── SECONDARY INTERACTION — filter switching (id-addressable) ─────────────────
-# Switch to Pending Requests by id; assert the chip responds (the list swaps to
-# the seeded pending order-id rows). Order ids are dynamic data, so we assert via
-# the chip id, not a localized label.
-- tapOn:
-    id: "orders_filter_pendingRequests"
-- waitForAnimationToEnd:
-    timeout: 5000
+# ── RETURN CHECK — the bucket survives the round trip ────────────────────────
+# Back lands on the same In Progress state: the seeded card is rendered again
+# and the filter chrome is still unmounted (this bucket owns none — see header).
+- extendedWaitUntil:
+    visible:
+      id: "orders_active_card_ip-1"
+    timeout: 10000
 - assertVisible:
-    id: "orders_filter_pendingRequests"
-
-# Switch to Replies by id; assert the chip responds.
-- tapOn:
-    id: "orders_filter_replies"
-- waitForAnimationToEnd:
-    timeout: 5000
-- assertVisible:
-    id: "orders_filter_replies"
+    id: "orders_create_request_button"
+- assertNotVisible:
+    id: "orders_filter_open"

@@ -8,6 +8,8 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/session/jeeber_kyc_status_gate.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
+import '../../../../core/widgets/jeeb/jeeb_filter_button.dart';
+import '../../../../core/widgets/jeeb/jeeb_filter_pills.dart';
 import '../../../../core/widgets/jeeb/jeeb_info_note.dart';
 import '../../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -22,6 +24,7 @@ import '../../../jeeber_request_feed/data/request_feed_models.dart';
 import '../../../jeeber_request_feed/presentation/jeeber_feed_card.dart';
 import '../../../jeeber_request_feed/presentation/pending_offer_row.dart';
 import 'availability_card.dart';
+import 'jeeber_feed_filter_sheet.dart';
 import 'jeeber_home_greeting.dart';
 import 'jeeber_no_requests_view.dart';
 
@@ -42,11 +45,53 @@ enum JeeberFeedTab { requests, pendingResponse, replies }
 /// * [standard] — Standard-tier requests only.
 enum JeeberTierFilter { all, flash, express, standard }
 
+/// The feed's one visibility predicate — top-level because the filter sheet's
+/// live result count must be computed with exactly this rule, not a copy.
+List<DeliveryRequest> jeeberFeedVisibleRequests({
+  required List<DeliveryRequest> source,
+  required JeeberFeedTab tab,
+  required JeeberTierFilter tier,
+  required String query,
+}) {
+  final lowered = query.trim().toLowerCase();
+  return source
+      .where((r) {
+        // Server-owned action authority: never expose a stale terminal row as
+        // offerable, even if a repository seam still supplies it.
+        if (!r.requestIsOpen) return false;
+        if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
+        if (r.feedStatus != _statusForTab(tab)) return false;
+        if (!_matchesTier(r, tier)) return false;
+        return true;
+      })
+      .toList(growable: false);
+}
+
+JeeberFeedItemStatus _statusForTab(JeeberFeedTab tab) => switch (tab) {
+  JeeberFeedTab.requests => JeeberFeedItemStatus.incoming,
+  JeeberFeedTab.pendingResponse => JeeberFeedItemStatus.pendingResponse,
+  JeeberFeedTab.replies => JeeberFeedItemStatus.accepted,
+};
+
+/// Backend tier mapping: flash→Flash, standard→Express, light+bulk→Standard.
+bool _matchesTier(DeliveryRequest r, JeeberTierFilter tier) => switch (tier) {
+  JeeberTierFilter.all => true,
+  JeeberTierFilter.flash => r.tier == JeeberRequestTier.flash,
+  JeeberTierFilter.express => r.tier == JeeberRequestTier.standard,
+  JeeberTierFilter.standard =>
+    r.tier == JeeberRequestTier.light || r.tier == JeeberRequestTier.bulk,
+};
+
+bool _matchesQuery(DeliveryRequest r, String q) =>
+    (r.senderName?.toLowerCase().contains(q) ?? false) ||
+    (r.itemsSummary?.toLowerCase().contains(q) ?? false) ||
+    r.pickup.label.toLowerCase().contains(q);
+
 /// State 3 of the Jeeber home: registered, available, and at least one
 /// live request in the feed.
 ///
 /// Renders the single greeting title → state-aware availability → compact
-/// active-work disclosure → OMDS search bar → feed tabs/filters →
+/// active-work disclosure → stage tabs + filter disc → applied-facet pills →
 /// [JeeberFeedCard] list. The list reads from [RequestFeedCubit] —
 /// the host (the screen) is responsible for providing the cubit through
 /// the widget tree.
@@ -112,35 +157,20 @@ class JeeberFeedTabView extends StatefulWidget {
 
 class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
   late JeeberFeedTab _activeTab = widget.initialTab;
-  // Keep the editing session at screen lifetime: local filtering rebuilds the
-  // feed on every keystroke and must not transfer IME state to a new owner.
-  late final TextEditingController _searchController;
-  late final FocusNode _searchFocusNode;
   JeeberTierFilter _tierFilter = JeeberTierFilter.all;
   String _query = '';
 
-  /// C8: the search field is collapsed behind the magnifier at rest — the board
-  /// spends the row on the count chips, not on an empty input. This is the
-  /// search *affordance*, not the deleted global-search feature.
-  bool _searchExpanded = false;
+  bool get _hasAppliedFilters =>
+      _tierFilter != JeeberTierFilter.all || _query.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController();
-    _searchFocusNode = FocusNode();
     // Lazily warm the pending list if the view opens directly on the Pending
     // tab (deep-link / dev-seam `initialTab`).
     if (_activeTab == JeeberFeedTab.pendingResponse) {
       _loadPendingOffers();
     }
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _searchFocusNode.dispose();
-    super.dispose();
   }
 
   @override
@@ -191,15 +221,8 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
 
   Widget _buildBody(BuildContext context, AvailabilityViewState avState) {
     final isOffline = avState.status.state != AvailabilityState.online;
-    // JEBV4-284: the fixed header stack (greeting + availability card, plus —
-    // once online — the search bar + tab/tier strips) has enough natural
-    // height that once the on-screen keyboard shows (search field focused)
-    // and eats into the viewport, a plain Column + Expanded still overflows:
-    // Expanded floors at zero, but the *non-flexible* header total alone
-    // already exceeds what is left ("BOTTOM OVERFLOWED BY 100 PIXELS" on
-    // SM-S921B, run-26). A CustomScrollView lets the whole body scroll
-    // instead of overflow when squeezed — the same remedy `_NoRequestsScope`
-    // above already applies for its own tall-content overflow (Fix 6(b)).
+    // JEBV4-284: a Column + Expanded overflowed by 100px once the header stack
+    // outgrew a squeezed viewport. Slivers, never a Column — see the repro test.
     final scrollView = CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
@@ -227,7 +250,7 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
         if (!isOffline && widget.leadingBanner != null)
           SliverToBoxAdapter(child: widget.leadingBanner!),
         if (!isOffline)
-          ..._feedControls().map((w) => SliverToBoxAdapter(child: w)),
+          ..._feedControls(context).map((w) => SliverToBoxAdapter(child: w)),
         ..._feedSlivers(isOffline),
       ],
     );
@@ -248,41 +271,95 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
     );
   }
 
-  List<Widget> _feedControls() => [
-    Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Spacing.medium,
-        Spacing.xLarge,
-        0,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _FeedTabStrip(
-              active: _activeTab,
-              onChanged: _onTabChanged,
-              submittedOffersCubit: widget.submittedOffersCubit,
+  /// The stage strip + the one filter disc, then the applied-facet pills.
+  List<Widget> _feedControls(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return [
+      Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          Spacing.medium,
+          Spacing.xLarge,
+          0,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _FeedTabStrip(
+                active: _activeTab,
+                onChanged: _onTabChanged,
+                submittedOffersCubit: widget.submittedOffersCubit,
+              ),
             ),
-          ),
-          const SizedBox(width: Spacing.xSmall),
-          _SearchToggle(expanded: _searchExpanded, onTap: _onSearchToggled),
-        ],
+            const SizedBox(width: Spacing.xSmall),
+            JeebFilterButton(
+              identifier: 'jeeber_feed_filter_open',
+              semanticLabel: l10n.jeeberFeedFilterOpenLabel,
+              active: _hasAppliedFilters,
+              onTap: () => _openFilterSheet(context),
+            ),
+          ],
+        ),
       ),
-    ),
-    if (_searchExpanded) ...[
-      const SizedBox(height: Spacing.small),
-      _FeedSearchBar(
-        controller: _searchController,
-        focusNode: _searchFocusNode,
-        onChanged: (query) => setState(() => _query = query),
+      JeebFilterPillRow(
+        padding: const EdgeInsetsDirectional.fromSTEB(
+          Spacing.xLarge,
+          Spacing.small,
+          Spacing.xLarge,
+          0,
+        ),
+        pills: _appliedPills(context, l10n),
       ),
-    ],
-    if (_activeTab == JeeberFeedTab.requests) ...[
-      const SizedBox(height: Spacing.small),
-      _TierFilterStrip(active: _tierFilter, onChanged: _onTierChanged),
-    ],
-  ];
+    ];
+  }
+
+  /// One pill per applied facet. Each ✕ drops only its own facet; tapping the
+  /// body reopens the sheet on the facet the jeeber is looking at.
+  List<Widget> _appliedPills(BuildContext context, AppLocalizations l10n) {
+    final pills = <Widget>[];
+    if (_tierFilter != JeeberTierFilter.all) {
+      final label = jeeberTierFilterLabel(l10n, _tierFilter);
+      pills.add(
+        JeebFilterPill(
+          label: label,
+          identifier: 'jeeber_feed_filter_pill_tier',
+          clearIdentifier: 'jeeber_feed_filter_pill_tier_clear',
+          clearSemanticLabel: l10n.filterPillClearA11yLabel(label),
+          onTap: () => _openFilterSheet(context),
+          onClear: () => setState(() => _tierFilter = JeeberTierFilter.all),
+        ),
+      );
+    }
+    if (_query.isNotEmpty) {
+      final label = l10n.jeeberFeedSearchPillLabel(_query);
+      pills.add(
+        JeebFilterPill(
+          label: label,
+          identifier: 'jeeber_feed_filter_pill_query',
+          clearIdentifier: 'jeeber_feed_filter_pill_query_clear',
+          clearSemanticLabel: l10n.filterPillClearA11yLabel(label),
+          onTap: () => _openFilterSheet(context),
+          onClear: () => setState(() => _query = ''),
+        ),
+      );
+    }
+    return pills;
+  }
+
+  Future<void> _openFilterSheet(BuildContext context) async {
+    final selection = await JeeberFeedFilterSheet.show(
+      context,
+      requests: context.read<RequestFeedCubit>().state.requests,
+      tab: _activeTab,
+      tier: _tierFilter,
+      query: _query,
+    );
+    if (selection == null || !mounted) return;
+    setState(() {
+      _tierFilter = selection.tier;
+      _query = selection.query;
+    });
+  }
 
   /// The feed body as SLIVERS of the page's own scroll view.
   ///
@@ -336,26 +413,6 @@ class _JeeberFeedTabViewState extends State<JeeberFeedTabView> {
     }
   }
 
-  void _onTierChanged(JeeberTierFilter? next) {
-    if (next == null || next == _tierFilter) return;
-    setState(() => _tierFilter = next);
-  }
-
-  /// Expanding focuses the field straight away (the tap WAS the intent to
-  /// type); collapsing clears the query too, so a hidden filter can never keep
-  /// suppressing rows the jeeber can no longer see a reason for.
-  void _onSearchToggled() {
-    if (_searchExpanded) {
-      setState(() {
-        _searchExpanded = false;
-        _query = '';
-        _searchController.clear();
-      });
-      return;
-    }
-    setState(() => _searchExpanded = true);
-    _searchFocusNode.requestFocus();
-  }
 }
 
 /// T-MOB-029: Banner shown when Jeeber goes offline (AC3).
@@ -421,123 +478,6 @@ class _OfflineEmptyBody extends StatelessWidget {
   }
 }
 
-/// T-MOB-029: Tier filter chips — All / Flash / Express / Standard.
-class _TierFilterStrip extends StatelessWidget {
-  const _TierFilterStrip({required this.active, required this.onChanged});
-
-  final JeeberTierFilter active;
-  final ValueChanged<JeeberTierFilter?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final filters = _filters(l10n);
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.xLarge,
-      ),
-      child: SingleChildScrollView(
-        key: JeeberFeedTabView.tierStripKey,
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: filters.indexed.map((entry) {
-            final (index, filter) = entry;
-            return Padding(
-              padding: EdgeInsetsDirectional.only(
-                end: index < filters.length - 1 ? Spacing.xSmall : 0,
-              ),
-              child: _tierChip(index, filter),
-            );
-          }).toList(growable: false),
-        ),
-      ),
-    );
-  }
-
-  Widget _tierChip(int index, OmdsFilterOption<JeeberTierFilter> filter) {
-    void onTap() => onChanged(filter.value);
-    return Semantics(
-      identifier: 'jeeber_feed_tier_chip_$index',
-      button: true,
-      selected: active == filter.value,
-      label: filter.label,
-      onTap: onTap,
-      child: ExcludeSemantics(
-        child: MinTapTarget(
-          onTap: onTap,
-          // No `onTap` on the pill: MinTapTarget owns the gesture (it wraps
-          // its child in an IgnorePointer), so an InkWell here would be dead.
-          child: JeebSelectChip(
-            role: JeebChipRole.filter,
-            label: filter.label,
-            selected: active == filter.value,
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<OmdsFilterOption<JeeberTierFilter>> _filters(AppLocalizations l10n) => [
-    OmdsFilterOption(
-      label: l10n.jeeberFeedTierAll,
-      value: JeeberTierFilter.all,
-    ),
-    OmdsFilterOption(
-      label: l10n.jeeberFeedTierFlash,
-      value: JeeberTierFilter.flash,
-    ),
-    OmdsFilterOption(
-      label: l10n.jeeberFeedTierExpress,
-      value: JeeberTierFilter.express,
-    ),
-    OmdsFilterOption(
-      label: l10n.jeeberFeedTierStandard,
-      value: JeeberTierFilter.standard,
-    ),
-  ];
-}
-
-class _FeedSearchBar extends StatelessWidget {
-  const _FeedSearchBar({
-    required this.controller,
-    required this.focusNode,
-    required this.onChanged,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Spacing.xLarge,
-      ),
-      child: Semantics(
-        identifier: 'jeeber_feed_search_field',
-        // `OmdsSearchBar` hardcodes its focus ring to `colorScheme.primary` in
-        // the decoration, so app_theme's periwinkle `focusedBorder` never lands.
-        child: Theme(
-          data: theme.copyWith(
-            colorScheme: theme.colorScheme.copyWith(
-              primary: theme.colorScheme.secondary,
-            ),
-          ),
-          child: OmdsSearchBar(
-            key: JeeberFeedTabView.searchBarKey,
-            controller: controller,
-            focusNode: focusNode,
-            hintText: AppLocalizations.of(context).jeeberFeedSearchHint,
-            onChanged: onChanged,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Feed sub-tab chips — Nearby {n} / Pending {n} / Replies {n}.
 ///
 /// Built from individual pills (not the monolithic [OmdsFilterChips]) because
@@ -549,7 +489,8 @@ class _FeedSearchBar extends StatelessWidget {
 /// The counts are the board's, and every one of them is derived from state the
 /// screen already holds — no new fetch, no new cubit field. They live INSIDE
 /// the localized label (`Nearby {count}`) rather than in the kit's badge slot,
-/// so Arabic decides its own digit/word order.
+/// so Arabic decides its own digit/word order. STAGE TABS, not filters: each
+/// swaps the list body, which is why they stayed when tier/search left.
 class _FeedTabStrip extends StatelessWidget {
   const _FeedTabStrip({
     required this.active,
@@ -590,12 +531,13 @@ class _FeedTabStrip extends StatelessWidget {
     int pendingCount,
   ) {
     final l10n = AppLocalizations.of(context);
-    return SingleChildScrollView(
+    // Three equal shares, never a scroller: a scrolling row parked the third
+    // chip half off-screen ("Repli…") with nothing to say it was scrollable.
+    return Row(
       key: JeeberFeedTabView.tabStripKey,
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _tabChip(
+      children: [
+        Expanded(
+          child: _tabChip(
             identifier: 'jeeber_feed_requests_tab',
             label: l10n.jeeberFeedNearbyCount(
               _count(feedState, JeeberFeedItemStatus.incoming),
@@ -603,15 +545,19 @@ class _FeedTabStrip extends StatelessWidget {
             semanticLabel: l10n.jeeberFeedFilterRequests,
             tab: JeeberFeedTab.requests,
           ),
-          const SizedBox(width: Spacing.xSmall),
-          _tabChip(
+        ),
+        const SizedBox(width: Spacing.xSmall),
+        Expanded(
+          child: _tabChip(
             identifier: 'jeeber_feed_pending_tab',
             label: l10n.jeeberFeedPendingCount(pendingCount),
             semanticLabel: l10n.jeeberFeedFilterPendingResponse,
             tab: JeeberFeedTab.pendingResponse,
           ),
-          const SizedBox(width: Spacing.xSmall),
-          _tabChip(
+        ),
+        const SizedBox(width: Spacing.xSmall),
+        Expanded(
+          child: _tabChip(
             identifier: 'jeeber_feed_replies_tab',
             label: l10n.jeeberFeedRepliesCount(
               _count(feedState, JeeberFeedItemStatus.accepted),
@@ -619,13 +565,13 @@ class _FeedTabStrip extends StatelessWidget {
             semanticLabel: l10n.jeeberFeedFilterReplies,
             tab: JeeberFeedTab.replies,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  /// The `_visibleRequests` predicate minus the query/tier filters: what the
-  /// tab would show if you tapped it right now.
+  /// [jeeberFeedVisibleRequests] minus the query/tier facets: what the tab
+  /// would show if you tapped it right now.
   int _count(RequestFeedState state, JeeberFeedItemStatus status) {
     return state.requests
         .where(
@@ -655,51 +601,15 @@ class _FeedTabStrip extends StatelessWidget {
       child: ExcludeSemantics(
         child: MinTapTarget(
           onTap: onTap,
-          child: JeebSelectChip(
-            role: JeebChipRole.filter,
-            label: label,
-            selected: active == tab,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The board's Ø38 magnifier disc. Tapping it reveals the search field (and
-/// tapping it again hides + clears it), so the row at rest is chips only.
-class _SearchToggle extends StatelessWidget {
-  const _SearchToggle({required this.expanded, required this.onTap});
-
-  final bool expanded;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    return Semantics(
-      identifier: 'jeeber_feed_search_toggle',
-      button: true,
-      label: l10n.jeeberFeedSearchToggleLabel,
-      onTap: onTap,
-      child: ExcludeSemantics(
-        child: MinTapTarget(
-          onTap: onTap,
-          child: Container(
-            width: Sizes.threeXLarge,
-            height: Sizes.threeXLarge,
-            alignment: AlignmentDirectional.center,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHigh,
-              shape: BoxShape.circle,
-            ),
-            // `onSurface`, never `primary`: on Midnight `primary` IS the orange
-            // and this glyph is not one of R16's drawn orange moments.
-            child: Icon(
-              expanded ? Icons.close : Icons.search,
-              size: Sizes.medium,
-              color: colorScheme.onSurface,
+          // FittedBox, not the chip's own ellipsis: under an equal share a long
+          // localized label has to shrink to stay readable, never truncate.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: JeebSelectChip(
+              role: JeebChipRole.filter,
+              label: label,
+              selected: active == tab,
             ),
           ),
         ),
@@ -763,7 +673,12 @@ class _FeedRequestSliverBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visible = _visibleRequests(state.requests);
+    final visible = jeeberFeedVisibleRequests(
+      source: state.requests,
+      tab: activeTab,
+      tier: tierFilter,
+      query: query,
+    );
     final cubit = context.read<RequestFeedCubit>();
     if (visible.isEmpty) {
       return SliverFillRemaining(
@@ -818,49 +733,6 @@ class _FeedRequestSliverBody extends StatelessWidget {
         },
       ),
     );
-  }
-
-  /// Filters the cubit's request set by active tab + tier filter + search
-  /// query.
-  List<DeliveryRequest> _visibleRequests(List<DeliveryRequest> source) {
-    final lowered = query.trim().toLowerCase();
-    return source
-        .where((r) {
-          // The request status on the feed item is server-owned action
-          // authority. Never expose a stale terminal row as offerable even if
-          // a repository/cubit seam still supplies it during reconciliation.
-          if (!r.requestIsOpen) return false;
-          if (lowered.isNotEmpty && !_matchesQuery(r, lowered)) return false;
-          if (r.feedStatus != _statusForTab(activeTab)) return false;
-          if (!_matchesTier(r)) return false;
-          return true;
-        })
-        .toList(growable: false);
-  }
-
-  JeeberFeedItemStatus _statusForTab(JeeberFeedTab tab) => switch (tab) {
-    JeeberFeedTab.requests => JeeberFeedItemStatus.incoming,
-    JeeberFeedTab.pendingResponse => JeeberFeedItemStatus.pendingResponse,
-    JeeberFeedTab.replies => JeeberFeedItemStatus.accepted,
-  };
-
-  /// Returns true when the request matches the selected tier filter (AC2).
-  ///
-  /// Backend tier mapping: flash→Flash, standard→Express, light+bulk→Standard.
-  bool _matchesTier(DeliveryRequest r) {
-    return switch (tierFilter) {
-      JeeberTierFilter.all => true,
-      JeeberTierFilter.flash => r.tier == JeeberRequestTier.flash,
-      JeeberTierFilter.express => r.tier == JeeberRequestTier.standard,
-      JeeberTierFilter.standard =>
-        r.tier == JeeberRequestTier.light || r.tier == JeeberRequestTier.bulk,
-    };
-  }
-
-  bool _matchesQuery(DeliveryRequest r, String q) {
-    return (r.senderName?.toLowerCase().contains(q) ?? false) ||
-        (r.itemsSummary?.toLowerCase().contains(q) ?? false) ||
-        r.pickup.label.toLowerCase().contains(q);
   }
 }
 

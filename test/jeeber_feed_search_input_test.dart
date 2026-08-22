@@ -44,7 +44,14 @@ DeliveryRequest _request({required String id, required String senderName}) {
   );
 }
 
-Future<Finder> _pumpFeed(WidgetTester tester) async {
+/// Pumps the board and opens the filter sheet, returning the sheet's search
+/// field. Search is a facet of the sheet now — the board carries no input.
+Future<Finder> _pumpFeedAndOpenSheet(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(400, 1400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   final ticker = StreamController<DateTime>.broadcast();
   addTearDown(ticker.close);
   final availabilityCubit = AvailabilityCubit(
@@ -76,6 +83,10 @@ Future<Finder> _pumpFeed(WidgetTester tester) async {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
       home: Scaffold(
         body: MultiBlocProvider(
           providers: [
@@ -90,10 +101,7 @@ Future<Finder> _pumpFeed(WidgetTester tester) async {
   await feedCubit.refresh();
   await tester.pumpAndSettle();
 
-  // C8 (redesign-2026-08): the search field is collapsed behind the magnifier
-  // at rest. Reveal it before the input contract is exercised — the field, its
-  // key and its `jeeber_feed_search_field` identifier are unchanged.
-  await tester.tap(find.bySemanticsIdentifier('jeeber_feed_search_toggle'));
+  await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_open'));
   await tester.pumpAndSettle();
 
   return find.descendant(
@@ -102,13 +110,25 @@ Future<Finder> _pumpFeed(WidgetTester tester) async {
   );
 }
 
-void _expectFullQueryReachedHandler(Finder editableText) {
+/// The query staged in the sheet reaches the feed intact once Apply commits.
+Future<void> _applyAndExpectNarrowedFeed(
+  WidgetTester tester,
+  Finder editableText,
+) async {
   final editable = editableText.evaluate().single.widget as EditableText;
   expect(editable.controller.text, _searchQuery);
+
+  await tester.tap(find.bySemanticsIdentifier('jeeber_feed_filter_apply'));
+  await tester.pumpAndSettle();
+
   expect(find.byKey(const Key('jeeber-feed-card-$_exactRequestId')), findsOne);
   expect(
     find.byKey(const Key('jeeber-feed-card-$_droppedRequestId')),
     findsNothing,
+  );
+  expect(
+    find.bySemanticsIdentifier('jeeber_feed_filter_pill_query'),
+    findsOneWidget,
   );
 }
 
@@ -145,26 +165,59 @@ Future<void> _typeThroughIme(WidgetTester tester, Finder editableText) async {
 }
 
 void main() {
-  group('Jeeber feed search input', () {
-    testWidgets('enterText preserves the first character through filtering', (
+  group('Jeeber feed search facet', () {
+    testWidgets('enterText preserves the first character through staging', (
       tester,
     ) async {
-      final editableText = await _pumpFeed(tester);
+      final editableText = await _pumpFeedAndOpenSheet(tester);
 
       await tester.enterText(editableText, _searchQuery);
       await tester.pump();
 
-      _expectFullQueryReachedHandler(editableText);
+      // Staged only: nothing reaches the feed before Apply.
+      expect(
+        find.byKey(
+          const Key('jeeber-feed-card-$_droppedRequestId'),
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
+
+      await _applyAndExpectNarrowedFeed(tester, editableText);
     });
 
     testWidgets('IME key sequence preserves the first character on rebuild', (
       tester,
     ) async {
-      final editableText = await _pumpFeed(tester);
+      final editableText = await _pumpFeedAndOpenSheet(tester);
 
       await _typeThroughIme(tester, editableText);
 
-      _expectFullQueryReachedHandler(editableText);
+      await _applyAndExpectNarrowedFeed(tester, editableText);
+    });
+
+    testWidgets('the query pill ✕ restores the unfiltered feed', (
+      tester,
+    ) async {
+      final editableText = await _pumpFeedAndOpenSheet(tester);
+
+      await tester.enterText(editableText, _searchQuery);
+      await tester.pump();
+      await _applyAndExpectNarrowedFeed(tester, editableText);
+
+      await tester.tap(
+        find.bySemanticsIdentifier('jeeber_feed_filter_pill_query_clear'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsIdentifier('jeeber_feed_filter_pill_query'),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('jeeber-feed-card-$_droppedRequestId')),
+        findsOneWidget,
+      );
     });
   });
 }

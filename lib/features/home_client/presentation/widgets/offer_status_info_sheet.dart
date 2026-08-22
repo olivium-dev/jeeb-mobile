@@ -3,22 +3,39 @@ import 'package:omds/omds.dart';
 
 import '../../../../core/theme/jeeb_color_roles.dart';
 import '../../../../core/theme/jeeb_scrim.dart';
-import '../../../../core/theme/jeeb_semantic_colors.dart';
 import '../../../../core/theme/jeeb_text_styles.dart';
+import '../../../../core/widgets/jeeb/jeeb_filter_sheet.dart';
+import '../../../../core/widgets/jeeb/jeeb_select_chip.dart';
 import '../../../../l10n/app_localizations.dart';
+import '../../application/client_home_state.dart';
 import '../../domain/client_home_request.dart';
+import 'client_request_filter.dart';
 
-/// Selectable guide to every offer status returned by the offers API.
-class OfferStatusInfoSheet extends StatelessWidget {
-  const OfferStatusInfoSheet({super.key, this.selectedStatus});
+/// How many requests a staged [ClientRequestFilter] would show. The screen owns
+/// the data, so the live apply-CTA count is resolved through this.
+typedef ClientRequestFilterCount = int Function(ClientRequestFilter filter);
 
-  final ClientOfferStatus? selectedStatus;
+/// The requests filter: a bucket row over the offer-status guide. Every
+/// selection is STAGED — only the apply CTA pops with a value.
+class OfferStatusInfoSheet extends StatefulWidget {
+  const OfferStatusInfoSheet({
+    super.key,
+    this.filter = const ClientRequestFilter(),
+    this.countFor,
+  });
 
-  static Future<ClientOfferStatus?> show(
+  /// The committed filter this sheet opens on.
+  final ClientRequestFilter filter;
+
+  /// Resolves the apply CTA's live count; null renders it as zero.
+  final ClientRequestFilterCount? countFor;
+
+  static Future<ClientRequestFilter?> show(
     BuildContext context, {
-    ClientOfferStatus? selectedStatus,
+    ClientRequestFilter filter = const ClientRequestFilter(),
+    ClientRequestFilterCount? countFor,
   }) {
-    return showModalBottomSheet<ClientOfferStatus>(
+    return showModalBottomSheet<ClientRequestFilter>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -26,189 +43,177 @@ class OfferStatusInfoSheet extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: OmdsBorderRadius.topXLarge,
       ),
-      builder: (_) => OfferStatusInfoSheet(selectedStatus: selectedStatus),
+      builder: (_) => OfferStatusInfoSheet(filter: filter, countFor: countFor),
     );
+  }
+
+  @override
+  State<OfferStatusInfoSheet> createState() => _OfferStatusInfoSheetState();
+}
+
+class _OfferStatusInfoSheetState extends State<OfferStatusInfoSheet> {
+  late ClientRequestFilter _draft = widget.filter;
+
+  void _stageBucket(ClientHomeTab bucket) {
+    setState(() {
+      _draft = ClientRequestFilter(
+        bucket: bucket,
+        offerStatus: _draft.offerStatus,
+      );
+    });
+  }
+
+  /// Re-tapping the staged status unsets it, so the row is its own way back.
+  void _stageStatus(ClientOfferStatus status) {
+    setState(() {
+      _draft = ClientRequestFilter(
+        bucket: _draft.bucket,
+        offerStatus: _draft.offerStatus == status ? null : status,
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final height = (MediaQuery.sizeOf(context).height * 0.78)
+    final double maxHeight = (MediaQuery.sizeOf(context).height * 0.78)
         .clamp(420.0, 640.0)
         .toDouble();
-    return Semantics(
-      identifier: 'offer_status_info_sheet',
-      explicitChildNodes: true,
-      child: SafeArea(
-        top: false,
-        bottom: false,
-        child: SizedBox(
-          height: height,
-          child: Column(
-            children: [
-              const _SheetDragHandle(),
-              _SheetHeader(title: l10n.offerStatusSheetTitle),
-              Expanded(
-                child: SingleChildScrollView(
-                  // D5: showModalBottomSheet strips MediaQuery.padding, so the
-                  // nav-bar inset has to come from viewPadding or rows are cut.
-                  padding: EdgeInsetsDirectional.fromSTEB(
-                    Spacing.xLarge,
-                    Spacing.xSmall,
-                    Spacing.xLarge,
-                    Spacing.xLarge + MediaQuery.viewPaddingOf(context).bottom,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        l10n.offerStatusSheetIntro,
-                        key: const Key('offer-status-sheet-intro'),
-                        style: context.jeebText.body.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: Spacing.medium),
-                      _StatusGroupLabel(text: l10n.offerStatusGroupActive),
-                      _StatusRow(
-                        status: ClientOfferStatus.pending,
-                        icon: Icons.schedule_outlined,
-                        title: l10n.offerStatusPendingTitle,
-                        description: l10n.offerStatusPendingDescription,
-                        tone: _StatusTone.warning,
-                        selected: selectedStatus == ClientOfferStatus.pending,
-                      ),
-                      _StatusRow(
-                        status: ClientOfferStatus.submitted,
-                        icon: Icons.send_outlined,
-                        title: l10n.offerStatusSubmittedTitle,
-                        description: l10n.offerStatusSubmittedDescription,
-                        tone: _StatusTone.info,
-                        selected: selectedStatus == ClientOfferStatus.submitted,
-                      ),
-                      _StatusRow(
-                        status: ClientOfferStatus.edited,
-                        icon: Icons.edit_outlined,
-                        title: l10n.offerStatusEditedTitle,
-                        description: l10n.offerStatusEditedDescription,
-                        tone: _StatusTone.accent,
-                        selected: selectedStatus == ClientOfferStatus.edited,
-                      ),
-                      const SizedBox(height: Spacing.medium),
-                      _StatusGroupLabel(text: l10n.offerStatusGroupClosed),
-                      _StatusRow(
-                        status: ClientOfferStatus.accepted,
-                        icon: Icons.check_circle_outline,
-                        title: l10n.offerStatusAcceptedTitle,
-                        description: l10n.offerStatusAcceptedDescription,
-                        tone: _StatusTone.success,
-                        selected: selectedStatus == ClientOfferStatus.accepted,
-                      ),
-                      _StatusRow(
-                        status: ClientOfferStatus.withdrawn,
-                        icon: Icons.undo_outlined,
-                        title: l10n.offerStatusWithdrawnTitle,
-                        description: l10n.offerStatusWithdrawnDescription,
-                        tone: _StatusTone.neutral,
-                        selected: selectedStatus == ClientOfferStatus.withdrawn,
-                      ),
-                      _StatusRow(
-                        status: ClientOfferStatus.expired,
-                        icon: Icons.timer_off_outlined,
-                        title: l10n.offerStatusExpiredTitle,
-                        description: l10n.offerStatusExpiredDescription,
-                        tone: _StatusTone.warning,
-                        selected: selectedStatus == ClientOfferStatus.expired,
-                      ),
-                      _StatusRow(
-                        status: ClientOfferStatus.superseded,
-                        icon: Icons.cancel_outlined,
-                        title: l10n.offerStatusNotSelectedTitle,
-                        description: l10n.offerStatusNotSelectedDescription,
-                        tone: _StatusTone.neutral,
-                        selected:
-                            selectedStatus == ClientOfferStatus.superseded,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+    final int count = widget.countFor?.call(_draft) ?? 0;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: JeebFilterSheetScaffold(
+        identifier: 'offer_status_info_sheet',
+        title: l10n.homeFilterSheetTitle,
+        subtitle: l10n.homeFilterSheetSubtitle,
+        clearLabel: l10n.filterSheetClearCta,
+        applyLabel: l10n.filterSheetApplyCta(count),
+        clearEnabled: _draft.isActive,
+        clearIdentifier: 'orders_filter_clear',
+        applyIdentifier: 'orders_filter_apply',
+        onClear: () => setState(() => _draft = const ClientRequestFilter()),
+        onApply: () => Navigator.of(context).pop(_draft),
+        children: <Widget>[
+          JeebFilterSheetGroupLabel(text: l10n.homeFilterShowGroup),
+          _BucketRow(selected: _draft.bucket, onSelected: _stageBucket),
+          const SizedBox(height: Spacing.medium),
+          JeebFilterSheetGroupLabel(text: l10n.offerStatusGroupActive),
+          _StatusRow(
+            status: ClientOfferStatus.pending,
+            icon: Icons.schedule_outlined,
+            title: l10n.offerStatusPendingTitle,
+            description: l10n.offerStatusPendingDescription,
+            tone: _StatusTone.warning,
+            selected: _draft.offerStatus == ClientOfferStatus.pending,
+            onTap: _stageStatus,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SheetHeader extends StatelessWidget {
-  const _SheetHeader({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final Widget header = Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        Spacing.xLarge,
-        Spacing.small,
-        Spacing.small,
-        Spacing.small,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: context.jeebText.titleProminent.copyWith(
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
+          _StatusRow(
+            status: ClientOfferStatus.submitted,
+            icon: Icons.send_outlined,
+            title: l10n.offerStatusSubmittedTitle,
+            description: l10n.offerStatusSubmittedDescription,
+            tone: _StatusTone.info,
+            selected: _draft.offerStatus == ClientOfferStatus.submitted,
+            onTap: _stageStatus,
           ),
-          IconButton(
-            key: const Key('offer-status-close'),
-            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
+          _StatusRow(
+            status: ClientOfferStatus.edited,
+            icon: Icons.edit_outlined,
+            title: l10n.offerStatusEditedTitle,
+            description: l10n.offerStatusEditedDescription,
+            tone: _StatusTone.accent,
+            selected: _draft.offerStatus == ClientOfferStatus.edited,
+            onTap: _stageStatus,
+          ),
+          const SizedBox(height: Spacing.medium),
+          JeebFilterSheetGroupLabel(text: l10n.offerStatusGroupClosed),
+          _StatusRow(
+            status: ClientOfferStatus.accepted,
+            icon: Icons.check_circle_outline,
+            title: l10n.offerStatusAcceptedTitle,
+            description: l10n.offerStatusAcceptedDescription,
+            tone: _StatusTone.success,
+            selected: _draft.offerStatus == ClientOfferStatus.accepted,
+            onTap: _stageStatus,
+          ),
+          _StatusRow(
+            status: ClientOfferStatus.withdrawn,
+            icon: Icons.undo_outlined,
+            title: l10n.offerStatusWithdrawnTitle,
+            description: l10n.offerStatusWithdrawnDescription,
+            tone: _StatusTone.neutral,
+            selected: _draft.offerStatus == ClientOfferStatus.withdrawn,
+            onTap: _stageStatus,
+          ),
+          _StatusRow(
+            status: ClientOfferStatus.expired,
+            icon: Icons.timer_off_outlined,
+            title: l10n.offerStatusExpiredTitle,
+            description: l10n.offerStatusExpiredDescription,
+            tone: _StatusTone.warning,
+            selected: _draft.offerStatus == ClientOfferStatus.expired,
+            onTap: _stageStatus,
+          ),
+          _StatusRow(
+            status: ClientOfferStatus.superseded,
+            icon: Icons.cancel_outlined,
+            title: l10n.offerStatusNotSelectedTitle,
+            description: l10n.offerStatusNotSelectedDescription,
+            tone: _StatusTone.neutral,
+            selected: _draft.offerStatus == ClientOfferStatus.superseded,
+            onTap: _stageStatus,
           ),
         ],
       ),
     );
-    // D5: rows clip hard at the viewport edge; the hairline makes that read as
-    // an intentional boundary instead of sliced glyphs.
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        header,
-        Divider(
-          key: const Key('offer-status-header-divider'),
-          height: 1,
-          thickness: 1,
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ],
+  }
+}
+
+/// All / Awaiting offers / Has replies — the merged list's three slices.
+class _BucketRow extends StatelessWidget {
+  const _BucketRow({required this.selected, required this.onSelected});
+
+  static const List<ClientHomeTab> buckets = <ClientHomeTab>[
+    ClientHomeTab.all,
+    ClientHomeTab.pendingRequests,
+    ClientHomeTab.replies,
+  ];
+
+  final ClientHomeTab selected;
+  final ValueChanged<ClientHomeTab> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Wrap(
+        spacing: Spacing.xSmall,
+        runSpacing: Spacing.xSmall,
+        children: <Widget>[
+          for (final ClientHomeTab bucket in buckets)
+            JeebSelectChip(
+              key: Key('client-home-bucket-${bucket.name}'),
+              role: JeebChipRole.filter,
+              label: clientBucketLabel(l10n, bucket),
+              selected: selected == bucket,
+              identifier: 'orders_filter_bucket_${bucket.name}',
+              onTap: () => onSelected(bucket),
+            ),
+        ],
+      ),
     );
   }
 }
 
-class _StatusGroupLabel extends StatelessWidget {
-  const _StatusGroupLabel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(bottom: Spacing.xSmall),
-      child: Text(
-        text,
-        style: context.jeebText.label.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
+/// The bucket's human-readable name, shared with the screen's applied pill.
+String clientBucketLabel(AppLocalizations l10n, ClientHomeTab bucket) {
+  return switch (bucket) {
+    ClientHomeTab.all => l10n.homeFilterBucketAll,
+    ClientHomeTab.pendingRequests => l10n.homeFilterBucketAwaiting,
+    ClientHomeTab.replies => l10n.homeFilterBucketReplies,
+    ClientHomeTab.inProgress => l10n.homeTabInProgress,
+  };
 }
 
 enum _StatusTone { success, warning, info, accent, neutral }
@@ -221,6 +226,7 @@ class _StatusRow extends StatelessWidget {
     required this.description,
     required this.tone,
     required this.selected,
+    required this.onTap,
   });
 
   final ClientOfferStatus status;
@@ -229,6 +235,7 @@ class _StatusRow extends StatelessWidget {
   final String description;
   final _StatusTone tone;
   final bool selected;
+  final ValueChanged<ClientOfferStatus> onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +262,7 @@ class _StatusRow extends StatelessWidget {
         borderRadius: OmdsBorderRadius.small,
         child: InkWell(
           borderRadius: OmdsBorderRadius.small,
-          onTap: () => Navigator.of(context).pop(status),
+          onTap: () => onTap(status),
           child: Padding(
             padding: const EdgeInsetsDirectional.symmetric(
               vertical: Spacing.xSmall,
@@ -305,30 +312,6 @@ class _StatusRow extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SheetDragHandle extends StatelessWidget {
-  const _SheetDragHandle();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<JeebSemanticColors>() ??
-        JeebSemanticColors.midnight();
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: Spacing.small),
-      child: Center(
-        child: Container(
-          width: Spacing.twoXLarge,
-          height: Spacing.twoXSmall,
-          decoration: BoxDecoration(
-            color: colors.glassBorderVivid,
-            borderRadius: OmdsBorderRadius.pill,
           ),
         ),
       ),

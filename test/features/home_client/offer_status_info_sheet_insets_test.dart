@@ -74,9 +74,16 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
+    // The hairline now belongs to the shared JeebFilterSheetScaffold header;
+    // it is still the only Divider between the title and the first group.
+    final divider = find.descendant(
+      of: find.bySemanticsIdentifier('offer_status_info_sheet'),
+      matching: find.byType(Divider),
+    );
+    expect(divider, findsOneWidget);
     expect(
-      find.byKey(const Key('offer-status-header-divider')),
-      findsOneWidget,
+      tester.getRect(divider).top,
+      lessThan(tester.getRect(find.text('Show')).top),
     );
   });
 }

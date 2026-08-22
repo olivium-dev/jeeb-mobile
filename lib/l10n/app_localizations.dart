@@ -2753,6 +2753,15 @@ extension AppLocalizationsRestored on AppLocalizations {
   String jeeberFeedRepliesCount(int count) =>
       _get('jeeberFeedRepliesCount').replaceFirst('{count}', '$count');
   String get jeeberFeedSearchToggleLabel => _get('jeeberFeedSearchToggleLabel');
+  String get jeeberFeedFilterOpenLabel => _get('jeeberFeedFilterOpenLabel');
+  String get jeeberFeedFilterSheetTitle => _get('jeeberFeedFilterSheetTitle');
+  String get jeeberFeedFilterSheetSubtitle =>
+      _get('jeeberFeedFilterSheetSubtitle');
+  String get jeeberFeedFilterSearchGroup =>
+      _get('jeeberFeedFilterSearchGroup');
+  String get jeeberFeedFilterTierGroup => _get('jeeberFeedFilterTierGroup');
+  String jeeberFeedSearchPillLabel(String query) =>
+      _get('jeeberFeedSearchPillLabel').replaceFirst('{query}', query);
   String get availabilityExtendAction => _get('availabilityExtendAction');
   String get availabilityInactivityInlineWarning =>
       _get('availabilityInactivityInlineWarning');
@@ -2951,6 +2960,22 @@ extension AppLocalizationsRestored on AppLocalizations {
   String get homeTabMore => _get('homeTabMore');
 
   String get homeFilterClearLabel => _get('homeFilterClearLabel');
+  String get homeRequestsSectionTitle => _get('homeRequestsSectionTitle');
+  String homeRequestsRepliesBadge(int count) =>
+      _cldrPlural('homeRequestsRepliesBadge', count);
+  String get homeFilterOpenLabel => _get('homeFilterOpenLabel');
+  String get homeFilterActiveA11yLabel => _get('homeFilterActiveA11yLabel');
+  String get homeFilterSheetTitle => _get('homeFilterSheetTitle');
+  String get homeFilterSheetSubtitle => _get('homeFilterSheetSubtitle');
+  String get homeFilterShowGroup => _get('homeFilterShowGroup');
+  String get homeFilterBucketAll => _get('homeFilterBucketAll');
+  String get homeFilterBucketAwaiting => _get('homeFilterBucketAwaiting');
+  String get homeFilterBucketReplies => _get('homeFilterBucketReplies');
+  String get filterSheetClearCta => _get('filterSheetClearCta');
+  String filterSheetApplyCta(int count) =>
+      _cldrPlural('filterSheetApplyCta', count);
+  String filterPillClearA11yLabel(String filter) =>
+      _get('filterPillClearA11yLabel').replaceFirst('{filter}', filter);
   String get offerStatusSheetTitle => _get('offerStatusSheetTitle');
   String get offerStatusSheetIntro => _get('offerStatusSheetIntro');
   String get offerStatusGroupActive => _get('offerStatusGroupActive');

@@ -5,7 +5,9 @@ import '../domain/recent_delivery_summary.dart';
 
 enum ClientHomeStatus { initial, loading, ready, failed }
 
-enum ClientHomeTab { inProgress, pendingRequests, replies }
+/// Buckets of the request list; [all] is the merged default. Appended, never
+/// reordered — the dev seam pins one by name and the catalog by index.
+enum ClientHomeTab { inProgress, pendingRequests, replies, all }
 
 class ClientHomeState extends Equatable {
   const ClientHomeState({
@@ -45,6 +47,9 @@ class ClientHomeState extends Equatable {
         return pending;
       case ClientHomeTab.replies:
         return replies;
+      case ClientHomeTab.all:
+        // Replies first: they are the rows that need a decision.
+        return <ClientHomeRequest>[...replies, ...pending];
     }
   }
 

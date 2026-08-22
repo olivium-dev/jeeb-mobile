@@ -523,13 +523,35 @@ void main() {
     );
   }
 
-  testWidgets('switching to an empty tab moves neither capsule nor headline', (
+  testWidgets('applying a filter moves neither capsule nor headline', (
     tester,
   ) async {
     final repo = InMemoryClientHomeRepository.fromSnapshot(
-      const ClientHomeSnapshot(replies: <ClientHomeRequest>[]),
+      const ClientHomeSnapshot(
+        pending: <ClientHomeRequest>[
+          ClientHomeRequest(
+            id: 'pen-1',
+            title: 'ORD-1',
+            displayId: 'ORD-1',
+            status: ClientRequestStatus.searching,
+            destinationLabel: 'Hamra',
+          ),
+        ],
+        replies: <ClientHomeRequest>[
+          ClientHomeRequest(
+            id: 'rep-1',
+            title: 'ORD-2',
+            displayId: 'ORD-2',
+            status: ClientRequestStatus.offersReceived,
+            destinationLabel: 'Hamra',
+            offerCount: 2,
+            offerAvatarUrls: <String>['a', 'b'],
+          ),
+        ],
+      ),
       latency: Duration.zero,
     );
+    final handle = tester.ensureSemantics();
     await tester.pumpWidget(_harness(repo: repo));
     await tester.pumpAndSettle();
 
@@ -538,7 +560,7 @@ void main() {
     final taglineBefore = tester.getRect(tagline);
     final capsuleBefore = tester.getRect(heroCapsule());
 
-    await tester.tap(find.text('Replies'));
+    await tester.tap(find.bySemanticsIdentifier('orders_home_replies_tab'));
     await tester.pumpAndSettle();
 
     expect(
@@ -552,6 +574,7 @@ void main() {
       find.bySemanticsIdentifier('orders_create_request_button'),
       findsOneWidget,
     );
+    handle.dispose();
   });
 
   testWidgets('the capsule height is invariant across locale and width', (

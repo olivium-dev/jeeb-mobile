@@ -1,14 +1,20 @@
 # Jeeb mobile — 14 Replies / My Orders [User].
-# Figma node 56535:2251 (client "My Orders", Replies chip selected).
+# Figma node 56535:2251 (client "My Orders", narrowed to the replies bucket).
 #
 # WHAT THIS PROVES
 #   The client shell renders the Replies list (order id + items + offerer avatar
 #   stack with "+N" + Check Offers CTA), elements targeted BY SEMANTIC ID:
-#     orders_filter_replies            — Replies chip (selected here)
-#     orders_filter_pendingRequests    — Pending Requests chip
+#     orders_filter_open               — the filter disc in the section header
+#     orders_home_replies_tab          — the "N replies" accent badge beside it
+#     orders_filter_pill_bucket        — the applied-bucket pill: the visible
+#                                        proof the list is narrowed to replies
 #     orders_replies_avatar_stack_*     — offerer avatar stack + count
 #     orders_replies_check_offers_*     — Check Offers CTA
 #     orders_search_bar absent / orders_create_request_button present
+#
+#   The three-segment chip row is gone: the list is one merged list, narrowed
+#   through the sheet behind orders_filter_open. The seam stages that narrow,
+#   so the pill stands in for the old "chip selected".
 #
 # PRIMARY INTERACTION
 #   "Check Offers" is the screen's entry to the offers/broadcasting chat. On the
@@ -18,8 +24,8 @@
 #
 # BACKEND / SEAM
 #   Dev seam: jeeb.route=/ + jeeb.home_tab=replies → shell home tab seeded with
-#   DevClientHomeFixtures, Replies filter selected. No live gateway. UI parity
-#   only (UI-GUARDRAILS §6). Seam via launchApp.arguments (intent extras).
+#   DevClientHomeFixtures, opened on the replies bucket. No live gateway. UI
+#   parity only (UI-GUARDRAILS §6). Seam via launchApp.arguments (intent extras).
 #
 # MAESTRO 2.x: extendedWaitUntil for timed waits; waitForAnimationToEnd before
 #   screenshots; no fixed sleeps / coordinate taps; id-based assertions.
@@ -35,19 +41,22 @@ appId: ${APP_ID}
       jeeb.route: "/"
       jeeb.home_tab: "replies"
 
-# Replies chip — waited+asserted by id (cold launch + seeded load).
+# Filter disc — waited+asserted by id (cold launch + seeded load). It is
+# disclosed only once a request exists, so it doubles as the load gate.
 - extendedWaitUntil:
     visible:
-      id: "orders_filter_replies"
+      id: "orders_filter_open"
     timeout: 25000
 
 - waitForAnimationToEnd:
     timeout: 5000
 - takeScreenshot: 14_replies_my_orders
 
-# Both Requests filter chips + top create entry present; search absent.
+# The replies badge + applied-bucket pill + create entry present; search absent.
 - assertVisible:
-    id: "orders_filter_pendingRequests"
+    id: "orders_home_replies_tab"
+- assertVisible:
+    id: "orders_filter_pill_bucket"
 - assertNotVisible:
     id: "orders_search_bar"
 - assertVisible:
