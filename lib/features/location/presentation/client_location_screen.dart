@@ -437,8 +437,8 @@ class _Body extends StatelessWidget {
         // R12: sections breathe at 14–20, cards at 9–12. The old 24/20 rhythm
         // is off this board entirely.
         const SizedBox(height: Spacing.medium),
-        // Above the fold on purpose: the create door seeds a tier the customer
-        // never picked, so this screen has to SHOW it, not merely hold it.
+        // Above the fold on purpose, and READ-ONLY: the tier is chosen on
+        // "Choose your request"; this screen only has to SHOW what it will post.
         const ComposeTierSection(),
         _Heading(text: l10n.clientLocationHeading),
         const SizedBox(height: Spacing.small),

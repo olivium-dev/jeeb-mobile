@@ -8,12 +8,12 @@
 // THE FIX: home_tab.dart now passes a non-null `onCreateRequest` (matching
 // production create-request intent).
 //
-// S3 (2026-08-07): that callback no longer opens the tier screen. It seeds the
-// recommended tier — the SAME `recommended ?? first` the voice path defaults to
-// — and pushes `client-location`, where `ComposeTierSection` discloses the tier
-// with a Change row. `request-type` survives as the fallback for an unreachable
-// catalog (a tier with no `wireId` would 400 the create POST) and as the target
-// of waiting-retarget / order-history reorder. Both edges are pinned below.
+// SINGLE DOOR (2026-08-22, supersedes S3): that callback opens `request-type`
+// again, unconditionally. The delivery tier is chosen in exactly ONE place —
+// "Choose your request" — and `ComposeTierSection` on the location screen is a
+// READ-ONLY disclosure of it, no longer a second picker. So the home tap seeds
+// nothing into the compose controller; the tier screen's Continue does. The
+// catalog-shaped cases below now all land on the same door, which is the point.
 //
 // REDESIGN-2026-08 (screen 04, wiring request): the top "+" IconButton
 // (`Key('client-home-greeting-add')`) was replaced by the board's mic hero, so
@@ -116,9 +116,10 @@ class _SlowCatalog implements TierRepository {
 }
 
 /// Minimal router so `GoRouter.of(context)` (used by HomeTab's create-request
-/// wiring) resolves. BOTH create destinations are registered: `client-location`
-/// is where the tap lands, `request-type` is the no-catalog fallback.
-GoRouter _router({VoidCallback? onLocationBuild}) {
+/// wiring) resolves. BOTH create destinations stay registered: `request-type`
+/// is where the tap lands, `client-location` so a stray push would be VISIBLE
+/// as a wrong screen rather than a route-not-found crash.
+GoRouter _router({VoidCallback? onTierScreenBuild}) {
   return GoRouter(
     initialLocation: '/',
     routes: [
@@ -139,16 +140,16 @@ GoRouter _router({VoidCallback? onLocationBuild}) {
         // NAMED, because HomeTab._openCreateRequest uses `pushNamed`.
         path: '/request-type',
         name: 'request-type',
-        builder: (context, state) =>
-            const Scaffold(body: Text('request-type-screen')),
+        builder: (context, state) {
+          onTierScreenBuild?.call();
+          return const Scaffold(body: Text('request-type-screen'));
+        },
       ),
       GoRoute(
         path: '/client-location',
         name: 'client-location',
-        builder: (context, state) {
-          onLocationBuild?.call();
-          return const Scaffold(body: Text('client-location-screen'));
-        },
+        builder: (context, state) =>
+            const Scaffold(body: Text('client-location-screen')),
       ),
     ],
   );
@@ -230,8 +231,10 @@ void main() {
       );
     }
 
-    // S3 — the typed door lands where the voice door lands, priced the same.
-    testWidgets('the create tap opens client-location, never the tier screen', (
+    // SINGLE DOOR — the typed door lands on the ONE place a tier is chosen.
+    // WAS 'opens client-location, never the tier screen' (S3): that is exactly
+    // the behaviour being reversed, so the two expectations swap.
+    testWidgets('the create tap opens the tier screen, never client-location', (
       tester,
     ) async {
       DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
@@ -247,11 +250,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('client-location-screen'), findsOneWidget);
-      expect(find.text('request-type-screen'), findsNothing);
+      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(find.text('client-location-screen'), findsNothing);
     });
 
-    testWidgets('it seeds the recommended tier, the one the voice path picks', (
+    // WAS 'it seeds the recommended tier, the one the voice path picks'. The
+    // home tap must now seed NOTHING: a tier the customer never picked can no
+    // longer reach the POST, because the location screen only discloses it.
+    testWidgets('the tap seeds no tier — the tier screen owns that choice', (
       tester,
     ) async {
       DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
@@ -268,17 +274,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Not merely non-null: a null `wireId` here is a 400 on the create POST,
-      // and Flash is the catalog's first entry, so this also pins the ordering.
-      expect(compose.tier, isNotNull);
-      expect(compose.tier!.wireId, 'tier-standard');
-      expect(compose.tier!.recommended, isTrue);
+      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(compose.tier, isNull);
     });
 
-    // The tap must be a pure navigation: the screen warmed the catalog on
-    // entry, so blocking the primary CTA on a live GET is both a dead window
-    // and a second push waiting to happen.
-    testWidgets('the create tap reads the warmed tier, never the network', (
+    // The tap must be a pure navigation: blocking the primary CTA on a live GET
+    // is both a dead window and a second push waiting to happen. (The tier
+    // screen reads the catalog itself, behind its own skeleton.)
+    testWidgets('the create tap is pure navigation, never a catalog read', (
       tester,
     ) async {
       DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
@@ -288,9 +291,9 @@ void main() {
         ComposeRequestController(_NoopSubmission()),
       );
 
-      var locationBuilds = 0;
+      var tierScreenBuilds = 0;
       await tester.pumpWidget(
-        _app(_router(onLocationBuild: () => locationBuilds += 1)),
+        _app(_router(onTierScreenBuild: () => tierScreenBuilds += 1)),
       );
       await tester.pumpAndSettle();
       expect(catalog.calls, 1, reason: 'the screen warms the catalog once');
@@ -299,20 +302,20 @@ void main() {
       await tester.tap(cta);
       await tester.pumpAndSettle();
 
-      expect(find.text('client-location-screen'), findsOneWidget);
-      expect(catalog.calls, 1, reason: 'the tap must not re-fetch /tiers');
-      expect(locationBuilds, 1);
+      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(catalog.calls, 1, reason: 'the tap itself must not fetch /tiers');
+      expect(tierScreenBuilds, 1);
       expect(
         cta,
         findsNothing,
         reason:
             'the pushed route covers the button from the first frame, so there '
-            'is no window in which a second tap stacks a second location screen',
+            'is no window in which a second tap stacks a second create screen',
       );
     });
 
-    // The other half of the same defect: with the catalog still in flight the
-    // door must open on something, immediately — never stall on the GET.
+    // The other half of the same defect: catalog state must not reach the door
+    // at all. These three pin that every warm outcome opens the same screen.
     testWidgets('a catalog still in flight opens the picker, never a stall', (
       tester,
     ) async {

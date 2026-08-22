@@ -561,6 +561,8 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
         _tierRetrying = false;
       });
     }
+    // The one door that skips the tier screen: `setTier` there would blank the
+    // clip and transcript this session was just seeded with.
     GoRouter.maybeOf(context)?.pushNamed('client-location');
     if (transcript == null || transcript.isEmpty) {
       ScaffoldMessenger.of(context)

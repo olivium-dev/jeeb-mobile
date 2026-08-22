@@ -18,9 +18,7 @@ import '../../location/data/location_repository.dart';
 import '../../tier_selection/cubit/tier_selection_cubit.dart';
 import '../../tier_selection/cubit/tier_selection_state.dart';
 import '../../tier_selection/data/tier_repository.dart';
-import '../../tier_selection/domain/tier.dart';
 import '../../request_summary/application/compose_request_controller.dart';
-import '../../request_summary/domain/request_draft.dart';
 import 'request_location_row.dart';
 import 'widgets/tier_catalog_section.dart';
 
@@ -33,8 +31,11 @@ import 'widgets/tier_catalog_section.dart';
 /// `/request-summary` card) — the blueprint create flow is
 /// tier → location-select → map-pin → order-chat. The screen owns its own
 /// forward navigation via GoRouter (40_GUARDRAILS_ARCH §5.4/§10.8 — the source
-/// screen wires its inbound edges); the optional [onContinue]/[onChangeLocation]
-/// callbacks are test/dev seams that, when provided, REPLACE the default nav.
+/// screen wires its inbound edges); the optional [onChangeLocation] callback is
+/// a test/dev seam that, when provided, REPLACES the default nav.
+///
+/// This is the ONE place the delivery tier is chosen: every create door lands
+/// here first, and the location step only discloses what was picked.
 ///
 /// "Change" is a PICKER, not a second create door: it opens `capture-location`
 /// and renders the popped point in place — it used to push the compose screen.
@@ -51,8 +52,6 @@ class RequestTypeScreen extends StatelessWidget {
     this.cubit,
     this.repository,
     this.onChangeLocation,
-    this.onTierSelected,
-    this.onContinue,
   });
 
   final TierSelectionCubit? cubit;
@@ -61,20 +60,6 @@ class RequestTypeScreen extends StatelessWidget {
   /// Test/dev seam. When provided it REPLACES the default `capture-location`
   /// picker nav. The router no longer supplies it; the screen owns that edge.
   final VoidCallback? onChangeLocation;
-
-  /// LEGACY (divergent) seam — see 50_ROUTE_REQUESTS JM-024. The W0-era router
-  /// passed a `→ /request-summary` closure here; JM-024 supersedes that edge
-  /// (the create flow now goes tier → location-select → order-chat, NOT the
-  /// summary card). The screen therefore NO LONGER invokes this for navigation
-  /// — the tier-card tap only selects. Kept (unused) so the integrator's router
-  /// builder compiles until it drops the arg.
-  final ValueChanged<Tier>? onTierSelected;
-
-  /// LEGACY (divergent) seam — see 50_ROUTE_REQUESTS JM-024. As above: the
-  /// Continue CTA now self-navigates to `location-select` (JM-024 AC1) and does
-  /// NOT invoke this `→ /request-summary` closure. Kept (unused) so the router
-  /// builder compiles until the integrator drops the arg.
-  final ValueChanged<RequestDraft>? onContinue;
 
   @override
   Widget build(BuildContext context) {

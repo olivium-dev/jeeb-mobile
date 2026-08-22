@@ -28,10 +28,6 @@ class ComposeRequestController {
 
   Tier? get tier => _tier;
 
-  /// Re-prices an EXISTING session. Unlike [setTier] it keeps the description,
-  /// the voice note and the recipient — nothing about them depends on the tier.
-  void changeTier(Tier tier) => _tier = tier;
-
   /// Seeds a whole compose session atomically. The required tier makes
   /// [setTier]'s field-clearing impossible to trip over.
   void beginVoiceSession({

@@ -21,8 +21,6 @@ import '../../home_client/data/in_memory_client_home_repository.dart';
 import '../../home_client/domain/client_home_repository.dart';
 import '../../home_client/domain/client_home_request.dart';
 import '../../home_client/presentation/client_home_screen.dart';
-import '../../request_summary/application/compose_request_controller.dart';
-import '../../tier_selection/domain/tier.dart';
 import '../tab_visibility.dart';
 
 // Preview-only — see the JEEB PREVIEWS section at the end of this file.
@@ -71,7 +69,7 @@ class HomeTab extends StatelessWidget {
           child: ClientHomeScreen(
             key: const Key('home-tab-root'),
             initialTab: devTab ?? ClientHomeTab.pendingRequests,
-            onCreateRequest: (tier) => _openCreateRequest(context, tier),
+            onCreateRequest: (_) => _openCreateRequest(context),
             onOpenRequest: (request) => _openChat(context, request),
             onTrack: (request) => _openTracking(context, request),
           ),
@@ -136,16 +134,10 @@ class HomeTab extends StatelessWidget {
     }
   }
 
-  /// Seeds the tier the home screen already warmed and lands where the voice
-  /// door lands; the picker stays the fallback when nothing priceable resolved.
-  void _openCreateRequest(BuildContext context, Tier? seedTier) {
-    final router = GoRouter.of(context);
-    if (seedTier == null || !sl.isRegistered<ComposeRequestController>()) {
-      router.pushNamed('request-type');
-      return;
-    }
-    sl<ComposeRequestController>().setTier(seedTier);
-    router.pushNamed('client-location');
+  /// ONE door into the create flow. The tier is chosen on "Choose your
+  /// request", never seeded behind the customer on the way past it.
+  void _openCreateRequest(BuildContext context) {
+    GoRouter.of(context).pushNamed('request-type');
   }
 
   void _openChat(BuildContext context, ClientHomeRequest request) {

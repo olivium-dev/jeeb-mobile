@@ -156,8 +156,9 @@ class JeebTierRow extends StatelessWidget {
   /// Whether this tier is the chosen one.
   final bool selected;
 
-  /// Selection callback.
-  final VoidCallback onTap;
+  /// Selection callback. Null draws the row inert — a read-only disclosure of
+  /// a tier chosen elsewhere, with no ink and no tap target.
+  final VoidCallback? onTap;
 
   /// Frozen Maestro id — `request_type_flash_radio` (07),
   /// `tier_selection_card_<id>` (08). Applied via an explicit `Semantics`
