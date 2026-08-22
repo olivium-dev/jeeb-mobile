@@ -1187,7 +1187,8 @@ class AppRouter {
           path: '/request-type',
           name: 'request-type',
           builder: (context, state) => RequestTypeScreen(
-            onChangeLocation: () => context.push('/client-location'),
+            // NO onChangeLocation override: it sent "Change" to the compose
+            // screen. The screen owns that edge and opens the PICKER instead.
             // A-P0: Continue producer. The screen owns the Continue CTA + tier
             // selection; the router supplies the navigation closure that
             // assembles a RequestDraft from the chosen [Tier] and pushes the

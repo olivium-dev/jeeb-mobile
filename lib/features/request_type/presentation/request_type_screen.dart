@@ -14,6 +14,7 @@ import '../../../core/widgets/jeeb/jeeb_section_label.dart';
 import '../../../core/widgets/jeeb/jeeb_tier_row.dart';
 import '../../../core/widgets/jeeb/jeeb_top_bar.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../location/data/location_repository.dart';
 import '../../tier_selection/cubit/tier_selection_cubit.dart';
 import '../../tier_selection/cubit/tier_selection_state.dart';
 import '../../tier_selection/data/tier_repository.dart';
@@ -35,6 +36,9 @@ import 'widgets/tier_catalog_section.dart';
 /// screen wires its inbound edges); the optional [onContinue]/[onChangeLocation]
 /// callbacks are test/dev seams that, when provided, REPLACE the default nav.
 ///
+/// "Change" is a PICKER, not a second create door: it opens `capture-location`
+/// and renders the popped point in place — it used to push the compose screen.
+///
 /// Reuses the existing [TierSelectionCubit] + [TierRepository] (the tier-catalog
 /// source of truth, fed by `GET /v1/tiers` → T1's 5-tier mock catalog).
 ///
@@ -54,9 +58,8 @@ class RequestTypeScreen extends StatelessWidget {
   final TierSelectionCubit? cubit;
   final TierRepository? repository;
 
-  /// Test/dev seam. When provided it REPLACES the default `location-select`
-  /// navigation the "Change location" row triggers. (The W1 integrator's
-  /// router already supplies the correct `→ /client-location` closure here.)
+  /// Test/dev seam. When provided it REPLACES the default `capture-location`
+  /// picker nav. The router no longer supplies it; the screen owns that edge.
   final VoidCallback? onChangeLocation;
 
   /// LEGACY (divergent) seam — see 50_ROUTE_REQUESTS JM-024. The W0-era router
@@ -412,46 +415,69 @@ class _LoadedView extends StatelessWidget {
   }
 }
 
-class _LocationSection extends StatelessWidget {
+class _LocationSection extends StatefulWidget {
   const _LocationSection({this.onChangeLocation});
 
   final VoidCallback? onChangeLocation;
 
   @override
+  State<_LocationSection> createState() => _LocationSectionState();
+}
+
+class _LocationSectionState extends State<_LocationSection> {
+  /// The point the picker handed back. Held here so the row updates IN PLACE
+  /// instead of the flow advancing to another screen.
+  LocationPoint? _picked;
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    // TODO(midnight): the tile's "Home — Achrafieh, Beirut" + "Current
-    // location" pair needs a resolved destination. Omitted, not faked.
+    final picked = _picked;
     return RequestLocationRow(
       currentLabel: l10n.requestTypeCurrentLocation,
+      addressLabel: picked == null ? null : _pickedLabel(picked),
+      qualifierLabel: picked == null ? null : l10n.captureLocationSelectedPoint,
       changeLabel: l10n.requestTypeChangeLocation,
       changeCtaLabel: l10n.requestTypeChangeCta,
-      onChange: () => _onChange(context),
+      onChange: _onChange,
     );
   }
 
-  void _onChange(BuildContext context) {
-    // iter6 LIVE fix (tier-required): the "Change location" row jumps straight
-    // to `client-location`, the SAME destination the Continue CTA reaches — but
-    // unlike Continue it never recorded the chosen tier in the shared compose
-    // controller. So a customer who picks a tier then taps "Change location"
-    // (instead of Continue) lost `tierId`, and the location-confirm
-    // `POST /requests` came back 400 `tier-required` (surfaced as a misleading
-    // "Couldn't reach Jeeb"). Carry the selected tier through this path too, so
-    // both routes feed the create with a non-null tier.
-    final tier = context.read<TierSelectionCubit>().state.selectedTier;
-    if (tier != null && sl.isRegistered<ComposeRequestController>()) {
-      sl<ComposeRequestController>().setTier(tier);
-    }
-    // EDGE: request-type-selection → location-select (the same destination the
-    // Continue CTA uses, JM-024 AC1). The optional callback REPLACES the
-    // default nav for tests / the dev seam.
-    final handler = onChangeLocation;
+  /// The picker pops coordinates, not a resolved street line — show exactly
+  /// what the capture sheet showed rather than invent an address.
+  String _pickedLabel(LocationPoint point) =>
+      point.address ??
+      '${point.latitude.toStringAsFixed(4)}, '
+          '${point.longitude.toStringAsFixed(4)}';
+
+  Future<void> _onChange() async {
+    // Test/dev seam: when supplied it REPLACES the picker navigation.
+    final handler = widget.onChangeLocation;
     if (handler != null) {
       handler();
       return;
     }
-    context.pushNamed('client-location');
+    // EDGE: request-type-selection → location-map-pin (PICKER ONLY, was the
+    // compose screen). It pops a LocationPoint (or null) and cannot submit.
+    final result = await context.pushNamed<Object?>(
+      'capture-location',
+      queryParameters: const {'purpose': 'pickup'},
+    );
+    if (!mounted) return;
+    // Anything that is neither a point nor null is a contract violation, not a
+    // cancel — same handling as the location screen's pin edge.
+    if (result != null && result is! LocationPoint) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).captureLocationPinFailed),
+        ),
+      );
+      return;
+    }
+    final point = result as LocationPoint?;
+    // A cancel leaves the row on its previous value, silently.
+    if (point == null) return;
+    setState(() => _picked = point);
   }
 }
 
