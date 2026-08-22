@@ -25,6 +25,12 @@ class ComposeRequestController {
 
   void setTier(Tier tier) {
     _tier = tier;
+    _clearSession();
+  }
+
+  /// Everything except the tier. A session must not outlive its own submit:
+  /// `?resume=1` would otherwise re-open the order that was just sent.
+  void _clearSession() {
     _recipientPhone = null;
     _description = null;
     _transcription = null;
@@ -84,7 +90,9 @@ class ComposeRequestController {
 
   Future<String> _submitOnce(LocationSelectState location) async {
     try {
-      return await _submission.submit(_buildDraft(location));
+      final id = await _submission.submit(_buildDraft(location));
+      _clearSession();
+      return id;
     } finally {
       _inFlight = null;
     }

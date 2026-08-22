@@ -449,8 +449,8 @@ class _Body extends StatelessWidget {
         // G1 (sprint-009 P0) — "What do you need?" leads the confirm step: the
         // request CONTENT is the thing the jeeber prices, so it sits above the
         // location options on the same screen that submits POST /requests (all
-        // compose paths converge here, so the required-gate cannot be
-        // bypassed via the request-type "Change location" shortcut).
+        // compose paths converge here, so the required-gate has no bypass —
+        // request-type's "Change" is a picker and never reaches this screen).
         _DescriptionSection(
           controller: descriptionController,
           onDictate: onDictate,

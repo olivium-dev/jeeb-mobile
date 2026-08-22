@@ -6,6 +6,8 @@
 // order goes out at is VISIBLE first — these pin that, and pin that this screen
 // no longer offers a second picker (there is exactly one place to choose).
 
+import 'dart:ui' show CheckedState;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -129,6 +131,14 @@ void main() {
     // WAS findsOneWidget. The second picker is gone: one tier choice, on
     // "Choose your request".
     expect(find.bySemanticsIdentifier('compose_tier_change'), findsNothing);
+
+    // An inert row must not be announced as a selectable radio.
+    final node = tester.getSemantics(
+      find.bySemanticsIdentifier('compose_tier_row'),
+    );
+    expect(node.flagsCollection.isButton, isFalse);
+    expect(node.flagsCollection.isInMutuallyExclusiveGroup, isFalse);
+    expect(node.flagsCollection.isChecked, CheckedState.none);
   });
 
   testWidgets('no seeded session renders nothing at all', (tester) async {

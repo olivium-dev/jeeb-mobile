@@ -218,15 +218,15 @@ class JeebTierRow extends StatelessWidget {
 
     switch (variant) {
       case JeebTierRowVariant.compact:
-        // Byte-identical to `RequestTierCard.build` — two tests read
-        // `flagsCollection.isChecked` off this node.
+        // `RequestTierCard.build`'s shape, minus the radio flags when the row
+        // is read-only (`onTap == null`) — an inert row is not selectable.
         return Semantics(
           identifier: identifier,
-          inMutuallyExclusiveGroup: true,
-          checked: selected,
+          inMutuallyExclusiveGroup: onTap != null,
+          checked: onTap == null ? null : selected,
           label: semanticLabel,
           hint: selected ? selectedHint : null,
-          button: true,
+          button: onTap != null,
           child: ExcludeSemantics(child: card),
         );
       case JeebTierRowVariant.catalog:
