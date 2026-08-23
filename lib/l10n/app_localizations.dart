@@ -678,6 +678,7 @@ class AppLocalizations {
   String get requestTypeTierSelectedHint => _get('requestTypeTierSelectedHint');
 
   String get clientLocationTitle => _get('clientLocationTitle');
+  String get locationSelectReviewCta => _get('locationSelectReviewCta');
   String get clientLocationHeading => _get('clientLocationHeading');
   String get clientLocationCurrentOption => _get('clientLocationCurrentOption');
   String get clientLocationNewOption => _get('clientLocationNewOption');

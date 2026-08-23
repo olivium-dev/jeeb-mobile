@@ -8,12 +8,11 @@
 // THE FIX: home_tab.dart now passes a non-null `onCreateRequest` (matching
 // production create-request intent).
 //
-// SINGLE DOOR (2026-08-22, supersedes S3): that callback opens `request-type`
-// again, unconditionally. The delivery tier is chosen in exactly ONE place —
-// "Choose your request" — and `ComposeTierSection` on the location screen is a
-// READ-ONLY disclosure of it, no longer a second picker. So the home tap seeds
-// nothing into the compose controller; the tier screen's Continue does. The
-// catalog-shaped cases below now all land on the same door, which is the point.
+// SINGLE DOOR (UX merge, supersedes 2026-08-22): that callback opens the
+// merged `client-location` ("New request") screen unconditionally. The tier is
+// chosen THERE (Standard default + a Change sheet), so the home tap still
+// seeds nothing into the compose controller — the screen owns its default.
+// The catalog-shaped cases below all land on the same door, which is the point.
 //
 // REDESIGN-2026-08 (screen 04, wiring request): the top "+" IconButton
 // (`Key('client-home-greeting-add')`) was replaced by the board's mic hero, so
@@ -116,10 +115,10 @@ class _SlowCatalog implements TierRepository {
 }
 
 /// Minimal router so `GoRouter.of(context)` (used by HomeTab's create-request
-/// wiring) resolves. BOTH create destinations stay registered: `request-type`
-/// is where the tap lands, `client-location` so a stray push would be VISIBLE
-/// as a wrong screen rather than a route-not-found crash.
-GoRouter _router({VoidCallback? onTierScreenBuild}) {
+/// wiring) resolves. BOTH create routes stay registered: `client-location` is
+/// where the tap lands (UX merge), `request-type` so a stray legacy push would
+/// be VISIBLE as a wrong screen rather than a route-not-found crash.
+GoRouter _router({VoidCallback? onCreateScreenBuild}) {
   return GoRouter(
     initialLocation: '/',
     routes: [
@@ -137,19 +136,19 @@ GoRouter _router({VoidCallback? onTierScreenBuild}) {
         ),
       ),
       GoRoute(
-        // NAMED, because HomeTab._openCreateRequest uses `pushNamed`.
         path: '/request-type',
         name: 'request-type',
-        builder: (context, state) {
-          onTierScreenBuild?.call();
-          return const Scaffold(body: Text('request-type-screen'));
-        },
+        builder: (context, state) =>
+            const Scaffold(body: Text('request-type-screen')),
       ),
       GoRoute(
+        // NAMED, because HomeTab._openCreateRequest uses `pushNamed`.
         path: '/client-location',
         name: 'client-location',
-        builder: (context, state) =>
-            const Scaffold(body: Text('client-location-screen')),
+        builder: (context, state) {
+          onCreateScreenBuild?.call();
+          return const Scaffold(body: Text('client-location-screen'));
+        },
       ),
     ],
   );
@@ -231,10 +230,9 @@ void main() {
       );
     }
 
-    // SINGLE DOOR — the typed door lands on the ONE place a tier is chosen.
-    // WAS 'opens client-location, never the tier screen' (S3): that is exactly
-    // the behaviour being reversed, so the two expectations swap.
-    testWidgets('the create tap opens the tier screen, never client-location', (
+    // SINGLE DOOR — the typed door lands on the merged "New request" screen,
+    // which owns the tier default; the legacy tier screen must never mount.
+    testWidgets('the create tap opens client-location, never the tier screen', (
       tester,
     ) async {
       DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
@@ -250,14 +248,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('request-type-screen'), findsOneWidget);
-      expect(find.text('client-location-screen'), findsNothing);
+      expect(find.text('client-location-screen'), findsOneWidget);
+      expect(find.text('request-type-screen'), findsNothing);
     });
 
-    // WAS 'it seeds the recommended tier, the one the voice path picks'. The
-    // home tap must now seed NOTHING: a tier the customer never picked can no
-    // longer reach the POST, because the location screen only discloses it.
-    testWidgets('the tap seeds no tier — the tier screen owns that choice', (
+    // The home tap must seed NOTHING: the merged screen owns its own Standard
+    // default, so a tier can never be smuggled in behind the customer.
+    testWidgets('the tap seeds no tier — the merged screen owns that choice', (
       tester,
     ) async {
       DevSeam.debugOverride(const DevSeamConfig(route: '/', homeTab: 'pending'));
@@ -274,13 +271,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(find.text('client-location-screen'), findsOneWidget);
       expect(compose.tier, isNull);
     });
 
     // The tap must be a pure navigation: blocking the primary CTA on a live GET
-    // is both a dead window and a second push waiting to happen. (The tier
-    // screen reads the catalog itself, behind its own skeleton.)
+    // is both a dead window and a second push waiting to happen. (The merged
+    // screen resolves its own tier default behind its own placeholder.)
     testWidgets('the create tap is pure navigation, never a catalog read', (
       tester,
     ) async {
@@ -291,9 +288,9 @@ void main() {
         ComposeRequestController(_NoopSubmission()),
       );
 
-      var tierScreenBuilds = 0;
+      var createScreenBuilds = 0;
       await tester.pumpWidget(
-        _app(_router(onTierScreenBuild: () => tierScreenBuilds += 1)),
+        _app(_router(onCreateScreenBuild: () => createScreenBuilds += 1)),
       );
       await tester.pumpAndSettle();
       expect(catalog.calls, 1, reason: 'the screen warms the catalog once');
@@ -302,9 +299,9 @@ void main() {
       await tester.tap(cta);
       await tester.pumpAndSettle();
 
-      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(find.text('client-location-screen'), findsOneWidget);
       expect(catalog.calls, 1, reason: 'the tap itself must not fetch /tiers');
-      expect(tierScreenBuilds, 1);
+      expect(createScreenBuilds, 1);
       expect(
         cta,
         findsNothing,
@@ -335,7 +332,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 16));
 
-      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(find.text('client-location-screen'), findsOneWidget);
       await tester.pump(const Duration(seconds: 1));
     });
 
@@ -357,7 +354,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(find.text('client-location-screen'), findsOneWidget);
       expect(compose.tier, isNull);
     });
 
@@ -377,7 +374,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(find.text('client-location-screen'), findsOneWidget);
       expect(compose.tier, isNull);
     });
 

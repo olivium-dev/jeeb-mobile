@@ -28,6 +28,13 @@ class ComposeRequestController {
     _clearSession();
   }
 
+  /// Cold entry to the merged "New request" screen: wipe tier + fields so a
+  /// new create never inherits a previous session ([chooseTier] sets the tier).
+  void startSession() {
+    _tier = null;
+    _clearSession();
+  }
+
   /// Everything except the tier. A session must not outlive its own submit:
   /// `?resume=1` would otherwise re-open the order that was just sent.
   void _clearSession() {

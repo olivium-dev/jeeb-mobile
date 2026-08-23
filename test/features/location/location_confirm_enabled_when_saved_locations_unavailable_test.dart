@@ -111,22 +111,14 @@ OmdsLoadingButton _confirmButton(WidgetTester tester) {
   );
 }
 
-/// Drives request-type → Continue → location-select, then returns once the
-/// Confirm CTA is on screen.
+/// UX merge: lands directly on the merged "New request" screen (the tier
+/// defaults there) and returns once the Confirm CTA is on screen.
 Future<void> _driveToLocationSelect(WidgetTester tester) async {
   final built = await _buildRouter();
-  built.router.go('/request-type');
+  built.router.go('/client-location');
   await tester.pumpWidget(
     _harness(built.router, built.role, built.roleEligibility, built.locale),
   );
-  await tester.pumpAndSettle();
-
-  await tester.tap(find.bySemanticsIdentifier('request_type_flash_radio'));
-  await tester.pump();
-  final continueCta = find.bySemanticsIdentifier('request_type_continue_cta');
-  expect(continueCta, findsOneWidget);
-  await tester.ensureVisible(continueCta);
-  await tester.tap(continueCta);
   // MIDNIGHT M0-4: the saved-addresses error band is a `JeebEmptyState` whose
   // illustration loops forever — advance the transition by hand.
   for (var i = 0; i < 6; i++) {

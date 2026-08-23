@@ -113,7 +113,6 @@ import '../../features/settings/presentation/screens/profile_edit_screen.dart';
 import '../../features/cancellation/presentation/cancellation_screen.dart';
 import '../../features/location/presentation/saved_locations_screen.dart';
 import '../../features/settings/presentation/screens/live_settings_screen.dart';
-import '../../features/request_type/presentation/request_type_screen.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/shell/tabs/earnings_tab.dart';
 import '../../features/transcription/domain/voice_clip.dart';
@@ -565,7 +564,7 @@ class AppRouter {
     'address-detail': '/settings/addresses',
     'settings-notifications': '/settings',
     'voice-request': '/',
-    'request-type': '/',
+    // 'request-type' is redirect-only since the UX merge — nothing to wrap.
     'client-location': '/',
     'capture-location': '/',
     'transcription': '/',
@@ -1177,23 +1176,17 @@ class AppRouter {
             ),
           ),
         ),
-        // The legacy `/tier-selection` route (TierSelectionScreen) was removed
-        // here per the in-code CTO note: it was a dead duplicate of
-        // `/request-type` with an unwired onConfirmed. The create flow now
-        // standardizes on `/request-type`. TierSelectionScreen itself is kept
-        // for its widget tests.
-        // Delivery-create flow (Figma 56535:2392 → 56539:1444 → 56546:2303).
+        // UX-merge 2026-08: `/request-type` folded into `/client-location`.
+        // Redirect-only so old deep links land on the merged screen (query,
+        // incl. `?resume=1`, carried through). RequestTypeScreen itself is
+        // kept for the devtool catalog + its widget tests.
         GoRoute(
           path: '/request-type',
           name: 'request-type',
-          // NO seams: "Change" is the screen's own picker edge, and Continue
-          // goes to `client-location` — the ONE create path. The W0-era
-          // `→ /request-summary` closures were dead and are gone.
-          // `?resume=1` marks an already-seeded session (the voice door), so
-          // Continue re-prices it instead of blanking the clip.
-          builder: (context, state) => RequestTypeScreen(
-            resumeSession: state.uri.queryParameters['resume'] == '1',
-          ),
+          redirect: (context, state) => Uri(
+            path: '/client-location',
+            query: state.uri.hasQuery ? state.uri.query : null,
+          ).toString(),
         ),
         GoRoute(
           path: '/client-location',
@@ -1204,7 +1197,10 @@ class AppRouter {
           // real pin). The old `context.push(...)` override was fire-and-forget:
           // it discarded the popped coordinate, collapsing every pinned pickup to
           // the Beirut fallback.
-          builder: (context, state) => const ClientLocationScreen(),
+          // `?resume=1` = voice-seeded session; anything else starts fresh.
+          builder: (context, state) => ClientLocationScreen(
+            startFreshSession: state.uri.queryParameters['resume'] != '1',
+          ),
         ),
         GoRoute(
           path: '/capture-location',
