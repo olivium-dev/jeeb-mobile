@@ -16,6 +16,10 @@ already caused a real incident — see the SHA cited per rule.
   `pubspec.yaml:176-179` carries a standing comment: chat history written to
   that project once caused a **live outage**. Treat any PR that introduces
   the string `alrahmah` anywhere near Firebase config as an instant reject.
+- **`.firebaserc` (repo root) pins the CLI default project to `jeeb-5a293`.**
+  The logged-in Firebase CLI account on this Mac can also see forbidden
+  projects, and `flutterfire configure` rewrites every config wholesale — the
+  pin plus the doctor/integrity-test checks make any such rewrite loud.
 
 ## 2. File policy — what's committed, what isn't, and why
 

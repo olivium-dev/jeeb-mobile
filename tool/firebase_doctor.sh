@@ -142,6 +142,28 @@ fi
 check_gsj "$MAIN_GSJ" no
 check_gsj "$DEV_GSJ" yes
 
+# .firebaserc pins the CLI/flutterfire default project — without it a stray
+# 'flutterfire configure' can rewrite every config to another visible project.
+FIREBASERC=".firebaserc"
+if [ ! -f "$FIREBASERC" ]; then
+  fail "$FIREBASERC is missing — the Firebase CLI has no pinned project, so 'flutterfire configure' can silently retarget every config (docs/firebase-invariants.md §1)"
+else
+  if git ls-files --error-unmatch "$FIREBASERC" >/dev/null 2>&1; then
+    pass "$FIREBASERC is tracked"
+  else
+    fail "$FIREBASERC exists but is not tracked by git"
+  fi
+
+  if [ "$HAVE_JQ" = "yes" ]; then
+    rc_default="$(jq -r '.projects.default // empty' "$FIREBASERC" 2>/dev/null || echo '')"
+    if [ "$rc_default" = "$EXPECTED_PROJECT_ID" ]; then
+      pass "$FIREBASERC default project is $EXPECTED_PROJECT_ID"
+    else
+      fail "$FIREBASERC default project is '$rc_default', expected exactly '$EXPECTED_PROJECT_ID'"
+    fi
+  fi
+fi
+
 # =============================================================================
 section "2. Templates present with TODO_ sentinels"
 # =============================================================================

@@ -217,6 +217,34 @@ void main() {
     },
   );
 
+  test('.firebaserc pins the Firebase CLI default project to jeeb-5a293', () {
+    final firebaserc = File('.firebaserc');
+    expect(
+      firebaserc.existsSync(),
+      isTrue,
+      reason:
+          '.firebaserc must exist to pin the Firebase CLI/flutterfire to '
+          '$_expectedProjectId — the logged-in CLI account can see other '
+          'projects, and without the pin a stray "flutterfire configure" '
+          'rewrites every config wholesale to the wrong project.',
+    );
+    final raw = firebaserc.readAsStringSync();
+    expect(
+      raw,
+      contains('"$_expectedProjectId"'),
+      reason:
+          '.firebaserc must name $_expectedProjectId as the default project '
+          '— any other value un-pins the CLI from the ONLY allowed project.',
+    );
+    expect(
+      raw.toLowerCase(),
+      isNot(contains(_forbiddenProject)),
+      reason:
+          '.firebaserc references "$_forbiddenProject" — alrahmah-d7a33 is '
+          'the FORBIDDEN project and must never appear in the CLI pin.',
+    );
+  });
+
   test('docs/firebase-invariants.md exists', () {
     expect(
       File('docs/firebase-invariants.md').existsSync(),
