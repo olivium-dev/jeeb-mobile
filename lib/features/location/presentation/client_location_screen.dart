@@ -23,6 +23,7 @@ import '../../registration/domain/lebanon_phone.dart';
 import '../../request_summary/application/compose_request_controller.dart';
 import '../../request_summary/domain/request_submission_service.dart';
 import '../../settings/data/shared_prefs_profile_repository.dart';
+import '../../tier_selection/domain/tier.dart';
 import '../../transcription/domain/voice_clip.dart';
 import '../application/location_select_cubit.dart';
 import '../application/location_select_state.dart';
@@ -85,6 +86,7 @@ class ClientLocationScreen extends StatelessWidget {
     // live flow (the cubit owns selection).
     this.currentSelected,
     this.onSelectCurrent,
+    this.startFreshSession = false,
   });
 
   final LocationSelectRepository? repository;
@@ -117,6 +119,10 @@ class ClientLocationScreen extends StatelessWidget {
   /// Legacy external selection seam (optional). Ignored when null.
   final bool? currentSelected;
   final VoidCallback? onSelectCurrent;
+
+  /// True on the router's cold create entry (UX merge): wipes the compose
+  /// session and gates the CTA until the default tier lands. False = resume.
+  final bool startFreshSession;
 
   // Delegates to a stateful host so the authenticated-user-id future and the
   // resolved repo/GPS-resolver are computed EXACTLY ONCE. Previously the build
@@ -189,6 +195,11 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
     _repository = config.repository ?? config._resolveRepository();
     _resolver = config._resolveGpsResolver();
     if (sl.isRegistered<ComposeRequestController>()) {
+      // UX merge: a cold create entry starts CLEAN — the tier section then
+      // seeds the default (Standard) tier. `?resume=1` keeps the voice session.
+      if (config.startFreshSession) {
+        sl<ComposeRequestController>().startSession();
+      }
       _seededPickup = sl<ComposeRequestController>().pickupPoint;
     }
     // DEFECT A: never default to the mock `user-client-001`. An injected id
@@ -210,6 +221,7 @@ class _LocationSelectHostState extends State<_LocationSelectHost> {
       onDictate: config.onDictate,
       legacyCurrentSelected: config.currentSelected,
       onSelectCurrent: config.onSelectCurrent,
+      requireTier: config.startFreshSession,
     );
     return FutureBuilder<String?>(
       future: _userIdFuture,
@@ -302,6 +314,7 @@ class _Scaffold extends StatefulWidget {
     this.onDictate,
     this.legacyCurrentSelected,
     this.onSelectCurrent,
+    this.requireTier = false,
   });
 
   final VoidCallback? onAddLocation;
@@ -310,6 +323,10 @@ class _Scaffold extends StatefulWidget {
   final Future<VoiceClip?> Function()? onDictate;
   final bool? legacyCurrentSelected;
   final VoidCallback? onSelectCurrent;
+
+  /// Router-mounted create entries gate the CTA on a priceable tier (a null
+  /// `Tier.wireId` is a guaranteed 400). Direct hosts/tests keep the old gate.
+  final bool requireTier;
 
   @override
   State<_Scaffold> createState() => _ScaffoldState();
@@ -330,15 +347,20 @@ class _ScaffoldState extends State<_Scaffold> {
   /// nav fire from underneath the newly-pushed route.
   final ValueNotifier<bool> _submitting = ValueNotifier<bool>(false);
 
+  /// The session's tier, mirrored out of the compose controller so the tier
+  /// card and the CTA gate rebuild when the section defaults or re-picks it.
+  final ValueNotifier<Tier?> _tier = ValueNotifier<Tier?>(null);
+
   @override
   void initState() {
     super.initState();
-    // Re-seed from the shared compose controller so backing out to the tier
-    // step and returning does not lose the typed text (the controller resets
-    // it only when a NEW compose session starts via setTier).
+    // Re-seed from the shared compose controller: a resumed (voice) session
+    // carries its transcript; a fresh entry was already wiped by the host.
     if (sl.isRegistered<ComposeRequestController>()) {
-      final existing = sl<ComposeRequestController>().description;
+      final compose = sl<ComposeRequestController>();
+      final existing = compose.description;
       if (existing != null) _description.text = existing;
+      _tier.value = compose.tier;
     }
   }
 
@@ -346,6 +368,7 @@ class _ScaffoldState extends State<_Scaffold> {
   void dispose() {
     _submitting.dispose();
     _description.dispose();
+    _tier.dispose();
     super.dispose();
   }
 
@@ -384,6 +407,7 @@ class _ScaffoldState extends State<_Scaffold> {
                     onDictate: widget.onDictate,
                     legacyCurrentSelected: widget.legacyCurrentSelected,
                     onSelectCurrent: widget.onSelectCurrent,
+                    onTierChanged: (tier) => _tier.value = tier,
                   ),
                 ),
               ),
@@ -398,6 +422,8 @@ class _ScaffoldState extends State<_Scaffold> {
           description: _description,
           submitting: _submitting,
           onConfirm: widget.onConfirm,
+          tier: _tier,
+          requireTier: widget.requireTier,
         ),
       ),
       ),
@@ -415,6 +441,7 @@ class _Body extends StatelessWidget {
     this.onDictate,
     this.legacyCurrentSelected,
     this.onSelectCurrent,
+    this.onTierChanged,
   });
 
   final LocationSelectState state;
@@ -429,6 +456,9 @@ class _Body extends StatelessWidget {
   final Future<VoiceClip?> Function()? onDictate;
   final bool? legacyCurrentSelected;
   final VoidCallback? onSelectCurrent;
+
+  /// Bubbles the tier section's default/re-pick up to the scaffold's notifier.
+  final ValueChanged<Tier>? onTierChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -458,9 +488,9 @@ class _Body extends StatelessWidget {
         // R12: sections breathe at 14–20, cards at 9–12. The old 24/20 rhythm
         // is off this board entirely.
         const SizedBox(height: Spacing.medium),
-        // Above the fold on purpose, and READ-ONLY: the tier is chosen on
-        // "Choose your request"; this screen only has to SHOW what it will post.
-        const ComposeTierSection(),
+        // UX merge: the tier is picked HERE now — Standard by default, the
+        // "Change" affordance opens the tier sheet.
+        ComposeTierSection(onTierChanged: onTierChanged),
         _Heading(text: l10n.clientLocationHeading),
         const SizedBox(height: Spacing.small),
         // JEBV4-176 (Q-060): the "Current Location" option now reflects the
@@ -530,6 +560,9 @@ class _Body extends StatelessWidget {
         // ComposeRequestController, which threads it into the POST /requests
         // body. It is the correct delivery UX (who receives + their phone).
         const _RecipientPhoneField(),
+        // Breathing room so the phone helper line never sits flush against
+        // (or clipped by) the docked CTA at the end of the scroll.
+        const SizedBox(height: Spacing.xLarge),
       ],
     );
   }
@@ -707,7 +740,7 @@ class _SavedAddressesError extends StatelessWidget {
   }
 }
 
-/// Sticky "Confirm location" footer → order-chat (JM-024 AC4).
+/// Sticky "Review request" footer → creates the request (JM-024 AC4).
 ///
 /// G1: additionally gated on a non-empty trimmed "What do you need?" entry —
 /// the request content is required, so the create CTA stays disabled until the
@@ -718,6 +751,8 @@ class _ConfirmFooter extends StatefulWidget {
     required this.description,
     required this.submitting,
     this.onConfirm,
+    this.tier,
+    this.requireTier = false,
   });
 
   final LocationSelectState state;
@@ -727,6 +762,11 @@ class _ConfirmFooter extends StatefulWidget {
   /// the CTA spinner + disabled state here AND locks the body's nav rows.
   final ValueNotifier<bool> submitting;
   final VoidCallback? onConfirm;
+
+  /// UX merge: when [requireTier] (router create entries), the CTA also waits
+  /// for a priceable tier — a null `Tier.wireId` is a guaranteed 400.
+  final ValueListenable<Tier?>? tier;
+  final bool requireTier;
 
   @override
   State<_ConfirmFooter> createState() => _ConfirmFooterState();
@@ -763,24 +803,34 @@ class _ConfirmFooterState extends State<_ConfirmFooter> {
                 ValueListenableBuilder<TextEditingValue>(
               valueListenable: widget.description,
               builder: (context, value, _) {
-                final enabled =
-                    state.canConfirm && value.text.trim().isNotEmpty;
-                return DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: OmdsBorderRadius.pill,
-                    // A disabled CTA drops its lift (kit §1.6).
-                    boxShadow: enabled ? JeebShadows.ctaOrange : null,
-                  ),
-                  child: OmdsLoadingButton(
-                    // l10n: reuses `locationConfirm` ("Confirm location"); a
-                    // dedicated `locationSelectConfirmCta` key is requested in
-                    // 50_ROUTE_REQUESTS.
-                    text: l10n.locationConfirm,
-                    isLoading: submitting,
-                    isEnabled: enabled,
-                    borderRadius: OmdsBorderRadius.pill,
-                    onTap: () => _onConfirm(context),
-                  ),
+                final tierListenable = widget.tier;
+                // Inert single-value listenable keeps ONE builder shape for
+                // hosts that pass no tier notifier.
+                return ValueListenableBuilder<Tier?>(
+                  valueListenable:
+                      tierListenable ?? const _NullTier(),
+                  builder: (context, tier, _) {
+                    final tierOk = !widget.requireTier || tier != null;
+                    final enabled = state.canConfirm &&
+                        value.text.trim().isNotEmpty &&
+                        tierOk;
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: OmdsBorderRadius.pill,
+                        // A disabled CTA drops its lift (kit §1.6).
+                        boxShadow: enabled ? JeebShadows.ctaOrange : null,
+                      ),
+                      child: OmdsLoadingButton(
+                        // UX merge: the CTA reads "Review request" — this
+                        // screen is the whole compose step now.
+                        text: l10n.locationSelectReviewCta,
+                        isLoading: submitting,
+                        isEnabled: enabled,
+                        borderRadius: OmdsBorderRadius.pill,
+                        onTap: () => _onConfirm(context),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -1174,6 +1224,20 @@ class _RecipientPhoneFieldState extends State<_RecipientPhoneField> {
       ],
     );
   }
+}
+
+/// A const, never-notifying tier listenable for hosts without a tier notifier.
+class _NullTier implements ValueListenable<Tier?> {
+  const _NullTier();
+
+  @override
+  Tier? get value => null;
+
+  @override
+  void addListener(VoidCallback listener) {}
+
+  @override
+  void removeListener(VoidCallback listener) {}
 }
 
 class _Heading extends StatelessWidget {

@@ -1355,9 +1355,13 @@
   "@requestTypeTierSelectedHint": {
     "description": "Accessibility hint announced when a Request type tier card is selected"
   },
-  "clientLocationTitle": "Location",
+  "clientLocationTitle": "New request",
   "@clientLocationTitle": {
-    "description": "Navbar title on the Client Location screen (Figma 56539:1444)"
+    "description": "Navbar title on the merged New-request (client location) screen"
+  },
+  "locationSelectReviewCta": "Review request",
+  "@locationSelectReviewCta": {
+    "description": "Create CTA on the New-request screen (was Confirm location)"
   },
   "clientLocationHeading": "Choose your location",
   "@clientLocationHeading": {
