@@ -1,5 +1,6 @@
-// "Change" on `/request-type` must open a location PICKER, never the compose
-// screen — whose Confirm is the app's only POST /requests.
+// UX merge: the merged "New request" screen owns the map-picker edge. The
+// point the customer pins on `/capture-location` must come back to the screen
+// and be exactly what `POST /requests` carries — never the device GPS fix.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,9 +24,10 @@ import 'package:jeeb_mobile/features/location/domain/current_location_resolver.d
 import 'package:jeeb_mobile/features/location/domain/location_select_repository.dart';
 import 'package:jeeb_mobile/features/location/presentation/capture_location_screen.dart';
 import 'package:jeeb_mobile/features/location/presentation/client_location_screen.dart';
+import 'package:jeeb_mobile/features/no_offer_timeout/data/fake_waiting_repository.dart';
+import 'package:jeeb_mobile/features/no_offer_timeout/domain/waiting_repository.dart';
 import 'package:jeeb_mobile/features/request_summary/application/compose_request_controller.dart';
 import 'package:jeeb_mobile/features/request_summary/domain/request_submission_service.dart';
-import 'package:jeeb_mobile/features/request_type/presentation/request_type_screen.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
 import 'package:jeeb_mobile/features/tier_selection/data/tier_repository.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
@@ -94,27 +96,24 @@ Future<void> _pumpFrames(WidgetTester tester, {int frames = 8}) async {
   }
 }
 
-Future<_Built> _openRequestType(WidgetTester tester) async {
-  // The board viewport: on a 360dp phone the Deliver-to card sits below the
-  // fold and the docked Continue CTA swallows the tap (see the layout test).
+Future<_Built> _openNewRequest(WidgetTester tester) async {
   tester.view.physicalSize = const Size(440, 956);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
   final built = await _buildRouter();
-  built.router.go('/request-type');
+  built.router.go('/client-location');
   await tester.pumpWidget(_harness(built));
   await tester.pumpAndSettle();
-  expect(find.byType(RequestTypeScreen), findsOneWidget);
+  expect(find.byType(ClientLocationScreen), findsOneWidget);
   return built;
 }
 
 void main() {
   late FakeRequestSubmissionService submission;
 
-  group('/request-type "Change" is a location picker, not the compose screen',
-      () {
+  group('merged screen "New Location" opens the map picker', () {
     setUp(() async {
       await sl.reset();
       submission = FakeRequestSubmissionService();
@@ -129,112 +128,35 @@ void main() {
       sl.registerLazySingleton<ComposeRequestController>(
         () => ComposeRequestController(sl<RequestSubmissionService>()),
       );
+      // Cold-load failure keeps the post-create waiting screen timer-free.
+      sl.registerLazySingleton<WaitingRepository>(
+        () => FakeWaitingRepository(
+          failure: const WaitingException(WaitingFailure.network),
+        ),
+      );
     });
 
     tearDown(() async {
       await sl.reset();
     });
 
-    testWidgets('tapping Change opens capture-location and NEVER the compose '
-        'screen (no "What do you need?")', (tester) async {
-      await _openRequestType(tester);
+    testWidgets('the picked point reaches POST /requests — Confirm must not '
+        'silently swap it for the device GPS fix', (tester) async {
+      final built = await _openNewRequest(tester);
 
-      final change = find.bySemanticsIdentifier(
-        'request_type_change_location_button',
+      final addRow = find.bySemanticsIdentifier(
+        'location_select_new_location_cta',
       );
-      expect(change, findsOneWidget);
-      await tester.ensureVisible(change);
-      await tester.tap(change);
-      await _pumpFrames(tester);
-
-      expect(
-        find.byType(CaptureLocationScreen),
-        findsOneWidget,
-        reason: '"Change" must open the map picker.',
-      );
-      expect(
-        find.byType(ClientLocationScreen),
-        findsNothing,
-        reason:
-            'The compose screen owns the only POST /requests — changing an '
-            'address must never reach it.',
-      );
-      expect(
-        find.text('What do you need?'),
-        findsNothing,
-        reason: 'The picker path must not re-ask for the order description.',
-      );
-      expect(submission.submitCount, 0);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('the picked point comes back and renders IN PLACE on '
-        '"Choose your request"; no request is created', (tester) async {
-      final built = await _openRequestType(tester);
-      expect(find.text('Current Location'), findsOneWidget);
-
-      await tester.tap(
-        find.bySemanticsIdentifier('request_type_change_location_button'),
-      );
+      await tester.ensureVisible(addRow);
+      await tester.tap(addRow);
       await _pumpFrames(tester);
       expect(find.byType(CaptureLocationScreen), findsOneWidget);
 
-      // What `capture-location` pops on "Pin location" (context.pop(centre)).
-      built.router.pop(
-        const LocationPoint(latitude: 33.8938, longitude: 35.5018),
-      );
-      await _pumpFrames(tester);
-
-      expect(find.byType(RequestTypeScreen), findsOneWidget);
-      expect(find.byType(CaptureLocationScreen), findsNothing);
-      // The Deliver-to card now shows the chosen point, not the placeholder.
-      expect(
-        find.descendant(
-          of: find.bySemanticsIdentifier(
-            'request_type_current_location_label',
-          ),
-          matching: find.text('33.8938, 35.5018'),
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Selected point'), findsOneWidget);
-      expect(find.text('Current Location'), findsNothing);
-      // The frozen ids survive the in-place update.
-      expect(
-        find.bySemanticsIdentifier('request_type_change_location_button'),
-        findsOneWidget,
-      );
-      expect(
-        submission.submitCount,
-        0,
-        reason: 'Picking an address must not create a request.',
-      );
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('the picked point reaches POST /requests — Continue must not '
-        'silently swap it for the device GPS fix', (tester) async {
-      final built = await _openRequestType(tester);
-
-      await tester.tap(find.bySemanticsIdentifier('request_type_flash_radio'));
-      await tester.pump();
-
-      await tester.tap(
-        find.bySemanticsIdentifier('request_type_change_location_button'),
-      );
-      await _pumpFrames(tester);
       // Deliberately NOT the FakeCurrentLocationResolver fix (33.8959/35.4797).
       built.router.pop(
         const LocationPoint(latitude: 34.4367, longitude: 35.8497),
       );
       await _pumpFrames(tester);
-
-      final continueCta = find.bySemanticsIdentifier(
-        'request_type_continue_cta',
-      );
-      await tester.ensureVisible(continueCta);
-      await tester.tap(continueCta);
-      await tester.pumpAndSettle();
       expect(find.byType(ClientLocationScreen), findsOneWidget);
 
       final field = find.bySemanticsIdentifier('compose_description_input');
@@ -245,7 +167,7 @@ void main() {
       final confirm = find.bySemanticsIdentifier('location_select_confirm_cta');
       await tester.ensureVisible(confirm);
       await tester.tap(confirm);
-      await tester.pumpAndSettle();
+      await _pumpFrames(tester);
 
       expect(submission.submitCount, 1);
       expect(
@@ -257,12 +179,13 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('cancelling the picker leaves the row untouched',
+    testWidgets('cancelling the picker creates nothing and returns intact',
         (tester) async {
-      final built = await _openRequestType(tester);
+      final built = await _openNewRequest(tester);
 
       await tester.tap(
-        find.bySemanticsIdentifier('request_type_change_location_button'),
+        find.bySemanticsIdentifier('location_select_new_location_cta'),
+        warnIfMissed: false,
       );
       await _pumpFrames(tester);
       expect(find.byType(CaptureLocationScreen), findsOneWidget);
@@ -270,9 +193,7 @@ void main() {
       built.router.pop();
       await _pumpFrames(tester);
 
-      expect(find.byType(RequestTypeScreen), findsOneWidget);
-      expect(find.text('Current Location'), findsOneWidget);
-      expect(find.text('Selected point'), findsNothing);
+      expect(find.byType(ClientLocationScreen), findsOneWidget);
       expect(submission.submitCount, 0);
       expect(tester.takeException(), isNull);
     });

@@ -141,7 +141,8 @@ void main() {
       'a second tap while the create is in flight does NOT submit twice',
       (tester) async {
         final built = await _buildRouter();
-        built.router.go('/request-type');
+        // UX merge: the create door IS the merged screen (tier defaults there).
+        built.router.go('/client-location');
         await tester.pumpWidget(
           _harness(
             built.router,
@@ -149,16 +150,6 @@ void main() {
             built.roleEligibility,
             built.locale,
           ),
-        );
-        await tester.pumpAndSettle();
-
-        // Tier → Continue → location-select.
-        await tester.tap(
-          find.bySemanticsIdentifier('request_type_flash_radio'),
-        );
-        await tester.pump();
-        await tester.tap(
-          find.bySemanticsIdentifier('request_type_continue_cta'),
         );
         await tester.pumpAndSettle();
 

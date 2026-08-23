@@ -1,8 +1,6 @@
-// JM-024 AC1b — the request-type "Continue" CTA advances to `location-select`.
-//
-// This screen is the SINGLE create door — every entry (the create capsule, the
-// voice hand-off, waiting-retarget, order-history reorder, the dev-seam route)
-// lands here, and Continue is the one edge onward.
+// UX merge — `/request-type` is redirect-only: the legacy tier-picker route
+// must land old deep links on the merged "New request" (`/client-location`)
+// screen with the tier already defaulted, never on RequestTypeScreen.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -95,7 +93,7 @@ Widget _harness(
 }
 
 void main() {
-  group('JM-024 — /request-type Continue CTA advances to location-select', () {
+  group('UX merge — /request-type redirects to the merged create screen', () {
     setUp(() async {
       await sl.reset();
       // `/request-type` resolves TierRepository via sl. The customer must tap a
@@ -121,8 +119,8 @@ void main() {
       await sl.reset();
     });
 
-    testWidgets('selecting Flash then tapping Continue lands on the '
-        'location-select screen (NOT the request-summary card)', (
+    testWidgets('the legacy /request-type deep link lands on the merged '
+        '"New request" screen with the tier defaulted', (
       tester,
     ) async {
       final built = await _buildRouter();
@@ -132,32 +130,33 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The request-type screen is up; explicitly choose Flash to enable the
-      expect(find.byType(RequestTypeScreen), findsOneWidget);
-      await tester.tap(find.bySemanticsIdentifier('request_type_flash_radio'));
-      await tester.pump();
-      final continueCta = find.bySemanticsIdentifier(
-        'request_type_continue_cta',
-      );
-      expect(continueCta, findsOneWidget);
-      await tester.ensureVisible(continueCta);
-
-      await tester.tap(continueCta);
-      await tester.pumpAndSettle();
-
-      // JM-024 AC1b: Continue → location-select. S3 removed the create button
-      // from this screen's entries; retarget and reorder still reach it.
+      // The redirect must skip the legacy tier screen entirely.
+      expect(find.byType(RequestTypeScreen), findsNothing);
       expect(
         find.byType(ClientLocationScreen),
         findsOneWidget,
-        reason:
-            'Continue must advance to location-select (the blueprint '
-            'create flow), not the legacy /request-summary card.',
+        reason: 'old create deep links must land on the merged screen',
+      );
+
+      // The tier defaulted (Standard is the catalog recommendation) and the
+      // Change affordance + create CTA are on screen.
+      expect(
+        sl<ComposeRequestController>().tier?.id.name,
+        'standard',
+        reason: 'a cold entry seeds the recommended tier',
+      );
+      expect(
+        find.bySemanticsIdentifier('compose_tier_row'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('compose_tier_change'),
+        findsOneWidget,
       );
       expect(
         find.bySemanticsIdentifier('location_select_confirm_cta'),
         findsOneWidget,
-        reason: 'The location-select Confirm CTA must be on screen.',
+        reason: 'The create CTA must be on screen.',
       );
       expect(tester.takeException(), isNull);
     });
