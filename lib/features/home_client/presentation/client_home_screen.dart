@@ -553,10 +553,10 @@ class _ClientHomeScreenState extends State<ClientHomeScreen>
         _tierRetrying = false;
       });
     }
-    // The voice door lands on the SAME tier screen as every other door;
-    // `resume=1` makes its Continue re-price instead of blanking the clip.
+    // The voice door lands on the SAME merged "New request" screen;
+    // `resume=1` keeps the just-seeded session instead of starting fresh.
     GoRouter.maybeOf(context)?.pushNamed(
-      'request-type',
+      'client-location',
       queryParameters: const {'resume': '1'},
     );
     if (transcript == null || transcript.isEmpty) {

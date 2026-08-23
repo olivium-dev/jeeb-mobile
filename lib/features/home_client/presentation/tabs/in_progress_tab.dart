@@ -100,7 +100,7 @@ class _InProgressContent extends StatelessWidget {
   }
 
   static void _openCreateRequest(BuildContext context) {
-    GoRouter.of(context).pushNamed('request-type');
+    GoRouter.of(context).pushNamed('client-location');
   }
 }
 

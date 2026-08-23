@@ -482,12 +482,10 @@ class _WaitingLoaded extends StatelessWidget {
   }
 
   void _retarget(BuildContext context) {
-    // EDGE: waiting_retarget_cta → request-type-selection (D48). The route
-    // `request-type` is registered. CONTRACT GAP (50_ROUTE_REQUESTS JM-026):
-    // the route takes no request-id seed, so "reuse original content" (D48
-    // pre-fill) cannot be forwarded yet — the user re-enters the tier picker
-    // fresh. Tracked for a `?from=:requestId` route param.
-    context.pushNamed('request-type');
+    // EDGE: waiting_retarget_cta → the merged "New request" screen (D48).
+    // CONTRACT GAP (JM-026): no request-id seed yet, so the user re-enters
+    // the create flow fresh. Tracked for a `?from=:requestId` route param.
+    context.pushNamed('client-location');
   }
 
   Future<void> _cancel(BuildContext context) async {
