@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# F4: one command that validates the whole STATIC Firebase chain on any
-# machine — config identity, dependency envelope, lock/CI SDK-floor
-# agreement, manifest wiring. See docs/firebase-invariants.md for the "why"
-# behind every rule below. Run: bash tool/firebase_doctor.sh
-#
-# This does not touch the network or run a live push; it is a static
-# doctor, not a smoke test.
+# Static (offline) validator for the whole Firebase chain — see
+# docs/firebase-invariants.md. Requires `jq`. Run: bash tool/firebase_doctor.sh
 
 set -euo pipefail
 
@@ -32,6 +27,11 @@ SPEC="pubspec.yaml"
 
 FAILS=0
 WARNS=0
+
+# jq is NOT preinstalled on macOS; without it every identity check below would
+# emit a wall of misleading empty-value FAILs instead of one actionable line.
+HAVE_JQ=yes
+command -v jq >/dev/null 2>&1 || HAVE_JQ=no
 
 pass() { printf 'PASS: %s\n' "$1"; }
 fail() { printf 'FAIL: %s\n' "$1" >&2; FAILS=$((FAILS + 1)); }
@@ -87,10 +87,16 @@ check_gsj() {
     fail "$f exists but is not tracked by git"
   fi
 
-  if git check-ignore -q "$f" 2>/dev/null; then
+  # --no-index is mandatory: plain check-ignore skips TRACKED paths, which
+  # would make this regression check permanently vacuous for these files.
+  if git check-ignore -q --no-index "$f" 2>/dev/null; then
     fail "$f is matched by .gitignore (must never be re-ignored, see docs/firebase-invariants.md §2)"
   else
     pass "$f is not gitignored"
+  fi
+
+  if [ "$HAVE_JQ" = "no" ]; then
+    return
   fi
 
   local pn pid
@@ -128,6 +134,10 @@ check_gsj() {
     pass "$f has no 'private_key' field"
   fi
 }
+
+if [ "$HAVE_JQ" = "no" ]; then
+  fail "jq is not installed — the google-services.json identity/client checks CANNOT run. Install it (macOS: 'brew install jq', Debian/Ubuntu: 'apt-get install -y jq') and re-run."
+fi
 
 check_gsj "$MAIN_GSJ" no
 check_gsj "$DEV_GSJ" yes
@@ -174,6 +184,12 @@ else
     pass "$LOCK is tracked"
   else
     fail "$LOCK exists but is not tracked by git (see docs/firebase-invariants.md §2 — must be committed, not gitignored)"
+  fi
+
+  if git check-ignore -q --no-index "$LOCK" 2>/dev/null; then
+    fail "$LOCK is matched by .gitignore — re-ignoring the lock is exactly how firebase_core drifted into the 3.15.x pigeon-poison range on one machine (docs/firebase-invariants.md §3)"
+  else
+    pass "$LOCK is not gitignored"
   fi
 
   while read -r pkg kind lower upper exact; do
@@ -235,7 +251,8 @@ else
     warn "no 'flutter' on PATH — skipped the local-toolchain floor check"
   fi
 
-  for wf in .github/workflows/*.yml; do
+  # Both extensions: a future *.yaml workflow must not slip past this check.
+  for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
     [ -f "$wf" ] || continue
     var_val="$(grep -oE "FLUTTER_VERSION:[[:space:]]*'[0-9]+\.[0-9]+\.[0-9]+'" "$wf" 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)"
     while IFS= read -r line; do

@@ -27,9 +27,12 @@ Future<bool> _isTracked(String path) async {
   return result.exitCode == 0;
 }
 
+/// `--no-index` is mandatory: without it git skips tracked paths outright, so
+/// this check would be permanently vacuous for the (tracked) real configs.
 Future<bool> _isIgnored(String path) async {
   final result = await Process.run('git', <String>[
     'check-ignore',
+    '--no-index',
     '--quiet',
     path,
   ]);

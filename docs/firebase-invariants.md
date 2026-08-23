@@ -102,15 +102,23 @@ before committing.
 bash tool/firebase_doctor.sh
 ```
 
+Requires `jq` (not preinstalled on macOS — `brew install jq`); without it the
+doctor fails fast with one line rather than a wall of empty-value errors.
+
 Run this after any change to `pubspec.yaml`/`pubspec.lock`, any Firebase
 config file, or any CI workflow's Flutter version. It is the single source of
 truth for "is the Firebase/push envelope currently sound" — it supersedes
-manually re-deriving §3's table by hand. The three guard tests
-(`firebase_identity_teardown_test`, `firebase_custom_token_identity_uid_test`,
-`gateway_chat_firebase_token_minter_test`) invoke it automatically as part of
-`flutter test`, so a normal local test run already covers this — you do not
-need to run the doctor separately in the common case, only when iterating on
-the envelope itself before committing.
+manually re-deriving §3's table by hand. **`test/firebase_doctor_test.dart`
+shells out to it on every `flutter test` run**, so a normal local test run
+already covers this — you only need to run the doctor by hand when iterating
+on the envelope itself before committing.
+
+The config-file invariants in §2 are separately asserted by
+`test/firebase_config_integrity_test.dart`, and the disabled-workflow gates by
+`test/dev_firebase_workflow_contract_test.dart`. (Not to be confused with
+`firebase_identity_teardown_test` / `firebase_custom_token_identity_uid_test` /
+`gateway_chat_firebase_token_minter_test`, which guard *chat identity* and have
+nothing to do with the doctor.)
 
 **Alarm-fatigue guard (root cause M2):** a guard that is permanently red
 teaches everyone to ignore it, and real drift ships unnoticed underneath the
@@ -126,12 +134,12 @@ add the guard yet.
 
 **Three `Firebase.initializeApp()` call sites, all optionless / native-config
 -driven — none passes `DefaultFirebaseOptions` (that class is gone, §2):**
-1. `lib/app/bootstrap.dart:95-104` — `_defaultCrashReporterFactory()`, 5s
-   timeout, falls back to `NoopCrashReporter` on any error/timeout.
-2. `lib/app/app.dart:569-583` — `_defaultFirebaseInitializer()`, no-op if
+1. `lib/app/bootstrap.dart` — `_defaultCrashReporterFactory()`, 5s timeout,
+   falls back to `NoopCrashReporter` on any error/timeout.
+2. `lib/app/app.dart` — `_defaultFirebaseInitializer()`, no-op if
    `Firebase.apps` is non-empty, swallows duplicate-app, rethrows others.
-3. `lib/features/auth/social/social_auth_service.dart:266` — Google Sign-In's
-   own independent init, guarded the same way (`:264`).
+3. `lib/features/auth/social/social_auth_service.dart` — Google Sign-In's own
+   independent init, guarded the same way.
 
 Initialization is driven entirely by the native `google-services.json` /
 `GoogleService-Info.plist` picked up by the Gradle/CocoaPods Firebase
@@ -139,27 +147,34 @@ plugins — there is no Dart-side options object in the loop.
 
 **Registration:** `lib/core/notifications/data/device_token_registrar.dart`
 — `PUT /api/PushNotification/register`, body `{fcmToken, deviceId}`. Wired
-in `lib/app/app.dart:542-551` **only** when the built transport is a real
+in `_initPushChainAsync()` (`lib/app/app.dart`) **only** when the transport is a real
 `FirebaseMessagingTransport` (never for the fake). Polls up to 40×3s for a
 resolved user id, then `revalidate()` on app resume (30-min rate-limited).
 
-**The `JEEB-PUSH-DEGRADED` tripwire** — insertion point
-`lib/app/app.dart:496-499`, the existing silent-degrade path
-(`transport = built ?? FakePushTransport();` at :499, preceded by a
-debug-only log at :496-498). This is **prophylactic instrumentation, not a
-repair**: on-hardware evidence (S24 + A336B, 2026-08-23) shows this path has
-never fired — `FakePushTransport`, `channel-error`, and
-`MissingPluginException` are all 0/6 across every logcat buffer collected.
-Log the tripwire keyed on the **cleartext `deviceId`**, not the FCM token or
-`Authorization` header — both of those are redacted in logs by policy, so a
-token-keyed tripwire would be unreadable in production logcat. On-call
-runbook grep:
+**The `JEEB-PUSH-DEGRADED` tripwire** — emitted by `_logPushDegraded()` in
+`lib/app/app.dart`, at the existing silent-degrade path
+(`transport = built ?? FakePushTransport();`). This is **prophylactic
+instrumentation, not a repair**: on-hardware evidence (S24 + A336B,
+2026-08-23) shows this path has never fired — `FakePushTransport`,
+`channel-error`, and `MissingPluginException` are all 0/6 across every logcat
+buffer collected. It is keyed on the **cleartext `deviceId`**, never the FCM
+token or `Authorization` header — both are redacted in logs by policy, so a
+token-keyed tripwire would be unreadable. On-call runbook grep:
 ```
-adb logcat | grep 'JEEB-PUSH-DEGRADED'
+adb logcat | grep -E 'JEEB-PUSH-DEGRADED|JEEB-PUSH-DROPPED'
 ```
-A hit means a real device fell back to the fake transport in production —
-today that has a 0% observed rate, so any hit is worth investigating
-immediately, not filtering out as noise.
+A hit means a real device fell back to the fake transport (`DEGRADED`) or
+suppressed an arriving push on the audience gate (`DROPPED`); today both have
+a 0% observed rate, so any hit is worth investigating immediately.
+
+> ⚠️ **LIMITATION — both tripwires are `kDebugMode`-gated, so a RELEASE build
+> emits NEITHER.** The grep above only works against a debug/profile build. A
+> genuine production outage is therefore still invisible to this tripwire; the
+> release-visible signal remains the `Diag` JSON event (`push_suppressed`),
+> which honours `--dart-define=JEEB_DIAG=true`. Moving the tripwires onto
+> `Diag.enabled` would close this gap with no change to default release
+> behaviour, but it puts a `deviceId` into production logs — **owner decision,
+> deliberately not taken here.**
 
 ## 6. Known gaps (gaps, not bugs — do not "fix" these without an owner decision)
 

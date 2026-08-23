@@ -2,19 +2,16 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-// The disabled quality workflows (ci.yml, flutter-ci.yml, mobile-ci.yml) must
-// keep the gates a future Phase-P re-enable depends on, and must not silently
-// resurrect the dead base64 dev-config injection design this file used to
-// assert. See _fbforever/p0-gate-truth.md for the investigation this codifies.
+// The disabled workflows must keep the gates a Phase-P re-enable depends on,
+// and must not resurrect the dead base64 dev-config injection design.
 
 const _analyzeGate = 'dart analyze --fatal-infos .';
 const _testGate = 'flutter test --exclude-tags capture';
 const _pinGate = 'bash tool/check_firebase_core_pin.sh';
 const _deadInjectionSecret = 'DEV_GOOGLE_SERVICES_JSON_B64';
 
-/// Extracts the text of the top-level `on:` YAML mapping so the
-/// pull_request check inspects the trigger block, not an arbitrary
-/// substring anywhere in the file.
+/// Extracts the top-level `on:` YAML mapping so the pull_request check
+/// inspects the trigger block, not an arbitrary substring in the file.
 String _onTriggerBlock(String workflow) {
   final lines = workflow.split('\n');
   final startIndex = lines.indexWhere((line) => line.startsWith('on:'));

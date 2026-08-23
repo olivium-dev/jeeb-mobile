@@ -6,9 +6,8 @@ import 'package:jeeb_mobile/core/notifications/application/push_notification_han
 import 'package:jeeb_mobile/core/notifications/data/push_transport.dart';
 import 'package:jeeb_mobile/core/notifications/domain/notification_message.dart';
 
-/// F12 (M7): the audience gate already fails a mismatched push silently
-/// (no banner/history/badge). This proves the drop also emits the greppable
-/// `JEEB-PUSH-DROPPED` tripwire, independent of the JSON Diag event.
+/// M7 audience gate: proves a silently-suppressed push also emits the
+/// greppable `JEEB-PUSH-DROPPED` tripwire, independent of the Diag event.
 NotificationMessage _newRequestPush({required String audienceRole}) {
   return NotificationMessage(
     id: 'nr-tripwire-1',

@@ -1,6 +1,5 @@
-// Runs tool/firebase_doctor.sh (F4) on every `flutter test` so the static
-// Firebase chain is checked automatically, not only when someone remembers
-// to run the doctor by hand. See docs/firebase-invariants.md §4.
+// Runs tool/firebase_doctor.sh on every `flutter test` so the static Firebase
+// chain is checked automatically. See docs/firebase-invariants.md §4.
 
 import 'dart:io';
 

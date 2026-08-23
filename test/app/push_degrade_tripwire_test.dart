@@ -10,11 +10,8 @@ import 'package:jeeb_mobile/core/session/session_gate.dart';
 
 import '../support/sync_app_localizations.dart';
 
-/// F6: the silent-degrade class (Firebase/FCM init fails after bounded
-/// retries -> app looks fine, push is dead). Proves the app.dart push chain
-/// emits a greppable `JEEB-PUSH-DEGRADED` line at the failure and at the
-/// fallback commit, with a distinct `reason` per failure path, and emits
-/// NOTHING on the healthy path.
+/// Silent-degrade class: proves the app.dart push chain emits a greppable
+/// `JEEB-PUSH-DEGRADED` line per failure path and nothing when healthy.
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{
