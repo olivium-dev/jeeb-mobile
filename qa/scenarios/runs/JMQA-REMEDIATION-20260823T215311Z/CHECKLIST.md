@@ -1,6 +1,6 @@
 # Staging-store remediation and physical rerun checklist
 
-Checked boxes represent observed evidence at this run's 2026-08-24 17:22 UTC
+Checked boxes represent observed evidence at this run's 2026-08-24 18:37 UTC
 snapshot. They do not inherit into a later build or deployment.
 
 ## A. Frozen identity and artifact gates
@@ -77,19 +77,19 @@ Neither result authorizes a scenario PASS.
 - [x] Prove `tool/run_with_dev_firebase_config.sh` removes injected dev config
       after both a successful command and a failed command.
 - [x] Re-enable CI, Flutter CI, and Mobile CI; all three workflows are active.
-- [ ] Push local source-bearing commit `e07d4542` plus this evidence update and
-      require CI, Flutter CI, and Mobile CI all green at the resulting exact PR
-      head; remote head `8788a24d` has only the earlier fail-closed check.
+- [x] Source-bearing commit `e07d4542` and the reproducible release-contract
+      corrections are pushed through PR #276 validation head `c2b907485`; all
+      eight reported exact-head checks are terminal green.
 - [ ] Obtain independent exact-head mobile release approval, then force-clean
       rebuild and reinspect both Android/iOS artifacts from that exact revision.
 
-Source-lineage closure criterion: **Given** the exact PR head after all three
-workflows are active, **when** the next source push completes, **then** CI,
-Flutter CI, Mobile CI, and independent review must be green at that exact head,
-and both signed artifacts must be rebuilt from it with recorded provenance.
+Source-lineage closure criterion: remote CI is satisfied at validation head
+`c2b907485`. Independent review must still approve the exact source, and both
+signed artifacts must be rebuilt from that approved revision with recorded
+provenance.
 
-Upload eligibility result: **BLOCKED on full exact-head CI/review and fresh
-artifact rebuilds**.
+Upload eligibility result: **BLOCKED on independent review and fresh artifact
+rebuilds**.
 
 ## B. Live staging barrier — must pass before upload
 
@@ -98,25 +98,35 @@ artifact rebuilds**.
       result is 503/unavailable.
 - [ ] Normal OTP receiver receipt, verify, wrong/expired, resend, lockout, and
       rate-limit checks pass.
-- [ ] Super Login Plus rejects anonymous and authenticated use; current live
-      surface remains open.
-- [ ] Demo-user endpoints are disabled; current live surface remains open.
+- [ ] Super Login Plus rejects anonymous and authenticated use; the current
+      anonymous public probe returns 200.
+- [ ] Demo-user endpoints are disabled; the current anonymous public probe
+      returns 200.
 - [ ] Real OpenAI transcription succeeds through the public gateway using the
       committed synthetic Arabic fixture; current live voice mode is fake.
 - [ ] Public WSS returns an authenticated 101 upgrade and rejects invalid or
-      over-broad membership; current public WSS is unavailable.
+      over-broad membership; the current upgrade reaches the gateway at 401,
+      not the Phoenix 101 path.
 - [ ] Paired-device chat send, receive, order, read state, reconnect, and
       duplicate-frame handling pass.
 - [ ] Firebase auth/installations and receiver-side FCM delivery pass with the
       canonical app registrations.
 - [ ] AASA is served without redirect and names
-      `K5RDQ8J7AN.com.olivium.jeeb`.
+      `K5RDQ8J7AN.com.olivium.jeeb`; the current endpoint returns 401.
 - [ ] `assetlinks.json` is served without redirect and names
-      `com.olivium.jeeb` plus the Play app-signing SHA-256.
-- [ ] Plain HTTP redirects to HTTPS; the current edge returns HTTP 200 without
+      `com.olivium.jeeb` plus the Play app-signing SHA-256; the current endpoint
+      returns 401.
+- [x] The least-privilege `CLOUDFLARE_API_TOKEN` secret name and Account →
+      Workers Scripts → Edit metadata are present in
+      `jeeb-infrastructure/staging`; no value was read or exposed.
+- [x] Exactly one Twilio Verified Caller ID was normalized/validated in memory,
+      confirmed distinct from the sender ending `97`, and installed by stdin as
+      the sole `one-time-password/staging` `JEEB_STAGING_SMS_CANARY_TO` secret;
+      no value is retained here and no SMS was sent.
+- [ ] Plain HTTP redirects to HTTPS; the current edge returns HTTP 401 without
       a redirect.
-- [ ] TLS 1.0/1.1 handshakes fail and TLS 1.2+ succeeds; the current edge still
-      accepts TLS 1.1.
+- [ ] TLS 1.0/1.1 handshakes fail and TLS 1.2+ succeeds; current probes show
+      TLS 1.0, TLS 1.1, and TLS 1.2 all negotiate.
 - [ ] Phase A1 deploys gateway with chat OFF and the descriptor contract ON.
 - [ ] Phase A2 deploys realtime compatibility and passes the real-descriptor
       direct-host Phoenix gate while rollback remains armed.
@@ -139,9 +149,10 @@ voice `6509c840` remain test-green, but their prior rollout approvals are
 superseded by the same race and need Engine API version-CAS recovery plus fresh
 review. All five GitHub staging environments enforce their exact default
 branch. Protected Firebase/Guardian/ticket and restricted Twilio `JEEB_*`
-secrets are installed. Cloudflare authority and a confirmed physical SMS
-canary recipient remain absent. Nothing is live until those gates close, the
-binding sequence runs, and fresh public probes pass.
+secrets are installed. Cloudflare access and the protected physical SMS canary
+input are present; Worker/route and target-zone configuration are not deployed,
+and no SMS canary was sent. Nothing is live until those gates close, the binding
+sequence runs, and fresh public probes pass.
 
 Barrier result: **BLOCKED / NO-GO**.
 
@@ -168,7 +179,8 @@ Barrier result: **NOT RUN**.
 
 - [x] Samsung A33 is ADB-authorized; no current candidate action occurred.
 - [ ] Samsung S24 accepts its pending USB-debugging authorization.
-- [ ] Physical iPhone is online and available for TestFlight; it is currently offline.
+- [x] Physical iPhone is reachable; no phone number was read or exposed and no
+      candidate was installed or driven.
 - [ ] Device keeper and unrelated automation are paused before the run.
 - [ ] Both Android devices and the iPhone have clean store installs and recorded
       OS, locale, font scale, permissions, network, battery, and storage state.

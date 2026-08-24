@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "run_id": "JMQA-REMEDIATION-20260823T215311Z",
-  "updated_at_utc": "2026-08-24T17:22:00Z",
+  "updated_at_utc": "2026-08-24T18:37:00Z",
   "verdict": "NO_GO",
   "source_gates": {
     "flutter_sdk": "3.44.2",
@@ -1106,6 +1106,133 @@
         "store_actions": 0,
         "device_actions": 0,
         "local_commits": 1
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T183000Z",
+      "recorded_at_utc": "2026-08-24T18:30:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T172200Z",
+      "reason": "mobile_ci_cloudflare_access_and_device_reconciliation",
+      "verdict": "NO_GO",
+      "mobile_source_validation": {
+        "pr": 276,
+        "branch": "release/staging-store-reconstruct-20260824",
+        "source_bearing_commit": "e07d4542",
+        "validation_head": "c2b90748518d2a01823e670b1ee4492f7db2f9c9",
+        "source_commits_pushed": true,
+        "pr_merge_state_at_validation": "CLEAN",
+        "reported_checks_total": 8,
+        "reported_checks_passed": 8,
+        "fail_closed_policy_passed": true,
+        "ci_analyze_passed": true,
+        "ci_test_passed": true,
+        "ci_build_apk_contract_passed": true,
+        "android_release_contracts_passed": true,
+        "ios_release_contracts_passed": true,
+        "flutter_ci_passed": true,
+        "flutter_ci_duration_seconds": 1454,
+        "mobile_l10n_passed": true,
+        "product_source_or_runtime_failure_found": false,
+        "independent_review_complete": false,
+        "signed_store_artifacts_rebuilt_from_source": false
+      },
+      "cloudflare_access": {
+        "environment": "jeeb-infrastructure/staging",
+        "secret_name": "CLOUDFLARE_API_TOKEN",
+        "secret_present": true,
+        "least_privilege_scope_metadata": "Account/Workers Scripts/Edit",
+        "secret_value_read_or_exposed": false,
+        "access_blocker_id": "REM-BLK-115",
+        "access_blocker_cleared": true,
+        "edge_configuration_applied": false,
+        "deployment_executed": false,
+        "zone_minimum_tls_configured": false
+      },
+      "live_public_probes": {
+        "readiness_http_status": 200,
+        "anonymous_super_login_demo_http_status": 200,
+        "aasa_http_status": 401,
+        "assetlinks_http_status": 401,
+        "wss_gateway_http_status": 401,
+        "phoenix_101_upgrade_observed": false,
+        "plain_http_status": 200,
+        "plain_http_redirect_observed": false,
+        "tls_1_1_negotiates": true,
+        "tls_1_2_negotiates": true,
+        "superseding_post_deploy_probes_present": false
+      },
+      "physical_devices": {
+        "samsung_a33_adb_authorized": true,
+        "samsung_s24_adb_authorized": false,
+        "iphone_reachable": true,
+        "iphone_phone_number_read_or_exposed": false,
+        "iphone_testflight_candidate_installed": false,
+        "physical_scenario_actions": 0
+      },
+      "sms_canary": {
+        "secret_name": "JEEB_STAGING_SMS_CANARY_TO",
+        "secret_present": false,
+        "owner_confirmed_recipient_present": false,
+        "recipient_value_recorded": false,
+        "sms_sent": false
+      },
+      "external_mutations_delta": {
+        "provider_updates": 0,
+        "sms_sent": 0,
+        "merges": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T183700Z",
+      "recorded_at_utc": "2026-08-24T18:37:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T183000Z",
+      "reason": "fresh_http_tls_probe_and_sms_canary_input_correction",
+      "verdict": "NO_GO",
+      "live_public_probes": {
+        "readiness_http_status": 200,
+        "anonymous_super_login_demo_http_status": 200,
+        "aasa_http_status": 401,
+        "assetlinks_http_status": 401,
+        "wss_gateway_http_status": 401,
+        "phoenix_101_upgrade_observed": false,
+        "plain_http_status": 401,
+        "plain_http_redirect_observed": false,
+        "tls_1_0_negotiates": true,
+        "tls_1_1_negotiates": true,
+        "tls_1_2_negotiates": true,
+        "superseding_post_deploy_probes_present": false
+      },
+      "sms_canary": {
+        "secret_name": "JEEB_STAGING_SMS_CANARY_TO",
+        "environment": "one-time-password/staging",
+        "twilio_verified_caller_id_count": 1,
+        "normalized_in_memory": true,
+        "valid_e164": true,
+        "distinct_from_sender": true,
+        "sender_last_two_digits": "97",
+        "secret_present": true,
+        "environment_secret_metadata_count": 1,
+        "install_method": "stdin",
+        "owner_confirmed_recipient_present": true,
+        "value_recorded_in_evidence": false,
+        "transient_local_browser_dom_diagnostic_exposure": true,
+        "value_committed": false,
+        "value_written_to_file": false,
+        "value_sent_to_chat": false,
+        "value_put_on_cli": false,
+        "sms_sent": false
+      },
+      "external_mutations_delta": {
+        "provider_updates": 0,
+        "github_environment_secret_updates": 1,
+        "sms_sent": 0,
+        "merges": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0
       }
     }
   ]
