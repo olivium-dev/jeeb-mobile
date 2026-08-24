@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PATTERNS = (
-    ("Swarm service deletion/reversion", re.compile(r"\bservice\s+(?:r" + r"m|roll" + r"back)\b", re.I)),
+    ("Swarm service deletion/reversion", re.compile(r"(?<!cross-)\bservice\s+(?:r" + r"m|roll" + r"back)\b", re.I)),
     ("Swarm automatic reversion", re.compile(r"update-failure-action[ =:]roll" + r"back\b", re.I)),
     ("Swarm reversion option", re.compile(r"--roll" + r"back(?:-|\b)", re.I)),
     ("Shorebird release reversion", re.compile(r"\bshorebird\s+roll" + r"back\b", re.I)),

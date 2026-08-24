@@ -12,6 +12,8 @@ SYNTHETIC_PASSWORD="contract-only-password"
 MISMATCHED_FINGERPRINT="$(printf '0%.0s' {1..64})"
 SYNTHETIC_MAPS_KEY="AIza$(printf 'A%.0s' {1..35})"
 
+flutter build apk --config-only >/dev/null
+
 cleanup() {
   rm -rf -- "${TMP_DIR}"
 }

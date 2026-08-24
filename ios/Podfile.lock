@@ -49,14 +49,14 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_local_notifications: ad39620c743ea4c15127860f4b5641649a988100
-  flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
+  flutter_local_notifications: 4cde75091f6327eb8517fa068a0a5950212d2086
+  flutter_secure_storage: d33dac7ae2ea08509be337e775f6b59f1ff45f12
   Google-Maps-iOS-Utils: 66d6de12be1ce6d3742a54661e7a79cb317a9321
-  google_maps_flutter_ios: 17552876e72723da1d41accc22f03b5f7afbde69
+  google_maps_flutter_ios: 5f2ee3f5cc4fc2398574367f893e3f97bbbcea39
   GoogleMaps: 8939898920281c649150e0af74aa291c60f2e77d
-  open_file_ios: 46184d802ee7959203f6392abcfa0dd49fdb5be0
-  sign_in_with_apple: c5dcc141574c8c54d5ac99dd2163c0c72ad22418
+  open_file_ios: ece9c5358aec7b7ed7dc12fcb0f926ef6d6650f1
+  sign_in_with_apple: f3bf75217ea4c2c8b91823f225d70230119b8440
 
 PODFILE CHECKSUM: 87950ea2e77ec7a32116c79ec20ac723c00c19e9
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0
