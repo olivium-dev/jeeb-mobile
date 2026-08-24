@@ -126,11 +126,12 @@ void main() {
     });
 
     testWidgets(
-      'full flow tier→location→Confirm calls submit() once and routes to the '
-      'WAITING screen with the REAL request id (never the placeholder "new")',
+      'merged flow: tier sheet→describe→Confirm calls submit() once and routes '
+      'to the WAITING screen with the REAL request id (never "new")',
       (tester) async {
         final built = await _buildRouter();
-        built.router.go('/request-type');
+        // UX merge: land directly on the merged "New request" screen.
+        built.router.go('/client-location');
         await tester.pumpWidget(
           _harness(
             built.router,
@@ -141,16 +142,12 @@ void main() {
         );
         await tester.pumpAndSettle();
 
+        // The tier defaulted to Standard; re-pick Flash through the sheet.
+        await tester.tap(find.bySemanticsIdentifier('compose_tier_change'));
+        await tester.pumpAndSettle();
         await tester.tap(
-          find.bySemanticsIdentifier('request_type_flash_radio'),
+          find.bySemanticsIdentifier('compose_tier_option_flash'),
         );
-        await tester.pump();
-        final continueCta = find.bySemanticsIdentifier(
-          'request_type_continue_cta',
-        );
-        expect(continueCta, findsOneWidget);
-        await tester.ensureVisible(continueCta);
-        await tester.tap(continueCta);
         await tester.pumpAndSettle();
 
         await tester.enterText(
@@ -178,8 +175,8 @@ void main() {
 
         expect(
           submission.lastDraft!.tierName,
-          isNotNull,
-          reason: 'the submitted draft must carry the chosen tier',
+          'flash',
+          reason: 'the submitted draft must carry the sheet-picked tier',
         );
 
         expect(

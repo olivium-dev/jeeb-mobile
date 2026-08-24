@@ -49,12 +49,8 @@ void main() {
 
   tearDown(sl.reset);
 
-  // WAS 'changing the tier does not put the keyboard back over the confirm
-  // CTA': the sheet whose modal route restored focus is gone with the second
-  // picker. Same defect, now guarded at the root — the disclosure is inert, so
-  // no route can be pushed over the description field at all.
   testWidgets(
-      'the read-only tier row opens no sheet and never re-raises the keyboard',
+      'changing the tier does not put the keyboard back over the confirm CTA',
       (tester) async {
     final focus = FocusNode();
     addTearDown(focus.dispose);
@@ -78,23 +74,20 @@ void main() {
     await tester.pump();
     expect(focus.hasFocus, isTrue);
 
-    expect(find.bySemanticsIdentifier('compose_tier_change'), findsNothing);
-    await tester.tap(
-      find.bySemanticsIdentifier('compose_tier_row'),
-      warnIfMissed: false,
-    );
+    await tester.tap(find.bySemanticsIdentifier('compose_tier_change'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsIdentifier('compose_tier_option_standard'));
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsIdentifier('compose_tier_sheet'), findsNothing);
     expect(
       sl<ComposeRequestController>().tier?.id,
-      TierId.flash,
-      reason: 'the disclosure re-prices nothing — the tier screen owns that',
+      TierId.standard,
+      reason: 'the pick still has to land',
     );
     expect(
       focus.hasFocus,
-      isTrue,
-      reason: 'an inert row must not steal the description field either',
+      isFalse,
+      reason: 'the sheet route must not restore focus to the description field',
     );
   });
 }

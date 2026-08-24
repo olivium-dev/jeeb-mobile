@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../diagnostics/diag.dart';
@@ -157,6 +158,13 @@ class PushNotificationHandler extends Cubit<PushNotificationState> {
         'audience_role': message.data['audience_role'],
         'reason': 'audience_mismatch',
       });
+      // F12 tripwire: greppable marker distinct from the JSON Diag line.
+      if (kDebugMode) {
+        debugPrint(
+          'JEEB-PUSH-DROPPED reason=audience_mismatch '
+          'type=${message.category.name}',
+        );
+      }
       return;
     }
     if (_seenIds.contains(message.id)) return;

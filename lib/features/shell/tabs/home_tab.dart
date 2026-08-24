@@ -136,10 +136,10 @@ class HomeTab extends StatelessWidget {
     }
   }
 
-  /// ONE door into the create flow. The tier is chosen on "Choose your
-  /// request", never seeded behind the customer on the way past it.
+  /// ONE door into the create flow: the merged "New request" screen. It owns
+  /// the tier default (Standard) and the fresh compose session.
   void _openCreateRequest(BuildContext context) {
-    GoRouter.of(context).pushNamed('request-type');
+    GoRouter.of(context).pushNamed('client-location');
   }
 
   void _openChat(BuildContext context, ClientHomeRequest request) {

@@ -1,6 +1,6 @@
-// The voice door seeds a compose session THEN lands on "Choose your request"
-// like every other create door. `?resume=1` is what stops Continue's `setTier`
-// from blanking the dictated description, transcript and clip.
+// UX merge: every create door lands on the merged "New request" screen
+// (`/client-location`); the legacy `/request-type` path redirects there and
+// carries `?resume=1` through, which keeps a voice-seeded session intact.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -98,20 +98,15 @@ Widget _harness(
   );
 }
 
-Future<void> _continueFrom(WidgetTester tester, String location) async {
+/// Lands on [location] and asserts the MERGED screen mounted (the legacy tier
+/// screen must never appear on any create path any more).
+Future<void> _landOn(WidgetTester tester, String location) async {
   final built = await _buildRouter();
   built.router.go(location);
   await tester.pumpWidget(_harness(built));
   await tester.pumpAndSettle();
-  expect(find.byType(RequestTypeScreen), findsOneWidget);
-
-  await tester.tap(find.bySemanticsIdentifier('request_type_standard_radio'));
-  await tester.pump();
-  final cta = find.bySemanticsIdentifier('request_type_continue_cta');
-  await tester.ensureVisible(cta);
-  await tester.tap(cta);
-  await tester.pumpAndSettle();
   expect(find.byType(ClientLocationScreen), findsOneWidget);
+  expect(find.byType(RequestTypeScreen), findsNothing);
 }
 
 void main() {
@@ -139,7 +134,7 @@ void main() {
     await sl.reset();
   });
 
-  testWidgets('resume=1 re-prices a seeded voice session without wiping it',
+  testWidgets('resume=1 (legacy route) keeps a seeded voice session intact',
       (tester) async {
     compose.beginVoiceSession(
       tier: _flash,
@@ -148,9 +143,10 @@ void main() {
       audioUrl: 'clip-1',
     );
 
-    await _continueFrom(tester, '/request-type?resume=1');
+    // The OLD deep link, resume included — the redirect must carry the query.
+    await _landOn(tester, '/request-type?resume=1');
 
-    expect(compose.tier?.id, TierId.standard, reason: 'the re-pick lands');
+    expect(compose.tier?.id, TierId.flash, reason: 'no re-pick, no blanking');
     expect(compose.description, 'two kilos of apples');
 
     // The clip and transcript have no getters — prove them where they matter.
@@ -166,10 +162,11 @@ void main() {
     expect(submission.lastDraft?.description, 'two kilos of apples');
     expect(submission.lastDraft?.transcription, 'two kilos of apples');
     expect(submission.lastDraft?.audioUrl, 'clip-1');
-    expect(submission.lastDraft?.tierName, TierId.standard.name);
+    expect(submission.lastDraft?.tierName, TierId.flash.name);
   });
 
-  testWidgets('a cold entry still starts a FRESH session', (tester) async {
+  testWidgets('a cold entry starts FRESH and defaults the tier to Standard',
+      (tester) async {
     compose.beginVoiceSession(
       tier: _flash,
       description: 'stale text from a previous compose',
@@ -177,9 +174,9 @@ void main() {
       audioUrl: 'clip-0',
     );
 
-    await _continueFrom(tester, '/request-type');
+    await _landOn(tester, '/request-type');
 
-    expect(compose.tier?.id, TierId.standard);
+    expect(compose.tier?.id, TierId.standard, reason: 'the catalog default');
     expect(
       compose.description,
       isNull,

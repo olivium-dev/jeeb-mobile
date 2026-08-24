@@ -70,6 +70,10 @@ docs/figma-cache/
 # Kotlin build cache (Gradle/AGP artifact, regenerated per build)
 .kotlin/
 
+# Firebase CLI debug logs (emulator suite junk, regenerated on demand)
+firebase-debug.log
+firestore-debug.log
+
 # Decompiled Maestro APK / JAR artifacts accidentally extracted at the repo root.
 # Root-anchored (leading /) so legitimate nested dirs of the same name are unaffected.
 # These are NOT source — delete from disk when convenient; never commit them.
@@ -89,13 +93,11 @@ docs/figma-cache/
 /org/
 /samples/
 
-# Firebase Android build input — the real jeeb-5a293 google-services.json is now
-# committed (JEBV4-173/JEBV4-223) so fresh clones build staging/production
-# without a skip-worktree overlay. google-services.json holds Firebase *client*
-# config (public by design), not a private key. iOS + generated options stay
-# ignored below; copy the committed *.template or run `flutterfire configure`.
-# The dev flavor is stricter: its real config is injected from the protected
-# DEV_GOOGLE_SERVICES_JSON_B64 CI secret. Only the placeholder template is VCS.
+# Firebase native client configs are protected build-time inputs. They identify
+# the canonical public Firebase app, but their package/signer bindings still
+# belong to the release boundary and are injected through validated wrappers.
+# Only placeholder templates are committed; real Android/iOS configs must stay
+# absent from source and are removed by the wrapper trap after every build.
 android/app/src/dev/google-services.json
 /android/app/google-services.json
 ios/Runner/GoogleService-Info.plist

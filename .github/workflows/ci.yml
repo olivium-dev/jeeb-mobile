@@ -136,17 +136,6 @@ jobs:
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
 
-      - name: Inject and validate dev Firebase config
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
-          DEV_FIREBASE_EXPECTED_PROJECT_NUMBER: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_NUMBER }}
-          DEV_FIREBASE_EXPECTED_PROJECT_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_ID }}
-          DEV_FIREBASE_EXPECTED_APP_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_APP_ID }}
-        run: |
-          printf '%s' "$DEV_GOOGLE_SERVICES_JSON_B64" | base64 --decode > android/app/src/dev/google-services.json
-          bash tool/validate_dev_google_services.sh
-
       - name: Skip dev FCM APK for fork PR
         if: github.event_name == 'pull_request'
         run: echo "Secret-dependent dev FCM APK build is skipped; analyze and tests already ran."
@@ -161,11 +150,19 @@ jobs:
             exit 1
           fi
 
-      - name: Build APK
+      - name: Build APK with protected dev Firebase config
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
-        run: flutter build apk --flavor dev --debug --dart-define=APP_FLAVOR=dev --dart-define=REQUIRE_REAL_PUSH=true
+          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
+          DEV_FIREBASE_EXPECTED_PROJECT_NUMBER: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_NUMBER }}
+          DEV_FIREBASE_EXPECTED_PROJECT_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_ID }}
+          DEV_FIREBASE_EXPECTED_APP_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_APP_ID }}
+        run: >-
+          bash tool/run_with_dev_firebase_config.sh
+          flutter build apk --flavor dev --debug
+          --dart-define=APP_FLAVOR=dev
+          --dart-define=REQUIRE_REAL_PUSH=true
 
   android-release-contracts:
     name: Android release signing contracts

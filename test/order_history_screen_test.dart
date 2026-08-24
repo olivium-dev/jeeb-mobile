@@ -131,12 +131,13 @@ Widget _host(
         builder: (_, state) =>
             Scaffold(body: Text('jeeber-active-${state.pathParameters['id']}')),
       ),
-      // The create-flow entry every sibling surface uses; the redesigned
-      // "Jeeb it again" row CTA enters it unseeded.
+      // The create-flow entry every sibling surface uses (the merged "New
+      // request" screen); "Jeeb it again" enters it unseeded.
       GoRoute(
-        path: '/request-type',
-        name: 'request-type',
-        builder: (_, _) => const Scaffold(body: Text('request-type-screen')),
+        path: '/client-location',
+        name: 'client-location',
+        builder: (_, _) =>
+            const Scaffold(body: Text('client-location-screen')),
       ),
     ],
   );
@@ -377,7 +378,7 @@ void main() {
       },
     );
 
-    testWidgets('"Jeeb it again" enters the create flow (request-type)', (
+    testWidgets('"Jeeb it again" enters the create flow (client-location)', (
       tester,
     ) async {
       final repo = _FakeRepo({
@@ -396,7 +397,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('request-type-screen'), findsOneWidget);
+      expect(find.text('client-location-screen'), findsOneWidget);
     });
 
     testWidgets('the header survives 200% text without overflowing', (

@@ -439,7 +439,8 @@ class _OrderTabViewState extends State<_OrderTabView>
                 // TODO(redesign-24): needs the request description/tier on
                 // GET /v1/requests to pre-fill the re-compose — entering the
                 // create flow unseeded, not faked.
-                onReorder: () => GoRouter.of(context).pushNamed('request-type'),
+                onReorder: () =>
+                    GoRouter.of(context).pushNamed('client-location'),
               );
             },
           ),

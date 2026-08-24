@@ -306,6 +306,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   static const int _pushTransportMaxAttempts = 4;
   static const Duration _pushTransportRetryDelay = Duration(seconds: 2);
 
+  /// F6: mirrors DeviceTokenRegistrar's prefs key. Read-only here — the
+  /// tripwire never mints an id, it only reports one if already present.
+  static const String _pushDeviceIdPrefsKey = 'push.deviceId';
+
   /// BUG-1: subscription to the owned [SessionCubit] so a successful login
   /// (OTP verify / super-login calls `session.refresh()`, transitioning the
   /// session to authenticated) re-fires [RoleSync.sync] IMMEDIATELY — without
@@ -523,8 +527,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       for (var i = 0; i < attempts && built == null; i++) {
         if (i > 0) await Future<void>.delayed(_pushTransportRetryDelay);
         if (!mounted) return;
+        var firebaseReady = false;
         try {
           await (widget.firebaseInitializer ?? _defaultFirebaseInitializer)();
+          firebaseReady = true;
           built =
               await (widget.fcmTransportBuilder ??
                   _defaultFcmTransportBuilder)();
@@ -537,10 +543,20 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
               'failed: $error',
             );
           }
+          // F6: the final attempt's failure is the classifiable init failure —
+          // an earlier attempt is just expected flakiness (D3), not a tripwire.
+          if (i == attempts - 1) {
+            final stage = firebaseReady ? 'token' : 'init';
+            _logPushDegraded(_classifyPushInitFailure(stage, error), stage);
+          }
         }
       }
-      if (built == null && kDebugMode) {
-        debugPrint('[push] FCM transport unavailable; using fake');
+      if (built == null) {
+        if (kDebugMode) {
+          debugPrint('[push] FCM transport unavailable; using fake');
+        }
+        // F6: the degrade point itself — always means attempts were exhausted.
+        _logPushDegraded('retries_exhausted', 'init');
       }
       transport = built ?? FakePushTransport();
     }
@@ -610,6 +626,26 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       _pushHandler = handler;
       _dispatcher = dispatcher;
     });
+  }
+
+  /// F6 runtime tripwire for the silent-degrade class: one greppable line so
+  /// a field push outage is correlatable by deviceId (never the FCM token).
+  void _logPushDegraded(String reason, String stage) {
+    if (!kDebugMode) return;
+    final deviceId = widget.preferences.getString(_pushDeviceIdPrefsKey);
+    debugPrint('JEEB-PUSH-DEGRADED reason=$reason stage=$stage '
+        'deviceId=${deviceId ?? 'unknown'}');
+  }
+
+  /// Classifies the failed step for [_logPushDegraded]; stage 'token' means
+  /// Firebase itself came up but building/initializing the transport failed.
+  static String _classifyPushInitFailure(String stage, Object error) {
+    if (stage == 'token') return 'token_null';
+    final message = error.toString().toLowerCase();
+    if (error is TimeoutException || message.contains('timeout')) {
+      return 'init_timeout';
+    }
+    return 'init_channel_error';
   }
 
   /// Default Firebase-init gate. No-op when Firebase is already up (the deferred
