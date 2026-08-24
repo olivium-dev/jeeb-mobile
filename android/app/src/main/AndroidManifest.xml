@@ -128,7 +128,7 @@
           - FOREGROUND_SERVICE: required to call startForeground() at all
             (API 28+).
           - FOREGROUND_SERVICE_LOCATION: required ADDITIONALLY from API 34, and
-            this app targets 34 (`android/app/build.gradle`: targetSdk 34).
+            this app targets 36 (`android/app/build.gradle`: targetSdk 36).
             Without it `startForeground()` with a `location` type throws
             SecurityException at runtime, so the uploader would die the instant
             it went to background — the exact failure being fixed.
@@ -141,7 +141,7 @@
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
-        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher">
 
         <activity
@@ -176,15 +176,16 @@
                   * Custom scheme `jeeb://chat/<conversationId>` — no domain
                     verification needed (host == "chat"); AppRouter normalises
                     the host-form to the canonical `/chat/:id` route.
-                  * HTTPS App Link `https://jeeb.app/chat/<conversationId>` —
+                  * HTTPS App Link `https://${APP_LINK_HOST}/chat/<conversationId>` —
                     path is already `/chat/<id>` so go_router matches directly.
-                    Requires hosting `/.well-known/assetlinks.json` (infra).
+                    The release flavors use app.jeeb.fds-1.com; dev retains the
+                    historical jeeb.app host. Requires assetlinks.json (infra).
             -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="jeeb.app"/>
+                <data android:scheme="https" android:host="${APP_LINK_HOST}"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
@@ -248,7 +249,7 @@
             gitignored android/local.properties via the ${MAPS_API_KEY}
             manifestPlaceholder (build.gradle defaultConfig) — the key itself is
             never committed. The provisioned key is restricted to package
-            app.jeeb.mobile + the release SHA1 and to Maps SDK for Android +
+            com.olivium.jeeb + the release SHA1 and to Maps SDK for Android +
             Places API. Presence of com.google.android.geo.API_KEY here is what
             the tracking_map_placeholder_route_test gate allows before the live
             map (LiveTrackingScreen.useLiveMap) may be flipped back on.

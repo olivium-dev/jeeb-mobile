@@ -1,34 +1,44 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../diagnostics/diag.dart';
 import '../network/auth_token_store.dart';
+import 'auth_loss_signals.dart';
 import 'session_gate.dart';
 import 'session_state.dart';
 
 class SessionCubit extends Cubit<SessionState> implements SessionGate {
-  SessionCubit({
-    required AuthTokenStore tokenStore,
-    DateTime Function()? clock,
-  })  : _tokenStore = tokenStore,
-        _clock = clock ?? DateTime.now,
-        super(const SessionState.unknown());
+  SessionCubit({required AuthTokenStore tokenStore, DateTime Function()? clock})
+    : _tokenStore = tokenStore,
+      _clock = clock ?? DateTime.now,
+      super(const SessionState.unknown()) {
+    _authLossSubscription = AuthLossSignals.instance.stream.listen((_) {
+      _authEpoch++;
+      emit(const SessionState(SessionStatus.unauthenticated));
+    });
+  }
 
   final AuthTokenStore _tokenStore;
   final DateTime Function() _clock;
+  late final StreamSubscription<void> _authLossSubscription;
+  int _authEpoch = 0;
 
   @override
   bool get isUnauthenticated => state.isUnauthenticated;
 
   Future<void> refresh() async {
+    final epoch = _authEpoch;
     try {
       final token = await _tokenStore.accessToken;
+      if (epoch != _authEpoch) return;
       final status = _classify(token);
       emit(SessionState(status));
 
       Diag.event('session_auth', <String, Object?>{'status': status.name});
     } catch (_) {
+      if (epoch != _authEpoch) return;
       emit(const SessionState(SessionStatus.unauthenticated));
       Diag.event('session_auth', <String, Object?>{
         'status': SessionStatus.unauthenticated.name,
@@ -43,8 +53,7 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
     }
     final exp = _jwtExpiry(token);
     if (exp == null) {
-
-      return SessionStatus.authenticated;
+      return SessionStatus.unauthenticated;
     }
     final isExpired = !exp.isAfter(_clock().toUtc());
     return isExpired
@@ -56,7 +65,9 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
     final parts = token.split('.');
     if (parts.length != 3) return null;
     try {
-      final payloadRaw = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final payloadRaw = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
       final decoded = jsonDecode(payloadRaw);
       if (decoded is! Map) return null;
       final exp = decoded['exp'];
@@ -68,5 +79,11 @@ class SessionCubit extends Cubit<SessionState> implements SessionGate {
     } catch (_) {
       return null;
     }
+  }
+
+  @override
+  Future<void> close() async {
+    await _authLossSubscription.cancel();
+    return super.close();
   }
 }

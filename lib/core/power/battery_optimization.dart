@@ -6,10 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// app-sleep withholds FCM, and only the OS list can lift it.
 class BatteryOptimization {
   const BatteryOptimization({MethodChannel channel = _defaultChannel})
-      : _channel = channel;
+    : _channel = channel;
 
-  static const MethodChannel _defaultChannel =
-      MethodChannel('app.jeeb.mobile/power');
+  static const MethodChannel _defaultChannel = MethodChannel(
+    'com.olivium.jeeb/power',
+  );
 
   /// One prompt per install; a declined prompt must not nag on every shift.
   static const String promptedPrefsKey = 'power.batteryPromptShown.v1';
@@ -21,8 +22,9 @@ class BatteryOptimization {
   Future<bool> isExempt() async {
     if (!isSupported) return true;
     try {
-      final value =
-          await _channel.invokeMethod<bool>('isIgnoringBatteryOptimizations');
+      final value = await _channel.invokeMethod<bool>(
+        'isIgnoringBatteryOptimizations',
+      );
       return value ?? true;
     } on PlatformException {
       return true;
@@ -34,8 +36,9 @@ class BatteryOptimization {
   Future<bool> openSettings() async {
     if (!isSupported) return false;
     try {
-      final value =
-          await _channel.invokeMethod<bool>('openBatteryOptimizationSettings');
+      final value = await _channel.invokeMethod<bool>(
+        'openBatteryOptimizationSettings',
+      );
       return value ?? false;
     } on PlatformException {
       return false;

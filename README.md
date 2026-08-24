@@ -43,16 +43,16 @@ Android application IDs:
 | Flavor | Application ID | Notes |
 |---|---|---|
 | dev | `app.jeeb.mobile.dev` | Local/CI builds |
-| staging | `app.jeeb.mobile.staging` | QA/UAT |
-| production | `app.jeeb.mobile` | Play Store |
+| staging runtime | `com.olivium.jeeb` | Play Internal candidate, built with `APP_FLAVOR=staging` |
+| production | `com.olivium.jeeb` | Play Store |
 
 iOS bundle IDs:
 
 | Flavor | Bundle ID | Notes |
 |---|---|---|
 | dev | `app.jeeb.jeebMobile.dev` | Local development |
-| staging | Not configured | No iOS staging scheme yet |
-| production | `app.jeeb.jeebMobile` | App Store |
+| staging runtime | `com.olivium.jeeb` | TestFlight candidate, built with `APP_FLAVOR=staging` |
+| production | `com.olivium.jeeb` | App Store |
 
 ## iOS
 
@@ -63,6 +63,19 @@ cd ios && pod install
 ```
 
 Ensure the signing team and bundle ID are set in Xcode before building.
+
+Store candidates keep the permanent native identity and receive staging only as
+build-time runtime configuration:
+
+```bash
+flutter build appbundle --flavor production --release \
+  --dart-define=APP_FLAVOR=staging \
+  --dart-define=GATEWAY_BASE_URL=https://app.jeeb.fds-1.com
+
+flutter build ipa --release \
+  --dart-define=APP_FLAVOR=staging \
+  --dart-define=GATEWAY_BASE_URL=https://app.jeeb.fds-1.com
+```
 
 Run the normal iOS dev app against the LAN gateway with:
 

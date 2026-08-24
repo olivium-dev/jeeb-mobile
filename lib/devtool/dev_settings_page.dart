@@ -6,12 +6,18 @@ import '../core/config/dev_base_url.dart';
 import '../core/di/injection_container.dart';
 import '../core/network/mock_gateway_client.dart';
 
-const String kMsiGatewayBaseUrl = 'http://192.168.2.39:10090';
+const String kConfiguredDevGatewayBaseUrl = String.fromEnvironment(
+  'JEEB_DEV_GATEWAY_BASE_URL',
+  defaultValue: 'https://gateway.dev.invalid',
+);
+const String kConfiguredDevMockBaseUrl = String.fromEnvironment(
+  'JEEB_DEV_MOCK_BASE_URL',
+  defaultValue: 'https://mock.dev.invalid',
+);
 
 const List<String> kDevServerUrlPresets = <String>[
-  kMsiGatewayBaseUrl,
-  'http://10.0.2.2:4010',
-  'https://api.jeeb.app/v1',
+  kConfiguredDevGatewayBaseUrl,
+  kConfiguredDevMockBaseUrl,
 ];
 
 class ServerUrlPage extends StatefulWidget {
@@ -23,8 +29,9 @@ class ServerUrlPage extends StatefulWidget {
 
 class _ServerUrlPageState extends State<ServerUrlPage> {
   final SharedPreferences _prefs = sl<SharedPreferences>();
-  late final TextEditingController _controller =
-      TextEditingController(text: DevBaseUrl.read(sl<SharedPreferences>()) ?? '');
+  late final TextEditingController _controller = TextEditingController(
+    text: DevBaseUrl.read(sl<SharedPreferences>()) ?? '',
+  );
 
   String get _effective =>
       DevBaseUrl.read(_prefs) ?? MockGatewayClient.mockBaseUrl;
@@ -44,7 +51,9 @@ class _ServerUrlPageState extends State<ServerUrlPage> {
     _controller.clear();
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Reset to build default. Restart to apply.')),
+      const SnackBar(
+        content: Text('Reset to build default. Restart to apply.'),
+      ),
     );
   }
 
@@ -61,11 +70,15 @@ class _ServerUrlPageState extends State<ServerUrlPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Currently pointing at:',
-              style: Theme.of(context).textTheme.labelMedium),
+          Text(
+            'Currently pointing at:',
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
           const SizedBox(height: 4),
-          SelectableText(_effective,
-              style: Theme.of(context).textTheme.bodyLarge),
+          SelectableText(
+            _effective,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
           const SizedBox(height: 24),
           TextField(
             controller: _controller,
@@ -73,7 +86,7 @@ class _ServerUrlPageState extends State<ServerUrlPage> {
             autocorrect: false,
             decoration: const InputDecoration(
               labelText: 'Override base URL',
-              hintText: 'https://staging.jeeb.app/v1',
+              hintText: 'https://gateway.example',
               border: OutlineInputBorder(),
             ),
           ),
@@ -92,7 +105,9 @@ class _ServerUrlPageState extends State<ServerUrlPage> {
           FilledButton(onPressed: _save, child: const Text('Save')),
           const SizedBox(height: 8),
           OutlinedButton(
-              onPressed: _reset, child: const Text('Reset to default')),
+            onPressed: _reset,
+            child: const Text('Reset to default'),
+          ),
         ],
       ),
     );
@@ -127,7 +142,9 @@ Future<void> showClearLocalDataDialog(BuildContext context) async {
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(
-      content: Text('Local data cleared. Restart the app for a clean first run.'),
+      content: Text(
+        'Local data cleared. Restart the app for a clean first run.',
+      ),
     ),
   );
 }

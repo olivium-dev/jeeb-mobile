@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:jeeb_mobile/core/accessibility/accessibility.dart';
 import 'package:jeeb_mobile/features/kyc/domain/kyc_gateway.dart';
+import 'package:jeeb_mobile/features/kyc/domain/kyc_submission.dart';
 import 'package:jeeb_mobile/features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import 'package:jeeb_mobile/features/offer_kyc_gate/presentation/delivery_register_prompt_screen.dart';
 import 'package:jeeb_mobile/features/offer_kyc_gate/presentation/offer_kyc_gate_screen.dart';
@@ -74,75 +75,78 @@ void main() {
   setUpAll(_loadArbFromDisk);
 
   testWidgets(
-      'offer-kyc-gate: AppBar back arrow at stack root lands on "/", not a '
-      'no-op', (tester) async {
-    final router = GoRouter(
-      initialLocation: '/',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) =>
-              const Scaffold(body: Center(child: Text('HOME'))),
-        ),
-        GoRoute(
-          path: '/jeeber/offer-gate',
-          name: 'offer-kyc-gate',
-          builder: (context, state) =>
-              OfferKycGateScreen(gateway: FakeKycGateway()),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-    await tester.pumpWidget(_wrapRouter(router));
-    await tester.pumpAndSettle();
+    'offer-kyc-gate: AppBar back arrow at stack root lands on "/", not a '
+    'no-op',
+    (tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('HOME'))),
+          ),
+          GoRoute(
+            path: '/jeeber/offer-gate',
+            name: 'offer-kyc-gate',
+            builder: (context, state) =>
+                OfferKycGateScreen(gateway: FakeKycGateway()),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(_wrapRouter(router));
+      await tester.pumpAndSettle();
 
-    // Stack-REPLACING entry (mirrors jeeber_feed_tab_view's
-    router.goNamed('offer-kyc-gate');
-    await tester.pumpAndSettle();
-    expect(_locationOf(router), '/jeeber/offer-gate');
+      // Stack-REPLACING entry (mirrors jeeber_feed_tab_view's
+      router.goNamed('offer-kyc-gate');
+      await tester.pumpAndSettle();
+      expect(_locationOf(router), '/jeeber/offer-gate');
 
-    await tester.tap(_appBarBackButton());
-    await tester.pumpAndSettle();
+      await tester.tap(_appBarBackButton());
+      await tester.pumpAndSettle();
 
-    expect(_locationOf(router), '/');
-    expect(find.text('HOME'), findsOneWidget);
-  });
-
-  testWidgets(
-      'delivery-register-prompt: AppBar back arrow at stack root lands on '
-      '"/", not a no-op', (tester) async {
-    final router = GoRouter(
-      initialLocation: '/',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) =>
-              const Scaffold(body: Center(child: Text('HOME'))),
-        ),
-        GoRoute(
-          path: '/jeeber/register-prompt',
-          name: 'delivery-register-prompt',
-          builder: (context, state) => const DeliveryRegisterPromptScreen(),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-    await tester.pumpWidget(_wrapRouter(router));
-    await tester.pumpAndSettle();
-
-    router.goNamed('delivery-register-prompt');
-    await tester.pumpAndSettle();
-    expect(_locationOf(router), '/jeeber/register-prompt');
-
-    await tester.tap(_appBarBackButton());
-    await tester.pumpAndSettle();
-
-    expect(_locationOf(router), '/');
-    expect(find.text('HOME'), findsOneWidget);
-  });
+      expect(_locationOf(router), '/');
+      expect(find.text('HOME'), findsOneWidget);
+    },
+  );
 
   testWidgets(
-      'kyc-rejected: AppBar back arrow at stack root lands on '
+    'delivery-register-prompt: AppBar back arrow at stack root lands on '
+    '"/", not a no-op',
+    (tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('HOME'))),
+          ),
+          GoRoute(
+            path: '/jeeber/register-prompt',
+            name: 'delivery-register-prompt',
+            builder: (context, state) => const DeliveryRegisterPromptScreen(),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(_wrapRouter(router));
+      await tester.pumpAndSettle();
+
+      router.goNamed('delivery-register-prompt');
+      await tester.pumpAndSettle();
+      expect(_locationOf(router), '/jeeber/register-prompt');
+
+      await tester.tap(_appBarBackButton());
+      await tester.pumpAndSettle();
+
+      expect(_locationOf(router), '/');
+      expect(find.text('HOME'), findsOneWidget);
+    },
+  );
+
+  testWidgets('kyc-rejected: AppBar back arrow at stack root lands on '
       'customer-profile, not a no-op', (tester) async {
     final router = GoRouter(
       initialLocation: '/',
@@ -161,8 +165,14 @@ void main() {
         GoRoute(
           path: '/kyc/rejected',
           name: 'kyc-rejected',
-          builder: (context, state) =>
-              KycRejectedScreen(gateway: FakeKycGateway()),
+          builder: (context, state) => KycRejectedScreen(
+            gateway: FakeKycGateway(
+              initial: const KycSubmission(
+                status: KycStatus.rejected,
+                rejectionReason: KycRejectionReason.idUnreadable,
+              ),
+            ),
+          ),
         ),
       ],
     );

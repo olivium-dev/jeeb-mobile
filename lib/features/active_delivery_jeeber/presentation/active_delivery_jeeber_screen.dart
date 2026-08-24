@@ -35,8 +35,10 @@ const double _kInlineQuickActionsMinWidth = 320;
 
 /// Drop-off card padding — the board's `padding: 14px 16px` (`tpl 1057`).
 /// `Spacing` has no 14 rung, and the card's own default is 13 vertical.
-const EdgeInsetsGeometry _kDropOffCardPadding =
-    EdgeInsetsDirectional.symmetric(horizontal: Spacing.medium, vertical: 14);
+const EdgeInsetsGeometry _kDropOffCardPadding = EdgeInsetsDirectional.symmetric(
+  horizontal: Spacing.medium,
+  vertical: 14,
+);
 
 /// R18's own bottom glow, re-read in the M6 census: `rgba(215,59,0,.26)` under
 /// the pill row — one notch above the ratified single glow alpha .24.
@@ -252,8 +254,8 @@ class _Body extends StatelessWidget {
       final l10n = AppLocalizations.of(context);
       showOmdsSnackbar(
         context,
-        message: _localizedTransitionError(l10n, state.transitionErrorKind) ??
-            raw,
+        message:
+            _localizedTransitionError(l10n, state.transitionErrorKind) ?? raw,
       );
       context.read<ActiveDeliveryCubit>().acknowledgeTransitionError();
     }
@@ -269,17 +271,15 @@ class _Body extends StatelessWidget {
   String? _localizedTransitionError(
     AppLocalizations l10n,
     ActiveDeliveryFailure? kind,
-  ) =>
-      switch (kind) {
-        ActiveDeliveryFailure.invalidTransition =>
-          l10n.activeDeliveryErrorInvalidTransition,
-        ActiveDeliveryFailure.badRequest => l10n.activeDeliveryErrorBadRequest,
-        ActiveDeliveryFailure.network => l10n.activeDeliveryErrorNetwork,
-        ActiveDeliveryFailure.otpRequired =>
-          l10n.activeDeliveryErrorOtpNeeded,
-        ActiveDeliveryFailure.server => l10n.activeDeliveryErrorGeneric,
-        _ => null,
-      };
+  ) => switch (kind) {
+    ActiveDeliveryFailure.invalidTransition =>
+      l10n.activeDeliveryErrorInvalidTransition,
+    ActiveDeliveryFailure.badRequest => l10n.activeDeliveryErrorBadRequest,
+    ActiveDeliveryFailure.network => l10n.activeDeliveryErrorNetwork,
+    ActiveDeliveryFailure.otpRequired => l10n.activeDeliveryErrorOtpNeeded,
+    ActiveDeliveryFailure.server => l10n.activeDeliveryErrorGeneric,
+    _ => null,
+  };
 
   Widget _buildScaffold(BuildContext context, ActiveDeliveryState state) {
     final l10n = AppLocalizations.of(context);
@@ -296,7 +296,7 @@ class _Body extends StatelessWidget {
         child: Column(
           children: [
             JeebTopBar.back(
-              title: l10n.activeDeliveryTitle,
+              title: _titleForState(l10n, state),
               identifier: 'mark_delivered_back',
             ),
             Expanded(child: _buildBody(context, state, l10n)),
@@ -304,6 +304,20 @@ class _Body extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _titleForState(AppLocalizations l10n, ActiveDeliveryState state) {
+    final status = state.delivery?.status;
+    if (state.mode == ActiveDeliveryMode.transitioning || status == null) {
+      return l10n.activeDeliveryTitle;
+    }
+    return switch (status) {
+      JeeberDeliveryStatus.done => l10n.deliveryCompletedBanner,
+      JeeberDeliveryStatus.cancelled => l10n.activeDeliveryCancelledTitle,
+      JeeberDeliveryStatus.expired => l10n.activeDeliveryExpiredTitle,
+      JeeberDeliveryStatus.disputed => l10n.activeDeliveryDisputedTitle,
+      _ => l10n.activeDeliveryTitle,
+    };
   }
 
   Widget _buildBody(
@@ -332,8 +346,7 @@ class _Body extends StatelessWidget {
               identifier: 'active_delivery_error',
               action: JeebCtaButton.primary(
                 label: l10n.deliveryStatusRetry,
-                onTap: () =>
-                    context.read<ActiveDeliveryCubit>().loadDelivery(),
+                onTap: () => context.read<ActiveDeliveryCubit>().loadDelivery(),
               ),
             ),
           ),

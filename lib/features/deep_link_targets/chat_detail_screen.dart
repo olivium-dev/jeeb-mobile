@@ -37,6 +37,7 @@ import '../chat/data/firestore_chat_message_mapper.dart';
 import '../chat/data/firestore_chat_realtime_source.dart';
 import '../chat/data/gateway_chat_firebase_token_minter.dart';
 import '../chat/data/in_memory_chat_gateway.dart';
+import '../chat/data/chat_realtime_resolver.dart';
 import '../chat/data/realtime_chat_gateway.dart';
 import '../chat/domain/chat_gateway.dart';
 import '../chat/domain/chat_realtime_admission.dart';
@@ -835,6 +836,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final httpGateway = DioChatGateway(
       dio: dio,
       currentUserId: currentUserId,
+      realtimeResolver: ChatRealtimeResolver(
+        dio: dio,
+        currentUserId: currentUserId,
+      ),
       // The phase read queries the conversation aggregate by its correlation
       // key (== request id). Passing the resolved request id makes the poll hit
       // `?correlationKey={requestId}` (200) instead of
@@ -1234,7 +1239,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // where the counterpart's name is in scope, so the rating screen finally
     // gets a real `?name=` instead of its role-generic fallback. Never faked —
     // an empty name is passed as null and the helper drops the param.
-    final name = displayNameOrNull(
+    final name =
+        displayNameOrNull(
           _summary?.counterpartName(viewerIsJeeber: isJeeber),
         ) ??
         displayNameOrNull(_counterpartName);
@@ -1243,8 +1249,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         _deliveryId,
         isClient: !isJeeber,
         counterpartName: name,
-        counterpartAvatarUrl:
-            _summary?.counterpartAvatarUrl(viewerIsJeeber: isJeeber),
+        counterpartAvatarUrl: _summary?.counterpartAvatarUrl(
+          viewerIsJeeber: isJeeber,
+        ),
       ),
     );
   }
@@ -1732,6 +1739,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     // capture seam, isolated widget tests) degrade safely rather than throw.
     final isJeeber = _readRole(context) == UserRole.jeeber;
     final compose = _isComposeState(isJeeber);
+    final canStartDelivery =
+        isJeeber && DeliveryStatusVocab.canStartFromChat(_summary?.statusId);
     // JM-025 AC2: the pinned locked-price summary only renders once an offer is
     // accepted (winner present / phase `accepted`), never on the Jeeber variant
     // or compose.
@@ -1762,7 +1771,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       isOrderChat: !isJeeber,
       // Run-22: role-aware party naming on the pinned order-summary strip.
       viewerIsJeeber: isJeeber,
-      onStartActiveDelivery: isJeeber
+      onStartActiveDelivery: canStartDelivery
           ? () => context.push('/jeeber/deliveries/$_deliveryId/active')
           : null,
       // Client-only: once the accept surfaces a delivery id, the chat banner's

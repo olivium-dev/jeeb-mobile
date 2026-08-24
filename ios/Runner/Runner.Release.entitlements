@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>aps-environment</key>
+	<string>production</string>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<!-- Canonical staging edge. Cloudflare must serve the AASA file at
+		     /.well-known/apple-app-site-association without redirects. -->
+		<string>applinks:app.jeeb.fds-1.com</string>
+	</array>
+</dict>
+</plist>

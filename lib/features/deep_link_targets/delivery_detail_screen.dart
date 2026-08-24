@@ -429,9 +429,7 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
       ),
       const SizedBox(height: _kBlockGap),
       JeebOutlinedCard.grouped(
-        children: [
-          _ActionRow(action: _escalateAction(l10n)),
-        ],
+        children: [_ActionRow(action: _escalateAction(l10n))],
       ),
     ];
   }
@@ -439,11 +437,11 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
   // ---- Individual action descriptors ---------------------------------------
 
   _DeliveryAction _trackAction(AppLocalizations l10n) => _DeliveryAction(
-        semanticsId: 'order-detail-track',
-        title: l10n.trackingTitle,
-        leadingIcon: Icons.location_on,
-        onTap: (c) => c.push('/orders/${widget.deliveryId}/tracking'),
-      );
+    semanticsId: 'order-detail-track',
+    title: l10n.trackingTitle,
+    leadingIcon: Icons.location_on,
+    onTap: (c) => c.push('/orders/${widget.deliveryId}/tracking'),
+  );
 
   _DeliveryAction _chatAction(BuildContext context, AppLocalizations l10n) =>
       _DeliveryAction(
@@ -457,38 +455,38 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
       );
 
   _DeliveryAction _otpAction(AppLocalizations l10n) => _DeliveryAction(
-        semanticsId: 'order-detail-otp',
-        title: l10n.otpVerifyButton,
-        leadingIcon: Icons.lock,
-        onTap: (c) => c.push('/orders/${widget.deliveryId}/otp'),
-      );
+    semanticsId: 'order-detail-otp',
+    title: l10n.otpVerifyButton,
+    leadingIcon: Icons.lock,
+    onTap: (c) => c.push('/orders/${widget.deliveryId}/otp'),
+  );
 
   _DeliveryAction _rateAction(AppLocalizations l10n) => _DeliveryAction(
-        semanticsId: 'order-detail-rate',
-        title: l10n.ratingPromptTitle,
-        leadingIcon: Icons.star,
-        // JEBV4-308: status-aware entry (see class doc). Fire-and-forget the
-        // async handler; `_ActionRow` invokes this from a sync `onTap`.
-        onTap: (c) {
-          _onRateTapped(c);
-        },
-      );
+    semanticsId: 'order-detail-rate',
+    title: l10n.ratingPromptTitle,
+    leadingIcon: Icons.star,
+    // JEBV4-308: status-aware entry (see class doc). Fire-and-forget the
+    // async handler; `_ActionRow` invokes this from a sync `onTap`.
+    onTap: (c) {
+      _onRateTapped(c);
+    },
+  );
 
   _DeliveryAction _receiptAction(AppLocalizations l10n) => _DeliveryAction(
-        // JM-033 delivered-receipt route (`delivered-receipt`,
-        // `/orders/:id/receipt`) — reachable only from the delivered hub.
-        semanticsId: 'order-detail-receipt',
-        title: l10n.deliveryActionReceipt,
-        leadingIcon: Icons.receipt_long,
-        onTap: (c) => c.push('/orders/${widget.deliveryId}/receipt'),
-      );
+    // JM-033 delivered-receipt route (`delivered-receipt`,
+    // `/orders/:id/receipt`) — reachable only from the delivered hub.
+    semanticsId: 'order-detail-receipt',
+    title: l10n.deliveryActionReceipt,
+    leadingIcon: Icons.receipt_long,
+    onTap: (c) => c.push('/orders/${widget.deliveryId}/receipt'),
+  );
 
   _DeliveryAction _escalateAction(AppLocalizations l10n) => _DeliveryAction(
-        semanticsId: 'order-detail-escalate',
-        title: l10n.escalateTitle,
-        leadingIcon: Icons.report_problem,
-        onTap: (c) => c.push('/orders/${widget.deliveryId}/escalate'),
-      );
+    semanticsId: 'order-detail-escalate',
+    title: l10n.escalateTitle,
+    leadingIcon: Icons.report_problem,
+    onTap: (c) => c.push('/orders/${widget.deliveryId}/escalate'),
+  );
 
   /// Role-aware Contact label (run-22 chat-cluster fix): the row names the
   /// COUNTERPART — a customer contacts their Jeeber, a Jeeber contacts the
@@ -536,8 +534,7 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
       status = null;
     }
     if (!context.mounted) return;
-    if (status == null ||
-        status.revealState == RatingRevealState.pendingMine) {
+    if (status == null || status.revealState == RatingRevealState.pendingMine) {
       // Not yet rated by this user (or status unavailable) → canonical
       // mandatory rating terminal.
       context.push(_mutualRateLocation(context));
@@ -556,8 +553,9 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
       counterpartName: displayNameOrNull(
         _summary?.counterpartName(viewerIsJeeber: isJeeber),
       ),
-      counterpartAvatarUrl:
-          _summary?.counterpartAvatarUrl(viewerIsJeeber: isJeeber),
+      counterpartAvatarUrl: _summary?.counterpartAvatarUrl(
+        viewerIsJeeber: isJeeber,
+      ),
     );
   }
 
@@ -579,22 +577,22 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen>
         : l10n.mutualRatingTheirStars(counterpart.stars);
     final (title, content) = switch (status.revealState) {
       RatingRevealState.pendingTheirs => (
-          l10n.mutualRatingAwaitingTitle,
-          l10n.mutualRatingAwaitingBody,
-        ),
+        l10n.mutualRatingAwaitingTitle,
+        l10n.mutualRatingAwaitingBody,
+      ),
       RatingRevealState.autoRevealed => (
-          l10n.mutualRatingAutoRevealedTitle,
-          revealedBody,
-        ),
+        l10n.mutualRatingAutoRevealedTitle,
+        revealedBody,
+      ),
       RatingRevealState.bothRated => (
-          l10n.mutualRatingRevealedTitle,
-          revealedBody,
-        ),
+        l10n.mutualRatingRevealedTitle,
+        revealedBody,
+      ),
       // Unreachable — the caller routes pendingMine to the rating terminal.
       RatingRevealState.pendingMine => (
-          l10n.mutualRatingAwaitingTitle,
-          l10n.mutualRatingAwaitingBody,
-        ),
+        l10n.mutualRatingAwaitingTitle,
+        l10n.mutualRatingAwaitingBody,
+      ),
     };
     await showModalBottomSheet<void>(
       context: context,
@@ -823,30 +821,21 @@ class _ActiveStatusBand extends StatelessWidget {
   /// Canonical stage label for a wire status, tolerating the same spellings the
   /// tracking surfaces accept. Unknown reads as the matched floor.
   static String _stageLabel(String statusId, AppLocalizations l10n) {
-    switch (statusId.trim().toLowerCase()) {
-      // R3's stepper vocabulary: the pre-accept spellings are "Ordered", not
-      // "Matched" — DeliveryStatusVocab._prePickup holds both classes.
-      case 'ordered':
-      case 'placed':
-      case 'created':
-      case 'new':
-      case 'pending':
-      case 'requested':
+    switch (DeliveryStatusVocab.stageOf(statusId)) {
+      case DeliveryStatusStage.ordered:
         return l10n.trackingStepOrdered;
-      case 'picked':
-      case 'picked_up':
-      case 'pickedup':
-      case 'at_pickup':
+      case DeliveryStatusStage.pickedUp:
         return l10n.deliveryStagePickedUp;
-      case 'intransit':
-      case 'in_transit':
-      case 'in transit':
-      case 'atdoor':
-      case 'at_door':
-      case 'at door':
-      case 'en_route':
+      case DeliveryStatusStage.inTransit:
         return l10n.deliveryStageInTransit;
-      default:
+      case DeliveryStatusStage.atDoor:
+        return l10n.activeDeliveryStatusAtDoor;
+      case DeliveryStatusStage.delivered:
+        return l10n.deliveryStageDelivered;
+      case DeliveryStatusStage.cancelled:
+        return l10n.deliveryStageCancelled;
+      case DeliveryStatusStage.otherTerminal:
+      case DeliveryStatusStage.unknown:
         return l10n.deliveryStageMatched;
     }
   }

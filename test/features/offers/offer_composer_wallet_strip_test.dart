@@ -55,9 +55,13 @@ const WalletBalance _wallet = WalletBalance(
   currency: 'USD',
 );
 
-Widget _harness(WalletRepository? wallet) {
+Widget _harness(
+  WalletRepository? wallet, {
+  Locale locale = const Locale('en'),
+}) {
   return MaterialApp(
     theme: AppTheme.light(),
+    locale: locale,
     supportedLocales: AppLocalizations.supportedLocales,
     localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
       SyncAppLocalizationsDelegate(),
@@ -79,8 +83,9 @@ void _noop() {}
 
 void main() {
   group('Offer composer wallet strip (screen 17)', () {
-    testWidgets('renders the balance and the top-up link with a wallet',
-        (tester) async {
+    testWidgets('renders the balance and the top-up link with a wallet', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness(const _StubWallet(_wallet)));
       await tester.pumpAndSettle();
@@ -94,7 +99,30 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('Wallet: ${MoneyFormat.format(6.4)} available'),
+        find.text('Fee balance: ${MoneyFormat.format(6.4)} available'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('The customer pays your full offer in cash.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('in-app payment'), findsNothing);
+
+      handle.dispose();
+    });
+
+    testWidgets('Arabic keeps the same full-cash and fee-balance boundary', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _harness(const _StubWallet(_wallet), locale: const Locale('ar')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('رصيد الرسوم:'), findsOneWidget);
+      expect(
+        find.textContaining('يدفع العميل قيمة عرضك كاملة نقداً.'),
         findsOneWidget,
       );
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:clarity_flutter/clarity_flutter.dart' show ClarityMask;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -130,40 +131,42 @@ class _JeebBootstrapState extends State<JeebBootstrap> {
             !_holdSplash;
         if (readyToReveal) _scheduleReveal();
 
-        return Stack(
-          fit: StackFit.expand,
-          alignment: Alignment.center,
-          children: <Widget>[
-            if (result == null)
-              const SizedBox.expand()
-            else
-              IgnorePointer(
-                ignoring: !_revealed,
-                child: ExcludeSemantics(
-                  excluding: !_revealed,
-                  child: JeebApp(
-                    preferences: result.preferences,
-                    crashReporter: result.crashReporter,
-                  ),
-                ),
-              ),
-            if (_overlayMounted)
-              AnimatedOpacity(
-                opacity: _revealed ? 0 : 1,
-                duration: _reduceMotion
-                    ? Duration.zero
-                    : _startupTransitionDuration,
-                curve: Curves.easeInOut,
-                onEnd: _removeOverlay,
-                child: IgnorePointer(
-                  ignoring: _revealed,
+        return ClarityMask(
+          child: Stack(
+            fit: StackFit.expand,
+            alignment: Alignment.center,
+            children: <Widget>[
+              if (result == null)
+                const SizedBox.expand()
+              else
+                IgnorePointer(
+                  ignoring: !_revealed,
                   child: ExcludeSemantics(
-                    excluding: _revealed,
-                    child: const _SplashApp(key: ValueKey<String>('splash')),
+                    excluding: !_revealed,
+                    child: JeebApp(
+                      preferences: result.preferences,
+                      crashReporter: result.crashReporter,
+                    ),
                   ),
                 ),
-              ),
-          ],
+              if (_overlayMounted)
+                AnimatedOpacity(
+                  opacity: _revealed ? 0 : 1,
+                  duration: _reduceMotion
+                      ? Duration.zero
+                      : _startupTransitionDuration,
+                  curve: Curves.easeInOut,
+                  onEnd: _removeOverlay,
+                  child: IgnorePointer(
+                    ignoring: _revealed,
+                    child: ExcludeSemantics(
+                      excluding: _revealed,
+                      child: const _SplashApp(key: ValueKey<String>('splash')),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );

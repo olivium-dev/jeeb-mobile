@@ -34,12 +34,12 @@ class _StubWallet implements WalletRepository {
 
   @override
   Future<WalletBalance> fetchBalance() async => const WalletBalance(
-        availableBalance: 6.40,
-        affordabilityState: WalletAffordability.enough,
-        reservedNow: 0,
-        giftCredit: 0,
-        currency: 'USD',
-      );
+    availableBalance: 6.40,
+    affordabilityState: WalletAffordability.enough,
+    reservedNow: 0,
+    giftCredit: 0,
+    currency: 'USD',
+  );
 }
 
 Widget _harness({required double textScale}) {
@@ -54,9 +54,9 @@ Widget _harness({required double textScale}) {
       GlobalCupertinoLocalizations.delegate,
     ],
     builder: (context, child) => MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaler: TextScaler.linear(textScale),
-      ),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: TextScaler.linear(textScale)),
       child: child!,
     ),
     home: const OfferSubmissionScreen(
@@ -73,8 +73,9 @@ void _noop() {}
 
 void main() {
   group('Offer composer AR/RTL (screen 17)', () {
-    testWidgets('mirrors and survives 200% text with no overflow',
-        (tester) async {
+    testWidgets('mirrors and survives 200% text with no overflow', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
@@ -99,8 +100,9 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('amounts render as LTR-isolated runs inside Arabic copy',
-        (tester) async {
+    testWidgets('amounts render as LTR-isolated runs inside Arabic copy', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await tester.pumpWidget(_harness(textScale: 1));
       await tester.pumpAndSettle();
@@ -114,9 +116,12 @@ void main() {
       expect(kept.codeUnitAt(kept.length - 1), 0x2069);
 
       expect(find.text(kept), findsOneWidget);
-      expect(find.text('أرسل العرض — تحتفظ بـ $kept'), findsOneWidget);
       expect(
-        find.text('المحفظة: ${MoneyFormat.format(6.4)} متاح'),
+        find.text('أرسل العرض — الصافي $kept بعد رسوم جيب'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('رصيد الرسوم: ${MoneyFormat.format(6.4)} متاح'),
         findsOneWidget,
       );
 

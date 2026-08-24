@@ -17,13 +17,14 @@ import 'package:jeeb_mobile/features/registration/presentation/super_login/super
 import 'package:jeeb_mobile/features/registration/presentation/super_login/super_login_state.dart';
 
 import 'support/sync_app_localizations.dart';
+import 'support/test_jwt.dart';
 
 const _registerPath = '/api/PushNotification/register';
 
 /// Real gateway-minted session shape (never a client mint).
 const _session = SuperLoginSession(
   userId: 'super-user-001',
-  accessToken: 'real-access-token',
+  accessToken: validTestJwt,
   refreshToken: 'real-refresh-token',
 );
 
@@ -67,8 +68,7 @@ class _FakeSecureStorage extends Fake implements FlutterSecureStorage {
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) async =>
-      _data[key];
+  }) async => _data[key];
 
   @override
   Future<void> write({
@@ -92,8 +92,7 @@ class _FakeSuperLoginService implements SuperLoginService {
   Future<SuperLoginResult> signIn({
     required String userId,
     required String passcode,
-  }) async =>
-      result;
+  }) async => result;
 }
 
 void main() {
@@ -112,9 +111,9 @@ void main() {
   });
 
   SuperLoginCubit makeCubit() => SuperLoginCubit(
-        service: _FakeSuperLoginService(),
-        tokenStore: tokenStore,
-      );
+    service: _FakeSuperLoginService(),
+    tokenStore: tokenStore,
+  );
 
   // ── Link 1: the sheet establishes the session on super-login success ──────
   group('Link 1 — super-login success drives the shared session gate', () {
@@ -140,74 +139,80 @@ void main() {
         );
 
     testWidgets(
-        'success refreshes the owned SessionCubit → the gate stream emits '
-        'unauthenticated → authenticated (real-login establishment)',
-        (tester) async {
-      final emitted = <SessionStatus>[];
-      final sub = session.stream.listen((s) => emitted.add(s.status));
-      addTearDown(sub.cancel);
+      'success refreshes the owned SessionCubit → the gate stream emits '
+      'unauthenticated → authenticated (real-login establishment)',
+      (tester) async {
+        final emitted = <SessionStatus>[];
+        final sub = session.stream.listen((s) => emitted.add(s.status));
+        addTearDown(sub.cancel);
 
-      await tester.pumpWidget(host(makeCubit(), sessionArg: session));
-      // Cold gate: no token yet → unauthenticated (like app.dart's boot refresh).
-      await session.refresh();
-      await tester.pump();
+        await tester.pumpWidget(host(makeCubit(), sessionArg: session));
+        // Cold gate: no token yet → unauthenticated (like app.dart's boot refresh).
+        await session.refresh();
+        await tester.pump();
 
-      await tester.tap(find.byKey(const Key('open')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.byKey(const Key('open')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
 
-      // Pre-filled sheet opens submit-ready; tap the CTA. Fixed pumps only —
-      await tester.tap(find.byKey(const Key('superLogin.submit')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump(const Duration(milliseconds: 300));
+        // Pre-filled sheet opens submit-ready; tap the CTA. Fixed pumps only —
+        await tester.tap(find.byKey(const Key('superLogin.submit')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pump(const Duration(milliseconds: 300));
 
-      // The owned session-gate stream went unauthenticated → authenticated,
-      expect(
-        emitted,
-        containsAllInOrder(<SessionStatus>[
-          SessionStatus.unauthenticated,
-          SessionStatus.authenticated,
-        ]),
-        reason: 'super-login success must push an authenticated transition onto '
-            'the owned session-gate stream — the real-login establishment.',
-      );
-      expect(session.state.isAuthenticated, isTrue);
-      // Real gateway tokens on the keystore (never a client mint).
-      expect(await tokenStore.accessToken, 'real-access-token');
-      expect(await tokenStore.userId, 'super-user-001');
-      // Sheet popped on success (unchanged UX contract).
-      expect(find.byKey(const Key('superLogin.submit')), findsNothing);
-    });
+        // The owned session-gate stream went unauthenticated → authenticated,
+        expect(
+          emitted,
+          containsAllInOrder(<SessionStatus>[
+            SessionStatus.unauthenticated,
+            SessionStatus.authenticated,
+          ]),
+          reason:
+              'super-login success must push an authenticated transition onto '
+              'the owned session-gate stream — the real-login establishment.',
+        );
+        expect(session.state.isAuthenticated, isTrue);
+        // Real gateway tokens on the keystore (never a client mint).
+        expect(await tokenStore.accessToken, validTestJwt);
+        expect(await tokenStore.userId, 'super-user-001');
+        // Sheet popped on success (unchanged UX contract).
+        expect(find.byKey(const Key('superLogin.submit')), findsNothing);
+      },
+    );
 
     testWidgets(
-        'FAIL-WITHOUT: with no SessionCubit wired the sheet still pops but the '
-        'gate never emits authenticated (proves the sheet-driven refresh is '
-        'what makes establishment intrinsic to super-login)', (tester) async {
-      final emitted = <SessionStatus>[];
-      final sub = session.stream.listen((s) => emitted.add(s.status));
-      addTearDown(sub.cancel);
+      'FAIL-WITHOUT: with no SessionCubit wired the sheet still pops but the '
+      'gate never emits authenticated (proves the sheet-driven refresh is '
+      'what makes establishment intrinsic to super-login)',
+      (tester) async {
+        final emitted = <SessionStatus>[];
+        final sub = session.stream.listen((s) => emitted.add(s.status));
+        addTearDown(sub.cancel);
 
-      await tester.pumpWidget(host(makeCubit(), sessionArg: null));
-      await session.refresh();
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('open')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.byKey(const Key('superLogin.submit')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpWidget(host(makeCubit(), sessionArg: null));
+        await session.refresh();
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('open')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.byKey(const Key('superLogin.submit')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pump(const Duration(milliseconds: 300));
 
-      expect(emitted, <SessionStatus>[SessionStatus.unauthenticated],
-          reason: 'without the sheet-driven refresh, no authenticated emission');
-      expect(find.byKey(const Key('superLogin.submit')), findsNothing);
-    });
+        expect(
+          emitted,
+          <SessionStatus>[SessionStatus.unauthenticated],
+          reason: 'without the sheet-driven refresh, no authenticated emission',
+        );
+        expect(find.byKey(const Key('superLogin.submit')), findsNothing);
+      },
+    );
   });
 
   // ── Link 2: the authenticated emission triggers device registration ───────
-  test(
-      'Link 2 — a real SuperLoginCubit success + session refresh drives the '
+  test('Link 2 — a real SuperLoginCubit success + session refresh drives the '
       'app.dart-shaped gate listener → DeviceTokenRegistrar.notifyLogin() fires '
       'PUT /api/PushNotification/register once (no client mint)', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -258,7 +263,7 @@ void main() {
     expect(dio.bodies.single['deviceId'], isNotEmpty);
     // Identity is server-derived from the bearer; the body carries no userId,
     expect(dio.bodies.single.containsKey('userId'), isFalse);
-    expect(await tokenStore.accessToken, 'real-access-token');
+    expect(await tokenStore.accessToken, validTestJwt);
     expect(await tokenStore.userId, 'super-user-001');
   });
 }

@@ -10,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../dev_seam/dev_seam.dart';
+import '../analytics/clarity/domain/clarity_analytics_port.dart';
+import '../analytics/clarity/presentation/clarity_navigator_observer.dart';
 import '../network/auth_token_store.dart';
 import '../session/account_status_gate.dart';
 import '../session/session_gate.dart';
@@ -75,7 +77,8 @@ import '../../features/delivery_receipt/presentation/delivery_receipt_screen.dar
 import '../../features/location/domain/capture_pin_purpose.dart';
 import '../../features/location/presentation/capture_location_screen.dart';
 import '../../features/location/presentation/client_location_screen.dart';
-import '../../features/location/data/location_repository.dart' show LocationPoint;
+import '../../features/location/data/location_repository.dart'
+    show LocationPoint;
 import '../../features/location/presentation/screens/address_detail_form_screen.dart';
 import '../../features/location/presentation/widgets/capture_picker_sheet.dart';
 import '../../features/location/presentation/widgets/google_map_capture_view.dart';
@@ -270,8 +273,9 @@ String mutualRatingLocation(
     if (name.isNotEmpty) kRateeNameParam: name,
     if (avatar.isNotEmpty) kRateeAvatarParam: avatar,
   };
-  final String suffix =
-      query.isEmpty ? '' : '?${Uri(queryParameters: query).query}';
+  final String suffix = query.isEmpty
+      ? ''
+      : '?${Uri(queryParameters: query).query}';
   return '/orders/$deliveryId/mutual-rate$suffix';
 }
 
@@ -620,9 +624,9 @@ class AppRouter {
     final builder = route.builder;
     final GoRouterWidgetBuilder? wrapped = (fallback != null && builder != null)
         ? (context, state) => RootAwareBackScope(
-              fallbackLocation: fallback,
-              child: builder(context, state),
-            )
+            fallbackLocation: fallback,
+            child: builder(context, state),
+          )
         : builder;
     return GoRoute(
       path: route.path,
@@ -642,6 +646,7 @@ class AppRouter {
     // also a `Cubit` and is therefore added to `refreshListenable` below so a
     // login/logout re-runs the redirect.
     SessionGate session = const AlwaysAuthenticatedSessionGate(),
+    ClarityScreenReporter? clarityScreenReporter,
     // JM-066 (D5): the account-status gate. Defaults to an inert, always-active
     // gate so the account-status redirect is a NO-OP for every call site that
     // doesn't (yet) wire a real status source — preserving prior behaviour. The
@@ -691,6 +696,8 @@ class AppRouter {
       observers: [
         DiagNavObserver(),
         newAppRouteObserver(),
+        if (clarityScreenReporter != null)
+          ClarityNavigatorObserver(clarityScreenReporter),
         if (kObsCompiledIn) ObsNavObserver(),
       ],
       refreshListenable: _MergedRefreshListenable([
@@ -711,7 +718,8 @@ class AppRouter {
         // the chat id as the URI host+segment; normalize it to `/chat/:id` so
         // `chat-detail` resolves the accepted conversation in-app. Inert for
         // in-app navigation and https App Links (already `/chat/<id>`).
-        final chatDeepLink = normalizeChatDeepLink(state.uri) ??
+        final chatDeepLink =
+            normalizeChatDeepLink(state.uri) ??
             normalizeJeebSchemeDeepLink(state.uri);
         if (chatDeepLink != null && state.matchedLocation != chatDeepLink) {
           return chatDeepLink;
@@ -866,10 +874,7 @@ class AppRouter {
                 : const <String, String>{};
             final email = query['email'] ?? extraMap['email'] ?? '';
             final resetToken = query['resetToken'] ?? extraMap['resetToken'];
-            return SetPasswordScreen(
-              email: email,
-              resetToken: resetToken,
-            );
+            return SetPasswordScreen(email: email, resetToken: resetToken);
           },
         ),
         // JM-066 (D5): account-status stub root. The redirect-gate PREDICATE
@@ -1088,13 +1093,17 @@ class AppRouter {
                   profileRepository: SharedPrefsProfileRepository(
                     prefs: sl<SharedPreferences>(),
                   ),
-                  accountService:
-                      DioAccountService(sl<Dio>(), AuthTokenStore()),
+                  accountService: DioAccountService(
+                    sl<Dio>(),
+                    AuthTokenStore(),
+                  ),
                   displayNameRepository: DioDisplayNameRepository(sl<Dio>()),
                   // F5: avatar write path + remote-aware load() (cross-device sync).
                   avatarRepository: sl<AvatarRepository>(),
                   avatarCacheEvictor: sl<AvatarCacheEvictor>(),
-                  remoteProfileRepository: DioCustomerProfileRepository(sl<Dio>()),
+                  remoteProfileRepository: DioCustomerProfileRepository(
+                    sl<Dio>(),
+                  ),
                   refreshSignals: sl.isRegistered<ProfileRefreshSignals>()
                       ? sl<ProfileRefreshSignals>()
                       : null,
@@ -1156,18 +1165,21 @@ class AppRouter {
             // JEBV4-13: forward the recorder's local file path + duration so
             // the transcription review's replay control plays the real clip
             // (the upload id in `audioPath` is a gateway audioId, not a path).
-            onSent: (clipId, transcript,
-                    {String? localAudioPath,
-                    Duration duration = Duration.zero}) =>
-                context.push(
-              '/voice-request/transcription',
-              extra: VoiceClip(
-                audioPath: clipId,
-                durationMs: duration.inMilliseconds,
-                transcript: transcript,
-                localAudioPath: localAudioPath,
-              ),
-            ),
+            onSent:
+                (
+                  clipId,
+                  transcript, {
+                  String? localAudioPath,
+                  Duration duration = Duration.zero,
+                }) => context.push(
+                  '/voice-request/transcription',
+                  extra: VoiceClip(
+                    audioPath: clipId,
+                    durationMs: duration.inMilliseconds,
+                    transcript: transcript,
+                    localAudioPath: localAudioPath,
+                  ),
+                ),
             // Redesign 05 "Type" satellite: the transcription route already
             // renders a typeable field for an empty clip, so switching to
             // typing is a push with a blank clip — never a fabricated one.
@@ -1266,26 +1278,30 @@ class AppRouter {
           path: '/compose-dictation',
           name: 'compose-dictation',
           builder: (context, state) => VoiceRequestScreen(
-            onSent: (clipId, transcript,
-                {String? localAudioPath,
-                Duration duration = Duration.zero}) async {
-              // Review step: same TranscriptionScreen, dictation-result wiring.
-              // JEBV4-13: local path + duration make the replay control real.
-              final clip = await context.push<VoiceClip>(
-                '/compose-dictation/review',
-                extra: VoiceClip(
-                  audioPath: clipId,
-                  durationMs: duration.inMilliseconds,
-                  transcript: transcript,
-                  localAudioPath: localAudioPath,
-                ),
-              );
-              // Confirmed → cascade the result back to the compose field.
-              // Cancelled/re-recorded → stay on the recorder.
-              if (clip != null && context.mounted && context.canPop()) {
-                context.pop(clip);
-              }
-            },
+            onSent:
+                (
+                  clipId,
+                  transcript, {
+                  String? localAudioPath,
+                  Duration duration = Duration.zero,
+                }) async {
+                  // Review step: same TranscriptionScreen, dictation-result wiring.
+                  // JEBV4-13: local path + duration make the replay control real.
+                  final clip = await context.push<VoiceClip>(
+                    '/compose-dictation/review',
+                    extra: VoiceClip(
+                      audioPath: clipId,
+                      durationMs: duration.inMilliseconds,
+                      transcript: transcript,
+                      localAudioPath: localAudioPath,
+                    ),
+                  );
+                  // Confirmed → cascade the result back to the compose field.
+                  // Cancelled/re-recorded → stay on the recorder.
+                  if (clip != null && context.mounted && context.canPop()) {
+                    context.pop(clip);
+                  }
+                },
             // Redesign 05 "Type" satellite on the dictation leg: the compose
             // field the user dictates into is one pop away. Pushing the
             // transcription review here would bypass the dictation return
@@ -1375,8 +1391,8 @@ class AppRouter {
             final cached = extra is FeedRequest
                 ? extra
                 : (sl.isRegistered<RequestFeedService>()
-                    ? sl<RequestFeedService>().findById(id)
-                    : null);
+                      ? sl<RequestFeedService>().findById(id)
+                      : null);
             void back() {
               if (context.canPop()) {
                 context.pop();
@@ -1715,10 +1731,8 @@ class AppRouter {
           // F2 seams: launcher mirrors mapsUrlBuilder; the phone provider
           // reads the local settings.profile.v1 cache (no network, per AC).
           builder: (context, state) => WalletChargeInfoScreen(
-            whatsAppLauncher: (uri) => launchUrl(
-              uri,
-              mode: LaunchMode.externalApplication,
-            ),
+            whatsAppLauncher: (uri) =>
+                launchUrl(uri, mode: LaunchMode.externalApplication),
             accountPhoneProvider: () async {
               final profile = await SharedPrefsProfileRepository(
                 prefs: sl<SharedPreferences>(),

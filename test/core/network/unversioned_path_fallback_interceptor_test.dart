@@ -54,15 +54,15 @@ ResponseBody _json(Map<String, dynamic> body, int status) =>
 void main() {
   test('a 404 on a versioned GET is replayed on the unversioned twin', () async {
     final harness = _harness(
-      (options) => options.path == '/v1/requests'
+      (options) => options.path == '/v1/offers'
           ? _json({'error': 'not found'}, 404)
           : _json({'items': <dynamic>[]}, 200),
     );
 
-    final response = await harness.dio.get<Map<String, dynamic>>('/v1/requests');
+    final response = await harness.dio.get<Map<String, dynamic>>('/v1/offers');
 
     expect(response.statusCode, 200);
-    expect(harness.adapter.paths, ['/v1/requests', '/requests']);
+    expect(harness.adapter.paths, ['/v1/offers', '/offers']);
   });
 
   test('a 405 on a versioned POST is replayed unversioned', () async {

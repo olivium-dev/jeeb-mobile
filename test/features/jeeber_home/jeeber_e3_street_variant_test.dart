@@ -138,6 +138,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(JeeberNoRequestsView.rootKey), findsOneWidget);
+      expect(find.text('You are offline'), findsOneWidget);
+      expect(find.textContaining("you're online"), findsNothing);
       _expectStreet(tester);
     });
 

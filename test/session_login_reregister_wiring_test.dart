@@ -8,6 +8,8 @@ import 'package:jeeb_mobile/core/notifications/data/device_token_registrar.dart'
 import 'package:jeeb_mobile/core/notifications/data/push_transport.dart';
 import 'package:jeeb_mobile/core/session/session_cubit.dart';
 
+import 'support/test_jwt.dart';
+
 /// JEBV4-159 — session-role-sync seam (mirrors `JeebApp._wireSessionRoleSync`).
 /// The existing `device_token_registrar_login_test.dart` proves the registrar
 /// re-registers when `notifyLogin()` / `notifySignedOut()` are called directly.
@@ -47,8 +49,7 @@ class _FakeSecureStorage extends Fake implements FlutterSecureStorage {
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) async =>
-      _data[key];
+  }) async => _data[key];
 
   @override
   Future<void> write({
@@ -104,66 +105,80 @@ void main() {
   }
 
   test(
-      'JEBV4-159 wiring: a real SessionCubit login → sign-out → login-as-'
-      'different-user drives a register PUT for EACH authenticated identity',
-      () async {
-    final storage = _FakeSecureStorage();
-    final tokenStore = AuthTokenStore(storage: storage);
-    final session = SessionCubit(tokenStore: tokenStore);
-    final transport = FakePushTransport(token: 'fcm-shared-token');
-    final dio = _RecordingDio();
-    final registrar = DeviceTokenRegistrar(
-      dio: dio,
-      tokenStore: tokenStore,
-      transport: transport,
-      prefs: prefs,
-      retryInterval: Duration.zero,
-      maxAttempts: 1,
-    );
+    'JEBV4-159 wiring: a real SessionCubit login → sign-out → login-as-'
+    'different-user drives a register PUT for EACH authenticated identity',
+    () async {
+      final storage = _FakeSecureStorage();
+      final tokenStore = AuthTokenStore(storage: storage);
+      final session = SessionCubit(tokenStore: tokenStore);
+      final transport = FakePushTransport(token: 'fcm-shared-token');
+      final dio = _RecordingDio();
+      final registrar = DeviceTokenRegistrar(
+        dio: dio,
+        tokenStore: tokenStore,
+        transport: transport,
+        prefs: prefs,
+        retryInterval: Duration.zero,
+        maxAttempts: 1,
+      );
 
-    await wirePushToSession(session, registrar);
+      await wirePushToSession(session, registrar);
 
-    // --- Login as user A (unauthenticated → authenticated) -----------------
-    await tokenStore.save(
-      accessToken: 'mock-jwt-access-userA',
-      refreshToken: 'mock-refresh-userA',
-      userId: 'userA',
-    );
-    await session.refresh(); // emits authenticated → notifyLogin()
-    // Let the async listener → notifyLogin → _register chain settle.
-    await Future<void>.delayed(Duration.zero);
-    await Future<void>.delayed(Duration.zero);
+      // --- Login as user A (unauthenticated → authenticated) -----------------
+      await tokenStore.save(
+        accessToken: validTestJwt,
+        refreshToken: 'mock-refresh-userA',
+        userId: 'userA',
+      );
+      await session.refresh(); // emits authenticated → notifyLogin()
+      // Let the async listener → notifyLogin → _register chain settle.
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
 
-    expect(dio.paths, [registerPath],
-        reason: 'first login must register the current user with the gateway');
-    expect(dio.bodies.single['fcmToken'], 'fcm-shared-token');
+      expect(
+        dio.paths,
+        [registerPath],
+        reason: 'first login must register the current user with the gateway',
+      );
+      expect(dio.bodies.single['fcmToken'], 'fcm-shared-token');
 
-    // --- Sign out (authenticated → unauthenticated) ------------------------
-    await tokenStore.clear();
-    await session.refresh(); // emits unauthenticated → notifySignedOut()
-    await Future<void>.delayed(Duration.zero);
+      // --- Sign out (authenticated → unauthenticated) ------------------------
+      await tokenStore.clear();
+      await session.refresh(); // emits unauthenticated → notifySignedOut()
+      await Future<void>.delayed(Duration.zero);
 
-    expect(dio.paths.length, 1,
-        reason: 'sign-out itself must not hit the register endpoint');
+      expect(
+        dio.paths.length,
+        1,
+        reason: 'sign-out itself must not hit the register endpoint',
+      );
 
-    // --- Login as a DIFFERENT user B (the crux of JEBV4-159) ---------------
-    await tokenStore.save(
-      accessToken: 'mock-jwt-access-userB',
-      refreshToken: 'mock-refresh-userB',
-      userId: 'userB',
-    );
-    await session.refresh(); // emits authenticated → notifyLogin()
-    await Future<void>.delayed(Duration.zero);
-    await Future<void>.delayed(Duration.zero);
+      // --- Login as a DIFFERENT user B (the crux of JEBV4-159) ---------------
+      await tokenStore.save(
+        accessToken: validTestJwt,
+        refreshToken: 'mock-refresh-userB',
+        userId: 'userB',
+      );
+      await session.refresh(); // emits authenticated → notifyLogin()
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
 
-    expect(dio.paths, [registerPath, registerPath],
-        reason: 'a user-switch login must RE-register so the switched-in user '
-            'has a live device-token row for targeted offer_accepted pushes');
-    // Stable per-install device id is re-owned by user B, not orphaned.
-    expect(dio.bodies[0]['deviceId'], dio.bodies[1]['deviceId']);
-    expect(dio.bodies.every((b) => b['fcmToken'] == 'fcm-shared-token'), isTrue);
+      expect(
+        dio.paths,
+        [registerPath, registerPath],
+        reason:
+            'a user-switch login must RE-register so the switched-in user '
+            'has a live device-token row for targeted offer_accepted pushes',
+      );
+      // Stable per-install device id is re-owned by user B, not orphaned.
+      expect(dio.bodies[0]['deviceId'], dio.bodies[1]['deviceId']);
+      expect(
+        dio.bodies.every((b) => b['fcmToken'] == 'fcm-shared-token'),
+        isTrue,
+      );
 
-    await registrar.dispose();
-    await session.close();
-  });
+      await registrar.dispose();
+      await session.close();
+    },
+  );
 }

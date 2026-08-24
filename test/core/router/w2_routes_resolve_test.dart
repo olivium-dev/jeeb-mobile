@@ -21,6 +21,7 @@ import 'package:jeeb_mobile/features/biometric_auth/data/shared_prefs_pin_reposi
 import 'package:jeeb_mobile/features/biometric_auth/domain/biometric_gateway.dart';
 import 'package:jeeb_mobile/features/jeeber_onboarding_funding/presentation/onboarding_funding_screen.dart';
 import 'package:jeeb_mobile/features/jeeber_pending_offers/presentation/jeeber_pending_offers_screen.dart';
+import 'package:jeeb_mobile/features/kyc/presentation/kyc_wizard_screen.dart';
 import 'package:jeeb_mobile/features/kyc_rejected/presentation/kyc_rejected_screen.dart';
 import 'package:jeeb_mobile/features/offer_kyc_gate/presentation/offer_kyc_gate_screen.dart';
 import 'package:jeeb_mobile/features/settings/data/repositories/biometric_preference_repository_impl.dart';
@@ -158,12 +159,13 @@ void main() {
       expect(find.byType(OfferKycGateScreen), findsOneWidget);
     });
 
-    testWidgets('/kyc/rejected → KycRejectedScreen', (tester) async {
+    testWidgets('/kyc/rejected without authority → KycWizardScreen', (tester) async {
       await pump(tester);
       built.router.goNamed('kyc-rejected');
       await tester.pumpAndSettle();
-      expect(location(), '/kyc/rejected');
-      expect(find.byType(KycRejectedScreen), findsOneWidget);
+      expect(location(), '/profile/kyc');
+      expect(find.byType(KycRejectedScreen), findsNothing);
+      expect(find.byType(KycWizardScreen), findsOneWidget);
     });
 
     testWidgets('/jeeber/pending-offers → JeeberPendingOffersScreen',

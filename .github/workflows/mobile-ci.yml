@@ -49,7 +49,7 @@ jobs:
 
       - name: Install Flutter dependencies (needed for runtime parity tests)
         id: pub_get
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh

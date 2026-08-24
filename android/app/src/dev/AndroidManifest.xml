@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Development-flavor transport seam. Production and staging never merge
+         this source set and retain the HTTPS-only main manifest policy. -->
+    <application
+        android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

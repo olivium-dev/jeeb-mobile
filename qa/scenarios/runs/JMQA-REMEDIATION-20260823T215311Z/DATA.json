@@ -1,0 +1,1018 @@
+{
+  "schema_version": 1,
+  "run_id": "JMQA-REMEDIATION-20260823T215311Z",
+  "updated_at_utc": "2026-08-24T16:24:00Z",
+  "verdict": "NO_GO",
+  "source_gates": {
+    "flutter_sdk": "3.44.2",
+    "pre_release_hardening_baseline": {
+      "passed": 7842,
+      "skipped": 66,
+      "failed": 0,
+      "elapsed_seconds": 306.63,
+      "final_event_success": true
+    },
+    "post_release_hardening_full_suite": {
+      "first_completed_run": {
+        "passed": 7845,
+        "skipped": 66,
+        "failed": 1,
+        "elapsed_seconds": 397.599,
+        "final_event_success": false,
+        "sole_failure": "new_mobile_release_contract_test_not_staged"
+      },
+      "corrective_action": "new_contract_test_staged_and_exact_mb1_check_passed",
+      "clean_rerun_state": "COMPLETE",
+      "clean_rerun": {
+        "passed": 7846,
+        "skipped": 66,
+        "failed": 0,
+        "elapsed_seconds": 359.579,
+        "final_event_success": true
+      },
+      "artifact_aware_stale_contract_run": {
+        "passed": 7851,
+        "skipped": 66,
+        "test_error_events": 3,
+        "elapsed_seconds": 576.958,
+        "final_event_success": false,
+        "cause": "three_obsolete_transport_expectations"
+      },
+      "final_fail_closed_exact_state_run": {
+        "passed": 7855,
+        "skipped": 66,
+        "failed": 0,
+        "test_error_events": 0,
+        "elapsed_seconds": 505.193,
+        "final_event_success": true
+      }
+    },
+    "static_analysis": {
+      "fatal_info_issues": 0
+    },
+    "affected_semantics_tests": {
+      "passed": 151,
+      "failed": 0
+    },
+    "goldens_updated": false
+  },
+  "providers": {
+    "openai_voice": {
+      "live_synthetic_arabic_smoke_http": 200,
+      "transcript_nonempty": true,
+      "mock_used": false,
+      "credential_exposed": false,
+      "hardened_source_tests_passed": 148,
+      "coverage_percent_rounded": 85,
+      "deployed": false,
+      "console_authenticated_user_confirmed": true,
+      "chrome_automation_authorized_for_running_process": false,
+      "codex_clean_restart_required": true,
+      "existing_server_key_live_functional": true,
+      "owning_project_confirmed": false,
+      "protected_production_sink_confirmed": false
+    },
+    "twilio_otp": {
+      "local_cli_profiles_checked": 2,
+      "local_cli_profiles_authorized": 0,
+      "production_contract_target": "account_sid_plus_restricted_key_sid_plus_api_secret_plus_e164_sender",
+      "real_sms_sent": false,
+      "hardening_state": "COMPLETE_NOT_DEPLOYED",
+      "unit_tests_passed": 45,
+      "integration_tests_passed": 13,
+      "deployment_security_policy_tests_passed": 17
+    },
+    "firebase": {
+      "project_id": "jeeb-5a293",
+      "read_access_verified": true,
+      "android_app_ids": [
+        "app.jeeb.mobile.dev",
+        "app.jeeb.mobile"
+      ],
+      "ios_app_ids": [
+        "app.jeeb.jeebMobile"
+      ],
+      "android_sha1_registration_counts": {
+        "app.jeeb.mobile.dev": 1,
+        "app.jeeb.mobile": 1
+      },
+      "local_debug_signer_matches_registered_sha1": false,
+      "production_maps_key_matches_registered_sha1": true,
+      "firebase_android_client_key_has_application_restriction": false,
+      "firebase_ios_client_key_has_bundle_restriction": false,
+      "console_mutated": false
+    }
+  },
+  "gateway": {
+    "local_commit": "724bc9c",
+    "release_build_errors": 0,
+    "unit_tests_passed": 113,
+    "focused_tests_passed": 23,
+    "lifecycle_tests_passed": 7,
+    "deployed": false
+  },
+  "live_topology": {
+    "approved_host_alias": "msi-.39",
+    "swarm_state": "inactive",
+    "swarm_manager": false,
+    "service_manager": "systemd",
+    "required_upstream_health_checks_http_200": 11,
+    "gateway_health_checks_http_200": 4,
+    "wallet_container_reachable": false,
+    "swarm_bootstrap_owner_approved": false,
+    "one_time_service_creation_owner_approved": false,
+    "zero_downtime_cutover_plan_approved": false,
+    "immutable_rollback_baseline_available": false,
+    "dependency_aware_readiness_complete": false,
+    "backup_restore_proof_current": false,
+    "jeeb_app_dns_status": "NXDOMAIN",
+    "api_jeeb_app_dns_status": "NXDOMAIN",
+    "production_https_gateway_available": false,
+    "realtime_lan_health_http": 200,
+    "realtime_socket_unauthenticated_http": 403,
+    "realtime_tls_available": false,
+    "realtime_open_token_minter_mobile_call_present": true,
+    "mutation_performed": false
+  },
+  "mobile_identity": {
+    "android_package": "app.jeeb.mobile",
+    "ios_bundle": "app.jeeb.jeebMobile",
+    "apple_team": "5RGFN5X32P",
+    "store_draft_identity": "com.olivium.jeeb",
+    "store_draft_matches_canonical": false,
+    "android_release_fails_closed_without_signer": true,
+    "android_production_signer_available": false,
+    "signed_android_rc_built": false,
+    "production_gateway_committed_default_present": false,
+    "production_gateway_explicit_https_required": true,
+    "mobile_upg_route_present": false,
+    "ios_release_entitlements_ready": true,
+    "ios_protected_firebase_injection_passed": true,
+    "ios_transient_firebase_config_retrieved": true,
+    "ios_transient_firebase_config_cleaned": true,
+    "ios_production_firebase_config_retained": false,
+    "ios_unsigned_release_build_passed": true,
+    "ios_unsigned_release_size_bytes": 79763604,
+    "ios_dependency_ownership_disjoint": true,
+    "ios_artifact_endpoint_provenance_scan_passed": true,
+    "ios_distribution_profile_available": false,
+    "local_provisioning_profile_count": 0,
+    "local_apple_distribution_identity_available": false,
+    "ios_signed_release_built": false,
+    "associated_domain_owner_gate_closed": false,
+    "associated_domain_dns_status": "NXDOMAIN",
+    "dev_android_apk": {
+      "package": "app.jeeb.mobile.dev",
+      "sha256": "493f6676222418b07dcc06198a66b1369134b0eb0f95c9fd72fca85d6413ab59",
+      "debug_signed": true,
+      "installed": false,
+      "release_candidate": false
+    },
+    "installed_a33_apk_sha256": "63e1633f79c3eadae31a299f441a8f776f18c35242b386516bcc5c6f627d3178",
+    "installed_a33_matches_local_debug_signer": true,
+    "installed_a33_matches_registered_production_signer": false
+  },
+  "physical_android": {
+    "connected": 2,
+    "adb_authorized": 1,
+    "adb_unauthorized": 1,
+    "device_keeper_state": "booted_out_recoverable",
+    "device_keeper_a33_wake_unlock_cycles_observed": 20,
+    "device_keeper_adb_restarts_observed": 20,
+    "rc_installed_during_run": false,
+    "ui_actions_during_remediation": 0,
+    "super_login_plus_used_for_current_evidence": false
+  },
+  "external_mutations": {
+    "deployments": 0,
+    "provider_keys_created": 0,
+    "provider_keys_rotated": 0,
+    "sms_sent": 0,
+    "store_uploads": 0,
+    "firebase_console_changes": 0,
+    "local_device_keeper_bootouts": 1,
+    "recoverable_generated_build_trash_moves": 1
+  },
+  "record_semantics": {
+    "historical_fields_above_are_immutable_observations": true,
+    "current_state_rule": "fold_superseding_observations_in_recorded_at_order_later_fields_override_only_matching_earlier_fields",
+    "artifact_pass_is_functional_pass": false,
+    "apple_validation_is_store_delivery": false
+  },
+  "superseding_observations": [
+    {
+      "event_id": "JMQA-SUP-20260824T113100Z",
+      "recorded_at_utc": "2026-08-24T11:31:00Z",
+      "supersedes_observations_at_or_before_utc": "2026-08-24T00:48:00Z",
+      "reason": "canonical_identity_firebase_signed_artifacts_and_staging_live_state_advanced",
+      "verdict": "NO_GO",
+      "scenario_accounting": {
+        "total_defined": 95,
+        "pass": 0,
+        "fail": 0,
+        "blocked": 0,
+        "not_run": 95,
+        "environment_prerequisites_blocked": true
+      },
+      "canonical_identity": {
+        "android_package": "com.olivium.jeeb",
+        "ios_bundle": "com.olivium.jeeb",
+        "apple_team": "K5RDQ8J7AN",
+        "firebase_project": "jeeb-5a293",
+        "firebase_android_app_id": "1:1051234312170:android:85bc801430c9006623dc93",
+        "firebase_ios_app_id": "1:1051234312170:ios:1036d2eaaf63036a23dc93",
+        "firebase_project_created_for_remediation": false,
+        "staging_rest_origin": "https://app.jeeb.fds-1.com",
+        "associated_link_host": "app.jeeb.fds-1.com"
+      },
+      "android_candidate": {
+        "path": "build/app/outputs/bundle/productionRelease/app-production-release.aab",
+        "version_name": "1.0.0",
+        "version_code": 26082401,
+        "size_bytes": 78376646,
+        "sha256": "b096d063633a1f121b9cd3c5805d79416157dade27ef72cb7edf1dc422df7f62",
+        "min_sdk": 24,
+        "target_sdk": 36,
+        "upload_signer_sha256": "7A:E6:A6:20:BA:89:E8:43:85:13:E4:2C:F5:9E:69:E3:CF:0F:CD:CE:8C:87:D7:71:3B:07:8C:80:3D:A2:E3:BA",
+        "play_app_signing_sha256": "42:76:6A:BB:4B:EA:1F:A4:88:00:96:6F:78:A1:E5:4F:A0:EA:12:B8:A1:6A:58:AF:07:5A:02:01:0B:B5:58:E9",
+        "play_app_signing_sha1_captured": false,
+        "play_app_signing_fingerprints_registered_in_firebase": false,
+        "jarsigner_verified": true,
+        "bundletool_1_18_3_validated": true,
+        "cleartext_disabled": true,
+        "policy_scan_passed": true,
+        "play_upload_key_accepted": false,
+        "uploaded": false,
+        "store_delivered": false,
+        "functional_pass": false
+      },
+      "ios_candidate": {
+        "ipa_path": "build/ios/internal-26082401/jeeb_mobile.ipa",
+        "archive_path": "build/ios/archive/Jeeb-26082401.xcarchive",
+        "version_name": "1.0.0",
+        "build_number": 26082401,
+        "size_bytes": 44461407,
+        "sha256": "7b8a57ba2979994cdea4ed928f206010bb091701df9690abc28594f20941d79c",
+        "signer": "Apple Distribution: Ouday Khaled (K5RDQ8J7AN)",
+        "profile_name": "iOS Team Store Provisioning Profile: com.olivium.jeeb",
+        "profile_uuid": "78f0591f-fd55-467f-8acc-8c9b14821277",
+        "profile_expires_on": "2027-03-25",
+        "production_apns_entitlement": true,
+        "associated_domain": "applinks:app.jeeb.fds-1.com",
+        "policy_scan_passed": true,
+        "apple_validation": {
+          "exit_code": 0,
+          "errors": 0,
+          "warnings": 1,
+          "warning_code": 90068,
+          "operation_id": "8F94153C0",
+          "result_id": "1bb5945d-7000-498b-95e9-fe081d4ae435",
+          "final_request_id": "UUF6W6VVWCFP75TTP3BVDF6WWE",
+          "build_upload_file_id": "b9c9480b-642d-49aa-8120-535fa54ce591",
+          "build_upload_file_status": "COMPLETE",
+          "http_status": 200
+        },
+        "uploaded": false,
+        "testflight_delivered": false,
+        "functional_pass": false
+      },
+      "staging": {
+        "deployment_state": "PRE_DEPLOY_NO_GO",
+        "rest_health_green": true,
+        "normal_otp": "DISABLED_HTTP_503",
+        "super_login_plus": "OPEN",
+        "demo_users": "OPEN",
+        "voice_provider": "FAKE_LIVE",
+        "public_wss_101": false,
+        "aasa_live": false,
+        "assetlinks_live": false,
+        "cloudflare_target_account_access": "UNDER_INVESTIGATION",
+        "isolated_remediation": {
+          "gateway_tests_passed": 86,
+          "realtime_tests_passed": 81,
+          "voice_tests_passed": 149,
+          "firebase_gateway_selection_installed": true,
+          "guardian_ticket_secrets_installed": true,
+          "restricted_twilio_jeeb_secrets_installed": true,
+          "deployed": false
+        }
+      },
+      "devices": {
+        "samsung_a33": "ADB_AUTHORIZED_NO_CANDIDATE_ACTION",
+        "samsung_s24": "ADB_UNAUTHORIZED",
+        "physical_iphone": "OFFLINE",
+        "signed_candidate_installs": 0,
+        "normal_otp_logins": 0,
+        "ui_actions": 0
+      },
+      "console_access": {
+        "chrome_apple_events_available": true,
+        "apple_authenticated": true,
+        "play_authenticated": true,
+        "firebase_authenticated": true,
+        "openai_authenticated": true,
+        "cloudflare_target_account_access": "UNDER_INVESTIGATION",
+        "browser_session_or_cookie_exported": false
+      },
+      "external_mutations_delta": {
+        "firebase_apps_registered_in_existing_project": 2,
+        "firebase_projects_created": 0,
+        "ios_maps_keys_created": 2,
+        "ios_maps_keys_deleted": 1,
+        "apple_app_id_capabilities_enabled": 3,
+        "store_uploads": 0,
+        "deployments": 0,
+        "physical_ui_actions": 0
+      },
+      "acceptance_constraints": {
+        "super_login_plus_allowed": false,
+        "demo_user_allowed": false,
+        "mock_or_fake_allowed": false,
+        "crafted_role_or_kyc_state_allowed": false,
+        "sideload_allowed_for_store_or_os_acceptance": false,
+        "sender_only_evidence_allowed": false,
+        "cash_on_delivery_only": true
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T114300Z",
+      "recorded_at_utc": "2026-08-24T11:43:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T113100Z",
+      "reason": "play_app_signing_fingerprints_registered_in_existing_firebase_android_app",
+      "verdict": "NO_GO",
+      "android_candidate": {
+        "play_app_signing_sha1": "2E:CF:AF:7F:13:AB:9E:B5:34:E4:04:AD:3B:A9:F6:B2:A1:EA:77:12",
+        "play_app_signing_sha256": "42:76:6A:BB:4B:EA:1F:A4:88:00:96:6F:78:A1:E5:4F:A0:EA:12:B8:A1:6A:58:AF:07:5A:02:01:0B:B5:58:E9",
+        "play_app_signing_sha1_captured": true,
+        "play_app_signing_fingerprints_registered_in_firebase": true,
+        "firebase_android_sha1_count": 2,
+        "firebase_android_sha256_count": 2,
+        "signer_pairs": [
+          "play_app_signing",
+          "local_upload_signing"
+        ],
+        "configuration_pass": true,
+        "store_delivered_functional_pass": false
+      },
+      "external_mutations_delta": {
+        "firebase_android_certificate_hashes_added": 2,
+        "firebase_projects_created": 0,
+        "store_uploads": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T114500Z",
+      "recorded_at_utc": "2026-08-24T11:45:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T114300Z",
+      "reason": "android_firebase_config_refreshed_after_play_signer_registration_requires_rebuild",
+      "verdict": "NO_GO",
+      "android_candidate": {
+        "historical_validated_candidate_sha256": "b096d063633a1f121b9cd3c5805d79416157dade27ef72cb7edf1dc422df7f62",
+        "historical_candidate_remains_valid_artifact_evidence": true,
+        "historical_candidate_is_final": false,
+        "historical_candidate_upload_eligible": false,
+        "protected_google_services_refreshed": true,
+        "refreshed_config_oauth_client_count": 3,
+        "refreshed_config_canonical_project_app_package_verified": true,
+        "post_refresh_rebuild_required": true,
+        "final_sha256": null,
+        "final_artifact_gate": "NOT_RUN"
+      },
+      "external_mutations_delta": {
+        "protected_android_config_refreshes": 1,
+        "store_uploads": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T123000Z",
+      "recorded_at_utc": "2026-08-24T12:30:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T114500Z",
+      "reason": "clean_post_refresh_android_artifact_and_product_super_login_removal",
+      "verdict": "NO_GO",
+      "android_candidate": {
+        "path": "build/app/outputs/bundle/productionRelease/app-production-release.aab",
+        "version_name": "1.0.0",
+        "version_code": 26082401,
+        "size_bytes": 77669663,
+        "sha256": "163972d5604c2facd0374a9489f5dd4ba2a05b0274779dc9818b0a220f82153c",
+        "min_sdk": 24,
+        "target_sdk": 36,
+        "upload_signer_sha1": "77:48:5A:6B:9F:AA:39:A7:F7:A3:A2:A7:E7:F8:07:0C:B4:4F:43:0D",
+        "upload_signer_sha256": "7A:E6:A6:20:BA:89:E8:43:85:13:E4:2C:F5:9E:69:E3:CF:0F:CD:CE:8C:87:D7:71:3B:07:8C:80:3D:A2:E3:BA",
+        "play_app_signing_sha1": "2E:CF:AF:7F:13:AB:9E:B5:34:E4:04:AD:3B:A9:F6:B2:A1:EA:77:12",
+        "play_app_signing_sha256": "42:76:6A:BB:4B:EA:1F:A4:88:00:96:6F:78:A1:E5:4F:A0:EA:12:B8:A1:6A:58:AF:07:5A:02:01:0B:B5:58:E9",
+        "jarsigner_verified": true,
+        "bundletool_1_18_3_validated": true,
+        "cleartext_disabled": true,
+        "app_link_host": "app.jeeb.fds-1.com",
+        "firebase_project": "jeeb-5a293",
+        "firebase_app_id": "1:1051234312170:android:85bc801430c9006623dc93",
+        "firebase_upload_and_play_oauth_verified": true,
+        "maps_key_matches_protected_rotation": true,
+        "maps_restrictions_exact": true,
+        "forbidden_binary_counts": {
+          "forbidden_50": 0,
+          "private_http": 0,
+          "wildcard_chat_mint": 0,
+          "old_package": 0,
+          "super_login_endpoint": 0,
+          "super_login_type": 0,
+          "super_login_demo_roster": 0,
+          "super_login_device_seam": 0,
+          "devtool_graph": 0
+        },
+        "final_artifact_gate": "PASS",
+        "uploaded": false,
+        "store_delivered": false,
+        "functional_pass": false
+      },
+      "ios_candidate": {
+        "historical_sha256": "7b8a57ba2979994cdea4ed928f206010bb091701df9690abc28594f20941d79c",
+        "historical_apple_validation_passed": true,
+        "historical_artifact_upload_eligible": false,
+        "current_source_rebuild_required": true,
+        "uploaded": false,
+        "testflight_delivered": false,
+        "functional_pass": false
+      },
+      "product_auth_surface": {
+        "product_main_imports_devtool": false,
+        "shared_di_registers_super_login": false,
+        "native_super_login_seam_present": false,
+        "developer_auth_separate_guarded_entrypoint": true,
+        "release_boundary_tests_passed": 4
+      },
+      "credential_containment": {
+        "restricted_maps_keys_exposed_in_local_diagnostic_output": 2,
+        "exposed_key_resources_deleted": 2,
+        "affected_artifacts_invalidated": true,
+        "replacement_created_without_log_output": true,
+        "replacement_file_mode": "0600",
+        "affected_artifacts_uploaded": 0
+      },
+      "staging_checkpoint": {
+        "infrastructure_pr": 26,
+        "otp_pr": 27,
+        "realtime_pr": 14,
+        "voice_pr": 27,
+        "deployment_state": "PRE_DEPLOY_NO_GO",
+        "cloudflare_worker_token_present": false,
+        "confirmed_sms_canary_recipient_present": false,
+        "deployments": 0
+      },
+      "external_mutations_delta": {
+        "maps_key_resources_created": 2,
+        "maps_key_resources_deleted": 2,
+        "store_uploads": 0,
+        "deployments": 0,
+        "physical_ui_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T124900Z",
+      "recorded_at_utc": "2026-08-24T12:49:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T123000Z",
+      "reason": "clean_current_source_ios_artifact_and_apple_validation",
+      "verdict": "NO_GO",
+      "android_candidate": {
+        "sha256": "163972d5604c2facd0374a9489f5dd4ba2a05b0274779dc9818b0a220f82153c",
+        "final_artifact_gate": "PASS",
+        "uploaded": false,
+        "store_delivered": false,
+        "functional_pass": false
+      },
+      "ios_candidate": {
+        "path": "build/ios/internal-26082401/jeeb_mobile.ipa",
+        "archive_path": "build/ios/archive/Jeeb-26082401.xcarchive",
+        "version_name": "1.0.0",
+        "version_code": 26082401,
+        "size_bytes": 44387024,
+        "sha256": "3592fb673e1e7e669903b98fc1bbaadb54603b275234d151796c4186ab1bda9f",
+        "bundle_id": "com.olivium.jeeb",
+        "team_id": "K5RDQ8J7AN",
+        "profile_name": "iOS Team Store Provisioning Profile: com.olivium.jeeb",
+        "profile_uuid": "78f0591f-fd55-467f-8acc-8c9b14821277",
+        "profile_expiry_date": "2027-03-25",
+        "minimum_ios": "14.0",
+        "aps_environment": "production",
+        "associated_domain": "applinks:app.jeeb.fds-1.com",
+        "firebase_project": "jeeb-5a293",
+        "firebase_app_id": "1:1051234312170:ios:1036d2eaaf63036a23dc93",
+        "strict_codesign_verified": true,
+        "protected_firebase_maps_verified": true,
+        "super_login_surface_present": false,
+        "devtool_surface_present": false,
+        "branded_launch_screen_verified": true,
+        "apple_validation_passed": true,
+        "apple_validation_errors": 0,
+        "apple_validation_warning_codes": [
+          90068
+        ],
+        "apple_content_delivery_operation": "7830413C0",
+        "final_artifact_gate": "PASS",
+        "uploaded": false,
+        "testflight_delivered": false,
+        "functional_pass": false
+      },
+      "external_mutations_delta": {
+        "store_uploads": 0,
+        "deployments": 0,
+        "physical_ui_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T134000Z",
+      "recorded_at_utc": "2026-08-24T13:40:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T124900Z",
+      "reason": "mobile_full_suite_closure_and_staging_review_checkpoint",
+      "verdict": "NO_GO",
+      "mobile_source_gate": {
+        "initial_run": {
+          "passed": 7865,
+          "skipped": 66,
+          "failed": 3
+        },
+        "receipt_failure_cause": "two_intended_release_tests_untracked",
+        "receipt_gate_passed": 7,
+        "remaining_failure_cause": "compose_only_empty_or_new_chat_id_triggered_realtime_resolution",
+        "boundary_fix_lines": 4,
+        "former_failing_file_passed": 14,
+        "gateway_realtime_contracts_passed": 25,
+        "final_run": {
+          "passed": 7868,
+          "skipped": 66,
+          "failed": 0,
+          "elapsed_seconds": 433,
+          "final_event_success": true
+        },
+        "format_analysis_diff_secret_checks_passed": true
+      },
+      "staging_pr_checkpoint": {
+        "infrastructure_pr": 26,
+        "infrastructure_independent_review": "GO",
+        "gateway_pr": 523,
+        "gateway_head": "3a52982",
+        "gateway_unit_passed": 115,
+        "gateway_focused_integration_passed": 27,
+        "gateway_remote_state": "PARTIAL_GREEN_REVIEW_PENDING",
+        "realtime_pr": 14,
+        "realtime_review_state": "REQUEST_CHANGES_REMEDIATION_ACTIVE",
+        "otp_pr": 27,
+        "otp_ci_green": true,
+        "voice_pr": 27,
+        "voice_ci_green": true,
+        "merged_prs": 0,
+        "deployments": 0
+      },
+      "external_authority_gates": {
+        "cloudflare_target_account_worker_authority": false,
+        "cloudflare_challenge_pending": false,
+        "cloudflare_token_created": false,
+        "confirmed_sms_canary_recipient_present": false,
+        "a33_e164_discoverable": false,
+        "sms_sent": false
+      },
+      "device_state": {
+        "a33_adb": "authorized",
+        "s24_adb": "unauthorized",
+        "iphone": "offline",
+        "jeeb_candidate_installs": 0,
+        "jeeb_app_ui_actions": 0,
+        "settings_navigation_actions": 1
+      },
+      "external_mutations_delta": {
+        "store_uploads": 0,
+        "deployments": 0,
+        "sms_sent": 0,
+        "jeeb_app_ui_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T140700Z",
+      "recorded_at_utc": "2026-08-24T14:07:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T134000Z",
+      "reason": "forced_clean_source_current_store_artifacts",
+      "verdict": "NO_GO",
+      "cache_containment": {
+        "incremental_android_hash_equal_to_superseded_hash": true,
+        "incremental_artifact_rejected": true,
+        "incremental_artifact_uploaded": false,
+        "incremental_artifact_installed": false,
+        "superseded_artifacts_preserved_in_trash": true,
+        "clean_build_outputs_purged": true
+      },
+      "android_candidate": {
+        "path": "build/app/outputs/bundle/productionRelease/app-production-release.aab",
+        "version_name": "1.0.0",
+        "version_code": 26082401,
+        "size_bytes": 77670304,
+        "sha256": "4586571b76cd6f952bfa037d04f712076bbfe693ae4c2be70f47c534c48bf62b",
+        "package": "com.olivium.jeeb",
+        "minimum_sdk": 24,
+        "target_sdk": 36,
+        "bundletool_1_18_3_validated": true,
+        "strict_jar_signature_verified": true,
+        "upload_signer_verified": true,
+        "cleartext_disabled": true,
+        "app_link_host": "app.jeeb.fds-1.com",
+        "firebase_project": "jeeb-5a293",
+        "firebase_app_id": "1:1051234312170:android:85bc801430c9006623dc93",
+        "protected_maps_key_matched": true,
+        "forbidden_binary_counts": {
+          "forbidden_50": 0,
+          "private_192": 0,
+          "emulator_origin": 0,
+          "loopback_origin": 0,
+          "wildcard_chat_mint": 0,
+          "super_login": 0,
+          "devtool": 0
+        },
+        "firebase_auth_internal_localhost_count": 1,
+        "firebase_auth_internal_localhost_provenance_verified": true,
+        "protected_firebase_cleanup": true,
+        "final_artifact_gate": "PASS",
+        "uploaded": false,
+        "store_delivered": false,
+        "functional_pass": false
+      },
+      "ios_candidate": {
+        "path": "build/ios/internal-26082401/jeeb_mobile.ipa",
+        "archive_path": "build/ios/archive/Jeeb-26082401.xcarchive",
+        "version_name": "1.0.0",
+        "version_code": 26082401,
+        "size_bytes": 44386543,
+        "sha256": "eeebd0e2fa25aca08a78b308546660f2305ec2156c6f589ed75c08c8e6e7ef94",
+        "bundle_id": "com.olivium.jeeb",
+        "team_id": "K5RDQ8J7AN",
+        "aps_environment": "production",
+        "associated_domain": "applinks:app.jeeb.fds-1.com",
+        "firebase_project": "jeeb-5a293",
+        "firebase_app_id": "1:1051234312170:ios:1036d2eaaf63036a23dc93",
+        "strict_codesign_verified": true,
+        "protected_firebase_maps_verified": true,
+        "super_login_surface_present": false,
+        "devtool_surface_present": false,
+        "branded_launch_screen_verified": true,
+        "protected_input_cleanup": true,
+        "apple_validation_passed": true,
+        "apple_validation_errors": 0,
+        "apple_validation_warning_codes": [
+          90068
+        ],
+        "final_artifact_gate": "PASS",
+        "uploaded": false,
+        "testflight_delivered": false,
+        "functional_pass": false
+      },
+      "external_mutations_delta": {
+        "store_uploads": 0,
+        "deployments": 0,
+        "physical_app_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T141200Z",
+      "recorded_at_utc": "2026-08-24T14:12:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T140700Z",
+      "reason": "mobile_artifact_source_lineage_gate",
+      "verdict": "NO_GO",
+      "mobile_source_lineage": {
+        "working_tree_clean": false,
+        "immutable_revision_frozen": false,
+        "independent_review_passed": false,
+        "artifacts_bound_to_approved_revision": false,
+        "android_candidate_sha256": "4586571b76cd6f952bfa037d04f712076bbfe693ae4c2be70f47c534c48bf62b",
+        "ios_candidate_sha256": "eeebd0e2fa25aca08a78b308546660f2305ec2156c6f589ed75c08c8e6e7ef94",
+        "upload_eligible": false
+      },
+      "external_mutations_delta": {
+        "store_uploads": 0,
+        "deployments": 0,
+        "physical_app_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T141900Z",
+      "recorded_at_utc": "2026-08-24T14:19:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T141200Z",
+      "reason": "fresh_public_staging_edge_preflight",
+      "verdict": "NO_GO",
+      "public_edge": {
+        "ready_http_status": 200,
+        "super_login_users_http_status": 200,
+        "demo_users_http_status": 200,
+        "aasa_http_status": 401,
+        "assetlinks_http_status": 401,
+        "unauthenticated_websocket_upgrade_http_status": 401,
+        "unauthenticated_websocket_reached_phoenix": false,
+        "plain_http_status": 200,
+        "plain_http_redirected_to_https": false,
+        "tls_1_1_accepted": true,
+        "tls_1_2_accepted": true
+      },
+      "external_mutations_delta": {
+        "provider_requests": 0,
+        "sms_sent": 0,
+        "data_mutations": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T144400Z",
+      "recorded_at_utc": "2026-08-24T14:44:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T141900Z",
+      "reason": "source_lineage_and_staging_pr_review_reconciliation",
+      "verdict": "NO_GO",
+      "mobile_source_lineage": {
+        "head": "a8810345",
+        "matches_origin_main": true,
+        "staged_tracked_paths": 60,
+        "unstaged_tracked_paths": 92,
+        "staged_unstaged_collision_paths": 19,
+        "unique_changed_tracked_paths": 133,
+        "untracked_paths": 245,
+        "index_build_coherent": false,
+        "commit_current_index_allowed": false,
+        "clean_worktree_reconstruction_required": true,
+        "raw_codex_proof_must_remain_untracked": true,
+        "upload_eligible": false
+      },
+      "staging_pr_reviews": {
+        "infrastructure_pr": 26,
+        "infrastructure_ci_green": true,
+        "infrastructure_independent_review_approved": true,
+        "gateway_pr": 523,
+        "gateway_head": "63b19dba2b1b2aa94c107d719173a2ebfc4bde33",
+        "gateway_ci_green": true,
+        "gateway_independent_review_approved": true,
+        "gateway_open_protocol_gates": [
+          "qa",
+          "product_owner",
+          "staff_tech_lead",
+          "codeowner",
+          "cross_repo_readiness",
+          "merge",
+          "deployment",
+          "live_probes"
+        ],
+        "otp_pr": 27,
+        "otp_review_state": "REQUEST_CHANGES",
+        "otp_p1_findings": 4,
+        "otp_p2_findings": 2,
+        "otp_remediation_state": "ISOLATED_WRITER_ACTIVE",
+        "voice_pr": 27,
+        "voice_review_state": "REQUEST_CHANGES",
+        "voice_p1_findings": 3,
+        "voice_p2_findings": 2,
+        "voice_remediation_state": "QUEUED_AFTER_OTP",
+        "realtime_pr": 14,
+        "realtime_review_state": "REQUEST_CHANGES",
+        "realtime_p1_findings": 3,
+        "realtime_remediation_state": "ISOLATED_WRITER_ACTIVE"
+      },
+      "external_mutations_delta": {
+        "provider_requests": 0,
+        "sms_sent": 0,
+        "credential_revocations": 0,
+        "data_mutations": 0,
+        "merges": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T145700Z",
+      "recorded_at_utc": "2026-08-24T14:57:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T144400Z",
+      "reason": "service_remediation_and_mobile_provider_file_checkpoint",
+      "verdict": "NO_GO",
+      "service_remediation": {
+        "realtime_pr": 14,
+        "realtime_head": "ac05b6481a4d8ba3c0024ca7d36bc3c23301ef65",
+        "realtime_local_tests_passed": 634,
+        "realtime_policy_tests_passed": 17,
+        "realtime_remote_checks_green": true,
+        "realtime_exact_head_review_state": "ACTIVE",
+        "otp_review_findings_implemented_locally": true,
+        "otp_unit_tests_passed": 51,
+        "otp_integration_tests_passed": 13,
+        "otp_policy_tests_passed": 27,
+        "otp_committed": false,
+        "voice_provider_error_classification_closed": true,
+        "voice_unique_uncached_arabic_smoke_closed": true,
+        "voice_focused_validator_policy_tests_passed": 18,
+        "voice_rollback_and_secret_pruning_state": "ACTIVE"
+      },
+      "mobile_provider_file_disposition": {
+        "legacy_real_android_firebase_files_tracked_in_base": 2,
+        "release_overlay_deletes_real_files": true,
+        "protected_injection_required": true,
+        "client_api_key_value_recorded_in_report": false,
+        "provider_restriction_or_rotation_proof_complete": false,
+        "repository_history_disposition_complete": false
+      },
+      "external_mutations_delta": {
+        "provider_requests": 0,
+        "sms_sent": 0,
+        "credential_rotations": 0,
+        "data_mutations": 0,
+        "merges": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T150100Z",
+      "recorded_at_utc": "2026-08-24T15:01:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T145700Z",
+      "reason": "firebase_client_key_restriction_and_otp_candidate_green",
+      "verdict": "NO_GO",
+      "firebase_client_key_hardening": {
+        "historical_key_value_already_tracked_in_git": true,
+        "transient_authenticated_diagnostic_output_occurred": true,
+        "historical_key_value_copied_to_evidence_pack": false,
+        "android_application_restrictions_before": 0,
+        "android_application_restrictions_after": 4,
+        "canonical_package_upload_signer_allowed": true,
+        "canonical_package_play_signer_allowed": true,
+        "legacy_production_package_signer_allowed": true,
+        "legacy_development_package_signer_allowed": true,
+        "api_allowlist_preserved": true,
+        "real_client_config_files_removed_in_overlay": 2,
+        "clean_reconstruction_committed": false,
+        "repository_history_security_disposition_complete": false
+      },
+      "otp_candidate": {
+        "pr": 27,
+        "head": "b0e873df1a45b59a47f923526845fdaae59fe297",
+        "review_findings_implemented": 6,
+        "unit_tests_passed": 51,
+        "integration_tests_passed": 13,
+        "policy_tests_passed": 29,
+        "remote_checks_green": true,
+        "exact_head_independent_review_state": "PENDING",
+        "owner_confirmed_sms_recipient_present": false,
+        "deployed": false
+      },
+      "external_mutations_delta": {
+        "firebase_api_key_restriction_updates": 1,
+        "provider_keys_created": 0,
+        "provider_keys_rotated": 0,
+        "provider_requests": 0,
+        "sms_sent": 0,
+        "data_mutations": 0,
+        "merges": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T150500Z",
+      "recorded_at_utc": "2026-08-24T15:05:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T150100Z",
+      "reason": "firebase_client_key_security_disposition",
+      "verdict": "NO_GO",
+      "firebase_client_key_disposition": {
+        "official_guidance": "FIREBASE_ONLY_CLIENT_KEYS_ARE_PUBLIC_IDENTIFIERS",
+        "api_restrictions_firebase_only": true,
+        "android_package_signer_restrictions": 4,
+        "authorization_depends_on_iam_rules_and_app_check": true,
+        "rotation_required": false,
+        "history_rewrite_required": false,
+        "real_legacy_config_files_allowed_in_reconstructed_head": false,
+        "post_change_sdkconfig_refetch": "BLOCKED_BY_STALE_LOCAL_FIREBASE_CLI_CREDENTIAL",
+        "store_runtime_proof_complete": false
+      },
+      "external_mutations_delta": {
+        "provider_updates": 0,
+        "provider_requests": 0,
+        "sms_sent": 0,
+        "data_mutations": 0,
+        "merges": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0,
+        "recoverable_diagnostic_logs_moved_to_trash": 2
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T152300Z",
+      "recorded_at_utc": "2026-08-24T15:23:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T150500Z",
+      "reason": "exact_head_service_rollout_reviews",
+      "verdict": "NO_GO",
+      "otp_candidate": {
+        "pr": 27,
+        "head": "29ff7af77e22d48f1ba63ff03df988c2b5e8b104",
+        "unit_tests_passed": 51,
+        "integration_tests_passed": 13,
+        "rollout_policy_tests_passed": 32,
+        "remote_checks_green": true,
+        "exact_head_independent_review_state": "APPROVED",
+        "same_digest_full_spec_rollback_proven": true,
+        "drifted_restoration_fails_closed": true,
+        "owner_confirmed_sms_recipient_present": false,
+        "deployed": false
+      },
+      "realtime_candidate": {
+        "pr": 14,
+        "head": "ac05b6481a4d8ba3c0024ca7d36bc3c23301ef65",
+        "local_tests_passed": 634,
+        "remote_checks_green": true,
+        "exact_head_independent_review_state": "REQUEST_CHANGES",
+        "p1_findings": 3,
+        "p2_findings": 1,
+        "full_spec_recovery_required": true,
+        "armed_authenticated_wss_probe_set_required": true,
+        "isolated_writer_active": true,
+        "deployed": false
+      },
+      "voice_candidate": {
+        "pr": 27,
+        "head": "e5b3142409f9936aa4aba749a9c2775a2423bf04",
+        "tests_passed": 173,
+        "coverage_percent_rounded": 85,
+        "remote_checks_green": true,
+        "prior_review_findings_closed": 5,
+        "exact_head_independent_review_state": "REQUEST_CHANGES",
+        "new_p1_findings": 1,
+        "same_digest_full_spec_recovery_required": true,
+        "isolated_writer_active": true,
+        "deployed": false
+      },
+      "external_mutations_delta": {
+        "provider_updates": 0,
+        "provider_requests": 0,
+        "sms_sent": 0,
+        "data_mutations": 0,
+        "merges": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0
+      }
+    },
+    {
+      "event_id": "JMQA-SUP-20260824T162400Z",
+      "recorded_at_utc": "2026-08-24T16:24:00Z",
+      "supersedes_event_id": "JMQA-SUP-20260824T152300Z",
+      "reason": "clean_mobile_source_reconstruction_and_latest_service_reviews",
+      "verdict": "NO_GO",
+      "mobile_source_reconstruction": {
+        "branch": "release/staging-store-reconstruct-20260824",
+        "base": "a88103459cb9c74df41b82a2675bd255a0b132fb",
+        "selected_files": 188,
+        "tracked_deltas": 97,
+        "reviewed_source_additions": 91,
+        "staged_without_unstaged_overlay": true,
+        "receipt_tests_passed": 23,
+        "full_suite_passed": 7868,
+        "full_suite_skipped": 66,
+        "full_suite_failed": 0,
+        "full_suite_elapsed_seconds": 500.365,
+        "analysis_issues": 0,
+        "staged_secret_scan_findings": 0,
+        "unsigned_ios_release_passed": true,
+        "signed_store_artifacts_rebuilt_from_approved_revision": false,
+        "independent_review_complete": false
+      },
+      "voice_candidate": {
+        "pr": 27,
+        "head": "6509c840f6098a3d041d1f07d8b432a51a2a9ca7",
+        "tests_passed": 177,
+        "remote_checks_green": true,
+        "exact_head_independent_review_state": "APPROVED",
+        "deployed": false
+      },
+      "realtime_candidate": {
+        "pr": 14,
+        "head": "29eb886d928ab6a2b9fa0e251cd00aee9110345d",
+        "remote_checks_green": true,
+        "exact_head_independent_review_state": "REQUEST_CHANGES",
+        "remaining_p1_findings": 1,
+        "unknown_authoritative_spec_rollback_toggle_risk": true,
+        "deployed": false
+      },
+      "cross_service_rollout": {
+        "safe_single_step_topological_order_exists": false,
+        "two_phase_bootstrap_required": true,
+        "cloudflare_target_account_authority_present": false
+      },
+      "external_mutations_delta": {
+        "provider_updates": 0,
+        "provider_requests": 0,
+        "sms_sent": 0,
+        "data_mutations": 0,
+        "merges": 0,
+        "deployments": 0,
+        "store_actions": 0,
+        "device_actions": 0,
+        "rebuildable_cache_directories_deleted": 5
+      }
+    }
+  ]
+}

@@ -4,30 +4,40 @@ import 'package:jeeb_mobile/core/config/app_config.dart';
 
 /// ANTI-DRIFT contract for ARCH-01 / INFRA-01 (the S16 `/v1/v1` doubling NO-GO).
 /// FROZEN convention: `AppConfig.gatewayBaseUrl` is ORIGIN-ONLY (scheme + host +
+const _contractOrigin = 'https://gateway.contract.invalid';
+
 int _countV1(String url) => '/v1'.allMatches(url).length;
 
 /// Resolves the full URL Dio would request for [path] under the configured
 /// origin-only base, exactly as the real client does (`baseUrl + path`).
 String _resolve(String path) =>
-    RequestOptions(baseUrl: AppConfig.gatewayBaseUrl, path: path)
-        .uri
-        .toString();
+    RequestOptions(baseUrl: _contractOrigin, path: path).uri.toString();
 
 void main() {
   group('ARCH-01/INFRA-01 base-URL convention', () {
-    test('gatewayBaseUrl is origin-only — does NOT end in /v1 or a slash', () {
+    test('production gateway has no committed default', () {
       expect(
-        AppConfig.gatewayBaseUrl.endsWith('/v1'),
+        AppConfig.gatewayBaseUrl,
+        isEmpty,
+        reason:
+            'a production build must supply an explicit reviewed HTTPS origin',
+      );
+    });
+
+    test('explicit gateway origin does NOT end in /v1 or a slash', () {
+      expect(
+        _contractOrigin.endsWith('/v1'),
         isFalse,
-        reason: 'Base must be origin-only; the /v1 belongs on each path. '
+        reason:
+            'Base must be origin-only; the /v1 belongs on each path. '
             'A /v1 here doubles to /v1/v1 (the S16 availability NO-GO).',
       );
       expect(
-        AppConfig.gatewayBaseUrl.endsWith('/'),
+        _contractOrigin.endsWith('/'),
         isFalse,
         reason: 'Base must have no trailing slash.',
       );
-      expect(AppConfig.gatewayBaseUrl, 'https://api.jeeb.app');
+      expect(Uri.parse(_contractOrigin).scheme, 'https');
     });
 
     test('representative core-flow paths resolve to exactly one /v1', () {
@@ -52,7 +62,10 @@ void main() {
 
     test('me-scoped availability route carries no userId and one /v1', () {
       final url = _resolve('/v1/jeebers/me/availability');
-      expect(url, 'https://api.jeeb.app/v1/jeebers/me/availability');
+      expect(
+        url,
+        'https://gateway.contract.invalid/v1/jeebers/me/availability',
+      );
       expect(url.contains('user-jeeber-002'), isFalse);
     });
   });

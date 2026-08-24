@@ -2,25 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Dev-only ATS exception, scoped to the MSI LAN gateway host. Mirrors
-	     android/app/src/{main,debug}/res/xml/network_security_config.xml. -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>192.168.2.39</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<false/>
-			</dict>
-		</dict>
-	</dict>
-	<!-- iOS 14+ Local Network privacy: reaching the LAN dev gateway (192.168.2.39)
-	     from a physical device needs this consent prompt; denial = errno 65. -->
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Jeeb connects to a development server on your local network to test deliveries.</string>
+	<!-- The protected release wrapper expands this build setting. The real key
+	     never exists in tracked source and Release/Profile fail if the protected
+	     xcconfig is absent. -->
+	<key>GMSApiKey</key>
+	<string>$(GOOGLE_MAPS_API_KEY)</string>
 	<!-- Sprint 1 Stream B (T-MOB-017) / Sprint 2 Stream G: location usage
 	     descriptions. Required before iOS will surface the geolocator permission
 	     prompt — Apple rejects any build that uses location without these keys. -->
@@ -40,10 +26,22 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>app.jeeb.mobile</string>
+			<string>com.olivium.jeeb</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>jeeb</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>GoogleSignIn</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Expanded from an ignored, mode-0600 xcconfig created by the
+				     protected Firebase wrapper and removed after the build. -->
+				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
 	</array>

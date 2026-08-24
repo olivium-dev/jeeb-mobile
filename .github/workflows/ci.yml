@@ -14,6 +14,7 @@ env:
   # Must match the Mac Studio build machine (~/flutter-3.44) — the toolchain the
   # APK that ships to the test phones is actually compiled with.
   FLUTTER_VERSION: '3.44.2'
+  FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
 
 jobs:
   analyze:
@@ -44,7 +45,7 @@ jobs:
 
       - name: Install dependencies
         id: pub_get
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
@@ -86,7 +87,7 @@ jobs:
 
       - name: Install dependencies
         id: pub_get
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
@@ -130,12 +131,28 @@ jobs:
 
       - name: Install dependencies
         id: pub_get
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: firebase_core pin gate
         run: bash tool/check_firebase_core_pin.sh
 
+      - name: Inject and validate dev Firebase config
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          DEV_GOOGLE_SERVICES_JSON_B64: ${{ secrets.DEV_GOOGLE_SERVICES_JSON_B64 }}
+          DEV_FIREBASE_EXPECTED_PROJECT_NUMBER: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_NUMBER }}
+          DEV_FIREBASE_EXPECTED_PROJECT_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_PROJECT_ID }}
+          DEV_FIREBASE_EXPECTED_APP_ID: ${{ secrets.DEV_FIREBASE_EXPECTED_APP_ID }}
+        run: |
+          printf '%s' "$DEV_GOOGLE_SERVICES_JSON_B64" | base64 --decode > android/app/src/dev/google-services.json
+          bash tool/validate_dev_google_services.sh
+
+      - name: Skip dev FCM APK for fork PR
+        if: github.event_name == 'pull_request'
+        run: echo "Secret-dependent dev FCM APK build is skipped; analyze and tests already ran."
+
       - name: Validate Maps API key
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
@@ -145,6 +162,110 @@ jobs:
           fi
 
       - name: Build APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
-        run: flutter build apk --flavor dev --debug --dart-define=APP_FLAVOR=dev
+        run: flutter build apk --flavor dev --debug --dart-define=APP_FLAVOR=dev --dart-define=REQUIRE_REAL_PUSH=true
+
+  android-release-contracts:
+    name: Android release signing contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: analyze
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Checkout omds-flutter sibling for path dep
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        continue-on-error: true
+        id: checkout_omds
+        with:
+          repository: olivium-dev/omds-flutter
+          path: __omds_checkout
+          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Move omds-flutter into expected sibling path
+        if: steps.checkout_omds.outcome == 'success'
+        run: mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve locked Flutter dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Prove production signing fails closed without approved material
+        run: bash tool/test_android_release_signing.sh
+
+      - name: Validate protected Android Firebase injection contract
+        run: bash tool/test_android_firebase_config.sh
+
+  ios-release-contracts:
+    name: iOS release contracts
+    runs-on: macos-15
+    timeout-minutes: 30
+    needs: analyze
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Checkout omds-flutter sibling for path dep
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        continue-on-error: true
+        id: checkout_omds
+        with:
+          repository: olivium-dev/omds-flutter
+          path: __omds_checkout
+          token: ${{ secrets.OMDS_FLUTTER_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Move omds-flutter into expected sibling path
+        if: steps.checkout_omds.outcome == 'success'
+        run: mv "$GITHUB_WORKSPACE/__omds_checkout" "$(dirname "$GITHUB_WORKSPACE")/omds-flutter"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve locked Flutter dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Resolve non-SPM CocoaPods plugins from the lock
+        run: cd ios && pod install --deployment
+
+      - name: Enforce CocoaPods and SwiftPM dependency ownership
+        run: bash tool/check_ios_dependency_ownership.sh
+
+      - name: Validate protected iOS Firebase injection contract
+        run: bash tool/test_ios_firebase_config.sh
+
+      - name: Validate entitlement files
+        run: |
+          plutil -lint ios/Runner/Runner.entitlements
+          plutil -lint ios/Runner/Runner.Release.entitlements
+
+      - name: Resolve canonical release identity and entitlements
+        run: |
+          settings="$(xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -showBuildSettings)"
+          printf '%s\n' "$settings" | grep -Eq \
+            '^[[:space:]]*PRODUCT_BUNDLE_IDENTIFIER = com\.olivium\.jeeb$'
+          printf '%s\n' "$settings" | grep -Eq \
+            '^[[:space:]]*DEVELOPMENT_TEAM = K5RDQ8J7AN$'
+          printf '%s\n' "$settings" | grep -Eq \
+            '^[[:space:]]*CODE_SIGN_ENTITLEMENTS = Runner/Runner\.Release\.entitlements$'
+
+      - name: Compile and inspect synthetic unsigned iOS release
+        run: bash tool/build_unsigned_ios_release_contract.sh

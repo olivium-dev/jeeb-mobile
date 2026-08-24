@@ -1,5 +1,6 @@
 import Firebase
 import Flutter
+import GoogleMaps
 import UIKit
 
 @main
@@ -15,6 +16,14 @@ import UIKit
     #else
     // Production remains fail-loud: configure the required bundled plist
     // before any plugin can touch Firebase.
+    guard
+      let mapsAPIKey = Bundle.main.object(forInfoDictionaryKey: "GMSApiKey") as? String,
+      mapsAPIKey.hasPrefix("AIza"),
+      mapsAPIKey.count == 39,
+      GMSServices.provideAPIKey(mapsAPIKey)
+    else {
+      fatalError("Required iOS Maps configuration is missing or invalid.")
+    }
     FirebaseApp.configure()
     #endif
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)

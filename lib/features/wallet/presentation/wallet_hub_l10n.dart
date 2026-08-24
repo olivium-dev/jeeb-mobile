@@ -58,17 +58,18 @@ class WalletHubL10n {
   // request below can land it in place. `walletTopUpCta` is SHARED with the KYC
   // status view and the offer composer, so the hub asks for its own key rather
   // than restyling everybody's short label.
-  String get availableBalanceLabel => _pick('Available to bid', 'متاح للمزايدة');
-  String get topUpCta => _pick('Top up wallet', 'اشحن المحفظة');
+  String get availableBalanceLabel =>
+      _pick('Available to bid', 'متاح للمزايدة');
+  String get topUpCta => _pick('Add fee balance', 'إضافة رصيد الرسوم');
 
   /// A11y label for the top bar's back circle (`wallet_back`).
   String get back => _pick('Back', 'رجوع');
 
   /// The docked trust line (D41/D44 — cash never touches this wallet).
   String get cashDisclaimer => _pick(
-        'Customer cash never passes through this wallet.',
-        'نقود العميل لا تمر أبداً عبر هذه المحفظة.',
-      );
+    'Customer cash never enters this fee balance.',
+    'نقود العميل لا تدخل أبداً في رصيد الرسوم هذا.',
+  );
 
   // ── Gift / starter-credit badge (D42). ────────────────────────────────────
   //
@@ -76,16 +77,16 @@ class WalletHubL10n {
   // "included" restored per doc-13 P1; the wire still does not state whether
   // `giftCredit` composes `availableBalance` — raised as an owner question.
   String giftBadge(String amount) => _pick(
-        '$amount starter credit included',
-        'رصيد بداية $amount مُضمَّن',
-      );
+    '$amount non-cash, non-withdrawable starter credit included',
+    'رصيد بداية $amount غير نقدي وغير قابل للسحب مُضمَّن',
+  );
 
   // ── Reserved-now (sum of live 10% reserves, D1). ──────────────────────────
   String get reservedNowLabel => _pick('Reserved now', 'محجوز الآن');
   String get reservedNowHint => _pick(
-        "Released if you're not picked.",
-        'يُعاد إليك إذا لم يقع الاختيار عليك.',
-      );
+    "Released if you're not picked.",
+    'يُعاد إليك إذا لم يقع الاختيار عليك.',
+  );
 
   /// The card's second stat column (R4). No wire count exists yet, so the
   /// label ships with the slot rather than with a fabricated number.
@@ -96,52 +97,53 @@ class WalletHubL10n {
   // Every percentage below derives from [kJeebCommissionPercent] — the app has
   // exactly one copy of the rate (§7.2), so no string may spell it out.
   String get howFeesWork => _pick(
-        'How fees work — the $kJeebCommissionPercent%, explained',
-        'كيف تعمل الرسوم — شرح الـ$kJeebCommissionPercent٪',
-      );
+    'How fees work — the $kJeebCommissionPercent%, explained',
+    'كيف تعمل الرسوم — شرح الـ$kJeebCommissionPercent٪',
+  );
   String get feesExplainerTitle => _pick('How fees work', 'كيف تعمل الرسوم');
   String get feesExplainerLine1 => _pick(
-        'You only pay a flat $kJeebCommissionPercent% platform fee on offers '
-            'you win.',
-        'تدفع رسوم منصة ثابتة $kJeebCommissionPercent٪ فقط على العروض التي '
-            'تفوز بها.',
-      );
+    'You only pay a flat $kJeebCommissionPercent% platform fee on offers '
+        'you win.',
+    'تدفع رسوم منصة ثابتة $kJeebCommissionPercent٪ فقط على العروض التي '
+        'تفوز بها.',
+  );
   String get feesExplainerLine2 => _pick(
-        'The fee is taken from your pre-charged wallet balance — never in-app.',
-        'تُؤخذ الرسوم من رصيد محفظتك المشحون مسبقاً — وليس داخل التطبيق.',
-      );
+    'The fee is taken from your cash-funded Jeeber fee balance — never '
+        'from customer cash and never through an in-app payment.',
+    'تُؤخذ الرسوم من رصيد رسوم الجيبر المموّل نقداً — وليس من نقود العميل '
+        'ولا عبر دفع داخل التطبيق.',
+  );
   String get feesExplainerLine3 => _pick(
-        'The customer pays you the delivery price in cash on delivery.',
-        'يدفع لك العميل سعر التوصيل نقداً عند التسليم.',
-      );
+    'The customer pays you the delivery price in cash on delivery.',
+    'يدفع لك العميل سعر التوصيل نقداً عند التسليم.',
+  );
   String get feesExplainerGotIt => _pick('Got it', 'حسناً');
 
   // ── Earnings + activity rows (cross-wave, AP-9). ──────────────────────────
   String get earningsRow => _pick('Earnings', 'الأرباح');
-  String get earningsRowSubtitle => _pick(
-        'Cash collected, fees paid',
-        'النقد المُحصَّل والرسوم المدفوعة',
-      );
+  String get earningsRowSubtitle =>
+      _pick('Cash collected, fees paid', 'النقد المُحصَّل والرسوم المدفوعة');
   String get seeAllActivity => _pick('All activity', 'كل النشاط');
   String get seeAllActivitySubtitle => _pick(
-        'Top-ups, reserves, releases',
-        'الشحن والحجوزات والإفراجات',
-      );
+    'Fee balance, reserves, releases',
+    'رصيد الرسوم والحجوزات والإفراجات',
+  );
 
   // ── KYC-pending banner (D38/D39). ─────────────────────────────────────────
   String get kycPendingTitle =>
       _pick('Verification in progress', 'التحقق قيد المعالجة');
   String get kycPendingBody => _pick(
-        'You can top up now. You’ll be able to make offers once your '
-            'verification is approved.',
-        'يمكنك الشحن الآن. وستتمكن من تقديم العروض بمجرد الموافقة على تحققك.',
-      );
+    'You can add fee balance now. You’ll be able to make offers once your '
+        'verification is approved.',
+    'يمكنك إضافة رصيد الرسوم الآن. وستتمكن من تقديم العروض بمجرد الموافقة '
+        'على تحققك.',
+  );
 
   // ── Offline money guard (D35). ────────────────────────────────────────────
   String get offlineMoneyBlocked => _pick(
-        'You’re offline — reconnect to add funds.',
-        'أنت غير متصل — أعد الاتصال لإضافة رصيد.',
-      );
+    'You’re offline — reconnect to add fee balance.',
+    'أنت غير متصل — أعد الاتصال لإضافة رصيد الرسوم.',
+  );
 
   // ── Cross-wave guarded-CTA notice (AP-9). Reuses the shell "Coming soon". ──
   String get comingSoon => _l10n.shellComingSoon;
@@ -154,7 +156,7 @@ class WalletHubL10n {
       case WalletAffordability.low:
         return _pick('Running low', 'الرصيد منخفض');
       case WalletAffordability.empty:
-        return _pick('Top up to bid', 'اشحن لتزايد');
+        return _pick('Add fee balance to bid', 'أضف رصيد الرسوم للمزايدة');
       case WalletAffordability.allReserved:
         return _pick('Everything is reserved', 'كل الرصيد محجوز');
     }
@@ -169,18 +171,18 @@ class WalletHubL10n {
         );
       case WalletAffordability.low:
         return _pick(
-          'Your balance is low — top up to keep bidding.',
-          'رصيدك منخفض — اشحن لمتابعة المزايدة.',
+          'Your fee balance is low — add more to keep bidding.',
+          'رصيد الرسوم منخفض — أضف المزيد لمتابعة المزايدة.',
         );
       case WalletAffordability.empty:
         return _pick(
-          'Add funds to start making offers.',
-          'أضف رصيداً لبدء تقديم العروض.',
+          'Add fee balance to start making offers.',
+          'أضف رصيد الرسوم لبدء تقديم العروض.',
         );
       case WalletAffordability.allReserved:
         return _pick(
-          'Your funds are all held against live offers. Top up to bid on more.',
-          'كل أموالك محجوزة مقابل عروض نشطة. اشحن لتزايد على المزيد.',
+          'Your fee balance is held against live offers. Add more to bid again.',
+          'رصيد الرسوم محجوز مقابل عروض نشطة. أضف المزيد للمزايدة مجدداً.',
         );
     }
   }

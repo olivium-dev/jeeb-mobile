@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../config/app_config.dart';
 import '../diagnostics/diag_dio_interceptor.dart';
 import 'auth_token_store.dart';
 import 'rate_limit_interceptor.dart';
@@ -11,20 +12,39 @@ class MockGatewayClient {
   MockGatewayClient._();
 
   static String get mockBaseUrl {
-    if (_baseUrlDefine.isNotEmpty) return _baseUrlDefine;
-    if (kDebugMode) return _devGatewayBaseUrl;
-    return _releaseFallbackBaseUrl;
+    final developmentBuild = kDebugMode || AppConfig.isDevelopmentFlavor;
+    final fallback = developmentBuild
+        ? _devGatewayBaseUrl
+        : AppConfig.gatewayBaseUrl;
+    final configured = _baseUrlDefine.isNotEmpty ? _baseUrlDefine : fallback;
+    final uri = Uri.tryParse(configured);
+    if (!_isAllowedGatewayUri(uri, allowCleartext: developmentBuild)) {
+      throw StateError('Gateway URL violates the build transport policy.');
+    }
+    return configured;
   }
 
-  static const String _baseUrlDefine =
-      String.fromEnvironment('JEEB_MOCK_BASE_URL');
+  static const String _baseUrlDefine = String.fromEnvironment(
+    'JEEB_MOCK_BASE_URL',
+  );
 
-  static const String _devGatewayBaseUrl = 'http://192.168.2.39:10090';
+  static const String _devGatewayBaseUrl = String.fromEnvironment(
+    'JEEB_DEV_GATEWAY_BASE_URL',
+    defaultValue: 'https://gateway.dev.invalid',
+  );
 
-  static const String _releaseFallbackBaseUrl = 'http://192.168.2.39:10090';
+  static bool _isAllowedGatewayUri(Uri? uri, {required bool allowCleartext}) {
+    if (uri == null || uri.host.isEmpty || uri.userInfo.isNotEmpty) {
+      return false;
+    }
+    if (uri.scheme == 'https') return true;
+    return allowCleartext && uri.scheme == 'http';
+  }
 
-  static const bool useMockPrefixes =
-      bool.fromEnvironment('JEEB_USE_MOCK_PREFIXES', defaultValue: false);
+  static const bool useMockPrefixes = bool.fromEnvironment(
+    'JEEB_USE_MOCK_PREFIXES',
+    defaultValue: false,
+  );
 
   static const Map<String, String> _pathToServicePrefix = {
     '/v1/auth/otp': '/auth-service/auth/otp',
@@ -61,7 +81,6 @@ class MockGatewayClient {
     '/v1/moderation/jeeb': '/ban-service/v1/moderation/jeeb',
     '/v1/disputes': '/compliment-service/v1/disputes',
     '/v1/support': '/support-service/v1/support',
-    '/v1/payments/cod_jeeb': '/unified-payment-gateway/v1/payments/cod_jeeb',
     '/v1/jeeb/wallet': '/wallet-service/v1/jeeb/wallet',
     '/v1/jeeb/earnings': '/wallet-service/v1/jeeb/earnings',
     '/api/deliveries': '/delivery-service/api/deliveries',

@@ -34,11 +34,11 @@ class TransactionDetailL10n {
       case WalletLedgerType.released:
         return _pick('Reserve released', 'تم تحرير الحجز');
       case WalletLedgerType.refund:
-        return _pick('Dispute refund', 'استرداد نزاع');
+        return _pick('Fee balance adjustment', 'تسوية رصيد الرسوم');
       case WalletLedgerType.penalty:
         return _pick('Dispute penalty', 'غرامة نزاع');
       case WalletLedgerType.topup:
-        return _pick('Wallet top-up', 'شحن المحفظة');
+        return _pick('Fee balance added', 'إضافة رصيد الرسوم');
       case WalletLedgerType.gift:
         return _pick('Starter credit', 'رصيد بداية');
       case WalletLedgerType.unknown:
@@ -69,8 +69,9 @@ class TransactionDetailL10n {
         );
       case WalletLedgerType.refund:
         return _pick(
-          'A refund credited to your wallet from a resolved dispute.',
-          'مبلغ مسترد أُضيف إلى محفظتك من نزاع تم حله.',
+          'An internal fee-balance adjustment recorded after a resolved '
+              'dispute.',
+          'تسوية داخلية لرصيد الرسوم سُجّلت بعد حسم نزاع.',
         );
       case WalletLedgerType.penalty:
         return _pick(
@@ -79,13 +80,14 @@ class TransactionDetailL10n {
         );
       case WalletLedgerType.topup:
         return _pick(
-          'Funds you added to your wallet at an authorized store.',
-          'رصيد أضفته إلى محفظتك في متجر معتمد.',
+          'Cash added to your Jeeber fee balance at an authorized store.',
+          'رصيد رسوم أُضيف نقداً في متجر معتمد.',
         );
       case WalletLedgerType.gift:
         return _pick(
-          'Non-refundable starter credit granted after verification.',
-          'رصيد بداية غير قابل للاسترداد مُنح بعد التحقق.',
+          'Non-cash, non-withdrawable starter credit granted after '
+              'verification.',
+          'رصيد بداية غير نقدي وغير قابل للسحب مُنح بعد التحقق.',
         );
       case WalletLedgerType.unknown:
         return _l10n.txnDetailBody;
@@ -96,8 +98,7 @@ class TransactionDetailL10n {
   String get dateLabel => _pick('Date', 'التاريخ');
   String get referenceLabel => _pick('Reference', 'المرجع');
   String get feeRateLabel => _pick('Platform fee', 'رسوم المنصة');
-  String get pinnedPriceLabel =>
-      _pick('Accepted price', 'السعر المقبول');
+  String get pinnedPriceLabel => _pick('Accepted price', 'السعر المقبول');
   String get disputeRefLabel => _pick('Dispute', 'النزاع');
 
   String signedAmount(int sign, String formattedAmount, String currency) {
@@ -114,12 +115,12 @@ class TransactionDetailL10n {
   }
 
   String get loadErrorNotFound => _pick(
-        'This transaction could not be found.',
-        'تعذّر العثور على هذه المعاملة.',
-      );
+    'This transaction could not be found.',
+    'تعذّر العثور على هذه المعاملة.',
+  );
   String get loadErrorGeneric => _pick(
-        'We couldn’t load this transaction. Please try again.',
-        'تعذّر تحميل هذه المعاملة. حاول مرة أخرى.',
-      );
+    'We couldn’t load this transaction. Please try again.',
+    'تعذّر تحميل هذه المعاملة. حاول مرة أخرى.',
+  );
   String get retry => _pick('Retry', 'إعادة المحاولة');
 }

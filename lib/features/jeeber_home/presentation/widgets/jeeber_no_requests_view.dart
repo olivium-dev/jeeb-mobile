@@ -6,6 +6,7 @@ import '../../../../core/widgets/jeeb/jeeb_cta_button.dart';
 import '../../../../core/widgets/jeeb/jeeb_empty_state.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../application/availability_state.dart';
+import '../../domain/entities/availability_status.dart';
 import 'availability_card.dart';
 import 'jeeber_home_greeting.dart';
 
@@ -52,6 +53,7 @@ class JeeberNoRequestsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = view.status.state == AvailabilityState.online;
     // ONE scroll surface for the whole page: the host wraps this view in
     // `OmdsPullToRefresh`, and a second scrollable over the empty block would
     // swallow the pull (JEBV4-13 P2-6).
@@ -76,7 +78,10 @@ class JeeberNoRequestsView extends StatelessWidget {
                 top: Spacing.twoXLarge,
                 bottom: Spacing.large + context.scrollBodyBottomInset,
               ),
-              child: JeeberFeedEmptyBlock(onRefresh: onRefresh),
+              child: JeeberFeedEmptyBlock(
+                isOnline: isOnline,
+                onRefresh: isOnline ? onRefresh : null,
+              ),
             ),
           ),
         ],
@@ -113,11 +118,12 @@ class JeeberFeedEmptyPanel extends StatelessWidget {
 /// E3's "Empty ≠ dead" block, shared by every no-requests surface on this
 /// screen so the jeeber never meets two different empties for one condition.
 class JeeberFeedEmptyBlock extends StatelessWidget {
-  const JeeberFeedEmptyBlock({super.key, this.onRefresh});
+  const JeeberFeedEmptyBlock({super.key, this.onRefresh, this.isOnline = true});
 
   static const Key rootKey = Key('jeeber-no-requests-empty-state');
 
   final VoidCallback? onRefresh;
+  final bool isOnline;
 
   @override
   Widget build(BuildContext context) {
@@ -128,11 +134,17 @@ class JeeberFeedEmptyBlock extends StatelessWidget {
       variant: JeebEmptyStateVariant.street,
       // The zoned body (`jeeberFeedQuietStreetBodyZoned`) stays unwired — the
       // gateway returns no zone.
-      headline: l10n.jeeberFeedQuietStreetTitle,
-      body: l10n.jeeberFeedQuietStreetBody,
+      headline: isOnline
+          ? l10n.jeeberFeedQuietStreetTitle
+          : l10n.jeeberFeedOfflineBannerTitle,
+      body: isOnline
+          ? l10n.jeeberFeedQuietStreetBody
+          : l10n.jeeberFeedOfflineBannerSubtitle,
       // TODO(midnight): omitted — E3's second pill "Widen my zone": the app has
       // no service-zone surface and the gateway parses no zone back.
-      action: onRefresh == null ? null : _RefreshPill(onRefresh: onRefresh!),
+      action: !isOnline || onRefresh == null
+          ? null
+          : _RefreshPill(onRefresh: onRefresh!),
     );
   }
 }

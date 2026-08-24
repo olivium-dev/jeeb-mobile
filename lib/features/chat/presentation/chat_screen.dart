@@ -485,50 +485,56 @@ class _ChatScaffoldState extends State<_ChatScaffold> with ResumeRefetchMixin {
         widget.onOpenDispute != null &&
         phase != ConversationPhase.broadcasting &&
         phase != ConversationPhase.closed;
-    return Scaffold(
-      key: ChatScreen.rootKey,
-      // MIDNIGHT: the field paints the page; the Scaffold contributes nothing.
-      backgroundColor: Colors.transparent,
-      appBar: ChatAppBar(
-        title: widget.counterpartName,
-        avatarUrl: widget.counterpartAvatarUrl,
-        avatarImage: widget.counterpartAvatarImage,
-        showAvatar: context.select<ChatCubit, bool>(
-          (c) => c.state.showsCounterpartHeader,
+    return Semantics(
+      identifier: widget.isOrderChat ? 'order_chat_root' : 'chat_detail_root',
+      container: true,
+      explicitChildNodes: true,
+      child: Scaffold(
+        key: ChatScreen.rootKey,
+        // MIDNIGHT: the field paints the page; the Scaffold contributes nothing.
+        backgroundColor: Colors.transparent,
+        appBar: ChatAppBar(
+          title: widget.counterpartName,
+          avatarUrl: widget.counterpartAvatarUrl,
+          avatarImage: widget.counterpartAvatarImage,
+          showAvatar: context.select<ChatCubit, bool>(
+            (c) => c.state.showsCounterpartHeader,
+          ),
+          // The counterpart's rating rides on the resolved summary
+          // (`OrderChatSummary.rating`, really populated from `jeeberRating`).
+          // 0 hides the line — this is NOT screen 12's nulled tracking rating,
+          // and the two models must never be merged.
+          rating: widget.pinnedSummary?.rating ?? 0,
+          // The kit's trailing slot is ONE circular action. The board draws a
+          // phone here; no phone number reaches this surface, so the slot keeps
+          // the existing dispute affordance instead of a dead call button.
+          trailing: showDispute
+              ? JeebTopBarAction(
+                  icon: Icons.report_gmailerrorred_outlined,
+                  onPressed: widget.onOpenDispute!,
+                  identifier: 'order_chat_open_dispute',
+                  semanticLabel: l10n.escalateTitle,
+                  iconSize: Sizes.medium + Sizes.threeXSmall,
+                )
+              : null,
         ),
-        // The counterpart's rating rides on the resolved summary
-        // (`OrderChatSummary.rating`, really populated from `jeeberRating`).
-        // 0 hides the line — this is NOT screen 12's nulled tracking rating,
-        // and the two models must never be merged.
-        rating: widget.pinnedSummary?.rating ?? 0,
-        // The kit's trailing slot is ONE circular action. The board draws a
-        // phone here; no phone number reaches this surface, so the slot keeps
-        // the existing dispute affordance instead of a dead call button.
-        trailing: showDispute
-            ? JeebTopBarAction(
-                icon: Icons.report_gmailerrorred_outlined,
-                onPressed: widget.onOpenDispute!,
-                identifier: 'order_chat_open_dispute',
-                semanticLabel: l10n.escalateTitle,
-                iconSize: Sizes.medium + Sizes.threeXSmall,
-              )
-            : null,
-      ),
-      // R20 is a board-still tile (03-MOTION-NOTES: 0 animated elements), so
-      // the field draws its layers at rest and nothing ticks behind the thread.
-      body: JeebMidnightField(
-        variant: JeebFieldVariant.content,
-        glowPlacement: JeebFieldGlowPlacement.bottom,
-        animateDecor: false,
-        child: SafeArea(
-          bottom: false,
-          child: BlocConsumer<ChatCubit, ChatState>(
-            listenWhen: (prev, curr) =>
-                prev.messages.length != curr.messages.length ||
-                prev.error != curr.error ||
-                prev.phase != curr.phase,
-            listener: (context, state) => _onStateChanged(context, state, l10n),
-            builder: (context, state) => _buildBody(state, l10n),
+        // R20 is a board-still tile (03-MOTION-NOTES: 0 animated elements), so
+        // the field draws its layers at rest and nothing ticks behind the thread.
+        body: JeebMidnightField(
+          variant: JeebFieldVariant.content,
+          glowPlacement: JeebFieldGlowPlacement.bottom,
+          animateDecor: false,
+          child: SafeArea(
+            bottom: false,
+            child: BlocConsumer<ChatCubit, ChatState>(
+              listenWhen: (prev, curr) =>
+                  prev.messages.length != curr.messages.length ||
+                  prev.error != curr.error ||
+                  prev.phase != curr.phase,
+              listener: (context, state) =>
+                  _onStateChanged(context, state, l10n),
+              builder: (context, state) => _buildBody(state, l10n),
+            ),
           ),
         ),
       ),
@@ -848,8 +854,7 @@ class _ChatBody extends StatelessWidget {
     // The row is a second non-flexible Column child, so it comes out of the
     // same budget the composer does — never out of the message list.
     final chromeReserve =
-        kChatComposerReserve +
-        (showQuickReplies ? kChatQuickReplyReserve : 0);
+        kChatComposerReserve + (showQuickReplies ? kChatQuickReplyReserve : 0);
 
     // MIDNIGHT — the SECOND over-constraint, measured at 320x480 + 220 dp
     // keyboard + text scale 2.0: the bottom band (quick replies 64 + composer
@@ -893,8 +898,7 @@ class _ChatBody extends StatelessWidget {
                 math.min(
                   constraints.maxHeight * kChatHeaderMaxViewportFraction,
                   constraints.maxHeight -
-                      chromeReserve *
-                          MediaQuery.textScalerOf(context).scale(1),
+                      chromeReserve * MediaQuery.textScalerOf(context).scale(1),
                 ),
               );
         return Column(
@@ -1183,7 +1187,8 @@ class _ChatMessageList extends StatelessWidget {
     // rendered honestly — the wire carries two messages and we draw two.
     DeliveryChatMessage? previous;
     for (final m in state.messages) {
-      final clustered = previous != null &&
+      final clustered =
+          previous != null &&
           !previous.isSystemNotice &&
           !m.isSystemNotice &&
           previous.author == m.author;
@@ -1200,12 +1205,18 @@ class _ChatMessageList extends StatelessWidget {
 
 /// Discriminated row model so the [ListView] builder stays declarative.
 class _ChatRowData {
-  const _ChatRowData._(this.kind, {this.date, this.message, this.clustered = false});
+  const _ChatRowData._(
+    this.kind, {
+    this.date,
+    this.message,
+    this.clustered = false,
+  });
   const _ChatRowData.date(DateTime date)
     : this._(_ChatRowKind.date, date: date);
-  const _ChatRowData.message(DeliveryChatMessage message,
-      {bool clustered = false})
-    : this._(_ChatRowKind.message, message: message, clustered: clustered);
+  const _ChatRowData.message(
+    DeliveryChatMessage message, {
+    bool clustered = false,
+  }) : this._(_ChatRowKind.message, message: message, clustered: clustered);
   const _ChatRowData.offerNote() : this._(_ChatRowKind.offerNote);
 
   final _ChatRowKind kind;

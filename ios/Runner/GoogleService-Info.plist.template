@@ -17,8 +17,12 @@
 	<string>TODO_GCM_SENDER_ID</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
+	<key>CLIENT_ID</key>
+	<string>TODO_IOS_CLIENT_ID</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>TODO_IOS_REVERSED_CLIENT_ID</string>
 	<key>BUNDLE_ID</key>
-	<string>app.jeeb.mobile</string>
+	<string>com.olivium.jeeb</string>
 	<key>PROJECT_ID</key>
 	<string>TODO_PROJECT_ID</string>
 	<key>STORAGE_BUCKET</key>

@@ -28,6 +28,7 @@ import 'package:jeeb_mobile/features/shell/shell_screen.dart';
 import 'package:jeeb_mobile/l10n/app_localizations.dart';
 
 import '../../support/sync_app_localizations.dart';
+import '../../support/test_jwt.dart';
 
 class _MockAuthTokenStore extends Mock implements AuthTokenStore {}
 
@@ -116,8 +117,7 @@ void main() {
   String location(GoRouter r) =>
       r.routerDelegate.currentConfiguration.uri.toString();
 
-  testWidgets(
-      'onboarded + no token starts on /register; persisting a token and '
+  testWidgets('onboarded + no token starts on /register; persisting a token and '
       'refreshing the session promotes go("/") to Home (DEF-1)', (tester) async {
     // Cold start: no token yet → gate forces /register (the phone-OTP + social
     when(() => store.accessToken).thenAnswer((_) async => null);
@@ -131,7 +131,7 @@ void main() {
     expect(location(built.router), '/register');
 
     // Simulate a successful super-login: the sheet persists the real token, the
-    when(() => store.accessToken).thenAnswer((_) async => 'real-access-token');
+    when(() => store.accessToken).thenAnswer((_) async => validTestJwt);
     await session.refresh();
     built.router.go('/');
     await tester.pumpAndSettle();
@@ -139,7 +139,8 @@ void main() {
     expect(
       location(built.router),
       '/',
-      reason: 'After the token is persisted AND the session refreshed, the '
+      reason:
+          'After the token is persisted AND the session refreshed, the '
           'first-run gate must let / resolve to Home — no relaunch required.',
     );
     expect(find.byType(ShellScreen), findsOneWidget);
@@ -147,25 +148,28 @@ void main() {
   });
 
   testWidgets(
-      'without the session refresh, go("/") is bounced back to /register '
-      '(documents the DEF-1 failure mode)', (tester) async {
-    when(() => store.accessToken).thenAnswer((_) async => null);
+    'without the session refresh, go("/") is bounced back to /register '
+    '(documents the DEF-1 failure mode)',
+    (tester) async {
+      when(() => store.accessToken).thenAnswer((_) async => null);
 
-    final built = await buildHome(tester);
-    await session.refresh();
-    await tester.pumpAndSettle();
-    expect(location(built.router), '/register');
+      final built = await buildHome(tester);
+      await session.refresh();
+      await tester.pumpAndSettle();
+      expect(location(built.router), '/register');
 
-    // Token persisted to the keystore but the SessionCubit is NOT refreshed
-    when(() => store.accessToken).thenAnswer((_) async => 'real-access-token');
-    built.router.go('/');
-    await tester.pumpAndSettle();
+      // Token persisted to the keystore but the SessionCubit is NOT refreshed
+      when(() => store.accessToken).thenAnswer((_) async => validTestJwt);
+      built.router.go('/');
+      await tester.pumpAndSettle();
 
-    expect(
-      location(built.router),
-      '/register',
-      reason: 'This is the bug DEF-1 fixes: a persisted token alone does not '
-          'update the router gate; the session must be refreshed.',
-    );
-  });
+      expect(
+        location(built.router),
+        '/register',
+        reason:
+            'This is the bug DEF-1 fixes: a persisted token alone does not '
+            'update the router gate; the session must be refreshed.',
+      );
+    },
+  );
 }

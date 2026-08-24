@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:clarity_flutter/clarity_flutter.dart'
+    show ClarityConfig, ClarityMask, ClarityWidget, LogLevel;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,10 @@ import 'package:omds/omds.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/accessibility/accessibility.dart';
+import '../core/analytics/clarity/application/clarity_controller.dart';
+import '../core/analytics/clarity/data/microsoft_clarity_adapter.dart';
+import '../core/analytics/clarity/data/shared_prefs_clarity_consent_store.dart';
+import '../core/config/app_config.dart';
 import '../core/dev_flags.dart';
 import '../core/dev_seam/dev_seam.dart';
 import '../core/dev_seam/session_seam_bootstrap.dart';
@@ -91,6 +97,7 @@ class JeebApp extends StatefulWidget {
     this.biometricGateway,
     this.localizationsDelegateOverride,
     this.sessionGate,
+    this.clarityController,
   });
 
   final SharedPreferences preferences;
@@ -152,13 +159,17 @@ class JeebApp extends StatefulWidget {
   /// override is supplied it is NOT owned by this widget (no dispose).
   final SessionGate? sessionGate;
 
+  /// Test seam. Production owns a release/config/consent-gated controller.
+  final ClarityController? clarityController;
+
   @override
   State<JeebApp> createState() => _JeebAppState();
 }
 
 class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
-  late final OnboardingCubit _onboarding =
-      OnboardingCubit(prefs: widget.preferences);
+  late final OnboardingCubit _onboarding = OnboardingCubit(
+    prefs: widget.preferences,
+  );
   late final RoleCubit _role = RoleCubit(
     prefs: widget.preferences,
     initialRole: _devSeamRole,
@@ -170,8 +181,10 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// dual-role jeeber on the Jeeber surface instead of the client surface.
   /// Empty until the first [RoleSync.sync] resolves, so a plain client never
   /// flashes jeeber content.
-  late final RoleAvailabilityCubit _roleAvailability =
-      RoleAvailabilityCubit(const RoleAvailability(), widget.preferences);
+  late final RoleAvailabilityCubit _roleAvailability = RoleAvailabilityCubit(
+    const RoleAvailability(),
+    widget.preferences,
+  );
 
   /// BUG-1: login→capability sync. Reads getMe and publishes `available_roles`
   /// (and the server `active_role`) to [_roleAvailability] / [_role]. Resolves
@@ -198,8 +211,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   // production DI graph still wires the same impls behind these interfaces;
   // this constructor just doesn't depend on it being initialized.
   late final BiometricLockCubit _biometricLock = BiometricLockCubit(
-    preference:
-        BiometricPreferenceRepositoryImpl(prefs: widget.preferences),
+    preference: BiometricPreferenceRepositoryImpl(prefs: widget.preferences),
     // This is the app-level cubit the router gate watches AND the one the
     // `/lock` screen consumes (BlocProvider.value) — the SAME instance whose
     // authenticate() must succeed for JM-005 to release to the shell. RC-3: in
@@ -210,7 +222,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // device-credential PIN/password fallback), replacing the inert
     // [UnavailableBiometricGateway]. kDebugMode is a const false in release, so
     // the DevBiometricGateway branch is tree-shaken out.
-    gateway: widget.biometricGateway ??
+    gateway:
+        widget.biometricGateway ??
         (kDebugMode
             ? const DevBiometricGateway()
             : LocalAuthBiometricGateway()),
@@ -222,9 +235,20 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// We hold a reference to the [SessionCubit] only when WE created it, so
   /// dispose closes exactly what we own. The router reads it as a [SessionGate];
   /// [_evaluateSession] kicks the first keystore read after first frame.
-  late final SessionCubit? _ownedSession =
-      widget.sessionGate == null ? SessionCubit(tokenStore: AuthTokenStore()) : null;
+  late final SessionCubit? _ownedSession = widget.sessionGate == null
+      ? SessionCubit(tokenStore: AuthTokenStore())
+      : null;
   late final SessionGate _session = widget.sessionGate ?? _ownedSession!;
+  late final ClarityController _clarity =
+      widget.clarityController ??
+      ClarityController(
+        available: AppConfig.clarityAvailable,
+        consentStore: SharedPrefsClarityConsentStore(widget.preferences),
+        analytics: const MicrosoftClarityAdapter(
+          projectId: AppConfig.clarityProjectId,
+        ),
+      );
+  bool get _ownsClarity => widget.clarityController == null;
 
   /// JEBV4-205 (E10): the app-language cubit, held as a member so the
   /// authenticated-transition listener can call [LocaleCubit.syncFromServer]
@@ -254,6 +278,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     biometricLock: _biometricLock,
     session: _session,
     accountStatus: _accountStatus,
+    clarityScreenReporter: _clarity,
   );
   // BadgeCountCubit is cheap (in-memory Cubit<BadgeCounts>) and is read by
   // the MultiBlocProvider on first build, so it stays eager. G3: rendered by
@@ -302,6 +327,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// so the recovery `go('/')` is scheduled once, not every rebuild while the
   /// null-child frame is on screen.
   bool _recoveringEmptyStack = false;
+  bool _clarityContextScheduled = false;
 
   @override
   void initState() {
@@ -312,6 +338,13 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     // during the keystore read; once this resolves, an onboarded-but-tokenless
     // user is redirected to login via `refreshListenable`.
     _ownedSession?.refresh();
+    unawaited(_clarity.loadConsent());
+    final ownedSession = _ownedSession;
+    if (ownedSession == null) {
+      _clarity.updateAuthentication(!_session.isUnauthenticated);
+    } else if (ownedSession.state.isKnown) {
+      _clarity.updateAuthentication(ownedSession.state.isAuthenticated);
+    }
     // BUG-1: the OTP-verify / super-login path calls `session.refresh()`,
     // transitioning the SessionCubit to `authenticated` — listen for that
     // transition and (re-)resolve capabilities so the shell lands a jeeber on
@@ -384,6 +417,7 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     final session = _ownedSession;
     if (session == null) return;
     _sessionSub = session.stream.listen((state) {
+      _clarity.updateAuthentication(state.isAuthenticated);
       if (state.isAuthenticated) {
         _syncRole();
         // JEBV4-205 (E10): re-hydrate the server-persisted language on the
@@ -429,6 +463,14 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _clarity.resumeFromLifecycle();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _clarity.suspendForLifecycle();
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       unawaited(Diag.flushPersistent());
@@ -473,7 +515,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
       // D3: the plugin channel is not always up on the first post-frame try
       // (`channel-error`), and a single failure used to strand the whole
       // process on the fake — no FCM token, so no device registration at all.
-      final injectedSeam = widget.firebaseInitializer != null ||
+      final injectedSeam =
+          widget.firebaseInitializer != null ||
           widget.fcmTransportBuilder != null;
       final attempts = injectedSeam ? 1 : _pushTransportMaxAttempts;
       PushTransport? built;
@@ -483,13 +526,16 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
         try {
           await (widget.firebaseInitializer ?? _defaultFirebaseInitializer)();
           built =
-              await (widget.fcmTransportBuilder ?? _defaultFcmTransportBuilder)();
+              await (widget.fcmTransportBuilder ??
+                  _defaultFcmTransportBuilder)();
         } catch (error) {
           // No Firebase config, or a real FCM/bridge failure. Degrade to the
           // in-memory fake so the banner UI still works and cold start survives.
           if (kDebugMode) {
-            debugPrint('[push] FCM transport attempt ${i + 1}/$attempts '
-                'failed: $error');
+            debugPrint(
+              '[push] FCM transport attempt ${i + 1}/$attempts '
+              'failed: $error',
+            );
           }
         }
       }
@@ -585,9 +631,9 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
   /// Session roles for push-audience gating: the server available_roles, widened
   /// by the active role and EMPTY while unresolved so the matcher fails OPEN.
   Set<String> _sessionLocalRoles() => sessionPushRoles(
-        availableRoles: _roleAvailability.state.roles,
-        activeRole: _role.state.storageKey,
-      );
+    availableRoles: _roleAvailability.state.roles,
+    activeRole: _role.state.storageKey,
+  );
 
   /// Default real-transport builder. `initialize()` wires the background
   /// handler, the Android channel, and the foreground listeners; the handler
@@ -619,6 +665,8 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
     _ownedSession?.close();
     _locale.close();
     _router.dispose();
+    _clarity.detachContext();
+    if (_ownsClarity) _clarity.dispose();
     super.dispose();
   }
 
@@ -642,95 +690,126 @@ class _JeebAppState extends State<JeebApp> with WidgetsBindingObserver {
         // screens read it as `SessionCubit?` (null → no-op).
         if (_ownedSession != null) BlocProvider.value(value: _ownedSession),
       ],
-      child: BlocBuilder<LocaleCubit, Locale>(
-        builder: (context, locale) {
-          // omds widgets read `OmdsColorTokens.defaultTokens` (a light set)
-          // DIRECTLY, so the theme override alone cannot reach them.
-          return OmdsColorTokensProvider(
-            tokens: jeebMidnightOmdsTokens,
-            child: MaterialApp.router(
-              title: 'Jeeb',
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.midnight(),
-              darkTheme: AppTheme.midnight(),
-              themeMode: ThemeMode.dark,
-              locale: locale,
-              supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates: [
-                widget.localizationsDelegateOverride ??
-                    AppLocalizations.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              routerConfig: _router,
-              builder: (context, child) {
-                // Central blank-surface safety net (complements the per-route
-                // [RootAwareBackScope] which guards the SYSTEM back gesture).
-                // An unguarded AppBar back arrow on a `go`-replaced screen can
-                // still pop go_router's lone page and empty the Navigator, in
-                // which case `child` is NULL. Recover to `/` (the first-run
-                // gate then re-routes for the auth state) instead of leaving a
-                // dead blank surface. Scheduled once via the re-entrancy guard.
-                if (child == null) {
-                  if (!_recoveringEmptyStack) {
-                    _recoveringEmptyStack = true;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (!mounted) return;
-                      _router.go('/');
-                      _recoveringEmptyStack = false;
-                    });
+      child: ClarityAnalyticsScope(
+        controller: _clarity,
+        child: BlocBuilder<LocaleCubit, Locale>(
+          builder: (context, locale) {
+            // omds widgets read `OmdsColorTokens.defaultTokens` (a light set)
+            // DIRECTLY, so the theme override alone cannot reach them.
+            return OmdsColorTokensProvider(
+              tokens: jeebMidnightOmdsTokens,
+              child: MaterialApp.router(
+                title: 'Jeeb',
+                debugShowCheckedModeBanner: false,
+                theme: AppTheme.midnight(),
+                darkTheme: AppTheme.midnight(),
+                themeMode: ThemeMode.dark,
+                locale: locale,
+                supportedLocales: AppLocalizations.supportedLocales,
+                localizationsDelegates: [
+                  widget.localizationsDelegateOverride ??
+                      AppLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                routerConfig: _router,
+                builder: (context, child) {
+                  _scheduleClarityContextAttach(context);
+                  // Central blank-surface safety net (complements the per-route
+                  // [RootAwareBackScope] which guards the SYSTEM back gesture).
+                  // An unguarded AppBar back arrow on a `go`-replaced screen can
+                  // still pop go_router's lone page and empty the Navigator, in
+                  // which case `child` is NULL. Recover to `/` (the first-run
+                  // gate then re-routes for the auth state) instead of leaving a
+                  // dead blank surface. Scheduled once via the re-entrancy guard.
+                  if (child == null) {
+                    if (!_recoveringEmptyStack) {
+                      _recoveringEmptyStack = true;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        _router.go('/');
+                        _recoveringEmptyStack = false;
+                      });
+                    }
+                    return const ClarityMask(child: kEmptyStackFrame);
                   }
-                  return kEmptyStackFrame;
-                }
-                _recoveringEmptyStack = false;
-                final content = child;
-                final handler = _pushHandler;
-                // Until the push chain finishes initializing post-first-frame,
-                // render the router content directly — no banner host. Once
-                // [_initPushChain] runs, this rebuilds with the banner overlay.
-                final wrapped = handler == null
-                    ? content
-                    : PushBannerHost(
-                        handler: handler,
-                        onBannerTap: (message) {
-                          // F5: same role guard as the dispatcher — a client
-                          // must never be handed a jeeber-scoped destination.
-                          final path =
-                              deepLinkForMessage(message, role: _role.state);
-                          if (path != null) _router.go(path);
-                        },
-                        child: content,
+                  _recoveringEmptyStack = false;
+                  final content = child;
+                  final handler = _pushHandler;
+                  // Until the push chain finishes initializing post-first-frame,
+                  // render the router content directly — no banner host. Once
+                  // [_initPushChain] runs, this rebuilds with the banner overlay.
+                  final wrapped = handler == null
+                      ? content
+                      : PushBannerHost(
+                          handler: handler,
+                          onBannerTap: (message) {
+                            // F5: same role guard as the dispatcher — a client
+                            // must never be handed a jeeber-scoped destination.
+                            final path = deepLinkForMessage(
+                              message,
+                              role: _role.state,
+                            );
+                            if (path != null) _router.go(path);
+                          },
+                          child: content,
+                        );
+                  final routed = jeebA11yBuilder(context, wrapped);
+                  // Session-trace observability tool (devtool-only): a floating
+                  // bubble/panel overlay so a developer can start/stop tracing,
+                  // watch live screen/api/notification/interaction events, and
+                  // export the session — WITHOUT touching the routed content
+                  // underneath. Additive only (`Stack`s the overlay on top);
+                  // `kObsCompiledIn` is compile-time `false` in a production
+                  // build, so this line (and `ObsOverlayHost` itself) is
+                  // tree-shaken out and `routed` is returned unchanged.
+                  final observed = kObsCompiledIn
+                      ? ObsOverlayHost(child: routed)
+                      : routed;
+                  // GESTURE-LOG hook (dev-affordances only): a translucent,
+                  // pass-through root Listener that records taps/gestures the
+                  // Flutter engine receives — INCLUDING adb/Maestro-injected taps
+                  // `getevent` can't see — onto the `[jeeb-diag]` stream, with
+                  // Maestro-ready selectors read from the in-engine semantics.
+                  // Additive + non-consuming; `kDevAffordancesAllowed` is a
+                  // compile-time `false` in production, so this wrap (and
+                  // `GestureLogListener` itself) is tree-shaken out and `observed`
+                  // is returned byte-identically. Default OFF at runtime.
+                  final productUi = kDevAffordancesAllowed
+                      ? GestureLogListener(child: observed)
+                      : observed;
+                  final maskedProduct = ClarityMask(child: productUi);
+                  return ListenableBuilder(
+                    listenable: _clarity,
+                    child: maskedProduct,
+                    builder: (context, child) {
+                      if (!_clarity.shouldMountSdkWidget) return child!;
+                      return ClarityWidget(
+                        key: const ValueKey<String>('jeeb-clarity-sdk'),
+                        clarityConfig: ClarityConfig(
+                          projectId: AppConfig.clarityProjectId,
+                          logLevel: LogLevel.None,
+                        ),
+                        app: child!,
                       );
-                final routed = jeebA11yBuilder(context, wrapped);
-                // Session-trace observability tool (devtool-only): a floating
-                // bubble/panel overlay so a developer can start/stop tracing,
-                // watch live screen/api/notification/interaction events, and
-                // export the session — WITHOUT touching the routed content
-                // underneath. Additive only (`Stack`s the overlay on top);
-                // `kObsCompiledIn` is compile-time `false` in a production
-                // build, so this line (and `ObsOverlayHost` itself) is
-                // tree-shaken out and `routed` is returned unchanged.
-                final observed = kObsCompiledIn
-                    ? ObsOverlayHost(child: routed)
-                    : routed;
-                // GESTURE-LOG hook (dev-affordances only): a translucent,
-                // pass-through root Listener that records taps/gestures the
-                // Flutter engine receives — INCLUDING adb/Maestro-injected taps
-                // `getevent` can't see — onto the `[jeeb-diag]` stream, with
-                // Maestro-ready selectors read from the in-engine semantics.
-                // Additive + non-consuming; `kDevAffordancesAllowed` is a
-                // compile-time `false` in production, so this wrap (and
-                // `GestureLogListener` itself) is tree-shaken out and `observed`
-                // is returned byte-identically. Default OFF at runtime.
-                return kDevAffordancesAllowed
-                    ? GestureLogListener(child: observed)
-                    : observed;
-              },
-            ),
-          );
-        },
+                    },
+                  );
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
+  }
+
+  void _scheduleClarityContextAttach(BuildContext context) {
+    if (_clarityContextScheduled) return;
+    _clarityContextScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !context.mounted) return;
+      _clarity.attachContext(context);
+    });
   }
 }

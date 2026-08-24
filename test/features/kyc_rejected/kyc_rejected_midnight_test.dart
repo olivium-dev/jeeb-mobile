@@ -42,6 +42,11 @@ Widget _harness(KycGateway gateway, {Locale? locale, double textScale = 1}) {
         path: '/profile',
         builder: (_, _) => const Scaffold(body: Text('PROFILE')),
       ),
+      GoRoute(
+        name: 'kyc-status',
+        path: '/profile/kyc',
+        builder: (_, _) => const Scaffold(body: Text('KYC_STATUS')),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -92,63 +97,76 @@ void main() {
 
   group('M3-21 field — R23s measured anchor', () {
     testWidgets(
-        'mounts one still CONTENT field with the ORANGE glow at the top end '
-        'and declares no periwinkle wash', (tester) async {
+      'mounts one still CONTENT field with the ORANGE glow at the top end '
+      'and declares no periwinkle wash',
+      (tester) async {
+        await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
+
+        final Finder finder = find.byType(JeebMidnightField);
+        expect(finder, findsOneWidget, reason: 'one field, not one per phase');
+        final JeebMidnightField field = tester.widget<JeebMidnightField>(
+          finder,
+        );
+
+        expect(field.variant, JeebFieldVariant.content);
+        expect(field.glowPlacement, JeebFieldGlowPlacement.topEnd);
+        // A wash here would paint a periwinkle bloom R23's fit says is absent.
+        expect(field.washPlacement, isNull);
+        // M3 standing ruling: no motion beyond what kit widgets animate.
+        expect(field.animateDecor, isFalse);
+      },
+    );
+
+    testWidgets('the Scaffold is transparent so the field is what paints', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
 
-      final Finder finder = find.byType(JeebMidnightField);
-      expect(finder, findsOneWidget, reason: 'one field, not one per phase');
-      final JeebMidnightField field = tester.widget<JeebMidnightField>(finder);
-
-      expect(field.variant, JeebFieldVariant.content);
-      expect(field.glowPlacement, JeebFieldGlowPlacement.topEnd);
-      // A wash here would paint a periwinkle bloom R23's fit says is absent.
-      expect(field.washPlacement, isNull);
-      // M3 standing ruling: no motion beyond what kit widgets animate.
-      expect(field.animateDecor, isFalse);
-    });
-
-    testWidgets('the Scaffold is transparent so the field is what paints',
-        (tester) async {
-      await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
-
-      final Scaffold scaffold =
-          tester.widget<Scaffold>(find.byType(Scaffold).first);
+      final Scaffold scaffold = tester.widget<Scaffold>(
+        find.byType(Scaffold).first,
+      );
       expect(scaffold.backgroundColor, Colors.transparent);
       expect(scaffold.appBar, isNull, reason: 'the header is an in-body row');
     });
   });
 
   group('M3-21 the decision block', () {
-    testWidgets('is the empty familys ERROR form on E3s parked scooter',
-        (tester) async {
+    testWidgets('is the empty familys ERROR form on E3s parked scooter', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
 
-      final JeebEmptyState block =
-          tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
+      final JeebEmptyState block = tester.widget<JeebEmptyState>(
+        find.byType(JeebEmptyState),
+      );
       expect(block.status, JeebEmptyStateStatus.error);
       expect(block.status, isNot(JeebEmptyStateStatus.empty));
       expect(block.variant, JeebEmptyStateVariant.street);
       expect(block.compact, isFalse, reason: 'the block owns the screen');
     });
 
-    testWidgets('headline reads onSurface and body reads the muted rung',
-        (tester) async {
+    testWidgets('headline reads onSurface and body reads the muted rung', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
       final ColorScheme scheme = schemeOf(tester);
-      final AppLocalizations l10n =
-          AppLocalizations.of(tester.element(find.byType(JeebEmptyState)));
+      final AppLocalizations l10n = AppLocalizations.of(
+        tester.element(find.byType(JeebEmptyState)),
+      );
 
-      final Text headline = tester.widget<Text>(find.text(l10n.kycRejectedHeadline));
+      final Text headline = tester.widget<Text>(
+        find.text(l10n.kycRejectedHeadline),
+      );
       expect(headline.style!.color, scheme.onSurface);
 
       final Text body = tester.widget<Text>(find.text(l10n.kycRejectedBody));
       expect(body.style!.color, midnight.mutedText);
     });
 
-    testWidgets(
-        'ORANGE-BUDGET GUARD: not one Text on this screen is inked '
-        'colorScheme.primary — which IS #D73B00 under Midnight', (tester) async {
+    testWidgets('ORANGE-BUDGET GUARD: not one Text on this screen is inked '
+        'colorScheme.primary — which IS #D73B00 under Midnight', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
       final ColorScheme scheme = schemeOf(tester);
 
@@ -163,19 +181,23 @@ void main() {
   });
 
   group('M3-21 the structured cause', () {
-    testWidgets('is danger-SOFT on its container, never full-strength error',
-        (tester) async {
+    testWidgets('is danger-SOFT on its container, never full-strength error', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.expired());
       final ColorScheme scheme = schemeOf(tester);
-      final AppLocalizations l10n =
-          AppLocalizations.of(tester.element(find.byType(JeebInfoNote)));
+      final AppLocalizations l10n = AppLocalizations.of(
+        tester.element(find.byType(JeebInfoNote)),
+      );
 
-      final JeebInfoNote note =
-          tester.widget<JeebInfoNote>(find.byType(JeebInfoNote));
+      final JeebInfoNote note = tester.widget<JeebInfoNote>(
+        find.byType(JeebInfoNote),
+      );
       expect(note.tone, JeebInfoNoteTone.error);
 
-      final Text cause =
-          tester.widget<Text>(find.text(l10n.kycRejectionReasonExpired));
+      final Text cause = tester.widget<Text>(
+        find.text(l10n.kycRejectionReasonExpired),
+      );
       // R22: destructive/negative COPY is #FF7B7B, not the #FF5252 solid.
       expect(cause.style!.color, scheme.onErrorContainer);
       expect(cause.style!.color, isNot(scheme.error));
@@ -188,10 +210,7 @@ void main() {
             )
             .first,
       );
-      expect(
-        (fill.decoration as BoxDecoration).color,
-        scheme.errorContainer,
-      );
+      expect((fill.decoration as BoxDecoration).color, scheme.errorContainer);
     });
 
     testWidgets('keeps its frozen id', (tester) async {
@@ -202,33 +221,33 @@ void main() {
 
   group('M3-21 the two exits', () {
     testWidgets(
-        'the appeal pill is PERIWINKLE — R23 spends its one orange pill on the '
-        'forward act and this screen closes the funnel', (tester) async {
-      await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
+      'the appeal pill is PERIWINKLE — R23 spends its one orange pill on the '
+      'forward act and this screen closes the funnel',
+      (tester) async {
+        await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
 
-      final JeebCtaButton appeal = tester.widget<JeebCtaButton>(
-        find.descendant(
-          of: find.bySemanticsIdentifier('kyc_rejected_appeal_cta'),
-          matching: find.byType(JeebCtaButton),
-        ),
-      );
-      expect(appeal.variant, JeebCtaVariant.primary);
-      expect(appeal.variant, isNot(JeebCtaVariant.accent));
+        final JeebCtaButton appeal = tester.widget<JeebCtaButton>(
+          find.descendant(
+            of: find.bySemanticsIdentifier('kyc_rejected_appeal_cta'),
+            matching: find.byType(JeebCtaButton),
+          ),
+        );
+        expect(appeal.variant, JeebCtaVariant.primary);
+        expect(appeal.variant, isNot(JeebCtaVariant.accent));
 
-      final JeebCtaButton back = tester.widget<JeebCtaButton>(
-        find.descendant(
-          of: find.bySemanticsIdentifier('kyc_rejected_back_cta'),
-          matching: find.byType(JeebCtaButton),
-        ),
-      );
-      expect(back.variant, JeebCtaVariant.text);
-    });
+        final JeebCtaButton back = tester.widget<JeebCtaButton>(
+          find.descendant(
+            of: find.bySemanticsIdentifier('kyc_rejected_back_cta'),
+            matching: find.byType(JeebCtaButton),
+          ),
+        );
+        expect(back.variant, JeebCtaVariant.text);
+      },
+    );
   });
 
-  group('M3-21 every phase of the cause enrichment', () {
-    /// The decision and both exits are the primary content: they never wait on
-    /// `GET /v1/kyc/status`, and no phase substitutes a skeleton for them.
-    Future<void> expectFrameComplete(WidgetTester tester) async {
+  group('M3-21 authoritative route gate', () {
+    Future<void> expectRejectedFrame(WidgetTester tester) async {
       expect(find.byType(JeebEmptyState), findsOneWidget);
       expect(
         tester.widget<JeebEmptyState>(find.byType(JeebEmptyState)).status,
@@ -245,25 +264,50 @@ void main() {
       expect(find.byType(JeebInfoNote), findsNothing);
     }
 
-    testWidgets('no structured reason — the FINAL copy stands alone',
-        (tester) async {
+    testWidgets('no structured reason — the FINAL copy stands alone', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.rejectedWithoutReason());
-      await expectFrameComplete(tester);
+      await expectRejectedFrame(tester);
     });
 
-    testWidgets('the status read failed', (tester) async {
+    testWidgets('a failed authority read leaves the terminal route', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.failing());
-      await expectFrameComplete(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('KYC_STATUS'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('kyc_rejected_root'), findsNothing);
     });
 
-    testWidgets('the status read is still in flight', (tester) async {
+    testWidgets('an in-flight read paints no rejection decision', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.pending());
-      await expectFrameComplete(tester);
+      expect(
+        find.bySemanticsIdentifier('kyc_rejected_authority_loading'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('kyc_rejected_root'), findsNothing);
+      expect(find.byType(JeebEmptyState), findsNothing);
     });
 
-    testWidgets('D52 holds in every phase: no resubmit affordance',
-        (tester) async {
-      await _pump(tester, KycRejectedScreenFixtures.failing());
+    testWidgets('a resubmit decision redirects to the canonical KYC surface', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        KycRejectedScreenFixtures.resubmitRequestedWithReason(),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('KYC_STATUS'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('kyc_rejected_root'), findsNothing);
+    });
+
+    testWidgets('D52 holds on an authoritative final rejection', (
+      tester,
+    ) async {
+      await _pump(tester, KycRejectedScreenFixtures.rejectedWithoutReason());
       expect(
         find.bySemanticsIdentifier('kyc_rejected_resubmit_cta'),
         findsNothing,
@@ -272,19 +316,20 @@ void main() {
   });
 
   group('M3-21 gutters', () {
-    testWidgets('runs the token sheets 24px screen gutter, directionally',
-        (tester) async {
+    testWidgets('runs the token sheets 24px screen gutter, directionally', (
+      tester,
+    ) async {
       await _pump(tester, KycRejectedScreenFixtures.idUnreadable());
 
       final ListView list = tester.widget<ListView>(find.byType(ListView));
-      final EdgeInsetsDirectional pad =
-          list.padding! as EdgeInsetsDirectional;
+      final EdgeInsetsDirectional pad = list.padding! as EdgeInsetsDirectional;
       expect(pad.start, 24);
       expect(pad.end, 24);
     });
 
-    testWidgets('lays out under Arabic at 200% on the smallest canvas',
-        (tester) async {
+    testWidgets('lays out under Arabic at 200% on the smallest canvas', (
+      tester,
+    ) async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
       final view = binding.platformDispatcher.views.first;
       view.physicalSize = const Size(320, 480);

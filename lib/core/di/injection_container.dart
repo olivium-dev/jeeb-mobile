@@ -67,8 +67,6 @@ import '../../features/rate_app/domain/app_review_launcher.dart';
 import '../../features/rating/data/dio_rating_repository.dart';
 import '../../features/rating/domain/rating_repository.dart';
 import '../../features/registration/data/dio_otp_service.dart';
-import '../../features/registration/data/super_login_demo_user.dart';
-import '../../features/registration/data/super_login_service.dart';
 import '../../features/registration/domain/otp_service.dart';
 import '../../features/settings/data/dio_jeeber_unregister_service.dart';
 import '../../features/settings/data/repositories/biometric_preference_repository_impl.dart';
@@ -211,9 +209,8 @@ void configureDependencies({
 
   // DEBUG: hardcodes authenticate()=true; RELEASE: OS biometric with fallback; tree-shaken in release.
   sl.registerLazySingleton<BiometricGateway>(
-    () => kDebugMode
-        ? const DevBiometricGateway()
-        : LocalAuthBiometricGateway(),
+    () =>
+        kDebugMode ? const DevBiometricGateway() : LocalAuthBiometricGateway(),
   );
   sl.registerFactory<SharedPrefsPinRepository>(
     () => SharedPrefsPinRepository(prefs: sl<SharedPreferences>()),
@@ -227,14 +224,6 @@ void configureDependencies({
       gateway: sl<BiometricGateway>(),
       pinRepository: sl<SharedPrefsPinRepository>(),
     ),
-  );
-
-  sl.registerLazySingleton<SuperLoginService>(
-    () => DefaultSuperLoginService(dio: sl<Dio>()),
-  );
-
-  sl.registerLazySingleton<SuperLoginDemoUserService>(
-    () => DefaultSuperLoginDemoUserService(dio: sl<Dio>()),
   );
 
   sl.registerLazySingleton<OrderRepository>(

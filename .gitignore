@@ -6,7 +6,6 @@ build/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-pubspec.lock
 
 # IDE
 .idea/
@@ -60,6 +59,9 @@ coverage/
 # Build / capture junk (not source; keep the integration tree clean)
 # Flutter crash logs dropped at repo root by the tool
 flutter_*.log
+# Firebase CLI diagnostics can contain local paths, account metadata, and
+# request traces. Keep them out of source control and evidence bundles.
+/firebase-debug.log
 # Ad-hoc capture/QA screenshots dropped at the repo root (numbered PNGs).
 # Scoped to root only — assets/**, docs/screenshots/**, android/** PNGs stay tracked.
 /*.png
@@ -95,7 +97,13 @@ docs/figma-cache/
 # The dev flavor is stricter: its real config is injected from the protected
 # DEV_GOOGLE_SERVICES_JSON_B64 CI secret. Only the placeholder template is VCS.
 android/app/src/dev/google-services.json
+/android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+# Transient release build setting derived from the protected iOS plist.
+ios/Flutter/ProtectedFirebase.xcconfig
+# Runner.xcworkspace is the canonical hybrid CocoaPods+SwiftPM graph. Xcode may
+# generate this redundant project-local resolution file during local probing.
+ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 # FlutterFire-generated real options (placeholder template stays committed).
 lib/core/firebase/firebase_options.g.dart
 

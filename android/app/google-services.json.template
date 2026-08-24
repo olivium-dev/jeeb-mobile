@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "TODO_ANDROID_APP_ID",
         "android_client_info": {
-          "package_name": "app.jeeb.mobile"
+          "package_name": "com.olivium.jeeb"
         }
       },
       "oauth_client": [],

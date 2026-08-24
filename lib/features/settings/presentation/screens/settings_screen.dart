@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:omds/omds.dart';
 
+import '../../../../core/analytics/clarity/application/clarity_controller.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/layout/bottom_inset.dart';
 import '../../../../core/role/role_availability_cubit.dart';
@@ -24,6 +25,7 @@ import '../../domain/avatar_cache_evictor.dart';
 import '../../domain/avatar_repository.dart';
 import '../../domain/jeeber_unregister_service.dart';
 import '../../domain/profile_repository.dart';
+import '../widgets/settings_analytics_card.dart';
 import '../widgets/settings_become_jeeber_card.dart';
 import '../widgets/settings_footer.dart';
 import '../widgets/settings_identity_card.dart';
@@ -50,11 +52,7 @@ import '../widgets/settings_notifications_card.dart';
 /// keeps the dependency on the persistence + account-service seams scoped
 /// to the route and out of the global widget tree.
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({
-    super.key,
-    this.cubit,
-    this.appVersion = '1.0.0',
-  });
+  const SettingsScreen({super.key, this.cubit, this.appVersion = '1.0.0'});
 
   /// Optional injected cubit. Production callers can omit this and let the
   /// screen build a no-op default; widget tests pass in a pre-wired cubit
@@ -141,9 +139,9 @@ class _SettingsView extends StatelessWidget {
       listener: (context, state) {
         final message = _bannerMessage(state.banner, l10n);
         if (message != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
           context.read<SettingsCubit>().dismissBanner();
         }
       },
@@ -216,6 +214,7 @@ class _SettingsBody extends StatelessWidget {
     // KYC status; nullable-read degrades to today's become-jeeber card.
     final roles = context.watch<RoleAvailabilityCubit?>()?.state.roles;
     final isJeeber = roles?.contains('jeeber') ?? false;
+    final clarity = ClarityAnalyticsScope.maybeOf(context);
     return ListView(
       key: const Key('settings-screen-list'),
       // Preserve the horizontal gutter AND reserve the system nav-bar inset so
@@ -249,6 +248,10 @@ class _SettingsBody extends StatelessWidget {
               const SettingsLanguageToggle(),
               const SizedBox(height: Spacing.large),
               SettingsNotificationsCard(state: state),
+              if (clarity?.available ?? false) ...[
+                const SizedBox(height: Spacing.large),
+                SettingsAnalyticsCard(controller: clarity!),
+              ],
               const SizedBox(height: Spacing.large),
               SettingsMoreCard(showUnregisterRow: isJeeber),
             ],

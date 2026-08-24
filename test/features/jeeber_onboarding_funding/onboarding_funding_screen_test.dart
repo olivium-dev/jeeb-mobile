@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:jeeb_mobile/core/formatting/money_format.dart';
 import 'package:jeeb_mobile/core/theme/app_theme.dart';
 import 'package:jeeb_mobile/core/theme/jeeb_semantic_colors.dart';
 import 'package:jeeb_mobile/core/widgets/jeeb/jeeb_cta_button.dart';
@@ -84,8 +85,7 @@ const WalletBalance _empty = WalletBalance(
 );
 
 final ThemeData _midnight = AppTheme.midnight();
-final JeebSemanticColors _semantic =
-    _midnight.extension<JeebSemanticColors>()!;
+final JeebSemanticColors _semantic = _midnight.extension<JeebSemanticColors>()!;
 
 void main() {
   Future<void> pump(
@@ -116,17 +116,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Text textInside(WidgetTester tester, String identifier) => tester.widget<Text>(
-        find
-            .descendant(
-              of: find.bySemanticsIdentifier(identifier),
-              matching: find.byType(Text),
-            )
-            .first,
-      );
-
-  testWidgets('AC1: explainer, both CTAs and the back circle render',
-      (tester) async {
+  testWidgets('AC1: explainer, both CTAs and the back circle render', (
+    tester,
+  ) async {
     await pump(tester, repo: const _ScriptedWalletRepository(_enriched));
 
     expect(find.bySemanticsIdentifier('funding_explainer'), findsOneWidget);
@@ -135,8 +127,9 @@ void main() {
     expect(find.bySemanticsIdentifier('funding_back'), findsOneWidget);
   });
 
-  testWidgets('enrichment: both live amounts render when non-zero',
-      (tester) async {
+  testWidgets('enrichment: both live amounts render when non-zero', (
+    tester,
+  ) async {
     await pump(tester, repo: const _ScriptedWalletRepository(_enriched));
 
     expect(
@@ -149,8 +142,9 @@ void main() {
     );
   });
 
-  testWidgets('zero amounts drop the enrichment, never the explainer',
-      (tester) async {
+  testWidgets('zero amounts drop the enrichment, never the explainer', (
+    tester,
+  ) async {
     await pump(tester, repo: const _ScriptedWalletRepository(_empty));
 
     expect(find.bySemanticsIdentifier('funding_explainer'), findsOneWidget);
@@ -164,8 +158,9 @@ void main() {
     );
   });
 
-  testWidgets('fail-safe: a failed wallet fetch keeps the explainer + CTAs',
-      (tester) async {
+  testWidgets('fail-safe: a failed wallet fetch keeps the explainer + CTAs', (
+    tester,
+  ) async {
     await pump(
       tester,
       repo: const _ScriptedWalletRepository(_enriched, throws: true),
@@ -180,8 +175,9 @@ void main() {
     );
   });
 
-  testWidgets('RTL smoke: the Arabic locale lays out without overflow',
-      (tester) async {
+  testWidgets('RTL smoke: the Arabic locale lays out without overflow', (
+    tester,
+  ) async {
     await pump(
       tester,
       repo: const _ScriptedWalletRepository(_enriched),
@@ -212,7 +208,11 @@ void main() {
       'onSurface, not onPrimary white', (tester) async {
     await pump(tester, repo: const _ScriptedWalletRepository(_enriched));
 
-    final style = textInside(tester, 'funding_starter_credit_amount').style!;
+    final starterCredit = MoneyFormat.format(
+      _enriched.giftCredit,
+      currency: _enriched.currency,
+    );
+    final style = tester.widget<Text>(find.text(starterCredit)).style!;
     expect(style.fontSize, 22);
     expect(style.fontWeight, FontWeight.w800);
     expect(style.color, _midnight.colorScheme.onSurface);
@@ -284,21 +284,26 @@ void main() {
     );
   });
 
-  testWidgets('loading rung: the pocket skeleton, explainer untouched',
-      (tester) async {
+  testWidgets('loading rung: the pocket skeleton, explainer untouched', (
+    tester,
+  ) async {
     await pump(tester, repo: _PendingWalletRepository());
 
     final block = tester.widget<JeebEmptyState>(find.byType(JeebEmptyState));
     expect(block.status, JeebEmptyStateStatus.loading);
     expect(block.variant, JeebEmptyStateVariant.pocket);
     expect(block.compact, isTrue);
-    expect(find.bySemanticsIdentifier('funding_wallet_loading'), findsOneWidget);
+    expect(
+      find.bySemanticsIdentifier('funding_wallet_loading'),
+      findsOneWidget,
+    );
     expect(find.bySemanticsIdentifier('funding_explainer'), findsOneWidget);
     expect(find.bySemanticsIdentifier('funding_topup_cta'), findsOneWidget);
   });
 
-  testWidgets('error rung: the pocket block is danger-status and retryable',
-      (tester) async {
+  testWidgets('error rung: the pocket block is danger-status and retryable', (
+    tester,
+  ) async {
     await pump(
       tester,
       repo: const _ScriptedWalletRepository(_enriched, throws: true),
@@ -317,8 +322,9 @@ void main() {
     expect(find.byType(JeebEmptyState), findsNothing);
   });
 
-  testWidgets('retry re-reads the wallet and lands the enrichment',
-      (tester) async {
+  testWidgets('retry re-reads the wallet and lands the enrichment', (
+    tester,
+  ) async {
     final repo = _FlakyWalletRepository(_enriched);
     await pump(tester, repo: repo);
 
