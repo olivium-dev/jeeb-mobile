@@ -16,7 +16,7 @@ void main() {
   late List<String> requestedPaths;
 
   Map<String, dynamic> descriptor({
-    Object? socketUrl = 'ws://192.168.2.39:5804/socket/websocket',
+    Object? socketUrl = 'wss://realtime.test/socket/websocket',
     String token = 'guardian-subscribe-jwt',
     Object? topicValue = topic,
     Object? channelValue = channelName,
@@ -93,8 +93,7 @@ void main() {
 
       expect(positions, isNotNull);
       expect(requestedPaths.single, '/v1/realtime/jeeb:delivery:$deliveryId');
-      expect(dialled.single.host, '192.168.2.39');
-      expect(dialled.single.port, 5804);
+      expect(dialled.single.host, 'realtime.test');
       expect(dialled.single.queryParameters['token'], 'guardian-subscribe-jwt');
       final join =
           ws.sentByClient.firstWhere((f) => f.contains('phx_join'));
@@ -135,6 +134,15 @@ void main() {
         channelOver(dioAnswering(body: descriptor(socketUrl: 'http://x:5804/'))),
         because: 'dialling it would produce an obscure transport error rather '
             'than a clean degrade',
+      );
+    });
+
+    test('cleartext ws is rejected outside the development flavor', () async {
+      await expectDegraded(
+        channelOver(dioAnswering(
+          body: descriptor(socketUrl: 'ws://realtime.test/socket/websocket'),
+        )),
+        because: 'staging and production tracking require encrypted WSS',
       );
     });
 
@@ -216,13 +224,13 @@ void main() {
 
     test('accepts snake_case socket_url', () async {
       final body = descriptor(socketUrl: null)
-        ..['socket_url'] = 'ws://msi.test:5804/socket/websocket';
+        ..['socket_url'] = 'wss://realtime.test/socket/websocket';
       final channel = channelOver(dioAnswering(body: body));
 
       final positions = await channel.open(deliveryId: deliveryId);
 
       expect(positions, isNotNull);
-      expect(dialled.single.host, 'msi.test');
+      expect(dialled.single.host, 'realtime.test');
     });
 
     test('resolve() surfaces the descriptor fields verbatim', () async {
@@ -235,7 +243,7 @@ void main() {
       expect(d.channel, channelName);
       expect(d.stream, 'location');
       expect(d.token, 'guardian-subscribe-jwt');
-      expect(d.socketUrl, 'ws://192.168.2.39:5804/socket/websocket');
+      expect(d.socketUrl, 'wss://realtime.test/socket/websocket');
       expect(d.expiresAt, isNotNull);
     });
   });

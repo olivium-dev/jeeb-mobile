@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../../core/config/app_config.dart';
 import '../domain/courier_position_channel.dart';
 import 'courier_position_socket.dart';
 
@@ -109,14 +110,15 @@ class RealtimeCourierPositionChannel implements CourierPositionChannel {
     );
   }
 
-  /// Rejects non-ws(s) scheme (deployment error).
+  /// Require encrypted transport outside the explicitly selected dev flavor.
   Uri? _socketUriOf(DeliveryPositionChannelDescriptor descriptor) {
     final raw = descriptor.socketUrl;
     if (raw == null || raw.isEmpty) return null;
     final uri = Uri.tryParse(raw);
     if (uri == null) return null;
-    if (uri.scheme != 'ws' && uri.scheme != 'wss') return null;
     if (uri.host.isEmpty) return null;
-    return uri;
+    if (uri.scheme == 'wss') return uri;
+    if (uri.scheme == 'ws' && AppConfig.isDevelopmentFlavor) return uri;
+    return null;
   }
 }

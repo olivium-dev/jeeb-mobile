@@ -108,15 +108,10 @@ class AppConfig {
     'JEEB_SUPERADMIN_PASSCODE',
   );
 
-  /// Committed dev fallback validated by the configured development gateway.
-  static const String _devSuperAdminPassCode = '123768';
-
-  /// Resolution: `--dart-define` > `kDebugMode` fallback > empty in release.
-  static String get superAdminPassCode {
-    if (_superAdminPassCodeDefine.isNotEmpty) return _superAdminPassCodeDefine;
-    if (kDebugMode) return _devSuperAdminPassCode;
-    return '';
-  }
+  /// Debug-only resolution. There is deliberately no committed fallback, and
+  /// release/profile builds cannot surface a supplied development credential.
+  static String get superAdminPassCode =>
+      kDebugMode ? _superAdminPassCodeDefine : '';
 
   /// DEBUG-ONLY convenience userId pre-filled into the PLAIN "Super login" sheet.
   static String get devSuperLoginUserId =>

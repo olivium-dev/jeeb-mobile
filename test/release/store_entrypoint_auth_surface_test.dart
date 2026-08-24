@@ -42,5 +42,13 @@ void main() {
       expect(devShell, contains('super_login_service.dart'));
       expect(devShell, contains('super_login_demo_user.dart'));
     });
+
+    test('developer Super Login has no committed credential fallback', () {
+      final config = _source('lib/core/config/app_config.dart');
+
+      expect(config, contains("'JEEB_SUPERADMIN_PASSCODE'"));
+      expect(config, contains("kDebugMode ? _superAdminPassCodeDefine : ''"));
+      expect(config, isNot(contains('_devSuperAdminPassCode')));
+    });
   });
 }
