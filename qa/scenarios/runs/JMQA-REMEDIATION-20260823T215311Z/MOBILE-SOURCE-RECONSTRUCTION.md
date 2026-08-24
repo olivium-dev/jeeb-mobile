@@ -1,6 +1,6 @@
 # Mobile source reconstruction runbook
 
-> Status: SOURCE RECONSTRUCTED; INDEPENDENT REVIEW AND STORE ARTIFACT REBUILD REQUIRED
+> Status: SOURCE RECONSTRUCTED AND HARDENED; REMOTE CI, INDEPENDENT REVIEW, AND STORE ARTIFACT REBUILD REQUIRED
 >
 > Source snapshot: `origin/main` / `a8810345` plus the preserved working-tree
 > overlay audited at 2026-08-24 14:44 UTC
@@ -9,9 +9,9 @@
 
 Recreate the exact passing mobile release source in clean, reviewable worktrees
 without committing the current mixed index, losing user work, or importing raw
-device/signing evidence. The reconstructed revision must reproduce the 7,868
-pass / 66 skip / 0 fail source gate and then produce newly inspected AAB and IPA
-artifacts whose hashes are bound to that revision.
+device/signing evidence. The reconstructed revision must preserve the green
+source gate, explain each intentional count change, and then produce newly
+inspected AAB and IPA artifacts whose hashes are bound to that revision.
 
 ## Frozen input facts
 
@@ -101,9 +101,10 @@ the same branch or worktree.
 - [x] Require each lane's focused tests, formatter/analyzer, diff check, and
       secret scan before review.
 - [ ] Require the final stacked revision to have a clean index/worktree.
-- [x] Run the exact full non-capture Flutter suite; require 7,868 pass, 66
-      intentional skips, and zero failures or explain an evidence-backed count
-      change.
+- [x] Run the exact full non-capture Flutter suite; source-bearing commit
+      `e07d4542` passes 7,882, skips 66 intentionally, and fails 0. The two-test
+      increase over merged head `8788a24d` is the passcode-fallback and
+      cleartext-courier-socket regression coverage.
 - [x] Run all release, identity, Firebase/Maps, no-Super-Login, no-Dev-Tool,
       transport, COD, and forbidden-host gates.
 - [ ] Obtain independent mobile code, QA, Product Owner, Tech Lead, security,
@@ -116,15 +117,18 @@ the same branch or worktree.
       [REPORT.md](REPORT.md) without protected values.
 - [ ] Only then evaluate Play Internal/TestFlight upload eligibility.
 
-The clean reconstruction is staged as one coherent 188-file selection on
-`release/staging-store-reconstruct-20260824` from base `a8810345`. The exact
-staged suite passed 7,868 tests with 66 intentional skips and zero failures in
-500.365 seconds. Full Flutter and fatal-info analysis report no issues; focused
-privacy/chat/release tests, protected Android/iOS configuration contracts,
-signing negatives, dependency ownership, diff, and secret scans pass. An
-unsigned iOS Release compiled successfully after removing only rebuildable
-local build caches; protected provider files were absent after cleanup. No
-signed store candidate has yet been rebuilt from an approved commit.
+The clean reconstruction began as one coherent 188-file selection on
+`release/staging-store-reconstruct-20260824` from base `a8810345`, committed as
+`e208a4c8`, then reconciled with main in `8788a24d`. Source-bearing security
+commit `e07d4542` removes the committed development passcode fallback and
+requires WSS for courier tracking outside the dev flavor. Its CI-equivalent
+suite passes 7,882 tests with 66 intentional skips and zero failures in about
+329 seconds; its focused security suite passes 22/22 and focused fatal-info
+analysis is clean. Prior full analysis, privacy/chat/release, protected native
+configuration, signing-negative, dependency-ownership, diff, and secret gates
+remain green. An unsigned iOS Release compiled successfully after removing only
+rebuildable local caches. No signed store candidate has been rebuilt from an
+approved final commit.
 
 ## Abort conditions
 

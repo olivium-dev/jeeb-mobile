@@ -2,42 +2,62 @@
 
 > Run: `JMQA-REMEDIATION-20260823T215311Z`
 >
-> Snapshot: 2026-08-24 15:23 UTC
+> Snapshot: 2026-08-24 17:22 UTC
 >
-> Verdict: **NO-GO — both source-current artifacts pass inspection; source review, live staging, store delivery, and physical scenarios remain open**
+> Verdict: **NO-GO — the reconstructed mobile head passes local gates; exact-head CI/review, fresh artifact builds, live staging, store delivery, and physical scenarios remain open**
 
 ## Executive result
 
-Jeeb now has a final inspected Android AAB for the permanent native identity
+Jeeb has a historical inspected Android AAB for the permanent native identity
 `com.olivium.jeeb`, Firebase project `jeeb-5a293`, and staging REST origin
 `https://app.jeeb.fds-1.com`. It was rebuilt from a clean Android/Flutter cache
 after the Play-signer Firebase refresh and after removing Super Login and the
-Dev Tool from the product entry graph. A clean iOS rebuild from that same
-corrected product entry is signed, inspected, hashed, and accepted by Apple's
-validation-only transport. The transparent Flutter launch placeholder was also
-replaced with the existing Jeeb wordmark and guarded against regression.
+Dev Tool from the product entry graph. A clean historical iOS rebuild from that
+same corrected product entry is signed, inspected, hashed, and accepted by
+Apple's validation-only transport. The transparent Flutter launch placeholder
+was also replaced with the existing Jeeb wordmark and guarded against
+regression. Both artifacts predate the current hardened source and are not
+upload eligible.
 
-The exact current mobile source suite is also closed after a deterministic
-regression pass: 7,868 tests pass, 66 are intentionally skipped, and none fail.
+The exact source-bearing mobile commit `e07d4542` is closed after a
+deterministic CI-equivalent regression pass: 7,882 tests pass, 66 are
+intentionally skipped, and none fail (approximately 329 seconds).
 Compose-only empty or `new` chat IDs are now rejected before any realtime
 resolver or socket request. This strengthens the source gate; it does not
 substitute for public WSS or paired store-device evidence.
 
-Both binaries were produced after a forced clean from that passing working-tree
-state. They remain upload-held because the large mobile change set has not yet
-been frozen into an immutable revision and independently reviewed. Artifact
-inspection proves the binaries' contents; it does not create source-review
-lineage. The approved revision must be cryptographically bound to these exact
-binaries or used for another forced-clean rebuild before upload.
+The same commit removes the committed development Super Admin passcode
+fallback and makes that value debug-define-only. Courier live tracking now
+requires `wss://` outside the explicit development flavor, matching chat's
+transport policy. The two added regression checks and their 22-test focused
+suite pass; no credential value is retained in this report.
 
-The source-lineage audit found the feature worktree still at `origin/main`
-`a8810345`, with 60 staged and 92 unstaged tracked paths, 19 paths present in
-both sets (133 unique changed tracked paths), and 245 untracked paths. The
-staged index is not build-coherent: staged release tests depend on unstaged
-implementations. Raw `.codex-proof` device evidence, binaries, and signer
-material must remain outside version control. The dirty tree is preserved; it
-must be reconstructed as coherent scoped changes in clean worktrees rather
-than committed as-is.
+The earlier source-current binaries were produced after forced cleans from the
+passing working-tree state. They remain upload-held because they predate the
+immutable reconstructed head. Artifact inspection proves their contents; it
+does not make them products of the reviewed source. They must be rebuilt from
+the exact approved revision before upload.
+
+The historical source-lineage audit at `a8810345` found 60 staged and 92
+unstaged tracked paths, 19 paths in both sets (133 unique changed tracked
+paths), and 245 untracked paths. That mixed index was not committed. Its
+sanitized 188-file selection was reconstructed as
+`e208a4c8906330c8df126f2391ae149a8291e6f6`; `origin/main`
+`0c26c159c9714b812bd2a0f6ec3cc9488c7d39c8` was then merged into the feature
+branch as PR #276 head `8788a24ddec1e14ca9641bc6b8e4e2854991e87f`.
+Source-bearing commit `e07d4542` has a 194-file diff from `origin/main`, with
+12,392 insertions and 4,510 deletions. This is a feature-branch reconciliation,
+not a merge to main.
+
+Flutter analysis and fatal-info analysis are clean after generated
+`build/ios/SourcePackages` was removed. The initial 7,206 diagnostics were a
+third-party generated-cache tool-scope error, not findings in product source.
+Firebase doctor, 13 protected-config focused tests, actionlint, ShellCheck,
+Gitleaks, and the diff check pass. The PR is open, CLEAN, and mergeable, but
+only the fail-closed check ran at remote head `8788a24d` before CI, Flutter CI,
+and Mobile CI were re-enabled. The local source fix `e07d4542` is not pushed
+yet. Its eventual evidence-only descendant must run all three, and
+independent review plus exact-head artifact rebuilds remain open.
 
 That does not prove the application works. The staging remediation is not live:
 normal OTP still returns 503, Super Login Plus/demo endpoints remain open, voice
@@ -50,11 +70,11 @@ candidate. The release remains NO-GO; workarounds and mocks are not accepted.
 
 | Layer | Status | What the status means |
 |---|---|---|
-| Mobile source and focused contracts | PASS | Exact non-capture suite: 7,868 passed, 66 skipped, 0 failed; identity/configuration and release contracts are green. |
-| Android signed AAB | PASS / CURRENT ARTIFACT / UPLOAD HELD | Clean rebuilt artifact is signed, structurally valid, API 36, inspected, hashed, and contains no Super Login or Dev Tool release surface; immutable source-review lineage remains open. |
-| iOS signed IPA | PASS / CURRENT ARTIFACT / UPLOAD HELD | Clean rebuilt artifact is Apple Distribution signed, inspected, hashed, and Apple-validation green; it contains no Super Login or Dev Tool release surface; immutable source-review lineage remains open. |
+| Mobile source and focused contracts | LOCAL PASS / FULL CI PENDING | Source-bearing commit `e07d4542` passes 7,882 tests with 66 intentional skips and 0 failures plus the focused credential/WSS and prior local gates. CI, Flutter CI, and Mobile CI are active; the local commit still needs push and exact-head remote evidence. |
+| Android signed AAB | PASS / HISTORICAL ARTIFACT / UPLOAD HELD | The inspected artifact is signed, structurally valid, API 36, and contains no Super Login or Dev Tool release surface; it predates reconstructed head `8788a24d` and must be rebuilt from the approved exact head after CI/review. |
+| iOS signed IPA | PASS / HISTORICAL ARTIFACT / UPLOAD HELD | The inspected artifact is Apple Distribution signed and Apple-validation green; it predates reconstructed head `8788a24d` and must be rebuilt from the approved exact head after CI/review. |
 | Canonical Firebase registration | PASS | Android and iOS `com.olivium.jeeb` registrations exist in `jeeb-5a293`; protected configs were injected outside version control. |
-| Staging source remediation | UNDER REVIEW / NOT LIVE | Infra #26, gateway #523 exact head `63b19dba2b1b2aa94c107d719173a2ebfc4bde33`, and OTP #27 exact head `29ff7af77e22d48f1ba63ff03df988c2b5e8b104` are independently approved with green CI. Realtime #14 is correcting three P1 and one P2 findings; voice #27 is correcting one newly proven full-Spec rollback P1. No merge or deployment is claimed. |
+| Staging source remediation | UNDER REVIEW / NOT LIVE | Infra #26 remains reviewed/green. Gateway bootstrap is an unpushed isolated change from `63b19dba`. Realtime #14 `4959d9e` is remote-green but REQUEST_CHANGES on two P1s. OTP `29ff7af` and voice `6509c840` remain test-green, but their earlier rollout approvals are superseded by the same non-atomic rollback race. No deployment is claimed. |
 | Live staging providers and WSS | BLOCKED | OTP, Super Login/demo closure, real voice, WSS, AASA, and asset links fail the live preflight. |
 | Play Internal delivery | NOT RUN | No AAB upload or store-installed build is evidence in this run. |
 | TestFlight delivery | NOT RUN | Apple validation passed, but no upload or TestFlight installation is evidence in this run. |
@@ -79,6 +99,16 @@ BLOCKED until an exact scenario execution record is opened.
 Protected Firebase, signing, and Maps inputs remain outside the scenario folder
 and version control. This report contains identifiers and certificate hashes,
 not private keys, API secrets, OTPs, tokens, or user data.
+
+The canonical historical `jeeb-5a293` configuration for
+`app.jeeb.mobile.dev` was validated without output. Four previously absent
+repository Actions secrets are now installed by name:
+`DEV_GOOGLE_SERVICES_JSON_B64`, `DEV_FIREBASE_EXPECTED_PROJECT_NUMBER`,
+`DEV_FIREBASE_EXPECTED_PROJECT_ID`, and `DEV_FIREBASE_EXPECTED_APP_ID`.
+Read-back was limited to names and timestamps. No provider resource was changed
+and no value was exposed. Real native config files remain absent from source,
+and `tool/run_with_dev_firebase_config.sh` removes its injected config after
+both command success and command failure.
 
 The historically tracked Android Firebase client key is now restricted at the
 provider to four exact package/signer pairs: canonical upload and Play delivery,
@@ -142,7 +172,8 @@ closes certificate registration, not store-delivered functional behavior.
 one non-blocking warning (90068, the announced future iOS 15 minimum in spring
 2027).
 
-This was validation only, and the artifact remains held pending source review.
+This was validation only, and the artifact remains held pending exact-head CI,
+independent source review, and a fresh rebuild from that source.
 It is not an App Store upload, TestFlight delivery,
 review, or functional PASS. This is the current artifact-layer IPA; the prior
 SHA-256 `3592fb673e1e7e669903b98fc1bbaadb54603b275234d151796c4186ab1bda9f`
@@ -154,14 +185,14 @@ operation `7830413C0` remains historical provenance only.
 | Gate | Live observation | Local remediation | Required fresh closure |
 |---|---|---|---|
 | REST health | Green | N/A | Keep green through deployment and rollback probes |
-| Normal phone OTP | 503 / disabled | Restricted `JEEB_*` Twilio secrets installed; PR #27 exact head `29ff7af` is local/remote green and independently approved after all six provider corrections plus full-Spec same-digest rollback proof; owner-confirmed canary recipient remains | Confirm protected physical recipient, merge with compatible revisions, deploy, and prove send, receipt, verify, expiry, retry, lockout, and rate limit |
+| Normal phone OTP | 503 / disabled | Restricted `JEEB_*` Twilio secrets installed; PR #27 `29ff7af` is test-green, but its prior approval is superseded because plain CLI rollback is not atomic against a concurrent third Spec; owner-confirmed canary recipient remains absent | Add Engine API version-CAS rollback plus race mutation proof and re-review; then confirm protected recipient, deploy, and prove send, receipt, verify, expiry, retry, lockout, and rate limit |
 | Super Login Plus / demo | Open | Gateway defaults and guards close both | Deploy; prove both public surfaces reject access |
-| Voice transcription | Fake provider live | Voice PR #27 exact head `e5b3142` is remote-green and independently proves all five prior fixes with 173/173 tests, but a same-digest secret/config failure can still leave the candidate Spec active; one isolated writer is adding full-Spec transactional recovery | Complete the full-Spec fix and exact-head approval, deploy, then prove genuine uncached synthetic Arabic audio through the public gateway |
-| Chat/realtime | No public WSS 101 | Gateway descriptor is approved; realtime #14 head `ac05b64` is 634/634 locally and remote-green, but exact-head review found three P1 and one P2 rollout/probe-policy defects; one isolated writer is correcting them | Prove full-Spec rollback, keep runtime verification and authenticated exact-topic/cross-topic/forged-ticket WSS probes inside the armed transaction, close the checkout bypass, obtain approval, and deploy compatible revisions |
+| Voice transcription | Fake provider live | Voice PR #27 `6509c840` is test-green, but its prior approval is superseded by the same plain-CLI rollback race | Add Engine API version-CAS rollback and adversarial race proof, re-review, then deploy and prove genuine uncached synthetic Arabic audio through the public gateway |
+| Chat/realtime | No public WSS 101 | Realtime PR #14 `4959d9e` is remote-green (634 ExUnit, 48 policy/rollout, 15 WSS), but exact-head review found two P1s: plain CLI rollback can race a third Spec, and the runbook still documents the unsafe old deployment order | Use exact Service ID and candidate Version with Engine API rollback CAS, add the race harness, update the runbook/PR sequence, re-review, then follow the binding two-phase rollout |
 | Firebase gateway secrets | Not yet proven through candidate | Canonical file selection and shared Guardian/ticket secrets installed | Deploy; prove auth, installations, push registration, and receiver delivery |
 | AASA / asset links | Not live | Candidate identities and entitlements are aligned | Serve both well-known files without redirect and run JMS-LINK-001 |
 | Edge transport | Plain HTTP returns 200 without redirect; TLS 1.1 is accepted | Worker redirect work is under review; zone minimum-TLS control remains external | Enforce HTTP→HTTPS and minimum TLS 1.2, then prove HTTP redirect, TLS 1.0/1.1 rejection, and TLS 1.2+ success |
-| Gateway release | Old live behavior | PR #523 exact head `63b19dba` is remote-CI green and independently approved after 12/12 baseline and three adversarial mutation checks | Complete required QA/Product/Tech Lead/CODEOWNER gates, merge with cross-repo readiness, deploy immutable image, and retain readiness/rollback evidence |
+| Gateway release | Old live behavior | Base PR #523 `63b19dba` is green, but safe rollout requires a separate bootstrap head with chat/realtime forced OFF, descriptor proofs armed, Engine API CAS recovery, and the generic staging-target activation bypass blocked; implementation is local/unpushed | Finish adversarial executable gates and independent review, then deploy only as phase A1 |
 
 Local tests and installed secrets are implementation evidence only. They cannot
 supersede a failing public probe. Cloudflare investigation is conclusive: the
@@ -169,6 +200,22 @@ authenticated identity lacks target-account Worker/token authority, so a target
 account admin must grant that authority or install the exact least-privilege
 staging token. The target-zone owner must also set the public minimum TLS to
 1.2 or newer. No broader credential or deployment workaround is accepted.
+
+### Binding gateway/realtime/edge rollout
+
+There is no safe one-step deployment order. The required two-phase sequence is:
+
+| Step | Required change and gate |
+|---|---|
+| A1 — gateway bootstrap | Deploy gateway with chat OFF and descriptor contract ON. |
+| A2 — realtime compatibility | Deploy realtime with the real descriptor and pass the direct-host Phoenix gate while rollback remains armed. |
+| A3 — public edge | Enable edge/public WSS and pass the public realtime gate. |
+| B — activation | Activate a small gateway slice, pass real chat/user/mobile canaries, then and only then turn chat ON. |
+
+All five GitHub `staging` environments currently enforce custom branch policies
+with exactly their default branch (`main`, except OTP `master`). Cloudflare
+target-account token authority and an owner-confirmed physical SMS canary
+recipient remain blockers to executing the live closure.
 
 ## Physical device state
 
@@ -203,15 +250,18 @@ privacy suite remain mandatory before release GO.
 
 ## Synchronization barriers
 
-1. **SOURCE-LINEAGE:** freeze and independently review the exact intended mobile
-   change set; bind the approved revision to both artifacts or force-clean
-   rebuild them from that revision. Follow the
-   [clean reconstruction runbook](MOBILE-SOURCE-RECONSTRUCTION.md); never commit
-   the current mixed index.
+1. **SOURCE-LINEAGE:** source-bearing commit `e07d4542` is the current immutable
+   local candidate and passes the 7,882-test CI-equivalent gate. On the next
+   push, require CI, Flutter CI, and Mobile CI at the resulting exact PR head;
+   obtain independent approval;
+   then force-clean rebuild both artifacts from it and repeat every inspection.
+   Follow the
+   [clean reconstruction runbook](MOBILE-SOURCE-RECONSTRUCTION.md). The
+   historical mixed index was preserved and was not committed.
 2. **STG-LIVE:** deploy the approved immutable staging revisions; fresh public
    probes must close OTP, bypass/demo, voice, WSS, Firebase, and link-host gates.
-3. **STORE-DELIVERY:** after staging closure, upload the current recorded AAB
-   and IPA, wait for processing,
+3. **STORE-DELIVERY:** after staging closure, upload only the newly rebuilt and
+   reinspected AAB and IPA, wait for processing,
    and install from Play Internal Testing and TestFlight. Re-hash installed
    Android splits and record iOS store build provenance.
 4. **DEVICE-READY:** A33 and S24 are authorized; the iPhone is online; device

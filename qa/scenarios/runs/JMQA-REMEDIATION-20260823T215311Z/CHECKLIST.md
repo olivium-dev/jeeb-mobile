@@ -1,6 +1,6 @@
 # Staging-store remediation and physical rerun checklist
 
-Checked boxes represent observed evidence at this run's 2026-08-24 15:23 UTC
+Checked boxes represent observed evidence at this run's 2026-08-24 17:22 UTC
 snapshot. They do not inherit into a later build or deployment.
 
 ## A. Frozen identity and artifact gates
@@ -30,8 +30,20 @@ snapshot. They do not inherit into a later build or deployment.
 - [x] The historical Android Firebase client key has four exact Android
       package/signer restrictions; its existing Firebase API allowlist is
       preserved and no key value is retained in this evidence pack.
-- [x] Exact current mobile suite passes 7,868 tests with 66 intentional skips
-      and zero failures; compose-only empty/`new` chat IDs make no realtime call.
+- [x] Exact source-bearing commit `e07d4542` passes 7,882 CI-equivalent tests
+      with 66 intentional skips and zero failures in approximately 329 seconds;
+      compose-only empty/`new` chat IDs make no realtime call.
+- [x] Remove the committed development Super Admin passcode fallback; accept a
+      value only from a debug-only build define and keep it unavailable to
+      profile/release builds.
+- [x] Require `wss://` for live courier tracking outside the explicit
+      development flavor; the 22-test credential/transport focused suite and
+      focused fatal-info analysis pass.
+- [x] Flutter analyze and fatal-info are clean after removing generated
+      `build/ios/SourcePackages`; the initial 7,206 third-party cache
+      diagnostics are classified as a tool-scope error, not source findings.
+- [x] Firebase doctor, 13 protected-config focused tests, actionlint,
+      ShellCheck, Gitleaks, and the diff check pass.
 - [x] Reject the stale incremental Android output and rebuild both store
       artifacts after purging build caches; the current hashes differ from the
       pre-chat-fix binaries.
@@ -48,20 +60,36 @@ snapshot. They do not inherit into a later build or deployment.
 - [x] Replace Flutter's transparent launch placeholder with existing Jeeb
       branding and enforce the 1x/2x/3x scales in release inspection.
 
-Artifact gate result: **Android PASS; iOS PASS**. Neither result authorizes a
-scenario PASS.
+Artifact gate result: **Android/iOS HISTORICAL ARTIFACT PASS; upload held**.
+Neither result authorizes a scenario PASS.
 
-- [ ] Freeze every intended mobile change into an immutable revision without
-      dropping unrelated/user work, obtain independent release review, and
-      cryptographically bind these artifacts to that revision or force-clean
-      rebuild them from it.
-- [ ] Reconstruct the 133 unique changed tracked paths as coherent scoped
-      changes in clean worktrees; do not commit the current mixed index or the
-      245 untracked paths, and keep `.codex-proof`/signer material outside Git.
-- [ ] Keep both real old-identity Android Firebase config files deleted from the
+- [x] Preserve the historical 188-file sanitized selection from the dirty
+      `a8810345` audit and reconstruct it as immutable commit `e208a4c8`; do not
+      commit the mixed index, `.codex-proof`, binaries, or signer material.
+- [x] Merge `origin/main` `0c26c159` into the feature branch and reconcile PR
+      #276; source-bearing commit `e07d4542` has a 194-file diff with 12,392
+      insertions and 4,510 deletions.
+- [x] Keep all real Android/iOS Firebase config files absent from the
       reconstructed head; use only templates and protected config injection.
+- [x] Validate canonical historical `jeeb-5a293` / `app.jeeb.mobile.dev`
+      configuration without output and install the four named dev Firebase
+      repository Actions secrets; read back names/timestamps only.
+- [x] Prove `tool/run_with_dev_firebase_config.sh` removes injected dev config
+      after both a successful command and a failed command.
+- [x] Re-enable CI, Flutter CI, and Mobile CI; all three workflows are active.
+- [ ] Push local source-bearing commit `e07d4542` plus this evidence update and
+      require CI, Flutter CI, and Mobile CI all green at the resulting exact PR
+      head; remote head `8788a24d` has only the earlier fail-closed check.
+- [ ] Obtain independent exact-head mobile release approval, then force-clean
+      rebuild and reinspect both Android/iOS artifacts from that exact revision.
 
-Upload eligibility result: **BLOCKED on immutable source-review lineage**.
+Source-lineage closure criterion: **Given** the exact PR head after all three
+workflows are active, **when** the next source push completes, **then** CI,
+Flutter CI, Mobile CI, and independent review must be green at that exact head,
+and both signed artifacts must be rebuilt from it with recorded provenance.
+
+Upload eligibility result: **BLOCKED on full exact-head CI/review and fresh
+artifact rebuilds**.
 
 ## B. Live staging barrier — must pass before upload
 
@@ -89,19 +117,31 @@ Upload eligibility result: **BLOCKED on immutable source-review lineage**.
       a redirect.
 - [ ] TLS 1.0/1.1 handshakes fail and TLS 1.2+ succeeds; the current edge still
       accepts TLS 1.1.
+- [ ] Phase A1 deploys gateway with chat OFF and the descriptor contract ON.
+- [ ] Phase A2 deploys realtime compatibility and passes the real-descriptor
+      direct-host Phoenix gate while rollback remains armed.
+- [ ] Phase A3 enables edge/public WSS and passes the public realtime gate.
+- [ ] Phase B activates a small gateway slice and passes real
+      chat/user/mobile canaries before chat is turned ON.
+- [ ] Gateway, realtime, OTP, and voice recovery uses the Docker Engine API
+      with the exact captured service ID and candidate Version.Index; HTTP 409,
+      ambiguous transport, third-state drift, and unavailable authority remain
+      RED without a blind retry or CLI rollback toggle.
 - [ ] Immutable deployment identity, readiness, rollback, and post-rollback
       verification evidence is retained.
 - [ ] Fresh public probes replace every pre-deploy observation in the test log.
 
-Implementation status only: gateway #523 exact head `63b19dba` and OTP #27
-exact head `29ff7af` are remote-green and independently approved. OTP has 51
-unit, 13 integration, and 32 rollout/policy tests, including executable
-same-digest Spec-change rollback and drifted-restoration rejection. Realtime
-#14 is correcting three P1 and one P2 findings; voice #27 is correcting one
-newly proven full-Spec rollback P1 after all five prior findings and 173/173
-tests closed. Protected Firebase/Guardian/ticket and restricted Twilio `JEEB_*`
-secrets are installed. None is checked as live until deployment and probes
-pass.
+Implementation status only: infra #26 remains reviewed/green. Realtime #14
+`4959d9e` is remote-green (634 ExUnit, 48 policy/rollout, 15 WSS), but exact-head
+review found two P1s: the plain-CLI rollback race and the stale deployment
+runbook. Gateway bootstrap is local/unpushed from `63b19dba`. OTP `29ff7af` and
+voice `6509c840` remain test-green, but their prior rollout approvals are
+superseded by the same race and need Engine API version-CAS recovery plus fresh
+review. All five GitHub staging environments enforce their exact default
+branch. Protected Firebase/Guardian/ticket and restricted Twilio `JEEB_*`
+secrets are installed. Cloudflare authority and a confirmed physical SMS
+canary recipient remain absent. Nothing is live until those gates close, the
+binding sequence runs, and fresh public probes pass.
 
 Barrier result: **BLOCKED / NO-GO**.
 

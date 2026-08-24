@@ -235,3 +235,22 @@ M	test/super_login_real_login_parity_test.dart
 - Required next step: commit and independently review this exact selection,
   then force-clean rebuild, inspect, validate, and hash the signed AAB and IPA
   from the approved revision before any store upload.
+
+## Post-selection lineage — append-only reconciliation
+
+The 188-file manifest above remains the exact initial selection and is not
+rewritten to impersonate later commits.
+
+- Initial coherent reconstruction: `e208a4c8906330c8df126f2391ae149a8291e6f6`.
+- Main reconciliation: `8788a24ddec1e14ca9641bc6b8e4e2854991e87f`,
+  incorporating `origin/main` `0c26c159c9714b812bd2a0f6ec3cc9488c7d39c8`.
+- Current source-bearing hardening: `e07d4542`; committed development passcode
+  fallback removed and courier tracking made WSS-only outside dev.
+- Current source diff from `origin/main`: 194 files, 12,392 insertions, 4,510
+  deletions.
+- CI-equivalent Flutter 3.44.2 gate: 7,882 passed, 66 intentionally skipped,
+  0 failed in about 329 seconds; focused credential/transport tests 22/22 and
+  focused fatal-info analysis pass.
+- Remote CI, independent exact-head review, signed artifact rebuilds,
+  store delivery, and physical acceptance remain open. No protected input was
+  added to this lineage.
